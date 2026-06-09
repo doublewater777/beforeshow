@@ -8,7 +8,7 @@
 
 | 主机记录 | 记录类型 | 记录值 | TTL |
 |---------|---------|--------|-----|
-| `beforeshow` | A | `<你的 Lighthouse 公网 IP>` | 600 |
+| `beforeshow` | A | `124.222.189.17` | 600 |
 
 > 若 Lighthouse 只提供 IPv6，改用 AAAA 记录。
 
