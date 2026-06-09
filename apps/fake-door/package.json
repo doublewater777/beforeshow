@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "deploy:pages": "npm run build && npx wrangler pages deploy dist --branch main",
     "preview": "vite preview --host 0.0.0.0",
     "proxy:feishu": "node scripts/feishu-lead-proxy.mjs",
     "setup:feishu": "bash scripts/setup-feishu-bitable.sh",
