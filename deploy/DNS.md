@@ -6,11 +6,24 @@
 
 项目：`beforeshow`
 
+### 本地直传
+
 ```bash
 npm run build:fake-door
 cd apps/fake-door
 npm run deploy:pages
 ```
+
+### GitHub Actions 自动部署
+
+仓库已包含 `.github/workflows/deploy-fake-door.yml`。在 GitHub 仓库 Settings → Secrets and variables → Actions 里添加：
+
+```text
+CLOUDFLARE_ACCOUNT_ID=<你的 Cloudflare account id>
+CLOUDFLARE_API_TOKEN=<拥有 Cloudflare Pages 编辑权限的 API token>
+```
+
+之后 push 到 `main`，或在 Actions 里手动运行 `Deploy fake-door to Cloudflare Pages` workflow。
 
 生产环境变量：
 
