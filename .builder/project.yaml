@@ -1,0 +1,7 @@
+name: beforeshow
+current_stage: fake-door
+active_cycle: 2026-06-08-fake-door-validation
+updated_at: 2026-06-08
+links:
+  fake_door_stage: .builder/stages/04-fake-door.md
+  fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md

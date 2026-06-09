@@ -1,0 +1,19 @@
+{
+  "name": "beforeshow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @beforeshow/fake-door",
+    "dev:fake-door": "npm run dev --workspace @beforeshow/fake-door",
+    "build": "npm run build --workspaces --if-present",
+    "build:fake-door": "npm run build --workspace @beforeshow/fake-door",
+    "preview:fake-door": "npm run preview --workspace @beforeshow/fake-door",
+    "start:fake-door": "npm run start --workspace @beforeshow/fake-door",
+    "start:prod:fake-door": "npm run start:prod --workspace @beforeshow/fake-door"
+  }
+}

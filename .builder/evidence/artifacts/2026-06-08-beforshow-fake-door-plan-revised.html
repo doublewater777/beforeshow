@@ -1,0 +1,589 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--font-sans); }
+  .page { padding: 2rem 0; }
+  .section { margin-bottom: 3rem; }
+  .section-label { font-size: 11px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-text-tertiary); margin-bottom: 1rem; }
+  .section-title { font-size: 22px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 0.5rem; }
+  .section-sub { font-size: 14px; color: var(--color-text-secondary); margin-bottom: 1.5rem; line-height: 1.6; }
+  .divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 2.5rem 0; }
+
+  /* Priority matrix */
+  .matrix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .matrix-quad { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem; background: var(--color-background-primary); }
+  .quad-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
+  .quad-badge { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 20px; }
+  .q-high-val { background: #EAF3DE; color: #3B6D11; }
+  .q-med-val { background: #E6F1FB; color: #185FA5; }
+  .q-low-val { background: #FAEEDA; color: #854F0B; }
+  .q-skip { background: #F1EFE8; color: #5F5E5A; }
+  .quad-title { font-size: 13px; font-weight: 500; color: var(--color-text-primary); }
+  .feature-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--color-text-secondary); background: var(--color-background-secondary); border-radius: 20px; padding: 4px 10px; margin: 3px 3px 3px 0; border: 0.5px solid var(--color-border-tertiary); }
+  .chip-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+  .dot-green { background: #639922; }
+  .dot-blue { background: #378ADD; }
+  .dot-amber { background: #BA7517; }
+  .dot-gray { background: #888780; }
+
+  /* Test cards */
+  .test-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 1.25rem 1.5rem; margin-bottom: 12px; }
+  .test-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+  .test-num { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); margin-bottom: 4px; }
+  .test-name { font-size: 15px; font-weight: 500; color: var(--color-text-primary); }
+  .priority-tag { font-size: 11px; padding: 3px 10px; border-radius: 20px; flex-shrink: 0; margin-top: 2px; }
+  .p1 { background: #FCEBEB; color: #A32D2D; }
+  .p2 { background: #FAEEDA; color: #854F0B; }
+  .p3 { background: #E6F1FB; color: #185FA5; }
+  .test-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .test-field { font-size: 12px; }
+  .tf-label { color: var(--color-text-tertiary); margin-bottom: 2px; }
+  .tf-val { color: var(--color-text-secondary); line-height: 1.5; }
+  .test-hypothesis { font-size: 13px; color: var(--color-text-secondary); background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 10px 12px; margin-top: 10px; border-left: 2px solid var(--color-border-secondary); line-height: 1.6; }
+  .test-metric-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .metric-tag { font-size: 11px; color: var(--color-text-secondary); background: var(--color-background-secondary); padding: 3px 10px; border-radius: 20px; border: 0.5px solid var(--color-border-tertiary); }
+
+  /* Touchpoint flow */
+  .flow-row { display: flex; align-items: flex-start; gap: 0; margin-bottom: 0; }
+  .flow-step { flex: 1; display: flex; flex-direction: column; align-items: center; }
+  .flow-node { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; flex-shrink: 0; }
+  .flow-line { flex: 1; height: 1px; background: var(--color-border-secondary); align-self: center; margin-top: -18px; }
+  .flow-label { font-size: 11px; color: var(--color-text-secondary); text-align: center; margin-top: 8px; max-width: 80px; line-height: 1.4; }
+
+  /* Metrics table */
+  .metric-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .metric-table th { font-size: 11px; font-weight: 500; color: var(--color-text-tertiary); text-align: left; padding: 8px 12px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .metric-table td { padding: 10px 12px; border-bottom: 0.5px solid var(--color-border-tertiary); color: var(--color-text-secondary); vertical-align: top; }
+  .metric-table tr:last-child td { border-bottom: none; }
+  .metric-name { color: var(--color-text-primary); font-weight: 500; }
+  .threshold-pass { color: #3B6D11; font-weight: 500; }
+  .threshold-fail { color: #A32D2D; font-weight: 500; }
+
+  /* Timeline */
+  .timeline-row { display: flex; gap: 0; }
+  .tl-week { flex: 1; }
+  .tl-bar { height: 8px; border-radius: 4px; margin-bottom: 6px; }
+  .tl-label { font-size: 11px; color: var(--color-text-tertiary); text-align: center; }
+  .tl-tasks { padding: 8px 0; }
+  .tl-task { font-size: 11px; color: var(--color-text-secondary); padding: 3px 0; display: flex; align-items: center; gap: 5px; }
+  .tl-task::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--color-border-primary); flex-shrink: 0; }
+  .tl-divider { width: 1px; background: var(--color-border-tertiary); margin: 0 12px; }
+
+  /* Stat cards */
+  .stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .stat-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 1rem; }
+  .stat-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .stat-val { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .stat-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
+
+  /* Section tabs */
+  .tab-row { display: flex; gap: 4px; margin-bottom: 1.5rem; border-bottom: 0.5px solid var(--color-border-tertiary); padding-bottom: 0; }
+  .tab-btn { font-size: 13px; padding: 8px 16px; border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -0.5px; }
+  .tab-btn.active { color: var(--color-text-primary); border-bottom-color: var(--color-text-primary); font-weight: 500; }
+
+  .section-anchor { display: flex; align-items: center; gap: 10px; margin-bottom: 1.5rem; }
+  .anchor-num { width: 28px; height: 28px; border-radius: 50%; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 500; color: var(--color-text-secondary); flex-shrink: 0; }
+  .anchor-text { font-size: 18px; font-weight: 500; color: var(--color-text-primary); }
+</style>
+
+
+<h2 class="sr-only">「开场前」Fake Door Test 修正版——围绕 V2.1 最新优先级验证真实需求强度</h2>
+
+<div class="page">
+
+  <div class="section">
+    <p class="section-label">「开场前 V2.1」</p>
+    <h1 class="section-title">Fake Door Test 修正版</h1>
+    <p class="section-sub">本计划用于在正式开发前，通过落地页、极简原型和可交互假入口验证用户真实行为。修正版已对齐 V2.1 最新优先级：大倒计时首页情绪、AI 猜歌单可修正、音乐节多艺人模式上调为核心验证项；AI 离场统一改为 AI 交通；静态场馆指南暂缓，不进入本轮核心验证。</p>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">测试周期</div>
+        <div class="stat-val">4 周</div>
+        <div class="stat-sub">P0/P1/P2 分轮验证</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">功能门数量</div>
+        <div class="stat-val">7 个</div>
+        <div class="stat-sub">不含静态场馆指南</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">目标样本量</div>
+        <div class="stat-val">300+</div>
+        <div class="stat-sub">核心门优先保证样本</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">核心通过阈值</div>
+        <div class="stat-val">25%</div>
+        <div class="stat-sub">结合深度行为判断</div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">1</div>
+      <div class="anchor-text">为什么做 Fake Door Test</div>
+    </div>
+    <p class="section-sub">「开场前」的核心风险不是“用户说想要”，而是“用户是否真的会在演出前两周反复打开、预习、修正和切换”。因此，本轮 Fake Door 不只看点击，还要看深度行为：是否会修正歌单、是否会切换艺人、是否愿意围绕一个主演出进入状态。</p>
+
+    <div class="matrix-grid">
+      <div class="matrix-quad">
+        <div class="quad-header">
+          <span class="quad-badge q-high-val">P0 必须验证</span>
+        </div>
+        <div class="quad-title" style="margin-bottom:10px">核心情绪入口 × 核心预习行为</div>
+        <div>
+          <span class="feature-chip"><span class="chip-dot dot-green"></span>大倒计时首页情绪</span>
+          <span class="feature-chip"><span class="chip-dot dot-green"></span>AI 猜歌单 + 用户修正</span>
+          <span class="feature-chip"><span class="chip-dot dot-green"></span>音乐节多艺人模式</span>
+        </div>
+      </div>
+      <div class="matrix-quad">
+        <div class="quad-header">
+          <span class="quad-badge q-med-val">P1 重点验证</span>
+        </div>
+        <div class="quad-title" style="margin-bottom:10px">明确痛点 × 中高实现成本</div>
+        <div>
+          <span class="feature-chip"><span class="chip-dot dot-blue"></span>AI 交通方案</span>
+          <span class="feature-chip"><span class="chip-dot dot-blue"></span>多演出主演出切换</span>
+        </div>
+      </div>
+      <div class="matrix-quad">
+        <div class="quad-header">
+          <span class="quad-badge q-low-val">P2 探索验证</span>
+        </div>
+        <div class="quad-title" style="margin-bottom:10px">增强氛围 × 平台依赖风险</div>
+        <div>
+          <span class="feature-chip"><span class="chip-dot dot-amber"></span>B 站现场视频内嵌</span>
+        </div>
+      </div>
+      <div class="matrix-quad">
+        <div class="quad-header">
+          <span class="quad-badge q-skip">暂缓 / 观测</span>
+        </div>
+        <div class="quad-title" style="margin-bottom:10px">非核心或高运营成本</div>
+        <div>
+          <span class="feature-chip"><span class="chip-dot dot-gray"></span>静态场馆指南</span>
+          <span class="feature-chip"><span class="chip-dot dot-gray"></span>先审后发留言板</span>
+          <span class="feature-chip"><span class="chip-dot dot-gray"></span>情绪明信片生成</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">2</div>
+      <div class="anchor-text">7 个测试门详细方案</div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #E24B4A;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 01 · P0 灵魂入口</div>
+          <div class="test-name">大倒计时首页情绪感知</div>
+        </div>
+        <span class="priority-tag p1">P0 首轮</span>
+      </div>
+      <div class="test-hypothesis">假设：相比普通倒计时工具，用户会因为“开场前两周慢慢进入状态”的情绪首页而愿意再次打开、截图分享或设为主演出首页。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">A/B 测试：A 组普通数字倒计时；B 组黑底大倒计时 + 主色调微光 + “今晚先听这首”弱入口</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">B 组提供“保存这张开场前倒计时”与“明天继续靠近一点”提示</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">B 组次日回访率比 A 组高 ≥ 15%；或截图/分享点击率 ≥ 20%</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：次日回访率差值</span>
+        <span class="metric-tag">次指标：截图/分享点击率</span>
+        <span class="metric-tag">风险：情绪是否足够强</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #E24B4A;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 02 · P0 核心预习</div>
+          <div class="test-name">AI 猜歌单 + 用户修正优先级</div>
+        </div>
+        <span class="priority-tag p1">P0 首轮</span>
+      </div>
+      <div class="test-hypothesis">假设：半熟用户不只想“看 AI 猜歌单”，还会主动修正结果，把它变成自己的预习歌单。修正行为比单纯点击更能证明需求强度。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">预习页展示 AI 预测歌单，每首歌提供“很可能会唱 / 不太可能 / 重点预习 / 已经听过 / 移除”按钮</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">点击后即时重排本地歌单，提示“已帮你把这首放前一点”；加入/移除暂不真实保存也要有反馈</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">歌单入口 CTR ≥ 25%；修正行为率 ≥ 35%；人均修正歌曲数 ≥ 2</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：修正行为率</span>
+        <span class="metric-tag">次指标：人均修正歌曲数</span>
+        <span class="metric-tag">用户类型：半熟用户</span>
+        <span class="metric-tag">关键判断：AI 黑盒是否变成个人歌单</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #E24B4A;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 03 · P0 音乐节模式</div>
+          <div class="test-name">多艺人切换 + 想看/待定/不看 + 推荐视频</div>
+        </div>
+        <span class="priority-tag p1">P0 首轮</span>
+      </div>
+      <div class="test-hypothesis">假设：音乐节用户面对多艺人阵容时，最需要的不是场馆地图，而是快速判断“我要看谁、先听谁、先看哪段现场”。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">音乐节演示页顶部展示艺人横滑卡片，点击艺人后下方切换必听 3 首、B 站现场视频和“想看/待定/不看”按钮</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">标记后即时更新艺人状态；视频入口展示“内嵌播放准备中，先帮你记住这位”</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">每位用户标记艺人数 ≥ 3；艺人切换次数 ≥ 4；视频点击率 ≥ 25%</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：艺人标记完成率</span>
+        <span class="metric-tag">次指标：艺人切换深度</span>
+        <span class="metric-tag">测试场景：音乐节前两周</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #378ADD;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 04 · P1 AI 交通</div>
+          <div class="test-name">AI 交通——去程/入场/散场策略卡</div>
+        </div>
+        <span class="priority-tag p2">P1 首轮</span>
+      </div>
+      <div class="test-hypothesis">假设：用户在演出当天最需要的是“我怎么去、怎么进、怎么走”，因此 AI 交通应覆盖完整交通链路，而不是只验证离场。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">演出详情页展示「生成 AI 交通卡 →」，入口文案包含去程提醒、入场建议、散场返程</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">展示一张示例交通卡 mockup + “等我们接入实时搜索后提醒我”按钮</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">CTR ≥ 20%；通知转化 ≥ 12%；用户更关注“散场”或“去程”的比例需单独记录</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：交通卡 CTR</span>
+        <span class="metric-tag">次指标：通知转化率</span>
+        <span class="metric-tag">拆分指标：去程/入场/散场兴趣</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #378ADD;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 05 · P1 多演出</div>
+          <div class="test-name">主演出聚焦切换机制</div>
+        </div>
+        <span class="priority-tag p2">P1 首轮</span>
+      </div>
+      <div class="test-hypothesis">假设：重度演出用户同时拥有多场票，他们需要一个“当前主演出”来承载首页情绪，而不是多个倒计时并列。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">“我的现场”页展示 2-3 张演出卡片，置顶当前主演出，其他卡片弱化；首页支持轻扫切换</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">点击“设为主演出”后，首页主色调和今晚推荐即时切换，提示“今晚先陪你走向这一场”</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">点击“设为主演出”率 ≥ 30%；或 60% 用户选择“单个主演出”优于“多倒计时并列”</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：主演出切换率</span>
+        <span class="metric-tag">次指标：首页轻扫次数</span>
+        <span class="metric-tag">用户类型：重度演出用户</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #BA7517;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 06 · P2 视频预习</div>
+          <div class="test-name">B 站现场视频内嵌播放意图</div>
+        </div>
+        <span class="priority-tag p3">P2 次轮</span>
+      </div>
+      <div class="test-hypothesis">假设：现场视频能增强预习氛围，但必须验证它是否会把用户从「开场前」带走，或是否值得承担 WebView 内嵌播放的不稳定性。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">预习页展示“先看 30 秒现场感”视频卡，点击后进入模拟内嵌播放器页，保留“去 B 站看原视频”按钮</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">先展示内嵌播放器 mockup，不解析视频流；若失败则展示“打开 B 站原视频”</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">视频卡 CTR ≥ 25%；播放器停留 ≥ 20 秒；播放后返回预习页率 ≥ 60%</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：视频卡 CTR</span>
+        <span class="metric-tag">次指标：播放后回访率</span>
+        <span class="metric-tag">关键风险：是否带走用户</span>
+      </div>
+    </div>
+
+    <div class="test-card" style="border-left: 3px solid #888780;">
+      <div class="test-card-header">
+        <div>
+          <div class="test-num">TEST 07 · P3 演后余韵</div>
+          <div class="test-name">匿名心愿留言板入口</div>
+        </div>
+        <span class="priority-tag p3">P3 观测</span>
+      </div>
+      <div class="test-hypothesis">假设：演后 T+1 状态下，用户有留言/记录的冲动，但需要验证他们是否愿意在一个陌生 App 里表达，而不是直接发朋友圈或小红书。</div>
+      <div class="test-grid">
+        <div class="test-field">
+          <div class="tf-label">门的形式</div>
+          <div class="tf-val">演后卡片页面底部「给这场演出留一句话 →」弱入口</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">点击后反馈</div>
+          <div class="tf-val">展示模拟留言墙，输入框提示“先只给自己看，等我们准备好再公开”</div>
+        </div>
+        <div class="test-field">
+          <div class="tf-label">成功判定</div>
+          <div class="tf-val">点击率 ≥ 15%；实际提交内容率 ≥ 8%</div>
+        </div>
+      </div>
+      <div class="test-metric-row">
+        <span class="metric-tag">主指标：入口点击率</span>
+        <span class="metric-tag">次指标：内容提交率</span>
+        <span class="metric-tag">备注：低阈值，纯观测</span>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">3</div>
+      <div class="anchor-text">测试触点与用户接触方式</div>
+    </div>
+    <p class="section-sub" style="margin-bottom:1.5rem">不同测试门需要触达不同类型的用户，渠道选择决定样本质量。核心原则：P0 门必须在极简原型里验证深度行为，不能只看落地页点击。</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:8px">📱 渠道 A · 演出前两周种草帖</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">在小红书、微博发布“开场前两周我怎么预习 XX 演唱会”的体验帖，内嵌落地页链接。目标触达半熟用户和熟粉。</div>
+        <div class="test-metric-row" style="margin-top:8px">
+          <span class="metric-tag">适用 TEST 01 02 04 06</span>
+        </div>
+      </div>
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:8px">🎪 渠道 B · 音乐节阵容话题</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">在音乐节 hashtag 下发布“这么多艺人我到底该看谁”的内容，导流到多艺人演示页。重点验证音乐节预习与标记行为。</div>
+        <div class="test-metric-row" style="margin-top:8px">
+          <span class="metric-tag">适用 TEST 03</span>
+        </div>
+      </div>
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:8px">🔗 渠道 C · TestFlight 极简原型</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">招募 50-100 名种子用户安装极简原型，包含可交互假入口。用于追踪首页回访、歌单修正、主演出切换、艺人切换等深度行为。</div>
+        <div class="test-metric-row" style="margin-top:8px">
+          <span class="metric-tag">适用 TEST 01 02 03 05</span>
+        </div>
+      </div>
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:8px">📊 渠道 D · 演后问卷 + 交通回忆</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.7">演出结束次日向种子用户发送问卷，询问上次去程/散场体验、是否查看官方交通通知、是否愿意使用 AI 交通卡。</div>
+        <div class="test-metric-row" style="margin-top:8px">
+          <span class="metric-tag">适用 TEST 04 07</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">4</div>
+      <div class="anchor-text">判定标准与决策框架</div>
+    </div>
+
+    <table class="metric-table">
+      <thead>
+        <tr>
+          <th>测试门</th>
+          <th>核心指标</th>
+          <th>通过阈值 → 建议开发</th>
+          <th>失败阈值 → 重新考量</th>
+          <th>决策影响</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="metric-name">01 大倒计时首页</td>
+          <td>次日回访率差值 + 分享</td>
+          <td class="threshold-pass">B 组高 ≥ 15%</td>
+          <td class="threshold-fail">差值 < 5%</td>
+          <td>首页情绪动效是否值得作为 P0 投入；Reanimated 动效复杂度是否必要</td>
+        </tr>
+        <tr>
+          <td class="metric-name">02 AI 猜歌单修正</td>
+          <td>修正行为率</td>
+          <td class="threshold-pass">≥ 35%</td>
+          <td class="threshold-fail">< 15%</td>
+          <td>是否从“AI 预测展示”升级为“AI + 用户共创个人预习歌单”</td>
+        </tr>
+        <tr>
+          <td class="metric-name">03 音乐节多艺人</td>
+          <td>标记完成率 + 艺人切换</td>
+          <td class="threshold-pass">标记 ≥ 70%，切换 ≥ 4 次</td>
+          <td class="threshold-fail">标记 < 40%</td>
+          <td>音乐节模式是否作为核心差异化功能进入 V2.1</td>
+        </tr>
+        <tr>
+          <td class="metric-name">04 AI 交通</td>
+          <td>CTR + 通知转化</td>
+          <td class="threshold-pass">CTR ≥ 20%</td>
+          <td class="threshold-fail">< 8%</td>
+          <td>搜索型 AI 交通是否值得投入；用户更关心去程还是散场</td>
+        </tr>
+        <tr>
+          <td class="metric-name">05 主演出切换</td>
+          <td>切换行为率</td>
+          <td class="threshold-pass">≥ 30%</td>
+          <td class="threshold-fail">< 15%</td>
+          <td>是否需要多演出状态机；首页是否坚持单主演出排他逻辑</td>
+        </tr>
+        <tr>
+          <td class="metric-name">06 B 站视频</td>
+          <td>CTR + 播放后回访率</td>
+          <td class="threshold-pass">CTR ≥ 25% 且回访 ≥ 60%</td>
+          <td class="threshold-fail">回访 < 40%</td>
+          <td>内嵌 WebView 是否值得；外跳是否足够；是否会带走用户</td>
+        </tr>
+        <tr>
+          <td class="metric-name">07 留言板</td>
+          <td>提交率</td>
+          <td class="threshold-pass">≥ 8%</td>
+          <td class="threshold-fail">< 3%</td>
+          <td>先审后发 UGC 合规投入是否划算</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">5</div>
+      <div class="anchor-text">4 周执行计划</div>
+    </div>
+
+    <div class="timeline-row">
+      <div class="tl-week">
+        <div class="tl-bar" style="background:#E24B4A;"></div>
+        <div class="tl-label">第 1 周</div>
+        <div class="tl-tasks">
+          <div class="tl-task">制作落地页与极简原型</div>
+          <div class="tl-task">完成 P0 假入口 UI</div>
+          <div class="tl-task">招募种子用户 50-100 人</div>
+          <div class="tl-task">定义埋点：点击 + 深度行为</div>
+        </div>
+      </div>
+      <div class="tl-divider"></div>
+      <div class="tl-week">
+        <div class="tl-bar" style="background:#BA7517;"></div>
+        <div class="tl-label">第 2 周</div>
+        <div class="tl-tasks">
+          <div class="tl-task">P0 测试门上线</div>
+          <div class="tl-task">TEST 01 02 03</div>
+          <div class="tl-task">小红书/微博/音乐节话题导流</div>
+          <div class="tl-task">每日监控深度行为</div>
+        </div>
+      </div>
+      <div class="tl-divider"></div>
+      <div class="tl-week">
+        <div class="tl-bar" style="background:#378ADD;"></div>
+        <div class="tl-label">第 3 周</div>
+        <div class="tl-tasks">
+          <div class="tl-task">P1/P2 测试门上线</div>
+          <div class="tl-task">TEST 04 05 06</div>
+          <div class="tl-task">TestFlight 原型迭代</div>
+          <div class="tl-task">P0 中期复盘并调整文案</div>
+        </div>
+      </div>
+      <div class="tl-divider"></div>
+      <div class="tl-week">
+        <div class="tl-bar" style="background:#3B6D11;"></div>
+        <div class="tl-label">第 4 周</div>
+        <div class="tl-tasks">
+          <div class="tl-task">TEST 07 观测上线</div>
+          <div class="tl-task">全量数据汇总</div>
+          <div class="tl-task">输出 P0/P1/P2 决策报告</div>
+          <div class="tl-task">确定 V2.1 开发优先级</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="section">
+    <div class="section-anchor">
+      <div class="anchor-num">6</div>
+      <div class="anchor-text">Fake Door 体验原则</div>
+    </div>
+    <p class="section-sub">假入口不是欺骗用户，而是诚实验证需求。每个入口点击后都必须有回应，并且要符合「开场前」的克制、温柔和陪伴语气。</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:6px">点击后必须有回应</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6">绝不出现空白页或报错。假入口点击后应给出温和反馈，例如“先帮你记住，等我们准备好”。</div>
+      </div>
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:6px">优先记录深度行为</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6">P0 功能不能只看 CTR，还要看修正歌单、切换艺人、切换主演出、次日回访等行为。</div>
+      </div>
+      <div class="test-card">
+        <div style="font-size:13px;font-weight:500;color:var(--color-text-primary);margin-bottom:6px">不承诺不存在的能力</div>
+        <div style="font-size:12px;color:var(--color-text-secondary);line-height:1.6">AI 交通、B 站内嵌、歌单修正都可以用原型验证，但文案不能暗示功能已经真实可用。</div>
+      </div>
+    </div>
+  </div>
+
+</div>
