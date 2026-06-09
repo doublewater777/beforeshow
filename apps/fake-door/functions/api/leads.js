@@ -12,12 +12,48 @@ function json(body, init = {}) {
 }
 
 function normalizeLead(body) {
+  const submittedAt = body.submitted_at ?? new Date().toISOString();
+
   return {
-    email: body.email ?? "",
-    show: body.show ?? "",
+    email: String(body.email ?? "").trim(),
+    show: String(body.show ?? "").trim(),
     session: body.session ?? "",
-    submitted_at: body.submitted_at ?? new Date().toISOString(),
+    submitted_at: submittedAt,
     source: body.source ?? "fake-door",
+  };
+}
+
+function validateLead(lead) {
+  if (!lead.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) {
+    return "请填写有效邮箱";
+  }
+  if (!lead.show) {
+    return "请填写演出名称";
+  }
+  return "";
+}
+
+async function mirrorToFeishu(webhookUrl, lead) {
+  if (!webhookUrl) return null;
+
+  const upstream = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(lead),
+  });
+
+  const text = await upstream.text();
+  let body;
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    body = { raw: text };
+  }
+
+  return {
+    ok: upstream.ok,
+    status: upstream.status,
+    body,
   };
 }
 
@@ -26,37 +62,43 @@ export async function onRequestOptions() {
 }
 
 export async function onRequestPost(context) {
-  const webhookUrl = context.env.FEISHU_WEBHOOK_URL;
-  if (!webhookUrl) {
-    return json({ ok: false, error: "未配置 FEISHU_WEBHOOK_URL" }, { status: 502 });
-  }
-
   try {
     const body = await context.request.json();
-    const upstream = await fetch(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(normalizeLead(body)),
-    });
+    const lead = normalizeLead(body);
+    const validationError = validateLead(lead);
 
-    const text = await upstream.text();
-    let feishu;
+    if (validationError) {
+      return json({ ok: false, error: validationError }, { status: 400 });
+    }
+
+    if (!context.env.BEFORESHOW_LEADS) {
+      return json({ ok: false, error: "未配置 BEFORESHOW_LEADS KV" }, { status: 502 });
+    }
+
+    const id = `${Date.now()}-${crypto.randomUUID()}`;
+    const key = `lead:${lead.submitted_at}:${id}`;
+    await context.env.BEFORESHOW_LEADS.put(key, JSON.stringify({
+      id,
+      ...lead,
+      user_agent: context.request.headers.get("user-agent") ?? "",
+      ip_country: context.request.cf?.country ?? "",
+    }));
+
+    let feishu = null;
+    let feishuError = null;
     try {
-      feishu = text ? JSON.parse(text) : {};
-    } catch {
-      feishu = { raw: text };
+      feishu = await mirrorToFeishu(context.env.FEISHU_WEBHOOK_URL, lead);
+    } catch (err) {
+      feishuError = err instanceof Error ? err.message : "飞书镜像失败";
     }
 
-    if (!upstream.ok) {
-      return json({
-        ok: false,
-        status: upstream.status,
-        error: "飞书 webhook 返回错误",
-        detail: feishu,
-      }, { status: upstream.status });
-    }
-
-    return json({ ok: true, mode: "webhook", feishu });
+    return json({
+      ok: true,
+      mode: "kv",
+      id,
+      mirrored: feishu?.ok === true,
+      mirror_error: feishu?.ok === false ? "飞书 webhook 返回错误" : feishuError,
+    });
   } catch (err) {
     return json({
       ok: false,

@@ -2,20 +2,20 @@
 
 ## Current Summary
 
-BeforeShow is testing whether people with a real upcoming concert or music festival will move beyond polite interest and leave contact information for a prep companion. The current page is a usable local fake-door surface with a landing page, interactive feature doors, a waitlist form, local event tracking, and JSON/CSV export.
+BeforeShow is testing whether people with a real upcoming concert or music festival will move beyond polite interest and leave contact information for a prep companion. The current page is a usable local fake-door surface with a landing page, interactive feature doors, usage-flow narrative, audience fit section, a waitlist form, local event tracking, and JSON/CSV export.
 
 The riskiest demand signal is not a click. It is whether the target user has a real upcoming show and voluntarily leaves contact information after trying one of the doors.
 
 ## Inputs
 
-Target wedge: 半熟演出用户、熟粉、音乐节用户和同时有多场票的重度用户。
+Target wedge: 已买五月天演唱会门票、正在等开场的用户。
 
-Promise: 灯亮之前，先进入状态。演出前两周，通过倒计时、AI 预习歌单、多艺人整理和交通提醒降低准备成本。
+Promise: 输入下一场要看的演出，生成开场前 14 天预习清单。通过倒数提醒、AI 预测歌单、现场视频、出行方案，以及导入网易云音乐/QQ 音乐，帮助用户更快进入状态并降低准备成本。
 
 Traffic source:
 
 - 演出前两周种草帖。
-- 音乐节阵容话题。
+- 五月天演唱会相关讨论和抢票后分享。
 - TestFlight or local prototype user test.
 - 演后问卷回访。
 

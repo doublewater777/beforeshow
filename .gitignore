@@ -6,3 +6,4 @@ dist/
 .env.local
 .feishu-beforeshow.json
 .playwright-mcp/
+.wrangler

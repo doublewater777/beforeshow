@@ -3,15 +3,108 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta -->
+    <title>开场前 BeforeShow — 让演出前的两周也成为现场的一部分</title>
     <meta
       name="description"
-      content="开场前 fake-door demand test. 验证演出前两周的倒计时、预习歌单、音乐节多艺人和 AI 交通需求。"
+      content="BeforeShow 把开场前的日子，变成一点点靠近现场的日常。通勤时重新听一首歌，睡前看一段现场——出门那天，你已经在那场演出了。"
     />
-    <link rel="icon" href="/concert-before-lights.png" />
-    <title>开场前 Fake Door Test</title>
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://beforeshow.doublewaterapps.com/" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="开场前 BeforeShow" />
+    <meta property="og:title" content="开场前 BeforeShow — 从买票到开场，每一秒都是前奏" />
+    <meta
+      property="og:description"
+      content="给买了票、正在等开场的人。输入下一场演出，生成开场前 14 天预习清单：倒数提醒、AI 预测歌单、现场视频、出行方案，并支持导入网易云音乐和 QQ 音乐。"
+    />
+    <meta property="og:url" content="https://beforeshow.doublewaterapps.com/" />
+    <meta property="og:image" content="https://beforeshow.doublewaterapps.com/concert-before-lights.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="zh_CN" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="开场前 BeforeShow — 从买票到开场，每一秒都是前奏" />
+    <meta
+      name="twitter:description"
+      content="给买了票、正在等开场的人。把演出前两周变成慢慢靠近现场的日常。"
+    />
+    <meta name="twitter:image" content="https://beforeshow.doublewaterapps.com/concert-before-lights.png" />
+
+    <!-- Favicon -->
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/logo.svg" />
+
+    <!-- Preconnect for external resources -->
+    <link rel="preconnect" href="https://player.bilibili.com" />
+    <link rel="preconnect" href="https://i0.hdslb.com" />
+    <link rel="dns-prefetch" href="https://player.bilibili.com" />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "开场前 BeforeShow",
+      "alternateName": "BeforeShow",
+      "url": "https://beforeshow.doublewaterapps.com/",
+      "description": "给买了票、正在等开场的人。把演出前两周变成慢慢靠近现场的日常。",
+      "applicationCategory": "LifestyleApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CNY"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "BeforeShow"
+      }
+    }
+    </script>
+
+    <!-- Additional structured data for the concert preview use case -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "开场前 — 演出预习体验",
+      "description": "输入下一场演出，生成开场前 14 天预习清单：倒数提醒、AI 预测歌单、现场视频和出行方案，并支持导入网易云音乐和 QQ 音乐。",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "CNY",
+        "availability": "https://schema.org/PreOrder"
+      }
+    }
+    </script>
+
+    <!-- Sitemap -->
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml" />
+
+    <!-- Theme -->
+    <meta name="theme-color" content="#0a0a0f" />
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Noscript fallback for crawlers / non-JS environments -->
+      <noscript>
+        <div style="padding:40px 20px; max-width:640px; margin:0 auto; font-family:-apple-system,sans-serif; color:#f2f2f7; background:#0a0a0f; min-height:100vh;">
+          <h1 style="font-size:42px; font-weight:800; margin-bottom:16px;">开场前 <span style="color:#1db954;">BeforeShow</span></h1>
+          <p style="font-size:18px; line-height:1.7; color:rgba(242,242,247,0.7); margin-bottom:32px;">
+            给买了票、正在等开场的人。输入下一场演出，生成倒数提醒、AI 预测歌单、现场视频和出行方案。
+          </p>
+          <p style="font-size:14px; color:rgba(242,242,247,0.5);">
+            BeforeShow 支持 JavaScript 以获得完整体验。请启用 JavaScript 或稍后访问。
+          </p>
+        </div>
+      </noscript>
+    </div>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
