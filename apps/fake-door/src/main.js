@@ -179,7 +179,7 @@ function formatDate(iso) {
 function render() {
   const app = document.getElementById("app");
   if (!app) return;
-  document.title = `开场前 BeforeShow — ${selectedShow().artist}`;
+  document.title = `开场前 BeforeShow`;
   app.innerHTML = `
     <a href="#main-content" class="skip-link">跳到主要内容</a>
     ${renderNav()}
