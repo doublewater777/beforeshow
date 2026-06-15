@@ -3,6 +3,8 @@ dist/
 .DS_Store
 *.log
 .env
+.build
+xcuserdata/
 .env.local
 .feishu-beforeshow.json
 .playwright-mcp/

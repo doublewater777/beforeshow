@@ -6,4 +6,4 @@ export const primaryAudience = {
   description: "Bought a ticket, knows only a few songs, and wants to feel ready without turning preparation into homework.",
 };
 
-export const corePromise = "灯亮之前，先进入状态。";
+export const corePromise = "开场之前，先进入状态。";
