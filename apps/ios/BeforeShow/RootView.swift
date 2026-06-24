@@ -119,9 +119,14 @@ private struct CurrentShowHomeView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
+    @State private var isShowingToolsSheet = false
 
     private let selector = CurrentShowSelector()
     private let formatter = ShowDisplayFormatter()
+
+    private var currentShow: Show? {
+        selector.selectCurrentShow(from: shows, manualSelection: selections.first)
+    }
 
     var body: some View {
         NavigationStack {
@@ -129,7 +134,7 @@ private struct CurrentShowHomeView: View {
                 CurrentShowStageBackground()
                     .ignoresSafeArea()
 
-                if let show = selector.selectCurrentShow(from: shows, manualSelection: selections.first) {
+                if let show = currentShow {
                     CurrentShowContentView(show: show, formatter: formatter)
                 } else {
                     CurrentShowEmptyStateView(onAddShow: {
@@ -137,11 +142,185 @@ private struct CurrentShowHomeView: View {
                     })
                 }
             }
+            .overlay(alignment: .top) {
+                homeHeader
+            }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet()
             }
+            .sheet(isPresented: $isShowingToolsSheet) {
+                if let show = currentShow {
+                    CurrentShowToolsSheet(show: show)
+                        .presentationDetents([.medium])
+                        .presentationDragIndicator(.visible)
+                }
+            }
         }
+    }
+
+    @ViewBuilder
+    private var homeHeader: some View {
+        HStack(alignment: .center) {
+            Text("当前现场")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(BSColor.textSecondary)
+
+            Spacer()
+
+            HStack(spacing: 12) {
+                homeToolbarButton(
+                    systemImage: "plus",
+                    accessibilityLabel: "添加现场",
+                    action: { isShowingAddShowCoordinator = true }
+                )
+
+                if currentShow != nil {
+                    homeToolbarButton(
+                        systemImage: "ellipsis",
+                        accessibilityLabel: "全部功能",
+                        action: { isShowingToolsSheet = true }
+                    )
+                }
+            }
+        }
+        .padding(.horizontal, 28)
+        .padding(.top, 18)
+    }
+
+    private func homeToolbarButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+                .frame(width: 40, height: 40)
+                .background(Color.white.opacity(0.10))
+                .clipShape(Circle())
+        }
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+}
+
+// MARK: - Tools Sheet
+
+private struct CurrentShowToolsSheet: View {
+    let show: Show
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                CurrentShowStageBackground()
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: BSSpacing.md) {
+                        Text("这场现场")
+                            .font(BSFont.tag)
+                            .tracking(1.4)
+                            .foregroundColor(BSColor.textTertiary)
+                            .textCase(.uppercase)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        toolLink(
+                            destination: CandidateSongsView(show: show),
+                            iconName: "mic.fill",
+                            title: "候选曲目",
+                            subtitle: "编辑推测歌单",
+                            accent: BSColor.Accent.candidate
+                        )
+
+                        toolLink(
+                            destination: RoundTripPlanView(show: show),
+                            iconName: "tram.fill",
+                            title: "往返计划",
+                            subtitle: "去程和返程安排",
+                            accent: BSColor.Accent.travel
+                        )
+
+                        toolLink(
+                            destination: ShowVideosView(show: show),
+                            iconName: "play.rectangle.fill",
+                            title: "现场视频",
+                            subtitle: "开场前先看几场真正的现场",
+                            accent: BSColor.Accent.video
+                        )
+
+                        toolLink(
+                            destination: ShowFragmentListView(show: show),
+                            iconName: "sparkles.rectangle.stack",
+                            title: "现场碎片",
+                            subtitle: "照片、视频和语音",
+                            accent: BSColor.Accent.fragment
+                        )
+                    }
+                    .padding(BSSpacing.md)
+                    .padding(.top, BSSpacing.lg)
+                    .padding(.bottom, BSSpacing.xl)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .toolbarBackground(.hidden, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textPrimary)
+                }
+            }
+        }
+    }
+
+    private func toolLink<Destination: View>(
+        destination: Destination,
+        iconName: String,
+        title: String,
+        subtitle: String,
+        accent: Color
+    ) -> some View {
+        NavigationLink {
+            destination
+        } label: {
+            HStack(spacing: BSSpacing.md) {
+                Image(systemName: iconName)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 44, height: 44)
+                    .background(accent.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    Text(title)
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.textPrimary)
+
+                    Text(subtitle)
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                }
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.textTertiary)
+            }
+            .padding(BSSpacing.md)
+            .background(Color.white.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.lg)
+                    .stroke(BSColor.border, lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -164,16 +343,40 @@ private struct CurrentShowContentView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                posterCard
-                    .padding(.horizontal, BSSpacing.md)
-                    .padding(.top, BSSpacing.xl)
+                ZStack {
+                    posterCardGlow
+                    posterCard
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 76)
 
                 countdownSection
-                    .padding(.top, BSSpacing.xl)
-                    .padding(.bottom, 120)
+                    .padding(.top, 8)
+                    .offset(y: -6)
+                    .padding(.bottom, BSLayout.floatingTabBarClearance + 30)
             }
         }
         .scrollIndicators(.hidden)
+    }
+
+    private var posterCardGlow: some View {
+        Ellipse()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.70, green: 0.53, blue: 1.0).opacity(0.22),
+                        Color(red: 0.49, green: 0.81, blue: 1.0).opacity(0.10),
+                        Color.clear
+                    ],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 220
+                )
+            )
+            .frame(maxWidth: .infinity)
+            .frame(height: 430)
+            .blur(radius: 44)
+            .offset(y: -10)
     }
 
     private var posterCard: some View {
@@ -181,73 +384,90 @@ private struct CurrentShowContentView: View {
             ZStack(alignment: .bottomLeading) {
                 ShowCoverImageView(
                     urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.2,
-                    contentMode: .fill,
-                    alignment: .top,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fit,
+                    alignment: .center,
                     enforcesAspectRatio: false,
                     cornerRadius: 32
                 )
                 .frame(width: proxy.size.width, height: proxy.size.height)
+                .background(Color.black)
                 .saturation(phase.imageSaturation)
                 .opacity(phase.imageOpacity)
 
                 LinearGradient(
                     colors: [
                         Color.clear,
-                        Color.black.opacity(0.45),
-                        Color.black.opacity(0.92)
+                        Color.black.opacity(0.10),
+                        Color.black.opacity(0.70),
+                        Color.black.opacity(0.96)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
 
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                LinearGradient(
+                    colors: [
+                        Color.clear,
+                        Color.black.opacity(0.94),
+                        Color.black
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: proxy.size.height * 0.34)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+
+                VStack(alignment: .leading, spacing: 10) {
                     Text(show.name)
-                        .font(.system(size: 26, weight: .bold))
+                        .font(.system(size: 25, weight: .bold))
                         .foregroundColor(BSColor.textPrimary)
                         .lineLimit(3)
-                        .minimumScaleFactor(0.78)
+                        .minimumScaleFactor(0.72)
 
                     Text(heroMetadata)
-                        .font(BSFont.caption)
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Color.white.opacity(0.70))
                         .lineLimit(2)
                 }
-                .padding(22)
+                .padding(.horizontal, 26)
+                .padding(.bottom, 26)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
         }
-        .aspectRatio(3.0 / 4.2, contentMode: .fit)
+        .aspectRatio(3.0 / 4.0, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 32))
         .overlay(
             RoundedRectangle(cornerRadius: 32)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                .stroke(Color.white.opacity(0.22), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.5), radius: 32, x: 0, y: 20)
     }
 
     private var countdownSection: some View {
-        ZStack {
-            StageOrb()
-                .frame(width: 140, height: 140)
-                .offset(y: -18)
+        VStack(spacing: 8) {
+            phase.countdownView()
 
-            VStack(spacing: BSSpacing.sm) {
-                phase.countdownView()
-
-                Text(phase.helperText)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .multilineTextAlignment(.center)
-            }
+            Text(phase.helperText)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundColor(BSColor.textTertiary)
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
     }
 
     private var heroMetadata: String {
-        [
-            show.venueName,
-            show.city,
+        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cityText = {
+            guard let city, !city.isEmpty else { return nil as String? }
+            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil as String? }
+            return city
+        }()
+
+        return [
+            venue,
+            cityText,
             formatter.dateText(for: show)
         ]
         .compactMap { value in
@@ -480,18 +700,29 @@ private enum DebugSampleShowSeeder {
         }
 
         do {
-            let existingNames = try Set(modelContext.fetch(FetchDescriptor<Show>()).map(\.name))
-            var insertedShows: [Show] = []
+            let existingShows = try modelContext.fetch(FetchDescriptor<Show>())
+            var showsByName = Dictionary(uniqueKeysWithValues: existingShows.map { ($0.name, $0) })
+            var seededShows: [Show] = []
 
-            for draft in sampleDrafts where !existingNames.contains(draft.name) {
-                let show = try draft.makeShow()
-                modelContext.insert(show)
-                insertedShows.append(show)
+            for draft in sampleDrafts {
+                if let show = showsByName[draft.name] {
+                    apply(draft, to: show)
+                    seededShows.append(show)
+                } else {
+                    let show = try draft.makeShow()
+                    modelContext.insert(show)
+                    showsByName[show.name] = show
+                    seededShows.append(show)
+                }
             }
 
-            if let firstShow = insertedShows.first,
-               try modelContext.fetch(FetchDescriptor<CurrentShowSelection>()).isEmpty {
-                modelContext.insert(CurrentShowSelection(selectedShowID: firstShow.id))
+            if let firstShow = seededShows.first {
+                let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+                if let selection = selections.first {
+                    selection.select(showID: firstShow.id)
+                } else {
+                    modelContext.insert(CurrentShowSelection(selectedShowID: firstShow.id))
+                }
             }
 
             try modelContext.save()
@@ -503,12 +734,13 @@ private enum DebugSampleShowSeeder {
     private static var sampleDrafts: [ShowDraft] {
         [
             ShowDraft(
-                name: "Chris James: Let The Light In! Tour 2026杭州站",
-                date: date(2026, 8, 15),
-                startTime: time(2026, 8, 15, 20, 0),
+                name: "康士坦的变化球「犬的视线」2026 巡演 杭州站",
+                date: date(2026, 7, 11),
+                startTime: time(2026, 7, 11, 19, 0),
                 city: "杭州",
-                venueName: "CH8 Livehouse(杭州小河店)",
-                artist: "Chris James",
+                venueName: "杭州 MAO Livehouse",
+                artist: "康士坦的变化球",
+                coverImageURL: "https://s2.showstart.com/img/2026/0512/18/30/0481358705194e86ad435fd75209d6df_1280_1792_511845.0x0.JPG?imageMogr2/thumbnail/!600x800r/gravity/Center/crop/!600x800",
                 type: .livehouse,
                 source: .link
             ),
@@ -534,6 +766,22 @@ private enum DebugSampleShowSeeder {
         var calendar = Calendar.current
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
         return calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
+    }
+
+    private static func apply(_ draft: ShowDraft, to show: Show) {
+        show.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.date = draft.date
+        show.startTime = draft.startTime
+        show.endDate = draft.endDate
+        show.endTime = draft.endTime
+        show.city = draft.city.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.venueName = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.artist = draft.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.seatSection = draft.seatSection.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.coverImageURL = draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.artistAvatarURLs = draft.artistAvatarURLs
+        show.type = draft.type
+        show.changeStatus = .scheduled
     }
 }
 #endif

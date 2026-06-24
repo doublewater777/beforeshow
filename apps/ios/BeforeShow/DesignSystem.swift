@@ -357,21 +357,41 @@ struct BSFloatingGlassTabBar: View {
                 } label: {
                     VStack(spacing: 4) {
                         Image(systemName: tab.iconName)
-                            .font(.system(size: 20, weight: selection == tab ? .semibold : .regular))
+                            .font(.system(size: 28, weight: selection == tab ? .semibold : .regular))
                             .symbolVariant(selection == tab ? .fill : .none)
                         Text(tab.rawValue)
-                            .font(.system(size: 10, weight: selection == tab ? .semibold : .medium))
+                            .font(.system(size: 13, weight: selection == tab ? .semibold : .medium))
                     }
                     .foregroundStyle(selection == tab ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.white.opacity(0.42)))
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
+                    .frame(height: 78)
+                    .background {
+                        if selection == tab {
+                            Capsule()
+                                .fill(Color.white.opacity(0.13))
+                                .overlay(
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color(red: 0.31, green: 0.82, blue: 0.67).opacity(0.30),
+                                                    Color.white.opacity(0.06)
+                                                ],
+                                                startPoint: .leading,
+                                                endPoint: .trailing
+                                            )
+                                        )
+                                )
+                        }
+                    }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(selection == tab ? .isSelected : [])
             }
         }
-        .padding(.horizontal, 6)
+        .padding(6)
+        .frame(height: 92)
         .background {
             RoundedRectangle(cornerRadius: 28)
                 .fill(.ultraThinMaterial)
