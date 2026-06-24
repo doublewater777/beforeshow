@@ -33,30 +33,6 @@ function validateLead(lead) {
   return "";
 }
 
-async function mirrorToFeishu(webhookUrl, lead) {
-  if (!webhookUrl) return null;
-
-  const upstream = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(lead),
-  });
-
-  const text = await upstream.text();
-  let body;
-  try {
-    body = text ? JSON.parse(text) : {};
-  } catch {
-    body = { raw: text };
-  }
-
-  return {
-    ok: upstream.ok,
-    status: upstream.status,
-    body,
-  };
-}
-
 export async function onRequestOptions() {
   return json({}, { status: 204 });
 }
@@ -84,20 +60,10 @@ export async function onRequestPost(context) {
       ip_country: context.request.cf?.country ?? "",
     }));
 
-    let feishu = null;
-    let feishuError = null;
-    try {
-      feishu = await mirrorToFeishu(context.env.FEISHU_WEBHOOK_URL, lead);
-    } catch (err) {
-      feishuError = err instanceof Error ? err.message : "飞书镜像失败";
-    }
-
     return json({
       ok: true,
       mode: "kv",
       id,
-      mirrored: feishu?.ok === true,
-      mirror_error: feishu?.ok === false ? "飞书 webhook 返回错误" : feishuError,
     });
   } catch (err) {
     return json({

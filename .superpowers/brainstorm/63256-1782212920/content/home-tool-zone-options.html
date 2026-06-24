@@ -1,0 +1,159 @@
+<style>
+  .bs-wrap { max-width: 1240px; margin: 0 auto; }
+  .bs-intro { margin-bottom: 20px; }
+  .bs-intro h2 { margin-bottom: 6px; }
+  .phone-grid { display: grid; grid-template-columns: repeat(3, minmax(280px, 1fr)); gap: 18px; align-items: start; }
+  .phone-option { cursor: pointer; border-radius: 22px; border: 2px solid transparent; padding: 10px; transition: .18s ease; background: rgba(255,255,255,.035); }
+  .phone-option:hover { background: rgba(255,255,255,.07); }
+  .phone-option.selected { border-color: #8ddcff; background: rgba(141,220,255,.08); }
+  .phone {
+    width: 100%; max-width: 335px; height: 710px; margin: 0 auto; border-radius: 34px; overflow: hidden;
+    background: #050506; color: white; position: relative; border: 8px solid #171717;
+    box-shadow: 0 24px 55px rgba(0,0,0,.35);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Noto Sans SC", sans-serif;
+  }
+  .status { height: 38px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 11px; color: rgba(255,255,255,.85); position: relative; z-index: 5; }
+  .cover { position:absolute; inset:0 0 auto 0; height: 370px; background:
+    linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,.08) 42%, #050506 92%),
+    url("https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&q=80") center top / cover; }
+  .content { position: relative; z-index: 2; height: calc(100% - 38px); padding: 14px 18px 78px; overflow: hidden; }
+  .eyebrow { font-size: 10px; letter-spacing: .12em; color: rgba(255,255,255,.56); text-transform: uppercase; }
+  .title { font-size: 25px; line-height: 1.08; font-weight: 760; margin-top: 238px; text-shadow: 0 2px 14px rgba(0,0,0,.4); }
+  .meta { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,.62); }
+  .count { display:flex; align-items: baseline; gap: 6px; margin-top: 13px; }
+  .count strong { font-size: 56px; line-height: .9; font-weight: 300; background: linear-gradient(135deg,#8ddcff,#d6a3ff,#ffbd72); -webkit-background-clip:text; color: transparent; }
+  .count span { color: rgba(255,255,255,.62); font-size: 17px; }
+  .panel { background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.1); border-radius: 18px; backdrop-filter: blur(16px); }
+  .row { display:flex; align-items:center; gap: 11px; padding: 13px; }
+  .icon { width: 36px; height: 36px; border-radius: 12px; display:flex; align-items:center; justify-content:center; font-size: 15px; flex: none; }
+  .amber { background: rgba(245,158,11,.18); color:#fbbf24; }
+  .cyan { background: rgba(34,211,238,.16); color:#67e8f9; }
+  .green { background: rgba(52,211,153,.16); color:#6ee7b7; }
+  .rose { background: rgba(251,113,133,.16); color:#fda4af; }
+  .purple { background: rgba(192,132,252,.16); color:#d8b4fe; }
+  .row-title { font-size: 13px; font-weight: 700; }
+  .row-sub { font-size: 11px; color: rgba(255,255,255,.48); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .section-label { margin: 17px 1px 8px; font-size: 11px; color: rgba(255,255,255,.43); font-weight: 700; }
+  .task-list { display:grid; gap: 8px; }
+  .mini-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mini { padding: 12px; min-height: 82px; }
+  .mini .icon { width: 30px; height:30px; border-radius:10px; margin-bottom: 8px; }
+  .mini-title { font-size: 12px; font-weight: 700; }
+  .mini-sub { font-size: 10px; color: rgba(255,255,255,.45); margin-top: 2px; }
+  .bottom-nav { position:absolute; left:0; right:0; bottom:0; height:68px; display:flex; align-items:center; justify-content:space-around; background: rgba(0,0,0,.78); border-top:1px solid rgba(255,255,255,.08); backdrop-filter: blur(16px); font-size: 10px; color: rgba(255,255,255,.45); }
+  .bottom-nav b { color: white; font-weight: 650; }
+  .dock { position:absolute; left: 14px; right:14px; bottom: 82px; display:grid; grid-template-columns: repeat(4,1fr); gap:8px; padding: 10px; border-radius: 22px; background: rgba(10,10,12,.72); border:1px solid rgba(255,255,255,.12); backdrop-filter: blur(22px); }
+  .dock-item { text-align:center; font-size: 9px; color: rgba(255,255,255,.62); }
+  .dock-item .icon { margin: 0 auto 5px; width: 35px; height:35px; }
+  .sheet-hint { display:flex; justify-content:space-between; align-items:center; padding: 12px 13px; color: rgba(255,255,255,.72); font-size: 12px; }
+  .timeline { margin-top: 15px; display:grid; gap: 9px; }
+  .time-row { display:grid; grid-template-columns: 54px 1fr; gap:10px; align-items:stretch; }
+  .time { font-size: 10px; color: rgba(255,255,255,.42); padding-top:13px; text-align:right; }
+  .phase { padding: 12px; position: relative; }
+  .phase:before { content:""; position:absolute; left:-17px; top:18px; width:7px; height:7px; border-radius:50%; background:#8ddcff; box-shadow:0 0 0 4px rgba(141,220,255,.13); }
+  .desc { padding: 10px 4px 0; font-size: 13px; line-height: 1.45; color: rgba(255,255,255,.65); }
+  @media (max-width: 980px) { .phone-grid { grid-template-columns: 1fr; } .phone { max-width: 360px; } }
+</style>
+
+<div class="bs-wrap">
+  <div class="bs-intro">
+    <h2>首页功能区怎么放？</h2>
+    <p class="subtitle">三种不是换皮，而是不同的信息架构。点击你更有感觉的方向，也可以直接说想混哪几个。</p>
+  </div>
+
+  <div class="phone-grid">
+    <div class="phone-option" data-choice="a-scene-feed" onclick="toggleSelect(this)">
+      <div class="phone">
+        <div class="cover"></div>
+        <div class="status"><span>9:41</span><span>▱</span></div>
+        <div class="content">
+          <div class="eyebrow">当前现场</div>
+          <div class="title">五月天<br>上海演唱会</div>
+          <div class="meta">上海体育场 · 6月22日 19:30</div>
+          <div class="count"><strong>12</strong><span>天</span></div>
+
+          <div class="section-label">现在可以做</div>
+          <div class="task-list">
+            <div class="panel row">
+              <div class="icon amber">♪</div>
+              <div><div class="row-title">今晚先听</div><div class="row-sub">从候选曲目里抽一首</div></div>
+            </div>
+            <div class="panel row">
+              <div class="icon purple">▶</div>
+              <div><div class="row-title">提前看几段现场</div><div class="row-sub">公开现场视频 · 8 段</div></div>
+            </div>
+          </div>
+
+          <div class="section-label">工具</div>
+          <div class="panel sheet-hint"><span>全部工具</span><span>往返 · 准备 · 曲目 · 碎片 ›</span></div>
+        </div>
+        <div class="bottom-nav"><b>当前</b><span>我的现场</span><span>设置</span></div>
+      </div>
+      <div class="desc"><b>A · 场景信息流</b><br>工具区跟着时间阶段换：开场前推“听/看”，当天推“往返/准备”，散场后推“碎片/回顾”。首页很像一个会变的待办流。</div>
+    </div>
+
+    <div class="phone-option" data-choice="b-command-dock" onclick="toggleSelect(this)">
+      <div class="phone">
+        <div class="cover"></div>
+        <div class="status"><span>9:41</span><span>▱</span></div>
+        <div class="content">
+          <div class="eyebrow">当前现场</div>
+          <div class="title">五月天<br>上海演唱会</div>
+          <div class="meta">上海体育场 · 6月22日 19:30</div>
+          <div class="count"><strong>12</strong><span>天</span></div>
+
+          <div class="panel row" style="margin-top:18px;">
+            <div class="icon amber">♪</div>
+            <div style="flex:1"><div class="row-title">今晚先听：倔强</div><div class="row-sub">每天给这场现场一个小入口</div></div>
+            <div style="width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;">▶</div>
+          </div>
+
+          <div class="panel sheet-hint" style="margin-top:10px;"><span>下一步</span><span>明天 20:00 提醒准备 ›</span></div>
+        </div>
+
+        <div class="dock">
+          <div class="dock-item"><div class="icon amber">♪</div>先听</div>
+          <div class="dock-item"><div class="icon cyan">↔</div>往返</div>
+          <div class="dock-item"><div class="icon green">✓</div>准备</div>
+          <div class="dock-item"><div class="icon rose">＋</div>碎片</div>
+        </div>
+        <div class="bottom-nav"><b>当前</b><span>我的现场</span><span>设置</span></div>
+      </div>
+      <div class="desc"><b>B · 底部工具台</b><br>封面/倒计时保持沉浸，核心功能固定在底部工具台。用户不用猜工具在哪，临近当天再用“下一步”提示升权。</div>
+    </div>
+
+    <div class="phone-option" data-choice="c-timeline-rail" onclick="toggleSelect(this)">
+      <div class="phone">
+        <div class="cover" style="height:300px;"></div>
+        <div class="status"><span>9:41</span><span>▱</span></div>
+        <div class="content">
+          <div class="eyebrow">当前现场</div>
+          <div class="title" style="margin-top:175px;">五月天<br>上海演唱会</div>
+          <div class="meta">上海体育场 · 6月22日 19:30</div>
+          <div class="count"><strong>12</strong><span>天</span></div>
+
+          <div class="timeline">
+            <div class="time-row">
+              <div class="time">今晚</div>
+              <div class="panel phase"><div class="row-title">先听一首</div><div class="row-sub">倔强 · 候选曲目 12 首</div></div>
+            </div>
+            <div class="time-row">
+              <div class="time">前 3 天</div>
+              <div class="panel phase"><div class="row-title">确认往返</div><div class="row-sub">去程已写，返程未定</div></div>
+            </div>
+            <div class="time-row">
+              <div class="time">当天</div>
+              <div class="panel phase"><div class="row-title">出门前检查</div><div class="row-sub">身份证、充电宝、门票截图</div></div>
+            </div>
+            <div class="time-row">
+              <div class="time">散场后</div>
+              <div class="panel phase"><div class="row-title">留下碎片</div><div class="row-sub">照片、语音、repo 回顾</div></div>
+            </div>
+          </div>
+        </div>
+        <div class="bottom-nav"><b>当前</b><span>我的现场</span><span>设置</span></div>
+      </div>
+      <div class="desc"><b>C · 演出时间轴</b><br>把工具嵌进“从现在到散场后”的过程里。叙事感最强，也最能解释为什么这些工具属于 BeforeShow。</div>
+    </div>
+  </div>
+</div>

@@ -1,23 +1,12 @@
 #!/usr/bin/env node
-/**
- * 生产环境：静态站点 + /api/leads 飞书写入
- *
- * 用法（在 apps/fake-door 目录）：
- *   npm run build && npm run start
- *
- * 环境变量见 .env.example
- */
 
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { submitLead } from "./feishu-lead-handler.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, "..");
-const DIST = path.join(ROOT, "dist");
-const ENV_FILE = path.join(ROOT, ".env");
+const DIST = path.resolve(__dirname, "..", "dist");
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "0.0.0.0";
 
@@ -35,30 +24,6 @@ const MIME = {
   ".woff2": "font/woff2",
 };
 
-function loadEnvFile(filePath) {
-  const env = { ...process.env };
-  if (!fs.existsSync(filePath)) return env;
-  for (const line of fs.readFileSync(filePath, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith("#")) continue;
-    const idx = trimmed.indexOf("=");
-    if (idx === -1) continue;
-    const key = trimmed.slice(0, idx).trim();
-    const val = trimmed.slice(idx + 1).trim();
-    if (key) env[key] = val;
-  }
-  return env;
-}
-
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
-  });
-}
-
 function safePath(urlPath) {
   const decoded = decodeURIComponent(urlPath.split("?")[0]);
   const rel = decoded.replace(/^\/+/, "");
@@ -74,37 +39,8 @@ function sendFile(res, filePath) {
   fs.createReadStream(filePath).pipe(res);
 }
 
-const env = loadEnvFile(ENV_FILE);
-
-const server = http.createServer(async (req, res) => {
+const server = http.createServer((req, res) => {
   const url = req.url || "/";
-
-  if (req.method === "OPTIONS" && url.startsWith("/api/leads")) {
-    res.writeHead(204, {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-    });
-    res.end();
-    return;
-  }
-
-  if (req.method === "POST" && url === "/api/leads") {
-    try {
-      const raw = await readBody(req);
-      const body = raw ? JSON.parse(raw) : {};
-      const result = await submitLead(env, body);
-      res.writeHead(result.ok ? 200 : (result.status || 502), {
-        "Content-Type": "application/json; charset=utf-8",
-        "Access-Control-Allow-Origin": "*",
-      });
-      res.end(JSON.stringify(result));
-    } catch (err) {
-      res.writeHead(500, { "Content-Type": "application/json; charset=utf-8" });
-      res.end(JSON.stringify({ ok: false, error: err instanceof Error ? err.message : "服务器错误" }));
-    }
-    return;
-  }
 
   if (req.method !== "GET" && req.method !== "HEAD") {
     res.writeHead(405);
@@ -155,7 +91,6 @@ if (!fs.existsSync(DIST)) {
 }
 
 server.listen(PORT, HOST, () => {
-  const mode = env.FEISHU_LEAD_MODE || (env.FEISHU_WEBHOOK_URL ? "webhook" : "bitable");
-  console.log(`BeforeShow fake-door (${mode})`);
+  console.log(`BeforeShow fake-door static server`);
   console.log(`  http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}/`);
 });

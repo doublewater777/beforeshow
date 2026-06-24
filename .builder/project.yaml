@@ -1,9 +1,11 @@
 name: beforeshow
 current_stage: business-model
-active_cycle: 2026-06-14-pro-membership
-updated_at: 2026-06-14
+active_cycle: 2026-06-23-home-visual-redesign
+updated_at: 2026-06-23
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
   business_model_stage: .builder/stages/09-business-model.md
   pro_membership_cycle: .builder/cycles/2026-06-14-pro-membership/
+  core_show_loop_cycle: .builder/cycles/2026-06-16-core-show-loop/
+  home_visual_redesign_cycle: .builder/cycles/2026-06-23-home-visual-redesign/

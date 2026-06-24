@@ -89,6 +89,37 @@ The app is dark-first. The palette should be small, semantic, and stable.
 
 Avoid category colors for every feature. Do not create separate colors for AI, OCR, traffic, music, or platforms unless there is a real product need.
 
+### Color Mood
+
+BeforeShow's color mood is `dark-stage lighting before the show`.
+
+It should feel like a live venue before the lights fully come on: a mostly black room, low ambient blue-black, and a small amount of blurred stage light starting to cut through.
+
+Use this mood most strongly in entrance moments such as splash, launch marketing imagery, and rare brand surfaces. Product screens should keep the same color DNA but reduce the intensity so forms, lists, and repeated use stay calm.
+
+The mood is:
+
+- Dark, not gray.
+- Stage-lit, not cyberpunk.
+- Blurred and atmospheric, not sharp neon.
+- Cold-warm mixed, not one-note blue or purple.
+- Emotional at entrances, functional in daily UI.
+
+The dominant ratio should be:
+
+- 80-90% black / blue-black negative space.
+- 5-15% cool light: cyan, blue, blue-purple.
+- 3-8% warm light: amber, orange, soft pink.
+- White text only at controlled opacity unless it is primary content.
+
+Avoid:
+
+- Full-page gradients in ordinary product screens.
+- Constant glow around cards or buttons.
+- Saturated neon outlines.
+- Purple-blue dominance without warm counterweight.
+- Beige, brown, or poster-like concert palettes.
+
 ### Core Semantic Colors
 
 | Token | Purpose | Suggested Value |
@@ -106,6 +137,11 @@ Avoid category colors for every feature. Do not create separate colors for AI, O
 | `accentBlue` | Brand accent start | `#7ECFFF` |
 | `accentPurple` | Brand accent middle | `#B388FF` |
 | `accentOrange` | Brand accent end | `#FFB347` |
+| `stageBlueBlack` | Low ambient dark stage background | `#020713` |
+| `stageCyanGlow` | Cool light bloom, sparse use | `#37C7FF` |
+| `stageVioletGlow` | Purple light bloom, sparse use | `#7A4DFF` |
+| `stageAmberGlow` | Warm light bloom, sparse use | `#FF9A3D` |
+| `stageSoftPink` | Secondary warm haze, rare use | `#F26BAA` |
 | `success` | Completed state | `#32D74B` |
 | `warning` | Recoverable issue | `#FFD60A` |
 | `danger` | Destructive action | `#FF453A` |
@@ -125,6 +161,32 @@ Do not use gradient backgrounds for standard pages, cards, or section decoration
 Gradient:
 
 `#7ECFFF -> #B388FF -> #FFB347`
+
+This gradient should read as stage light passing from cool blue through violet into amber. Keep it on text, selected strokes, or small accents. Do not turn it into a generic background wash.
+
+### Splash Color Treatment
+
+Splash is the highest-intensity expression of the color system.
+
+Current splash direction:
+
+- Black system launch screen and black app base to avoid white flash.
+- Full-screen blurred lighting image on top of black.
+- Light cluster centered slightly below the visual middle, with large dark space above and below.
+- Cool blue/cyan light on the left and center.
+- Violet and soft pink as secondary haze.
+- Amber/orange light on the right as a warm counterpoint.
+- Brand title uses the blue-violet-amber gradient.
+- English brand name uses the same gradient at lower opacity.
+- Slogan uses white at about 60% opacity.
+
+Splash should not introduce:
+
+- Additional decorative orbs.
+- Sharp lens flare.
+- Hard spotlight cones.
+- Confetti, crowd imagery, ticket imagery, or instrument imagery.
+- A different brand palette from the rest of the app.
 
 ## Typography
 
@@ -514,10 +576,16 @@ Use different density for atmosphere and utility.
 Splash may use the strongest brand atmosphere:
 
 - Black launch screen.
-- Lighting image.
-- Gradient title.
+- Full-screen blurred stage-light image.
+- Mostly black / blue-black negative space.
+- Cold-warm light mix: cyan, blue, violet, amber, soft pink.
+- Gradient title using `#7ECFFF -> #B388FF -> #FFB347`.
+- Lower-opacity English brand name.
+- White slogan around 60% opacity.
 - Staggered text animation.
 - No visible skip button.
+
+Splash should feel like `灯亮之前`: quiet, dark, and just beginning to glow. It should not feel like a poster, a nightclub flyer, or a generic neon tech app.
 
 ### Onboarding
 
@@ -599,8 +667,12 @@ Prefer semantic names:
 ```swift
 enum BSColor {
     static let backgroundPrimary = Color.black
+    static let stageBlueBlack = Color(red: 0.01, green: 0.03, blue: 0.07)
     static let surfacePrimary = Color(red: 0.11, green: 0.11, blue: 0.12)
     static let textSecondary = Color.white.opacity(0.66)
+    static let accentBlue = Color(red: 0.49, green: 0.81, blue: 1.0)
+    static let accentPurple = Color(red: 0.70, green: 0.53, blue: 1.0)
+    static let accentOrange = Color(red: 1.0, green: 0.70, blue: 0.28)
 }
 ```
 

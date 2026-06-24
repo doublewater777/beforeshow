@@ -1,0 +1,67 @@
+<style>
+  .wrap { max-width: 960px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(280px, 1fr)); gap: 22px; }
+  .choice { cursor: pointer; border: 2px solid transparent; border-radius: 22px; padding: 12px; background: rgba(255,255,255,.04); }
+  .choice.selected { border-color: #8ddcff; background: rgba(141,220,255,.08); }
+  .phone { height: 690px; max-width: 330px; margin: 0 auto; border: 8px solid #171717; border-radius: 34px; overflow: hidden; background: #050506; color: #fff; position: relative; box-shadow: 0 22px 50px rgba(0,0,0,.35); font-family: -apple-system,BlinkMacSystemFont,"SF Pro Display","Noto Sans SC",sans-serif; }
+  .cover { position:absolute; inset:0; background: linear-gradient(to bottom, rgba(0,0,0,.25), rgba(0,0,0,.05) 38%, rgba(0,0,0,.86) 82%, #050506), url("https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&q=80") center top / cover; }
+  .status { position:relative; z-index:2; height:38px; display:flex; align-items:center; justify-content:space-between; padding:0 18px; font-size:11px; color:rgba(255,255,255,.82); }
+  .more { position:absolute; z-index:3; right:18px; top:52px; width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.34); border:1px solid rgba(255,255,255,.16); font-size:22px; line-height:1; }
+  .count { position:absolute; z-index:2; left:22px; right:22px; bottom:174px; display:flex; align-items:baseline; gap:8px; }
+  .count strong { font-size:76px; line-height:.9; font-weight:280; background:linear-gradient(135deg,#8ddcff,#d6a3ff,#ffbd72); -webkit-background-clip:text; color:transparent; }
+  .count span { font-size:22px; color:rgba(255,255,255,.72); }
+  .info { position:absolute; z-index:2; left:22px; right:22px; bottom:82px; }
+  .title { font-size:31px; line-height:1.08; font-weight:780; }
+  .meta { margin-top:8px; font-size:13px; color:rgba(255,255,255,.68); }
+  .bottom { position:absolute; left:0; right:0; bottom:0; height:62px; background:rgba(0,0,0,.8); border-top:1px solid rgba(255,255,255,.08); display:flex; align-items:center; justify-content:space-around; font-size:10px; color:rgba(255,255,255,.45); }
+  .bottom b { color:white; }
+  .split-cover { position:absolute; inset:0 0 auto 0; height:440px; background: linear-gradient(to bottom, rgba(0,0,0,.22), rgba(0,0,0,.05) 45%, rgba(0,0,0,.82)), url("https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=900&q=80") center top / cover; }
+  .below { position:absolute; z-index:2; left:18px; right:18px; top:452px; }
+  .panel { padding:18px; border-radius:22px; background:rgba(255,255,255,.065); border:1px solid rgba(255,255,255,.11); }
+  .panel .count { position:static; margin-bottom:12px; }
+  .panel .count strong { font-size:58px; }
+  .caption { max-width: 330px; margin: 12px auto 0; color: rgba(255,255,255,.72); font-size: 14px; line-height: 1.45; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="wrap">
+  <h2>倒计时放哪里？</h2>
+  <p class="subtitle">先看结构，不看最终视觉细节。右上角三点更多都保留，点开半高 sheet。</p>
+
+  <div class="grid">
+    <div class="choice" data-choice="overlay" onclick="toggleSelect(this)">
+      <div class="phone">
+        <div class="cover"></div>
+        <div class="status"><span>9:41</span><span>▱</span></div>
+        <div class="more">⋯</div>
+        <div class="count"><strong>12</strong><span>天</span></div>
+        <div class="info">
+          <div class="title">五月天<br>上海演唱会</div>
+          <div class="meta">上海体育场 · 6月22日 19:30</div>
+        </div>
+        <div class="bottom"><b>当前</b><span>我的现场</span><span>设置</span></div>
+      </div>
+      <div class="caption"><b>A · 全部叠在封面上</b><br>最纯。首页就是一张全屏现场封面，倒计时和演出信息都属于这张图。</div>
+    </div>
+
+    <div class="choice" data-choice="below" onclick="toggleSelect(this)">
+      <div class="phone">
+        <div class="split-cover"></div>
+        <div class="status"><span>9:41</span><span>▱</span></div>
+        <div class="more">⋯</div>
+        <div class="info" style="bottom:270px;">
+          <div class="title">五月天<br>上海演唱会</div>
+          <div class="meta">上海体育场 · 6月22日 19:30</div>
+        </div>
+        <div class="below">
+          <div class="panel">
+            <div class="count"><strong>12</strong><span>天</span></div>
+            <div class="meta">慢慢进入状态</div>
+          </div>
+        </div>
+        <div class="bottom"><b>当前</b><span>我的现场</span><span>设置</span></div>
+      </div>
+      <div class="caption"><b>B · 倒计时独立在封面下方</b><br>更清楚，但首页又回到“封面 + 信息卡”的结构，沉浸感弱一点。</div>
+    </div>
+  </div>
+</div>

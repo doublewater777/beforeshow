@@ -1,0 +1,84 @@
+{
+  "identifier": "BEFORESHOW21",
+  "environment": "Xcode",
+  "bundleId": "com.doublewaterapps.beforeshow",
+  "products": [],
+  "settings": {
+    "failTransactionsEnabled": false,
+    "interruptPurchasesEnabled": false,
+    "askToBuyEnabled": false,
+    "billingIssueEnabled": false
+  },
+  "subscriptionGroups": [
+    {
+      "id": "BEFORESHOWPRO",
+      "localizations": [
+        {
+          "description": "BeforeShow Pro subscriptions",
+          "displayName": "BeforeShow Pro",
+          "locale": "en_US"
+        },
+        {
+          "description": "开场前 Pro 订阅",
+          "displayName": "Pro会员",
+          "locale": "zh_CN"
+        }
+      ],
+      "name": "BeforeShow Pro",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "12.00",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "BS21PROM",
+          "localizations": [
+            {
+              "description": "Unlock unlimited saved shows and repeated generation for one month.",
+              "displayName": "BeforeShow Pro Monthly",
+              "locale": "en_US"
+            },
+            {
+              "description": "按月解锁无限添加现场和重复生成。",
+              "displayName": "BeforeShow Pro 月度",
+              "locale": "zh_CN"
+            }
+          ],
+          "productID": "com.doublewaterapps.beforeshow.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "BeforeShow Pro Monthly",
+          "subscriptionGroupID": "BEFORESHOWPRO",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "68.00",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "BS21PROY",
+          "localizations": [
+            {
+              "description": "Unlock unlimited saved shows and repeated generation for one year.",
+              "displayName": "BeforeShow Pro Yearly",
+              "locale": "en_US"
+            },
+            {
+              "description": "按年解锁无限添加现场和重复生成。",
+              "displayName": "BeforeShow Pro 年度",
+              "locale": "zh_CN"
+            }
+          ],
+          "productID": "com.doublewaterapps.beforeshow.pro.yearly",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "BeforeShow Pro Yearly",
+          "subscriptionGroupID": "BEFORESHOWPRO",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "introductoryOffers": [],
+  "promotionalOffers": []
+}

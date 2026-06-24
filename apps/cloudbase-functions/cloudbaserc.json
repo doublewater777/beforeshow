@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "version": "2.0",
+  "envId": "{{env.TCB_ENV_ID}}",
+  "region": "{{env.TCB_REGION}}",
+  "functionRoot": "./.cloudbase/functions",
+  "functions": [
+    {
+      "name": "generate",
+      "type": "HTTP",
+      "runtime": "Nodejs18.15",
+      "timeout": 30,
+      "memorySize": 256,
+      "envVariables": {
+        "DOUBAO_API_KEY": "{{env.DOUBAO_API_KEY}}",
+        "DOUBAO_MODEL": "{{env.DOUBAO_MODEL}}",
+        "DOUBAO_BASE_URL": "{{env.DOUBAO_BASE_URL}}",
+        "QWEN_API_KEY": "{{env.QWEN_API_KEY}}",
+        "QWEN_MODEL": "{{env.QWEN_MODEL}}",
+        "QWEN_BASE_URL": "{{env.QWEN_BASE_URL}}"
+      }
+    },
+    {
+      "name": "parseShowLink",
+      "type": "HTTP",
+      "timeout": 60,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": false
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@beforeshow/cloudbase-functions",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare:deploy": "npm run prepare:deploy:generate && npm run prepare:deploy:parseShowLink",
+    "prepare:deploy:generate": "node scripts/prepare-cloudbase-function.mjs",
+    "prepare:deploy:parseShowLink": "node scripts/prepare-parseShowLink.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

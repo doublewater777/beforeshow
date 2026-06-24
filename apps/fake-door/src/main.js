@@ -1,5 +1,4 @@
 import "./styles.css";
-import { submitLeadToFeishu } from "./feishu.js";
 
 // ── Data ────────────────────────────────────────────
 const STORAGE_LEADS = "beforeshow.leads.v2";
@@ -805,28 +804,8 @@ async function submitForm(form) {
   state.submitting = true;
   render();
 
-  let synced = false;
-  try {
-    await submitLeadToFeishu({
-      email: lead.email,
-      show: lead.show,
-      session: lead.session,
-      submitted_at: lead.at,
-      source: "fake-door",
-    });
-    synced = true;
-  } catch (err) {
-    saveLeadLocally({ ...lead, syncError: err instanceof Error ? err.message : "unknown" });
-    track("lead_submit_fallback", { show, error: err instanceof Error ? err.message : "unknown" });
-    setToast("已本地保存，但同步飞书失败，请检查网络或配置。");
-  }
-
-  if (synced) {
-    saveLeadLocally({ ...lead, synced: true });
-    track("lead_submit", { show, synced: true });
-  } else {
-    track("lead_submit", { show, synced: false });
-  }
+  saveLeadLocally(lead);
+  track("lead_submit", { show });
 
   state.submitting = false;
   state.submitted = true;

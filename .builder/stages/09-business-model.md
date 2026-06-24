@@ -24,6 +24,8 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 - Pro has no free trial in V2.1.
 - Pro uses App Store subscriptions and purchase restoration without a BeforeShow account.
 - Show fragments and show preparation remain free because they are local/private or basic care features.
+- The core implementation cycle `.builder/cycles/2026-06-16-core-show-loop/` tests whether the five-feature show loop makes Pro repeat-generation limits understandable.
+- The active implementation cycle `.builder/cycles/2026-06-23-home-visual-redesign/` tests whether a theatrical, two-entry home surface improves current-show clarity without hiding the broader tool loop.
 
 ## Open Questions
 
