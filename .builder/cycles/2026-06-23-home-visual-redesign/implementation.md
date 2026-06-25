@@ -2,8 +2,7 @@
 
 ## Built
 
-- Added `HomeStyle` preference with three options: 半屏封面, 全屏沉浸, 剧场感卡片.
-- Added Settings navigation for choosing the home style.
+- Added `HomeStyle` preference (半屏封面, the only style). Style selection Settings removed.
 - Reworked current-show home to remove the large status heading and keep only the "当前现场" caption.
 - Added poster-led hero variants that use top-aligned cover imagery.
 - Limited home primary entries to two state-aware actions plus expandable All Tools.
@@ -26,4 +25,4 @@
 
 ## Release Notes
 
-Home now feels closer to the SplashView stage language, defaults to 半屏封面, and lets users choose a stronger immersive or theatrical treatment from Settings.
+Home now feels closer to the SplashView stage language with a poster-led layout.

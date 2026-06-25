@@ -2,48 +2,24 @@ import Foundation
 
 enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
-    case homeStyle = "首页风格"
     case defaultMusicPlatform = "默认音乐平台"
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
     case about = "关于开场前"
 }
 
-enum HomeStyle: String, CaseIterable, Identifiable, Equatable {
+enum HomeStyle: String, Equatable {
     case halfCover = "half-cover"
-    case immersive = "immersive"
-    case theatricalCard = "theatrical-card"
 
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .halfCover: return "半屏封面"
-        case .immersive: return "全屏沉浸"
-        case .theatricalCard: return "剧场感卡片"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .halfCover:
-            return "默认样式，封面和工具入口更均衡"
-        case .immersive:
-            return "封面铺满首屏，像打开一张现场海报"
-        case .theatricalCard:
-            return "更强舞台灯光和卡片层次"
-        }
-    }
+    var displayName: String { "半屏封面" }
 }
 
 enum SettingsInformation {
-    static let defaultHomeStyleRawValue = HomeStyle.halfCover.rawValue
     static let defaultMusicPlatformName = MusicPlatform.neteaseCloudMusic.displayName
     static let musicPlatformNames = MusicPlatform.allCases.map(\.displayName)
 
     static let orderedEntries: [SettingsEntry] = [
         .proMembership,
-        .homeStyle,
         .defaultMusicPlatform,
         .privacyAndLocalData,
         .feedback,

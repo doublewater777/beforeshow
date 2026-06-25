@@ -13,7 +13,7 @@ Redesign the iOS home page and the surrounding visual language so that:
 1. The hero cover image dominates the screen and creates atmosphere.
 2. Status text is removed from the poster itself; the page title and countdown communicate state.
 3. Only two primary actions are exposed on the home page, plus an "All Tools" entry.
-4. Users can choose one of three home styles in Settings: half-screen cover, full-screen immersive, or theatrical card.
+4. Home uses a single poster-led layout (removed the multi-style Settings selector).
 5. Lineup/artist information is shown appropriately per show type without interactive artist tracking on the home screen.
 6. Cross-day and festival shows display date ranges and lineups cleanly.
 
@@ -53,12 +53,7 @@ The redesign reuses the existing `DesignSystem` tokens and keeps all data in Swi
 
 ## Implementation Decisions
 
-- **Three home styles.** The app will support three mutually exclusive home layouts, stored in `UserDefaults` under a single key:
-  - `halfScreenCover` — cover occupies the top ~55% of the screen; information and tools sit below on a solid background.
-  - `fullScreenImmersive` — cover fills the screen; title, date, countdown, and tools float over a bottom gradient.
-  - `theatricalCard` — stage beams, central orb, and a prominent rounded cover card; countdown and tools below the card.
-
-- **Style selection UI.** A new "首页风格" row in Settings pushes a selection screen with the three styles. The default is `halfScreenCover`.
+- **Single home style.** The app uses a single poster-led layout (半屏封面). The multi-style Settings selector was removed. The deprecated `homeStyle` UserDefaults key is no longer read.
 
 - **Home state from `CurrentShowTimeState`.** The home page will continue to derive its state from the existing `CurrentShowTimeState` value object. Its outputs (`kind`, `title`, `countdownNumber`, `countdownUnit`, `helperText`, `effectiveStartTime`, `effectiveEndTime`) drive what is rendered, but the UI will no longer render a large "开场前" heading. Status text may appear in small captions where useful, but it is not a hero element.
 
@@ -66,7 +61,7 @@ The redesign reuses the existing `DesignSystem` tokens and keeps all data in Swi
   - The cover image is loaded asynchronously with a placeholder gradient.
   - It uses top-aligned cropping (`object-position: top` equivalent) so that posters with heads, logos, or titles at the top remain intact.
   - No status pill is overlaid on the cover.
-  - For festivals, the cover may be a text-heavy poster; the `fullScreenImmersive` style will apply a stronger bottom gradient so UI text does not collide with poster text, and `halfScreenCover` keeps the cover and information on separate backgrounds.
+  - For festivals, the cover may be a text-heavy poster; the layout applies a bottom gradient so UI text does not collide with poster text.
 
 - **Lineup display rules.**
   - The show title itself is expected to contain the artist or festival name (e.g., "五月天 · 上海演唱会" or "草莓音乐节 · 上海"). No separate artist line is shown directly under the title.
@@ -109,7 +104,7 @@ The redesign reuses the existing `DesignSystem` tokens and keeps all data in Swi
   - The artist/lineup area is shown or hidden based on the `artist` field and `type`.
   - The "全部工具" entry is always present when a current show exists.
 
-- **Home-style selection tests.** Add a small unit test around the home-style preference store to confirm reading/writing the selected style and falling back to the default.
+- **(Removed.) Home-style selection was removed; only one visual layout remains.
 
 - **Snapshot or build verification.** Because visual diffs are brittle, prefer `xcodebuild` build success and manual design-review of the HTML prototypes over automated snapshot tests. The existing HTML prototypes under `apps/ios/design-exploration/` serve as the visual acceptance reference.
 

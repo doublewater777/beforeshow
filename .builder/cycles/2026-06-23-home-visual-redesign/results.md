@@ -2,7 +2,7 @@
 
 2026-06-23 implementation result:
 
-- Home supports three selectable styles through Settings: 半屏封面, 全屏沉浸, 剧场感卡片.
+- Home uses a single poster-led layout (半屏封面). Style selection removed from Settings.
 - Current home now keeps only the "当前现场" caption instead of a large status heading.
 - Home primary actions are state-aware and limited to two entries, followed by expandable All Tools.
 - Music festivals show a read-only horizontal lineup row.

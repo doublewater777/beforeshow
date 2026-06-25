@@ -5,11 +5,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @AppStorage("defaultMusicPlatform") private var defaultMusicPlatformName = SettingsInformation.defaultMusicPlatformName
-    @AppStorage("homeStyle") private var homeStyleRawValue = SettingsInformation.defaultHomeStyleRawValue
-
-    private var selectedHomeStyle: HomeStyle {
-        HomeStyle(rawValue: homeStyleRawValue) ?? .halfCover
-    }
 
     var body: some View {
         NavigationStack {
@@ -31,19 +26,6 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
                 SettingsGroup(title: "基础") {
-                    NavigationLink {
-                        HomeStyleSettingsView(selectedHomeStyleRawValue: $homeStyleRawValue)
-                    } label: {
-                        SettingsRowContent(
-                            iconName: "rectangle.inset.filled",
-                            title: SettingsEntry.homeStyle.rawValue,
-                            subtitle: nil,
-                            value: selectedHomeStyle.displayName,
-                            tint: BSColor.Accent.video
-                        )
-                    }
-                    .buttonStyle(.plain)
-
                     Divider().overlay(BSColor.border)
 
                     NavigationLink {
@@ -95,85 +77,6 @@ struct SettingsView: View {
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
-    }
-}
-
-private struct HomeStyleSettingsView: View {
-    @Binding var selectedHomeStyleRawValue: String
-
-    private var selectedHomeStyle: HomeStyle {
-        HomeStyle(rawValue: selectedHomeStyleRawValue) ?? .halfCover
-    }
-
-    var body: some View {
-        BSStageScaffold(title: "首页风格", subtitle: "选择当前现场首页的舞台呈现方式") {
-            VStack(spacing: BSSpacing.md) {
-                ForEach(HomeStyle.allCases) { style in
-                    Button {
-                        selectedHomeStyleRawValue = style.rawValue
-                    } label: {
-                        HStack(spacing: BSSpacing.md) {
-                            stylePreview(for: style)
-
-                            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                                Text(style.displayName)
-                                    .font(BSFont.headline)
-                                    .foregroundColor(BSColor.textPrimary)
-                                Text(style.subtitle)
-                                    .font(BSFont.caption)
-                                    .foregroundColor(BSColor.textTertiary)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-
-                            Spacer()
-
-                            Image(systemName: selectedHomeStyle == style ? "checkmark.circle.fill" : "circle")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(selectedHomeStyle == style ? AnyShapeStyle(BSColor.brandGradient) : AnyShapeStyle(BSColor.textTertiary))
-                        }
-                        .padding(BSSpacing.md)
-                        .background(Color.white.opacity(selectedHomeStyle == style ? 0.075 : 0.045))
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.lg)
-                                .stroke(selectedHomeStyle == style ? BSColor.brandGradient : LinearGradient(colors: [BSColor.border], startPoint: .leading, endPoint: .trailing), lineWidth: selectedHomeStyle == style ? 1.5 : 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func stylePreview(for style: HomeStyle) -> some View {
-        ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.08))
-
-            switch style {
-            case .halfCover:
-                Rectangle()
-                    .fill(BSColor.brandGradient)
-                    .frame(height: 36)
-                    .frame(maxHeight: .infinity, alignment: .top)
-                    .opacity(0.82)
-            case .immersive:
-                BSColor.brandGradient
-                    .opacity(0.86)
-            case .theatricalCard:
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(BSColor.brandGradient, lineWidth: 2)
-                    .padding(8)
-            }
-
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color.black.opacity(0.64))
-                .frame(width: 34, height: 8)
-                .padding(.bottom, 8)
-        }
-        .frame(width: 54, height: 54)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 

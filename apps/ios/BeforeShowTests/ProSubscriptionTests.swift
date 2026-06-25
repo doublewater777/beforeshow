@@ -140,7 +140,6 @@ final class ProSubscriptionTests: XCTestCase {
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
         XCTAssertEqual(SettingsInformation.orderedEntries, [
             .proMembership,
-            .homeStyle,
             .defaultMusicPlatform,
             .privacyAndLocalData,
             .feedback,

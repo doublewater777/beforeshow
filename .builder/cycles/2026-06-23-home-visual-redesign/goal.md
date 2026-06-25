@@ -13,7 +13,7 @@ Desired behavior change: users recognize the current show immediately, pick one 
 Success criteria:
 
 - Home removes the large status heading and keeps "当前现场" as the quiet caption.
-- Home supports three selectable styles: 半屏封面, 全屏沉浸, 剧场感卡片.
+- Home uses a single poster-led layout.
 - Current show auto-selection keeps a post-show inside the 3-day retention window, then switches to the next nearest show; if none remains, the ended show stays with a next-show prompt.
 - My Shows highlights the current show with a gradient border and no separate current label.
 

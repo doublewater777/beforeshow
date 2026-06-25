@@ -4,7 +4,7 @@
 
 - Run local iOS build and tests after implementation.
 - Use simulator/manual QA across home states: before, today, post-show, ended, postponed, canceled, empty.
-- Ask prototype users which home style feels closest to entering the show mood, and whether they can find all tools.
+- Ask prototype users whether they can find all tools.
 
 ## Measured Signals
 
@@ -22,5 +22,4 @@
 ## Loop-Back Trigger
 
 - Users miss key tools because All Tools is hidden.
-- Full-screen immersive style harms readability on text-heavy posters.
-- The home style setting adds confusion during onboarding or first use.
+- (Style selection removed; these triggers are no longer applicable.)

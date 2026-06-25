@@ -330,12 +330,6 @@ private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
 
-    @AppStorage("homeStyle") private var homeStyleRawValue = SettingsInformation.defaultHomeStyleRawValue
-
-    private var homeStyle: HomeStyle {
-        HomeStyle(rawValue: homeStyleRawValue) ?? .halfCover
-    }
-
     private var phase: CurrentShowTimeState {
         CurrentShowTimeState(show: show)
     }
