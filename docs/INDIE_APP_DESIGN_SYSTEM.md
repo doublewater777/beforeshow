@@ -182,7 +182,7 @@ Current splash direction:
 
 Splash should not introduce:
 
-- Additional decorative orbs.
+- Decorative glowing orbs.
 - Sharp lens flare.
 - Hard spotlight cones.
 - Confetti, crowd imagery, ticket imagery, or instrument imagery.

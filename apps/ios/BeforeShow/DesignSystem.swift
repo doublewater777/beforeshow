@@ -1,3 +1,4 @@
+import UIKit
 import SwiftUI
 
 // MARK: - Colors
@@ -128,8 +129,6 @@ extension View {
 // MARK: - Stage Components
 
 struct CurrentShowStageBackground: View {
-    @State private var isOrbPulsing = false
-
     var body: some View {
         ZStack {
             Color.black
@@ -157,44 +156,6 @@ struct CurrentShowStageBackground: View {
                     StageBackgroundGlow(color: Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.10))
                         .frame(width: geometry.size.width * 0.48, height: geometry.size.height * 0.34)
                         .position(x: geometry.size.width * 0.82, y: geometry.size.height * 0.92)
-
-                    StageBeam(
-                        color: Color(red: 0.49, green: 0.81, blue: 1.0),
-                        rotation: -18,
-                        pulseDuration: 4,
-                        pulseDelay: 0
-                    )
-                        .position(x: geometry.size.width * 0.20, y: geometry.size.height - 130)
-                    StageBeam(
-                        color: Color(red: 0.11, green: 0.73, blue: 0.33),
-                        rotation: -6,
-                        pulseDuration: 5,
-                        pulseDelay: 1
-                    )
-                        .position(x: geometry.size.width * 0.40, y: geometry.size.height - 130)
-                    StageBeam(
-                        color: Color(red: 0.70, green: 0.53, blue: 1.0),
-                        rotation: 8,
-                        pulseDuration: 4.5,
-                        pulseDelay: 2
-                    )
-                        .position(x: geometry.size.width * 0.62, y: geometry.size.height - 130)
-                    StageBeam(
-                        color: Color(red: 0.98, green: 0.57, blue: 0.24),
-                        rotation: 20,
-                        pulseDuration: 5.5,
-                        pulseDelay: 0.5
-                    )
-                        .position(x: geometry.size.width * 0.80, y: geometry.size.height - 130)
-
-                    StageOrb()
-                        .frame(width: 120, height: 120)
-                        .scaleEffect(isOrbPulsing ? 1.12 : 1.0)
-                        .opacity(isOrbPulsing ? 0.9 : 0.6)
-                        .position(
-                            x: geometry.size.width * 0.50,
-                            y: geometry.size.height * 0.58 - 60
-                        )
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -211,11 +172,6 @@ struct CurrentShowStageBackground: View {
             )
         }
         .accessibilityHidden(true)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 3).repeatForever(autoreverses: true)) {
-                isOrbPulsing = true
-            }
-        }
     }
 }
 
@@ -269,25 +225,6 @@ private struct StageBeam: View {
                 }
             }
         }
-    }
-}
-
-struct StageOrb: View {
-    var body: some View {
-        Circle()
-            .fill(
-                RadialGradient(
-                    colors: [
-                        Color(red: 1.0, green: 1.0, blue: 0.86).opacity(0.85),
-                        Color(red: 0.75, green: 0.52, blue: 0.99).opacity(0.35),
-                        .clear
-                    ],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: 70
-                )
-            )
-            .blur(radius: 18)
     }
 }
 
@@ -705,38 +642,59 @@ struct ShowCoverImageView: View {
     var enforcesAspectRatio = true
     var cornerRadius: CGFloat = 8
 
+    @State private var image: UIImage?
+    @State private var loadState: LoadState = .idle
+
+    enum LoadState: Equatable {
+        case idle, loading, failed
+    }
+
     var body: some View {
         Group {
-            if let urlString,
-               !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .aspectRatio(contentMode: contentMode)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
-                    case .failure:
-                        ShowCoverPlaceholderView(reason: .failed)
-                    case .empty:
-                        ZStack {
-                            ShowCoverPlaceholderView(reason: .loading)
-                            ProgressView()
-                                .tint(.white.opacity(0.7))
-                        }
-                    @unknown default:
-                        ShowCoverPlaceholderView(reason: .noCover)
-                    }
-                }
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: contentMode)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment)
+            } else if loadState == .failed || urlString?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true {
+                ShowCoverPlaceholderView(reason: loadState == .failed ? .failed : .noCover)
             } else {
-                ShowCoverPlaceholderView(reason: .noCover)
+                ZStack {
+                    ShowCoverPlaceholderView(reason: .loading)
+                    ProgressView()
+                        .tint(.white.opacity(0.7))
+                }
             }
         }
         .modifier(ShowCoverAspectRatioModifier(aspectRatio: aspectRatio, isEnabled: enforcesAspectRatio))
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .clipped()
         .accessibilityHidden(true)
+        .task(id: urlString) {
+            await loadImage()
+        }
+    }
+
+    private func loadImage() async {
+        guard let urlString,
+              !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let url = URL(string: urlString) else { return }
+        loadState = .loading
+        image = await ImageCache.shared.image(from: url)
+        loadState = image == nil ? .failed : .idle
+    }
+}
+
+private actor ImageCache {
+    static let shared = ImageCache()
+    private let cache = NSCache<NSURL, UIImage>()
+
+    func image(from url: URL) async -> UIImage? {
+        if let cached = cache.object(forKey: url as NSURL) { return cached }
+        guard let (data, _) = try? await URLSession.shared.data(from: url),
+              let image = UIImage(data: data) else { return nil }
+        cache.setObject(image, forKey: url as NSURL)
+        return image
     }
 }
 
