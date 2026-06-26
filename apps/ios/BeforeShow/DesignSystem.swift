@@ -755,6 +755,28 @@ struct ArtistAvatarStackView: View {
     }
 }
 
+struct BSDrawerSheet<Content: View>: View {
+    let detent: PresentationDetent
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(spacing: BSSpacing.lg) {
+            Capsule()
+                .fill(Color.white.opacity(0.22))
+                .frame(width: 42, height: 4)
+
+            content
+        }
+        .padding(.horizontal, BSSpacing.lg)
+        .padding(.top, BSSpacing.md)
+        .padding(.bottom, BSSpacing.xl)
+        .presentationDetents([detent])
+        .presentationDragIndicator(.hidden)
+        .preferredColorScheme(.dark)
+        .background(Color.black)
+    }
+}
+
 struct BSProLimitSheet: View {
     let title: String
     let message: String
@@ -764,11 +786,7 @@ struct BSProLimitSheet: View {
     var onSecondary: () -> Void = {}
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
-
+        BSDrawerSheet(detent: .height(320)) {
             VStack(spacing: BSSpacing.md) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 18)
@@ -808,13 +826,6 @@ struct BSProLimitSheet: View {
                     .buttonStyle(BSSecondaryButtonStyle())
             }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([.height(320)])
-        .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
     }
 }
 
@@ -827,11 +838,7 @@ struct BSDangerConfirmationSheet: View {
     var onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
-
+        BSDrawerSheet(detent: .height(292)) {
             VStack(spacing: BSSpacing.md) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 28, weight: .semibold))
@@ -869,12 +876,5 @@ struct BSDangerConfirmationSheet: View {
                     )
             }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([.height(292)])
-        .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
     }
 }

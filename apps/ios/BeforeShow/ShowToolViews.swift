@@ -1938,11 +1938,7 @@ private struct FragmentAudioCaptureSheet: View {
     let onDismiss: () -> Void
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
-
+        BSDrawerSheet(detent: .height(312)) {
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text("语音片段")
                     .font(BSFont.headline)
@@ -1977,13 +1973,6 @@ private struct FragmentAudioCaptureSheet: View {
                 .disabled(isRecordingAudio)
             }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([.height(312)])
-        .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
     }
 }
 
@@ -2006,11 +1995,7 @@ private struct FragmentEditorSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
-
+        BSDrawerSheet(detent: .height(360)) {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
                     Text("编辑现场碎片")
@@ -2045,13 +2030,6 @@ private struct FragmentEditorSheet: View {
                 .buttonStyle(BSPrimaryButtonStyle())
             }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([.height(360)])
-        .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
     }
 
     private func save() {

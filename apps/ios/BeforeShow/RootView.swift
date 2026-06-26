@@ -120,6 +120,7 @@ private struct CurrentShowHomeView: View {
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
     @State private var isShowingToolsSheet = false
+    @State private var toolsDetent: PresentationDetent = .medium
 
     private let selector = CurrentShowSelector()
     private let formatter = ShowDisplayFormatter()
@@ -151,9 +152,9 @@ private struct CurrentShowHomeView: View {
             }
             .sheet(isPresented: $isShowingToolsSheet) {
                 if let show = currentShow {
-                    CurrentShowToolsSheet(show: show)
-                        .presentationDetents([.medium])
-                        .presentationDragIndicator(.visible)
+                    CurrentShowToolsSheet(show: show, detent: $toolsDetent)
+                        .presentationDetents([.medium, .large], selection: $toolsDetent)
+                        .presentationDragIndicator(.hidden)
                 }
             }
         }
@@ -210,72 +211,63 @@ private struct CurrentShowHomeView: View {
 
 private struct CurrentShowToolsSheet: View {
     let show: Show
-    @Environment(\.dismiss) private var dismiss
+    @Binding var detent: PresentationDetent
 
     var body: some View {
         NavigationStack {
-            ZStack {
-                CurrentShowStageBackground()
-                    .ignoresSafeArea()
+            VStack(spacing: BSSpacing.lg) {
+                Capsule()
+                    .fill(Color.white.opacity(0.22))
+                    .frame(width: 42, height: 4)
 
-                ScrollView {
-                    VStack(spacing: BSSpacing.md) {
-                        Text("这场现场")
-                            .font(BSFont.tag)
-                            .tracking(1.4)
-                            .foregroundColor(BSColor.textTertiary)
-                            .textCase(.uppercase)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: BSSpacing.md) {
+                    Text("这场现场")
+                        .font(BSFont.tag)
+                        .tracking(1.4)
+                        .foregroundColor(BSColor.textTertiary)
+                        .textCase(.uppercase)
+                        .frame(maxWidth: .infinity, alignment: .leading)
 
-                        toolLink(
-                            destination: CandidateSongsView(show: show),
-                            iconName: "mic.fill",
-                            title: "候选曲目",
-                            subtitle: "编辑推测歌单",
-                            accent: BSColor.Accent.candidate
-                        )
+                    toolLink(
+                        destination: CandidateSongsView(show: show),
+                        iconName: "mic.fill",
+                        title: "候选曲目",
+                        subtitle: "编辑推测歌单",
+                        accent: BSColor.Accent.candidate
+                    )
 
-                        toolLink(
-                            destination: RoundTripPlanView(show: show),
-                            iconName: "tram.fill",
-                            title: "往返计划",
-                            subtitle: "去程和返程安排",
-                            accent: BSColor.Accent.travel
-                        )
+                    toolLink(
+                        destination: RoundTripPlanView(show: show),
+                        iconName: "tram.fill",
+                        title: "往返计划",
+                        subtitle: "去程和返程安排",
+                        accent: BSColor.Accent.travel
+                    )
 
-                        toolLink(
-                            destination: ShowVideosView(show: show),
-                            iconName: "play.rectangle.fill",
-                            title: "现场视频",
-                            subtitle: "开场前先看几场真正的现场",
-                            accent: BSColor.Accent.video
-                        )
+                    toolLink(
+                        destination: ShowVideosView(show: show),
+                        iconName: "play.rectangle.fill",
+                        title: "现场视频",
+                        subtitle: "开场前先看几场真正的现场",
+                        accent: BSColor.Accent.video
+                    )
 
-                        toolLink(
-                            destination: ShowFragmentListView(show: show),
-                            iconName: "sparkles.rectangle.stack",
-                            title: "现场碎片",
-                            subtitle: "照片、视频和语音",
-                            accent: BSColor.Accent.fragment
-                        )
-                    }
-                    .padding(BSSpacing.md)
-                    .padding(.top, BSSpacing.lg)
-                    .padding(.bottom, BSSpacing.xl)
-                }
-                .scrollIndicators(.hidden)
-            }
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textPrimary)
+                    toolLink(
+                        destination: ShowFragmentListView(show: show),
+                        iconName: "sparkles.rectangle.stack",
+                        title: "现场碎片",
+                        subtitle: "照片、视频和语音",
+                        accent: BSColor.Accent.fragment
+                    )
                 }
             }
+            .padding(.horizontal, BSSpacing.lg)
+            .padding(.top, BSSpacing.md)
+            .padding(.bottom, BSSpacing.xl)
+            .onAppear { detent = .medium }
         }
+        .preferredColorScheme(.dark)
+        .background(Color.black)
     }
 
     private func toolLink<Destination: View>(
@@ -287,6 +279,7 @@ private struct CurrentShowToolsSheet: View {
     ) -> some View {
         NavigationLink {
             destination
+                .onAppear { detent = .large }
         } label: {
             HStack(spacing: BSSpacing.md) {
                 Image(systemName: iconName)

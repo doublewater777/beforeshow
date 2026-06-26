@@ -303,11 +303,7 @@ private struct PostponeShowSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
-
+        BSDrawerSheet(detent: .height(360)) {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 Text("记录延期")
                     .font(BSFont.headline)
@@ -334,13 +330,6 @@ private struct PostponeShowSheet: View {
                     .buttonStyle(BSSecondaryButtonStyle())
             }
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([.height(360)])
-        .presentationDragIndicator(.hidden)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
     }
 }
 
