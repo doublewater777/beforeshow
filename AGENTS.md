@@ -2,8 +2,6 @@
 
 use iphone 17 simulator
 
-
-
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
@@ -46,7 +44,17 @@ When your changes create orphans:
 
 The test: Every changed line should trace directly to the user's request.
 
-## 4. Goal-Driven Execution
+## 4. UI Consistency & Component Reuse
+
+**Same design system, same set of components. Don't reinvent the wheel.**
+
+Before implementing a module:
+- Check for existing shared components first (Button, Card, Modal, Form, etc.)
+- Need a component that doesn't exist? Abstract it as a shared component first, then use it in your module
+- UI style, spacing, font sizes, colors must follow design tokens — no hardcoded values
+- Keep components atomic and reusable; don't mix page logic with UI in one file
+
+## 5. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 

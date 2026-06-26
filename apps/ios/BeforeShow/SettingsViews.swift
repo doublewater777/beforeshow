@@ -73,12 +73,91 @@ struct SettingsView: View {
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.textTertiary)
                     .frame(maxWidth: .infinity)
+
+                #if DEBUG
+                SettingsGroup(title: "调试") {
+                    ProEntitlementDebugPicker()
+                }
+                #endif
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
+
+#if DEBUG
+private enum DebugProEntitlementOption: String, CaseIterable {
+    case free
+    case active
+    case expired
+
+    var state: ProEntitlementState {
+        switch self {
+        case .free:
+            return .free
+        case .active:
+            return .active(productID: "debug.local.pro", expirationDate: nil)
+        case .expired:
+            return .expired(productID: "debug.local.pro", expirationDate: Date(timeIntervalSince1970: 0))
+        }
+    }
+
+    init(state: ProEntitlementState) {
+        switch state {
+        case .free:
+            self = .free
+        case .active:
+            self = .active
+        case .expired:
+            self = .expired
+        }
+    }
+}
+
+private struct ProEntitlementDebugPicker: View {
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
+
+    private var selectedOption: DebugProEntitlementOption {
+        get {
+            DebugProEntitlementOption(state: ProEntitlementStorage.decode(entitlementRawValue))
+        }
+        nonmutating set {
+            entitlementRawValue = ProEntitlementStorage.encode(newValue.state)
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            Text("Pro 状态测试")
+                .font(BSFont.body.weight(.semibold))
+                .foregroundColor(BSColor.textPrimary)
+            Text("切换后立即生效，仅调试构建可见。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+
+            Picker("Pro 状态", selection: Binding(get: { selectedOption }, set: { selectedOption = $0 })) {
+                ForEach(DebugProEntitlementOption.allCases, id: \.self) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.horizontal, BSSpacing.md)
+        .padding(.vertical, 14)
+    }
+}
+
+extension DebugProEntitlementOption {
+    var displayName: String {
+        switch self {
+        case .free: return "免费版"
+        case .active: return "Pro 已启用"
+        case .expired: return "Pro 已过期"
+        }
+    }
+}
+#endif
 
 private struct SettingsProMembershipCard<Content: View>: View {
     @ViewBuilder var content: Content
