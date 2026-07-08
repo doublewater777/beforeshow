@@ -109,7 +109,7 @@ struct LocalDataClearancePlan: Equatable {
 enum LocalDataClearancePolicy {
     static let defaultPlan = LocalDataClearancePlan(
         deletesAppOwnedData: [
-            "SwiftData 中的现场、候选曲目、往返计划和偏好设置",
+            "SwiftData 中的现场、候选曲目、去程计划和偏好设置",
             "BeforeShow 沙盒中的 App 内录音与临时缓存"
         ],
         preservesSystemData: [

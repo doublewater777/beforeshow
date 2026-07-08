@@ -190,15 +190,15 @@ struct CurrentShowTimeState: Equatable {
     var allToolsSummary: String {
         switch kind {
         case .before:
-            return "往返计划 · 现场准备 · 现场碎片"
+            return "去程计划 · 现场准备 · 现场碎片"
         case .today:
             return "候选曲目 · 现场准备 · 现场碎片"
         case .postShow:
-            return "往返计划 · 现场准备"
+            return "去程计划 · 现场准备"
         case .ended:
-            return "往返计划 · 现场准备"
+            return "去程计划 · 现场准备"
         case .canceled, .postponed:
-            return "往返计划 · 现场准备 · 现场碎片"
+            return "去程计划 · 现场准备 · 现场碎片"
         }
     }
 
@@ -225,12 +225,11 @@ struct CurrentShowTimeState: Equatable {
         }
     }
 
-    static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date? {
-        guard let startTime = show.startTime else {
-            return nil
+    static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
+        guard let merged = merge(time: show.startTime, into: show.effectiveDate, calendar: calendar) else {
+            return show.startTime
         }
-
-        return merge(time: startTime, into: show.effectiveDate, calendar: calendar)
+        return merged
     }
 
     static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {

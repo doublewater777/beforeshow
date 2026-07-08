@@ -25,7 +25,36 @@ enum ShowChangeStatus: String, CaseIterable, Codable, Equatable {
 
 enum ShowValidationError: Error, Equatable {
     case emptyName
+    case missingStartTime
     case invalidEndTime
+}
+
+enum ShowDepartureDestinationQuality: Equatable {
+    case precise
+    case approximate
+    case weak
+    case missing
+}
+
+struct ShowDepartureDestination: Equatable {
+    let text: String
+    let quality: ShowDepartureDestinationQuality
+    let venueName: String?
+    let city: String?
+    let address: String?
+
+    var guidance: String? {
+        switch quality {
+        case .precise:
+            return nil
+        case .approximate:
+            return "只有场馆名时路线可能不准，建议补全街道地址。"
+        case .weak:
+            return "到场地址太简略，请填写具体街道门牌，或去编辑现场补场馆地址。"
+        case .missing:
+            return "这场现场还没有场馆信息，请先去编辑现场或手动填写到场地址。"
+        }
+    }
 }
 
 struct ShowDisplayFormatter {
@@ -37,9 +66,7 @@ struct ShowDisplayFormatter {
 
     func dateText(for show: Show) -> String {
         let startDay = show.effectiveDate
-        let startClock = show.startTime == nil
-            ? nil
-            : CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+        let startClock = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
         let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar)
         let endClock = CurrentShowTimeState.effectiveEndTime(
             for: show,
@@ -50,16 +77,11 @@ struct ShowDisplayFormatter {
 
         if show.type == .musicFestival, let endDay {
             let range = dayRangeText(from: startDay, to: endDay)
-            if let startClock {
-                return "\(range) · 每日 \(timeText(startClock))"
-            }
-            return range
+            return "\(range) · 每日 \(timeText(startClock))"
         }
 
         var text = dateText(startDay)
-        if let startClock {
-            text += " \(timeText(startClock))"
-        }
+        text += " \(timeText(startClock))"
 
         if let endClock {
             text += " - \(shortDateTimeText(endClock, includeDateWhenSameDayAs: startDay))"
@@ -121,11 +143,12 @@ final class Show {
     var id: UUID
     var name: String
     var date: Date
-    var startTime: Date?
+    var startTime: Date
     var endDate: Date?
     var endTime: Date?
     var city: String?
     var venueName: String?
+    var venueAddress: String?
     var artist: String?
     var seatSection: String?
     var coverImageURL: String?
@@ -172,11 +195,12 @@ final class Show {
         id: UUID = UUID(),
         name: String,
         date: Date,
-        startTime: Date? = nil,
+        startTime: Date,
         endDate: Date? = nil,
         endTime: Date? = nil,
         city: String? = nil,
         venueName: String? = nil,
+        venueAddress: String? = nil,
         artist: String? = nil,
         seatSection: String? = nil,
         coverImageURL: String? = nil,
@@ -207,6 +231,7 @@ final class Show {
         self.endTime = endTime
         self.city = city
         self.venueName = venueName
+        self.venueAddress = venueAddress
         self.artist = artist
         self.seatSection = seatSection
         self.coverImageURL = coverImageURL
@@ -234,13 +259,95 @@ final class Show {
         touch()
     }
 
+    var departureDestination: ShowDepartureDestination {
+        Self.departureDestination(venueName: venueName, venueAddress: venueAddress, city: city)
+    }
+
+    func updateVenueAddressFromDepartureInput(_ value: String) {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        venueAddress = trimmed
+        touch()
+    }
+
     private func touch() {
         updatedAt = Date()
     }
 
+    static func departureDestination(
+        venueName: String?,
+        venueAddress: String?,
+        city: String?
+    ) -> ShowDepartureDestination {
+        let venue = trimmedOptional(venueName)
+        let address = trimmedOptional(venueAddress)
+        let city = trimmedOptional(city)
+
+        if let address {
+            return ShowDepartureDestination(
+                text: composedAddress(address: address, city: city),
+                quality: .precise,
+                venueName: venue,
+                city: city,
+                address: address
+            )
+        }
+
+        if let venue, let city {
+            return ShowDepartureDestination(
+                text: "\(city) \(venue)",
+                quality: .approximate,
+                venueName: venue,
+                city: city,
+                address: nil
+            )
+        }
+
+        if let venue {
+            return ShowDepartureDestination(
+                text: venue,
+                quality: .weak,
+                venueName: venue,
+                city: city,
+                address: nil
+            )
+        }
+
+        if let city {
+            return ShowDepartureDestination(
+                text: city,
+                quality: .weak,
+                venueName: nil,
+                city: city,
+                address: nil
+            )
+        }
+
+        return ShowDepartureDestination(
+            text: "",
+            quality: .missing,
+            venueName: nil,
+            city: nil,
+            address: nil
+        )
+    }
+
+    private static func composedAddress(address: String, city: String?) -> String {
+        if let city, !address.contains(city) {
+            return "\(city) \(address)"
+        }
+        return address
+    }
+
+    private static func trimmedOptional(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     static func hasValidEndTime(
         date: Date,
-        startTime: Date?,
+        startTime: Date,
         endDate: Date?,
         endTime: Date?,
         calendar: Calendar = .current
@@ -264,10 +371,6 @@ final class Show {
             of: endDay
         ) else {
             return false
-        }
-
-        guard let startTime else {
-            return effectiveEnd >= startDay
         }
 
         let startComponents = calendar.dateComponents([.hour, .minute, .second], from: startTime)

@@ -229,7 +229,7 @@ final class ShowFragmentTests: XCTestCase {
     }
 
     private func makeShow(name: String = "测试现场") throws -> Show {
-        try Show(name: name, date: Date(timeIntervalSince1970: 1_779_552_000), type: .concert)
+        try Show(name: name, date: Date(timeIntervalSince1970: 1_779_552_000), startTime: Date(), type: .concert)
     }
 
     private func makeSineWaveAudioFile() throws -> URL {

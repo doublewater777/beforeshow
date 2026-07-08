@@ -263,39 +263,6 @@ private struct CurrentShowListHeroCard: View {
     }
 }
 
-private struct DetailActionButton: View {
-    let iconName: String
-    let title: String
-    var tint: Color = BSColor.textPrimary
-    var isProminent: Bool = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: BSSpacing.sm) {
-                Image(systemName: iconName)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(tint)
-                    .frame(height: 22)
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(tint.opacity(0.86))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .minimumScaleFactor(0.76)
-            }
-            .frame(maxWidth: .infinity, minHeight: 74)
-            .background(tint.opacity(isProminent ? 0.10 : 0.055))
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(tint.opacity(isProminent ? 0.24 : 0.12), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
@@ -337,6 +304,12 @@ struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var selections: [CurrentShowSelection]
+    @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var candidateGroups: [CandidateSongGroup]
+    @Query private var candidateSongs: [CandidateSong]
+    @Query private var roundTripPlans: [RoundTripPlan]
+    @Query private var preparationPlans: [ShowPreparationPlan]
+    @Query private var videos: [ShowVideo]
     let show: Show
 
     @State private var isEditing = false
@@ -344,10 +317,26 @@ struct ShowDetailView: View {
     @State private var showsCancelConfirmation = false
     @State private var showsDeleteConfirmation = false
     @State private var newPostponedDate = Date()
+    @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
 
     private var timeState: CurrentShowTimeState {
         CurrentShowTimeState(show: show)
+    }
+
+    private var summary: ShowToolSummary {
+        ShowToolSummary(
+            show: show,
+            candidateGroups: candidateGroups,
+            candidateSongs: candidateSongs,
+            roundTripPlans: roundTripPlans,
+            preparationPlans: preparationPlans,
+            videos: videos
+        )
+    }
+
+    private var isCurrentShow: Bool {
+        CurrentShowSelector().selectCurrentShow(from: shows, manualSelection: selections.first)?.id == show.id
     }
 
     var body: some View {
@@ -358,24 +347,21 @@ struct ShowDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     detailHero
-                    countdownCard
-                    actionGrid
+                    managementRow
                     toolList
 
                     Text("艺人、时间和场馆变化请直接编辑现场信息；现场变更只记录延期和取消。")
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.textTertiary)
-                        .padding(BSSpacing.md)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.lg)
-                                .stroke(BSColor.border, lineWidth: 1)
-                        )
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .padding(.horizontal, BSSpacing.md)
                 .padding(.bottom, BSSpacing.xl)
             }
             .scrollIndicators(.hidden)
         }
+        .bsToastOverlay(toast, bottomPadding: 28)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -410,7 +396,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $showsCancelConfirmation) {
             BSDangerConfirmationSheet(
                 title: "记录取消",
-                message: "标记为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
+                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
                 destructiveTitle: "确认取消",
                 onConfirm: {
                     showsCancelConfirmation = false
@@ -485,13 +471,18 @@ struct ShowDetailView: View {
                     Spacer()
 
                     Menu {
-                        Button("设为当前", action: selectCurrent)
-                        Button("编辑信息") {
-                            isEditing = true
-                        }
                         Button("记录延期") {
                             newPostponedDate = show.postponedDate ?? show.date
                             showsPostponeDialog = true
+                        }
+                        if show.changeStatus != .scheduled {
+                            Button("恢复日期") {
+                                show.markScheduled()
+                                try? modelContext.save()
+                            }
+                        }
+                        Button("记录取消", role: .destructive) {
+                            showsCancelConfirmation = true
                         }
                         Button("删除现场", role: .destructive) {
                             showsDeleteConfirmation = true
@@ -514,7 +505,7 @@ struct ShowDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text(formatter.statusText(for: show))
+                Text("\(formatter.statusText(for: show)) · \(show.type.displayName)")
                     .font(BSFont.tag)
                     .foregroundColor(BSColor.textSecondary)
                     .padding(.horizontal, 12)
@@ -544,64 +535,128 @@ struct ShowDetailView: View {
                         .foregroundColor(BSColor.textTertiary)
                         .lineLimit(2)
                 }
+                if let venueAddress = show.venueAddress {
+                    Label(venueAddress, systemImage: "signpost.right")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                        .lineLimit(2)
+                }
+                if let seatSection = show.seatSection {
+                    Label(seatSection, systemImage: "ticket")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                        .lineLimit(2)
+                }
+
+                heroCountdown
             }
             .padding(20)
         }
         .clipShape(RoundedRectangle(cornerRadius: 24))
     }
-    private var countdownCard: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text(countdownTitle)
+
+    private var heroCountdown: some View {
+        HStack(alignment: .lastTextBaseline, spacing: BSSpacing.sm) {
+            if let eyebrow = heroCountdownContent.eyebrow {
+                Text(eyebrow)
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.textTertiary)
-
-                HStack(alignment: .lastTextBaseline, spacing: BSSpacing.sm) {
-                    Text(timeState.countdownNumber)
-                        .font(.system(size: 48, weight: .light))
-                        .bsGradientText()
-                        .minimumScaleFactor(0.7)
-
-                    Text(timeState.countdownUnit)
-                        .font(BSFont.title)
-                        .foregroundColor(BSColor.textSecondary)
-                        .lineLimit(1)
-                }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            if heroCountdownContent.dim {
+                Text(heroCountdownContent.value)
+                    .font(.system(size: 30, weight: .light))
+                    .foregroundColor(BSColor.textTertiary)
+            } else {
+                Text(heroCountdownContent.value)
+                    .font(.system(size: 30, weight: .light))
+                    .bsGradientText()
+            }
         }
+        .padding(.top, BSSpacing.xs)
     }
 
-    private var countdownTitle: String {
+    private var heroCountdownContent: HeroCountdownContent {
         switch timeState.kind {
-        case .before, .today:
-            return "距离开场还有"
-        case .postShow, .ended:
-            return "开场已经过去"
-        case .postponed, .canceled:
-            return "当前状态"
+        case .before:
+            return HeroCountdownContent(
+                eyebrow: "距离开场",
+                value: "\(timeState.countdownNumber)\(timeState.countdownUnit)"
+            )
+        case .today:
+            return HeroCountdownContent(eyebrow: nil, value: "就是今天")
+        case .postShow:
+            return HeroCountdownContent(
+                eyebrow: nil,
+                value: "\(timeState.countdownNumber)\(timeState.countdownUnit)"
+            )
+        case .ended:
+            return HeroCountdownContent(eyebrow: nil, value: "记忆已收好", dim: true)
+        case .canceled:
+            return HeroCountdownContent(eyebrow: nil, value: "记录仍保留", dim: true)
+        case .postponed:
+            return HeroCountdownContent(eyebrow: nil, value: "倒计时已暂停", dim: true)
         }
     }
 
-    private var actionGrid: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: BSSpacing.sm), count: 4), spacing: BSSpacing.sm) {
-            DetailActionButton(iconName: "star.fill", title: "设为当前") { selectCurrent() }
-            DetailActionButton(iconName: "square.and.pencil", title: "编辑信息") { isEditing = true }
-            DetailActionButton(iconName: "calendar.badge.clock", title: "记录延期") {
-                newPostponedDate = show.postponedDate ?? show.date
-                showsPostponeDialog = true
+    private struct HeroCountdownContent {
+        let eyebrow: String?
+        let value: String
+        var dim: Bool = false
+    }
+
+    private var managementRow: some View {
+        HStack(spacing: BSSpacing.sm) {
+            Button {
+                isEditing = true
+            } label: {
+                Label("编辑信息", systemImage: "square.and.pencil")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .fill(Color.white.opacity(0.08))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.borderProminent, lineWidth: 1)
+                    )
             }
-            DetailActionButton(iconName: "xmark.octagon.fill", title: "记录取消", tint: Color(red: 1.0, green: 0.42, blue: 0.42), isProminent: true) {
-                showsCancelConfirmation = true
-            }
-            DetailActionButton(iconName: "trash.fill", title: "删除现场", tint: Color(red: 1.0, green: 0.42, blue: 0.42), isProminent: true) {
-                showsDeleteConfirmation = true
-            }
-            if show.changeStatus != .scheduled {
-                DetailActionButton(iconName: "arrow.counterclockwise", title: "恢复日期") {
-                    show.markScheduled()
-                    try? modelContext.save()
+            .buttonStyle(.plain)
+            .accessibilityLabel("编辑现场信息")
+
+            if isCurrentShow {
+                Label("当前现场", systemImage: "checkmark.seal.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Accent.prepare)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .fill(BSColor.Accent.prepare.opacity(0.10))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
+                    )
+                    .accessibilityLabel("当前现场")
+            } else {
+                Button {
+                    selectCurrent()
+                } label: {
+                    Label("设为当前", systemImage: "star.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .fill(BSColor.brandGradientSoft)
+                        )
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("设为当前现场")
             }
         }
     }
@@ -609,21 +664,20 @@ struct ShowDetailView: View {
     private var toolList: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             BSSectionHeader(title: "工具")
-            TonightFirstListenEntryView(show: show)
             NavigationLink { ShowVideosView(show: show) } label: {
-                CurrentFeatureRow(iconName: "play.rectangle.fill", title: "现场视频", subtitle: "开场前先看几场真正的现场", accent: BSColor.Accent.video)
+                CurrentFeatureRow(iconName: "play.rectangle.fill", title: "现场视频", subtitle: summary.videosStatus, accent: BSColor.Accent.video)
             }
             NavigationLink { CandidateSongsView(show: show) } label: {
-                CurrentFeatureRow(iconName: "mic.fill", title: "候选曲目", subtitle: "保留、移除、补充推测歌单", accent: BSColor.Accent.candidate)
+                CurrentFeatureRow(iconName: "mic.fill", title: "候选曲目", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
             }
             NavigationLink { RoundTripPlanView(show: show) } label: {
-                CurrentFeatureRow(iconName: "tram.fill", title: "往返计划", subtitle: "去程和返程安排，返程可先未定", accent: BSColor.Accent.travel)
+                CurrentFeatureRow(iconName: "tram.fill", title: "去程计划", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
             }
             NavigationLink { ShowPreparationView(show: show) } label: {
-                CurrentFeatureRow(iconName: "sparkles", title: "现场准备", subtitle: "天气、装备、礼仪和注意事项", accent: BSColor.Accent.prepare)
+                CurrentFeatureRow(iconName: "sparkles", title: "现场准备", subtitle: summary.preparationStatus, accent: BSColor.Accent.prepare)
             }
             NavigationLink { ShowFragmentListView(show: show) } label: {
-                CurrentFeatureRow(iconName: "sparkles.rectangle.stack", title: "现场碎片", subtitle: "留存这一场的照片、视频和语音", accent: BSColor.Accent.fragment)
+                CurrentFeatureRow(iconName: "sparkles.rectangle.stack", title: "现场碎片", subtitle: summary.fragmentsStatus, accent: BSColor.Accent.fragment)
             }
         }
         .buttonStyle(.plain)
@@ -636,6 +690,18 @@ struct ShowDetailView: View {
         }
         selection.select(showID: show.id)
         try? modelContext.save()
+        presentToast(.success, message: "已设为当前现场")
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload {
+                toast = nil
+            }
+        }
     }
 
     private func apply(_ draft: ShowDraft) {
@@ -646,6 +712,7 @@ struct ShowDetailView: View {
         show.endTime = draft.endTime
         show.city = trimmedOptional(draft.city)
         show.venueName = trimmedOptional(draft.venueName)
+        show.venueAddress = trimmedOptional(draft.venueAddress)
         show.artist = trimmedOptional(draft.artist)
         show.seatSection = trimmedOptional(draft.seatSection)
         show.coverImageURL = trimmedOptional(draft.coverImageURL)

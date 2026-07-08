@@ -6,9 +6,11 @@ final class ShowModelTests: XCTestCase {
     @MainActor
     func testShowCanBeCreatedAndStoredWithOnlyNameAndDate() throws {
         let date = Date(timeIntervalSince1970: 1_779_552_000)
+        let startTime = Date(timeIntervalSince1970: 1_779_555_600)
         let show = try Show(
             name: "落日飞车 北京站",
             date: date,
+            startTime: startTime,
             coverImageURL: "https://example.com/cover.jpg",
             artistAvatarURLs: ["https://example.com/artist.jpg"],
             type: .concert
@@ -26,7 +28,7 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(shows[0].name, "落日飞车 北京站")
         XCTAssertEqual(shows[0].date, date)
         XCTAssertEqual(shows[0].type, .concert)
-        XCTAssertNil(shows[0].startTime)
+        XCTAssertEqual(shows[0].startTime, startTime)
         XCTAssertNil(shows[0].venueName)
         XCTAssertEqual(shows[0].coverImageURL, "https://example.com/cover.jpg")
         XCTAssertEqual(shows[0].artistAvatarURLs, ["https://example.com/artist.jpg"])
@@ -39,7 +41,7 @@ final class ShowModelTests: XCTestCase {
     }
 
     func testPostponedAndCanceledAreRepresentedWithoutGenericAbnormalStates() throws {
-        let show = try Show(name: "延期测试现场", date: Date(), type: .livehouse)
+        let show = try Show(name: "延期测试现场", date: Date(), startTime: Date(), type: .livehouse)
 
         show.markPostponed(newDate: nil)
         XCTAssertEqual(show.changeStatus, .postponed)
@@ -282,6 +284,41 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(state.kind, .today)
         XCTAssertEqual(state.allToolsSummary, "候选曲目 · 现场准备 · 现场碎片")
         XCTAssertFalse(state.allToolsSummary.contains("路上先听"))
+    }
+
+    func testDepartureDestinationPrefersVenueAddressOverVenueName() {
+        let destination = Show.departureDestination(
+            venueName: "MAO Livehouse",
+            venueAddress: "杭州市上城区中山南路77号",
+            city: "杭州"
+        )
+
+        XCTAssertEqual(destination.quality, .precise)
+        XCTAssertEqual(destination.text, "杭州市上城区中山南路77号")
+        XCTAssertNil(destination.guidance)
+    }
+
+    func testDepartureDestinationFallsBackToCityAndVenueName() {
+        let destination = Show.departureDestination(
+            venueName: "MAO Livehouse",
+            venueAddress: nil,
+            city: "杭州"
+        )
+
+        XCTAssertEqual(destination.quality, .approximate)
+        XCTAssertEqual(destination.text, "杭州 MAO Livehouse")
+        XCTAssertNotNil(destination.guidance)
+    }
+
+    func testDepartureDestinationReportsMissingVenueInformation() {
+        let destination = Show.departureDestination(
+            venueName: nil,
+            venueAddress: nil,
+            city: nil
+        )
+
+        XCTAssertEqual(destination.quality, .missing)
+        XCTAssertEqual(destination.text, "")
     }
 
     func testCurrentHomeHeroUsesLabeledPosterCardWithActionsOnCover() {

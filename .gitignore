@@ -10,3 +10,4 @@ xcuserdata/
 .feishu-beforeshow.json
 .playwright-mcp/
 .wrangler
+apps/ios/DerivedData

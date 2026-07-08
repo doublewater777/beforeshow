@@ -58,10 +58,11 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         ])
     }
 
-    func testShowDayReminderFallsBackToNoonWhenStartTimeIsMissing() throws {
+    func testShowDayReminderUsesStartTimeMinusThreeHours() throws {
         let show = try Show(
-            name: "没有开场时间的现场",
+            name: "有开场时间的现场",
             date: makeDate(year: 2026, month: 6, day: 20),
+            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20),
             type: .livehouse
         )
 
@@ -72,7 +73,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
         XCTAssertEqual(
             requests.first(where: { $0.milestone == .showDay })?.fireDate,
-            makeDate(year: 2026, month: 6, day: 20, hour: 12)
+            makeDate(year: 2026, month: 6, day: 20, hour: 17)
         )
     }
 
@@ -102,6 +103,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let canceled = try Show(
             name: "取消现场",
             date: makeDate(year: 2026, month: 6, day: 25),
+            startTime: Date(),
             type: .concert
         )
         canceled.markCanceled()
@@ -109,6 +111,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let postponedWithoutNewDate = try Show(
             name: "未定延期现场",
             date: makeDate(year: 2026, month: 6, day: 25),
+            startTime: Date(),
             type: .concert
         )
         postponedWithoutNewDate.markPostponed(newDate: nil)
@@ -188,7 +191,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             year: 2026, month: 6, day: 25, hour: 20
         ).date!
         
-        let show = try Show(name: "跨时区通知现场", date: showDateUTC, type: .concert)
+        let show = try Show(name: "跨时区通知现场", date: showDateUTC, startTime: Date(), type: .concert)
         
         // Scenario A: UTC Calendar
         var utcCalendar = Calendar(identifier: .gregorian)

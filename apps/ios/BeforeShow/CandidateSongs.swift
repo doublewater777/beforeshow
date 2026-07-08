@@ -22,8 +22,9 @@ final class CandidateSong {
     var songName: String
     var artist: String
     var order: Int
+    var isUserAdded: Bool
 
-    init(id: UUID = UUID(), groupID: UUID, songName: String, artist: String, order: Int) throws {
+    init(id: UUID = UUID(), groupID: UUID, songName: String, artist: String, order: Int, isUserAdded: Bool = false) throws {
         let trimmedSongName = songName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -39,6 +40,7 @@ final class CandidateSong {
         self.songName = trimmedSongName
         self.artist = trimmedArtist
         self.order = order
+        self.isUserAdded = isUserAdded
     }
 }
 
@@ -49,6 +51,7 @@ final class CandidateSongGroup {
     var artistInterestID: UUID?
     var artistName: String?
     var uncertaintyNote: String
+    var isUserCurated: Bool
     var createdAt: Date
     var updatedAt: Date
 
@@ -58,6 +61,7 @@ final class CandidateSongGroup {
         artistInterestID: UUID? = nil,
         artistName: String? = nil,
         uncertaintyNote: String,
+        isUserCurated: Bool = false,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -71,6 +75,7 @@ final class CandidateSongGroup {
         self.artistInterestID = artistInterestID
         self.artistName = artistName?.trimmingCharacters(in: .whitespacesAndNewlines)
         self.uncertaintyNote = trimmedNote
+        self.isUserCurated = isUserCurated
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -217,42 +222,55 @@ struct CandidateSongGenerationRequest {
     let showID: UUID
     let showName: String
     let showType: ShowType
-    let targetArtist: ArtistInterestItem?
+    let artists: [String]
     let excludedArtists: [String]
 
     static func requests(
         for show: Show,
         artistInterests: [ArtistInterestItem]
     ) -> [CandidateSongGenerationRequest] {
-        guard show.type == .musicFestival else {
+        let excluded = excludedArtists(from: artistInterests)
+
+        if show.type == .musicFestival {
+            let includedArtists = artistInterests
+                .filter { $0.status != .notInterested }
+                .sorted { first, second in
+                    if first.status == second.status {
+                        return first.order < second.order
+                    }
+                    return first.status.priority < second.status.priority
+                }
+                .map(\.artistName)
+
+            guard !includedArtists.isEmpty else {
+                return []
+            }
+
             return [
                 CandidateSongGenerationRequest(
                     showID: show.id,
                     showName: show.name,
                     showType: show.type,
-                    targetArtist: nil,
-                    excludedArtists: excludedArtists(from: artistInterests)
+                    artists: includedArtists,
+                    excludedArtists: excluded
                 )
             ]
         }
 
-        return artistInterests
-            .filter { $0.status != .notInterested }
-            .sorted { first, second in
-                if first.status == second.status {
-                    return first.order < second.order
-                }
-                return first.status.priority < second.status.priority
-            }
-            .map {
-                CandidateSongGenerationRequest(
-                    showID: show.id,
-                    showName: show.name,
-                    showType: show.type,
-                    targetArtist: $0,
-                    excludedArtists: excludedArtists(from: artistInterests)
-                )
-            }
+        return [
+            CandidateSongGenerationRequest(
+                showID: show.id,
+                showName: show.name,
+                showType: show.type,
+                artists: showArtists(show),
+                excludedArtists: excluded
+            )
+        ]
+    }
+
+    private static func showArtists(_ show: Show) -> [String] {
+        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return artist.isEmpty ? [] : [artist]
     }
 
     private static func excludedArtists(from artistInterests: [ArtistInterestItem]) -> [String] {
@@ -310,7 +328,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
                 city: trimmedOptional(show.city),
                 venueName: trimmedOptional(show.venueName),
                 type: generationRequest.showType.rawValue,
-                artists: artists(for: show, targetArtist: generationRequest.targetArtist)
+                artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
             ),
             limits: Limits(maxSongs: 12)
         ))
@@ -331,18 +349,6 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
         }
 
         return generation.items
-    }
-
-    private func artists(for show: Show, targetArtist: ArtistInterestItem?) -> [String]? {
-        if let targetArtist {
-            return [targetArtist.artistName]
-        }
-
-        guard let artist = trimmedOptional(show.artist) else {
-            return nil
-        }
-
-        return [artist]
     }
 
     private func trimmedOptional(_ value: String?) -> String? {
@@ -427,6 +433,34 @@ struct CandidateSongEditingService {
                 songName: input.songName,
                 artist: input.artist,
                 order: index
+            )
+        }
+    }
+
+    /// Groups generated inputs by their `artist`, preserving the order in which each artist
+    /// first appears in `inputs`. Matches `artistInterestID` by artist name so festival groups
+    /// stay linked to the artist interest that produced them.
+    func groupedInputsByArtist(
+        inputs: [CandidateSongInput],
+        artistInterests: [ArtistInterestItem]
+    ) -> [(artistName: String, artistInterestID: UUID?, songs: [CandidateSongInput])] {
+        let interestIDByName = Dictionary(
+            uniqueKeysWithValues: artistInterests.map { ($0.artistName, $0.id) }
+        )
+        let grouped = Dictionary(grouping: inputs, by: \.artist)
+
+        var seenArtists = Set<String>()
+        var orderedArtists: [String] = []
+        for input in inputs where !seenArtists.contains(input.artist) {
+            seenArtists.insert(input.artist)
+            orderedArtists.append(input.artist)
+        }
+
+        return orderedArtists.map { artist in
+            (
+                artistName: artist,
+                artistInterestID: interestIDByName[artist],
+                songs: grouped[artist] ?? []
             )
         }
     }

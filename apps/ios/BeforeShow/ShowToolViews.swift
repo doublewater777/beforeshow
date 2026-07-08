@@ -38,6 +38,73 @@ struct CurrentAllToolsRow: View {
     }
 }
 
+private struct BSTipPromptCard: View {
+    let iconName: String
+    let eyebrow: String
+    let message: String
+    var accent: Color = BSColor.Accent.music
+    var buttonTitle: String?
+    var action: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(accent.opacity(0.22))
+                    .frame(width: 38, height: 38)
+                    .blur(radius: 12)
+
+                Image(systemName: iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(accent)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(eyebrow)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundColor(BSColor.textTertiary)
+                    .textCase(.uppercase)
+
+                Text(message)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(BSColor.textSecondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 8)
+
+            if let buttonTitle, let action {
+                Button(buttonTitle, action: action)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.black.opacity(0.88))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(Capsule().fill(BSColor.brandGradientSoft))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(13)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(Color.white.opacity(0.055))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.white.opacity(0.10), lineWidth: 0.75)
+        )
+    }
+}
+
 struct CurrentShowAllToolsView: View {
     let show: Show
 
@@ -63,15 +130,13 @@ struct CurrentShowAllToolsView: View {
                     }
 
                     LazyVGrid(columns: columns, spacing: BSSpacing.md) {
-                        TonightFirstListenEntryView(show: show, presentation: .tile)
-
                         NavigationLink {
                             RoundTripPlanView(show: show)
                         } label: {
                             CurrentToolTile(
                                 iconName: "tram.fill",
-                                title: "往返计划",
-                                subtitle: "去程和返程安排",
+                                title: "去程计划",
+                                subtitle: "怎么去、几点到",
                                 accent: BSColor.Accent.travel
                             )
                         }
@@ -188,8 +253,11 @@ struct ShowVideosView: View {
     let show: Show
     var debugState: DebugState?
 
+    @Environment(\.modelContext) private var modelContext
     @Query private var videos: [ShowVideo]
     @State private var navigator = ShowVideoWebViewNavigator()
+    @State private var message: String?
+    @State private var toast: BSToastPayload?
 
     private let libraryService = ShowVideoLibraryService()
 
@@ -221,19 +289,20 @@ struct ShowVideosView: View {
 
     var body: some View {
         BSStageScaffold(title: "现场视频", subtitle: "开场前，先看几场真正的现场。", bottomPadding: 96) {
+            BSTipPromptCard(
+                iconName: "play.rectangle.fill",
+                eyebrow: "Tips · 现场预热",
+                message: hasVideos
+                    ? "不用补课，挑一条有感觉的看就好。先让耳朵和眼睛知道今晚会发生什么。"
+                    : "还没整理现场视频，可以先找几条真正的现场，开场前看看氛围。",
+                accent: BSColor.Accent.video,
+                buttonTitle: hasVideos ? nil : "找几条看看",
+                action: hasVideos ? nil : { organizeFixtureVideos() }
+            )
+
             Text(currentShowTitle)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(BSColor.textSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.06))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                        )
-                )
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(BSColor.textTertiary)
 
             if isGenerating {
                 BSLoadingStatePanel(
@@ -262,11 +331,19 @@ struct ShowVideosView: View {
             } else if !isGenerating {
                 BSEmptyPanel(
                     iconName: "play.rectangle",
-                    title: "现场视频无内容",
-                    message: "还没有整理出可看的 B站现场视频。",
-                    buttonTitle: "整理现场视频",
+                    title: "还没有现场视频",
+                    message: "不用一下看很多，先整理几条有现场感的就够了。",
+                    buttonTitle: "找几条看看",
                     buttonIconName: "sparkles"
-                ) {}
+                ) {
+                    organizeFixtureVideos()
+                }
+            }
+
+            if let message {
+                Text(message)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textSecondary)
             }
         }
         .navigationTitle("")
@@ -289,6 +366,7 @@ struct ShowVideosView: View {
                 navigator.open(first)
             }
         }
+        .bsToastOverlay(toast)
     }
 
     private var currentShowTitle: String {
@@ -297,6 +375,32 @@ struct ShowVideosView: View {
             return "\(artist) · \(show.name)"
         }
         return show.name
+    }
+
+    private func organizeFixtureVideos() {
+        guard !hasVideos else { return }
+        for video in ShowVideoFixture.videos(for: show.id) {
+            modelContext.insert(video)
+        }
+        do {
+            try modelContext.save()
+            message = "已经先整理几条现场视频。"
+            presentToast(.success, message: "现场视频已整理")
+        } catch {
+            message = "暂时没整理成功，请稍后再试。"
+            presentToast(.failure, message: "整理失败")
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload {
+                toast = nil
+            }
+        }
     }
 }
 
@@ -693,8 +797,11 @@ struct CandidateSongsView: View {
     @AppStorage(ProUsageStorage.usedFreeGenerationFeaturesKey) private var usedFreeGenerationFeaturesRawValue = ""
 
     @State private var newSongName = ""
+    @State private var newSongArtist = ""
+    @State private var showsAddSong = false
     @State private var isGenerating = false
     @State private var message: String?
+    @State private var lastGenerationFailed = false
     @State private var showsReplacementConfirmation = false
     @State private var showsProLimit = false
     @State private var showsProMembership = false
@@ -730,70 +837,63 @@ struct CandidateSongsView: View {
             }
     }
 
-    private var uncertaintyNote: String {
-        sortedShowGroups.first?.uncertaintyNote ?? "这是根据公开信息和过往演出推测的候选曲目。你可以保留、移除、补充或调整顺序，不保证现场一定演出。"
-    }
-
     var body: some View {
-        BSStageScaffold(title: "候选曲目", subtitle: show.name, bottomPadding: 96) {
-            BSGlassPanel {
-                Text(uncertaintyNote)
-                    .font(BSFont.body)
-                    .foregroundColor(BSColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
+        BSStageScaffold(title: "候选曲目", subtitle: show.name) {
             if isGenerating {
                 BSLoadingStatePanel(
                     title: "正在生成候选曲目",
-                    message: "会先保存一版可编辑的推测歌单，你仍然可以删改顺序和歌曲。"
+                    message: "会保存一版可编辑的歌单，你可以删改和调整顺序。"
                 )
             }
 
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                BSSectionHeader(title: "推测歌单")
-                if visibleSongs.isEmpty {
+            if visibleSongs.isEmpty {
+                if !isGenerating {
                     emptySongState
+                    Button {
+                        requestGeneration()
+                    } label: {
+                        Text(lastGenerationFailed ? "重试" : "生成候选曲目")
+                    }
+                    .buttonStyle(BSPrimaryButtonStyle())
+                    .padding(.top, BSSpacing.sm)
+                }
+            } else {
+                BSTipPromptCard(
+                    iconName: "music.note",
+                    eyebrow: "Tips · 演前预热",
+                    message: "可以先挑几首听起来。",
+                    accent: BSColor.Accent.candidate
+                )
+
+                songListSections
+                addSongDisclosure
+
+                if lastGenerationFailed {
+                    Button {
+                        requestGeneration()
+                    } label: {
+                        Text("重试")
+                    }
+                    .buttonStyle(BSPrimaryButtonStyle())
+                    .disabled(isGenerating)
                 } else {
-                    ForEach(Array(visibleSongs.enumerated()), id: \.element.id) { index, song in
-                        CandidateSongRowView(index: index + 1, song: song) {
-                            remove(song)
+                    Button {
+                        requestGeneration()
+                    } label: {
+                        HStack {
+                            if isGenerating {
+                                ProgressView()
+                                    .tint(.black)
+                            }
+                            Text("重新生成候选曲目")
                         }
                     }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                    .disabled(isGenerating)
                 }
             }
 
-            HStack(spacing: BSSpacing.sm) {
-                TextField("添加歌曲...", text: $newSongName)
-                    .bsInputField()
-
-                Button("添加") {
-                    addSong()
-                }
-                .font(BSFont.caption)
-                .foregroundColor(.black)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 13)
-                .background(Color.white.opacity(canAddSong ? 1 : 0.46))
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                .disabled(!canAddSong)
-            }
-
-            Button {
-                requestGeneration()
-            } label: {
-                HStack {
-                    if isGenerating {
-                        ProgressView()
-                            .tint(.black)
-                    }
-                    Text(visibleSongs.isEmpty ? "生成候选曲目" : "重新生成候选曲目")
-                }
-            }
-            .buttonStyle(BSSecondaryButtonStyle())
-            .disabled(isGenerating)
-
-            Text("列表顺序表达推测的现场演出顺序。重新生成会覆盖当前列表。")
+            Text("这只是演前预热，不是官方歌单。重新生成会换一版猜测。")
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -809,13 +909,13 @@ struct CandidateSongsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .alert("重新生成候选曲目？", isPresented: $showsReplacementConfirmation) {
             Button("取消", role: .cancel) {}
-            Button("覆盖", role: .destructive) {
+            Button("重新生成", role: .destructive) {
                 Task {
                     await generateCandidateSongs()
                 }
             }
         } message: {
-            Text("重新生成会用新的推测列表替换当前候选曲目。")
+            Text("会用新的推测替换生成的曲目，保留你手动补充的。")
         }
         .sheet(isPresented: $showsProMembership) {
             ProMembershipSheetView()
@@ -839,8 +939,8 @@ struct CandidateSongsView: View {
     private var emptySongState: some View {
         BSEmptyPanel(
             iconName: "music.mic",
-            title: "候选曲目无歌曲",
-            message: "还没有候选曲目。可以先生成一版，再按你的直觉删改。"
+            title: "还没有候选曲目",
+            message: "可以先生成一版，再按你的判断调整顺序。"
         )
     }
 
@@ -867,21 +967,123 @@ struct CandidateSongsView: View {
         )
     }
 
+    private var songListSections: some View {
+        let generatedGroups = sortedShowGroups.filter { !$0.isUserCurated }
+        let userCuratedGroups = sortedShowGroups.filter { $0.isUserCurated }
+
+        return VStack(alignment: .leading, spacing: BSSpacing.lg) {
+            if !generatedGroups.isEmpty {
+                VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                    BSSectionHeader(title: "先挑几首听")
+                    ForEach(generatedGroups) { group in
+                        songGroupSection(for: group)
+                    }
+                }
+            }
+            if !userCuratedGroups.isEmpty {
+                VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                    BSSectionHeader(title: "我补充的")
+                    ForEach(userCuratedGroups) { group in
+                        songGroupSection(for: group)
+                    }
+                }
+            }
+        }
+        .disabled(isGenerating)
+    }
+
+    @ViewBuilder
+    private func songGroupSection(for group: CandidateSongGroup) -> some View {
+        let songs = songsInGroup(group)
+        if !songs.isEmpty {
+            VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                if let artistName = group.artistName {
+                    Text(artistName)
+                        .font(BSFont.body.weight(.semibold))
+                        .foregroundColor(BSColor.textSecondary)
+                        .padding(.top, BSSpacing.xs)
+                }
+                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                    CandidateSongRowView(
+                        index: index + 1,
+                        canMoveUp: index > 0,
+                        canMoveDown: index < songs.count - 1,
+                        song: song,
+                        onMoveUp: { move(song, direction: .up) },
+                        onMoveDown: { move(song, direction: .down) },
+                        onRemove: { remove(song) }
+                    )
+                }
+            }
+        }
+    }
+
+    private func songsInGroup(_ group: CandidateSongGroup) -> [CandidateSong] {
+        candidateSongs
+            .filter { $0.groupID == group.id }
+            .sorted { $0.order < $1.order }
+    }
+
+    private var addSongDisclosure: some View {
+        VStack(spacing: BSSpacing.sm) {
+            if showsAddSong {
+                BSGlassPanel {
+                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                        TextField("歌名", text: $newSongName)
+                            .bsInputField()
+                            .accessibilityLabel("歌名")
+                        TextField("艺人，默认 \(fallbackArtistName)", text: $newSongArtist)
+                            .bsInputField()
+                            .accessibilityLabel("艺人")
+                        Button {
+                            addSong()
+                        } label: {
+                            Text("添加")
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                        .disabled(!canAddSong)
+                    }
+                }
+            }
+            Button {
+                showsAddSong.toggle()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: showsAddSong ? "chevron.down" : "plus")
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(showsAddSong ? "收起" : "补充一首")
+                        .font(BSFont.caption)
+                }
+                .foregroundColor(BSColor.textSecondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isGenerating)
+        }
+    }
+
     private func addSong() {
+        let trimmedName = newSongName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+        let trimmedArtist = newSongArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artist = trimmedArtist.isEmpty ? fallbackArtistName : trimmedArtist
+
         do {
-            let group = try mutableSongGroup()
+            let group = try mutableUserCuratedGroup()
             let existingSongs = candidateSongs.filter { $0.groupID == group.id }
             let song = try editingService.addSong(
                 to: existingSongs,
                 groupID: group.id,
-                songName: newSongName,
-                artist: fallbackArtistName
+                songName: trimmedName,
+                artist: artist
             )
+            song.isUserAdded = true
             modelContext.insert(song)
             try modelContext.save()
             newSongName = ""
+            newSongArtist = ""
+            showsAddSong = false
             message = "已添加到候选曲目。"
-            presentToast(.success, message: "已添加到候选曲目")
+            presentToast(.success, message: "已添加")
         } catch {
             message = "这首歌暂时没有添加成功。"
             presentToast(.failure, message: "添加失败")
@@ -899,6 +1101,26 @@ struct CandidateSongsView: View {
         } catch {
             message = "移除失败，请稍后再试。"
             presentToast(.failure, message: "移除失败")
+        }
+    }
+
+    private enum MoveDirection {
+        case up
+        case down
+    }
+
+    private func move(_ song: CandidateSong, direction: MoveDirection) {
+        let siblings = candidateSongs
+            .filter { $0.groupID == song.groupID }
+            .sorted { $0.order < $1.order }
+        guard let sourceIndex = siblings.firstIndex(where: { $0.id == song.id }) else { return }
+        let destinationIndex = direction == .up ? sourceIndex - 1 : sourceIndex + 1
+        guard siblings.indices.contains(destinationIndex) else { return }
+        _ = editingService.moveSong(in: siblings, from: sourceIndex, to: destinationIndex)
+        do {
+            try modelContext.save()
+        } catch {
+            presentToast(.failure, message: "移动失败")
         }
     }
 
@@ -931,52 +1153,81 @@ struct CandidateSongsView: View {
 
         do {
             let inputs = try await Self.defaultGenerationService().generate(for: show, artistInterests: showArtistInterests)
-            replaceCandidateSongs(with: inputs)
+            try replaceCandidateSongs(with: inputs)
             usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(.candidateSongs, in: usedFreeGenerationFeaturesRawValue)
+            lastGenerationFailed = false
             message = "候选曲目已更新。"
             presentToast(.success, message: "候选曲目已更新")
         } catch {
+            modelContext.rollback()
+            lastGenerationFailed = true
             message = "暂时没生成成功，请稍后再试。"
             presentToast(.failure, message: "生成失败")
         }
     }
 
     @MainActor
-    private func replaceCandidateSongs(with inputs: [CandidateSongInput]) {
+    private func replaceCandidateSongs(with inputs: [CandidateSongInput]) throws {
         let showGroupIDs = Set(showGroups.map(\.id))
-        for song in candidateSongs where showGroupIDs.contains(song.groupID) {
-            modelContext.delete(song)
-        }
-        for group in showGroups {
-            modelContext.delete(group)
-        }
+        let oldSongs = candidateSongs.filter { showGroupIDs.contains($0.groupID) }
+        let oldGroups = showGroups
 
-        do {
+        let preservedInputs = oldSongs
+            .filter { $0.isUserAdded }
+            .sorted { $0.order < $1.order }
+            .map { CandidateSongInput(songName: $0.songName, artist: $0.artist) }
+
+        let grouped = editingService.groupedInputsByArtist(
+            inputs: inputs,
+            artistInterests: showArtistInterests
+        )
+
+        for entry in grouped {
             let group = try CandidateSongGroup(
                 showID: show.id,
+                artistInterestID: entry.artistInterestID,
+                artistName: entry.artistName,
                 uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
             )
             modelContext.insert(group)
 
-            for song in try editingService.makeSongs(groupID: group.id, inputs: inputs) {
+            for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
                 modelContext.insert(song)
             }
-
-            try modelContext.save()
-        } catch {
-            message = "候选曲目保存失败。"
-            presentToast(.failure, message: "保存失败")
         }
+
+        if !preservedInputs.isEmpty {
+            let group = try CandidateSongGroup(
+                showID: show.id,
+                uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。",
+                isUserCurated: true
+            )
+            modelContext.insert(group)
+            for song in try editingService.makeSongs(groupID: group.id, inputs: preservedInputs) {
+                song.isUserAdded = true
+                modelContext.insert(song)
+            }
+        }
+
+        for song in oldSongs {
+            modelContext.delete(song)
+        }
+        for group in oldGroups {
+            modelContext.delete(group)
+        }
+
+        try modelContext.save()
     }
 
-    private func mutableSongGroup() throws -> CandidateSongGroup {
-        if let group = sortedShowGroups.first {
+    private func mutableUserCuratedGroup() throws -> CandidateSongGroup {
+        if let group = showGroups.first(where: { $0.isUserCurated }) {
             return group
         }
 
         let group = try CandidateSongGroup(
             showID: show.id,
-            uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
+            uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。",
+            isUserCurated: true
         )
         modelContext.insert(group)
         return group
@@ -1005,23 +1256,24 @@ struct CandidateSongsView: View {
 
 private struct CandidateSongRowView: View {
     let index: Int
+    let canMoveUp: Bool
+    let canMoveDown: Bool
     let song: CandidateSong
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: BSSpacing.sm) {
             Text("\(index)")
-                .font(BSFont.tag)
-                .foregroundColor(BSColor.textTertiary)
+                .font(BSFont.caption.weight(.semibold))
+                .foregroundColor(BSColor.Accent.candidate)
                 .frame(width: 28, height: 28)
-                .background(Color.white.opacity(0.06))
+                .background(BSColor.Accent.candidate.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.sm)
-                        .stroke(BSColor.border, lineWidth: 1)
-                )
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(song.songName)
                     .font(BSFont.body.weight(.semibold))
                     .foregroundColor(BSColor.textPrimary)
@@ -1034,15 +1286,18 @@ private struct CandidateSongRowView: View {
 
             Spacer(minLength: BSSpacing.sm)
 
+            moveButton("chevron.up", label: "上移", enabled: canMoveUp, action: onMoveUp)
+            moveButton("chevron.down", label: "下移", enabled: canMoveDown, action: onMoveDown)
+
             Button(action: onRemove) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundColor(BSColor.textTertiary)
-                    .frame(width: 30, height: 30)
-                    .background(Color.white.opacity(0.05))
-                    .clipShape(Circle())
+                    .frame(width: 40, height: 40)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("移除")
         }
         .padding(14)
         .background(Color.white.opacity(0.035))
@@ -1051,6 +1306,24 @@ private struct CandidateSongRowView: View {
             RoundedRectangle(cornerRadius: BSRadius.md)
                 .stroke(BSColor.border, lineWidth: 1)
         )
+    }
+
+    private func moveButton(
+        _ systemName: String,
+        label: String,
+        enabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(enabled ? BSColor.textSecondary : BSColor.textTertiary.opacity(0.35))
+                .frame(width: 40, height: 40)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 }
 
@@ -1112,188 +1385,469 @@ struct RoundTripPlanView: View {
 
     @Environment(\.modelContext) private var modelContext
     @Query private var plans: [RoundTripPlan]
-    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @AppStorage(ProUsageStorage.usedFreeGenerationFeaturesKey) private var usedFreeGenerationFeaturesRawValue = ""
-    @State private var outboundText = ""
-    @State private var returnText = ""
-    @State private var returnNote = ""
-    @State private var returnIsUndecided = true
+    @Query(sort: \SavedOrigin.updatedAt, order: .reverse) private var savedOrigins: [SavedOrigin]
+
     @State private var origin = ""
     @State private var destination = ""
-    @State private var hotel = ""
     @State private var meetingPoint = ""
-    @State private var notes = ""
-    @State private var selectedDirection: RoundTripDirection = .outbound
-    @State private var isGeneratingDirection: RoundTripDirection?
-    @State private var message: String?
-    @State private var showsProLimit = false
-    @State private var showsProMembership = false
+    @State private var targetArrivalAt = Date()
+    @State private var selectedMode: DepartureTransportMode = .publicTransit
+    @State private var recommendations: [DepartureTransportMode: DepartureTransportOption] = [:]
+    @State private var isSearchingOptions = false
+    @State private var searchError: String?
+    @State private var showsManualSave = false
+    @State private var showsAdvanced = false
+    @State private var showsVenueEditor = false
+    @State private var manualMode: DepartureTransportMode = .publicTransit
+    @State private var manualLeaveAt = Date()
+    @State private var manualArriveAt = Date()
+    @State private var manualSummary = ""
     @State private var toast: BSToastPayload?
     @State private var didLoadPlan = false
 
-    private let gate = ProFeatureGate()
+    @StateObject private var locator = OriginLocator()
+
+    private let routeProvider: DepartureRouteProviding = MapKitDepartureRouteProvider()
+    private let modeDisplayOrder: [DepartureTransportMode] = [.publicTransit, .taxiReference, .driving]
+
+    init(show: Show) {
+        self.show = show
+        let showID = show.id
+        _plans = Query(
+            filter: #Predicate<RoundTripPlan> { $0.showID == showID },
+            sort: [SortDescriptor(\RoundTripPlan.updatedAt, order: .reverse)]
+        )
+    }
 
     private var plan: RoundTripPlan? {
-        plans.first { $0.showID == show.id }
+        plans.first
+    }
+
+    private var savedOrigin: SavedOrigin? {
+        savedOrigins.first
+    }
+
+    private var hasSavedDeparturePlan: Bool {
+        plan?.hasSavedDeparturePlan == true
+    }
+
+    private var showDestination: ShowDepartureDestination {
+        show.departureDestination
+    }
+
+    private var trimmedOrigin: String {
+        origin.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var trimmedDestination: String {
+        destination.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canRecommend: Bool {
+        !trimmedOrigin.isEmpty && !trimmedDestination.isEmpty
+    }
+
+    private var currentRecommendation: DepartureTransportOption? {
+        recommendations[selectedMode]
+    }
+
+    private var hasAnyRecommendation: Bool {
+        !recommendations.isEmpty
+    }
+
+    private var defaultTargetArrivalAt: Date {
+        Calendar.current.date(byAdding: .hour, value: -1, to: effectiveStartDate) ?? effectiveStartDate
+    }
+
+    private var effectiveStartDate: Date {
+        let calendar = Calendar.current
+        let day = calendar.dateComponents([.year, .month, .day], from: show.effectiveDate)
+        let clock = calendar.dateComponents([.hour, .minute, .second], from: show.startTime)
+        return calendar.date(
+            from: DateComponents(
+                calendar: calendar,
+                year: day.year,
+                month: day.month,
+                day: day.day,
+                hour: clock.hour,
+                minute: clock.minute,
+                second: clock.second
+            )
+        ) ?? show.startTime
+    }
+
+    private var isShowStarted: Bool {
+        effectiveStartDate <= Date()
     }
 
     var body: some View {
-        BSStageScaffold(title: "往返计划", subtitle: show.name) {
-            Picker("方向", selection: $selectedDirection) {
-                ForEach(RoundTripDirection.allCases, id: \.self) { direction in
-                    Text(direction.displayName).tag(direction)
-                }
-            }
-            .pickerStyle(.segmented)
-            .tint(.white)
+        BSStageScaffold(title: "去程计划", subtitle: show.name) {
+            BSTipPromptCard(
+                iconName: "tram.fill",
+                eyebrow: "Tips · 怎么去",
+                message: hasSavedDeparturePlan
+                    ? "出门方案已经保存好了。当天首页会提醒你几点出门、怎么去。"
+                    : "填上出发地，路线会按这场现场的信息自动生成。",
+                accent: BSColor.Accent.travel
+            )
 
-            if let isGeneratingDirection {
-                BSLoadingStatePanel(
-                    title: "正在生成\(isGeneratingDirection.displayName)计划",
-                    message: "会根据你填写的方向信息生成一版可编辑草稿，不替代地图导航。"
-                )
-            }
+            recommendationPanel
 
-            if selectedDirection == .outbound {
-                outboundPanel
-            } else {
-                returnPanel
+            actionArea
+
+            destinationReadOnlySection
+
+            if showsManualSave {
+                manualSavePanel
             }
 
-            Text("生成草稿只会使用你填写的方向信息和现场基础信息；结果是可编辑草稿，不替代地图导航。")
+            advancedSection
+
+            Text("BeforeShow 只保存出门方案，不替代实时地图导航。出发前请打开地图确认实时路况和班次。")
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
-
-            if let message {
-                Text(message)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-                    .padding(.horizontal, BSSpacing.xs)
-            }
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: loadPlanIfNeeded)
-        .sheet(isPresented: $showsProMembership) {
-            ProMembershipSheetView()
-        }
-        .sheet(isPresented: $showsProLimit) {
-            BSProLimitSheet(
-                title: ProLimitReason.roundTripRegeneration.title,
-                message: ProLimitReason.roundTripRegeneration.message,
-                onPrimary: {
-                    showsProLimit = false
-                    showsProMembership = true
-                },
-                onSecondary: {
-                    showsProLimit = false
-                }
-            )
+        .sheet(isPresented: $showsVenueEditor) {
+            ShowDraftEditorView(
+                title: "编辑现场",
+                draft: ShowDraft(show: show),
+                saveTitle: "保存"
+            ) { draft in
+                applyShowDraft(draft)
+                destination = show.departureDestination.text
+            }
         }
         .bsToastOverlay(toast)
     }
 
-    private var outboundPanel: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            directionFields([
-                ("出发地", $origin, "从哪里出发"),
-                ("集合点", $meetingPoint, "入口、朋友汇合点"),
-                ("备注", $notes, "偏好或限制")
-            ])
-
-            BSSectionHeader(title: "去程安排")
-            TextEditor(text: $outboundText)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 180)
-                .bsInputField()
-
-            HStack(spacing: BSSpacing.sm) {
-                Button {
-                    Task { await generateDraft(direction: .outbound) }
-                } label: {
-                    generationLabel(title: "生成草稿", direction: .outbound)
+    private var recommendationPanel: some View {
+        BSGlassPanel {
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("出发地")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                    HStack(spacing: BSSpacing.xs) {
+                        TextField("家、公司或酒店", text: $origin)
+                            .bsInputField()
+                            .accessibilityLabel("出发地")
+                            .submitLabel(.search)
+                            .onSubmit {
+                                if canRecommend {
+                                    Task { await searchRecommendations(force: false) }
+                                }
+                            }
+                        if locator.isLocating {
+                            ProgressView()
+                                .tint(BSColor.textPrimary)
+                                .frame(width: 38, height: 38)
+                        } else {
+                            Button {
+                                Task { await handleLocate() }
+                            } label: {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(BSColor.Accent.travel)
+                                    .frame(width: 38, height: 38)
+                                    .background(Color.white.opacity(0.045))
+                                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: BSRadius.md)
+                                            .stroke(BSColor.border, lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("使用当前位置")
+                        }
+                    }
                 }
-                .buttonStyle(BSSecondaryButtonStyle())
-                .disabled(isGeneratingDirection != nil)
 
-                Button("保存去程") {
-                    mutablePlan().saveOutbound(outboundText)
-                    try? modelContext.save()
-                    message = "去程已保存在本机。"
-                    presentToast(.success, message: "去程已保存")
+                Divider().overlay(BSColor.border)
+
+                recommendationContent
+
+                Picker("交通方式", selection: $selectedMode) {
+                    ForEach(modeDisplayOrder, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
                 }
-                .buttonStyle(BSPrimaryButtonStyle())
+                .pickerStyle(.segmented)
+                .accessibilityLabel("交通方式")
             }
         }
     }
 
-    private var returnPanel: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            directionFields([
-                ("目的地", $destination, "散场后回哪里"),
-                ("酒店", $hotel, "酒店或临时落脚点"),
-                ("集合点", $meetingPoint, "散场集合位置")
-            ])
+    @ViewBuilder
+    private var recommendationContent: some View {
+        if isSearchingOptions && !hasAnyRecommendation {
+            HStack(spacing: BSSpacing.sm) {
+                ProgressView().tint(BSColor.textPrimary)
+                Text("正在按希望到达时间倒推出门时间…")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } else if let option = currentRecommendation {
+            recommendationDetail(option)
+        } else if !canRecommend {
+            Text(trimmedDestination.isEmpty
+                ? "这场还没填场馆地址，没法查路线。"
+                : "填上出发地，就能生成出门方案。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(selectedMode.displayName)暂时没查到路线。")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                if !hasSavedDeparturePlan {
+                    Button("换种方式看看，或手动保存") {
+                        prepareManualEntry()
+                        showsManualSave = true
+                    }
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.travel)
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
 
-            BSGlassPanel {
-                Toggle(isOn: $returnIsUndecided) {
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text("返程先未定")
-                            .font(BSFont.headline)
-                            .foregroundColor(BSColor.textPrimary)
-                        Text("先记下方向，不用立刻决定")
+    private func recommendationDetail(_ option: DepartureTransportOption) -> some View {
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            HStack(spacing: 8) {
+                Image(systemName: option.mode.iconName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Accent.travel)
+                Text(option.experienceTag)
+                    .font(BSFont.tag)
+                    .foregroundColor(BSColor.Accent.travel)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(BSColor.Accent.travel.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(timeText(option.leaveAt))
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundColor(BSColor.textPrimary)
+                Text("出门")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+            }
+
+            Text("约 \(option.durationText) · \(timeText(option.arriveAt)) 到场")
+                .font(BSFont.body)
+                .foregroundColor(BSColor.textSecondary)
+
+            Text(option.summary)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if isShowStarted {
+                Text("这场已经开场，时间仅用于记录。")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.music.opacity(0.9))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var actionArea: some View {
+        if let plan = plan, hasSavedDeparturePlan {
+            VStack(spacing: BSSpacing.sm) {
+                savedSummaryCard(plan)
+                Button {
+                    openSavedMap()
+                } label: {
+                    Text("打开地图")
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+
+                if let option = currentRecommendation, !isSearchingOptions {
+                    Button {
+                        save(option)
+                    } label: {
+                        Text("换成这个方案")
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                }
+            }
+        } else if let option = currentRecommendation, !isSearchingOptions {
+            Button {
+                save(option)
+            } label: {
+                Text("保存出门提醒")
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+        }
+    }
+
+    private func savedSummaryCard(_ plan: RoundTripPlan) -> some View {
+        BSGlassPanel {
+            HStack(spacing: BSSpacing.sm) {
+                Image(systemName: plan.savedDepartureMode?.iconName ?? "location.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Accent.travel)
+                    .frame(width: 34, height: 34)
+                    .background(BSColor.Accent.travel.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 11))
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("已保存出门方案")
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.textPrimary)
+                    Text(savedDepartureTimeLine(plan))
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var destinationReadOnlySection: some View {
+        BSGlassPanel {
+            VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                Text("到场地址")
+                    .font(BSFont.headline)
+                    .foregroundColor(BSColor.textPrimary)
+
+                if showDestination.quality == .missing {
+                    Text("这场还没有场馆地址，没法查路线。")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button("去编辑现场补地址") {
+                        showsVenueEditor = true
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                } else {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if let venueName = showDestination.venueName {
+                            Text(venueName)
+                                .font(BSFont.body)
+                                .foregroundColor(BSColor.textPrimary)
+                        }
+                        if let city = showDestination.city {
+                            Text(city)
+                                .font(BSFont.caption)
+                                .foregroundColor(BSColor.textTertiary)
+                        }
+                        if let address = showDestination.address {
+                            Text(address)
+                                .font(BSFont.caption)
+                                .foregroundColor(BSColor.textSecondary)
+                        }
+                    }
+                    if let guidance = showDestination.guidance {
+                        Text(guidance)
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
+                            .foregroundColor(BSColor.Accent.travel.opacity(0.92))
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                }
-                .tint(BSColor.Accent.travel)
-            }
-
-            BSSectionHeader(title: returnIsUndecided ? "返程备注" : "返程安排")
-            TextEditor(text: returnIsUndecided ? $returnNote : $returnText)
-                .scrollContentBackground(.hidden)
-                .frame(minHeight: 150)
-                .bsInputField()
-
-            HStack(spacing: BSSpacing.sm) {
-                Button {
-                    Task { await generateDraft(direction: .return) }
-                } label: {
-                    generationLabel(title: "生成草稿", direction: .return)
-                }
-                .buttonStyle(BSSecondaryButtonStyle())
-                .disabled(isGeneratingDirection != nil)
-
-                Button(returnIsUndecided ? "保存备注" : "保存返程") {
-                    if returnIsUndecided {
-                        mutablePlan().markReturnUndecided(note: returnNote)
-                    } else {
-                        mutablePlan().saveReturn(returnText)
+                    Button("编辑现场信息") {
+                        showsVenueEditor = true
                     }
-                    try? modelContext.save()
-                    message = returnIsUndecided ? "未定返程已保存在本机。" : "返程已保存在本机。"
-                    presentToast(.success, message: returnIsUndecided ? "返程备注已保存" : "返程已保存")
+                    .buttonStyle(BSSecondaryButtonStyle())
                 }
-                .buttonStyle(BSPrimaryButtonStyle())
             }
         }
     }
 
-    private func directionFields(_ fields: [(String, Binding<String>, String)]) -> some View {
+    private var advancedSection: some View {
+        DisclosureGroup(isExpanded: $showsAdvanced) {
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    DatePicker("希望到达", selection: $targetArrivalAt, displayedComponents: [.date, .hourAndMinute])
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textSecondary)
+                        .datePickerStyle(.compact)
+                        .accessibilityLabel("希望到达时间")
+                    Text("默认开场前 1 小时到，改了要重新生成才会更新。")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                }
+
+                directionField(label: "集合点", placeholder: "入口、朋友汇合点", text: $meetingPoint)
+
+                Button {
+                    Task { await searchRecommendations(force: true) }
+                } label: {
+                    HStack {
+                        if isSearchingOptions {
+                            ProgressView().tint(.black)
+                        }
+                        Text("重新生成方案")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+                .disabled(!canRecommend || isSearchingOptions)
+            }
+            .padding(.top, BSSpacing.sm)
+        } label: {
+            Text(showsAdvanced ? "收起更多" : "更多")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textSecondary)
+        }
+        .tint(BSColor.textSecondary)
+    }
+
+    private var manualSavePanel: some View {
         BSGlassPanel {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                BSSectionHeader(title: "方向信息")
-                ForEach(Array(fields.enumerated()), id: \.offset) { _, field in
-                    HStack(spacing: BSSpacing.sm) {
-                        Text(field.0)
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                            .frame(width: 54, alignment: .leading)
-                        TextField(field.2, text: field.1)
-                            .bsInputField()
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    Text("手动保存一个方案")
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.textPrimary)
+                    Text(searchError ?? "查不到路线时，可以自己填出门和到达时间。")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Picker("交通方式", selection: $manualMode) {
+                    ForEach(modeDisplayOrder, id: \.self) { mode in
+                        Text(mode.displayName).tag(mode)
                     }
                 }
+                .pickerStyle(.segmented)
+
+                DatePicker("出门时间", selection: $manualLeaveAt, displayedComponents: [.date, .hourAndMinute])
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textSecondary)
+                    .datePickerStyle(.compact)
+
+                DatePicker("预计到达", selection: $manualArriveAt, displayedComponents: [.date, .hourAndMinute])
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textSecondary)
+                    .datePickerStyle(.compact)
+
+                directionField(label: "方案摘要", placeholder: "比如地铁到场，A 口集合", text: $manualSummary)
+
+                Button("保存手动方案") {
+                    saveManualDeparture()
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
             }
+        }
+    }
+
+    private func directionField(label: String, placeholder: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+            TextField(placeholder, text: text)
+                .bsInputField()
+                .accessibilityLabel(label)
         }
     }
 
@@ -1301,7 +1855,6 @@ struct RoundTripPlanView: View {
         if let plan {
             return plan
         }
-
         let plan = RoundTripPlan(showID: show.id)
         modelContext.insert(plan)
         return plan
@@ -1311,92 +1864,312 @@ struct RoundTripPlanView: View {
         guard !didLoadPlan else { return }
         didLoadPlan = true
 
-        guard let plan else { return }
-        outboundText = plan.outboundContent ?? ""
-        returnText = plan.returnContent ?? ""
-        returnNote = plan.returnNote ?? ""
-        returnIsUndecided = plan.returnState == .undecided
-    }
+        targetArrivalAt = defaultTargetArrivalAt
+        manualArriveAt = defaultTargetArrivalAt
+        manualLeaveAt = Calendar.current.date(byAdding: .minute, value: -45, to: defaultTargetArrivalAt) ?? defaultTargetArrivalAt
+        destination = show.departureDestination.text
 
-    private var entitlement: ProEntitlementState {
-        ProEntitlementStorage.decode(entitlementRawValue)
-    }
+        // 出发地优先级：本场已保存 > 常用出发地 > 空
+        if let savedPlanOrigin = plan?.departureOrigin, !savedPlanOrigin.isEmpty {
+            origin = savedPlanOrigin
+        } else if let originText = savedOrigin?.addressText, !originText.isEmpty {
+            origin = originText
+        }
 
-    private func canGenerate(_ feature: ProFeature) -> Bool {
-        gate.canGenerate(
-            feature: feature,
-            hasUsedFreeAllowance: ProUsageStorage
-                .decodeUsedFreeGenerationFeatures(usedFreeGenerationFeaturesRawValue)
-                .contains(feature),
-            entitlement: entitlement
-        )
-    }
-
-    @ViewBuilder
-    private func generationLabel(title: String, direction: RoundTripDirection) -> some View {
-        HStack {
-            if isGeneratingDirection == direction {
-                ProgressView()
+        if let plan {
+            destination = plan.departureDestination ?? show.departureDestination.text
+            meetingPoint = plan.departureMeetingPoint ?? ""
+            if let arriveAt = plan.departureArriveAt {
+                targetArrivalAt = arriveAt
+                manualArriveAt = arriveAt
             }
-            Text(title)
+            if let leaveAt = plan.departureLeaveAt {
+                manualLeaveAt = leaveAt
+            }
+            if let mode = plan.savedDepartureMode {
+                manualMode = mode
+                selectedMode = mode
+            }
+            manualSummary = plan.departureSummary ?? ""
+        }
+
+        if canRecommend {
+            Task { await searchRecommendations(force: false) }
         }
     }
 
     @MainActor
-    private func generateDraft(direction: RoundTripDirection) async {
-        let feature: ProFeature = direction == .outbound ? .outboundTripDraft : .returnTripDraft
-        guard canGenerate(feature) else {
-            message = "免费体验已用完，开通 Pro 后可以重复生成往返计划。"
-            showsProLimit = true
+    private func searchRecommendations(force: Bool) async {
+        guard canRecommend else {
+            searchError = trimmedDestination.isEmpty
+                ? "这场还没填场馆地址，去编辑现场补一下。"
+                : "请先填写出发地。"
+            presentToast(.neutral, message: trimmedDestination.isEmpty ? "请先补场馆地址" : "请先填写出发地")
             return
         }
 
-        let request = RoundTripDraftRequest(
+        isSearchingOptions = true
+        defer { isSearchingOptions = false }
+
+        let request = DepartureRouteRequest(
             show: show,
-            direction: direction,
-            origin: origin,
-            destination: destination,
-            hotel: hotel,
+            origin: trimmedOrigin,
+            destination: trimmedDestination,
             meetingPoint: meetingPoint,
-            notes: notes
+            targetArrivalAt: targetArrivalAt,
+            preferredModes: modeDisplayOrder,
+            notes: nil
         )
-        guard request.hasEnoughDirectionInformation else {
-            message = direction == .outbound ? "请先填写出发地或集合点。" : "请先填写目的地、酒店、集合点或备注。"
-            presentToast(.neutral, message: "请先补充方向信息")
-            return
-        }
-
-        isGeneratingDirection = direction
-        defer { isGeneratingDirection = nil }
 
         do {
-            let draft = try await Self.defaultGenerationService().generate(for: request)
-            switch direction {
-            case .outbound:
-                outboundText = draft.editableText
-            case .return:
-                returnIsUndecided = false
-                returnText = draft.editableText
+            let options = try await routeProvider.searchOptions(for: request)
+            var newRecommendations: [DepartureTransportMode: DepartureTransportOption] = [:]
+            for option in options {
+                newRecommendations[option.mode] = option
             }
-            usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(feature, in: usedFreeGenerationFeaturesRawValue)
-            message = "草稿已生成，确认后可以保存。"
-            presentToast(.success, message: "草稿已生成")
-        } catch RoundTripDraftError.insufficientDirectionInformation {
-            message = "请先补充方向信息。"
-            presentToast(.neutral, message: "请先补充方向信息")
+            recommendations = newRecommendations
+            searchError = nil
+
+            if newRecommendations.isEmpty {
+                searchError = "没查到路线。请把到场地址写得更具体，或检查出发地。"
+                if !hasSavedDeparturePlan {
+                    showsManualSave = true
+                    prepareManualEntry()
+                    presentToast(.failure, message: "暂时没拿到路线")
+                }
+            } else {
+                showsManualSave = false
+                if recommendations[selectedMode] == nil {
+                    selectedMode = modeDisplayOrder.first(where: { recommendations[$0] != nil }) ?? selectedMode
+                }
+                if force {
+                    presentToast(.success, message: "已重新生成")
+                }
+            }
         } catch {
-            message = "暂时没生成成功，请稍后再试。"
-            presentToast(.failure, message: "生成失败")
+            recommendations = [:]
+            searchError = errorMessage(for: error)
+            if !hasSavedDeparturePlan {
+                showsManualSave = true
+                prepareManualEntry()
+                if manualSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    manualSummary = "\(manualMode.displayName)到 \(trimmedDestination)"
+                }
+                presentToast(.failure, message: "暂时没拿到路线")
+            }
         }
     }
 
-    private static func defaultGenerationService() -> RemoteRoundTripDraftGenerationService {
-        let baseURL = URL(string: "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate")!
-        return RemoteRoundTripDraftGenerationService(
-            baseURL: baseURL,
-            appInstanceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            appSignature: "beforeshow-app-signature-v1"
+    private func errorMessage(for error: Error) -> String {
+        if let providerError = error as? DepartureRouteProviderError {
+            switch providerError {
+            case .providerUnavailable:
+                return "地图服务暂时不可用，可以手动保存出门提醒。"
+            case .geocodingFailed:
+                return "出发地或到场地址没识别到，写得更具体试试，或手动保存。"
+            case .noOptions:
+                return "没查到路线。请把到场地址写得更具体，或检查出发地。"
+            case .missingOrigin, .missingDestination:
+                return "出发地和到场地址都要填。"
+            }
+        }
+        return "没查到路线。请把到场地址写得更具体，或检查出发地，也可以先手动保存出门提醒。"
+    }
+
+    @MainActor
+    private func handleLocate() async {
+        do {
+            let resolved = try await locator.requestCurrentOrigin()
+            origin = resolved.addressText
+            if canRecommend {
+                await searchRecommendations(force: false)
+            }
+        } catch {
+            let message = (error as? OriginLocator.LocatorError)?.errorDescription
+                ?? "暂时拿不到当前位置，可以手动填出发地。"
+            presentToast(.neutral, message: message)
+        }
+    }
+
+    private func prepareManualEntry() {
+        manualArriveAt = targetArrivalAt
+        if manualLeaveAt >= targetArrivalAt {
+            manualLeaveAt = Calendar.current.date(byAdding: .minute, value: -45, to: targetArrivalAt) ?? targetArrivalAt
+        }
+        if recommendations[manualMode] == nil {
+            manualMode = modeDisplayOrder.first(where: { recommendations[$0] != nil }) ?? selectedMode
+        }
+    }
+
+    private func save(_ option: DepartureTransportOption) {
+        mutablePlan().saveDeparture(
+            option: option,
+            origin: trimmedOrigin,
+            destination: trimmedDestination,
+            meetingPoint: meetingPoint
         )
+        do {
+            try modelContext.save()
+            upsertSavedOrigin(addressText: trimmedOrigin)
+            searchError = nil
+            presentToast(.success, message: "出门方案已保存")
+        } catch {
+            presentToast(.failure, message: "保存失败")
+        }
+    }
+
+    private func saveManualDeparture() {
+        guard !trimmedOrigin.isEmpty else {
+            presentToast(.neutral, message: "请先填写出发地")
+            return
+        }
+        guard !trimmedDestination.isEmpty else {
+            presentToast(.neutral, message: "请补充到场地址")
+            return
+        }
+
+        let summary = manualSummary.trimmingCharacters(in: .whitespacesAndNewlines)
+        let finalSummary = summary.isEmpty ? "\(manualMode.displayName)到 \(trimmedDestination)" : summary
+        mutablePlan().saveManualDeparture(
+            origin: trimmedOrigin,
+            destination: trimmedDestination,
+            leaveAt: manualLeaveAt,
+            arriveAt: manualArriveAt,
+            mode: manualMode,
+            summary: finalSummary,
+            meetingPoint: meetingPoint
+        )
+        do {
+            try modelContext.save()
+            upsertSavedOrigin(addressText: trimmedOrigin)
+            searchError = nil
+            showsManualSave = false
+            presentToast(.success, message: "出门方案已保存")
+        } catch {
+            presentToast(.failure, message: "保存失败")
+        }
+    }
+
+    private func upsertSavedOrigin(addressText: String) {
+        let trimmed = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        if let savedOrigin, savedOrigin.addressText != trimmed {
+            savedOrigin.addressText = trimmed
+            savedOrigin.name = trimmed
+            savedOrigin.updatedAt = Date()
+        } else if savedOrigin == nil {
+            modelContext.insert(SavedOrigin(name: trimmed, addressText: trimmed))
+        }
+        try? modelContext.save()
+    }
+
+    @MainActor
+    private func openSavedMap() {
+        if let plan = plan, let option = savedOption(from: plan), let url = option.navigationURL {
+            UIApplication.shared.open(url)
+            return
+        }
+        if let plan = plan,
+           let url = Self.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
+            UIApplication.shared.open(url)
+            return
+        }
+        presentToast(.neutral, message: "暂无地图链接，请手动打开地图")
+    }
+
+    private func savedOption(from plan: RoundTripPlan) -> DepartureTransportOption? {
+        guard let mode = plan.savedDepartureMode,
+              let leaveAt = plan.departureLeaveAt,
+              let arriveAt = plan.departureArriveAt,
+              let duration = plan.departureDurationMinutes,
+              let summary = plan.departureSummary,
+              let provider = plan.savedDepartureProvider else {
+            return nil
+        }
+        return DepartureTransportOption(
+            id: plan.id.uuidString,
+            mode: mode,
+            leaveAt: leaveAt,
+            arriveAt: arriveAt,
+            durationMinutes: duration,
+            distanceMeters: plan.departureDistanceMeters,
+            summary: summary,
+            experienceTag: plan.departureExperienceTag ?? "已保存",
+            provider: provider,
+            navigationURL: plan.savedDepartureNavigationURL,
+            capturedAt: plan.departureCapturedAt ?? plan.updatedAt
+        )
+    }
+
+    private func savedDepartureTimeLine(_ plan: RoundTripPlan) -> String {
+        guard let mode = plan.savedDepartureMode,
+              let leaveAt = plan.departureLeaveAt,
+              let arriveAt = plan.departureArriveAt,
+              let duration = plan.departureDurationMinutes else {
+            return "出发前打开地图确认实时路线"
+        }
+        return "\(timeText(leaveAt)) 出门 · \(mode.displayName)约 \(duration) 分钟 · \(timeText(arriveAt)) 到"
+    }
+
+    private func timeText(_ date: Date) -> String {
+        let calendar = Calendar.current
+        let showDay = calendar.startOfDay(for: effectiveStartDate)
+        let day = calendar.startOfDay(for: date)
+        if day == showDay {
+            return Self.timeFormatter.string(from: date)
+        }
+        let clock = Self.timeFormatter.string(from: date)
+        let dayDiff = calendar.dateComponents([.day], from: showDay, to: day).day ?? 0
+        if dayDiff == 1 {
+            return "次日 \(clock)"
+        }
+        if dayDiff > 1 {
+            return "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(clock)"
+        }
+        return "前日 \(clock)"
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    nonisolated static func appleMapsDirectionsURL(origin: String?, destination: String?) -> URL? {
+        guard let destination,
+              !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+        var components = URLComponents(string: "https://maps.apple.com/")
+        var items: [URLQueryItem] = [URLQueryItem(name: "daddr", value: destination)]
+        if let origin, !origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            items.insert(URLQueryItem(name: "saddr", value: origin), at: 0)
+        }
+        components?.queryItems = items
+        return components?.url
+    }
+
+    private func applyShowDraft(_ draft: ShowDraft) {
+        show.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.date = draft.date
+        show.startTime = draft.startTime
+        show.endDate = draft.endDate
+        show.endTime = draft.endTime
+        show.city = trimmedOptional(draft.city)
+        show.venueName = trimmedOptional(draft.venueName)
+        show.venueAddress = trimmedOptional(draft.venueAddress)
+        show.artist = trimmedOptional(draft.artist)
+        show.seatSection = trimmedOptional(draft.seatSection)
+        show.coverImageURL = trimmedOptional(draft.coverImageURL)
+        show.artistAvatarURLs = draft.artistAvatarURLs
+        show.type = draft.type
+        try? modelContext.save()
+    }
+
+    private func trimmedOptional(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -1411,6 +2184,7 @@ struct RoundTripPlanView: View {
     }
 }
 
+
 struct ShowPreparationView: View {
     let show: Show
 
@@ -1421,6 +2195,7 @@ struct ShowPreparationView: View {
     @State private var reminderDate = Date()
     @State private var didLoadPlan = false
     @State private var message: String?
+    @State private var toast: BSToastPayload?
 
     private let guide = ShowPreparationGuide()
 
@@ -1428,10 +2203,43 @@ struct ShowPreparationView: View {
         plans.first { $0.showID == show.id }
     }
 
+    private var allSuggestions: [ShowPreparationSuggestion] {
+        guide.sections(for: show).flatMap(\.suggestions)
+    }
+
+    private var checkedSuggestionCount: Int {
+        guard let plan else { return 0 }
+        return allSuggestions.filter { plan.isChecked($0.text) }.count
+    }
+
+    private var totalSuggestionCount: Int {
+        allSuggestions.count
+    }
+
+    private var isPreparedEnough: Bool {
+        totalSuggestionCount > 0 && checkedSuggestionCount == totalSuggestionCount
+    }
+
     var body: some View {
         BSStageScaffold(title: "现场准备", subtitle: show.name) {
+            BSTipPromptCard(
+                iconName: isPreparedEnough ? "checkmark.seal.fill" : "sparkles",
+                eyebrow: "Tips · 出门前",
+                message: isPreparedEnough
+                    ? "好，差不多准备好了。到点前再看一眼，就可以轻一点出门。"
+                    : "不用像待办一样紧张，先轻轻确认几件会让你更从容的小事。",
+                accent: BSColor.Accent.prepare
+            )
+
             VStack(alignment: .leading, spacing: BSSpacing.md) {
-                BSSectionHeader(title: "准备事项")
+                HStack {
+                    BSSectionHeader(title: "出门前确认")
+                    Spacer()
+                    Text("\(checkedSuggestionCount)/\(totalSuggestionCount)")
+                        .font(BSFont.caption)
+                        .foregroundColor(isPreparedEnough ? BSColor.Accent.prepare : BSColor.textTertiary)
+                }
+
                 ForEach(guide.sections(for: show)) { section in
                     VStack(alignment: .leading, spacing: BSSpacing.sm) {
                         Text(section.title)
@@ -1451,7 +2259,7 @@ struct ShowPreparationView: View {
                             Text("准备提醒")
                                 .font(BSFont.headline)
                                 .foregroundColor(BSColor.textPrimary)
-                            Text("到点前把状态拉回来")
+                            Text("出门前轻轻提醒一下")
                                 .font(BSFont.caption)
                                 .foregroundColor(BSColor.textTertiary)
                         }
@@ -1468,6 +2276,7 @@ struct ShowPreparationView: View {
                         mutablePlan().updateReminderDate(reminderEnabled ? reminderDate : nil)
                         try? modelContext.save()
                         message = "准备提醒时间已保存在本机。"
+                        presentToast(.success, message: "提醒已保存")
                     }
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
@@ -1482,6 +2291,7 @@ struct ShowPreparationView: View {
                     mutablePlan().updateNotes(notes)
                     try? modelContext.save()
                     message = "准备备注已保存在本机。"
+                    presentToast(.success, message: "备注已保存")
                 }
                 .buttonStyle(BSSecondaryButtonStyle())
             }
@@ -1506,6 +2316,7 @@ struct ShowPreparationView: View {
             mutablePlan().updateReminderDate(newValue)
             try? modelContext.save()
         }
+        .bsToastOverlay(toast)
     }
 
     private func preparationSuggestionRow(_ suggestion: ShowPreparationSuggestion) -> some View {
@@ -1513,17 +2324,29 @@ struct ShowPreparationView: View {
         return Button {
             mutablePlan().setChecked(!checked, suggestionText: suggestion.text)
             try? modelContext.save()
+            if checked {
+                presentToast(.neutral, message: "已取消确认")
+            } else {
+                presentToast(.success, message: "已确认")
+            }
         } label: {
             HStack(alignment: .top, spacing: BSSpacing.sm) {
-                Image(systemName: checked ? "checkmark.square.fill" : "square")
-                    .font(.system(size: 22, weight: .semibold))
+                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 20, weight: .semibold))
                     .foregroundColor(checked ? BSColor.Accent.prepare : BSColor.textTertiary)
+                    .frame(width: 28, height: 28)
                 Text(suggestion.text)
                     .font(BSFont.body)
-                    .foregroundColor(checked ? BSColor.textTertiary : BSColor.textPrimary)
-                    .strikethrough(checked, color: BSColor.textTertiary)
+                    .foregroundColor(checked ? BSColor.textSecondary : BSColor.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
+                Text(checked ? "已确认" : "轻点确认")
+                    .font(BSFont.caption)
+                    .foregroundColor(checked ? BSColor.Accent.prepare : BSColor.textTertiary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background((checked ? BSColor.Accent.prepare : Color.white).opacity(0.10))
+                    .clipShape(Capsule())
             }
             .padding(14)
             .background(checked ? BSColor.Accent.prepare.opacity(0.08) : Color.white.opacity(0.035))
@@ -1534,6 +2357,7 @@ struct ShowPreparationView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(suggestion.text)，\(checked ? "已确认" : "未确认")")
     }
 
     private func mutablePlan() -> ShowPreparationPlan {
@@ -1556,49 +2380,82 @@ struct ShowPreparationView: View {
             reminderDate = savedReminderDate
         }
     }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload {
+                toast = nil
+            }
+        }
+    }
 }
 
 struct ShowFragmentListView: View {
+    private enum ComposerMode {
+        case text
+        case media
+        case audio
+    }
+
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \ShowFragment.createdAt) private var fragments: [ShowFragment]
+    @Query private var fragments: [ShowFragment]
 
     let show: Show
     @State private var text = ""
     @State private var selectedMediaItems: [PhotosPickerItem] = []
     @State private var pendingGalleryReferences: [(localIdentifier: String, kind: ShowFragmentGalleryMediaKind)] = []
     @State private var pendingMediaPreviews: [PendingFragmentMediaPreview] = []
-    @State private var audioRecorder: AVAudioRecorder?
+    @StateObject private var audioRecorder = FragmentAudioRecorder()
     @State private var pendingAudioRelativePath: String?
     @State private var pendingAudioDuration: TimeInterval?
     @State private var pendingAudioURL: URL?
-    @State private var isRecordingAudio = false
     @State private var isShowingAudioDrawer = false
-    @State private var composerExpanded = true
+    @State private var composerExpanded = false
+    @State private var composerMode: ComposerMode?
     @State private var message: String?
     @State private var editingFragment: ShowFragment?
     @State private var deletingFragment: ShowFragment?
+    @State private var pendingDelete: ShowFragment?
     @State private var toast: BSToastPayload?
 
+    private var isRecordingAudio: Bool { audioRecorder.isRecording }
+
     private var showFragments: [ShowFragment] {
-        ShowFragment.sortedByCreationTime(fragments.filter { $0.show.id == show.id })
+        fragments
+    }
+
+    init(show: Show) {
+        self.show = show
+        let id = show.id
+        _fragments = Query(
+            filter: #Predicate<ShowFragment> { $0.show.id == id },
+            sort: \ShowFragment.createdAt, order: .reverse
+        )
     }
 
     var body: some View {
         BSStageScaffold(title: "现场碎片", subtitle: show.name, bottomPadding: 96) {
             composer
                 .onChange(of: selectedMediaItems) { _, newItems in
+                    if !newItems.isEmpty {
+                        composerExpanded = true
+                        composerMode = .media
+                    }
                     Task {
                         await updatePendingMedia(from: newItems)
                     }
                 }
 
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                BSSectionHeader(title: "已保存")
+                BSSectionHeader(title: "留下来的瞬间")
                 if showFragments.isEmpty {
                     BSEmptyPanel(
                         iconName: "sparkles.rectangle.stack",
-                        title: "现场碎片为空",
-                        message: "还没有现场碎片。保存照片、视频、文字或语音后会出现在这里。"
+                        title: "还没有留下这一场",
+                        message: "可以只写一句、存一张照片，或录一小段声音。"
                     )
                 } else {
                     ForEach(showFragments) { fragment in
@@ -1624,22 +2481,38 @@ struct ShowFragmentListView: View {
                 presentToast(.failure, message: "更新失败")
             }
         }
-        .sheet(item: $deletingFragment) { fragment in
+        .sheet(item: $deletingFragment, onDismiss: {
+            // 等 sheet 完全 dismiss 后再执行删除，避免动画期间修改 ModelContext 导致崩溃。
+            if let fragment = pendingDelete {
+                pendingDelete = nil
+                delete(fragment)
+            }
+        }) { fragment in
             BSDangerConfirmationSheet(
                 title: "删除现场碎片？",
                 message: "这条文字、相册引用和本地语音文件都会从 BeforeShow 中移除。",
                 destructiveTitle: "删除",
                 onConfirm: {
-                    deleteAfterDismissingConfirmation(fragment)
+                    pendingDelete = fragment
+                    deletingFragment = nil
                 },
                 onCancel: {
                     deletingFragment = nil
                 }
             )
         }
-        .sheet(isPresented: $isShowingAudioDrawer) {
+        .sheet(isPresented: $isShowingAudioDrawer, onDismiss: {
+            // 用户在录音中直接下滑关闭抽屉时，停止并丢弃未保存的录音文件。
+            if audioRecorder.isRecording {
+                audioRecorder.stop()
+                audioRecorder.discard()
+                pendingAudioURL = nil
+                pendingAudioRelativePath = nil
+                pendingAudioDuration = nil
+            }
+        }) {
             FragmentAudioCaptureSheet(
-                audioRecorder: audioRecorder,
+                audioRecorder: audioRecorder.avAudioRecorder,
                 pendingAudioURL: pendingAudioURL,
                 pendingAudioDuration: pendingAudioDuration,
                 isRecordingAudio: isRecordingAudio,
@@ -1657,13 +2530,21 @@ struct ShowFragmentListView: View {
         BSGlassPanel {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 HStack {
-                    Text("添加新的现场碎片")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
+                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                        Text("留下一点这一刻")
+                            .font(BSFont.headline)
+                            .foregroundColor(BSColor.textPrimary)
+                        Text("不用整理好，先留下就好。")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.textTertiary)
+                    }
                     Spacer()
                     Button {
                         withAnimation(.easeInOut(duration: 0.22)) {
                             composerExpanded.toggle()
+                            if composerExpanded && composerMode == nil {
+                                composerMode = .text
+                            }
                         }
                     } label: {
                         Image(systemName: composerExpanded ? "chevron.up" : "plus")
@@ -1675,43 +2556,67 @@ struct ShowFragmentListView: View {
                     }
                 }
 
+                HStack(spacing: BSSpacing.sm) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            composerExpanded = true
+                            composerMode = .text
+                        }
+                    } label: {
+                        Label("写一句", systemImage: "text.bubble")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+
+                    PhotosPicker(
+                        selection: $selectedMediaItems,
+                        maxSelectionCount: 12,
+                        matching: .any(of: [.images, .videos])
+                    ) {
+                        Label("照片", systemImage: "photo.stack")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+
+                    Button {
+                        composerExpanded = true
+                        composerMode = .audio
+                        isShowingAudioDrawer = true
+                    } label: {
+                        Label("语音", systemImage: "mic.circle")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                }
+
                 if composerExpanded {
-                    TextField("写下一点这一场里的瞬间", text: $text, axis: .vertical)
-                        .lineLimit(3...6)
-                        .bsInputField()
-
-                    HStack(spacing: BSSpacing.sm) {
-                        PhotosPicker(
-                            selection: $selectedMediaItems,
-                            maxSelectionCount: 12,
-                            matching: .any(of: [.images, .videos])
-                        ) {
-                            Label("照片/视频", systemImage: "photo.stack")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(BSSecondaryButtonStyle())
-
-                        Button {
-                            isShowingAudioDrawer = true
-                        } label: {
-                            Label(pendingAudioURL == nil ? "语音片段" : "查看语音", systemImage: pendingAudioURL == nil ? "mic.circle" : "waveform")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .buttonStyle(BSSecondaryButtonStyle())
+                    if composerMode == .text || !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        TextField("写下一点这一场里的瞬间", text: $text, axis: .vertical)
+                            .lineLimit(3...6)
+                            .bsInputField()
+                            .accessibilityLabel("现场碎片文字")
                     }
 
                     if !pendingMediaPreviews.isEmpty {
                         PendingMediaPreviewStrip(previews: pendingMediaPreviews)
                     }
 
-                    if isRecordingAudio {
+                    if composerMode == .audio && pendingAudioURL == nil && !isRecordingAudio {
+                        Button {
+                            isShowingAudioDrawer = true
+                        } label: {
+                            Label("开始录一段声音", systemImage: "mic.circle.fill")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                    } else if isRecordingAudio {
                         FragmentAudioPlaybackRow(
                             title: "正在录音",
                             subtitle: "录完后可以试听",
                             audioURL: nil,
-                            duration: audioRecorder?.currentTime,
+                            duration: audioRecorder.avAudioRecorder?.currentTime,
                             isRecording: true,
-                            audioRecorder: audioRecorder
+                            audioRecorder: audioRecorder.avAudioRecorder
                         )
                     } else if let pendingAudioURL {
                         FragmentAudioPlaybackRow(
@@ -1772,19 +2677,15 @@ struct ShowFragmentListView: View {
             pendingAudioRelativePath = nil
             pendingAudioDuration = nil
             pendingAudioURL = nil
-            message = "已保存在本机。"
+            // 文件已由碎片引用，转移所有权但不删除。
+            audioRecorder.detach()
+            composerExpanded = false
+            composerMode = nil
+            message = "这一刻留下来了。"
             presentToast(.success, message: "碎片已保存")
         } catch {
             message = "请先写一点内容，或添加照片、视频、语音片段。"
             presentToast(.failure, message: "保存失败")
-        }
-    }
-
-    private func deleteAfterDismissingConfirmation(_ fragment: ShowFragment) {
-        deletingFragment = nil
-        Task { @MainActor in
-            await Task.yield()
-            delete(fragment)
         }
     }
 
@@ -1793,7 +2694,6 @@ struct ShowFragmentListView: View {
             try LocalAppDataDeletionService(audioStorage: .applicationSupport())
                 .deleteFragment(fragment, in: modelContext)
             try modelContext.save()
-            deletingFragment = nil
             message = "现场碎片已删除。"
             presentToast(.neutral, message: "碎片已删除")
         } catch {
@@ -1813,44 +2713,12 @@ struct ShowFragmentListView: View {
         }
     }
 
-    private func toggleAudioRecording() {
-        if isRecordingAudio {
-            stopAudioRecording()
-        } else {
-            startAudioRecording()
-        }
-    }
-
     private func startAudioRecording() {
         do {
-            let storage = ShowFragmentAudioStorage.applicationSupport()
-            let relativePath = "FragmentAudio/\(UUID().uuidString).m4a"
-            let url = storage.rootDirectory.appendingPathComponent(relativePath, isDirectory: false)
-            try FileManager.default.createDirectory(
-                at: url.deletingLastPathComponent(),
-                withIntermediateDirectories: true
-            )
-
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default)
-            try session.setActive(true)
-
-            let recorder = try AVAudioRecorder(
-                url: url,
-                settings: [
-                    AVFormatIDKey: Int(kAudioFormatMPEG4AAC),
-                    AVSampleRateKey: 44_100,
-                    AVNumberOfChannelsKey: 1,
-                    AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue
-                ]
-            )
-            recorder.record()
-            audioRecorder = recorder
-            pendingAudioRelativePath = relativePath
-            pendingAudioURL = url
+            try audioRecorder.start()
+            pendingAudioRelativePath = audioRecorder.currentRelativePath
+            pendingAudioURL = audioRecorder.currentURL
             pendingAudioDuration = nil
-            isRecordingAudio = true
-            audioRecorder?.isMeteringEnabled = true
             message = "正在录音。"
         } catch {
             message = "无法开始录音，请检查麦克风权限。"
@@ -1858,10 +2726,11 @@ struct ShowFragmentListView: View {
     }
 
     private func stopAudioRecording() {
-        pendingAudioDuration = audioRecorder?.currentTime
-        audioRecorder?.stop()
-        audioRecorder = nil
-        isRecordingAudio = false
+        if let snapshot = audioRecorder.stop() {
+            pendingAudioURL = snapshot.url
+            pendingAudioRelativePath = snapshot.relativePath
+            pendingAudioDuration = snapshot.duration
+        }
         message = "语音片段已添加，保存后会留在这个现场碎片里。"
     }
 
@@ -2216,16 +3085,15 @@ private struct FragmentAudioPlaybackRow: View {
     var audioRecorder: AVAudioRecorder?
     var waveformWidth: CGFloat = 112
 
-    @State private var audioPlayer: AVAudioPlayer?
-    @State private var isPlaying = false
+    @StateObject private var player = FragmentAudioPlayerController()
     @State private var waveformSamples: [Double] = []
 
     var body: some View {
         HStack(spacing: BSSpacing.sm) {
             Button {
-                togglePlayback()
+                player.toggle(url: audioURL)
             } label: {
-                Image(systemName: isRecording ? "waveform" : (isPlaying ? "pause.fill" : "play.fill"))
+                Image(systemName: isRecording ? "waveform" : (player.isPlaying ? "pause.fill" : "play.fill"))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(BSColor.textPrimary)
                     .frame(width: 32, height: 32)
@@ -2234,7 +3102,7 @@ private struct FragmentAudioPlaybackRow: View {
             }
             .buttonStyle(.plain)
             .disabled(audioURL == nil || isRecording)
-            .accessibilityLabel(isPlaying ? "暂停语音片段" : "试听语音片段")
+            .accessibilityLabel(player.isPlaying ? "暂停语音片段" : "试听语音片段")
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -2251,7 +3119,7 @@ private struct FragmentAudioPlaybackRow: View {
                 RecordingWaveformView(recorder: audioRecorder)
                     .frame(width: waveformWidth, height: 28)
             } else {
-                AudioWaveformView(samples: waveformSamples, isActive: isPlaying)
+                AudioWaveformView(samples: waveformSamples, isActive: player.isPlaying)
                     .frame(width: waveformWidth, height: 28)
             }
         }
@@ -2278,33 +3146,6 @@ private struct FragmentAudioPlaybackRow: View {
             return "点击试听"
         }
         return "\(Int(duration.rounded())) 秒"
-    }
-
-    private func togglePlayback() {
-        guard let audioURL else { return }
-
-        if isPlaying {
-            audioPlayer?.pause()
-            isPlaying = false
-            return
-        }
-
-        do {
-            let player = try AVAudioPlayer(contentsOf: audioURL)
-            player.prepareToPlay()
-            player.play()
-            audioPlayer = player
-            isPlaying = true
-
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: UInt64((max(player.duration, 0.5) * 1_000_000_000).rounded()))
-                if !player.isPlaying {
-                    isPlaying = false
-                }
-            }
-        } catch {
-            isPlaying = false
-        }
     }
 
     @MainActor

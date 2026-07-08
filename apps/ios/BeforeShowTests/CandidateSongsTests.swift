@@ -13,7 +13,7 @@ final class CandidateSongsTests: XCTestCase {
 
     @MainActor
     func testCandidateSongsStoreOnlySongArtistOrderAndGroupUncertainty() throws {
-        let show = try Show(name: "草莓音乐节", date: Date(), type: .musicFestival)
+        let show = try Show(name: "草莓音乐节", date: Date(), startTime: Date(), type: .musicFestival)
         let group = try CandidateSongGroup(
             showID: show.id,
             uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
@@ -42,6 +42,31 @@ final class CandidateSongsTests: XCTestCase {
 
         let groups = try container.mainContext.fetch(FetchDescriptor<CandidateSongGroup>())
         XCTAssertEqual(groups[0].uncertaintyNote, "候选曲目来自公开信息推测，不代表官方歌单。")
+    }
+
+    @MainActor
+    func testCandidateSongAndGroupDefaultUserFlagsAreFalse() throws {
+        let song = try CandidateSong(groupID: UUID(), songName: "歌", artist: "艺人", order: 0)
+        let group = try CandidateSongGroup(showID: UUID(), uncertaintyNote: "仅供参考")
+
+        XCTAssertFalse(song.isUserAdded)
+        XCTAssertFalse(group.isUserCurated)
+    }
+
+    @MainActor
+    func testMakeSongsProducesGeneratedSongsNotFlaggedAsUserAdded() throws {
+        let service = CandidateSongEditingService()
+        let groupID = UUID()
+        let songs = try service.makeSongs(
+            groupID: groupID,
+            inputs: [
+                CandidateSongInput(songName: "S1", artist: "A"),
+                CandidateSongInput(songName: "S2", artist: "A")
+            ]
+        )
+
+        XCTAssertEqual(songs.count, 2)
+        XCTAssertTrue(songs.allSatisfy { !$0.isUserAdded })
     }
 
     func testGenerationResponseRejectsLyricsConfidenceReasonsAndPlatformMetadata() {
@@ -131,8 +156,8 @@ final class CandidateSongsTests: XCTestCase {
         )
     }
 
-    func testFestivalArtistInterestItemsExcludeNotInterestedAndPrioritizeWantToSee() throws {
-        let show = try Show(name: "音乐节", date: Date(), type: .musicFestival)
+    func testFestivalSingleRequestIncludesWantToSeeAndUndecidedExcludesNotInterested() throws {
+        let show = try Show(name: "音乐节", date: Date(), startTime: Date(), type: .musicFestival)
         let want = try ArtistInterestItem(showID: show.id, artistName: "想看艺人", status: .wantToSee, order: 1)
         let undecided = try ArtistInterestItem(showID: show.id, artistName: "待定艺人", status: .undecided, order: 0)
         let no = try ArtistInterestItem(showID: show.id, artistName: "不看艺人", status: .notInterested, order: 2)
@@ -142,8 +167,61 @@ final class CandidateSongsTests: XCTestCase {
             artistInterests: [undecided, no, want]
         )
 
-        XCTAssertEqual(requests.map { $0.targetArtist?.artistName }, ["想看艺人", "待定艺人"])
-        XCTAssertEqual(requests.first?.excludedArtists, ["不看艺人"])
+        XCTAssertEqual(requests.count, 1)
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.artists, ["想看艺人", "待定艺人"])
+        XCTAssertEqual(request.excludedArtists, ["不看艺人"])
+    }
+
+    func testFestivalReturnsNoRequestWhenNoInterestedArtist() throws {
+        let show = try Show(name: "音乐节", date: Date(), startTime: Date(), type: .musicFestival)
+        let no = try ArtistInterestItem(showID: show.id, artistName: "不看艺人", status: .notInterested, order: 0)
+
+        let requests = CandidateSongGenerationRequest.requests(
+            for: show,
+            artistInterests: [no]
+        )
+
+        XCTAssertTrue(requests.isEmpty)
+    }
+
+    func testNonFestivalRequestUsesShowArtist() throws {
+        let show = try Show(
+            name: "专场",
+            date: Date(),
+            startTime: Date(),
+            artist: "主艺人",
+            type: .concert
+        )
+
+        let requests = CandidateSongGenerationRequest.requests(
+            for: show,
+            artistInterests: []
+        )
+
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.artists, ["主艺人"])
+        XCTAssertTrue(request.excludedArtists.isEmpty)
+    }
+
+    func testGroupedInputsByArtistPreservesOrderAndMatchesArtistInterestID() throws {
+        let service = CandidateSongEditingService()
+        let showID = UUID()
+        let want = try ArtistInterestItem(showID: showID, artistName: "想看艺人", status: .wantToSee, order: 0)
+
+        let inputs = [
+            CandidateSongInput(songName: "S1", artist: "想看艺人"),
+            CandidateSongInput(songName: "S2", artist: "其他艺人"),
+            CandidateSongInput(songName: "S3", artist: "想看艺人")
+        ]
+
+        let grouped = service.groupedInputsByArtist(inputs: inputs, artistInterests: [want])
+
+        XCTAssertEqual(grouped.map(\.artistName), ["想看艺人", "其他艺人"])
+        XCTAssertEqual(grouped[0].artistInterestID, want.id)
+        XCTAssertNil(grouped[1].artistInterestID)
+        XCTAssertEqual(grouped[0].songs.map(\.songName), ["S1", "S3"])
+        XCTAssertEqual(grouped[1].songs.map(\.songName), ["S2"])
     }
 
     func testMusicPlatformSearchURLsAreSearchHandoffsOnly() {
@@ -179,6 +257,7 @@ final class CandidateSongsTests: XCTestCase {
         let show = try Show(
             name: "测试现场",
             date: makeDate(year: 2026, month: 7, day: 15),
+            startTime: makeDate(year: 2026, month: 7, day: 15),
             city: "上海",
             venueName: "测试场馆",
             artist: "测试艺人",

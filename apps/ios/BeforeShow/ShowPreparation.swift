@@ -52,7 +52,7 @@ struct ShowPreparationGuide {
                 title: "注意事项",
                 suggestions: [
                     ShowPreparationSuggestion(text: "把入场凭证、身份证件和必要电量提前确认好，到了门口就不用慌。"),
-                    ShowPreparationSuggestion(text: "如果返程还没定，至少先记下散场后的集合点或大致方向。")
+                    ShowPreparationSuggestion(text: "如果散场后人多，提前和同行的人约好集合点。")
                 ]
             )
         ]

@@ -77,6 +77,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             date: date,
             city: draft.city,
             venueName: draft.venueName,
+            venueAddress: draft.venueAddr,
             artist: draft.artist,
             coverImageURL: draft.coverImageURL ?? "",
             artistAvatarURLs: draft.artistAvatarURLs ?? [],
@@ -85,7 +86,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         )
 
         if let startTime = draft.startTime, !startTime.isEmpty {
-            showDraft.startTime = parseTime(startTime, on: date)
+            showDraft.startTime = parseTime(startTime, on: date) ?? date
+        } else {
+            showDraft.startTime = date
         }
         if let endDate = draft.endDate, !endDate.isEmpty {
             showDraft.endDate = parseDate(endDate)

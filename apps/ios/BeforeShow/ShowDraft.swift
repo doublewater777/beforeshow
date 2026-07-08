@@ -17,11 +17,12 @@ enum ShowDraftValidationError: Error, Equatable {
 struct ShowDraft: Equatable {
     var name: String
     var date: Date
-    var startTime: Date?
+    var startTime: Date
     var endDate: Date?
     var endTime: Date?
     var city: String
     var venueName: String
+    var venueAddress: String
     var artist: String
     var seatSection: String
     var coverImageURL: String
@@ -32,11 +33,12 @@ struct ShowDraft: Equatable {
     init(
         name: String = "",
         date: Date = Date(),
-        startTime: Date? = nil,
+        startTime: Date = Date(),
         endDate: Date? = nil,
         endTime: Date? = nil,
         city: String = "",
         venueName: String = "",
+        venueAddress: String = "",
         artist: String = "",
         seatSection: String = "",
         coverImageURL: String = "",
@@ -51,6 +53,7 @@ struct ShowDraft: Equatable {
         self.endTime = endTime
         self.city = city
         self.venueName = venueName
+        self.venueAddress = venueAddress
         self.artist = artist
         self.seatSection = seatSection
         self.coverImageURL = coverImageURL
@@ -68,6 +71,7 @@ struct ShowDraft: Equatable {
             endTime: show.endTime,
             city: show.city ?? "",
             venueName: show.venueName ?? "",
+            venueAddress: show.venueAddress ?? "",
             artist: show.artist ?? "",
             seatSection: show.seatSection ?? "",
             coverImageURL: show.coverImageURL ?? "",
@@ -86,6 +90,7 @@ struct ShowDraft: Equatable {
             endTime: endTime,
             city: trimmedOptional(city),
             venueName: trimmedOptional(venueName),
+            venueAddress: trimmedOptional(venueAddress),
             artist: trimmedOptional(artist),
             seatSection: trimmedOptional(seatSection),
             coverImageURL: trimmedOptional(coverImageURL),
@@ -136,7 +141,7 @@ struct ShowScreenshotRecognitionService {
         ], in: lines) ?? inferredName(from: lines)
 
         var draft = ShowDraft(name: name, date: date, source: .screenshotOCR)
-        draft.startTime = firstTime(on: date, in: lines)
+        draft.startTime = firstTime(on: date, in: lines) ?? date
         draft.city = value(afterAnyPrefix: ["城市"], in: lines) ?? inferredCity(from: lines)
         draft.venueName = value(afterAnyPrefix: [
             "演出场馆",
@@ -669,7 +674,7 @@ struct ShowLinkDraftParser {
         )
 
         if let time = query["time"] {
-            draft.startTime = parseTime(time, on: date)
+            draft.startTime = parseTime(time, on: date) ?? date
         }
         if let endDate = query["endDate"] {
             draft.endDate = parseDate(endDate)

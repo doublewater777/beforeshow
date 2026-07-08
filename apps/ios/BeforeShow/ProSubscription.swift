@@ -29,7 +29,7 @@ enum ProSubscriptionCatalog {
             benefitCopy: [
                 "无限添加现场",
                 "重复生成候选曲目",
-                "重复生成往返计划"
+                "重复生成去程计划"
             ]
         ),
         ProSubscriptionProduct(
@@ -40,7 +40,7 @@ enum ProSubscriptionCatalog {
             benefitCopy: [
                 "无限添加现场",
                 "重复生成候选曲目",
-                "重复生成往返计划"
+                "重复生成去程计划"
             ]
         )
     ]
@@ -363,7 +363,7 @@ enum ProLimitReason: Equatable {
         case .candidateSongsRegeneration:
             return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成候选曲目。"
         case .roundTripRegeneration:
-            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成去程和返程计划。"
+            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成去程计划。"
         }
     }
 }

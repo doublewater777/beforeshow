@@ -4,7 +4,7 @@ import XCTest
 
 final class ShowPreparationTests: XCTestCase {
     func testPreparationSuggestionsProvideChecklistItems() throws {
-        let show = try Show(name: "准备测试现场", date: Date(), type: .concert)
+        let show = try Show(name: "准备测试现场", date: Date(), startTime: Date(), type: .concert)
         let sections = ShowPreparationGuide().sections(for: show)
 
         XCTAssertFalse(sections.isEmpty)
@@ -14,7 +14,7 @@ final class ShowPreparationTests: XCTestCase {
 
     @MainActor
     func testPreparationPlanPersistsCheckedItemsReminderAndNotes() throws {
-        let show = try Show(name: "音乐节", date: Date(), type: .musicFestival)
+        let show = try Show(name: "音乐节", date: Date(), startTime: Date(), type: .musicFestival)
         let reminderDate = Date(timeIntervalSince1970: 1_779_552_000)
         let plan = ShowPreparationPlan(showID: show.id)
         let suggestion = ShowPreparationGuide()

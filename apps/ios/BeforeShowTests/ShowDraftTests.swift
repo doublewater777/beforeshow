@@ -359,6 +359,7 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.endDate, makeDate(year: 2026, month: 7, day: 16))
         XCTAssertEqual(draft.endTime, makeDate(year: 2026, month: 7, day: 16, hour: 0, minute: 30))
         XCTAssertEqual(draft.venueName, "测试场馆")
+        XCTAssertEqual(draft.venueAddress, "测试地址")
         XCTAssertEqual(draft.artist, "测试艺人")
         XCTAssertEqual(draft.coverImageURL, "https://example.com/show-cover.jpg")
         XCTAssertEqual(draft.artistAvatarURLs, [

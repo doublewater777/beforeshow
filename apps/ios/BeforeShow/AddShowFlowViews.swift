@@ -703,6 +703,15 @@ private struct ShowDraftFormFields: View {
                     text: $draft.venueName
                 )
 
+                BSAddressSuggestionField(
+                    label: "场馆地址",
+                    placeholder: "街道门牌，查路线时会用到",
+                    text: $draft.venueAddress,
+                    city: draft.city,
+                    seedKeyword: draft.venueName,
+                    helperText: "下面有小地图，点一下就能选准地址。"
+                )
+
                 AddShowLabeledTextField(
                     title: "城市",
                     placeholder: "上海",
@@ -792,12 +801,8 @@ private struct ShowDraftFormFields: View {
     }
 
     private func syncFromDraft() {
-        if let draftStartTime = draft.startTime {
-            startTime = draftStartTime
-        } else {
-            startTime = defaultStartTime()
-            draft.startTime = mergedStartTime()
-        }
+        startTime = draft.startTime
+        draft.startTime = mergedStartTime()
         if let draftEndDate = draft.endDate {
             endDate = draftEndDate
         } else {

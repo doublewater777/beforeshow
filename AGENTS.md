@@ -1,5 +1,7 @@
 # AGENTS.md
 
+不用考虑兼容性，这个app还没有上线
+
 use iphone 17 simulator
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

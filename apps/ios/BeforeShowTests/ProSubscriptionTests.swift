@@ -99,7 +99,7 @@ final class ProSubscriptionTests: XCTestCase {
 
         XCTAssertEqual(ProLimitReason.candidateSongsRegeneration.title, "重复生成需要 Pro")
         XCTAssertTrue(ProLimitReason.candidateSongsRegeneration.message.contains("候选曲目"))
-        XCTAssertTrue(ProLimitReason.roundTripRegeneration.message.contains("去程和返程计划"))
+        XCTAssertTrue(ProLimitReason.roundTripRegeneration.message.contains("去程计划"))
     }
 
     func testEntitlementAndFreeUsageCanBePersistedForAppGates() {
