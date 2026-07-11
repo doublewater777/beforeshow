@@ -11,3 +11,4 @@ xcuserdata/
 .playwright-mcp/
 .wrangler
 apps/ios/DerivedData
+scripts

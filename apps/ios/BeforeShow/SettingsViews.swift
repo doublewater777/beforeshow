@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 // MARK: - Settings View
 
@@ -8,7 +9,7 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.floatingTabBarClearance) {
+            BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
                 NavigationLink {
                     ProMembershipView()
                 } label: {
@@ -43,6 +44,10 @@ struct SettingsView: View {
                 }
 
                 SettingsGroup(title: "隐私与支持") {
+                    NotificationSettingsRow()
+
+                    Divider().overlay(BSColor.border)
+
                     NavigationLink {
                         PrivacyLocalDataView()
                     } label: {
@@ -77,6 +82,10 @@ struct SettingsView: View {
                 #if DEBUG
                 SettingsGroup(title: "调试") {
                     ProEntitlementDebugPicker()
+
+                    Divider().overlay(BSColor.border)
+
+                    DebugPrintPendingNotificationsRow()
                 }
                 #endif
             }
@@ -155,6 +164,47 @@ extension DebugProEntitlementOption {
         case .active: return "Pro 已启用"
         case .expired: return "Pro 已过期"
         }
+    }
+}
+
+private struct DebugPrintPendingNotificationsRow: View {
+    @State private var isPrinting = false
+
+    var body: some View {
+        Button {
+            isPrinting = true
+            Task { @MainActor in
+                await LocalNotificationCenter.shared.printPendingRequests()
+                isPrinting = false
+            }
+        } label: {
+            HStack(spacing: BSSpacing.md) {
+                Image(systemName: "bell.badge")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Accent.prepare)
+                    .frame(width: 34, height: 34)
+                    .background(BSColor.Accent.prepare.opacity(0.13))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    Text("打印待发通知")
+                        .font(BSFont.body.weight(.semibold))
+                        .foregroundColor(BSColor.textPrimary)
+                    Text("输出当前现场已排程的本地通知到控制台")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                }
+
+                Spacer()
+
+                if isPrinting {
+                    ProgressView()
+                }
+            }
+            .padding(.horizontal, BSSpacing.md)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
     }
 }
 #endif
@@ -245,6 +295,42 @@ private struct SettingsRowContent: View {
     }
 }
 
+/// Notification permission status + jump to system settings when not enabled.
+private struct NotificationSettingsRow: View {
+    @State private var authorizationState: NotificationAuthorizationState = .notDetermined
+
+    var body: some View {
+        Button {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        } label: {
+            SettingsRowContent(
+                iconName: "bell.fill",
+                title: "通知",
+                subtitle: subtitle,
+                value: nil,
+                tint: BSColor.Accent.prepare
+            )
+        }
+        .buttonStyle(.plain)
+        .task {
+            authorizationState = await LocalNotificationCenter.shared.authorizationState()
+        }
+    }
+
+    private var subtitle: String {
+        switch authorizationState {
+        case .authorized, .provisional:
+            return "已开启"
+        case .denied:
+            return "去系统设置开启通知"
+        case .notDetermined:
+            return "添加现场后会请求开启"
+        }
+    }
+}
+
 struct ProMembershipView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var products = ProSubscriptionCatalog.defaultProducts
@@ -265,6 +351,31 @@ struct ProMembershipView: View {
                     .font(BSFont.body)
                     .foregroundColor(BSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+
+            BSGlassPanel {
+                VStack(alignment: .leading, spacing: BSSpacing.md) {
+                    Text(ProMembershipCopy.summary)
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    BSSectionHeader(title: "Pro 解锁")
+                    ForEach(ProMembershipCopy.unlockedPoints, id: \.self) { point in
+                        Label(point, systemImage: "checkmark")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    BSSectionHeader(title: "不需要 Pro 也能用")
+                    ForEach(ProMembershipCopy.freePoints, id: \.self) { point in
+                        Label(point, systemImage: "checkmark.shield")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             }
 
             ForEach(products, id: \.id) { product in

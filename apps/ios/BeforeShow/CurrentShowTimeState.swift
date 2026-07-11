@@ -29,7 +29,7 @@ struct CurrentShowHeroLayoutPresentation: Equatable {
         actionPlacement: CurrentShowHeroActionPlacement = .coverTopTrailing,
         topSpacing: CGFloat = 64,
         titleToCoverSpacing: CGFloat = 34,
-        coverAspectRatio: CGFloat = 0.72,
+        coverAspectRatio: CGFloat = 3.0 / 4.0,
         actionInset: CGFloat = 14,
         actionTopOffset: CGFloat = 112,
         actionButtonSize: CGFloat = 42
@@ -269,6 +269,16 @@ struct CurrentShowTimeState: Equatable {
         return merged
     }
 
+    /// Hours after start used when the show has no explicit end time.
+    /// Users rarely know real end times; this is an automatic estimate only.
+    static func defaultDurationHours(for type: ShowType) -> Int {
+        switch type {
+        case .concert: return 4
+        case .livehouse: return 3
+        case .musicFestival: return 10
+        }
+    }
+
     private static func effectiveEndBoundary(
         for show: Show,
         calendar: Calendar,
@@ -276,15 +286,23 @@ struct CurrentShowTimeState: Equatable {
         effectiveEndDate: Date?,
         effectiveEndTime: Date?
     ) -> Date? {
+        // Optional end clock (e.g. from parse) wins when present — not a user-required field.
         if let effectiveEndTime {
             return effectiveEndTime
         }
 
+        // Multi-day festivals: last day ends at next midnight.
         if let effectiveEndDate {
             return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: effectiveEndDate))
         }
 
-        return calendar.date(bySettingHour: 23, minute: 55, second: 0, of: effectiveDate)
+        // Default: start + type duration (no user-filled end time).
+        let start = effectiveStartTime(for: show, calendar: calendar)
+        return calendar.date(
+            byAdding: .hour,
+            value: defaultDurationHours(for: show.type),
+            to: start
+        )
     }
 
     private static func merge(time: Date, into day: Date, calendar: Calendar) -> Date? {

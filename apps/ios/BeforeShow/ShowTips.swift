@@ -9,7 +9,6 @@ struct ShowTip: Equatable {
         case candidateSongs
         case outboundPlan
         case showPreparation
-        case showVideos
         case showFragments
     }
 }

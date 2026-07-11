@@ -2,6 +2,10 @@
 
 不用考虑兼容性，这个app还没有上线
 
+验证一定不能自己验证，你要新开一个claude终端来验证，模型用kimi-k2.7-code模型
+
+涉及到页面UI的修改，一定要截图保存更改
+
 use iphone 17 simulator
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

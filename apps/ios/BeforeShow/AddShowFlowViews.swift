@@ -19,6 +19,9 @@ enum AddShowSheet: Identifiable {
 }
 
 struct AddShowCoordinatorSheet: View {
+    /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
+    var allowsBrowseSkip: Bool = false
+
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSheet: AddShowSheet?
 
@@ -35,7 +38,8 @@ struct AddShowCoordinatorSheet: View {
                 )
             } else {
                 AddShowEntryView(
-                    onCancel: {
+                    dismissTitle: allowsBrowseSkip ? "先逛逛" : "取消",
+                    onDismiss: {
                         dismiss()
                     },
                     onSelect: { sheet in
@@ -87,7 +91,8 @@ struct AddShowMethodButtons: View {
 }
 
 private struct AddShowEntryView: View {
-    let onCancel: () -> Void
+    var dismissTitle: String = "取消"
+    let onDismiss: () -> Void
     let onSelect: (AddShowSheet) -> Void
 
     var body: some View {
@@ -98,14 +103,17 @@ private struct AddShowEntryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Button {
-                        onCancel()
+                        onDismiss()
                     } label: {
-                        Text("取消")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
+                        Text(dismissTitle)
+                            .font(BSFont.headline)
+                            .foregroundColor(BSColor.textSecondary)
+                            .frame(minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .padding(.bottom, BSSpacing.md)
+                    .accessibilityLabel(dismissTitle)
+                    .padding(.bottom, BSSpacing.sm)
 
                     Text("添加现场")
                         .font(.system(size: 32, weight: .bold))
@@ -130,7 +138,7 @@ private struct AddShowEntryView: View {
 
                         AddShowMethodCard(
                             title: "截图识别",
-                            subtitle: "上传票务截图，识别出现场名称、时间、场馆等信息。",
+                            subtitle: "选择票务截图，设备端识别名称、时间、场馆，不上传。",
                             iconName: "camera.fill",
                             tint: BSColor.Accent.video
                         ) {
@@ -147,7 +155,7 @@ private struct AddShowEntryView: View {
                         }
                     }
                     .frame(maxHeight: .infinity)
-                    .padding(.top, 68)
+                    .padding(.top, BSSpacing.xl)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
@@ -329,7 +337,7 @@ struct AddShowFlowView: View {
                 BSEmptyPanel(
                     iconName: "exclamationmark.triangle",
                     title: "链接解析失败",
-                    message: "这个链接暂不支持。可以继续在下方手动填写现场信息。",
+                    message: "这个链接暂不支持。可以继续在下方手动填写。",
                     buttonTitle: "手动填写",
                     buttonIconName: "square.and.pencil"
                 ) {
@@ -501,7 +509,7 @@ struct AddShowFlowView: View {
         } catch {
             draft.source = .manual
             showsManualFallback = true
-            message = "这个链接暂不支持，请改用手动填写。"
+            message = nil
             presentToast(.failure, message: "解析失败")
         }
     }
@@ -520,17 +528,25 @@ struct AddShowFlowView: View {
             let show = try draft.makeShow()
             modelContext.insert(show)
 
+            // Always become current (not only the first show).
+            let selection = selections.first ?? CurrentShowSelection()
             if selections.isEmpty {
-                let selection = CurrentShowSelection(selectedShowID: show.id)
                 modelContext.insert(selection)
             }
+            selection.select(showID: show.id)
 
-            if notificationStates.isEmpty {
+            if let notificationState = notificationStates.first {
+                notificationState.focus(showID: show.id)
+            } else {
                 modelContext.insert(NotificationSchedulingState(focusedShowID: show.id))
             }
 
             try modelContext.save()
-            dismiss()
+            presentToast(.success, message: "已放入当前现场")
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                dismiss()
+            }
         } catch ShowValidationError.invalidEndTime {
             message = "结束时间需要晚于开始时间。"
             presentToast(.failure, message: "时间范围无效")
@@ -1078,6 +1094,10 @@ private struct AddShowStartTimeField: View {
                 .tint(BSColor.Accent.video)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .addShowInputChrome()
+            Text("用于开场前提醒；可先填大概时间。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity)
     }
@@ -1093,11 +1113,10 @@ private struct AddShowEndTimeField: View {
             HStack(spacing: BSSpacing.xs) {
                 AddShowFieldLabel(title: "结束时间", isRequired: false)
                 Spacer(minLength: 0)
-                Toggle("", isOn: $hasEndTime)
+                Toggle("结束时间", isOn: $hasEndTime)
                     .labelsHidden()
                     .tint(BSColor.Accent.video)
-                    .scaleEffect(0.76)
-                    .frame(width: 40)
+                    .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
             }
 
             if hasEndTime {
@@ -1197,20 +1216,22 @@ private struct AddShowTypePicker: View {
                     selection = type
                 } label: {
                     Text(type.displayName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(selection == type ? BSColor.textPrimary : BSColor.textTertiary)
                         .lineLimit(1)
                         .minimumScaleFactor(0.82)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
+                        .frame(minHeight: BSLayout.minTouchTarget)
                         .background(selection == type ? Color.white.opacity(0.11) : Color.clear)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(selection == type ? Color.white.opacity(0.20) : BSColor.borderProminent, lineWidth: 1)
                         )
+                        .contentShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == type ? .isSelected : [])
             }
         }
     }

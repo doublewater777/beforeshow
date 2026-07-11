@@ -28,8 +28,7 @@ enum ProSubscriptionCatalog {
             priceText: "¥12/月",
             benefitCopy: [
                 "无限添加现场",
-                "重复生成候选曲目",
-                "重复生成去程计划"
+                "重复生成候选曲目"
             ]
         ),
         ProSubscriptionProduct(
@@ -39,8 +38,7 @@ enum ProSubscriptionCatalog {
             priceText: "¥68/年",
             benefitCopy: [
                 "无限添加现场",
-                "重复生成候选曲目",
-                "重复生成去程计划"
+                "重复生成候选曲目"
             ]
         )
     ]

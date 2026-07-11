@@ -38,8 +38,11 @@ struct CurrentShowSelector {
         manualSelection: CurrentShowSelection? = nil,
         now: Date = Date()
     ) -> Show? {
+        // Manual selection wins, but a canceled现场 must not stay current
+        // (see ShowDetailView copy: 取消后"不会出现在当前现场"). Fall through to automatic.
         if let selectedShowID = manualSelection?.selectedShowID,
-           let selectedShow = shows.first(where: { $0.id == selectedShowID }) {
+           let selectedShow = shows.first(where: { $0.id == selectedShowID }),
+           selectedShow.changeStatus != .canceled {
             return selectedShow
         }
 

@@ -103,6 +103,10 @@ enum BSRadius {
 enum BSLayout {
     /// Reserved space above the floating glass tab bar.
     static let floatingTabBarClearance: CGFloat = 108
+    /// Bottom content inset so the last row clears the system tab bar.
+    static let tabBarContentInset: CGFloat = 112
+    /// Minimum tap target edge per HIG.
+    static let minTouchTarget: CGFloat = 44
 }
 
 // MARK: - Reusable View Modifiers
@@ -346,8 +350,32 @@ struct CurrentShowAmbientBackground: View {
 
     var body: some View {
         ZStack {
-            Color.black
+            // ① stage-void base
+            LinearGradient(
+                colors: [
+                    Color(red: 0.018, green: 0.018, blue: 0.025),
+                    Color.black
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
 
+            // ② subtle fixed cool/warm radial lights
+            GeometryReader { geometry in
+                ZStack {
+                    StageBackgroundGlow(color: BSColor.Accent.travel.opacity(0.10))
+                        .frame(width: geometry.size.width * 0.72, height: geometry.size.height * 0.52)
+                        .position(x: geometry.size.width * 0.18, y: geometry.size.height * 0.74)
+
+                    StageBackgroundGlow(color: BSColor.Accent.music.opacity(0.10))
+                        .frame(width: geometry.size.width * 0.64, height: geometry.size.height * 0.48)
+                        .position(x: geometry.size.width * 0.86, y: geometry.size.height * 0.74)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            .blendMode(.screen)
+
+            // ③ blurred cover echo (ambient color source, lower saturation than source)
             ShowCoverImageView(
                 urlString: coverImageURL,
                 aspectRatio: 3.0 / 4.0,
@@ -356,16 +384,18 @@ struct CurrentShowAmbientBackground: View {
                 enforcesAspectRatio: false,
                 cornerRadius: 0
             )
-            .blur(radius: 36)
+            .blur(radius: 38)
             .scaleEffect(1.16)
-            .saturation(1.12)
-            .opacity(0.28)
+            .saturation(0.80)
+            .opacity(0.22)
 
+            // ④ vertical contrast scrim (strongest near status bar and bottom tab bar)
             LinearGradient(
-                colors: [
-                    Color.black.opacity(0.72),
-                    Color.black.opacity(0.84),
-                    Color.black.opacity(0.96)
+                stops: [
+                    .init(color: Color.black.opacity(0.56), location: 0.00),
+                    .init(color: Color.black.opacity(0.16), location: 0.42),
+                    .init(color: Color.black.opacity(0.34), location: 0.76),
+                    .init(color: Color.black.opacity(0.58), location: 1.00)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -756,8 +786,18 @@ struct ArtistAvatarStackView: View {
 }
 
 struct BSDrawerSheet<Content: View>: View {
-    let detent: PresentationDetent
+    let detents: [PresentationDetent]
     @ViewBuilder let content: Content
+
+    init(detent: PresentationDetent, @ViewBuilder content: () -> Content) {
+        self.detents = [detent]
+        self.content = content()
+    }
+
+    init(detents: [PresentationDetent], @ViewBuilder content: () -> Content) {
+        self.detents = detents
+        self.content = content()
+    }
 
     var body: some View {
         VStack(spacing: BSSpacing.lg) {
@@ -770,7 +810,7 @@ struct BSDrawerSheet<Content: View>: View {
         .padding(.horizontal, BSSpacing.lg)
         .padding(.top, BSSpacing.md)
         .padding(.bottom, BSSpacing.xl)
-        .presentationDetents([detent])
+        .presentationDetents(Set(detents))
         .presentationDragIndicator(.hidden)
         .preferredColorScheme(.dark)
         .background(Color.black)

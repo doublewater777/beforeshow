@@ -7,48 +7,36 @@ const STORAGE_SESSION = "beforeshow.session.v2";
 
 const shows = [
   {
-    id: "mayday",
+    id: "jay",
     type: "concert",
     label: "演唱会",
-    artist: "五月天",
-    venue: "上海体育场",
-    date: "2026-06-22T19:30:00+08:00",
-    accent: "#e86c4a",
-    song: "倔强",
+    artist: "周杰伦",
+    venue: "南京奥体中心体育场",
+    date: "2026-09-24T19:30:00+08:00",
+    accent: "#84BFFF",
+    song: "晴天",
     traffic: {
-      alert: "建议提前 90 分钟出发，开演前 1 小时入场口会封堵。",
+      alert: "建议提前 90 分钟出发，南京奥体中心体育场周边道路将实行临时交通管制。",
       go: {
-        metro: "地铁 3/4 号线 → 上海体育馆站 3 号口出，步行约 8 分钟。",
-        taxi: "打车预估 ¥35–55，建议提前叫车，演出日附近打车溢价约 1.5x。",
-        walk: "从地铁口步行 800 米，沿场馆围栏绕行，约 10 分钟。",
+        metro: "地铁 2 号线 → 奥体东站，或地铁 10 号线 → 奥体中心站，步行约 5-10 分钟。",
+        taxi: "由于交通管制，建议打车至奥体东门附近，提前叫车以防溢价。",
+        walk: "从地铁/轻轨口出站后步行约 600 米，约 8 分钟。",
         entry: "建议走东门（C/D 入口），排队通常比南门短 15–20 分钟。",
       },
       back: {
-        metro: "散场高峰期地铁候车约 20 分钟，建议等人潮散去再出发。",
-        taxi: "散场后溢价约 2x，建议步行到 500 米外的兴国路再叫车。",
+        metro: "散场高峰期地铁候车约 25 分钟，建议步行至江东中路再行乘车。",
+        taxi: "散场后溢价约 2x，建议步行到 800 米外的奥体东门商业区再叫车。",
         walk: "步行至最近地铁站约 10 分钟，可边走边回味演出。",
-        tip: "散场后先在场馆附近等 15–20 分钟，人潮散去后交通会顺畅很多。",
+        tip: "散场后先在场馆附近商区等 15–20 分钟，人潮散去后交通会顺畅很多。",
       },
     },
-    videos: [
-      {
-        bvid: "BV1bt411Q7Lp",
-        title: "《倔强》万人合唱",
-        desc: "演唱会大合唱氛围，最能体现五月天现场。",
-      },
-      {
-        bvid: "BV1gG4y1S7kN",
-        title: "《突然好想你》跨年现场",
-        desc: "2023 线上跨年，情绪共鸣的代表现场。",
-      },
-    ],
     songs: [
-      { id: "s1", title: "突然好想你", weight: 95, status: "很可能会唱" },
-      { id: "s2", title: "派对动物",   weight: 86, status: "重点预测" },
-      { id: "s3", title: "知足",       weight: 81, status: "已经听过" },
-      { id: "s4", title: "爱情万岁",   weight: 73, status: "待判断" },
-      { id: "s5", title: "终结孤单",   weight: 68, status: "待判断" },
-      { id: "s6", title: "而我知道",   weight: 59, status: "待判断" },
+      { id: "s1", title: "晴天",       weight: 98, status: "很可能会唱" },
+      { id: "s2", title: "七里香",     weight: 95, status: "重点预测" },
+      { id: "s3", title: "青花瓷",     weight: 90, status: "已经听过" },
+      { id: "s4", title: "稻香",       weight: 88, status: "重点预测" },
+      { id: "s5", title: "夜曲",       weight: 82, status: "待判断" },
+      { id: "s6", title: "搁浅",       weight: 75, status: "待判断" },
     ],
   },
 ];
@@ -64,7 +52,7 @@ const useFlowSteps = [
   },
   {
     title: "两周慢慢预习",
-    desc: "每天一首歌，一段现场视频，一点点靠近灯光亮起的瞬间。",
+    desc: "每天一首歌，一点点靠近灯光亮起的瞬间。",
   },
   {
     title: "当天只留必要工具",
@@ -104,8 +92,7 @@ function currentSongs() {
 
 // ── State ────────────────────────────────────────────
 const state = {
-  activeVideoIdx: 0,
-  activeShowId: "mayday",
+  activeShowId: "jay",
   songs: buildSongsMap(readJson("songs", null)),
   formErrors: {},
   submitting: false,
@@ -243,12 +230,11 @@ function renderHero() {
         </h1>
         <p class="hero-sub fade-up fade-up-delay-2">
           输入你要看的演出，BeforeShow 会生成一份开场前 14 天预习清单：
-          倒数提醒、AI 预测歌单、现场视频和出行方案等功能。
+          倒数提醒、AI 预测歌单和出行方案等功能。
         </p>
         <div class="hero-feature-list fade-up fade-up-delay-2" aria-label="BeforeShow 可做的事">
           <span>倒数提醒</span>
           <span>AI 预测歌单</span>
-          <span>现场视频</span>
           <span>出行方案</span>
         </div>
         <div class="hero-cta-group fade-up fade-up-delay-3">
@@ -328,15 +314,15 @@ function renderExperience() {
           演出越接近开始，<br>越值得期待。
         </h2>
         <p class="section-desc">
-          倒数、预测歌单、现场视频，帮你在开场前一点点沉浸进那场演出；
+          倒数、预测歌单，
+          帮你在开场前一点点沉浸进那场演出；
           出行方案让你到了当天也能从容不迫。
         </p>
 
-        <div class="feature-modules" aria-label="BeforeShow 四个模块">
+        <div class="feature-modules" aria-label="BeforeShow 三个模块">
           ${renderFeatureModule("01", "倒数提醒", "把五月天上海演唱会放进来，每天知道离开场还有多久。", renderCountdownDemo())}
           ${renderFeatureModule("02", "AI 预测歌单", "预测可能会唱的曲目，并导入网易云音乐或 QQ 音乐提前听。", renderSetlistDemo())}
-          ${renderFeatureModule("03", "现场回顾", "提前看几段代表现场，把舞台、合唱和情绪找回来。", renderVideoDemo())}
-          ${renderFeatureModule("04", "出行方案", "提前看好去程、入场口和散场交通，演出当天从容不迫。", renderTrafficDemo())}
+          ${renderFeatureModule("03", "出行方案", "提前看好去程、入场口和散场交通，演出当天从容不迫。", renderTrafficDemo())}
         </div>
       </div>
     </section>
@@ -389,7 +375,7 @@ function renderAmbientModal() {
   const show = selectedShow();
   const days = daysUntil(show.date);
   let bgImg = "";
-  if (show.id === "mayday") bgImg = "/concert-before-lights-3.png";
+  if (show.id === "jay") bgImg = "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp";
 
   return `
     <div class="ambient-modal" id="ambient-modal-overlay" style="--show-accent: ${esc(show.accent)}">
@@ -487,68 +473,6 @@ function renderSetlistDemo() {
       <div class="setlist-imports" aria-label="导入预测歌单">
         <button class="music-import-btn music-import-netease" data-import-platform="netease">导入网易云音乐</button>
         <button class="music-import-btn music-import-qq" data-import-platform="qq">导入 QQ 音乐</button>
-      </div>
-    </div>
-  `;
-}
-
-// ── Video Demo ───────────────────────────────────────
-function renderVideoDemo() {
-  const show = selectedShow();
-  const videos = show.videos || [];
-  const idx = Math.min(state.activeVideoIdx, videos.length - 1);
-  const active = videos[idx];
-
-  if (!active) return `<p style="color:var(--text-faint); padding:40px 0;">暂无视频数据。</p>`;
-
-  const bilibiliSrc = `https://player.bilibili.com/player.html?bvid=${active.bvid}&page=1&high_quality=1&danmaku=0&autoplay=0`;
-
-  return `
-    <div class="video-demo-card">
-      <div class="video-demo-top">
-        <div class="video-artist-info">
-          <span class="video-artist-name">${esc(show.artist)}</span>
-          <span class="video-artist-label">先看一眼现场</span>
-        </div>
-        <div class="video-selector" role="group" aria-label="选择视频">
-          ${videos.map((v, i) => `
-            <button
-              class="btn-pill ${i === idx ? "active" : ""}"
-              data-video-idx="${i}"
-              aria-pressed="${i === idx}"
-              id="video-btn-${i}"
-            >${esc(v.title)}</button>
-          `).join("")}
-        </div>
-      </div>
-      <div class="video-frame-wrap">
-        <iframe
-          class="video-iframe"
-          src="${bilibiliSrc}"
-          title="${esc(active.title)}"
-          frameborder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowfullscreen
-          loading="lazy"
-        ></iframe>
-      </div>
-      <div class="video-meta">
-        <div class="video-meta-left">
-          <p class="video-meta-title">${esc(active.title)}</p>
-          <p class="video-meta-desc">${esc(active.desc)}</p>
-        </div>
-        <a
-          class="btn btn-ghost btn-sm video-bili-link"
-          href="https://www.bilibili.com/video/${active.bvid}"
-          target="_blank"
-          rel="noopener noreferrer"
-          id="video-bili-link"
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M17.813 4.653h.854c1.51.054 2.769.578 3.773 1.574 1.004.995 1.524 2.249 1.56 3.76v7.36c-.036 1.51-.556 2.769-1.56 3.773s-2.262 1.524-3.773 1.56H5.333c-1.51-.036-2.769-.556-3.773-1.56S.036 18.858 0 17.347v-7.36c.036-1.511.556-2.765 1.56-3.76 1.004-.996 2.262-1.52 3.773-1.574h.774l-1.174-1.12a1.234 1.234 0 0 1-.373-.906c0-.356.124-.658.373-.907l.027-.027c.267-.249.573-.373.92-.373.347 0 .653.124.92.373L9.653 4.44c.071.071.134.142.187.213h4.267a.836.836 0 0 1 .16-.213l2.853-2.747c.267-.249.573-.373.92-.373.347 0 .662.124.929.373.267.249.391.551.391.907 0 .355-.124.657-.373.906zM5.333 7.24c-.746.018-1.373.276-1.88.773-.506.498-.769 1.13-.787 1.894v7.52c.018.764.281 1.396.787 1.893.507.498 1.134.756 1.88.773h13.334c.746-.017 1.373-.275 1.88-.773.506-.497.769-1.129.786-1.893v-7.52c-.017-.764-.28-1.396-.786-1.894-.507-.497-1.134-.755-1.88-.773zM8 11.107c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c0-.373.129-.689.386-.947.258-.257.574-.386.947-.386zm8 0c.373 0 .684.124.933.373.25.249.383.569.4.96v1.173c-.017.391-.15.711-.4.96-.249.25-.56.374-.933.374s-.684-.125-.933-.374c-.25-.249-.383-.569-.4-.96V12.44c.017-.391.15-.711.4-.96.249-.249.56-.373.933-.373z"/>
-          </svg>
-          在 B 站看
-        </a>
       </div>
     </div>
   `;
@@ -844,15 +768,6 @@ document.addEventListener("click", (e) => {
     setTimeout(() => {
       document.querySelector(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
-    return;
-  }
-
-  // Video index selector
-  const videoIdx = btn?.getAttribute("data-video-idx");
-  if (videoIdx !== null && videoIdx !== undefined) {
-    state.activeVideoIdx = Number(videoIdx);
-    track("video_switch", { idx: Number(videoIdx), showId: state.activeShowId });
-    render();
     return;
   }
 

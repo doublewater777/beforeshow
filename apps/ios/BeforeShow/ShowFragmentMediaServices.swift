@@ -178,10 +178,6 @@ struct LocalAppDataDeletionService {
             context.delete(artistInterest)
         }
 
-        let showVideos = try context.fetch(FetchDescriptor<ShowVideo>())
-        for showVideo in showVideos {
-            context.delete(showVideo)
-        }
     }
 
     private func deleteAudioIfNeeded(for fragment: ShowFragment) throws {

@@ -106,10 +106,6 @@ function systemPromptFor(type) {
     return `${common}\nReturn exactly: {"type":"roundTripDraft","direction":"outbound|return","summary":"...","steps":[{"title":"...","detail":"..."}],"evidence":[{"title":"...","url":"..."}]}. Include evidence only when it is reliable; never invent specific traffic facts.`;
   }
 
-  if (type === "showRecap") {
-    return `${common}\nReturn exactly: {"type":"showRecap","items":[{"title":"...","source":"bilibili","bvid":"...","originalUrl":"https://www.bilibili.com/video/..."}]}. Store metadata only.`;
-  }
-
   return common;
 }
 

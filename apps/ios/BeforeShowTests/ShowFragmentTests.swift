@@ -168,16 +168,6 @@ final class ShowFragmentTests: XCTestCase {
             status: .wantToSee,
             order: 0
         )
-        let showVideo = try ShowVideo(
-            showID: show.id,
-            category: .starter,
-            title: "入门现场",
-            sourceName: "B站音乐现场",
-            bilibiliURL: URL(string: "https://www.bilibili.com/video/BV1xx411c7mD")!,
-            durationText: "08:16",
-            reason: "第一次看这组现场，可以先从这一条开始。",
-            sortOrder: 0
-        )
         let deleter = RecordingAudioFileDeleter()
         let service = LocalAppDataDeletionService(
             audioStorage: ShowFragmentAudioStorage(rootDirectory: URL(fileURLWithPath: "/tmp/BeforeShowTests")),
@@ -192,7 +182,6 @@ final class ShowFragmentTests: XCTestCase {
         container.mainContext.insert(candidateGroup)
         container.mainContext.insert(candidateSong)
         container.mainContext.insert(artistInterest)
-        container.mainContext.insert(showVideo)
 
         try service.clearLocalAppData(in: container.mainContext)
         try container.mainContext.save()
@@ -206,7 +195,6 @@ final class ShowFragmentTests: XCTestCase {
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<CandidateSongGroup>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<CandidateSong>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<ArtistInterestItem>()).isEmpty)
-        XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<ShowVideo>()).isEmpty)
     }
 
     private func makeContainer() throws -> ModelContainer {
@@ -223,7 +211,6 @@ final class ShowFragmentTests: XCTestCase {
             CandidateSongGroup.self,
             CandidateSong.self,
             ArtistInterestItem.self,
-            ShowVideo.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
     }

@@ -1,7 +1,6 @@
 export const GENERATION_TYPES = {
   candidateSongs: "candidateSongs",
-  roundTripDraft: "roundTripDraft",
-  showRecap: "showRecap"
+  roundTripDraft: "roundTripDraft"
 };
 
 const SHOW_TYPES = new Set(["concert", "livehouse", "musicFestival"]);
@@ -56,8 +55,6 @@ export function validateGenerationRequest(input) {
     return validateCandidateSongsRequest(input);
   case GENERATION_TYPES.roundTripDraft:
     return validateRoundTripDraftRequest(input);
-  case GENERATION_TYPES.showRecap:
-    return validateShowRecapRequest(input);
   default:
     throw new ContractError("UNSUPPORTED_TYPE", "Unsupported generation type.", "$.type");
   }
@@ -73,8 +70,6 @@ export function validateGenerationResponse(type, input) {
     return validateCandidateSongsResponse(input);
   case GENERATION_TYPES.roundTripDraft:
     return validateRoundTripDraftResponse(input);
-  case GENERATION_TYPES.showRecap:
-    return validateShowRecapResponse(input);
   default:
     throw new ContractError("UNSUPPORTED_TYPE", "Unsupported generation type.", "type");
   }
@@ -160,17 +155,6 @@ function validateRoundTripDraftRequest(input) {
   return { ...input, show };
 }
 
-function validateShowRecapRequest(input) {
-  assertRequestDoesNotCarryOtherFeatureFields(input, [
-    "direction",
-    "userPlaces",
-    "constraints",
-    "limits"
-  ]);
-
-  return { ...input, show: validateShow(input.show) };
-}
-
 function validateCandidateSongsResponse(input) {
   assertAllowedKeys(input, ["type", "items"], "$");
   assertResponseType(input, GENERATION_TYPES.candidateSongs);
@@ -239,34 +223,6 @@ function validateRoundTripDraftResponse(input) {
   };
 }
 
-function validateShowRecapResponse(input) {
-  assertAllowedKeys(input, ["type", "items"], "$");
-  assertResponseType(input, GENERATION_TYPES.showRecap);
-  assertArray(input.items, "$.items", { min: 1 });
-
-  return {
-    type: GENERATION_TYPES.showRecap,
-    items: input.items.map((item, index) => {
-      const path = `$.items[${index}]`;
-      assertPlainObject(item, path);
-      assertAllowedKeys(item, ["title", "source", "bvid", "originalUrl"], path);
-      assertNonEmptyString(item.title, `${path}.title`);
-      assertNonEmptyString(item.source, `${path}.source`);
-      if (item.source !== "bilibili") {
-        throw new ContractError("INVALID_SOURCE", "Show recap source must be bilibili.", `${path}.source`);
-      }
-      assertNonEmptyString(item.bvid, `${path}.bvid`);
-      assertNonEmptyString(item.originalUrl, `${path}.originalUrl`);
-      return {
-        title: item.title.trim(),
-        source: "bilibili",
-        bvid: item.bvid.trim(),
-        originalUrl: item.originalUrl.trim()
-      };
-    })
-  };
-}
-
 function validateShow(show) {
   assertPlainObject(show, "$.show");
   assertAllowedKeys(show, ["name", "date", "city", "venueName", "type", "artists"], "$.show");
@@ -317,7 +273,9 @@ function assertRequestDoesNotCarryOtherFeatureFields(input, forbiddenFields) {
 
 function rejectForbiddenKeysDeep(value, path) {
   if (Array.isArray(value)) {
-    value.forEach((item, index) => rejectForbiddenKeysDeep(item, `${path}[${index}]`));
+    value.forEach((item, index) => {
+      rejectForbiddenKeysDeep(item, `${path}[${index}]`);
+    });
     return;
   }
 

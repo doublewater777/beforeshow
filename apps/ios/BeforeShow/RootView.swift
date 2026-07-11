@@ -130,8 +130,7 @@ private struct CurrentShowHomeView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                CurrentShowStageBackground()
-                    .ignoresSafeArea()
+                CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
 
                 if let show = currentShow {
                     CurrentShowContentView(show: show, formatter: formatter)
@@ -156,20 +155,28 @@ private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
 
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var roundTripPlans: [RoundTripPlan]
     @Query private var preparationPlans: [ShowPreparationPlan]
-    @Query private var videos: [ShowVideo]
 
     private var phase: CurrentShowTimeState {
         CurrentShowTimeState(show: show)
     }
 
     @State private var activeToolSheet: ToolSheet?
+    @State private var managementSheet: ManagementSheet?
 
     enum ToolSheet: Identifiable {
-        case candidateSongs, roundTrip, preparation, videos, fragments
+        case candidateSongs, roundTrip, preparation, fragments
+        var id: Self { self }
+    }
+
+    enum ManagementSheet: Identifiable {
+        case edit, delete
         var id: Self { self }
     }
 
@@ -195,8 +202,7 @@ private struct CurrentShowContentView: View {
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
             roundTripPlans: roundTripPlans,
-            preparationPlans: preparationPlans,
-            videos: videos
+            preparationPlans: preparationPlans
         )
     }
 
@@ -300,7 +306,6 @@ private struct CurrentShowContentView: View {
             candidateSongsToolItem,
             roundTripToolItem,
             preparationToolItem,
-            videosToolItem,
             fragmentsToolItem
         ]
         .sorted { first, second in
@@ -324,12 +329,13 @@ private struct CurrentShowContentView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 18) {
-                    compactHeader
+                    posterStage
                         .padding(.horizontal, 18)
-                        .padding(.top, 18)
-
-                    countdownHero
                         .padding(.top, 8)
+
+                    // 18pt VStack spacing + 2pt = 20pt cover-to-countdown pause.
+                    countdownHero
+                        .padding(.top, 2)
 
                     if showsDepartureAssistant {
                         departureAssistantCard
@@ -338,13 +344,38 @@ private struct CurrentShowContentView: View {
                     }
 
                     toolsScrollSection
-                        .padding(.top, 6)
+                        .padding(.top, 0)
 
                     Spacer(minLength: BSLayout.floatingTabBarClearance + 20)
                 }
                 .frame(minHeight: geometry.size.height)
             }
             .scrollIndicators(.hidden)
+            .sheet(item: $managementSheet) { sheet in
+                switch sheet {
+                case .edit:
+                    ShowDraftEditorView(
+                        title: "编辑现场",
+                        draft: ShowDraft(show: show),
+                        saveTitle: "保存"
+                    ) { draft in
+                        apply(draft)
+                    }
+                case .delete:
+                    BSDangerConfirmationSheet(
+                        title: "删除现场",
+                        message: "删除后，这场现场的碎片、候选曲目、去程计划和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
+                        destructiveTitle: "删除",
+                        onConfirm: {
+                            managementSheet = nil
+                            deleteShow()
+                        },
+                        onCancel: {
+                            managementSheet = nil
+                        }
+                    )
+                }
+            }
         }
         .sheet(item: $activeToolSheet) { tool in
             NavigationStack {
@@ -353,7 +384,6 @@ private struct CurrentShowContentView: View {
                     case .candidateSongs: CandidateSongsView(show: show)
                     case .roundTrip: RoundTripPlanView(show: show)
                     case .preparation: ShowPreparationView(show: show)
-                    case .videos: ShowVideosView(show: show)
                     case .fragments: ShowFragmentListView(show: show)
                     }
                 }
@@ -368,93 +398,206 @@ private struct CurrentShowContentView: View {
         case .candidateSongs: return .candidateSongs
         case .outboundPlan: return .roundTrip
         case .showPreparation: return .preparation
-        case .showVideos: return .videos
         case .showFragments: return .fragments
         }
     }
 
-    private var compactHeader: some View {
-        NavigationLink {
-            ShowDetailView(show: show)
-        } label: {
-            HStack(spacing: 12) {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .center,
-                    enforcesAspectRatio: false,
-                    cornerRadius: 12
-                )
-                .frame(width: 52, height: 69)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.18), lineWidth: 0.75)
-                )
-                .shadow(color: .black.opacity(0.30), radius: 9, y: 5)
+    private var posterStage: some View {
+        ZStack(alignment: .topTrailing) {
+            NavigationLink {
+                ShowDetailView(show: show)
+            } label: {
+                coverVisual
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
+            .accessibilityAddTraits(.isButton)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(show.name)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.78)
+            overflowMenu
+                .padding(12)
+        }
+    }
 
-                    VStack(alignment: .leading, spacing: 3) {
-                        labeledMetadata(icon: "calendar", text: formatter.dateText(for: show))
-                        if !locationText.isEmpty {
-                            labeledMetadata(icon: "mappin.and.ellipse", text: locationText)
+    private var coverVisual: some View {
+        // Explicit fixed frame from the screen width — GeometryReader/aspectRatio
+        // approaches let the cover fill the ScrollView's proposed height and pushed
+        // the countdown off-screen. A concrete 3:4 frame (screen width minus the
+        // 18pt horizontal padding) is unambiguous.
+        let coverWidth = UIScreen.main.bounds.width - 36.0
+        let coverHeight = coverWidth * 4.0 / 3.0
+        return ShowCoverImageView(
+            urlString: show.coverImageURL,
+            aspectRatio: 3.0 / 4.0,
+            contentMode: .fill,
+            alignment: .center,
+            enforcesAspectRatio: false,
+            cornerRadius: 0
+        )
+        .frame(width: coverWidth, height: coverHeight)
+        .overlay {
+            LinearGradient(
+                stops: [
+                    .init(color: Color.black.opacity(0.42), location: 0.00),
+                    .init(color: .clear, location: 0.20),
+                    .init(color: .clear, location: 0.46),
+                    .init(color: Color.black.opacity(0.28), location: 0.62),
+                    .init(color: Color.black.opacity(0.86), location: 0.90),
+                    .init(color: Color.black.opacity(0.96), location: 1.00)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .overlay(alignment: .bottomLeading) {
+            coverMetadata
+                .padding(18)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28)
+                .stroke(Color.white.opacity(0.18), lineWidth: 0.75)
+        )
+        .shadow(color: .black.opacity(0.45), radius: 18, y: 10)
+    }
+
+    private var coverMetadata: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(show.name)
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .minimumScaleFactor(0.80)
+                .shadow(color: .black.opacity(0.6), radius: 6)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(formatter.dateText(for: show))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.72))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                if !locationText.isEmpty {
+                    Text(locationText)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.72))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                }
+            }
+        }
+    }
+
+    private var overflowMenu: some View {
+        Menu {
+            Button {
+                managementSheet = .edit
+            } label: {
+                Label("编辑现场", systemImage: "square.and.pencil")
+            }
+            if shows.count > 1 {
+                Menu {
+                    ForEach(otherShows) { other in
+                        Button {
+                            selectCurrent(other)
+                        } label: {
+                            Text(other.name)
                         }
                     }
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
+                } label: {
+                    Label("切换当前现场", systemImage: "arrow.triangle.2.circlepath")
                 }
-
-                Spacer(minLength: 0)
             }
-            .padding(10)
-            .frame(minHeight: 90)
-            .background(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.135),
-                                Color.white.opacity(0.060)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(Color.white.opacity(0.12), lineWidth: 0.75)
-            )
-            .shadow(color: Color.black.opacity(0.22), radius: 13, y: 7)
+            Button(role: .destructive) {
+                managementSheet = .delete
+            } label: {
+                Label("删除现场", systemImage: "trash")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(Color.white.opacity(0.92))
+                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                )
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.035))
+                )
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.12), lineWidth: 0.75)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         }
-        .buttonStyle(.plain)
+        .accessibilityLabel("更多现场操作")
+    }
+
+    private var otherShows: [Show] {
+        shows.filter { $0.id != show.id }
+    }
+
+    private func selectCurrent(_ other: Show) {
+        let selection = selections.first ?? CurrentShowSelection()
+        if selections.isEmpty {
+            modelContext.insert(selection)
+        }
+        selection.select(showID: other.id)
+        try? modelContext.save()
+    }
+
+    private func apply(_ draft: ShowDraft) {
+        show.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        show.date = draft.date
+        show.startTime = draft.startTime
+        show.endDate = draft.endDate
+        show.endTime = draft.endTime
+        show.city = trimmedOptional(draft.city)
+        show.venueName = trimmedOptional(draft.venueName)
+        show.venueAddress = trimmedOptional(draft.venueAddress)
+        show.artist = trimmedOptional(draft.artist)
+        show.seatSection = trimmedOptional(draft.seatSection)
+        show.coverImageURL = trimmedOptional(draft.coverImageURL)
+        show.artistAvatarURLs = draft.artistAvatarURLs
+        show.type = draft.type
+        try? modelContext.save()
+    }
+
+    private func deleteShow() {
+        do {
+            try LocalAppDataDeletionService(audioStorage: .applicationSupport())
+                .deleteShow(show, in: modelContext)
+            try? modelContext.save()
+        } catch {
+            // Silent: failure leaves the show in place; home has nothing to dismiss.
+        }
+    }
+
+    private func trimmedOptional(_ value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var countdownHero: some View {
-        ZStack {
-            HomeStageLightRig()
-                .frame(height: 344)
-                .allowsHitTesting(false)
+        countdownDisplay
+            .frame(maxWidth: .infinity)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(countdownAccessibilityLabel)
+    }
 
-            VStack(spacing: 18) {
-                Text(countdownEyebrow)
-                    .font(.system(size: 31, weight: .light))
-                    .tracking(1.0)
-                    .bsGradientText()
-
-                countdownDisplay
-            }
-            .offset(y: -4)
+    private var countdownAccessibilityLabel: String {
+        switch phase.kind {
+        case .today:
+            return "就是今天"
+        case .ended:
+            return "已结束"
+        case .canceled:
+            return "已取消"
+        case .postponed:
+            return "待定"
+        default:
+            return "距离开场还有 \(phase.countdownNumber) \(phase.countdownUnit)"
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 344)
     }
 
     @ViewBuilder
@@ -478,38 +621,23 @@ private struct CurrentShowContentView: View {
                 .font(.system(size: 74, weight: .light))
                 .bsGradientText()
         default:
-            HStack(alignment: .lastTextBaseline, spacing: 18) {
+            HStack(alignment: .lastTextBaseline, spacing: 10) {
                 Text(phase.countdownNumber)
-                    .font(.system(size: 178, weight: .light))
-                    .minimumScaleFactor(0.62)
+                    .font(.system(size: 74, weight: .light))
+                    .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .bsGradientText()
 
                 Text(phase.countdownUnit)
-                    .font(.system(size: 32, weight: .light))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundColor(Color.white.opacity(0.78))
-                    .offset(y: -18)
+                    .offset(y: -6)
             }
         }
     }
 
-    private func labeledMetadata(icon: String, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(BSColor.textTertiary)
-                .frame(width: 14)
-
-            Text(text)
-                .font(.system(size: 13, weight: .regular))
-                .foregroundColor(BSColor.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.82)
-        }
-    }
-
     private var toolsScrollSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             homeHintCard(recommendedToolItem)
                 .padding(.horizontal, 18)
 
@@ -519,18 +647,21 @@ private struct CurrentShowContentView: View {
                     .tracking(1.2)
                     .foregroundColor(BSColor.textTertiary)
                     .textCase(.uppercase)
-                    .padding(.horizontal, 18)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(homeToolItems) { item in
-                            toolShortcutCard(item)
-                        }
+                
+                LazyVGrid(
+                    columns: [
+                        GridItem(.flexible(), spacing: 10),
+                        GridItem(.flexible(), spacing: 10)
+                    ],
+                    alignment: .leading,
+                    spacing: 10
+                ) {
+                    ForEach(homeToolItems) { item in
+                        toolShortcutCard(item)
                     }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 2)
                 }
             }
+            .padding(.horizontal, 18)
         }
     }
 
@@ -570,7 +701,7 @@ private struct CurrentShowContentView: View {
                     .background(Capsule().fill(BSColor.brandGradientSoft))
                     .clipShape(Capsule())
             }
-            .padding(13)
+            .padding(10)
             .homeGlass(cornerRadius: 18, fillOpacity: 0.06, strokeOpacity: 0.10)
         }
         .buttonStyle(HomeToolButtonStyle())
@@ -600,7 +731,7 @@ private struct CurrentShowContentView: View {
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 10)
-            .frame(width: 154, height: 64, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
             .homeGlass(cornerRadius: 17, fillOpacity: 0.045, strokeOpacity: 0.085)
         }
         .buttonStyle(HomeToolButtonStyle())
@@ -689,21 +820,6 @@ private struct CurrentShowContentView: View {
         )
     }
 
-    private var videosToolItem: HomeToolItem {
-        let hasVideos = summary.hasVideos
-        return HomeToolItem(
-            id: .videos,
-            icon: "play.rectangle.fill",
-            title: "现场视频",
-            status: summary.videosStatus,
-            detail: hasVideos ? "开场前先看几场真正的现场。" : "整理可打开的 B站现场，给这场预热。",
-            actionTitle: hasVideos ? "观看" : "整理",
-            accent: BSColor.Accent.video,
-            priority: videosPriority(hasVideos: hasVideos),
-            isComplete: hasVideos
-        )
-    }
-
     private var fragmentsToolItem: HomeToolItem {
         let hasFragments = summary.hasFragments
         return HomeToolItem(
@@ -759,18 +875,6 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private func videosPriority(hasVideos: Bool) -> Int {
-        if hasVideos { return 64 }
-        switch phase.kind {
-        case .before:
-            return 36
-        case .today:
-            return 52
-        default:
-            return 76
-        }
-    }
-
     private func fragmentsPriority(hasFragments: Bool) -> Int {
         if hasFragments {
             switch phase.kind {
@@ -801,23 +905,6 @@ private struct CurrentShowContentView: View {
         formatter.dateFormat = "HH:mm"
         return formatter
     }()
-
-    private var countdownEyebrow: String {
-        switch phase.kind {
-        case .before:
-            return "还有"
-        case .today:
-            return "就是今天"
-        case .postShow:
-            return "散场后"
-        case .ended:
-            return "记忆已收好"
-        case .canceled:
-            return "现场变更"
-        case .postponed:
-            return "时间待定"
-        }
-    }
 
     private var locationText: String {
         let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -863,57 +950,6 @@ private struct HomeToolButtonStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed ? 0.985 : 1)
             .opacity(configuration.isPressed ? 0.82 : 1)
             .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
-    }
-}
-
-private struct HomeStageLightRig: View {
-    var body: some View {
-        GeometryReader { geometry in
-            Image("splash_bg")
-                .resizable()
-                .scaledToFill()
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped()
-                .saturation(1.08)
-                .contrast(1.05)
-                .opacity(0.78)
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color.black.opacity(0.48),
-                            Color.black.opacity(0.05),
-                            Color.black.opacity(0.36)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-        }
-        .compositingGroup()
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.00),
-                    .init(color: .white, location: 0.16),
-                    .init(color: .white, location: 0.82),
-                    .init(color: .clear, location: 1.00)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
-        .mask(
-            LinearGradient(
-                stops: [
-                    .init(color: .clear, location: 0.00),
-                    .init(color: .white, location: 0.10),
-                    .init(color: .white, location: 0.90),
-                    .init(color: .clear, location: 1.00)
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-        )
     }
 }
 
@@ -1171,14 +1207,14 @@ private enum DebugSampleShowSeeder {
     private static var sampleDrafts: [ShowDraft] {
         [
             ShowDraft(
-                name: "康士坦的变化球「犬的视线」2026 巡演 杭州站",
-                date: date(2026, 7, 11),
-                startTime: time(2026, 7, 11, 19, 0),
-                city: "杭州",
-                venueName: "杭州 MAO Livehouse",
-                artist: "康士坦的变化球",
-                coverImageURL: "https://s2.showstart.com/img/2026/0512/18/30/0481358705194e86ad435fd75209d6df_1280_1792_511845.0x0.JPG?imageMogr2/thumbnail/!600x800r/gravity/Center/crop/!600x800",
-                type: .livehouse,
+                name: "周杰伦嘉年华世界巡回演唱会 · 南京站",
+                date: date(2026, 9, 24),
+                startTime: time(2026, 9, 24, 19, 30),
+                city: "南京",
+                venueName: "南京奥体中心体育场",
+                artist: "周杰伦",
+                coverImageURL: "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp",
+                type: .concert,
                 source: .link
             ),
             ShowDraft(

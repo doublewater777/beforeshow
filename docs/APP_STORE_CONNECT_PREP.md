@@ -21,7 +21,7 @@
   - Secondary: Lifestyle (`LIFESTYLE`)
 - Content rights configured:
   - `USES_THIRD_PARTY_CONTENT`
-  - Reason: V2.1 may show Bilibili-based `现场视频` through Bilibili's official external player or original page.
+  - Reason: V2.1 references third-party music titles and user-selected gallery media, but does not host or play third-party video.
 - Existing iOS Distribution certificate found:
   - Certificate ID: `XCJMLU87V5`
   - Name: `iOS Distribution: Yang Pan`
@@ -76,7 +76,7 @@ Created with these fields:
     - Monthly: `id=49e34188-f880-4802-9a4b-caf47b5398a6`
     - Yearly: `id=20a44dc5-ac64-486f-a9c8-2bd81b761487`
 - Add privacy policy and support URLs before submission.
-- Add age rating honestly; target low rating, but do not remove `现场视频` just to force 4+.
+- Add age rating honestly; target low rating without lyrics, community, ticketing, or self-hosted media claims.
 - Do not add lyrics, public community, ticketing, or self-hosted video playback metadata claims.
 
 ## Pro Subscription Review Copy
@@ -89,13 +89,12 @@ Created with these fields:
   - No free trial in V2.1
 - Free allowance:
   - Save 1 `现场`.
-  - Use the first-experience package once per feature: candidate songs, outbound trip draft, return trip draft, and show recap.
+  - Use the first-experience package once per feature: candidate songs, outbound trip draft, and return trip draft.
   - Deleting a show does not reset the free AI allowance.
 - Pro unlocks:
   - Unlimited saved `现场`.
   - Repeated candidate song generation.
   - Repeated outbound and return draft generation.
-  - More show recap discovery through user-triggered loading.
 - Expired Pro behavior:
   - Existing local data, saved shows, show fragments, and manual edits remain accessible.
   - Users can keep adding show fragments and manually editing saved local content.
@@ -108,15 +107,14 @@ Created with these fields:
 - OCR fields: extraction is limited to show-related fields such as show name, date/time, city, venue, artists/lineup, and seat/area. The app should not recognize or store order numbers, QR codes, barcodes, ID numbers, phone numbers, buyer names, or payment information.
 - Gallery media: show fragments reference photos and videos in the system gallery. BeforeShow does not copy gallery originals into app storage, and clearing app data does not delete those originals.
 - App-created audio: voice fragments recorded inside BeforeShow are app-owned sandbox data and are removed when the related app data is cleared.
-- AI requests: candidate songs, trip drafts, and show recap discovery are user-triggered. Requests send only the fields needed for that generation path; the backend does not store long-term user show data.
+- AI requests: candidate songs and trip drafts are user-triggered. Requests send only the fields needed for that generation path; the backend does not store long-term user show data.
 - Feedback: feedback sends only the message/category and optional diagnostics selected by the user. It must not automatically attach show content, screenshots, gallery media, voice fragments, or generated results.
 - Local-first stance: saved shows, preferences, fragments metadata, and app-created audio are local app data in V2.1; there is no BeforeShow account or cloud sync.
 
 ## Content Rights And Feature Boundaries
 
-- Lyrics: BeforeShow does not display lyrics in candidate songs, home surfaces, show recap, screenshots, or marketing copy.
+- Lyrics: BeforeShow does not display lyrics in candidate songs, home surfaces, screenshots, or marketing copy.
 - Candidate songs: the app stores song title and artist only; it does not create platform playlists or claim an official setlist.
-- Bilibili show recap: the app uses Bilibili public video metadata and opens playback through Bilibili's official external player or original page. It does not parse video streams, download video/audio, cache covers, danmaku, comments, or source pages, and does not build a self-hosted player.
 - Ticketing: BeforeShow is not a ticket wallet, ticket trading product, ticket validator, or venue entry tool.
 
 ## Human Submission Checklist
@@ -127,7 +125,7 @@ Created with these fields:
 - [x] Set version copyright to `2026 Yang Pan` for App Store version `1.0`.
 - [x] Confirm StoreKit products are created in App Store Connect with the exact monthly/yearly prices and no trial.
 - [x] Confirm the shared Xcode scheme uses `BeforeShow/Resources/BeforeShow.storekit` for local simulator purchase testing.
-- [ ] Paste review notes covering on-device OCR, local-first storage, no lyrics, Bilibili official player/original page, Pro subscription behavior, and feedback/privacy boundaries.
+- [ ] Paste review notes covering on-device OCR, local-first storage, no lyrics, Pro subscription behavior, and feedback/privacy boundaries.
 
 ## TestFlight Manual QA
 
@@ -138,7 +136,6 @@ Run this on a fresh install before submitting the first external TestFlight buil
 - [ ] Open `候选曲目`; candidate songs generate once, store only song title and artist, and can be edited locally.
 - [ ] Open `往返计划`; fill direction info, generate one outbound draft, edit and save it locally.
 - [ ] Generate one return draft or save an undecided return note; repeated outbound/return generation as a free user opens Pro.
-- [ ] Open `现场视频`; trigger discovery, save only Bilibili title/source/BVID/original URL, and open playback through Bilibili's official external player or original page.
 - [ ] Open `现场准备`; check and uncheck items, save a reminder time, save private notes, then leave and re-enter to confirm persistence.
 - [ ] Open `现场碎片`; save text and optional gallery references or app-created audio locally, then re-enter to confirm persistence.
 - [ ] Try adding a second `现场` as a free user; saving is blocked with the free limit message.
@@ -147,9 +144,9 @@ Run this on a fresh install before submitting the first external TestFlight buil
 - [ ] After purchase, add a second `现场`; save succeeds.
 - [ ] After purchase, regenerate `候选曲目`; repeated generation succeeds and replaces the local candidate group after confirmation.
 - [ ] Delete and reinstall, then use `恢复购买`; Pro entitlement restores from StoreKit.
-- [ ] Verify privacy and copyright boundaries: no lyrics, no uploaded ticket screenshot flow, no Bilibili media caching/self-hosted playback, and no BeforeShow account/sync prompt.
+- [ ] Verify privacy and copyright boundaries: no lyrics, no uploaded ticket screenshot flow, no self-hosted media playback, and no BeforeShow account/sync prompt.
 - [ ] Repeat the free-limit path once with App Store sandbox/TestFlight products, not only the local `.storekit` file.
-- [ ] Verify metadata uses approved product language: `现场`, `候选曲目`, `往返计划`, `现场视频`, `Pro会员`.
+- [ ] Verify metadata uses approved product language: `现场`, `候选曲目`, `往返计划`, `Pro会员`.
 
 ## Current External Blockers
 
@@ -158,7 +155,6 @@ Run this on a fresh install before submitting the first external TestFlight buil
 - [x] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so both `generate` and `parseShowLink` are staged under `.cloudbase/functions`.
 - [x] After deployment, repeat the `/generate` smoke test with a non-private test show and confirm it returns `ok: true` with `response.type = candidateSongs`.
 - [x] On 2026-06-16, repeat the `/generate` smoke test for `roundTripDraft`; the live endpoint returned `ok: true`, `response.type = roundTripDraft`, and valid evidence.
-- [x] On 2026-06-16, repeat the `/generate` smoke test for `showRecap`; the live endpoint returned `ok: true`, `response.type = showRecap`, and Bilibili metadata only.
 - [x] Upload App Store review screenshots for subscription IDs `6780727285` and `6780727360`; `asc validate subscriptions` now confirms both review screenshot IDs.
 - [ ] Resolve remaining first-release subscription state; current `asc validate subscriptions` warnings are missing optional promotional images, app build count `0`, and app availability comparison unavailable.
 - [ ] Run the real TestFlight/manual loop on device after the build is uploaded: free first show, one candidate generation, Pro gate on second show/regeneration, purchase/restore, and post-purchase unlock.

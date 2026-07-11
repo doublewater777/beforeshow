@@ -172,33 +172,6 @@ describe("generation contracts", () => {
     assert.deepEqual(request.userPlaces, { hotel: "陕西南路附近酒店" });
   });
 
-  it("stores show recap as lightweight Bilibili metadata only", () => {
-    const response = validateGenerationResponse(GENERATION_TYPES.showRecap, {
-      type: GENERATION_TYPES.showRecap,
-      items: [{
-        title: "巡演现场片段",
-        source: "bilibili",
-        bvid: "BV1xx411c7mD",
-        originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD"
-      }]
-    });
-
-    assert.equal(response.items[0].source, "bilibili");
-    assert.throws(
-      () => validateGenerationResponse(GENERATION_TYPES.showRecap, {
-        type: GENERATION_TYPES.showRecap,
-        items: [{
-          title: "巡演现场片段",
-          source: "bilibili",
-          bvid: "BV1xx411c7mD",
-          originalUrl: "https://www.bilibili.com/video/BV1xx411c7mD",
-          coverUrl: "https://example.com/cover.jpg"
-        }]
-      }),
-      errorWithCode("UNSUPPORTED_RESPONSE_FIELD")
-    );
-  });
-
   it("falls back to Qwen when Doubao response violates the contract", () => {
     const selected = selectValidProviderResponse(GENERATION_TYPES.candidateSongs, [
       {
@@ -231,7 +204,7 @@ describe("generation contracts", () => {
   it("rejects missing required fields", () => {
     assert.throws(
       () => validateGenerationRequest({
-        type: GENERATION_TYPES.showRecap,
+        type: GENERATION_TYPES.candidateSongs,
         requestId: "req-missing"
       }),
       errorWithCode("EXPECTED_OBJECT")

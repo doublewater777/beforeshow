@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 @main
 struct BeforeShowApp: App {
@@ -11,6 +12,7 @@ struct BeforeShowApp: App {
             )
         ])
         #endif
+        UNUserNotificationCenter.current().delegate = BeforeShowNotificationDelegate.shared
     }
 
     var body: some Scene {
@@ -30,8 +32,7 @@ struct BeforeShowApp: App {
             ShowPreparationPlan.self,
             CandidateSongGroup.self,
             CandidateSong.self,
-            ArtistInterestItem.self,
-            ShowVideo.self
+            ArtistInterestItem.self
         ])
     }
 }

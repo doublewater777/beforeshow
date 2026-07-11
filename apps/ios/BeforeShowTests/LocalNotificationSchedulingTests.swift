@@ -183,6 +183,44 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(records.first?.milestone, .showDay)
     }
 
+    func testNotificationCarriesShowIDAndDestinationInUserInfo() throws {
+        let show = try Show(
+            name: "深链现场",
+            date: makeDate(year: 2026, month: 7, day: 20),
+            startTime: makeDate(year: 2026, month: 7, day: 20, hour: 20),
+            type: .concert
+        )
+
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: makeDate(year: 2026, month: 7, day: 1)
+        )
+
+        let fourteen = requests.first { $0.milestone == .fourteenDaysBefore }!
+        XCTAssertEqual(fourteen.userInfo["showID"] as? String, show.id.uuidString)
+        XCTAssertEqual(fourteen.userInfo["destination"] as? String, "candidateSongs")
+
+        let oneDay = requests.first { $0.milestone == .oneDayBefore }!
+        XCTAssertEqual(oneDay.userInfo["destination"] as? String, "outboundPlan")
+
+        let showDay = requests.first { $0.milestone == .showDay }!
+        XCTAssertEqual(showDay.userInfo["destination"] as? String, "home")
+
+        XCTAssertEqual(
+            NotificationDeepLink(userInfo: fourteen.userInfo),
+            NotificationDeepLink(showID: show.id, destination: .candidateSongs)
+        )
+        XCTAssertEqual(NotificationDeepLink(userInfo: oneDay.userInfo)?.destination, .outboundPlan)
+        XCTAssertEqual(NotificationDeepLink(userInfo: showDay.userInfo)?.destination, .home)
+    }
+
+    func testDeepLinkParseRejectsInvalidUserInfo() {
+        XCTAssertNil(NotificationDeepLink(userInfo: [:]))
+        XCTAssertNil(NotificationDeepLink(userInfo: ["showID": "not-a-uuid", "destination": "home"]))
+        XCTAssertNil(NotificationDeepLink(userInfo: ["showID": UUID().uuidString, "destination": "unknown"]))
+        XCTAssertNil(NotificationDeepLink(userInfo: ["destination": "home"]))
+    }
+
     func testNotificationSchedulingIsTimezoneAware() throws {
         // Show is at June 25, 2026 at 20:00 UTC.
         let showDateUTC = DateComponents(

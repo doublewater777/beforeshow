@@ -164,17 +164,6 @@ struct CurrentShowAllToolsView: View {
                         }
 
                         NavigationLink {
-                            ShowVideosView(show: show)
-                        } label: {
-                            CurrentToolTile(
-                                iconName: "play.rectangle.fill",
-                                title: "现场视频",
-                                subtitle: "开场前先看现场",
-                                accent: BSColor.Accent.video
-                            )
-                        }
-
-                        NavigationLink {
                             ShowFragmentListView(show: show)
                         } label: {
                             CurrentToolTile(
@@ -242,381 +231,29 @@ private struct CurrentToolTile: View {
     }
 }
 
-struct ShowVideosView: View {
-    enum DebugState {
-        case normal([ShowVideo])
-        case empty
-        case generating
-        case webview([ShowVideo])
-    }
-
+struct CandidateSongsView: View {
     let show: Show
-    var debugState: DebugState?
 
     @Environment(\.modelContext) private var modelContext
-    @Query private var videos: [ShowVideo]
-    @State private var navigator = ShowVideoWebViewNavigator()
-    @State private var message: String?
-    @State private var toast: BSToastPayload?
-
-    private let libraryService = ShowVideoLibraryService()
-
-    private var visibleVideos: [ShowVideo] {
-        switch debugState {
-        case .normal(let videos), .webview(let videos):
-            return videos
-        case .empty, .generating:
-            return []
-        case nil:
-            return videos
-        }
-    }
-
-    private var sections: [ShowVideoSection] {
-        libraryService.sections(for: show.id, videos: visibleVideos)
-    }
-
-    private var hasVideos: Bool {
-        sections.contains { !$0.videos.isEmpty }
-    }
-
-    private var isGenerating: Bool {
-        if case .generating = debugState {
-            return true
-        }
-        return false
-    }
-
-    var body: some View {
-        BSStageScaffold(title: "现场视频", subtitle: "开场前，先看几场真正的现场。", bottomPadding: 96) {
-            BSTipPromptCard(
-                iconName: "play.rectangle.fill",
-                eyebrow: "Tips · 现场预热",
-                message: hasVideos
-                    ? "不用补课，挑一条有感觉的看就好。先让耳朵和眼睛知道今晚会发生什么。"
-                    : "还没整理现场视频，可以先找几条真正的现场，开场前看看氛围。",
-                accent: BSColor.Accent.video,
-                buttonTitle: hasVideos ? nil : "找几条看看",
-                action: hasVideos ? nil : { organizeFixtureVideos() }
-            )
-
-            Text(currentShowTitle)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.textTertiary)
-
-            if isGenerating {
-                BSLoadingStatePanel(
-                    title: "正在整理现场视频",
-                    message: "会整理可打开的 B站现场视频条目。"
-                )
-            }
-
-            if hasVideos {
-                ForEach(sections, id: \.category) { section in
-                    if !section.videos.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text(section.category.title)
-                                .font(.system(size: 20, weight: .bold))
-                                .foregroundColor(BSColor.textPrimary)
-                            VStack(spacing: 12) {
-                                ForEach(section.videos) { video in
-                                    ShowVideoCardView(video: video) {
-                                        navigator.open(video)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else if !isGenerating {
-                BSEmptyPanel(
-                    iconName: "play.rectangle",
-                    title: "还没有现场视频",
-                    message: "不用一下看很多，先整理几条有现场感的就够了。",
-                    buttonTitle: "找几条看看",
-                    buttonIconName: "sparkles"
-                ) {
-                    organizeFixtureVideos()
-                }
-            }
-
-            if let message {
-                Text(message)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-            }
-        }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: Binding(
-            get: { navigator.presentedVideo },
-            set: { video in
-                if video == nil {
-                    navigator.close()
-                }
-            }
-        )) { video in
-            ShowVideoWebViewSheet(video: video) {
-                navigator.close()
-            }
-        }
-        .onAppear {
-            if case .webview(let videos) = debugState,
-               let first = videos.first {
-                navigator.open(first)
-            }
-        }
-        .bsToastOverlay(toast)
-    }
-
-    private var currentShowTitle: String {
-        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !artist.isEmpty {
-            return "\(artist) · \(show.name)"
-        }
-        return show.name
-    }
-
-    private func organizeFixtureVideos() {
-        guard !hasVideos else { return }
-        for video in ShowVideoFixture.videos(for: show.id) {
-            modelContext.insert(video)
-        }
-        do {
-            try modelContext.save()
-            message = "已经先整理几条现场视频。"
-            presentToast(.success, message: "现场视频已整理")
-        } catch {
-            message = "暂时没整理成功，请稍后再试。"
-            presentToast(.failure, message: "整理失败")
-        }
-    }
-
-    private func presentToast(_ tone: BSToastTone, message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if toast == payload {
-                toast = nil
-            }
-        }
-    }
-}
-
-private struct ShowVideoCardView: View {
-    let video: ShowVideo
-    let onOpen: () -> Void
-
-    private var presentation: ShowVideoCardPresentation {
-        ShowVideoCardPresentation(video: video)
-    }
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: .top, spacing: 12) {
-                ShowVideoThumbnailView(video: video)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(presentation.title)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.leading)
-
-                    Text(presentation.sourceText)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.70))
-                        .lineLimit(1)
-
-                    Text(presentation.reason)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundColor(Color.white.opacity(0.84))
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.078),
-                        Color.white.opacity(0.045)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.13), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct ShowVideoThumbnailView: View {
-    let video: ShowVideo
-
-    var body: some View {
-        ZStack(alignment: .bottomTrailing) {
-            if let urlString = video.thumbnailURL,
-               let url = URL(string: urlString) {
-                AsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    default:
-                        ShowVideoPlaceholderCover()
-                    }
-                }
-            } else {
-                ShowVideoPlaceholderCover()
-            }
-
-            Text(video.durationText)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color.white.opacity(0.72))
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .background(Color.black.opacity(0.58))
-                .clipShape(RoundedRectangle(cornerRadius: 4))
-                .padding(6)
-        }
-        .frame(width: 108, height: 78)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.09), lineWidth: 1)
-        )
-    }
-}
-
-private struct ShowVideoPlaceholderCover: View {
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.49, green: 0.81, blue: 1.0).opacity(0.34),
-                    Color(red: 0.70, green: 0.53, blue: 1.0).opacity(0.24),
-                    Color(red: 1.0, green: 0.70, blue: 0.28).opacity(0.22)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            RadialGradient(
-                colors: [
-                    Color.white.opacity(0.44),
-                    .clear
-                ],
-                center: .center,
-                startRadius: 0,
-                endRadius: 18
-            )
-
-            HStack(spacing: 18) {
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.38), .clear],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                    )
-                    .frame(width: 28, height: 92)
-                    .blur(radius: 7)
-                    .rotationEffect(.degrees(-22), anchor: .bottom)
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.38), .clear],
-                            startPoint: .bottom,
-                            endPoint: .top
-                        )
-                    )
-                    .frame(width: 28, height: 92)
-                    .blur(radius: 7)
-                    .rotationEffect(.degrees(18), anchor: .bottom)
-            }
-            .offset(y: 18)
-        }
-    }
-}
-
-private struct ShowVideoWebViewSheet: View {
-    let video: ShowVideo
-    let onClose: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            ShowVideoWebView(url: video.bilibiliURL)
-                .ignoresSafeArea(edges: .bottom)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭", action: onClose)
-                            .foregroundColor(BSColor.textPrimary)
-                    }
-                    ToolbarItem(placement: .principal) {
-                        VStack(spacing: 2) {
-                            Text(video.title)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(BSColor.textPrimary)
-                                .lineLimit(1)
-                            Text("bilibili.com")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(BSColor.textTertiary)
-                        }
-                    }
-                }
-                .toolbarBackground(Color.black, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
-        }
-        .preferredColorScheme(.dark)
-    }
-}
-
-private struct ShowVideoWebView: UIViewRepresentable {
-    let url: URL
-
-    func makeUIView(context: Context) -> WKWebView {
-        WKWebView()
-    }
-
-    func updateUIView(_ webView: WKWebView, context: Context) {
-        if webView.url != url {
-            webView.load(URLRequest(url: url))
-        }
-    }
-}
-
-struct TonightFirstListenEntryView: View {
-    enum Presentation {
-        case row
-        case tile
-    }
-
-    let show: Show
-    var presentation: Presentation = .row
-
-    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var artistInterests: [ArtistInterestItem]
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @AppStorage(ProUsageStorage.usedFreeGenerationFeaturesKey) private var usedFreeGenerationFeaturesRawValue = ""
+    @AppStorage("defaultMusicPlatform") private var defaultMusicPlatformName = SettingsInformation.defaultMusicPlatformName
 
+    @State private var artistFilter: String? = nil // nil = 全部
     @State private var isGenerating = false
-    @State private var message: String?
+    @State private var lastGenerationFailed = false
+    @State private var showsReplacementConfirmation = false
+    @State private var showsProLimit = false
     @State private var showsProMembership = false
+    @State private var showsEditSheet = false
+    @State private var showsAddSheet = false
+    @State private var sharePayload: CandidateSongsSharePayload?
+    @State private var songPendingRemoval: CandidateSong?
+    @State private var toast: BSToastPayload?
 
     private let editingService = CandidateSongEditingService()
     private let gate = ProFeatureGate()
@@ -629,12 +266,42 @@ struct TonightFirstListenEntryView: View {
         artistInterests.filter { $0.showID == show.id }
     }
 
-    private var pickedSong: CandidateSong? {
-        TonightFirstListenService().pickSong(
-            groups: showGroups,
-            songs: candidateSongs,
-            artistInterests: showArtistInterests
-        )
+    /// Global setlist order (order field is unique across groups after renumber).
+    private var allSongs: [CandidateSong] {
+        let groupIDs = Set(showGroups.map(\.id))
+        return candidateSongs
+            .filter { groupIDs.contains($0.groupID) }
+            .sorted { $0.order < $1.order }
+    }
+
+    private var artistNames: [String] {
+        var seen = Set<String>()
+        var ordered: [String] = []
+        for song in allSongs {
+            let name = song.artist.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty, !seen.contains(name) else { continue }
+            seen.insert(name)
+            ordered.append(name)
+        }
+        return ordered
+    }
+
+    private var isMultiArtist: Bool { artistNames.count > 1 }
+
+    private var visibleSongs: [CandidateSong] {
+        guard let artistFilter else { return allSongs }
+        return allSongs.filter { $0.artist == artistFilter }
+    }
+
+    private var fallbackArtistName: String {
+        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !artist.isEmpty { return artist }
+        if let first = artistNames.first { return first }
+        return show.name
+    }
+
+    private var musicPlatform: MusicPlatform {
+        MusicPlatform(rawValue: defaultMusicPlatformName) ?? .neteaseCloudMusic
     }
 
     private var entitlement: ProEntitlementState {
@@ -651,271 +318,98 @@ struct TonightFirstListenEntryView: View {
         )
     }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Button {
-                if canGenerate {
-                    Task {
-                        await generateCandidateSongs()
-                    }
-                } else {
-                    presentProLimit(message: "免费体验已用完，开通 Pro 后可以重复生成候选曲目。")
-                }
-            } label: {
-                entryLabel
-            }
-            .buttonStyle(.plain)
-            .disabled(isGenerating)
-
-            if let message {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(message)
-                        .font(.system(size: 12))
-                        .foregroundColor(.white.opacity(0.58))
-
-                    if !canGenerate {
-                        Button("开通 Pro") {
-                            showsProMembership = true
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                    }
-                }
-                .padding(.horizontal, 4)
-            }
+    private var shareHeadline: String {
+        let base = show.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let artistFilter {
+            return "\(base) · \(artistFilter)"
         }
-        .sheet(isPresented: $showsProMembership) {
-            ProMembershipSheetView()
-        }
-    }
-
-    @ViewBuilder
-    private var entryLabel: some View {
-        switch presentation {
-        case .row:
-            CurrentFeatureRow(
-                iconName: isGenerating ? "hourglass" : "music.note",
-                title: "今晚先听",
-                subtitle: subtitle,
-                accent: BSColor.Accent.music
-            )
-        case .tile:
-            CurrentToolTile(
-                iconName: isGenerating ? "hourglass" : "music.note",
-                title: "今晚先听",
-                subtitle: subtitle,
-                accent: BSColor.Accent.music
-            )
-        }
-    }
-
-    private var subtitle: String {
-        if isGenerating {
-            return "正在生成候选曲目"
-        }
-
-        if let pickedSong {
-            return "\(pickedSong.songName) - \(pickedSong.artist)"
-        }
-
-        return TonightFirstListenService.emptyPrompt
-    }
-
-    @MainActor
-    private func generateCandidateSongs() async {
-        guard canGenerate else {
-            presentProLimit(message: "免费体验已用完，开通 Pro 后可以重复生成候选曲目。")
-            return
-        }
-
-        isGenerating = true
-        defer { isGenerating = false }
-
-        do {
-            let service = Self.defaultGenerationService()
-            let inputs = try await service.generate(for: show, artistInterests: showArtistInterests)
-            replaceCandidateSongs(with: inputs)
-            usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(
-                .candidateSongs,
-                in: usedFreeGenerationFeaturesRawValue
-            )
-            message = "候选曲目已更新。"
-        } catch {
-            message = "暂时没生成成功，请稍后再试。"
-        }
-    }
-
-    @MainActor
-    private func replaceCandidateSongs(with inputs: [CandidateSongInput]) {
-        let showGroupIDs = Set(showGroups.map(\.id))
-        for song in candidateSongs where showGroupIDs.contains(song.groupID) {
-            modelContext.delete(song)
-        }
-        for group in showGroups {
-            modelContext.delete(group)
-        }
-
-        do {
-            let group = try CandidateSongGroup(
-                showID: show.id,
-                uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
-            )
-            modelContext.insert(group)
-
-            for song in try editingService.makeSongs(groupID: group.id, inputs: inputs) {
-                modelContext.insert(song)
-            }
-
-            try modelContext.save()
-        } catch {
-            message = "候选曲目保存失败。"
-        }
-    }
-
-    private static func defaultGenerationService() -> RemoteCandidateSongGenerationService {
-        let baseURL = URL(string: "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate")!
-        return RemoteCandidateSongGenerationService(
-            baseURL: baseURL,
-            appInstanceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            appSignature: "beforeshow-app-signature-v1"
-        )
-    }
-
-    private func presentProLimit(message: String) {
-        self.message = message
-        showsProMembership = true
-    }
-}
-
-struct CandidateSongsView: View {
-    let show: Show
-
-    @Environment(\.modelContext) private var modelContext
-    @Query private var candidateGroups: [CandidateSongGroup]
-    @Query private var candidateSongs: [CandidateSong]
-    @Query private var artistInterests: [ArtistInterestItem]
-    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @AppStorage(ProUsageStorage.usedFreeGenerationFeaturesKey) private var usedFreeGenerationFeaturesRawValue = ""
-
-    @State private var newSongName = ""
-    @State private var newSongArtist = ""
-    @State private var showsAddSong = false
-    @State private var isGenerating = false
-    @State private var message: String?
-    @State private var lastGenerationFailed = false
-    @State private var showsReplacementConfirmation = false
-    @State private var showsProLimit = false
-    @State private var showsProMembership = false
-    @State private var toast: BSToastPayload?
-
-    private let editingService = CandidateSongEditingService()
-    private let gate = ProFeatureGate()
-
-    private var showGroups: [CandidateSongGroup] {
-        candidateGroups.filter { $0.showID == show.id }
-    }
-
-    private var sortedShowGroups: [CandidateSongGroup] {
-        showGroups.sorted { $0.createdAt < $1.createdAt }
-    }
-
-    private var showArtistInterests: [ArtistInterestItem] {
-        artistInterests.filter { $0.showID == show.id }
-    }
-
-    private var visibleSongs: [CandidateSong] {
-        let groupIDs = Set(showGroups.map(\.id))
-        let groupOrder = Dictionary(uniqueKeysWithValues: sortedShowGroups.enumerated().map { ($1.id, $0) })
-        return candidateSongs
-            .filter { groupIDs.contains($0.groupID) }
-            .sorted { first, second in
-                let firstGroupOrder = groupOrder[first.groupID] ?? Int.max
-                let secondGroupOrder = groupOrder[second.groupID] ?? Int.max
-                if firstGroupOrder == secondGroupOrder {
-                    return first.order < second.order
-                }
-                return firstGroupOrder < secondGroupOrder
-            }
+        return base
     }
 
     var body: some View {
-        BSStageScaffold(title: "候选曲目", subtitle: show.name) {
-            if isGenerating {
-                BSLoadingStatePanel(
-                    title: "正在生成候选曲目",
-                    message: "会保存一版可编辑的歌单，你可以删改和调整顺序。"
-                )
-            }
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-            if visibleSongs.isEmpty {
-                if !isGenerating {
-                    emptySongState
-                    Button {
-                        requestGeneration()
-                    } label: {
-                        Text(lastGenerationFailed ? "重试" : "生成候选曲目")
-                    }
-                    .buttonStyle(BSPrimaryButtonStyle())
-                    .padding(.top, BSSpacing.sm)
-                }
+            if isGenerating && allSongs.isEmpty {
+                ProgressView("正在生成候选曲目…")
+                    .tint(.white)
             } else {
-                BSTipPromptCard(
-                    iconName: "music.note",
-                    eyebrow: "Tips · 演前预热",
-                    message: "可以先挑几首听起来。",
-                    accent: BSColor.Accent.candidate
-                )
-
-                songListSections
-                addSongDisclosure
-
-                if lastGenerationFailed {
-                    Button {
-                        requestGeneration()
-                    } label: {
-                        Text("重试")
-                    }
-                    .buttonStyle(BSPrimaryButtonStyle())
-                    .disabled(isGenerating)
-                } else {
-                    Button {
-                        requestGeneration()
-                    } label: {
-                        HStack {
-                            if isGenerating {
-                                ProgressView()
-                                    .tint(.black)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 0) {
+                        playlistHero
+                        if allSongs.isEmpty {
+                            emptyBlock
+                                .padding(.horizontal, 20)
+                                .padding(.top, 28)
+                        } else {
+                            if isMultiArtist {
+                                artistFilterBar
+                                    .padding(.top, 8)
                             }
-                            Text("重新生成候选曲目")
+                            songList
+                            footerActions
+                                .padding(.horizontal, 20)
+                                .padding(.top, 20)
+                                .padding(.bottom, 40)
                         }
                     }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                    .disabled(isGenerating)
                 }
-            }
-
-            Text("这只是演前预热，不是官方歌单。重新生成会换一版猜测。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if let message {
-                Text(message)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                .scrollIndicators(.hidden)
             }
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .alert("重新生成候选曲目？", isPresented: $showsReplacementConfirmation) {
             Button("取消", role: .cancel) {}
             Button("重新生成", role: .destructive) {
-                Task {
-                    await generateCandidateSongs()
-                }
+                Task { await generateCandidateSongs() }
             }
         } message: {
             Text("会用新的推测替换生成的曲目，保留你手动补充的。")
+        }
+        .confirmationDialog(
+            "从歌单移除？",
+            isPresented: Binding(
+                get: { songPendingRemoval != nil },
+                set: { if !$0 { songPendingRemoval = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("移除", role: .destructive) {
+                if let song = songPendingRemoval {
+                    remove(song)
+                }
+                songPendingRemoval = nil
+            }
+            Button("取消", role: .cancel) {
+                songPendingRemoval = nil
+            }
+        }
+        .sheet(isPresented: $showsEditSheet) {
+            CandidateSongsEditSheet(
+                songs: allSongs,
+                onMove: moveGlobally,
+                onRemove: { remove($0) },
+                onAdd: { showsAddSheet = true },
+                onDone: { showsEditSheet = false }
+            )
+            .presentationDetents([.large])
+            .preferredColorScheme(.dark)
+        }
+        .sheet(isPresented: $showsAddSheet) {
+            CandidateSongsAddSheet(
+                defaultArtist: fallbackArtistName,
+                onCancel: { showsAddSheet = false },
+                onAdd: { name, artist in
+                    addSong(name: name, artist: artist)
+                    showsAddSheet = false
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .preferredColorScheme(.dark)
+        }
+        .sheet(item: $sharePayload) { payload in
+            ActivityView(activityItems: payload.items)
+                .presentationDetents([.medium])
         }
         .sheet(isPresented: $showsProMembership) {
             ProMembershipSheetView()
@@ -936,187 +430,317 @@ struct CandidateSongsView: View {
         .bsToastOverlay(toast)
     }
 
-    private var emptySongState: some View {
-        BSEmptyPanel(
-            iconName: "music.mic",
-            title: "还没有候选曲目",
-            message: "可以先生成一版，再按你的判断调整顺序。"
-        )
-    }
+    // MARK: - Hero
 
-    private var canAddSong: Bool {
-        !newSongName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
+    private var playlistHero: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.clear.frame(height: 8)
 
-    private var fallbackArtistName: String {
-        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return artist.isEmpty ? show.name : artist
-    }
-
-    private var entitlement: ProEntitlementState {
-        ProEntitlementStorage.decode(entitlementRawValue)
-    }
-
-    private var canGenerate: Bool {
-        gate.canGenerate(
-            feature: .candidateSongs,
-            hasUsedFreeAllowance: ProUsageStorage
-                .decodeUsedFreeGenerationFeatures(usedFreeGenerationFeaturesRawValue)
-                .contains(.candidateSongs),
-            entitlement: entitlement
-        )
-    }
-
-    private var songListSections: some View {
-        let generatedGroups = sortedShowGroups.filter { !$0.isUserCurated }
-        let userCuratedGroups = sortedShowGroups.filter { $0.isUserCurated }
-
-        return VStack(alignment: .leading, spacing: BSSpacing.lg) {
-            if !generatedGroups.isEmpty {
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                    BSSectionHeader(title: "先挑几首听")
-                    ForEach(generatedGroups) { group in
-                        songGroupSection(for: group)
-                    }
-                }
+            HStack {
+                Spacer()
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    alignment: .center,
+                    enforcesAspectRatio: true,
+                    cornerRadius: 10
+                )
+                .frame(width: 168)
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
+                Spacer()
             }
-            if !userCuratedGroups.isEmpty {
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                    BSSectionHeader(title: "我补充的")
-                    ForEach(userCuratedGroups) { group in
-                        songGroupSection(for: group)
-                    }
-                }
+            .padding(.top, 8)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("猜歌单")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Color.white.opacity(0.65))
+
+                Text(show.name)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.8)
+
+                Text(heroByline)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.72))
+
+                Text(heroStats)
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(Color.white.opacity(0.45))
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+
+            if !allSongs.isEmpty {
+                actionBar
+                    .padding(.horizontal, 20)
+                    .padding(.top, 18)
+                    .padding(.bottom, 12)
+            } else {
+                Color.clear.frame(height: 12)
             }
         }
-        .disabled(isGenerating)
+        .background {
+            ZStack {
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    alignment: .center,
+                    enforcesAspectRatio: false,
+                    cornerRadius: 0
+                )
+                .scaleEffect(1.2)
+                .blur(radius: 28)
+                .saturation(1.1)
+                .opacity(0.45)
+                .allowsHitTesting(false)
+
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.2),
+                        Color.black.opacity(0.75),
+                        Color.black
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .ignoresSafeArea(edges: .top)
+        }
     }
 
-    @ViewBuilder
-    private func songGroupSection(for group: CandidateSongGroup) -> some View {
-        let songs = songsInGroup(group)
-        if !songs.isEmpty {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                if let artistName = group.artistName {
-                    Text(artistName)
-                        .font(BSFont.body.weight(.semibold))
-                        .foregroundColor(BSColor.textSecondary)
-                        .padding(.top, BSSpacing.xs)
-                }
-                ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
-                    CandidateSongRowView(
-                        index: index + 1,
-                        canMoveUp: index > 0,
-                        canMoveDown: index < songs.count - 1,
-                        song: song,
-                        onMoveUp: { move(song, direction: .up) },
-                        onMoveDown: { move(song, direction: .down) },
-                        onRemove: { remove(song) }
+    private var heroByline: String {
+        if isMultiArtist {
+            return "\(artistNames.count) 位艺人"
+        }
+        return fallbackArtistName
+    }
+
+    private var heroStats: String {
+        "\(allSongs.count) 首 · 推测演出顺序 · 非官方"
+    }
+
+    private var actionBar: some View {
+        HStack(alignment: .top, spacing: 18) {
+            // 播放未接入，不展示禁用占位（HIG：避免假控件）
+            actionItem(systemImage: "doc.on.doc", caption: "复制", action: copyPlaylist)
+            actionItem(systemImage: "square.and.arrow.up", caption: "分享", action: sharePlaylist)
+            actionItem(systemImage: "square.and.pencil", caption: "编辑") {
+                showsEditSheet = true
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func actionItem(
+        systemImage: String,
+        caption: String,
+        reserved: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 7) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(reserved ? Color.white.opacity(0.28) : .white)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        Circle()
+                            .fill(Color.white.opacity(reserved ? 0.06 : 0.12))
                     )
-                }
+                    .overlay(
+                        Circle()
+                            .stroke(
+                                reserved
+                                    ? Color.white.opacity(0.14)
+                                    : Color.white.opacity(0.06),
+                                style: StrokeStyle(lineWidth: 1, dash: reserved ? [4, 3] : [])
+                            )
+                    )
+                Text(caption)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(reserved ? Color.white.opacity(0.28) : Color.white.opacity(0.55))
             }
         }
+        .buttonStyle(.plain)
+        .disabled(reserved)
+        .accessibilityLabel(reserved ? "\(caption)（即将支持）" : caption)
     }
 
-    private func songsInGroup(_ group: CandidateSongGroup) -> [CandidateSong] {
-        candidateSongs
-            .filter { $0.groupID == group.id }
-            .sorted { $0.order < $1.order }
-    }
+    // MARK: - Filter / List
 
-    private var addSongDisclosure: some View {
-        VStack(spacing: BSSpacing.sm) {
-            if showsAddSong {
-                BSGlassPanel {
-                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                        TextField("歌名", text: $newSongName)
-                            .bsInputField()
-                            .accessibilityLabel("歌名")
-                        TextField("艺人，默认 \(fallbackArtistName)", text: $newSongArtist)
-                            .bsInputField()
-                            .accessibilityLabel("艺人")
-                        Button {
-                            addSong()
-                        } label: {
-                            Text("添加")
-                        }
-                        .buttonStyle(BSPrimaryButtonStyle())
-                        .disabled(!canAddSong)
+    private var artistFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                filterChip(title: "全部", selected: artistFilter == nil) {
+                    artistFilter = nil
+                }
+                ForEach(artistNames, id: \.self) { name in
+                    filterChip(title: name, selected: artistFilter == name) {
+                        artistFilter = name
                     }
                 }
             }
-            Button {
-                showsAddSong.toggle()
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: showsAddSong ? "chevron.down" : "plus")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(showsAddSong ? "收起" : "补充一首")
-                        .font(BSFont.caption)
-                }
-                .foregroundColor(BSColor.textSecondary)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+        }
+    }
+
+    private func filterChip(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(selected ? .black : Color.white.opacity(0.75))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(selected ? Color.white : Color.white.opacity(0.08)))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var songList: some View {
+        LazyVStack(spacing: 0) {
+            ForEach(visibleSongs, id: \.id) { song in
+                CandidateSongPlaylistRow(
+                    song: song,
+                    showsArtist: isMultiArtist && artistFilter == nil,
+                    onTap: { openSearch(for: song) },
+                    onMore: { songPendingRemoval = song }
+                )
             }
-            .buttonStyle(.plain)
+        }
+        .padding(.top, 4)
+    }
+
+    private var emptyBlock: some View {
+        VStack(spacing: BSSpacing.md) {
+            BSEmptyPanel(
+                iconName: "music.mic",
+                title: "还没有猜歌单",
+                message: "根据公开信息推测可能出现的歌和大致顺序。不是官方 setlist，生成后你可以改。"
+            )
+            Button {
+                requestGeneration()
+            } label: {
+                Text(lastGenerationFailed ? "重试" : "生成候选曲目")
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+        }
+    }
+
+    private var footerActions: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            Text("列表顺序即你猜的开场顺序。点「编辑」可排序、删改和添加。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                requestGeneration()
+            } label: {
+                HStack {
+                    if isGenerating {
+                        ProgressView().tint(BSColor.textSecondary)
+                    }
+                    Text(lastGenerationFailed ? "重试生成" : "重新生成")
+                }
+            }
+            .buttonStyle(BSSecondaryButtonStyle())
             .disabled(isGenerating)
         }
     }
 
-    private func addSong() {
-        let trimmedName = newSongName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return }
-        let trimmedArtist = newSongArtist.trimmingCharacters(in: .whitespacesAndNewlines)
-        let artist = trimmedArtist.isEmpty ? fallbackArtistName : trimmedArtist
+    // MARK: - Actions
+
+    private func copyPlaylist() {
+        let songs = visibleSongs
+        let body = songs.enumerated()
+            .map { "\($0.offset + 1). \($0.element.songName) - \($0.element.artist)" }
+            .joined(separator: "\n")
+        let scope = artistFilter ?? "全部"
+        let text = "\(shareHeadline)\n猜歌单 · \(scope)（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
+        UIPasteboard.general.string = text
+        presentToast(.success, message: artistFilter == nil ? "已复制全部歌单" : "已复制「\(artistFilter!)」")
+    }
+
+    private func sharePlaylist() {
+        let songs = visibleSongs
+        let body = songs.enumerated()
+            .map { "\($0.offset + 1). \($0.element.songName) - \($0.element.artist)" }
+            .joined(separator: "\n")
+        let text = "\(shareHeadline)\n猜歌单（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
+        var items: [Any] = [text]
+        if let image = renderShareCardImage(songs: songs) {
+            items.insert(image, at: 0)
+        }
+        sharePayload = CandidateSongsSharePayload(items: items)
+    }
+
+    @MainActor
+    private func renderShareCardImage(songs: [CandidateSong]) -> UIImage? {
+        let card = CandidateSongsShareCardView(
+            title: shareHeadline,
+            subtitle: "\(songs.count) 首 · 非官方推测",
+            songTitles: songs.prefix(12).map(\.songName),
+            totalCount: songs.count
+        )
+        .frame(width: 320, height: 426)
+        let renderer = ImageRenderer(content: card)
+        renderer.scale = UIScreen.main.scale
+        return renderer.uiImage
+    }
+
+    private func openSearch(for song: CandidateSong) {
+        let snapshot = CandidateSongSnapshot(songName: song.songName, artist: song.artist, order: song.order)
+        let url = musicPlatform.searchURL(for: snapshot)
+        UIApplication.shared.open(url)
+    }
+
+    private func addSong(name: String, artist: String) {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty, !trimmedArtist.isEmpty else { return }
 
         do {
             let group = try mutableUserCuratedGroup()
-            let existingSongs = candidateSongs.filter { $0.groupID == group.id }
-            let song = try editingService.addSong(
-                to: existingSongs,
+            let song = try CandidateSong(
                 groupID: group.id,
                 songName: trimmedName,
-                artist: artist
+                artist: trimmedArtist,
+                order: allSongs.count,
+                isUserAdded: true
             )
-            song.isUserAdded = true
             modelContext.insert(song)
             try modelContext.save()
-            newSongName = ""
-            newSongArtist = ""
-            showsAddSong = false
-            message = "已添加到候选曲目。"
+            renumberGlobally(allSongs)
+            try modelContext.save()
             presentToast(.success, message: "已添加")
         } catch {
-            message = "这首歌暂时没有添加成功。"
             presentToast(.failure, message: "添加失败")
         }
     }
 
     private func remove(_ song: CandidateSong) {
-        let siblings = candidateSongs.filter { $0.groupID == song.groupID }
-        _ = editingService.remove(songID: song.id, from: siblings)
         modelContext.delete(song)
         do {
             try modelContext.save()
-            message = "已移除这首候选曲目。"
+            renumberGlobally(allSongs)
+            try modelContext.save()
             presentToast(.neutral, message: "已移除")
         } catch {
-            message = "移除失败，请稍后再试。"
             presentToast(.failure, message: "移除失败")
         }
     }
 
-    private enum MoveDirection {
-        case up
-        case down
-    }
-
-    private func move(_ song: CandidateSong, direction: MoveDirection) {
-        let siblings = candidateSongs
-            .filter { $0.groupID == song.groupID }
-            .sorted { $0.order < $1.order }
-        guard let sourceIndex = siblings.firstIndex(where: { $0.id == song.id }) else { return }
-        let destinationIndex = direction == .up ? sourceIndex - 1 : sourceIndex + 1
-        guard siblings.indices.contains(destinationIndex) else { return }
-        _ = editingService.moveSong(in: siblings, from: sourceIndex, to: destinationIndex)
+    private func moveGlobally(from source: IndexSet, to destination: Int) {
+        var songs = allSongs
+        songs.move(fromOffsets: source, toOffset: destination)
+        renumberGlobally(songs)
         do {
             try modelContext.save()
         } catch {
@@ -1124,17 +748,19 @@ struct CandidateSongsView: View {
         }
     }
 
+    private func renumberGlobally(_ songs: [CandidateSong]) {
+        for (index, song) in songs.enumerated() {
+            song.order = index
+        }
+    }
+
     private func requestGeneration() {
         guard canGenerate else {
-            message = "免费体验已用完，开通 Pro 后可以重复生成候选曲目。"
             showsProLimit = true
             return
         }
-
-        if visibleSongs.isEmpty {
-            Task {
-                await generateCandidateSongs()
-            }
+        if allSongs.isEmpty {
+            Task { await generateCandidateSongs() }
         } else {
             showsReplacementConfirmation = true
         }
@@ -1143,7 +769,6 @@ struct CandidateSongsView: View {
     @MainActor
     private func generateCandidateSongs() async {
         guard canGenerate else {
-            message = "免费体验已用完，开通 Pro 后可以重复生成候选曲目。"
             showsProLimit = true
             return
         }
@@ -1152,16 +777,21 @@ struct CandidateSongsView: View {
         defer { isGenerating = false }
 
         do {
-            let inputs = try await Self.defaultGenerationService().generate(for: show, artistInterests: showArtistInterests)
+            let inputs = try await Self.defaultGenerationService().generate(
+                for: show,
+                artistInterests: showArtistInterests
+            )
             try replaceCandidateSongs(with: inputs)
-            usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(.candidateSongs, in: usedFreeGenerationFeaturesRawValue)
+            usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(
+                .candidateSongs,
+                in: usedFreeGenerationFeaturesRawValue
+            )
             lastGenerationFailed = false
-            message = "候选曲目已更新。"
+            artistFilter = nil
             presentToast(.success, message: "候选曲目已更新")
         } catch {
             modelContext.rollback()
             lastGenerationFailed = true
-            message = "暂时没生成成功，请稍后再试。"
             presentToast(.failure, message: "生成失败")
         }
     }
@@ -1182,6 +812,8 @@ struct CandidateSongsView: View {
             artistInterests: showArtistInterests
         )
 
+        var created: [CandidateSong] = []
+
         for entry in grouped {
             let group = try CandidateSongGroup(
                 showID: show.id,
@@ -1190,9 +822,9 @@ struct CandidateSongsView: View {
                 uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
             )
             modelContext.insert(group)
-
             for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
                 modelContext.insert(song)
+                created.append(song)
             }
         }
 
@@ -1206,6 +838,7 @@ struct CandidateSongsView: View {
             for song in try editingService.makeSongs(groupID: group.id, inputs: preservedInputs) {
                 song.isUserAdded = true
                 modelContext.insert(song)
+                created.append(song)
             }
         }
 
@@ -1216,6 +849,7 @@ struct CandidateSongsView: View {
             modelContext.delete(group)
         }
 
+        renumberGlobally(created)
         try modelContext.save()
     }
 
@@ -1223,7 +857,6 @@ struct CandidateSongsView: View {
         if let group = showGroups.first(where: { $0.isUserCurated }) {
             return group
         }
-
         let group = try CandidateSongGroup(
             showID: show.id,
             uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。",
@@ -1254,77 +887,284 @@ struct CandidateSongsView: View {
     }
 }
 
-private struct CandidateSongRowView: View {
-    let index: Int
-    let canMoveUp: Bool
-    let canMoveDown: Bool
+// MARK: - Playlist row / sheets
+
+private struct CandidateSongPlaylistRow: View {
     let song: CandidateSong
-    let onMoveUp: () -> Void
-    let onMoveDown: () -> Void
-    let onRemove: () -> Void
+    let showsArtist: Bool
+    let onTap: () -> Void
+    let onMore: () -> Void
 
     var body: some View {
-        HStack(spacing: BSSpacing.sm) {
-            Text("\(index)")
-                .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(BSColor.Accent.candidate)
-                .frame(width: 28, height: 28)
-                .background(BSColor.Accent.candidate.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm))
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(song.songName)
-                    .font(BSFont.body.weight(.semibold))
-                    .foregroundColor(BSColor.textPrimary)
-                    .lineLimit(1)
-                Text(song.artist)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: BSSpacing.sm)
-
-            moveButton("chevron.up", label: "上移", enabled: canMoveUp, action: onMoveUp)
-            moveButton("chevron.down", label: "下移", enabled: canMoveDown, action: onMoveDown)
-
-            Button(action: onRemove) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(BSColor.textTertiary)
-                    .frame(width: 40, height: 40)
-                    .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            Button(action: onTap) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(song.songName)
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                    if showsArtist {
+                        Text(song.artist)
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundColor(Color.white.opacity(0.45))
+                            .lineLimit(1)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 12)
+                .padding(.leading, 16)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("移除")
+
+            Button(action: onMore) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Color.white.opacity(0.35))
+                    .frame(width: 40, height: 52)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("更多")
         }
-        .padding(14)
-        .background(Color.white.opacity(0.035))
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.md)
-                .stroke(BSColor.border, lineWidth: 1)
-        )
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+                .padding(.leading, 16)
+        }
+    }
+}
+
+private struct CandidateSongsEditSheet: View {
+    let songs: [CandidateSong]
+    let onMove: (IndexSet, Int) -> Void
+    let onRemove: (CandidateSong) -> Void
+    let onAdd: () -> Void
+    let onDone: () -> Void
+
+    @State private var songPendingRemoval: CandidateSong?
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button(action: onAdd) {
+                        Label("添加歌曲", systemImage: "plus.circle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                    }
+                    .listRowBackground(Color.white.opacity(0.06))
+                }
+
+                Section {
+                    ForEach(songs, id: \.id) { song in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(song.songName)
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.white)
+                            Text(song.artist)
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.white.opacity(0.45))
+                        }
+                        .padding(.vertical, 4)
+                        .listRowBackground(Color.clear)
+                    }
+                    .onDelete { indexSet in
+                        if let index = indexSet.first {
+                            songPendingRemoval = songs[index]
+                        }
+                    }
+                    .onMove(perform: onMove)
+                } header: {
+                    Text("拖动调整演出顺序")
+                        .foregroundColor(Color.white.opacity(0.45))
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color(red: 0.07, green: 0.07, blue: 0.07))
+            .environment(\.editMode, .constant(.active))
+            .navigationTitle("编辑歌单")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("完成", action: onDone)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.white)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                }
+            }
+            .toolbarBackground(Color(red: 0.07, green: 0.07, blue: 0.07), for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .confirmationDialog(
+                "从猜歌单移除这首歌？",
+                isPresented: Binding(
+                    get: { songPendingRemoval != nil },
+                    set: { if !$0 { songPendingRemoval = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                Button("移除", role: .destructive) {
+                    if let song = songPendingRemoval {
+                        onRemove(song)
+                    }
+                    songPendingRemoval = nil
+                }
+                Button("取消", role: .cancel) {
+                    songPendingRemoval = nil
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct CandidateSongsAddSheet: View {
+    let defaultArtist: String
+    let onCancel: () -> Void
+    let onAdd: (String, String) -> Void
+
+    @State private var songName = ""
+    @State private var artist = ""
+
+    private var canSubmit: Bool {
+        !songName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func moveButton(
-        _ systemName: String,
-        label: String,
-        enabled: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(enabled ? BSColor.textSecondary : BSColor.textTertiary.opacity(0.35))
-                .frame(width: 40, height: 40)
-                .contentShape(Rectangle())
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                Text("把你觉得当晚会唱的歌加进猜歌单。")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("歌曲名称")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                    TextField("歌名", text: $songName)
+                        .bsInputField()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("艺人")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                    TextField("艺人", text: $artist)
+                        .bsInputField()
+                }
+
+                Button {
+                    onAdd(songName, artist)
+                } label: {
+                    Text("添加到歌单")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(canSubmit ? Color.white : Color.white.opacity(0.35))
+                        .clipShape(Capsule())
+                }
+                .disabled(!canSubmit)
+                .padding(.top, BSSpacing.sm)
+
+                Spacer()
+            }
+            .padding(20)
+            .background(Color(red: 0.07, green: 0.07, blue: 0.07).ignoresSafeArea())
+            .navigationTitle("添加歌曲")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("取消", action: onCancel)
+                        .foregroundColor(Color.white.opacity(0.7))
+                }
+            }
+            .onAppear {
+                if artist.isEmpty {
+                    artist = defaultArtist
+                }
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!enabled)
-        .accessibilityLabel(label)
+        .preferredColorScheme(.dark)
     }
+}
+
+private struct CandidateSongsSharePayload: Identifiable {
+    let id = UUID()
+    let items: [Any]
+}
+
+private struct CandidateSongsShareCardView: View {
+    let title: String
+    let subtitle: String
+    let songTitles: [String]
+    let totalCount: Int
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.12, green: 0.08, blue: 0.14),
+                    Color.black,
+                    Color(red: 0.08, green: 0.08, blue: 0.1)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("BEFORESHOW · 猜歌单")
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundColor(Color.white.opacity(0.45))
+
+                Text(title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(3)
+                    .padding(.top, 12)
+
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(BSColor.Accent.candidate)
+                    .padding(.top, 8)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(Array(songTitles.enumerated()), id: \.offset) { _, name in
+                        Text(name)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.85))
+                            .lineLimit(1)
+                    }
+                    if totalCount > songTitles.count {
+                        Text("…共 \(totalCount) 首")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.white.opacity(0.4))
+                    }
+                }
+                .padding(.top, 18)
+
+                Spacer()
+
+                Text("非官方推测 · 开场前慢慢靠近")
+                    .font(.system(size: 11))
+                    .foregroundColor(Color.white.opacity(0.35))
+            }
+            .padding(22)
+        }
+    }
+}
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct CurrentFeatureRow: View {
@@ -1482,14 +1322,11 @@ struct RoundTripPlanView: View {
 
     var body: some View {
         BSStageScaffold(title: "去程计划", subtitle: show.name) {
-            BSTipPromptCard(
-                iconName: "tram.fill",
-                eyebrow: "Tips · 怎么去",
-                message: hasSavedDeparturePlan
-                    ? "出门方案已经保存好了。当天首页会提醒你几点出门、怎么去。"
-                    : "填上出发地，路线会按这场现场的信息自动生成。",
-                accent: BSColor.Accent.travel
-            )
+            if hasSavedDeparturePlan, let plan = plan {
+                savedSummaryCard(plan)
+            } else {
+                departureGuideCard
+            }
 
             recommendationPanel
 
@@ -1503,7 +1340,7 @@ struct RoundTripPlanView: View {
 
             advancedSection
 
-            Text("BeforeShow 只保存出门方案，不替代实时地图导航。出发前请打开地图确认实时路况和班次。")
+            Text("BeforeShow 只保存出门方案，不替代地图导航。出发前请打开地图确认实时路况和班次。")
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
         }
@@ -1521,6 +1358,48 @@ struct RoundTripPlanView: View {
             }
         }
         .bsToastOverlay(toast)
+    }
+
+    /// 首次引导：固定三步，让用户一眼看懂去程计划怎么用。
+    private var departureGuideCard: some View {
+        BSGlassPanel {
+            VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                HStack(spacing: 8) {
+                    Image(systemName: "tram.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(BSColor.Accent.travel)
+                    Text("怎么用去程计划")
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.textPrimary)
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    departureGuideStep(1, "填出发地（可定位 / 常用出发地）")
+                    departureGuideStep(2, "选一种交通方式看选项")
+                    departureGuideStep(3, "保存为出门方案")
+                }
+
+                Text("不替代地图导航，只帮你定出门时间。")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    private func departureGuideStep(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text("\(number)")
+                .font(BSFont.tag)
+                .foregroundColor(BSColor.Accent.travel)
+                .frame(width: 22, height: 22)
+                .background(BSColor.Accent.travel.opacity(0.14))
+                .clipShape(Circle())
+            Text(text)
+                .font(BSFont.body)
+                .foregroundColor(BSColor.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var recommendationPanel: some View {
@@ -1543,7 +1422,7 @@ struct RoundTripPlanView: View {
                         if locator.isLocating {
                             ProgressView()
                                 .tint(BSColor.textPrimary)
-                                .frame(width: 38, height: 38)
+                                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                         } else {
                             Button {
                                 Task { await handleLocate() }
@@ -1558,6 +1437,8 @@ struct RoundTripPlanView: View {
                                         RoundedRectangle(cornerRadius: BSRadius.md)
                                             .stroke(BSColor.border, lineWidth: 1)
                                     )
+                                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                                    .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("使用当前位置")
@@ -1595,7 +1476,7 @@ struct RoundTripPlanView: View {
         } else if !canRecommend {
             Text(trimmedDestination.isEmpty
                 ? "这场还没填场馆地址，没法查路线。"
-                : "填上出发地，就能生成出门方案。")
+                : "填上出发地或定位，就能生成出门方案。")
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1660,9 +1541,8 @@ struct RoundTripPlanView: View {
 
     @ViewBuilder
     private var actionArea: some View {
-        if let plan = plan, hasSavedDeparturePlan {
+        if hasSavedDeparturePlan {
             VStack(spacing: BSSpacing.sm) {
-                savedSummaryCard(plan)
                 Button {
                     openSavedMap()
                 } label: {
@@ -1683,7 +1563,7 @@ struct RoundTripPlanView: View {
             Button {
                 save(option)
             } label: {
-                Text("保存出门提醒")
+                Text("保存出门方案")
             }
             .buttonStyle(BSPrimaryButtonStyle())
         }
@@ -1903,8 +1783,8 @@ struct RoundTripPlanView: View {
         guard canRecommend else {
             searchError = trimmedDestination.isEmpty
                 ? "这场还没填场馆地址，去编辑现场补一下。"
-                : "请先填写出发地。"
-            presentToast(.neutral, message: trimmedDestination.isEmpty ? "请先补场馆地址" : "请先填写出发地")
+                : "请先填写或定位出发地。"
+            presentToast(.neutral, message: trimmedDestination.isEmpty ? "请先补场馆地址" : "请先填写或定位出发地")
             return
         }
 
@@ -1964,7 +1844,7 @@ struct RoundTripPlanView: View {
         if let providerError = error as? DepartureRouteProviderError {
             switch providerError {
             case .providerUnavailable:
-                return "地图服务暂时不可用，可以手动保存出门提醒。"
+                return "地图服务暂时不可用，可以手动保存出门方案，不会编造路线。"
             case .geocodingFailed:
                 return "出发地或到场地址没识别到，写得更具体试试，或手动保存。"
             case .noOptions:
@@ -1973,7 +1853,7 @@ struct RoundTripPlanView: View {
                 return "出发地和到场地址都要填。"
             }
         }
-        return "没查到路线。请把到场地址写得更具体，或检查出发地，也可以先手动保存出门提醒。"
+        return "没查到路线。请把到场地址写得更具体，或检查出发地，也可以先手动保存出门方案。"
     }
 
     @MainActor
@@ -2012,7 +1892,7 @@ struct RoundTripPlanView: View {
             try modelContext.save()
             upsertSavedOrigin(addressText: trimmedOrigin)
             searchError = nil
-            presentToast(.success, message: "出门方案已保存")
+            presentToast(.success, message: "已保存出门方案")
         } catch {
             presentToast(.failure, message: "保存失败")
         }
@@ -2020,7 +1900,7 @@ struct RoundTripPlanView: View {
 
     private func saveManualDeparture() {
         guard !trimmedOrigin.isEmpty else {
-            presentToast(.neutral, message: "请先填写出发地")
+            presentToast(.neutral, message: "请先填写或定位出发地")
             return
         }
         guard !trimmedDestination.isEmpty else {
@@ -2044,7 +1924,7 @@ struct RoundTripPlanView: View {
             upsertSavedOrigin(addressText: trimmedOrigin)
             searchError = nil
             showsManualSave = false
-            presentToast(.success, message: "出门方案已保存")
+            presentToast(.success, message: "已保存出门方案")
         } catch {
             presentToast(.failure, message: "保存失败")
         }
@@ -2203,42 +2083,17 @@ struct ShowPreparationView: View {
         plans.first { $0.showID == show.id }
     }
 
-    private var allSuggestions: [ShowPreparationSuggestion] {
-        guide.sections(for: show).flatMap(\.suggestions)
-    }
-
-    private var checkedSuggestionCount: Int {
-        guard let plan else { return 0 }
-        return allSuggestions.filter { plan.isChecked($0.text) }.count
-    }
-
-    private var totalSuggestionCount: Int {
-        allSuggestions.count
-    }
-
-    private var isPreparedEnough: Bool {
-        totalSuggestionCount > 0 && checkedSuggestionCount == totalSuggestionCount
-    }
-
     var body: some View {
         BSStageScaffold(title: "现场准备", subtitle: show.name) {
             BSTipPromptCard(
-                iconName: isPreparedEnough ? "checkmark.seal.fill" : "sparkles",
+                iconName: "sparkles",
                 eyebrow: "Tips · 出门前",
-                message: isPreparedEnough
-                    ? "好，差不多准备好了。到点前再看一眼，就可以轻一点出门。"
-                    : "不用像待办一样紧张，先轻轻确认几件会让你更从容的小事。",
+                message: "出门前轻轻看几眼，心里有数就行，不用照着做完。",
                 accent: BSColor.Accent.prepare
             )
 
             VStack(alignment: .leading, spacing: BSSpacing.md) {
-                HStack {
-                    BSSectionHeader(title: "出门前确认")
-                    Spacer()
-                    Text("\(checkedSuggestionCount)/\(totalSuggestionCount)")
-                        .font(BSFont.caption)
-                        .foregroundColor(isPreparedEnough ? BSColor.Accent.prepare : BSColor.textTertiary)
-                }
+                BSSectionHeader(title: "出门前可以看看")
 
                 ForEach(guide.sections(for: show)) { section in
                     VStack(alignment: .leading, spacing: BSSpacing.sm) {
@@ -2320,44 +2175,18 @@ struct ShowPreparationView: View {
     }
 
     private func preparationSuggestionRow(_ suggestion: ShowPreparationSuggestion) -> some View {
-        let checked = mutablePlan().isChecked(suggestion.text)
-        return Button {
-            mutablePlan().setChecked(!checked, suggestionText: suggestion.text)
-            try? modelContext.save()
-            if checked {
-                presentToast(.neutral, message: "已取消确认")
-            } else {
-                presentToast(.success, message: "已确认")
-            }
-        } label: {
-            HStack(alignment: .top, spacing: BSSpacing.sm) {
-                Image(systemName: checked ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundColor(checked ? BSColor.Accent.prepare : BSColor.textTertiary)
-                    .frame(width: 28, height: 28)
-                Text(suggestion.text)
-                    .font(BSFont.body)
-                    .foregroundColor(checked ? BSColor.textSecondary : BSColor.textPrimary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-                Text(checked ? "已确认" : "轻点确认")
-                    .font(BSFont.caption)
-                    .foregroundColor(checked ? BSColor.Accent.prepare : BSColor.textTertiary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background((checked ? BSColor.Accent.prepare : Color.white).opacity(0.10))
-                    .clipShape(Capsule())
-            }
+        Text(suggestion.text)
+            .font(BSFont.body)
+            .foregroundColor(BSColor.textPrimary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(checked ? BSColor.Accent.prepare.opacity(0.08) : Color.white.opacity(0.035))
+            .background(Color.white.opacity(0.035))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
             .overlay(
                 RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(checked ? BSColor.Accent.prepare.opacity(0.26) : BSColor.border, lineWidth: 1)
+                    .stroke(BSColor.border, lineWidth: 1)
             )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(suggestion.text)，\(checked ? "已确认" : "未确认")")
     }
 
     private func mutablePlan() -> ShowPreparationPlan {
@@ -2404,6 +2233,7 @@ struct ShowFragmentListView: View {
     @Query private var fragments: [ShowFragment]
 
     let show: Show
+    let opensComposerOnAppear: Bool
     @State private var text = ""
     @State private var selectedMediaItems: [PhotosPickerItem] = []
     @State private var pendingGalleryReferences: [(localIdentifier: String, kind: ShowFragmentGalleryMediaKind)] = []
@@ -2420,6 +2250,8 @@ struct ShowFragmentListView: View {
     @State private var deletingFragment: ShowFragment?
     @State private var pendingDelete: ShowFragment?
     @State private var toast: BSToastPayload?
+    @State private var hasOpenedComposerOnAppear = false
+    @State private var showsMicPermissionAlert = false
 
     private var isRecordingAudio: Bool { audioRecorder.isRecording }
 
@@ -2427,8 +2259,9 @@ struct ShowFragmentListView: View {
         fragments
     }
 
-    init(show: Show) {
+    init(show: Show, opensComposerOnAppear: Bool = false) {
         self.show = show
+        self.opensComposerOnAppear = opensComposerOnAppear
         let id = show.id
         _fragments = Query(
             filter: #Predicate<ShowFragment> { $0.show.id == id },
@@ -2454,9 +2287,13 @@ struct ShowFragmentListView: View {
                 if showFragments.isEmpty {
                     BSEmptyPanel(
                         iconName: "sparkles.rectangle.stack",
-                        title: "还没有留下这一场",
-                        message: "可以只写一句、存一张照片，或录一小段声音。"
-                    )
+                        title: "还给这场留一点痕迹",
+                        message: "OOTD、路上吃到的、朋友合照、散场那句话……只属于这一场。",
+                        buttonTitle: "记一笔",
+                        buttonIconName: "plus"
+                    ) {
+                        openComposer()
+                    }
                 } else {
                     ForEach(showFragments) { fragment in
                         FragmentTimelineCard(
@@ -2474,6 +2311,12 @@ struct ShowFragmentListView: View {
         }
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear {
+            // 首页 Tips「记一笔」进入时，appear 一次即直接展开新建，复位后避免返回再弹。
+            guard opensComposerOnAppear, !hasOpenedComposerOnAppear else { return }
+            hasOpenedComposerOnAppear = true
+            openComposer()
+        }
         .sheet(item: $editingFragment) { fragment in
             FragmentEditorSheet(fragment: fragment) {
                 presentToast(.success, message: "碎片已更新")
@@ -2502,7 +2345,7 @@ struct ShowFragmentListView: View {
             )
         }
         .sheet(isPresented: $isShowingAudioDrawer, onDismiss: {
-            // 用户在录音中直接下滑关闭抽屉时，停止并丢弃未保存的录音文件。
+            // 录音中禁止 interactive dismiss；若仍关闭则丢弃未保存录音。
             if audioRecorder.isRecording {
                 audioRecorder.stop()
                 audioRecorder.discard()
@@ -2516,12 +2359,14 @@ struct ShowFragmentListView: View {
                 pendingAudioURL: pendingAudioURL,
                 pendingAudioDuration: pendingAudioDuration,
                 isRecordingAudio: isRecordingAudio,
+                showsMicPermissionAlert: $showsMicPermissionAlert,
                 onStart: startAudioRecording,
                 onStop: stopAudioRecording,
                 onDismiss: {
                     isShowingAudioDrawer = false
                 }
             )
+            .interactiveDismissDisabled(isRecordingAudio)
         }
         .bsToastOverlay(toast)
     }
@@ -2713,7 +2558,34 @@ struct ShowFragmentListView: View {
         }
     }
 
+    private func openComposer() {
+        withAnimation(.easeInOut(duration: 0.22)) {
+            composerExpanded = true
+            composerMode = .text
+        }
+    }
+
     private func startAudioRecording() {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted:
+            beginRecording()
+        case .undetermined:
+            Task { @MainActor in
+                let granted = await Self.requestMicrophonePermission()
+                if granted {
+                    beginRecording()
+                } else {
+                    handleMicPermissionDenied()
+                }
+            }
+        case .denied:
+            handleMicPermissionDenied()
+        @unknown default:
+            handleMicPermissionDenied()
+        }
+    }
+
+    private func beginRecording() {
         do {
             try audioRecorder.start()
             pendingAudioRelativePath = audioRecorder.currentRelativePath
@@ -2722,6 +2594,20 @@ struct ShowFragmentListView: View {
             message = "正在录音。"
         } catch {
             message = "无法开始录音，请检查麦克风权限。"
+            presentToast(.failure, message: "无法开始录音")
+        }
+    }
+
+    private func handleMicPermissionDenied() {
+        // 无麦克风权限时引导去系统设置，不静默失败。
+        showsMicPermissionAlert = true
+    }
+
+    private static func requestMicrophonePermission() async -> Bool {
+        await withCheckedContinuation { continuation in
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                continuation.resume(returning: granted)
+            }
         }
     }
 
@@ -2802,6 +2688,7 @@ private struct FragmentAudioCaptureSheet: View {
     let pendingAudioURL: URL?
     let pendingAudioDuration: TimeInterval?
     let isRecordingAudio: Bool
+    @Binding var showsMicPermissionAlert: Bool
     let onStart: () -> Void
     let onStop: () -> Void
     let onDismiss: () -> Void
@@ -2842,6 +2729,16 @@ private struct FragmentAudioCaptureSheet: View {
                 .disabled(isRecordingAudio)
             }
         }
+        .alert("无法录音", isPresented: $showsMicPermissionAlert) {
+            Button("去设置") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("BeforeShow 需要麦克风权限才能录制现场声音。去系统设置开启后回来再试。")
+        }
     }
 }
 
@@ -2864,7 +2761,7 @@ private struct FragmentEditorSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(detent: .height(360)) {
+        BSDrawerSheet(detents: [.medium, .large]) {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
                     Text("编辑现场碎片")
@@ -2942,6 +2839,8 @@ private struct FragmentTimelineCard: View {
                         .frame(width: 32, height: 32)
                         .background(Color.white.opacity(0.06))
                         .clipShape(Circle())
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("编辑现场碎片")
@@ -2953,6 +2852,8 @@ private struct FragmentTimelineCard: View {
                         .frame(width: 32, height: 32)
                         .background(BSColor.Accent.fragment.opacity(0.10))
                         .clipShape(Circle())
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("删除现场碎片")
@@ -2998,6 +2899,7 @@ private struct FragmentTimelineCard: View {
 private struct FragmentMediaThumbnail: View {
     let image: UIImage?
     let kind: ShowFragmentGalleryMediaKind
+    var isMissing: Bool = false
 
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
@@ -3007,17 +2909,14 @@ private struct FragmentMediaThumbnail: View {
                     .scaledToFill()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .clipped()
+            } else if isMissing {
+                missingPlaceholder
             } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.055))
-                    .overlay(
-                        Image(systemName: kind == .video ? "video.fill" : "photo.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(BSColor.textTertiary)
-                    )
+                loadingPlaceholder
             }
 
-            if kind == .video {
+            // 失效媒体不显示播放角标，避免误导可播放。
+            if kind == .video, !isMissing {
                 Image(systemName: "play.fill")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(BSColor.textPrimary)
@@ -3033,19 +2932,50 @@ private struct FragmentMediaThumbnail: View {
                 .stroke(BSColor.border, lineWidth: 1)
         )
     }
+
+    private var loadingPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.white.opacity(0.055))
+            .overlay(
+                Image(systemName: kind == .video ? "video.fill" : "photo.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(BSColor.textTertiary)
+            )
+    }
+
+    private var missingPlaceholder: some View {
+        RoundedRectangle(cornerRadius: 12)
+            .fill(Color.white.opacity(0.055))
+            .overlay(
+                VStack(spacing: 3) {
+                    Image(systemName: kind == .video ? "video.fill" : "photo.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                    Text("原相册内容可能已删除")
+                        .font(.system(size: 7, weight: .medium))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(3)
+                        .minimumScaleFactor(0.7)
+                }
+                .foregroundColor(BSColor.textTertiary)
+                .padding(3)
+            )
+    }
 }
 
 private struct GalleryMediaThumbnailView: View {
     let reference: ShowFragmentGalleryMediaReference
     @State private var image: UIImage?
     @State private var requestedAssetLocalIdentifier: String?
+    @State private var didFailLoading = false
 
     var body: some View {
-        FragmentMediaThumbnail(image: image, kind: reference.kind)
+        FragmentMediaThumbnail(image: image, kind: reference.kind, isMissing: didFailLoading)
             .task(id: reference.assetLocalIdentifier) {
                 guard requestedAssetLocalIdentifier != reference.assetLocalIdentifier else { return }
                 requestedAssetLocalIdentifier = reference.assetLocalIdentifier
-                image = await loadThumbnail()
+                let loaded = await loadThumbnail()
+                image = loaded
+                didFailLoading = (loaded == nil)
             }
     }
 
@@ -3310,6 +3240,7 @@ struct DebugFragmentAudioDrawerPreviewView: View {
                 pendingAudioURL: nil,
                 pendingAudioDuration: nil,
                 isRecordingAudio: true,
+                showsMicPermissionAlert: .constant(false),
                 onStart: {},
                 onStop: {},
                 onDismiss: {}

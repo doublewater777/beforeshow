@@ -19,13 +19,11 @@
 		395F372A1231776B7608FEA4 /* Show.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A5EEB027689D8D88E05F1A /* Show.swift */; };
 		479EDB16C034E37FCA30ACD0 /* LocalNotificationSchedulingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */; };
 		47A3CC86422EA3F3150AC7AF /* ShowDraft.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0A0421057F8045FB5ADF9CD /* ShowDraft.swift */; };
-		4D51EB384EFAFA88100FDC33 /* ShowVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94251306BED4F77A586CF3D /* ShowVideo.swift */; };
 		4D6E51A89FB492A07EC88010 /* ShowTips.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97295D52EBD85543103D489C /* ShowTips.swift */; };
 		4D6E51A89FB492A07EC88020 /* ShowToolSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97295D52EBD85543103D48A0 /* ShowToolSummary.swift */; };
 		CC0FFEE0010203040506AABB /* ShowFragmentAudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC0FFEE0010203040506ABBC /* ShowFragmentAudioController.swift */; };
 		4D79041F40B7E7FE362B6FCF /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 110F8472E019906BAFF8FB73 /* Assets.xcassets */; };
 		630D46A29F90B296BE998CDA /* ShowLinkParsingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 637E5E5108E5B501E98D87E2 /* ShowLinkParsingService.swift */; };
-		669D32ED8773BD491C428ED5 /* ShowVideoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 447E2505DA6AD0268E6DED88 /* ShowVideoTests.swift */; };
 		689BEC3D340B67A07D1914F1 /* BeforeShowTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBAAF5AA9E30BFB8C74BB2FD /* BeforeShowTab.swift */; };
 		73A48BA45E6F70F1590E24B7 /* CandidateSongsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BA166B00A261EFE8A8B1263 /* CandidateSongsTests.swift */; };
 		76B0D63D0E6676E9184EBC07 /* ShowFragmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B886F61B3D39BE8F05E5668B /* ShowFragmentTests.swift */; };
@@ -83,7 +81,6 @@
 		38E5DDD2EE32C1C5BF52E6F3 /* ShowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowModelTests.swift; sourceTree = "<group>"; };
 		3A02C6E4CCC2CEB27B0F46EE /* StartupRouteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StartupRouteTests.swift; sourceTree = "<group>"; };
 		3DCD88B83E85C05C3BEE461A /* CurrentShowTimeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowTimeState.swift; sourceTree = "<group>"; };
-		447E2505DA6AD0268E6DED88 /* ShowVideoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowVideoTests.swift; sourceTree = "<group>"; };
 		45468E7A647F2ACE2EA3D71A /* NavigationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationTests.swift; sourceTree = "<group>"; };
 		4888E236717548E02B05DD9E /* ShowToolViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowToolViews.swift; sourceTree = "<group>"; };
 		592FC3FE627DEF914C6E09D6 /* ShowDraftTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftTests.swift; sourceTree = "<group>"; };
@@ -112,7 +109,6 @@
 		D8A5EEB027689D8D88E05F1A /* Show.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Show.swift; sourceTree = "<group>"; };
 		E8C6F5283133BED7DF65BEE9 /* ShowFragmentMediaServices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowFragmentMediaServices.swift; sourceTree = "<group>"; };
 		F3A0517E17E11E8CF1965EF1 /* ShowTipsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTipsTests.swift; sourceTree = "<group>"; };
-		F94251306BED4F77A586CF3D /* ShowVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowVideo.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E6789012345AB02 /* VenueAddressAutocomplete.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VenueAddressAutocomplete.swift; sourceTree = "<group>"; };
 		F1A2B3C4D5E6789012345CD02 /* VenueAddressAutocompleteTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VenueAddressAutocompleteTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -155,7 +151,6 @@
 				97295D52EBD85543103D48A0 /* ShowToolSummary.swift */,
 				CC0FFEE0010203040506ABBC /* ShowFragmentAudioController.swift */,
 				4888E236717548E02B05DD9E /* ShowToolViews.swift */,
-				F94251306BED4F77A586CF3D /* ShowVideo.swift */,
 				BF53010F3616242ACC995FA6 /* StartupRouting.swift */,
 				F1A2B3C4D5E6789012345AB02 /* VenueAddressAutocomplete.swift */,
 				599DD07D5DDD3CC7F7B1C5F6 /* Resources */,
@@ -206,7 +201,6 @@
 				38E5DDD2EE32C1C5BF52E6F3 /* ShowModelTests.swift */,
 				85D3374BAAA8ECAB79C9E2E9 /* ShowPreparationTests.swift */,
 				F3A0517E17E11E8CF1965EF1 /* ShowTipsTests.swift */,
-				447E2505DA6AD0268E6DED88 /* ShowVideoTests.swift */,
 				3A02C6E4CCC2CEB27B0F46EE /* StartupRouteTests.swift */,
 				F1A2B3C4D5E6789012345CD02 /* VenueAddressAutocompleteTests.swift */,
 			);
@@ -334,7 +328,6 @@
 				4D6E51A89FB492A07EC88020 /* ShowToolSummary.swift in Sources */,
 				CC0FFEE0010203040506AABB /* ShowFragmentAudioController.swift in Sources */,
 				BC872D63E5DB16184ABEACFF /* ShowToolViews.swift in Sources */,
-				4D51EB384EFAFA88100FDC33 /* ShowVideo.swift in Sources */,
 				9E51F3243518BB3A664F624C /* StartupRouting.swift in Sources */,
 				F1A2B3C4D5E6789012345AB01 /* VenueAddressAutocomplete.swift in Sources */,
 			);
@@ -356,7 +349,6 @@
 				1B7BAAB5C6DC9FCFE8EB69DE /* ShowModelTests.swift in Sources */,
 				12DBB9D4A998EAE716094037 /* ShowPreparationTests.swift in Sources */,
 				26D72014280274A8E3B46151 /* ShowTipsTests.swift in Sources */,
-				669D32ED8773BD491C428ED5 /* ShowVideoTests.swift in Sources */,
 				EF62819EE688188985B09E10 /* StartupRouteTests.swift in Sources */,
 				F1A2B3C4D5E6789012345CD01 /* VenueAddressAutocompleteTests.swift in Sources */,
 			);

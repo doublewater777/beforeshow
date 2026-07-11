@@ -38,6 +38,23 @@ enum PrivacyLocalDataCopy {
     static let clearDataExplanation = "清除本地数据会删除 BeforeShow 创建和保存的本地数据，包括现场、设置、生成结果和 App 内录音；不会删除系统相册中的原始图片或视频。"
 }
 
+enum ProMembershipCopy {
+    static let summary = "Pro 锁的是重复 AI 生成与保存额度，不锁本地已有内容。"
+
+    /// 以 `ProFeatureGate` 实际接线的 feature 为准：保存额度（canAddShow）与候选曲目重复生成（canGenerate）。
+    static let unlockedPoints = [
+        "无限添加现场（免费版限 1 场）",
+        "重复生成候选曲目（免费版每类体验一次）"
+    ]
+
+    /// `ProFeatureGate` 中始终放行的能力：已有现场、碎片添加、手动编辑。
+    static let freePoints = [
+        "查看与编辑已有现场",
+        "添加现场碎片",
+        "手动编辑所有内容"
+    ]
+}
+
 enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
     case product = "使用感受"
     case bug = "问题反馈"

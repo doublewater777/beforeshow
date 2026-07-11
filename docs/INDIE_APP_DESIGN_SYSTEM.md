@@ -616,7 +616,6 @@ Show detail is the operational center for one show:
 - Show metadata.
 - Candidate songs.
 - Round trip plan.
-- Show recap.
 - Show fragments.
 - Editable fields.
 

@@ -173,9 +173,10 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(afterRetention.kind, .ended)
     }
 
-    func testMissingEndTimeUsesElevenFiftyFivePMOnlyAsStateBoundary() throws {
+    func testMissingEndTimeUsesStartPlusTypeDurationAsStateBoundary() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        // Concert default: start 19:30 + 4h → end boundary 23:30
         let show = try Show(
             name: "未填结束时间的现场",
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
@@ -184,6 +185,7 @@ final class ShowModelTests: XCTestCase {
         )
 
         XCTAssertNil(show.endTime)
+        XCTAssertEqual(CurrentShowTimeState.defaultDurationHours(for: .concert), 4)
 
         let beforeFallbackEnd = CurrentShowTimeState(
             show: show,
@@ -196,10 +198,10 @@ final class ShowModelTests: XCTestCase {
         let afterFallbackEnd = CurrentShowTimeState(
             show: show,
             calendar: calendar,
-            now: makeDate(year: 2026, month: 7, day: 8, hour: 23, minute: 56, calendar: calendar)
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 23, minute: 31, calendar: calendar)
         )
         XCTAssertEqual(afterFallbackEnd.kind, .postShow)
-        XCTAssertEqual(afterFallbackEnd.helperText, "7月8日 23:55 结束 · 停留期还剩 2 天 23 小时")
+        XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
     func testFestivalDateRangeStaysTodayUntilRangeEnds() throws {
@@ -329,7 +331,7 @@ final class ShowModelTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(presentation.topSpacing, 44)
         XCTAssertGreaterThan(presentation.actionTopOffset, presentation.topSpacing)
         XCTAssertEqual(presentation.actionButtonSize, 42)
-        XCTAssertEqual(presentation.coverAspectRatio, 0.72)
+        XCTAssertEqual(presentation.coverAspectRatio, 3.0 / 4.0)
     }
 
     private func makeDate(

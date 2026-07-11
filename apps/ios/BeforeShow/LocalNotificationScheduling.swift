@@ -1,11 +1,25 @@
 import Foundation
 import SwiftData
+import UserNotifications
 
 enum NotificationAuthorizationState: String, Codable, Equatable {
     case notDetermined
     case denied
     case authorized
     case provisional
+}
+
+extension NotificationAuthorizationState {
+    init(_ status: UNAuthorizationStatus) {
+        switch status {
+        case .notDetermined: self = .notDetermined
+        case .denied: self = .denied
+        case .authorized: self = .authorized
+        case .provisional: self = .provisional
+        case .ephemeral: self = .authorized
+        @unknown default: self = .notDetermined
+        }
+    }
 }
 
 struct NotificationPermissionPolicy {
@@ -178,11 +192,11 @@ struct LocalNotificationScheduler {
     private func notificationBody(for milestone: ShowNotificationMilestone, showName: String) -> String {
         switch milestone {
         case .fourteenDaysBefore:
-            return "\(showName) 还有两周，开场之前，先进入状态。"
+            return "\(showName) 还有两周，可以先听听可能的曲目"
         case .oneDayBefore:
-            return "\(showName) 明天见。"
+            return "\(showName) 明天见，确认一下怎么去"
         case .showDay:
-            return "\(showName) 快开场了。"
+            return "\(showName) 快开场了，看出门时间和准备"
         }
     }
 
@@ -195,5 +209,227 @@ struct LocalNotificationScheduler {
         case .showDay:
             return "快开场了"
         }
+    }
+}
+
+// MARK: - Deep Link
+
+enum NotificationUserInfoKey {
+    static let showID = "showID"
+    static let destination = "destination"
+}
+
+/// Payload carried in each notification's `userInfo`. Tapping a notification sets
+/// the show as current and opens the destination tool (or home).
+struct NotificationDeepLink: Equatable, Sendable {
+    enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
+        case candidateSongs
+        case outboundPlan
+        case home
+    }
+
+    let showID: UUID
+    let destination: Destination
+
+    init(showID: UUID, destination: Destination) {
+        self.showID = showID
+        self.destination = destination
+    }
+
+    init?(userInfo: [AnyHashable: Any]) {
+        guard let parsed = Self.parse(userInfo: userInfo) else { return nil }
+        self = parsed
+    }
+
+    static func parse(userInfo: [AnyHashable: Any]) -> NotificationDeepLink? {
+        guard let rawDestination = userInfo[NotificationUserInfoKey.destination] as? String,
+              let destination = Destination(rawValue: rawDestination),
+              let rawShowID = userInfo[NotificationUserInfoKey.showID] as? String,
+              let showID = UUID(uuidString: rawShowID) else {
+            return nil
+        }
+        return NotificationDeepLink(showID: showID, destination: destination)
+    }
+
+    var userInfo: [AnyHashable: Any] {
+        [
+            NotificationUserInfoKey.showID: showID.uuidString,
+            NotificationUserInfoKey.destination: destination.rawValue
+        ]
+    }
+}
+
+extension ShowNotificationMilestone {
+    var deepLinkDestination: NotificationDeepLink.Destination {
+        switch self {
+        case .fourteenDaysBefore: return .candidateSongs
+        case .oneDayBefore: return .outboundPlan
+        case .showDay: return .home
+        }
+    }
+}
+
+extension ScheduledShowNotification {
+    var deepLink: NotificationDeepLink {
+        NotificationDeepLink(showID: showID, destination: milestone.deepLinkDestination)
+    }
+
+    var userInfo: [AnyHashable: Any] {
+        deepLink.userInfo
+    }
+
+    var requestIdentifier: String {
+        "\(showID.uuidString).\(milestone.rawValue)"
+    }
+
+    func makeNotificationRequest() -> UNNotificationRequest {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.userInfo = userInfo
+        let components = Calendar.current.dateComponents(
+            [.year, .month, .day, .hour, .minute],
+            from: fireDate
+        )
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        return UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
+    }
+}
+
+extension ShowNotificationScheduleRecord {
+    var requestIdentifier: String {
+        "\(showID.uuidString).\(milestone.rawValue)"
+    }
+}
+
+// MARK: - Notification Center
+
+@MainActor
+final class LocalNotificationCenter {
+    static let shared = LocalNotificationCenter()
+
+    private let center = UNUserNotificationCenter.current()
+    private let scheduler = LocalNotificationScheduler()
+
+    private init() {}
+
+    func authorizationState() async -> NotificationAuthorizationState {
+        NotificationAuthorizationState(await center.notificationSettings().authorizationStatus)
+    }
+
+    @discardableResult
+    func requestAuthorization() async -> Bool {
+        do {
+            return try await center.requestAuthorization(options: [.alert, .sound, .badge])
+        } catch {
+            return false
+        }
+    }
+
+    /// Cancel everything tied to the previous focus and schedule the new current show.
+    /// Missed milestones are never backfilled; only future fire dates are scheduled.
+    func applyFocusChange(to show: Show?, in context: ModelContext, now: Date = Date()) async {
+        let existingRecords = (try? context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())) ?? []
+        let plan = scheduler.planFocusChange(from: existingRecords, to: show, now: now)
+
+        let identifiersToCancel = plan.recordsToCancel.map(\.requestIdentifier)
+        if !identifiersToCancel.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: identifiersToCancel)
+        }
+        for record in plan.recordsToCancel {
+            context.delete(record)
+        }
+
+        for request in plan.requestsToSchedule {
+            let record = ShowNotificationScheduleRecord(
+                showID: request.showID,
+                milestone: request.milestone,
+                fireDate: request.fireDate
+            )
+            context.insert(record)
+            do {
+                try await center.add(request.makeNotificationRequest())
+            } catch {
+                context.delete(record)
+            }
+        }
+
+        try? context.save()
+    }
+
+    #if DEBUG
+    func printPendingRequests() async {
+        let pending = await center.pendingNotificationRequests()
+        print("[BeforeShow] Pending notification requests: \(pending.count)")
+        for request in pending {
+            let triggerDate = (request.trigger as? UNCalendarNotificationTrigger)?.nextTriggerDate()
+            print("  • \(request.identifier) | \(request.content.title) / \(request.content.body) | fire: \(String(describing: triggerDate))")
+        }
+    }
+    #endif
+}
+
+// MARK: - Deep Link Routing
+
+@MainActor
+final class NotificationDeepLinkRouter: ObservableObject {
+    static let shared = NotificationDeepLinkRouter()
+
+    @Published private(set) var pendingDeepLink: NotificationDeepLink?
+
+    private init() {}
+
+    func route(to deepLink: NotificationDeepLink) {
+        pendingDeepLink = deepLink
+    }
+
+    @discardableResult
+    func consume() -> NotificationDeepLink? {
+        // Only clear when non-nil. Assigning `nil` while already `nil` still
+        // fires `@Published` and can re-enter `.onReceive` → infinite layout loop
+        // (seen as 100% CPU after leaving onboarding into the main TabView).
+        guard let deepLink = pendingDeepLink else { return nil }
+        pendingDeepLink = nil
+        return deepLink
+    }
+}
+
+/// Reads `userInfo` on notification tap (foreground and cold start) and routes the
+/// deep link. Methods are `nonisolated` because the system calls them off the main
+/// actor; only Sendable strings are carried into the main-actor task. Stateless, so
+/// safe to share as a singleton.
+final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
+    static let shared = BeforeShowNotificationDelegate()
+
+    private override init() {
+        super.init()
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let userInfo = response.notification.request.content.userInfo
+        let showIDString = userInfo[NotificationUserInfoKey.showID] as? String
+        let destinationString = userInfo[NotificationUserInfoKey.destination] as? String
+        Task { @MainActor in
+            var parsed: [AnyHashable: Any] = [:]
+            if let showIDString { parsed[NotificationUserInfoKey.showID] = showIDString }
+            if let destinationString { parsed[NotificationUserInfoKey.destination] = destinationString }
+            if let deepLink = NotificationDeepLink(userInfo: parsed) {
+                NotificationDeepLinkRouter.shared.route(to: deepLink)
+            }
+        }
+        completionHandler()
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound])
     }
 }

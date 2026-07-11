@@ -19,7 +19,6 @@ struct ShowToolSummary {
     let preparationTotal: Int
     let hasPreparationReminder: Bool
 
-    let showVideosCount: Int
     let showFragmentsCount: Int
 
     init(
@@ -27,8 +26,7 @@ struct ShowToolSummary {
         candidateGroups: [CandidateSongGroup],
         candidateSongs: [CandidateSong],
         roundTripPlans: [RoundTripPlan],
-        preparationPlans: [ShowPreparationPlan],
-        videos: [ShowVideo]
+        preparationPlans: [ShowPreparationPlan]
     ) {
         self.show = show
 
@@ -48,7 +46,6 @@ struct ShowToolSummary {
             suggestions.filter { plan.isChecked($0.text) }.count
         } ?? 0
 
-        self.showVideosCount = videos.filter { $0.showID == show.id }.count
         self.showFragmentsCount = show.fragments.count
     }
 
@@ -56,7 +53,6 @@ struct ShowToolSummary {
 
     var hasCandidateSongs: Bool { candidateSongCount > 0 }
     var hasCheckedAllPreparation: Bool { checkedPreparationCount >= preparationTotal }
-    var hasVideos: Bool { showVideosCount > 0 }
     var hasFragments: Bool { showFragmentsCount > 0 }
 
     // MARK: - Status Copy
@@ -71,10 +67,6 @@ struct ShowToolSummary {
 
     var preparationStatus: String {
         hasCheckedAllPreparation ? "已确认" : "\(checkedPreparationCount)/\(preparationTotal) 已确认"
-    }
-
-    var videosStatus: String {
-        hasVideos ? "\(showVideosCount) 条视频" : "未整理"
     }
 
     var fragmentsStatus: String {
