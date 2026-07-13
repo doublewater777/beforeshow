@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BeforeShow · 首页 Poster Stage（throwaway）</title>
+  <style>
+    /* ---- DESIGN.md V2 tokens ---- */
+    :root {
+      --stage-void: #050508;
+      --stage-ink: #0B0B11;
+      --smoke: #15151D;
+      --smoke-lifted: #20202A;
+      --chalk: #F5F1E9;
+      --haze: #AAA5AF;
+      --ash: #85808C;
+      --hairline: rgba(245,241,233,.12);
+      --hairline-strong: rgba(245,241,233,.22);
+      --electric: #84BFFF;
+      --electric-soft: rgba(132,191,255,.22);
+      --tungsten: #FFB36B;
+      --tungsten-soft: rgba(255,179,107,.22);
+
+      --cover: "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp";
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #000; }
+    body {
+      min-height: 100vh;
+      background:
+        radial-gradient(ellipse 80% 50% at 50% 0%, #120f1c 0%, #050508 55%, #000 100%);
+      color: var(--chalk);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+      padding: 36px 20px 80px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .page-head { max-width: 960px; margin: 0 auto 18px; }
+    .badge {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+      text-transform: uppercase; color: rgba(245,241,233,.40); margin-bottom: 8px;
+    }
+    .page-head h1 { font-size: 22px; font-weight: 600; color: var(--chalk); letter-spacing: -0.01em; }
+    .page-head p {
+      margin-top: 8px; font-size: 14px; line-height: 1.6;
+      color: rgba(245,241,233,.52); max-width: 640px;
+    }
+
+    .controls {
+      max-width: 960px; margin: 0 auto 24px;
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    }
+    .control-label { font-size: 12px; color: rgba(245,241,233,.38); margin-right: 4px; }
+    .chip {
+      appearance: none; border: 1px solid var(--hairline);
+      background: rgba(245,241,233,.04); color: rgba(245,241,233,.72);
+      font-size: 13px; font-weight: 500; padding: 8px 14px; border-radius: 999px;
+      cursor: pointer; font-family: inherit;
+      transition: background .15s, border-color .15s, color .15s;
+    }
+    .chip:hover { background: rgba(245,241,233,.08); color: var(--chalk); }
+    .chip.active {
+      background: rgba(245,241,233,.14); border-color: var(--hairline-strong); color: var(--chalk);
+    }
+
+    .stage {
+      display: flex; flex-wrap: wrap; gap: 40px;
+      justify-content: center; max-width: 960px; margin: 0 auto;
+    }
+    .phone-col { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+    .phone-label {
+      font-size: 13px; font-style: italic; color: rgba(245,241,233,.45);
+    }
+
+    /* ---- iPhone frame ---- */
+    .frame {
+      padding: 11px; background: #000; border-radius: 58px;
+      box-shadow: 0 0 0 1px #222, 0 28px 80px rgba(0,0,0,0.6);
+    }
+    .screen {
+      width: 393px; height: 852px; border-radius: 48px;
+      overflow: hidden; position: relative; background: var(--stage-void);
+    }
+    .status {
+      position: absolute; top: 0; left: 0; right: 0; height: 54px; z-index: 40;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 30px; font-size: 15px; font-weight: 600; color: var(--chalk);
+      pointer-events: none;
+    }
+    .status .icons { display: flex; align-items: center; gap: 6px; opacity: .92; }
+    .island {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      width: 122px; height: 34px; background: #000; border-radius: 999px; z-index: 50;
+    }
+    .home-bar {
+      position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%);
+      width: 134px; height: 5px; background: rgba(245,241,233,.5);
+      border-radius: 99px; z-index: 50;
+    }
+
+    .app {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      background: var(--stage-void);
+    }
+
+    /* ---- Poster-aware stage background ---- */
+    /* The user's show supplies the personality: a blurred, low-opacity bleed of the
+       real cover, capped so it never changes text/control contrast (DESIGN.md §2). */
+    .stage-bg {
+      position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+    }
+    .stage-bg .cover-bleed {
+      position: absolute; inset: -12% -6% auto; height: 78%;
+      background-image: var(--cover-img); background-size: cover; background-position: center 32%;
+      filter: blur(46px) saturate(1.18);
+      opacity: .30;
+    }
+    .stage-bg .void-fall {
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg,
+        rgba(5,5,8,.30) 0%,
+        rgba(5,5,8,.62) 46%,
+        rgba(5,5,8,.92) 66%,
+        var(--stage-void) 100%);
+    }
+    /* one light source: cool from upper left, warm from upper right (DESIGN.md §7) */
+    .stage-bg .light-cool {
+      position: absolute; left: -10%; top: -6%; width: 60%; height: 50%;
+      background: radial-gradient(ellipse at center, var(--electric-soft), transparent 62%);
+      filter: blur(8px); opacity: .55;
+    }
+    .stage-bg .light-warm {
+      position: absolute; right: -12%; top: -4%; width: 56%; height: 46%;
+      background: radial-gradient(ellipse at center, var(--tungsten-soft), transparent 62%);
+      filter: blur(8px); opacity: .5;
+    }
+
+    .scroll {
+      position: relative; z-index: 2; flex: 1;
+      overflow-y: auto; overflow-x: hidden;
+      padding: 28px 20px 22px;
+      scrollbar-width: none;
+    }
+    .scroll::-webkit-scrollbar { display: none; }
+
+    /* ---- Poster hero ---- */
+    .poster-stack {
+      position: relative;
+      width: 84%; margin: 0 auto;     /* float on stage, not full-bleed */
+      max-width: 302px;
+    }
+    .poster-wrap {
+      position: relative; width: 100%; aspect-ratio: 3 / 4;
+      border-radius: 24px; overflow: hidden;
+      box-shadow: 0 22px 54px rgba(0,0,0,0.6), 0 2px 10px rgba(0,0,0,.5);
+      cursor: pointer;
+    }
+    .poster-wrap img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+    }
+    .poster-scrim {
+      position: absolute; inset: 0; pointer-events: none;
+      background: linear-gradient(180deg,
+        rgba(5,5,8,.10) 0%,
+        rgba(5,5,8,.00) 26%,
+        rgba(5,5,8,.34) 60%,
+        rgba(5,5,8,.78) 82%,
+        rgba(5,5,8,.96) 100%);
+    }
+    /* show-tag: quiet "示例现场" only on the showcase state */
+    .show-tag {
+      position: absolute; top: 14px; left: 14px; z-index: 3;
+      font-size: 11px; font-weight: 600; letter-spacing: .04em;
+      color: rgba(245,241,233,.86);
+      padding: 5px 10px; border-radius: 999px;
+      background: rgba(5,5,8,.42);
+      border: 1px solid var(--hairline-strong);
+      backdrop-filter: blur(10px);
+    }
+    .poster-meta {
+      position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+      padding: 0 22px 32px;
+    }
+    .poster-meta .eyebrow {
+      font-size: 11px; font-weight: 600; letter-spacing: .08em;
+      text-transform: uppercase; color: rgba(245,241,233,.66);
+      margin-bottom: 7px;
+    }
+    .poster-meta h2 {
+      font-size: 25px; font-weight: 600; line-height: 1.12; letter-spacing: -0.4px;
+      color: var(--chalk);
+    }
+    .poster-meta .meta {
+      margin-top: 8px; font-size: 13px; font-weight: 500;
+      color: rgba(245,241,233,.70); line-height: 1.4;
+    }
+
+    /* ---- Countdown bridge: the number crosses cover -> content ---- */
+    .bridge {
+      position: absolute; left: 0; right: 0; bottom: -38px; z-index: 4;
+      display: flex; flex-direction: column; align-items: center;
+      pointer-events: none;
+    }
+    .bridge-glow {
+      position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%);
+      width: 230px; height: 150px; z-index: -1;
+      background: radial-gradient(ellipse at center,
+        rgba(132,191,255,.30), rgba(255,179,107,.16), transparent 68%);
+      filter: blur(20px);
+    }
+    .bridge .num-row {
+      display: flex; align-items: baseline; justify-content: center; gap: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .bridge .num {
+      font-size: 80px; font-weight: 300; line-height: .95; letter-spacing: -1px;
+      background: linear-gradient(92deg, var(--electric) 6%, #c9d8ff 44%, var(--tungsten) 96%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+      filter: drop-shadow(0 6px 18px rgba(132,191,255,.22));
+    }
+    .bridge .unit {
+      font-size: 22px; font-weight: 400; color: rgba(245,241,233,.62);
+      padding-bottom: 6px;
+    }
+    .bridge .today {
+      font-size: 44px; font-weight: 300; letter-spacing: 1px; line-height: 1;
+      background: linear-gradient(92deg, var(--electric), var(--tungsten));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+
+    .helper {
+      margin-top: 44px; text-align: center;
+      font-size: 16px; font-weight: 500; color: rgba(245,241,233,.52);
+      letter-spacing: .01em;
+    }
+
+    /* ---- One timely Tip ---- */
+    .tip {
+      margin-top: 12px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 14px 14px 16px;
+      border-radius: 18px;
+      background: rgba(245,241,233,.06);
+      border: 1px solid var(--hairline);
+      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 10px 26px rgba(0,0,0,.30);
+      cursor: pointer; transition: background .15s, transform .12s;
+    }
+    .tip:active { transform: scale(.985); background: rgba(245,241,233,.09); }
+    .tip .msg {
+      flex: 1; font-size: 14px; font-weight: 500; line-height: 1.4;
+      color: rgba(245,241,233,.90); text-align: left;
+    }
+    .tip .cta {
+      flex-shrink: 0; border: none; font-family: inherit;
+      font-size: 13px; font-weight: 600; color: #0a0a0c;
+      background: var(--chalk); padding: 8px 14px; border-radius: 999px;
+      cursor: pointer; white-space: nowrap;
+    }
+
+    /* Day-of departure: slightly stronger, warm-tinted, no overdue branch */
+    .depart {
+      margin-top: 20px;
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, var(--tungsten-soft), rgba(245,241,233,.05));
+      border: 1px solid rgba(255,179,107,.30);
+      cursor: pointer;
+    }
+    .depart:active { filter: brightness(1.06); }
+    .depart .ico {
+      width: 40px; height: 40px; border-radius: 12px; flex-shrink: 0;
+      background: var(--tungsten-soft); color: var(--tungsten);
+      display: grid; place-items: center; font-size: 16px;
+    }
+    .depart .body { flex: 1; min-width: 0; text-align: left; }
+    .depart .eyebrow {
+      font-size: 11px; font-weight: 600; letter-spacing: .08em;
+      text-transform: uppercase; color: rgba(245,241,233,.52); margin-bottom: 3px;
+    }
+    .depart .msg { font-size: 14px; font-weight: 600; color: var(--chalk); line-height: 1.3; }
+    .depart .sub { font-size: 12px; color: rgba(245,241,233,.52); margin-top: 2px; }
+    .depart .cta {
+      flex-shrink: 0; border: none; font-family: inherit;
+      font-size: 13px; font-weight: 600; color: #0a0a0c;
+      background: linear-gradient(90deg, var(--electric), var(--tungsten));
+      padding: 8px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap;
+    }
+
+    /* ---- Preparation rail: quiet destinations with state, not equal promo cards ---- */
+    .rail-label {
+      margin: 16px 2px 10px;
+      font-size: 11px; font-weight: 600; letter-spacing: .12em;
+      text-transform: uppercase; color: rgba(245,241,233,.40);
+    }
+    .rail {
+      display: flex; align-items: stretch;
+      border-radius: 16px; overflow: hidden;
+      background: rgba(245,241,233,.035);
+      border: 1px solid var(--hairline);
+    }
+    .rail-cell {
+      flex: 1; padding: 12px 8px 11px;
+      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      cursor: pointer; position: relative;
+      background: transparent; border: none; font-family: inherit;
+    }
+    .rail-cell + .rail-cell { border-left: 1px solid var(--hairline); }
+    .rail-cell .glyph {
+      width: 30px; height: 30px; border-radius: 9px;
+      display: grid; place-items: center; font-size: 13px;
+      color: rgba(245,241,233,.66);
+      background: rgba(245,241,233,.05);
+    }
+    .rail-cell .name {
+      font-size: 12px; font-weight: 600; color: rgba(245,241,233,.80);
+    }
+    .rail-cell .state {
+      font-size: 11px; font-weight: 500; color: var(--ash);
+      letter-spacing: .02em;
+    }
+    /* the destination tied to the active tip lifts one quiet notch */
+    .rail-cell.active .glyph {
+      color: var(--chalk);
+      background: rgba(245,241,233,.10);
+      box-shadow: inset 0 0 0 1px var(--hairline-strong);
+    }
+    .rail-cell.active .state { color: var(--haze); }
+    .rail-cell.active::after {
+      content: ""; position: absolute; left: 30%; right: 30%; bottom: 0; height: 2px;
+      background: linear-gradient(90deg, var(--electric), var(--tungsten));
+      border-radius: 2px; opacity: .8;
+    }
+
+    /* ---- Primary ownership action (sample home only) ---- */
+    .primary {
+      width: 100%; margin-top: 18px;
+      font-family: inherit; font-size: 17px; font-weight: 600;
+      color: #0a0a0c; background: var(--chalk);
+      padding: 14px 18px; border: none; border-radius: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+      box-shadow: 0 14px 34px rgba(0,0,0,.46), 0 2px 8px rgba(0,0,0,.4);
+      transition: transform .12s, background .12s;
+    }
+    .primary:active { transform: scale(.985); background: rgba(245,241,233,.9); }
+
+    /* ---- Tab bar ---- */
+    .tab-bar {
+      flex-shrink: 0;
+      margin: 0 18px 24px; z-index: 9;
+      height: 70px; border-radius: 26px;
+      background: rgba(21,21,29,.78);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--hairline);
+      box-shadow: 0 10px 32px rgba(0,0,0,.45);
+      display: flex; align-items: center; padding: 6px;
+    }
+    .tab {
+      flex: 1; height: 100%; border: none; background: transparent;
+      color: rgba(245,241,233,.42); font-size: 11px; font-weight: 500;
+      font-family: inherit; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+      border-radius: 20px;
+    }
+    .tab.active {
+      color: var(--chalk); background: rgba(245,241,233,.10); font-weight: 600;
+    }
+    .tab svg { width: 22px; height: 22px; }
+
+    .toast {
+      position: absolute; left: 50%; bottom: 200px; transform: translateX(-50%) translateY(10px);
+      background: rgba(245,241,233,.94); color: #0a0a0c;
+      font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 999px;
+      opacity: 0; transition: opacity .2s, transform .2s; z-index: 80;
+      pointer-events: none; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    .notes {
+      max-width: 960px; margin: 40px auto 0; padding: 18px 20px;
+      border-radius: 16px; background: rgba(245,241,233,.035);
+      border: 1px solid var(--hairline);
+      font-size: 13px; line-height: 1.7; color: rgba(245,241,233,.55);
+    }
+    .notes strong { color: rgba(245,241,233,.82); }
+    .notes h4 {
+      font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase;
+      color: rgba(245,241,233,.5); margin: 14px 0 6px;
+    }
+    .notes ul { margin: 4px 0 4px 18px; }
+    .notes li { margin: 2px 0; }
+    .notes code {
+      font-family: ui-monospace, "SF Mono", monospace; font-size: 12px;
+      color: var(--electric); background: rgba(132,191,255,.08); padding: 1px 5px; border-radius: 5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="page-head">
+    <div class="badge">Prototype · throwaway · 首页 Poster Stage</div>
+    <h1>海报舞台首页：无顶栏 · 封面 · 倒计时桥 · Tip · 准备轨</h1>
+    <p>
+      落地 DESIGN.md 的 Home Experience Contract：去掉顶部 chrome，让海报成为唯一主角；
+      倒计时数字从封面“跨”进内容区，舞台用海报自身颜色做环境光，下方一条生命周期 Tip 与一条安静的准备轨全部首屏可见。
+      示例用周杰伦南京场（76 天）。
+    </p>
+  </div>
+
+  <div class="controls">
+    <span class="control-label">时间节点</span>
+    <button type="button" class="chip active" data-phase="d76">76 天 · 示例</button>
+    <button type="button" class="chip" data-phase="d12">12 天</button>
+    <button type="button" class="chip" data-phase="d3">3 天</button>
+    <button type="button" class="chip" data-phase="today">今天</button>
+  </div>
+
+  <div class="stage">
+    <div class="phone-col">
+      <div class="phone-label" id="phoneLabel">76 天 · 示例现场</div>
+      <div class="frame">
+        <div class="screen">
+          <div class="status">
+            <span>9:41</span>
+            <span class="icons">
+              <svg width="17" height="11" viewBox="0 0 17 11" fill="none"><rect x="0" y="7" width="3" height="4" rx="1" fill="#F5F1E9"/><rect x="4.5" y="5" width="3" height="6" rx="1" fill="#F5F1E9"/><rect x="9" y="2.5" width="3" height="8.5" rx="1" fill="#F5F1E9"/><rect x="13.5" y="0" width="3" height="11" rx="1" fill="#F5F1E9"/></svg>
+              <svg width="16" height="12" viewBox="0 0 16 12" fill="none"><path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="#F5F1E9"/><path d="M3 7.5a7 7 0 0110 0" stroke="#F5F1E9" stroke-width="1.3" fill="none" stroke-linecap="round"/><path d="M1 4.5a11 11 0 0114 0" stroke="#F5F1E9" stroke-width="1.3" fill="none" stroke-linecap="round" opacity=".7"/></svg>
+              <svg width="26" height="12" viewBox="0 0 26 12" fill="none"><rect x=".5" y=".5" width="22" height="11" rx="3" stroke="#F5F1E9" opacity=".6" fill="none"/><rect x="2" y="2" width="17" height="8" rx="1.5" fill="#F5F1E9"/><rect x="23.5" y="3.5" width="2" height="5" rx="1" fill="#F5F1E9" opacity=".6"/></svg>
+            </span>
+          </div>
+          <div class="island"></div>
+
+          <div class="app">
+            <div class="stage-bg" id="stageBg">
+              <div class="cover-bleed" id="coverBleed"></div>
+              <div class="light-cool"></div>
+              <div class="light-warm"></div>
+              <div class="void-fall"></div>
+            </div>
+
+            <div class="scroll" id="scrollArea"><!-- filled by render() --></div>
+
+            <nav class="tab-bar" aria-label="主 Tab">
+              <button type="button" class="tab active">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l9 7v11a1 1 0 01-1 1h-5v-7H9v7H4a1 1 0 01-1-1V10l9-7z"/></svg>
+                当前
+              </button>
+              <button type="button" class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+                我的现场
+              </button>
+              <button type="button" class="tab">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></svg>
+                设置
+              </button>
+            </nav>
+          </div>
+
+          <div class="toast" id="toast"></div>
+          <div class="home-bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <strong>这次“创新”落在五处，全部对齐 DESIGN.md：</strong>
+    <ul>
+      <li><strong>去掉顶部 chrome</strong>：没有“当前现场”标题，也没有右上角的 ＋ / ···。入口完全收进底部：添加现场用示例态的“添加我的现场”主按钮；工具入口由准备轨承担。让海报成为唯一主角，符合 §1“one screen, one star”和“Interface chrome recedes”。</li>
+      <li><strong>海报占上半屏、不顶满</strong>：把海报宽度收到 84%（约上半屏高度），留出舞台暗角，也让倒计时桥、Tip、准备轨、主按钮全部首屏可见，无需滚动。</li>
+      <li><strong>倒计时桥</strong>：大号 76 半压在海报底片、半落在舞台虚空，数字从封面“跨”进内容区，把情绪与时间缝在一起（Home Contract #2）。这是当前原生首页还没做的一笔。</li>
+      <li><strong>海报自发光舞台</strong>：背景用真实封面的高斯模糊低透明度铺底 + 上左冷光 / 上右暖光单一光源，取代当前固定的紫青色泛光（§1 原则 4、§7）。色调随你的现场走，但文字与控件对比度不变。</li>
+      <li><strong>倒计时配色</strong>：从原来的青→紫→琥珀三色彩虹，改为冷电光→暖钨光的舞台光双色，作为“可识别的品牌符号”，避开 DESIGN.md 反例里的彩虹文字（§1 原则 3、反例 3）。</li>
+      <li><strong>准备轨</strong>：候选曲目 / 去程 / 现场 作为“带状态的安静去处”，不再是一排等亮的功能宫格；与当前 Tip 绑定的那一格轻轻抬起一格（Home Contract #4）。</li>
+    </ul>
+
+    <h4>主行动随生命周期互斥</h4>
+    <ul>
+      <li><strong>76 天 · 示例</strong>：Tip=候选曲目 + 底部常驻“添加我的现场”邀请（Sample Home 的拥有权行动，Home Contract #5）。</li>
+      <li><strong>12 天</strong>：Tip=候选曲目；准备轨高亮“候选曲目”。</li>
+      <li><strong>3 天</strong>：Tip=去程计划；准备轨高亮“去程计划”。</li>
+      <li><strong>今天</strong>：倒计时变“就是今天”，主行动升为“出行提醒”卡（出行 &gt; Tips 互斥，沿用现规则）。</li>
+    </ul>
+
+    <h4>下一步</h4>
+    <p>这是 throwaway 原型。确认方向后，把 <code>CurrentShowContentView</code> 的倒计时区改成“桥”式叠层、背景换成 <code>CurrentShowAmbientBackground</code>（已存在、海报自发光），并新增一条安静的准备轨即可。原生迁移可增量进行，不破坏现有 Tips / 出行互斥逻辑。</p>
+  </div>
+
+  <script>
+    const COVER = "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp";
+    const FALLBACK = "poster-sample.jpg";
+
+    const SHOW = {
+      eyebrow: "周杰伦世界巡回演唱会 · 南京站",
+      title: "爱在南京嘉年华 2026",
+      meta: "南京奥体中心体育场 · 2026.09.24 – 09.26",
+    };
+
+    const PHASES = {
+      d76: {
+        label: "76 天 · 示例现场",
+        countdown: { n: "76", unit: "天" },
+        helper: "开场前 · 慢慢靠近",
+        sample: true,
+        tip: { msg: "先从候选曲目找到熟悉感", cta: "去看看", action: "候选曲目" },
+        rail: [
+          { glyph: "♪", name: "候选曲目", state: "待整理", active: true },
+          { glyph: "↗", name: "去程计划", state: "待定", active: false },
+          { glyph: "✦", name: "现场", state: "空", active: false },
+        ],
+      },
+      d12: {
+        label: "12 天",
+        countdown: { n: "12", unit: "天" },
+        helper: "开场前 · 慢慢靠近",
+        sample: false,
+        tip: { msg: "还有 12 天，先去熟悉一下曲目？", cta: "去看看", action: "候选曲目" },
+        rail: [
+          { glyph: "♪", name: "候选曲目", state: "8 首", active: true },
+          { glyph: "↗", name: "去程计划", state: "待定", active: false },
+          { glyph: "✦", name: "现场", state: "空", active: false },
+        ],
+      },
+      d3: {
+        label: "3 天",
+        countdown: { n: "3", unit: "天" },
+        helper: "开场前 · 把路线定下来",
+        sample: false,
+        tip: { msg: "还有 3 天，先定好怎么去？", cta: "生成计划", action: "去程计划" },
+        rail: [
+          { glyph: "♪", name: "候选曲目", state: "12 首", active: false },
+          { glyph: "↗", name: "去程计划", state: "待定", active: true },
+          { glyph: "✦", name: "现场", state: "空", active: false },
+        ],
+      },
+      today: {
+        label: "今天",
+        countdown: { today: "就是今天" },
+        helper: "19:30 开场 · 南京奥体中心体育场",
+        sample: false,
+        departure: { msg: "18:20 出门 · 地铁约 35 分钟", sub: "预计 18:55 到场", cta: "打开地图" },
+        rail: [
+          { glyph: "♪", name: "候选曲目", state: "12 首", active: false },
+          { glyph: "↗", name: "去程计划", state: "已定", active: false },
+          { glyph: "✦", name: "现场", state: "空", active: false },
+        ],
+      },
+    };
+
+    let phase = "d76";
+
+    function toast(text) {
+      const el = document.getElementById("toast");
+      el.textContent = text;
+      el.classList.add("show");
+      clearTimeout(window.__t);
+      window.__t = setTimeout(() => el.classList.remove("show"), 1400);
+    }
+
+    function bridgeHTML(p) {
+      const glow = `<div class="bridge-glow"></div>`;
+      if (p.countdown.today) {
+        return `<div class="bridge">${glow}<div class="today">${p.countdown.today}</div></div>`;
+      }
+      return `
+        <div class="bridge">${glow}
+          <div class="num-row">
+            <span class="num">${p.countdown.n}</span>
+            <span class="unit">${p.countdown.unit}</span>
+          </div>
+        </div>`;
+    }
+
+    function actionHTML(p) {
+      if (p.departure) {
+        const d = p.departure;
+        return `
+          <div class="depart" onclick="toast('打开地图')">
+            <div class="ico">↗</div>
+            <div class="body">
+              <div class="eyebrow">出行提醒</div>
+              <div class="msg">${d.msg}</div>
+              <div class="sub">${d.sub}</div>
+            </div>
+            <button type="button" class="cta" onclick="event.stopPropagation(); toast('打开地图')">${d.cta}</button>
+          </div>`;
+      }
+      const t = p.tip;
+      return `
+        <div class="tip" onclick="toast('${t.action}')">
+          <div class="msg">${t.msg}</div>
+          <button type="button" class="cta" onclick="event.stopPropagation(); toast('${t.action}')">${t.cta}</button>
+        </div>`;
+    }
+
+    function railHTML(p) {
+      const cells = p.rail.map(r => `
+        <button type="button" class="rail-cell ${r.active ? "active" : ""}" onclick="toast('${r.name}')">
+          <div class="glyph">${r.glyph}</div>
+          <div class="name">${r.name}</div>
+          <div class="state">${r.state}</div>
+        </button>`).join("");
+      return `<div class="rail-label">这场现场</div><div class="rail">${cells}</div>`;
+    }
+
+    function primaryHTML(p) {
+      if (!p.sample) return "";
+      return `
+        <button type="button" class="primary" onclick="toast('添加我的现场')">
+          添加我的现场
+        </button>`;
+    }
+
+    function render() {
+      const p = PHASES[phase];
+      document.getElementById("phoneLabel").textContent = p.label;
+
+      document.getElementById("scrollArea").innerHTML = `
+        <div class="poster-stack">
+          <div class="poster-wrap" id="poster" onclick="toast('进入现场详情')">
+            ${p.sample ? `<div class="show-tag">示例现场</div>` : ""}
+            <img id="coverImg" src="${COVER}" referrerpolicy="no-referrer" alt="现场封面" />
+            <div class="poster-scrim"></div>
+            <div class="poster-meta">
+              <div class="eyebrow">${SHOW.eyebrow}</div>
+              <h2>${SHOW.title}</h2>
+              <div class="meta">${SHOW.meta}</div>
+            </div>
+          </div>
+          ${bridgeHTML(p)}
+        </div>
+        <div class="helper">${p.helper}</div>
+        ${actionHTML(p)}
+        ${railHTML(p)}
+        ${primaryHTML(p)}
+      `;
+
+      // Cover fallback + poster-aware bleed use the same image.
+      const img = document.getElementById("coverImg");
+      img.onerror = function () { this.onerror = null; this.src = FALLBACK; setBleed(FALLBACK); };
+      if (img.complete && img.naturalWidth === 0) setBleed(FALLBACK); else setBleed(COVER);
+    }
+
+    function setBleed(src) {
+      document.getElementById("coverBleed").style.backgroundImage = `url("${src}")`;
+    }
+
+    document.querySelectorAll("[data-phase]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        phase = btn.dataset.phase;
+        document.querySelectorAll("[data-phase]").forEach((b) => b.classList.toggle("active", b === btn));
+        render();
+      });
+    });
+
+    render();
+  </script>
+</body>
+</html>

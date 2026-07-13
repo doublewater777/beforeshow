@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
@@ -150,6 +151,14 @@ private struct CurrentShowHomeView: View {
 }
 
 // MARK: - Current Show Content
+
+enum HomeLayoutMetrics {
+    static let horizontalInset: CGFloat = 18
+
+    static func contentWidth(for containerWidth: CGFloat, viewportWidth: CGFloat) -> CGFloat {
+        max(0, min(containerWidth, viewportWidth) - (horizontalInset * 2))
+    }
+}
 
 private struct CurrentShowContentView: View {
     let show: Show
@@ -327,10 +336,13 @@ private struct CurrentShowContentView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ScrollView {
+            let contentWidth = HomeLayoutMetrics.contentWidth(
+                for: geometry.size.width,
+                viewportWidth: UIScreen.main.bounds.width
+            )
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 18) {
-                    posterStage
-                        .padding(.horizontal, 18)
+                    posterStage(contentWidth: contentWidth)
                         .padding(.top, 8)
 
                     // 18pt VStack spacing + 2pt = 20pt cover-to-countdown pause.
@@ -339,18 +351,16 @@ private struct CurrentShowContentView: View {
 
                     if showsDepartureAssistant {
                         departureAssistantCard
-                            .padding(.horizontal, 18)
                             .padding(.top, 6)
                     }
 
-                    toolsScrollSection
+                    toolsScrollSection(contentWidth: contentWidth)
                         .padding(.top, 0)
-
-                    Spacer(minLength: BSLayout.floatingTabBarClearance + 20)
                 }
-                .frame(minHeight: geometry.size.height)
+                .padding(.horizontal, HomeLayoutMetrics.horizontalInset)
+                .padding(.bottom, BSLayout.tabBarContentInset + 28)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
             }
-            .scrollIndicators(.hidden)
             .sheet(item: $managementSheet) { sheet in
                 switch sheet {
                 case .edit:
@@ -402,12 +412,12 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private var posterStage: some View {
+    private func posterStage(contentWidth: CGFloat) -> some View {
         ZStack(alignment: .topTrailing) {
             NavigationLink {
                 ShowDetailView(show: show)
             } label: {
-                coverVisual
+                coverVisual(contentWidth: contentWidth)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
@@ -418,12 +428,8 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private var coverVisual: some View {
-        // Explicit fixed frame from the screen width — GeometryReader/aspectRatio
-        // approaches let the cover fill the ScrollView's proposed height and pushed
-        // the countdown off-screen. A concrete 3:4 frame (screen width minus the
-        // 18pt horizontal padding) is unambiguous.
-        let coverWidth = UIScreen.main.bounds.width - 36.0
+    private func coverVisual(contentWidth: CGFloat) -> some View {
+        let coverWidth = contentWidth
         let coverHeight = coverWidth * 4.0 / 3.0
         return ShowCoverImageView(
             urlString: show.coverImageURL,
@@ -636,10 +642,9 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private var toolsScrollSection: some View {
+    private func toolsScrollSection(contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            homeHintCard(recommendedToolItem)
-                .padding(.horizontal, 18)
+            homeHintCard(recommendedToolItem, contentWidth: contentWidth)
 
             VStack(alignment: .leading, spacing: 9) {
                 Text("也可以顺手看看")
@@ -647,6 +652,7 @@ private struct CurrentShowContentView: View {
                     .tracking(1.2)
                     .foregroundColor(BSColor.textTertiary)
                     .textCase(.uppercase)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 
                 LazyVGrid(
                     columns: [
@@ -660,38 +666,41 @@ private struct CurrentShowContentView: View {
                         toolShortcutCard(item)
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 18)
         }
+        .frame(width: contentWidth, alignment: .leading)
     }
 
-    private func homeHintCard(_ item: HomeToolItem) -> some View {
+    private func homeHintCard(_ item: HomeToolItem, contentWidth: CGFloat) -> some View {
         Button {
             activeToolSheet = item.id
         } label: {
-            HStack(spacing: 12) {
-                toolIcon(item.icon, accent: item.accent, size: 38, iconSize: 15)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .top, spacing: 12) {
+                    toolIcon(item.icon, accent: item.accent, size: 38, iconSize: 15)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 8) {
-                        Text("Tips · \(phase.title)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(1.2)
-                            .foregroundColor(BSColor.textTertiary)
-                            .textCase(.uppercase)
-                            .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 8) {
+                            Text("Tips · \(phase.title)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .tracking(1.2)
+                                .foregroundColor(BSColor.textTertiary)
+                                .textCase(.uppercase)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.88)
 
-                        statusPill(item.status, accent: item.accent)
+                            statusPill(item.status, accent: item.accent)
+                        }
+
+                        Text(item.detail)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(BSColor.textSecondary)
+                            .lineLimit(3)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-
-                    Text(item.detail)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(BSColor.textSecondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Spacer(minLength: 0)
 
                 Text(item.actionTitle)
                     .font(.system(size: 13, weight: .semibold))
@@ -701,9 +710,11 @@ private struct CurrentShowContentView: View {
                     .background(Capsule().fill(BSColor.brandGradientSoft))
                     .clipShape(Capsule())
             }
+            .frame(width: max(0, contentWidth - 20), alignment: .leading)
             .padding(10)
             .homeGlass(cornerRadius: 18, fillOpacity: 0.06, strokeOpacity: 0.10)
         }
+        .frame(width: contentWidth)
         .buttonStyle(HomeToolButtonStyle())
         .accessibilityLabel(item.accessibilityLabel)
     }
@@ -937,6 +948,7 @@ private extension View {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(Color.white.opacity(fillOpacity))
             )
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(Color.white.opacity(strokeOpacity), lineWidth: 0.75)
