@@ -82,20 +82,21 @@ struct ShowDraft: Equatable {
     }
 
     func makeShow() throws -> Show {
+        let prepared = try Show.prepared(from: self)
         return try Show(
-            name: name,
-            date: date,
-            startTime: startTime,
-            endDate: endDate,
-            endTime: endTime,
-            city: trimmedOptional(city),
-            venueName: trimmedOptional(venueName),
-            venueAddress: trimmedOptional(venueAddress),
-            artist: trimmedOptional(artist),
-            seatSection: trimmedOptional(seatSection),
-            coverImageURL: trimmedOptional(coverImageURL),
-            artistAvatarURLs: artistAvatarURLs,
-            type: type
+            name: prepared.name,
+            date: prepared.date,
+            startTime: prepared.startTime,
+            endDate: prepared.endDate,
+            endTime: prepared.endTime,
+            city: prepared.city,
+            venueName: prepared.venueName,
+            venueAddress: prepared.venueAddress,
+            artist: prepared.artist,
+            seatSection: prepared.seatSection,
+            coverImageURL: prepared.coverImageURL,
+            artistAvatarURLs: prepared.artistAvatarURLs,
+            type: prepared.type
         )
     }
 
@@ -107,11 +108,6 @@ struct ShowDraft: Equatable {
             endTime: endTime,
             calendar: calendar
         )
-    }
-
-    private func trimmedOptional(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

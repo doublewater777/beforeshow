@@ -259,6 +259,61 @@ final class Show {
         touch()
     }
 
+    /// Single draft → 现场 mutation seam (create uses `ShowDraft.makeShow`, edit uses this).
+    ///
+    /// Deletion test: removing this method re-scatters trim/validate/field mapping across
+    /// home edit, detail edit, 去程 venue edit, and debug seeder. Does not touch
+    /// `changeStatus` / `postponedDate` — those stay on mark* paths.
+    func apply(_ draft: ShowDraft) throws {
+        let prepared = try Self.prepared(from: draft)
+        name = prepared.name
+        date = prepared.date
+        startTime = prepared.startTime
+        endDate = prepared.endDate
+        endTime = prepared.endTime
+        city = prepared.city
+        venueName = prepared.venueName
+        venueAddress = prepared.venueAddress
+        artist = prepared.artist
+        seatSection = prepared.seatSection
+        coverImageURL = prepared.coverImageURL
+        artistAvatarURLs = prepared.artistAvatarURLs
+        type = prepared.type
+        touch()
+    }
+
+    /// Normalize + validate draft fields once for create and edit.
+    static func prepared(from draft: ShowDraft) throws -> PreparedShowDraft {
+        let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw ShowValidationError.emptyName
+        }
+        guard hasValidEndTime(
+            date: draft.date,
+            startTime: draft.startTime,
+            endDate: draft.endDate,
+            endTime: draft.endTime
+        ) else {
+            throw ShowValidationError.invalidEndTime
+        }
+
+        return PreparedShowDraft(
+            name: trimmedName,
+            date: draft.date,
+            startTime: draft.startTime,
+            endDate: draft.endDate,
+            endTime: draft.endTime,
+            city: trimmedOptional(draft.city),
+            venueName: trimmedOptional(draft.venueName),
+            venueAddress: trimmedOptional(draft.venueAddress),
+            artist: trimmedOptional(draft.artist),
+            seatSection: trimmedOptional(draft.seatSection),
+            coverImageURL: trimmedOptional(draft.coverImageURL),
+            artistAvatarURLs: draft.artistAvatarURLs,
+            type: draft.type
+        )
+    }
+
     var departureDestination: ShowDepartureDestination {
         Self.departureDestination(venueName: venueName, venueAddress: venueAddress, city: city)
     }
@@ -345,6 +400,10 @@ final class Show {
         return trimmed.isEmpty ? nil : trimmed
     }
 
+    private static func trimmedOptional(_ value: String) -> String? {
+        trimmedOptional(Optional(value))
+    }
+
     static func hasValidEndTime(
         date: Date,
         startTime: Date,
@@ -390,4 +449,21 @@ final class Show {
 
         return effectiveEnd > effectiveStart
     }
+}
+
+/// Normalized draft fields ready to write onto a `Show` (create or edit).
+struct PreparedShowDraft: Equatable {
+    let name: String
+    let date: Date
+    let startTime: Date
+    let endDate: Date?
+    let endTime: Date?
+    let city: String?
+    let venueName: String?
+    let venueAddress: String?
+    let artist: String?
+    let seatSection: String?
+    let coverImageURL: String?
+    let artistAvatarURLs: [String]
+    let type: ShowType
 }

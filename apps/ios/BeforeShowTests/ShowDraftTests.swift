@@ -370,6 +370,79 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.source, .link)
     }
 
+    func testApplyDraftIsSingleEditSeamMatchingMakeShowNormalization() throws {
+        let show = try Show(
+            name: "旧名字",
+            date: makeDate(year: 2026, month: 7, day: 1),
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
+            type: .concert
+        )
+        show.markPostponed(newDate: nil)
+
+        let draft = ShowDraft(
+            name: "  新名字  ",
+            date: makeDate(year: 2026, month: 8, day: 2),
+            startTime: makeDate(year: 2026, month: 8, day: 2, hour: 19, minute: 30),
+            city: "  杭州  ",
+            venueName: "   ",
+            artist: "艺人",
+            coverImageURL: "https://example.com/c.jpg",
+            type: .livehouse,
+            source: .manual
+        )
+
+        try show.apply(draft)
+
+        XCTAssertEqual(show.name, "新名字")
+        XCTAssertEqual(show.date, makeDate(year: 2026, month: 8, day: 2))
+        XCTAssertEqual(show.startTime, makeDate(year: 2026, month: 8, day: 2, hour: 19, minute: 30))
+        XCTAssertEqual(show.city, "杭州")
+        XCTAssertNil(show.venueName)
+        XCTAssertEqual(show.artist, "艺人")
+        XCTAssertEqual(show.coverImageURL, "https://example.com/c.jpg")
+        XCTAssertEqual(show.type, .livehouse)
+        // Edit must not clear 现场变更
+        XCTAssertEqual(show.changeStatus, .postponed)
+
+        let created = try draft.makeShow()
+        XCTAssertEqual(created.name, show.name)
+        XCTAssertEqual(created.city, show.city)
+        XCTAssertNil(created.venueName)
+        XCTAssertEqual(created.type, show.type)
+    }
+
+    func testApplyDraftRejectsEmptyNameAndInvalidEndTime() throws {
+        let show = try Show(
+            name: "有效",
+            date: makeDate(year: 2026, month: 7, day: 1),
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
+            type: .concert
+        )
+
+        var emptyName = ShowDraft(
+            name: "   ",
+            date: makeDate(year: 2026, month: 7, day: 1),
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
+            type: .concert
+        )
+        XCTAssertThrowsError(try show.apply(emptyName)) { error in
+            XCTAssertEqual(error as? ShowValidationError, .emptyName)
+        }
+
+        let invalidEnd = ShowDraft(
+            name: "仍有效名",
+            date: makeDate(year: 2026, month: 7, day: 2),
+            startTime: makeDate(year: 2026, month: 7, day: 2, hour: 20),
+            endDate: makeDate(year: 2026, month: 7, day: 1),
+            endTime: makeDate(year: 2026, month: 7, day: 1, hour: 22),
+            type: .concert
+        )
+        XCTAssertThrowsError(try show.apply(invalidEnd)) { error in
+            XCTAssertEqual(error as? ShowValidationError, .invalidEndTime)
+        }
+        XCTAssertEqual(show.name, "有效")
+    }
+
     private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0) -> Date {
         DateComponents(
             calendar: calendar,

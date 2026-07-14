@@ -541,20 +541,12 @@ private struct CurrentShowContentView: View {
     }
 
     private func apply(_ draft: ShowDraft) {
-        show.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.date = draft.date
-        show.startTime = draft.startTime
-        show.endDate = draft.endDate
-        show.endTime = draft.endTime
-        show.city = trimmedOptional(draft.city)
-        show.venueName = trimmedOptional(draft.venueName)
-        show.venueAddress = trimmedOptional(draft.venueAddress)
-        show.artist = trimmedOptional(draft.artist)
-        show.seatSection = trimmedOptional(draft.seatSection)
-        show.coverImageURL = trimmedOptional(draft.coverImageURL)
-        show.artistAvatarURLs = draft.artistAvatarURLs
-        show.type = draft.type
-        try? modelContext.save()
+        do {
+            try show.apply(draft)
+            try? modelContext.save()
+        } catch {
+            // Invalid draft is rejected; editor only enables ready drafts.
+        }
     }
 
     private func deleteShow() {
@@ -565,11 +557,6 @@ private struct CurrentShowContentView: View {
         } catch {
             // Silent: failure leaves the show in place; home has nothing to dismiss.
         }
-    }
-
-    private func trimmedOptional(_ value: String) -> String? {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var countdownHero: some View {
@@ -1227,20 +1214,8 @@ private enum DebugSampleShowSeeder {
     }
 
     private static func apply(_ draft: ShowDraft, to show: Show) {
-        show.name = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.date = draft.date
-        show.startTime = draft.startTime
-        show.endDate = draft.endDate
-        show.endTime = draft.endTime
-        show.city = draft.city.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.venueName = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.venueAddress = draft.venueAddress.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.artist = draft.artist.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.seatSection = draft.seatSection.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.coverImageURL = draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
-        show.artistAvatarURLs = draft.artistAvatarURLs
-        show.type = draft.type
-        show.changeStatus = .scheduled
+        try? show.apply(draft)
+        show.markScheduled()
     }
 }
 #endif
