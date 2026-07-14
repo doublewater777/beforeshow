@@ -33,7 +33,7 @@ struct ShowToolSummary {
         self.candidateSongCount = candidateSongs.filter { groupIDs.contains($0.groupID) }.count
 
         let plan = roundTripPlans.first { $0.showID == show.id }
-        self.hasOutboundPlan = plan?.hasSavedDeparturePlan == true || Self.trimmed(plan?.outboundContent) != nil
+        self.hasOutboundPlan = plan?.hasOutboundPlan == true
 
         let preparationPlan = preparationPlans.first { $0.showID == show.id }
         let suggestions = ShowPreparationGuide().sections(for: show).flatMap(\.suggestions)
@@ -67,13 +67,5 @@ struct ShowToolSummary {
 
     var fragmentsStatus: String {
         hasFragments ? "\(showFragmentsCount) 条已存" : "还没记录"
-    }
-
-    // MARK: - Helpers
-
-    private static func trimmed(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 }

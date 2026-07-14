@@ -604,11 +604,21 @@ final class RoundTripPlan {
         }
     }
 
+    /// Structured 已保存出门方案 (leave/arrive/mode/summary). Used by 出行小助手 and 去程计划 UI.
     var hasSavedDeparturePlan: Bool {
         savedDepartureMode != nil
             && departureLeaveAt != nil
             && departureArriveAt != nil
             && trimmedOptional(departureSummary) != nil
+    }
+
+    /// Single predicate for Tips + tool-status “已有去程”.
+    ///
+    /// Includes structured 出门方案 **or** legacy free-text `outboundContent` (old 往返草稿 path).
+    /// Deletion test: without this, callers re-OR those two meanings and drift.
+    /// Does **not** replace `hasSavedDeparturePlan` for map / 出行小助手.
+    var hasOutboundPlan: Bool {
+        hasSavedDeparturePlan || trimmedOptional(outboundContent) != nil
     }
 
     init(

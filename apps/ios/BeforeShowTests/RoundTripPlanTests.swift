@@ -38,6 +38,38 @@ final class RoundTripPlanTests: XCTestCase {
         XCTAssertEqual(plan.departureDurationMinutes, 30)
         XCTAssertEqual(plan.departureSummary, "地铁到场，少换乘。")
         XCTAssertEqual(plan.outboundContent, "地铁到场，少换乘。")
+        XCTAssertTrue(plan.hasOutboundPlan)
+    }
+
+    func testHasOutboundPlanIsSinglePredicateForTipsAndStatus() {
+        let empty = RoundTripPlan(showID: UUID())
+        XCTAssertFalse(empty.hasSavedDeparturePlan)
+        XCTAssertFalse(empty.hasOutboundPlan)
+
+        let legacyTextOnly = RoundTripPlan(showID: UUID(), outboundContent: "  地铁到场  ")
+        XCTAssertFalse(legacyTextOnly.hasSavedDeparturePlan)
+        XCTAssertTrue(legacyTextOnly.hasOutboundPlan)
+
+        let whitespaceOnly = RoundTripPlan(showID: UUID(), outboundContent: "   ")
+        XCTAssertFalse(whitespaceOnly.hasOutboundPlan)
+
+        let structured = RoundTripPlan(showID: UUID())
+        let option = DepartureTransportOption(
+            id: "opt",
+            mode: .driving,
+            leaveAt: Date(timeIntervalSince1970: 1_000),
+            arriveAt: Date(timeIntervalSince1970: 2_000),
+            durationMinutes: 20,
+            distanceMeters: nil,
+            summary: "开车",
+            experienceTag: "比较快",
+            provider: .appleMaps,
+            navigationURL: nil,
+            capturedAt: Date(timeIntervalSince1970: 10)
+        )
+        structured.saveDeparture(option: option, origin: "家", destination: "场馆", meetingPoint: nil)
+        XCTAssertTrue(structured.hasSavedDeparturePlan)
+        XCTAssertTrue(structured.hasOutboundPlan)
     }
 
     func testSavingNewDeparturePlanReplacesThePreviousOne() {
