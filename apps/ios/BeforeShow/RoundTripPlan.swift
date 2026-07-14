@@ -755,120 +755,10 @@ final class SavedOrigin {
     }
 }
 
-@MainActor
-protocol RoundTripDraftGenerating: Sendable {
-    func generate(for request: RoundTripDraftRequest) async throws -> RoundTripDraft
-}
-
-struct RemoteRoundTripDraftGenerationService: RoundTripDraftGenerating {
-    var client: BeforeShowCloudClient
-
-    init(client: BeforeShowCloudClient) {
-        self.client = client
-    }
-
-    func generate(for request: RoundTripDraftRequest) async throws -> RoundTripDraft {
-        let data: Data
-        do {
-            data = try await client.postJSON(
-                path: "generate",
-                body: RequestBody(
-                    appInstanceId: client.credentials.appInstanceId,
-                    appSignature: client.credentials.appSignature,
-                    type: "roundTripDraft",
-                    requestId: UUID().uuidString,
-                    locale: "zh-CN",
-                    show: ShowPayload(show: request.show),
-                    direction: request.direction.rawValue,
-                    userPlaces: UserPlaces(
-                        origin: trimmedOptional(request.origin),
-                        destination: trimmedOptional(request.destination),
-                        hotel: trimmedOptional(request.hotel),
-                        meetingPoint: trimmedOptional(request.meetingPoint)
-                    ),
-                    constraints: Constraints(
-                        arrivalBy: request.direction == .outbound ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
-                        departAfter: request.direction == .return ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
-                        notes: trimmedOptional(request.notes)
-                    )
-                )
-            )
-        } catch {
-            throw RoundTripDraftError.networkFailure
-        }
-
-        let decoded = try JSONDecoder().decode(GenerationResponse.self, from: data)
-        guard decoded.ok else {
-            throw RoundTripDraftError.backendRejected(decoded.error?.message ?? "生成失败")
-        }
-
-        guard let draft = decoded.response else {
-            throw RoundTripDraftError.invalidGenerationPayload
-        }
-
-        return draft
-    }
-
-    private func trimmedOptional(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private struct RequestBody: Encodable {
-        let appInstanceId: String
-        let appSignature: String
-        let type: String
-        let requestId: String
-        let locale: String
-        let show: ShowPayload
-        let direction: String
-        let userPlaces: UserPlaces
-        let constraints: Constraints
-    }
-
-    private struct ShowPayload: Encodable {
-        let name: String
-        let date: String
-        let city: String?
-        let venueName: String?
-        let type: String
-        let artists: [String]?
-
-        init(show: Show) {
-            self.name = show.name
-            self.date = DateFormatter.generationDay.string(from: show.effectiveDate)
-            self.city = show.city
-            self.venueName = show.venueName
-            self.type = show.type.rawValue
-            self.artists = show.artist.map { [$0] }
-        }
-    }
-
-    private struct UserPlaces: Encodable {
-        let origin: String?
-        let destination: String?
-        let hotel: String?
-        let meetingPoint: String?
-    }
-
-    private struct Constraints: Encodable {
-        let arrivalBy: String?
-        let departAfter: String?
-        let notes: String?
-    }
-
-    private struct GenerationResponse: Decodable {
-        let ok: Bool
-        let response: RoundTripDraft?
-        let error: ErrorInfo?
-    }
-
-    private struct ErrorInfo: Decodable {
-        let code: String?
-        let message: String
-    }
-}
+// MARK: - Round-trip AI draft (domain kept; remote client removed)
+// Product UI for 去程计划 uses MapKit 出门方案 only. RoundTripDraft* types + Builder
+// remain for decode/validation tests and backend contract readiness. There was no
+// production call site for RemoteRoundTripDraftGenerationService (false depth).
 
 private func trimmedOptional(_ value: String?) -> String? {
     guard let value else { return nil }
@@ -900,16 +790,6 @@ private enum StrictGenerationDecoding {
             throw RoundTripDraftError.invalidGenerationPayload
         }
     }
-}
-
-private extension DateFormatter {
-    static let generationDay: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter
-    }()
 }
 
 // MARK: - 常用出发地定位

@@ -268,7 +268,7 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(presentation.visibleTexts.isEmpty)
     }
 
-    func testTodayAllToolsSummaryUsesCurrentToolNames() throws {
+    func testTodayPhaseUsesTodayKind() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let show = try Show(
@@ -284,8 +284,7 @@ final class ShowModelTests: XCTestCase {
         )
 
         XCTAssertEqual(state.kind, .today)
-        XCTAssertEqual(state.allToolsSummary, "候选曲目 · 现场准备 · 现场碎片")
-        XCTAssertFalse(state.allToolsSummary.contains("路上先听"))
+        XCTAssertEqual(state.title, "今天开场")
     }
 
     func testDepartureDestinationPrefersVenueAddressOverVenueName() {
@@ -321,17 +320,6 @@ final class ShowModelTests: XCTestCase {
 
         XCTAssertEqual(destination.quality, .missing)
         XCTAssertEqual(destination.text, "")
-    }
-
-    func testCurrentHomeHeroUsesLabeledPosterCardWithActionsOnCover() {
-        let presentation = CurrentShowHeroLayoutPresentation()
-
-        XCTAssertTrue(presentation.showsSectionTitle)
-        XCTAssertEqual(presentation.actionPlacement, .coverTopTrailing)
-        XCTAssertGreaterThanOrEqual(presentation.topSpacing, 44)
-        XCTAssertGreaterThan(presentation.actionTopOffset, presentation.topSpacing)
-        XCTAssertEqual(presentation.actionButtonSize, 42)
-        XCTAssertEqual(presentation.coverAspectRatio, 3.0 / 4.0)
     }
 
     private func makeDate(

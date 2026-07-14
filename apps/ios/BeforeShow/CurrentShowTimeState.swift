@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 
 enum CurrentShowTimeKind: Equatable {
@@ -10,41 +9,7 @@ enum CurrentShowTimeKind: Equatable {
     case postponed
 }
 
-enum CurrentShowHeroActionPlacement: Equatable {
-    case coverTopTrailing
-}
-
-struct CurrentShowHeroLayoutPresentation: Equatable {
-    let showsSectionTitle: Bool
-    let actionPlacement: CurrentShowHeroActionPlacement
-    let topSpacing: CGFloat
-    let titleToCoverSpacing: CGFloat
-    let coverAspectRatio: CGFloat
-    let actionInset: CGFloat
-    let actionTopOffset: CGFloat
-    let actionButtonSize: CGFloat
-
-    init(
-        showsSectionTitle: Bool = true,
-        actionPlacement: CurrentShowHeroActionPlacement = .coverTopTrailing,
-        topSpacing: CGFloat = 64,
-        titleToCoverSpacing: CGFloat = 34,
-        coverAspectRatio: CGFloat = 3.0 / 4.0,
-        actionInset: CGFloat = 14,
-        actionTopOffset: CGFloat = 112,
-        actionButtonSize: CGFloat = 42
-    ) {
-        self.showsSectionTitle = showsSectionTitle
-        self.actionPlacement = actionPlacement
-        self.topSpacing = topSpacing
-        self.titleToCoverSpacing = titleToCoverSpacing
-        self.coverAspectRatio = coverAspectRatio
-        self.actionInset = actionInset
-        self.actionTopOffset = actionTopOffset
-        self.actionButtonSize = actionButtonSize
-    }
-}
-
+/// Phase / clocks / countdown for a 现场. Presentation layout lives in views, not here.
 struct CurrentShowTimeState: Equatable {
     static let defaultRetentionDays = 3
 
@@ -184,44 +149,6 @@ struct CurrentShowTimeState: Equatable {
             return "已取消"
         case .postponed:
             return "已延期，时间待定"
-        }
-    }
-
-    var allToolsSummary: String {
-        switch kind {
-        case .before:
-            return "去程计划 · 现场准备 · 现场碎片"
-        case .today:
-            return "候选曲目 · 现场准备 · 现场碎片"
-        case .postShow:
-            return "去程计划 · 现场准备"
-        case .ended:
-            return "去程计划 · 现场准备"
-        case .canceled, .postponed:
-            return "去程计划 · 现场准备 · 现场碎片"
-        }
-    }
-
-    var imageSaturation: Double {
-        switch kind {
-        case .postShow: return 0.72
-        case .ended, .canceled: return 0.08
-        default: return 1.0
-        }
-    }
-
-    var imageOpacity: Double {
-        switch kind {
-        case .ended, .canceled: return 0.56
-        case .postShow: return 0.72
-        default: return 0.92
-        }
-    }
-
-    func heroAspectRatio(for show: Show) -> CGFloat {
-        switch show.type {
-        case .concert, .livehouse, .musicFestival:
-            return 16.0 / 10.0
         }
     }
 
