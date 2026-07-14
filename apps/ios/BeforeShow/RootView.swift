@@ -194,14 +194,11 @@ private struct CurrentShowContentView: View {
         let icon: String
         let title: String
         let status: String
-        let detail: String
-        let actionTitle: String
         let accent: Color
         let priority: Int
-        let isComplete: Bool
 
         var accessibilityLabel: String {
-            "\(title)，\(status)，\(detail)，点按\(actionTitle)"
+            "\(title)，\(status)"
         }
     }
 
@@ -323,15 +320,6 @@ private struct CurrentShowContentView: View {
             }
             return first.priority < second.priority
         }
-    }
-
-    private var recommendedToolItem: HomeToolItem {
-        if let tip,
-           let matching = homeToolItems.first(where: { $0.id == toolSheet(for: tip.action) }) {
-            return matching
-        }
-
-        return homeToolItems.first(where: { !$0.isComplete }) ?? homeToolItems[0]
     }
 
     var body: some View {
@@ -644,7 +632,11 @@ private struct CurrentShowContentView: View {
 
     private func toolsScrollSection(contentWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            homeHintCard(recommendedToolItem, contentWidth: contentWidth)
+            // Tips surface is ShowTipsResolver only: message + button + action.
+            // nil ⇒ hide (never invent tool-item copy as Tips).
+            if let tip {
+                homeTipCard(tip, contentWidth: contentWidth)
+            }
 
             VStack(alignment: .leading, spacing: 9) {
                 Text("也可以顺手看看")
@@ -672,28 +664,25 @@ private struct CurrentShowContentView: View {
         .frame(width: contentWidth, alignment: .leading)
     }
 
-    private func homeHintCard(_ item: HomeToolItem, contentWidth: CGFloat) -> some View {
-        Button {
-            activeToolSheet = item.id
+    private func homeTipCard(_ tip: ShowTip, contentWidth: CGFloat) -> some View {
+        let chrome = tipChrome(for: tip.action)
+        return Button {
+            activeToolSheet = toolSheet(for: tip.action)
         } label: {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .top, spacing: 12) {
-                    toolIcon(item.icon, accent: item.accent, size: 38, iconSize: 15)
+                    toolIcon(chrome.icon, accent: chrome.accent, size: 38, iconSize: 15)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 8) {
-                            Text("Tips · \(phase.title)")
-                                .font(.system(size: 11, weight: .semibold))
-                                .tracking(1.2)
-                                .foregroundColor(BSColor.textTertiary)
-                                .textCase(.uppercase)
-                                .lineLimit(1)
-                                .minimumScaleFactor(0.88)
+                        Text("Tips · \(phase.title)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .tracking(1.2)
+                            .foregroundColor(BSColor.textTertiary)
+                            .textCase(.uppercase)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.88)
 
-                            statusPill(item.status, accent: item.accent)
-                        }
-
-                        Text(item.detail)
+                        Text(tip.message)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundColor(BSColor.textSecondary)
                             .lineLimit(3)
@@ -702,7 +691,7 @@ private struct CurrentShowContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Text(item.actionTitle)
+                Text(tip.buttonTitle)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.black.opacity(0.88))
                     .padding(.horizontal, 14)
@@ -716,7 +705,20 @@ private struct CurrentShowContentView: View {
         }
         .frame(width: contentWidth)
         .buttonStyle(HomeToolButtonStyle())
-        .accessibilityLabel(item.accessibilityLabel)
+        .accessibilityLabel("\(tip.message)，点按\(tip.buttonTitle)")
+    }
+
+    private func tipChrome(for action: ShowTip.ShowTipAction) -> (icon: String, accent: Color) {
+        switch action {
+        case .candidateSongs:
+            return ("mic.fill", BSColor.Accent.candidate)
+        case .outboundPlan:
+            return ("tram.fill", BSColor.Accent.travel)
+        case .showPreparation:
+            return ("sparkles", BSColor.Accent.prepare)
+        case .showFragments:
+            return ("sparkles.rectangle.stack", BSColor.Accent.fragment)
+        }
     }
 
     private func toolShortcutCard(_ item: HomeToolItem) -> some View {
@@ -769,16 +771,6 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private func statusPill(_ status: String, accent: Color) -> some View {
-        Text(status)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundColor(accent)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Capsule().fill(accent.opacity(0.12)))
-    }
-
     private var candidateSongsToolItem: HomeToolItem {
         let hasSongs = summary.hasCandidateSongs
         return HomeToolItem(
@@ -786,11 +778,8 @@ private struct CurrentShowContentView: View {
             icon: "mic.fill",
             title: "候选曲目",
             status: summary.candidateSongsStatus,
-            detail: hasSongs ? "公开信息推测，可继续删改顺序。" : "先生成一版推测歌单，开场前更有期待感。",
-            actionTitle: hasSongs ? "查看" : "生成",
             accent: BSColor.Accent.candidate,
-            priority: candidateSongsPriority(hasSongs: hasSongs),
-            isComplete: hasSongs
+            priority: candidateSongsPriority(hasSongs: hasSongs)
         )
     }
 
@@ -801,33 +790,20 @@ private struct CurrentShowContentView: View {
             icon: "tram.fill",
             title: "去程计划",
             status: summary.roundTripStatus,
-            detail: summary.savedDepartureReminderText
-                ?? (hasPlan ? "出门方案已在本机保存，出发前可再核对。" : "补出发地，生成公共交通、驾车和打车参考。"),
-            actionTitle: hasPlan ? "查看" : "补充",
             accent: BSColor.Accent.travel,
-            priority: roundTripPriority(hasPlan: hasPlan),
-            isComplete: hasPlan
+            priority: roundTripPriority(hasPlan: hasPlan)
         )
     }
 
     private var preparationToolItem: HomeToolItem {
-        let hasReminder = summary.hasPreparationReminder
         let hasCheckedAll = summary.hasCheckedAllPreparation
-        let status = summary.preparationStatus
-        let detail = hasReminder
-            ? "已设置准备提醒，继续确认装备和注意事项。"
-            : "确认票证、电量、场馆规则，可顺手设提醒。"
-
         return HomeToolItem(
             id: .preparation,
             icon: "sparkles",
             title: "现场准备",
-            status: status,
-            detail: detail,
-            actionTitle: hasCheckedAll ? "复查" : "检查",
+            status: summary.preparationStatus,
             accent: BSColor.Accent.prepare,
-            priority: preparationPriority(isComplete: hasCheckedAll),
-            isComplete: hasCheckedAll
+            priority: preparationPriority(isComplete: hasCheckedAll)
         )
     }
 
@@ -838,11 +814,8 @@ private struct CurrentShowContentView: View {
             icon: "sparkles.rectangle.stack",
             title: "现场碎片",
             status: summary.fragmentsStatus,
-            detail: hasFragments ? "照片、文字和声音会留在这场现场里。" : "演出当天把照片、文字或语音留住。",
-            actionTitle: hasFragments ? "查看" : "添加",
             accent: BSColor.Accent.fragment,
-            priority: fragmentsPriority(hasFragments: hasFragments),
-            isComplete: hasFragments
+            priority: fragmentsPriority(hasFragments: hasFragments)
         )
     }
 

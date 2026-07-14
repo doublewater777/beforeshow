@@ -1,5 +1,8 @@
 import Foundation
 
+/// Homepage Tips surface: one oral suggestion + short button + destination.
+/// `nil` from `ShowTipsResolver` means the home Tips card is hidden — callers
+/// must not invent parallel tool-item copy to fill the Tips slot.
 struct ShowTip: Equatable {
     let message: String
     let buttonTitle: String
@@ -13,6 +16,9 @@ struct ShowTip: Equatable {
     }
 }
 
+/// Deep Tips policy for the current 现场 phase.
+/// Deletion test: removing this module would force Tips message/window/hide
+/// rules to reappear across home (and any other surface) — it earns its keep.
 enum ShowTipsResolver {
     static func resolve(
         phase: CurrentShowTimeState,

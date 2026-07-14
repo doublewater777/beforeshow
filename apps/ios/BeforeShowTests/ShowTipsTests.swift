@@ -98,6 +98,31 @@ final class ShowTipsTests: XCTestCase {
         XCTAssertNil(resolve(phase: CurrentShowTimeState(show: postponedShow, calendar: calendar, now: now), now: now))
     }
 
+    /// Home Tips UI is this struct only: message + buttonTitle + action.
+    /// A nil resolve must hide the Tips card — not fall back to tool-item marketing copy.
+    func testResolvedTipIsCompleteHomeSurfaceAndNilMeansHide() throws {
+        let now = makeDate(year: 2026, month: 7, day: 1, hour: 12)
+        let inWindow = try makePhase(showDay: 8, now: now)
+        let outsideWindow = try makePhase(showDay: 20, now: now)
+
+        let tip = resolve(phase: inWindow, now: now)
+        XCTAssertEqual(tip?.message, "还有 7 天，先定好怎么去？")
+        XCTAssertEqual(tip?.buttonTitle, "生成计划")
+        XCTAssertEqual(tip?.action, .outboundPlan)
+
+        XCTAssertNil(resolve(phase: outsideWindow, now: now))
+    }
+
+    func testShowDayWithoutOutboundPlanUsesGenerateCopyNotToolStatusCopy() throws {
+        let now = makeDate(year: 2026, month: 7, day: 1, hour: 12)
+        let phase = try makePhase(showDay: 1, now: now)
+
+        XCTAssertEqual(
+            resolve(phase: phase, hasOutboundPlan: false, now: now),
+            ShowTip(message: "就是今天，先定好怎么到现场？", buttonTitle: "生成计划", action: .outboundPlan)
+        )
+    }
+
     private func resolve(
         phase: CurrentShowTimeState,
         hasCandidateSongs: Bool = false,
