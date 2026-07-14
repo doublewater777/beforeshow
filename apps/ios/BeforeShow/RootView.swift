@@ -302,7 +302,7 @@ private struct CurrentShowContentView: View {
             UIApplication.shared.open(url)
             return
         }
-        if let url = RoundTripPlanView.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
+        if let url = DeparturePlanSession.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
             UIApplication.shared.open(url)
         }
     }

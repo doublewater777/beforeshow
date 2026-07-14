@@ -288,7 +288,7 @@ final class RoundTripPlanTests: XCTestCase {
 
     // MARK: - 出行计划详情页：地图跳转兜底
     func testAppleMapsDirectionsURLWithOriginAndDestination() {
-        let url = RoundTripPlanView.appleMapsDirectionsURL(origin: "西湖文化广场", destination: "杭州 MAO Livehouse")
+        let url = DeparturePlanSession.appleMapsDirectionsURL(origin: "西湖文化广场", destination: "杭州 MAO Livehouse")
         XCTAssertEqual(url?.host, "maps.apple.com")
         let absolute = url?.absoluteString ?? ""
         XCTAssertTrue(absolute.contains("saddr="))
@@ -296,15 +296,15 @@ final class RoundTripPlanTests: XCTestCase {
     }
 
     func testAppleMapsDirectionsURLOmitsOriginWhenEmpty() {
-        let url = RoundTripPlanView.appleMapsDirectionsURL(origin: nil, destination: "场馆")
+        let url = DeparturePlanSession.appleMapsDirectionsURL(origin: nil, destination: "场馆")
         let absolute = url?.absoluteString ?? ""
         XCTAssertFalse(absolute.contains("saddr="))
         XCTAssertTrue(absolute.contains("daddr="))
     }
 
     func testAppleMapsDirectionsURLReturnsNilWithoutDestination() {
-        XCTAssertNil(RoundTripPlanView.appleMapsDirectionsURL(origin: "家", destination: nil))
-        XCTAssertNil(RoundTripPlanView.appleMapsDirectionsURL(origin: "家", destination: "   "))
+        XCTAssertNil(DeparturePlanSession.appleMapsDirectionsURL(origin: "家", destination: nil))
+        XCTAssertNil(DeparturePlanSession.appleMapsDirectionsURL(origin: "家", destination: "   "))
     }
 
 }

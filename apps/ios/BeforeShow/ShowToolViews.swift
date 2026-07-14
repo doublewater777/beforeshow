@@ -255,8 +255,8 @@ struct CandidateSongsView: View {
     @State private var songPendingRemoval: CandidateSong?
     @State private var toast: BSToastPayload?
 
-    private let editingService = CandidateSongEditingService()
     private let gate = ProFeatureGate()
+    private var session: CandidateSongsSession { CandidateSongsSession(show: show) }
 
     private var showGroups: [CandidateSongGroup] {
         candidateGroups.filter { $0.showID == show.id }
@@ -268,22 +268,11 @@ struct CandidateSongsView: View {
 
     /// Global setlist order (order field is unique across groups after renumber).
     private var allSongs: [CandidateSong] {
-        let groupIDs = Set(showGroups.map(\.id))
-        return candidateSongs
-            .filter { groupIDs.contains($0.groupID) }
-            .sorted { $0.order < $1.order }
+        session.orderedSongs(groups: showGroups, songs: candidateSongs)
     }
 
     private var artistNames: [String] {
-        var seen = Set<String>()
-        var ordered: [String] = []
-        for song in allSongs {
-            let name = song.artist.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !name.isEmpty, !seen.contains(name) else { continue }
-            seen.insert(name)
-            ordered.append(name)
-        }
-        return ordered
+        session.artistNames(in: allSongs)
     }
 
     private var isMultiArtist: Bool { artistNames.count > 1 }
@@ -294,10 +283,7 @@ struct CandidateSongsView: View {
     }
 
     private var fallbackArtistName: String {
-        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if !artist.isEmpty { return artist }
-        if let first = artistNames.first { return first }
-        return show.name
+        session.fallbackArtistName(showArtist: show.artist, songArtists: artistNames)
     }
 
     private var musicPlatform: MusicPlatform {
@@ -319,11 +305,7 @@ struct CandidateSongsView: View {
     }
 
     private var shareHeadline: String {
-        let base = show.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let artistFilter {
-            return "\(base) · \(artistFilter)"
-        }
-        return base
+        session.shareHeadline(showName: show.name, artistFilter: artistFilter)
     }
 
     var body: some View {
@@ -659,21 +641,14 @@ struct CandidateSongsView: View {
 
     private func copyPlaylist() {
         let songs = visibleSongs
-        let body = songs.enumerated()
-            .map { "\($0.offset + 1). \($0.element.songName) - \($0.element.artist)" }
-            .joined(separator: "\n")
         let scope = artistFilter ?? "全部"
-        let text = "\(shareHeadline)\n猜歌单 · \(scope)（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
-        UIPasteboard.general.string = text
+        UIPasteboard.general.string = session.copyText(headline: shareHeadline, scope: scope, songs: songs)
         presentToast(.success, message: artistFilter == nil ? "已复制全部歌单" : "已复制「\(artistFilter!)」")
     }
 
     private func sharePlaylist() {
         let songs = visibleSongs
-        let body = songs.enumerated()
-            .map { "\($0.offset + 1). \($0.element.songName) - \($0.element.artist)" }
-            .joined(separator: "\n")
-        let text = "\(shareHeadline)\n猜歌单（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
+        let text = session.shareText(headline: shareHeadline, songs: songs)
         var items: [Any] = [text]
         if let image = renderShareCardImage(songs: songs) {
             items.insert(image, at: 0)
@@ -702,23 +677,14 @@ struct CandidateSongsView: View {
     }
 
     private func addSong(name: String, artist: String) {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty, !trimmedArtist.isEmpty else { return }
-
         do {
-            let group = try mutableUserCuratedGroup()
-            let song = try CandidateSong(
-                groupID: group.id,
-                songName: trimmedName,
-                artist: trimmedArtist,
-                order: allSongs.count,
-                isUserAdded: true
+            try session.addUserSong(
+                name: name,
+                artist: artist,
+                groups: showGroups,
+                currentSongs: allSongs,
+                in: modelContext
             )
-            modelContext.insert(song)
-            try modelContext.save()
-            renumberGlobally(allSongs)
-            try modelContext.save()
             presentToast(.success, message: "已添加")
         } catch {
             presentToast(.failure, message: "添加失败")
@@ -726,11 +692,8 @@ struct CandidateSongsView: View {
     }
 
     private func remove(_ song: CandidateSong) {
-        modelContext.delete(song)
         do {
-            try modelContext.save()
-            renumberGlobally(allSongs)
-            try modelContext.save()
+            try session.remove(song, previouslyOrdered: allSongs, in: modelContext)
             presentToast(.neutral, message: "已移除")
         } catch {
             presentToast(.failure, message: "移除失败")
@@ -738,19 +701,15 @@ struct CandidateSongsView: View {
     }
 
     private func moveGlobally(from source: IndexSet, to destination: Int) {
-        var songs = allSongs
-        songs.move(fromOffsets: source, toOffset: destination)
-        renumberGlobally(songs)
         do {
-            try modelContext.save()
+            try session.move(
+                previouslyOrdered: allSongs,
+                from: source,
+                to: destination,
+                in: modelContext
+            )
         } catch {
             presentToast(.failure, message: "移动失败")
-        }
-    }
-
-    private func renumberGlobally(_ songs: [CandidateSong]) {
-        for (index, song) in songs.enumerated() {
-            song.order = index
         }
     }
 
@@ -777,11 +736,12 @@ struct CandidateSongsView: View {
         defer { isGenerating = false }
 
         do {
-            let inputs = try await Self.defaultGenerationService().generate(
-                for: show,
-                artistInterests: showArtistInterests
+            try await session.generateAndReplace(
+                artistInterests: showArtistInterests,
+                existingGroups: showGroups,
+                existingSongs: candidateSongs,
+                in: modelContext
             )
-            try replaceCandidateSongs(with: inputs)
             usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(
                 .candidateSongs,
                 in: usedFreeGenerationFeaturesRawValue
@@ -794,85 +754,6 @@ struct CandidateSongsView: View {
             lastGenerationFailed = true
             presentToast(.failure, message: "生成失败")
         }
-    }
-
-    @MainActor
-    private func replaceCandidateSongs(with inputs: [CandidateSongInput]) throws {
-        let showGroupIDs = Set(showGroups.map(\.id))
-        let oldSongs = candidateSongs.filter { showGroupIDs.contains($0.groupID) }
-        let oldGroups = showGroups
-
-        let preservedInputs = oldSongs
-            .filter { $0.isUserAdded }
-            .sorted { $0.order < $1.order }
-            .map { CandidateSongInput(songName: $0.songName, artist: $0.artist) }
-
-        let grouped = editingService.groupedInputsByArtist(
-            inputs: inputs,
-            artistInterests: showArtistInterests
-        )
-
-        var created: [CandidateSong] = []
-
-        for entry in grouped {
-            let group = try CandidateSongGroup(
-                showID: show.id,
-                artistInterestID: entry.artistInterestID,
-                artistName: entry.artistName,
-                uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。"
-            )
-            modelContext.insert(group)
-            for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
-                modelContext.insert(song)
-                created.append(song)
-            }
-        }
-
-        if !preservedInputs.isEmpty {
-            let group = try CandidateSongGroup(
-                showID: show.id,
-                uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。",
-                isUserCurated: true
-            )
-            modelContext.insert(group)
-            for song in try editingService.makeSongs(groupID: group.id, inputs: preservedInputs) {
-                song.isUserAdded = true
-                modelContext.insert(song)
-                created.append(song)
-            }
-        }
-
-        for song in oldSongs {
-            modelContext.delete(song)
-        }
-        for group in oldGroups {
-            modelContext.delete(group)
-        }
-
-        renumberGlobally(created)
-        try modelContext.save()
-    }
-
-    private func mutableUserCuratedGroup() throws -> CandidateSongGroup {
-        if let group = showGroups.first(where: { $0.isUserCurated }) {
-            return group
-        }
-        let group = try CandidateSongGroup(
-            showID: show.id,
-            uncertaintyNote: "候选曲目来自公开信息推测，不代表官方歌单。",
-            isUserCurated: true
-        )
-        modelContext.insert(group)
-        return group
-    }
-
-    private static func defaultGenerationService() -> RemoteCandidateSongGenerationService {
-        let baseURL = URL(string: "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate")!
-        return RemoteCandidateSongGenerationService(
-            baseURL: baseURL,
-            appInstanceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            appSignature: "beforeshow-app-signature-v1"
-        )
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -1247,8 +1128,8 @@ struct RoundTripPlanView: View {
 
     @StateObject private var locator = OriginLocator()
 
-    private let routeProvider: DepartureRouteProviding = MapKitDepartureRouteProvider()
     private let modeDisplayOrder: [DepartureTransportMode] = [.publicTransit, .taxiReference, .driving]
+    private var session: DeparturePlanSession { DeparturePlanSession(show: show) }
 
     init(show: Show) {
         self.show = show
@@ -1296,28 +1177,15 @@ struct RoundTripPlanView: View {
     }
 
     private var defaultTargetArrivalAt: Date {
-        Calendar.current.date(byAdding: .hour, value: -1, to: effectiveStartDate) ?? effectiveStartDate
+        session.defaultTargetArrivalAt
     }
 
     private var effectiveStartDate: Date {
-        let calendar = Calendar.current
-        let day = calendar.dateComponents([.year, .month, .day], from: show.effectiveDate)
-        let clock = calendar.dateComponents([.hour, .minute, .second], from: show.startTime)
-        return calendar.date(
-            from: DateComponents(
-                calendar: calendar,
-                year: day.year,
-                month: day.month,
-                day: day.day,
-                hour: clock.hour,
-                minute: clock.minute,
-                second: clock.second
-            )
-        ) ?? show.startTime
+        session.effectiveStartDate
     }
 
     private var isShowStarted: Bool {
-        effectiveStartDate <= Date()
+        session.isShowStarted
     }
 
     var body: some View {
@@ -1732,12 +1600,7 @@ struct RoundTripPlanView: View {
     }
 
     private func mutablePlan() -> RoundTripPlan {
-        if let plan {
-            return plan
-        }
-        let plan = RoundTripPlan(showID: show.id)
-        modelContext.insert(plan)
-        return plan
+        session.ensurePlan(existing: plan, in: modelContext)
     }
 
     private func loadPlanIfNeeded() {
@@ -1748,17 +1611,11 @@ struct RoundTripPlanView: View {
         manualArriveAt = defaultTargetArrivalAt
         manualLeaveAt = Calendar.current.date(byAdding: .minute, value: -45, to: defaultTargetArrivalAt) ?? defaultTargetArrivalAt
         destination = show.departureDestination.text
-
-        // 出发地优先级：本场已保存 > 常用出发地 > 空
-        if let savedPlanOrigin = plan?.departureOrigin, !savedPlanOrigin.isEmpty {
-            origin = savedPlanOrigin
-        } else if let originText = savedOrigin?.addressText, !originText.isEmpty {
-            origin = originText
-        }
+        origin = session.resolvedOrigin(plan: plan, savedOrigin: savedOrigin)
 
         if let plan {
-            destination = plan.departureDestination ?? show.departureDestination.text
-            meetingPoint = plan.departureMeetingPoint ?? ""
+            destination = session.resolvedDestination(plan: plan)
+            meetingPoint = session.resolvedMeetingPoint(plan: plan)
             if let arriveAt = plan.departureArriveAt {
                 targetArrivalAt = arriveAt
                 manualArriveAt = arriveAt
@@ -1780,80 +1637,52 @@ struct RoundTripPlanView: View {
 
     @MainActor
     private func searchRecommendations(force: Bool) async {
-        guard canRecommend else {
-            searchError = trimmedDestination.isEmpty
-                ? "这场还没填场馆地址，去编辑现场补一下。"
-                : "请先填写或定位出发地。"
-            presentToast(.neutral, message: trimmedDestination.isEmpty ? "请先补场馆地址" : "请先填写或定位出发地")
-            return
-        }
-
         isSearchingOptions = true
         defer { isSearchingOptions = false }
 
-        let request = DepartureRouteRequest(
-            show: show,
-            origin: trimmedOrigin,
-            destination: trimmedDestination,
+        let outcome = await session.searchOptions(
+            origin: origin,
+            destination: destination,
             meetingPoint: meetingPoint,
             targetArrivalAt: targetArrivalAt,
             preferredModes: modeDisplayOrder,
-            notes: nil
+            selectedMode: selectedMode,
+            force: force,
+            hasSavedDeparturePlan: hasSavedDeparturePlan
         )
 
-        do {
-            let options = try await routeProvider.searchOptions(for: request)
-            var newRecommendations: [DepartureTransportMode: DepartureTransportOption] = [:]
-            for option in options {
-                newRecommendations[option.mode] = option
-            }
-            recommendations = newRecommendations
-            searchError = nil
+        recommendations = outcome.recommendations
+        searchError = outcome.searchError
 
-            if newRecommendations.isEmpty {
-                searchError = "没查到路线。请把到场地址写得更具体，或检查出发地。"
-                if !hasSavedDeparturePlan {
-                    showsManualSave = true
-                    prepareManualEntry()
-                    presentToast(.failure, message: "暂时没拿到路线")
-                }
-            } else {
-                showsManualSave = false
-                if recommendations[selectedMode] == nil {
-                    selectedMode = modeDisplayOrder.first(where: { recommendations[$0] != nil }) ?? selectedMode
-                }
-                if force {
-                    presentToast(.success, message: "已重新生成")
-                }
+        if outcome.shouldOfferManualSave {
+            showsManualSave = true
+            prepareManualEntry()
+            if manualSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                manualSummary = "\(manualMode.displayName)到 \(trimmedDestination)"
             }
-        } catch {
-            recommendations = [:]
-            searchError = errorMessage(for: error)
-            if !hasSavedDeparturePlan {
-                showsManualSave = true
-                prepareManualEntry()
-                if manualSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    manualSummary = "\(manualMode.displayName)到 \(trimmedDestination)"
-                }
-                presentToast(.failure, message: "暂时没拿到路线")
-            }
+        } else if !outcome.recommendations.isEmpty {
+            showsManualSave = false
+            selectedMode = session.preferredMode(
+                after: outcome.recommendations,
+                current: selectedMode,
+                displayOrder: modeDisplayOrder
+            )
+        }
+
+        if let feedback = outcome.feedback {
+            presentSessionFeedback(feedback)
         }
     }
 
-    private func errorMessage(for error: Error) -> String {
-        if let providerError = error as? DepartureRouteProviderError {
-            switch providerError {
-            case .providerUnavailable:
-                return "地图服务暂时不可用，可以手动保存出门方案，不会编造路线。"
-            case .geocodingFailed:
-                return "出发地或到场地址没识别到，写得更具体试试，或手动保存。"
-            case .noOptions:
-                return "没查到路线。请把到场地址写得更具体，或检查出发地。"
-            case .missingOrigin, .missingDestination:
-                return "出发地和到场地址都要填。"
-            }
+    private func presentSessionFeedback(_ feedback: DepartureSessionFeedback) {
+        switch feedback {
+        case .success(let message):
+            presentToast(.success, message: message)
+        case .failure(let message):
+            presentToast(.failure, message: message)
+        case .neutral(let message):
+            presentToast(.neutral, message: message)
         }
-        return "没查到路线。请把到场地址写得更具体，或检查出发地，也可以先手动保存出门方案。"
     }
 
     @MainActor
@@ -1882,15 +1711,16 @@ struct RoundTripPlanView: View {
     }
 
     private func save(_ option: DepartureTransportOption) {
-        mutablePlan().saveDeparture(
-            option: option,
-            origin: trimmedOrigin,
-            destination: trimmedDestination,
-            meetingPoint: meetingPoint
-        )
         do {
-            try modelContext.save()
-            upsertSavedOrigin(addressText: trimmedOrigin)
+            try session.save(
+                option: option,
+                plan: mutablePlan(),
+                origin: origin,
+                destination: destination,
+                meetingPoint: meetingPoint,
+                savedOrigin: savedOrigin,
+                in: modelContext
+            )
             searchError = nil
             presentToast(.success, message: "已保存出门方案")
         } catch {
@@ -1899,58 +1729,37 @@ struct RoundTripPlanView: View {
     }
 
     private func saveManualDeparture() {
-        guard !trimmedOrigin.isEmpty else {
-            presentToast(.neutral, message: "请先填写或定位出发地")
-            return
-        }
-        guard !trimmedDestination.isEmpty else {
-            presentToast(.neutral, message: "请补充到场地址")
-            return
-        }
-
-        let summary = manualSummary.trimmingCharacters(in: .whitespacesAndNewlines)
-        let finalSummary = summary.isEmpty ? "\(manualMode.displayName)到 \(trimmedDestination)" : summary
-        mutablePlan().saveManualDeparture(
-            origin: trimmedOrigin,
-            destination: trimmedDestination,
-            leaveAt: manualLeaveAt,
-            arriveAt: manualArriveAt,
-            mode: manualMode,
-            summary: finalSummary,
-            meetingPoint: meetingPoint
-        )
         do {
-            try modelContext.save()
-            upsertSavedOrigin(addressText: trimmedOrigin)
+            try session.saveManual(
+                plan: mutablePlan(),
+                origin: origin,
+                destination: destination,
+                leaveAt: manualLeaveAt,
+                arriveAt: manualArriveAt,
+                mode: manualMode,
+                summary: manualSummary,
+                meetingPoint: meetingPoint,
+                savedOrigin: savedOrigin,
+                in: modelContext
+            )
             searchError = nil
             showsManualSave = false
             presentToast(.success, message: "已保存出门方案")
+        } catch let error as DeparturePlanSession.ManualSaveError {
+            switch error {
+            case .missingOrigin:
+                presentToast(.neutral, message: "请先填写或定位出发地")
+            case .missingDestination:
+                presentToast(.neutral, message: "请补充到场地址")
+            }
         } catch {
             presentToast(.failure, message: "保存失败")
         }
     }
 
-    private func upsertSavedOrigin(addressText: String) {
-        let trimmed = addressText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        if let savedOrigin, savedOrigin.addressText != trimmed {
-            savedOrigin.addressText = trimmed
-            savedOrigin.name = trimmed
-            savedOrigin.updatedAt = Date()
-        } else if savedOrigin == nil {
-            modelContext.insert(SavedOrigin(name: trimmed, addressText: trimmed))
-        }
-        try? modelContext.save()
-    }
-
     @MainActor
     private func openSavedMap() {
-        if let plan = plan, let option = savedOption(from: plan), let url = option.navigationURL {
-            UIApplication.shared.open(url)
-            return
-        }
-        if let plan = plan,
-           let url = Self.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
+        if let plan = plan, let url = session.navigationURL(for: plan) {
             UIApplication.shared.open(url)
             return
         }
@@ -1958,76 +1767,15 @@ struct RoundTripPlanView: View {
     }
 
     private func savedOption(from plan: RoundTripPlan) -> DepartureTransportOption? {
-        guard let mode = plan.savedDepartureMode,
-              let leaveAt = plan.departureLeaveAt,
-              let arriveAt = plan.departureArriveAt,
-              let duration = plan.departureDurationMinutes,
-              let summary = plan.departureSummary,
-              let provider = plan.savedDepartureProvider else {
-            return nil
-        }
-        return DepartureTransportOption(
-            id: plan.id.uuidString,
-            mode: mode,
-            leaveAt: leaveAt,
-            arriveAt: arriveAt,
-            durationMinutes: duration,
-            distanceMeters: plan.departureDistanceMeters,
-            summary: summary,
-            experienceTag: plan.departureExperienceTag ?? "已保存",
-            provider: provider,
-            navigationURL: plan.savedDepartureNavigationURL,
-            capturedAt: plan.departureCapturedAt ?? plan.updatedAt
-        )
+        session.savedOption(from: plan)
     }
 
     private func savedDepartureTimeLine(_ plan: RoundTripPlan) -> String {
-        guard let mode = plan.savedDepartureMode,
-              let leaveAt = plan.departureLeaveAt,
-              let arriveAt = plan.departureArriveAt,
-              let duration = plan.departureDurationMinutes else {
-            return "出发前打开地图确认实时路线"
-        }
-        return "\(timeText(leaveAt)) 出门 · \(mode.displayName)约 \(duration) 分钟 · \(timeText(arriveAt)) 到"
+        session.savedDepartureTimeLine(plan)
     }
 
     private func timeText(_ date: Date) -> String {
-        let calendar = Calendar.current
-        let showDay = calendar.startOfDay(for: effectiveStartDate)
-        let day = calendar.startOfDay(for: date)
-        if day == showDay {
-            return Self.timeFormatter.string(from: date)
-        }
-        let clock = Self.timeFormatter.string(from: date)
-        let dayDiff = calendar.dateComponents([.day], from: showDay, to: day).day ?? 0
-        if dayDiff == 1 {
-            return "次日 \(clock)"
-        }
-        if dayDiff > 1 {
-            return "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date)) \(clock)"
-        }
-        return "前日 \(clock)"
-    }
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
-
-    nonisolated static func appleMapsDirectionsURL(origin: String?, destination: String?) -> URL? {
-        guard let destination,
-              !destination.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return nil
-        }
-        var components = URLComponents(string: "https://maps.apple.com/")
-        var items: [URLQueryItem] = [URLQueryItem(name: "daddr", value: destination)]
-        if let origin, !origin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            items.insert(URLQueryItem(name: "saddr", value: origin), at: 0)
-        }
-        components?.queryItems = items
-        return components?.url
+        session.timeText(date)
     }
 
     private func applyShowDraft(_ draft: ShowDraft) {
@@ -2254,6 +2002,7 @@ struct ShowFragmentListView: View {
     @State private var showsMicPermissionAlert = false
 
     private var isRecordingAudio: Bool { audioRecorder.isRecording }
+    private var session: ShowFragmentSession { ShowFragmentSession(show: show) }
 
     private var showFragments: [ShowFragment] {
         fragments
@@ -2490,31 +2239,22 @@ struct ShowFragmentListView: View {
     }
 
     private var canSaveFragment: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !pendingGalleryReferences.isEmpty
-            || pendingAudioRelativePath != nil
+        session.canSave(
+            text: text,
+            galleryReferenceCount: pendingGalleryReferences.count,
+            hasAudio: pendingAudioRelativePath != nil
+        )
     }
 
     private func saveFragment() {
         do {
-            let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            let fragment = try ShowFragment(show: show, text: trimmedText.isEmpty ? nil : trimmedText)
-            for reference in pendingGalleryReferences {
-                _ = fragment.addGalleryMediaReference(
-                    assetLocalIdentifier: reference.localIdentifier,
-                    kind: reference.kind
-                )
-            }
-
-            if let pendingAudioRelativePath {
-                _ = fragment.attachAudioReference(
-                    relativePath: pendingAudioRelativePath,
-                    duration: pendingAudioDuration
-                )
-            }
-
-            modelContext.insert(fragment)
-            try modelContext.save()
+            try session.create(
+                text: text,
+                galleryReferences: pendingGalleryReferences,
+                audioRelativePath: pendingAudioRelativePath,
+                audioDuration: pendingAudioDuration,
+                in: modelContext
+            )
             text = ""
             selectedMediaItems = []
             pendingGalleryReferences = []
@@ -2536,9 +2276,7 @@ struct ShowFragmentListView: View {
 
     private func delete(_ fragment: ShowFragment) {
         do {
-            try LocalAppDataDeletionService(audioStorage: .applicationSupport())
-                .deleteFragment(fragment, in: modelContext)
-            try modelContext.save()
+            try session.delete(fragment, in: modelContext)
             message = "现场碎片已删除。"
             presentToast(.neutral, message: "碎片已删除")
         } catch {
