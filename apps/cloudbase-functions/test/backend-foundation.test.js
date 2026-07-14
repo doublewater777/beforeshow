@@ -118,6 +118,56 @@ describe("CloudBase backend foundation", () => {
     assert.equal(containsSensitiveLogField(result.log), false);
   });
 
+  it("stops after primary when Doubao returns a valid response (ADR-0008 short-circuit)", async () => {
+    const calls = [];
+    const fetch = async (url, options) => {
+      calls.push(url);
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  type: "candidateSongs",
+                  items: [{ songName: "Song", artist: "Artist" }]
+                })
+              }
+            }]
+          });
+        }
+      };
+    };
+
+    const result = await main({
+      appInstanceId: "app-instance",
+      appSignature: "signature",
+      body: {
+        type: "candidateSongs",
+        requestId: "req-primary-only",
+        show: {
+          name: "测试现场",
+          date: "2026-07-01",
+          type: "concert"
+        },
+        limits: { maxSongs: 12 }
+      }
+    }, {}, {
+      env: {
+        DOUBAO_API_KEY: "secret-doubao",
+        QWEN_API_KEY: "secret-qwen"
+      },
+      fetch
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.provider.name, "doubao");
+    assert.equal(result.provider.usedFallback, false);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].includes("volces"), true);
+  });
+
   it("accepts HTTP string bodies from the iOS client", async () => {
     const fetch = async () => ({
       ok: true,

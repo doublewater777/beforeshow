@@ -264,10 +264,14 @@ final class CandidateSongsTests: XCTestCase {
             type: .concert
         )
         let service = RemoteCandidateSongGenerationService(
-            baseURL: URL(string: "https://example.com/generate")!,
-            appInstanceId: "test-instance",
-            appSignature: "test-signature",
-            session: session,
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: session
+            ),
             calendar: calendar
         )
 

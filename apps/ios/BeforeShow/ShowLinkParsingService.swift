@@ -18,42 +18,29 @@ protocol URLSessionProtocol: Sendable {
 extension URLSession: URLSessionProtocol {}
 
 struct RemoteShowLinkParsingService: ShowLinkParsingService {
-    var baseURL: URL
-    var appInstanceId: String
-    var appSignature: String
-    var session: URLSessionProtocol
+    var client: BeforeShowCloudClient
     var calendar: Calendar
 
     init(
-        baseURL: URL,
-        appInstanceId: String,
-        appSignature: String,
-        session: URLSessionProtocol = URLSession.shared,
+        client: BeforeShowCloudClient,
         calendar: Calendar = .current
     ) {
-        self.baseURL = baseURL
-        self.appInstanceId = appInstanceId
-        self.appSignature = appSignature
-        self.session = session
+        self.client = client
         self.calendar = calendar
     }
 
     func parse(link: String) async throws -> ShowDraft {
-        var request = URLRequest(url: baseURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = RequestBody(
-            appInstanceId: appInstanceId,
-            appSignature: appSignature,
-            url: link
-        )
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        let data: Data
+        do {
+            data = try await client.postJSON(
+                path: "parseShowLink",
+                body: RequestBody(
+                    appInstanceId: client.credentials.appInstanceId,
+                    appSignature: client.credentials.appSignature,
+                    url: link
+                )
+            )
+        } catch {
             throw ShowLinkParsingError.networkFailure
         }
 

@@ -343,10 +343,14 @@ final class ShowDraftTests: XCTestCase {
         }
         """
         let service = RemoteShowLinkParsingService(
-            baseURL: URL(string: "https://example.com/parse")!,
-            appInstanceId: "test-instance",
-            appSignature: "test-signature",
-            session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200),
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
             calendar: calendar
         )
 

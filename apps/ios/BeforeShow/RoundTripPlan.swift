@@ -761,51 +761,39 @@ protocol RoundTripDraftGenerating: Sendable {
 }
 
 struct RemoteRoundTripDraftGenerationService: RoundTripDraftGenerating {
-    var baseURL: URL
-    var appInstanceId: String
-    var appSignature: String
-    var session: URLSessionProtocol
+    var client: BeforeShowCloudClient
 
-    init(
-        baseURL: URL,
-        appInstanceId: String,
-        appSignature: String,
-        session: URLSessionProtocol = URLSession.shared
-    ) {
-        self.baseURL = baseURL
-        self.appInstanceId = appInstanceId
-        self.appSignature = appSignature
-        self.session = session
+    init(client: BeforeShowCloudClient) {
+        self.client = client
     }
 
     func generate(for request: RoundTripDraftRequest) async throws -> RoundTripDraft {
-        var urlRequest = URLRequest(url: baseURL)
-        urlRequest.httpMethod = "POST"
-        urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlRequest.httpBody = try JSONEncoder().encode(RequestBody(
-            appInstanceId: appInstanceId,
-            appSignature: appSignature,
-            type: "roundTripDraft",
-            requestId: UUID().uuidString,
-            locale: "zh-CN",
-            show: ShowPayload(show: request.show),
-            direction: request.direction.rawValue,
-            userPlaces: UserPlaces(
-                origin: trimmedOptional(request.origin),
-                destination: trimmedOptional(request.destination),
-                hotel: trimmedOptional(request.hotel),
-                meetingPoint: trimmedOptional(request.meetingPoint)
-            ),
-            constraints: Constraints(
-                arrivalBy: request.direction == .outbound ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
-                departAfter: request.direction == .return ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
-                notes: trimmedOptional(request.notes)
+        let data: Data
+        do {
+            data = try await client.postJSON(
+                path: "generate",
+                body: RequestBody(
+                    appInstanceId: client.credentials.appInstanceId,
+                    appSignature: client.credentials.appSignature,
+                    type: "roundTripDraft",
+                    requestId: UUID().uuidString,
+                    locale: "zh-CN",
+                    show: ShowPayload(show: request.show),
+                    direction: request.direction.rawValue,
+                    userPlaces: UserPlaces(
+                        origin: trimmedOptional(request.origin),
+                        destination: trimmedOptional(request.destination),
+                        hotel: trimmedOptional(request.hotel),
+                        meetingPoint: trimmedOptional(request.meetingPoint)
+                    ),
+                    constraints: Constraints(
+                        arrivalBy: request.direction == .outbound ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
+                        departAfter: request.direction == .return ? DateFormatter.generationDay.string(from: request.show.effectiveDate) : nil,
+                        notes: trimmedOptional(request.notes)
+                    )
+                )
             )
-        ))
-
-        let (data, response) = try await session.data(for: urlRequest)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        } catch {
             throw RoundTripDraftError.networkFailure
         }
 

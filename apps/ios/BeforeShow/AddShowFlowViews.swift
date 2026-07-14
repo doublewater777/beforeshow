@@ -203,13 +203,7 @@ struct AddShowFlowView: View {
     }
 
     static func defaultLinkParser() -> ShowLinkDraftParser {
-        let baseURL = URL(string: "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/parseShowLink")!
-        let service = RemoteShowLinkParsingService(
-            baseURL: baseURL,
-            appInstanceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            appSignature: "beforeshow-app-signature-v1"
-        )
-        return ShowLinkDraftParser(service: service)
+        ShowLinkDraftParser(service: RemoteShowLinkParsingService(client: .production()))
     }
 
     var body: some View {

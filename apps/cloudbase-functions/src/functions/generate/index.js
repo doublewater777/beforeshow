@@ -1,46 +1,25 @@
 import { assertAppAuthenticated } from "../../auth/appAuth.js";
 import { providerSequence } from "../../config/modelProviders.js";
-import {
-  selectValidProviderResponse,
-  validateGenerationRequest
-} from "../../contracts/generationContracts.js";
+import { validateGenerationRequest } from "../../contracts/generationContracts.js";
 import { createTechnicalLog } from "../../logging/technicalLog.js";
-import { callOpenAICompatibleProvider } from "../../providers/openAICompatibleClient.js";
+import { generateWithFallback } from "./generateWithFallback.js";
 
 export async function main(event = {}, context = {}, options = {}) {
   const body = parseRequestBody(event);
   const auth = assertAppAuthenticated(authEvent(event, body), context);
   const request = validateGenerationRequest(stripAppAuth(body));
-  const providers = providerSequence(options.env).map((provider) => ({
+  const providers = providerSequence(options.env);
+  const providerCatalog = providers.map((provider) => ({
     name: provider.name,
     model: provider.model,
     apiKeyEnv: provider.apiKeyEnv,
     baseUrl: provider.baseUrl
   }));
-  const providerResults = [];
-  const providerErrors = [];
 
-  for (const provider of providerSequence(options.env)) {
-    const startedAt = Date.now();
-    try {
-      providerResults.push(await callOpenAICompatibleProvider(provider, request, options));
-    } catch (error) {
-      providerErrors.push({
-        provider: provider.name,
-        code: error.code ?? "PROVIDER_FAILED",
-        durationMs: Date.now() - startedAt
-      });
-      providerResults.push({
-        provider: provider.name,
-        error: error.code ?? "PROVIDER_FAILED"
-      });
-    }
-  }
-
-  const selected = selectValidProviderResponse(request.type, providerResults);
-  const selectedDuration = providerResults.find(
-    (result) => result.provider === selected.provider
-  )?.durationMs;
+  const { selected, providerErrors, durationMs } = await generateWithFallback(request, {
+    ...options,
+    providers
+  });
 
   return {
     ok: true,
@@ -55,7 +34,7 @@ export async function main(event = {}, context = {}, options = {}) {
       name: selected.provider,
       usedFallback: selected.usedFallback
     },
-    providers,
+    providers: providerCatalog,
     response: selected.response,
     log: createTechnicalLog({
       event: "generation.request.completed",
@@ -64,7 +43,7 @@ export async function main(event = {}, context = {}, options = {}) {
       provider: selected.provider,
       success: true,
       usedFallback: selected.usedFallback,
-      durationMs: selectedDuration
+      durationMs
     }),
     providerErrors
   };

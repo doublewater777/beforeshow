@@ -1,6 +1,5 @@
 import Foundation
 import SwiftData
-import UIKit
 
 /// Deep module for 候选曲目 transactions: generate/replace, add/remove/reorder.
 ///
@@ -234,11 +233,6 @@ struct CandidateSongsSession {
     private static let defaultUncertaintyNote = "候选曲目来自公开信息推测，不代表官方歌单。"
 
     static func makeDefaultGenerationService() -> RemoteCandidateSongGenerationService {
-        let baseURL = URL(string: "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate")!
-        return RemoteCandidateSongGenerationService(
-            baseURL: baseURL,
-            appInstanceId: UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString,
-            appSignature: "beforeshow-app-signature-v1"
-        )
+        RemoteCandidateSongGenerationService(client: .production())
     }
 }

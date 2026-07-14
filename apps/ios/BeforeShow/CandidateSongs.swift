@@ -287,23 +287,14 @@ protocol CandidateSongGenerating: Sendable {
 }
 
 struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
-    var baseURL: URL
-    var appInstanceId: String
-    var appSignature: String
-    var session: URLSessionProtocol
+    var client: BeforeShowCloudClient
     var calendar: Calendar
 
     init(
-        baseURL: URL,
-        appInstanceId: String,
-        appSignature: String,
-        session: URLSessionProtocol = URLSession.shared,
+        client: BeforeShowCloudClient,
         calendar: Calendar = .current
     ) {
-        self.baseURL = baseURL
-        self.appInstanceId = appInstanceId
-        self.appSignature = appSignature
-        self.session = session
+        self.client = client
         self.calendar = calendar
     }
 
@@ -313,29 +304,28 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
             throw CandidateSongGenerationError.invalidResponse
         }
 
-        var request = URLRequest(url: baseURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(RequestBody(
-            appInstanceId: appInstanceId,
-            appSignature: appSignature,
-            type: "candidateSongs",
-            requestId: UUID().uuidString,
-            locale: "zh-CN",
-            show: ShowPayload(
-                name: generationRequest.showName,
-                date: Self.dateFormatter.string(from: show.effectiveDate),
-                city: trimmedOptional(show.city),
-                venueName: trimmedOptional(show.venueName),
-                type: generationRequest.showType.rawValue,
-                artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
-            ),
-            limits: Limits(maxSongs: 12)
-        ))
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse,
-              (200..<300).contains(httpResponse.statusCode) else {
+        let data: Data
+        do {
+            data = try await client.postJSON(
+                path: "generate",
+                body: RequestBody(
+                    appInstanceId: client.credentials.appInstanceId,
+                    appSignature: client.credentials.appSignature,
+                    type: "candidateSongs",
+                    requestId: UUID().uuidString,
+                    locale: "zh-CN",
+                    show: ShowPayload(
+                        name: generationRequest.showName,
+                        date: Self.dateFormatter.string(from: show.effectiveDate),
+                        city: trimmedOptional(show.city),
+                        venueName: trimmedOptional(show.venueName),
+                        type: generationRequest.showType.rawValue,
+                        artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
+                    ),
+                    limits: Limits(maxSongs: 12)
+                )
+            )
+        } catch {
             throw CandidateSongGenerationError.networkFailure
         }
 
