@@ -12,9 +12,10 @@ struct MyShowsListView: View {
     @State private var detailTarget: Show?
 
     private let formatter = ShowDisplayFormatter()
+    private let session = CurrentShowSession()
 
     private var selectedShowID: UUID? {
-        CurrentShowSelector().selectCurrentShow(from: shows, manualSelection: selections.first)?.id
+        session.selectCurrentShow(from: shows, manualSelection: selections.first)?.id
     }
 
     var body: some View {
@@ -168,22 +169,21 @@ struct MyShowsListView: View {
     private var sortedShows: [Show] {
         let currentID = selectedShowID
         let now = Date()
-        let calendar = Calendar.current
         return shows.sorted { first, second in
             if first.id == currentID { return true }
             if second.id == currentID { return false }
             if first.changeStatus == .canceled, second.changeStatus != .canceled { return false }
             if second.changeStatus == .canceled, first.changeStatus != .canceled { return true }
 
-            let firstState = CurrentShowTimeState(show: first, calendar: calendar, now: now)
-            let secondState = CurrentShowTimeState(show: second, calendar: calendar, now: now)
+            let firstState = session.phase(for: first, now: now)
+            let secondState = session.phase(for: second, now: now)
             return abs(firstState.effectiveDate.timeIntervalSince(now))
                 < abs(secondState.effectiveDate.timeIntervalSince(now))
         }
     }
 
     private func timeState(for show: Show, now: Date = Date()) -> CurrentShowTimeState {
-        CurrentShowTimeState(show: show, calendar: .current, now: now)
+        session.phase(for: show, now: now)
     }
 
     private func selectCurrent(_ show: Show) {
@@ -390,14 +390,11 @@ struct ShowDetailView: View {
     @State private var newPostponedDate = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
+    private let session = CurrentShowSession()
 
-    private var timeState: CurrentShowTimeState {
-        CurrentShowTimeState(show: show)
-    }
-
-    private var summary: ShowToolSummary {
-        ShowToolSummary(
-            show: show,
+    private var snapshot: CurrentShowSnapshot {
+        session.snapshot(
+            for: show,
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
             roundTripPlans: roundTripPlans,
@@ -405,8 +402,11 @@ struct ShowDetailView: View {
         )
     }
 
+    private var timeState: CurrentShowTimeState { snapshot.phase }
+    private var summary: ShowToolSummary { snapshot.summary }
+
     private var isCurrentShow: Bool {
-        CurrentShowSelector().selectCurrentShow(from: shows, manualSelection: selections.first)?.id == show.id
+        session.isCurrent(show, among: shows, manualSelection: selections.first)
     }
 
     var body: some View {

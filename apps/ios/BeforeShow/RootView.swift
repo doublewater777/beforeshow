@@ -121,11 +121,11 @@ private struct CurrentShowHomeView: View {
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
 
-    private let selector = CurrentShowSelector()
+    private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
 
     private var currentShow: Show? {
-        selector.selectCurrentShow(from: shows, manualSelection: selections.first)
+        session.selectCurrentShow(from: shows, manualSelection: selections.first)
     }
 
     var body: some View {
@@ -172,9 +172,7 @@ private struct CurrentShowContentView: View {
     @Query private var roundTripPlans: [RoundTripPlan]
     @Query private var preparationPlans: [ShowPreparationPlan]
 
-    private var phase: CurrentShowTimeState {
-        CurrentShowTimeState(show: show)
-    }
+    private let session = CurrentShowSession()
 
     @State private var activeToolSheet: ToolSheet?
     @State private var managementSheet: ManagementSheet?
@@ -202,15 +200,18 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private var summary: ShowToolSummary {
-        ShowToolSummary(
-            show: show,
+    private var snapshot: CurrentShowSnapshot {
+        session.snapshot(
+            for: show,
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
             roundTripPlans: roundTripPlans,
             preparationPlans: preparationPlans
         )
     }
+
+    private var phase: CurrentShowTimeState { snapshot.phase }
+    private var summary: ShowToolSummary { snapshot.summary }
 
     private var tip: ShowTip? {
         ShowTipsResolver.resolve(
