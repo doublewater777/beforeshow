@@ -20,6 +20,9 @@ struct CurrentShowTimeState: Equatable {
     let effectiveEndDate: Date?
     let effectiveStartTime: Date?
     let effectiveEndTime: Date?
+    /// Resolved show-end instant (explicit end clock > end date > type duration).
+    /// Drives home live/ended transitions and the 本场时长 display.
+    let endBoundary: Date?
     let hasKnownEffectiveDate: Bool
     let isDatedPostponement: Bool
     let countdownText: String
@@ -66,6 +69,7 @@ struct CurrentShowTimeState: Equatable {
                 effectiveEndTime: effectiveEndTime
             )
             : nil
+        self.endBoundary = endBoundary
 
         let resolvedKind: CurrentShowTimeKind
         if show.changeStatus == .canceled {

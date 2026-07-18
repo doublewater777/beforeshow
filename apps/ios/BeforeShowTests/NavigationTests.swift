@@ -2,12 +2,6 @@ import XCTest
 @testable import BeforeShow
 
 final class NavigationTests: XCTestCase {
-    func testHomeContentWidthKeepsSymmetricHorizontalInsets() {
-        XCTAssertEqual(HomeLayoutMetrics.contentWidth(for: 393, viewportWidth: 393), 357)
-        XCTAssertEqual(HomeLayoutMetrics.contentWidth(for: 402, viewportWidth: 402), 366)
-        XCTAssertEqual(HomeLayoutMetrics.contentWidth(for: 547, viewportWidth: 402), 366)
-    }
-
     func testTabEnumExposesExactlyThreeMainTabs() {
         let tabs = BeforeShowTab.allCases
         XCTAssertEqual(tabs.count, 3)

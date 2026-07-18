@@ -55,6 +55,46 @@ enum BSColor {
         static let prepare = Color(red: 0.34, green: 0.84, blue: 0.56)   // mint
         static let fragment = Color(red: 1.0, green: 0.42, blue: 0.42)   // coral
     }
+
+    /// Home V3 palette from the 2026-07 feature-cards design: warm tungsten gold
+    /// on a blue-tinged stage. Scoped to the current-show home surface; other
+    /// surfaces keep the tokens above. Mirrored in DESIGN.md «Home 功能卡色板».
+    enum Home {
+        /// Root stage background (#05070D).
+        static let background = Color(red: 0.020, green: 0.027, blue: 0.051)
+        /// Feature card surface (#0D111B).
+        static let surface = Color(red: 0.051, green: 0.067, blue: 0.106)
+        /// Raised surface under the floating countdown card (#151A27).
+        static let surfaceRaised = Color(red: 0.082, green: 0.102, blue: 0.153)
+        /// Primary foreground (#F2F3F7).
+        static let foreground = Color(red: 0.949, green: 0.953, blue: 0.969)
+        /// Supporting copy (#9399AA).
+        static let muted = Color(red: 0.576, green: 0.600, blue: 0.667)
+        /// Tertiary copy (#646B7D).
+        static let dim = Color(red: 0.392, green: 0.420, blue: 0.490)
+        /// Hairline on dark (white 9%).
+        static let border = Color.white.opacity(0.09)
+
+        /// Warm tungsten gold — home primary accent + 歌单 card tone (#E8C78E).
+        static let accent = Color(red: 0.910, green: 0.780, blue: 0.557)
+        /// 去程 card tone (#527FC9).
+        static let route = Color(red: 0.322, green: 0.498, blue: 0.788)
+        /// 出门清单 card tone (#7B678F).
+        static let prepare = Color(red: 0.482, green: 0.404, blue: 0.561)
+        /// 现场碎片 card tone (#D6A36F).
+        static let fragment = Color(red: 0.839, green: 0.639, blue: 0.435)
+
+        /// Badge text: card tone pre-mixed toward white (design color-mix).
+        static let routeBadge = Color(red: 0.471, green: 0.608, blue: 0.835)
+        static let prepareBadge = Color(red: 0.627, green: 0.573, blue: 0.682)
+        static let fragmentBadge = Color(red: 0.875, green: 0.718, blue: 0.561)
+
+        /// Live pulse red (#FF6B75), live status title (#FFD0D3).
+        static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
+        static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
+        /// Checked state (#A7C9B5).
+        static let success = Color(red: 0.655, green: 0.788, blue: 0.710)
+    }
 }
 
 // MARK: - Typography
@@ -348,6 +388,9 @@ struct BSFloatingGlassTabBar: View {
 struct CurrentShowAmbientBackground: View {
     let coverImageURL: String?
 
+    /// 封面主色（CIAreaAverage 提取后提饱和压亮度）；换封面经 .task(id:) 自动重取。
+    @State private var ambientColor: Color?
+
     var body: some View {
         ZStack {
             // ① stage-void base
@@ -360,22 +403,30 @@ struct CurrentShowAmbientBackground: View {
                 endPoint: .bottom
             )
 
-            // ② subtle fixed cool/warm radial lights
+            // ② 封面主色环境光（Apple Music 式）：放大模糊垫在顶部与卡片背后
             GeometryReader { geometry in
-                ZStack {
-                    StageBackgroundGlow(color: BSColor.Accent.travel.opacity(0.10))
-                        .frame(width: geometry.size.width * 0.72, height: geometry.size.height * 0.52)
-                        .position(x: geometry.size.width * 0.18, y: geometry.size.height * 0.74)
-
-                    StageBackgroundGlow(color: BSColor.Accent.music.opacity(0.10))
-                        .frame(width: geometry.size.width * 0.64, height: geometry.size.height * 0.48)
-                        .position(x: geometry.size.width * 0.86, y: geometry.size.height * 0.74)
+                if let ambientColor {
+                    Ellipse()
+                        .fill(RadialGradient(
+                            colors: [
+                                ambientColor.opacity(0.85),
+                                ambientColor.opacity(0.38),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: geometry.size.width * 0.68
+                        ))
+                        .frame(width: geometry.size.width * 1.35, height: geometry.size.height * 0.62)
+                        .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.10)
+                        .blur(radius: 50)
+                        .blendMode(.screen)
+                        .transition(.opacity)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .blendMode(.screen)
+            .animation(.easeInOut(duration: 0.7), value: ambientColor)
 
-            // ③ blurred cover echo (ambient color source, lower saturation than source)
+            // ③ blurred cover echo (adds texture beneath the bloom)
             ShowCoverImageView(
                 urlString: coverImageURL,
                 aspectRatio: 3.0 / 4.0,
@@ -387,12 +438,12 @@ struct CurrentShowAmbientBackground: View {
             .blur(radius: 38)
             .scaleEffect(1.16)
             .saturation(0.80)
-            .opacity(0.22)
+            .opacity(0.15)
 
-            // ④ vertical contrast scrim (strongest near status bar and bottom tab bar)
+            // ④ vertical contrast scrim (top stop lightened so the bloom reads through)
             LinearGradient(
                 stops: [
-                    .init(color: Color.black.opacity(0.56), location: 0.00),
+                    .init(color: Color.black.opacity(0.24), location: 0.00),
                     .init(color: Color.black.opacity(0.16), location: 0.42),
                     .init(color: Color.black.opacity(0.34), location: 0.76),
                     .init(color: Color.black.opacity(0.58), location: 1.00)
@@ -403,6 +454,67 @@ struct CurrentShowAmbientBackground: View {
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+        .task(id: coverImageURL) {
+            ambientColor = await Self.loadAmbientColor(for: coverImageURL)
+        }
+    }
+
+    private static func loadAmbientColor(for urlString: String?) async -> Color? {
+        guard let urlString,
+              let url = URL(string: urlString),
+              let image = await ImageCache.shared.image(from: url),
+              let stageColor = UIColor.stageColor(fromTopBandOf: image) else {
+            return nil
+        }
+        return Color(stageColor)
+    }
+}
+
+private extension UIColor {
+    /// 封面顶部条带均色 → 舞台灯色：只取顶部 ~25% 区域（与状态栏相邻的那条），
+    /// 让环境光就是海报顶边的向上漫延，交界处无色差；再轻提饱和、压亮度。
+    static func stageColor(fromTopBandOf image: UIImage) -> UIColor? {
+        guard let cgImage = image.cgImage else { return nil }
+        let ciImage = CIImage(cgImage: cgImage)
+        let extent = ciImage.extent
+        // CIImage 原点在左下角：顶部 25% = y 从 0.75H 到 H。
+        let topBand = CGRect(
+            x: extent.minX,
+            y: extent.maxY - extent.height * 0.25,
+            width: extent.width,
+            height: extent.height * 0.25
+        )
+        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
+            kCIInputImageKey: ciImage,
+            kCIInputExtentKey: CIVector(cgRect: topBand)
+        ]), let output = filter.outputImage else { return nil }
+
+        var bitmap = [UInt8](repeating: 0, count: 4)
+        CIContext().render(
+            output,
+            toBitmap: &bitmap,
+            rowBytes: 4,
+            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+
+        let average = UIColor(
+            red: CGFloat(bitmap[0]) / 255,
+            green: CGFloat(bitmap[1]) / 255,
+            blue: CGFloat(bitmap[2]) / 255,
+            alpha: 1
+        )
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        guard average.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
+            return average
+        }
+        return UIColor(
+            hue: hue,
+            saturation: min(1, saturation * 1.5 + 0.15),
+            brightness: min(max(brightness, 0.38), 0.75),
+            alpha: 1
+        )
     }
 }
 

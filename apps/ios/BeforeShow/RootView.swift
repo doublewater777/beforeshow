@@ -147,26 +147,18 @@ private struct CurrentShowHomeView: View {
             }
         }
     }
-
 }
 
 // MARK: - Current Show Content
 
-enum HomeLayoutMetrics {
-    static let horizontalInset: CGFloat = 18
-
-    static func contentWidth(for containerWidth: CGFloat, viewportWidth: CGFloat) -> CGFloat {
-        max(0, min(containerWidth, viewportWidth) - (horizontalInset * 2))
-    }
-}
-
+/// 首页 V3（2026-07 功能卡设计稿）：
+/// 全幅 3:4 海报 + 三态秒级倒计时卡 + 阶段推荐 chips + 四张功能卡（内嵌真实预览）。
+/// 布局与色板令牌见 HomeCountdownCard / HomeFeatureCards / BSColor.Home。
 private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
 
-    @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Show.date) private var shows: [Show]
-    @Query private var selections: [CurrentShowSelection]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var roundTripPlans: [RoundTripPlan]
@@ -175,29 +167,21 @@ private struct CurrentShowContentView: View {
     private let session = CurrentShowSession()
 
     @State private var activeToolSheet: ToolSheet?
-    @State private var managementSheet: ManagementSheet?
+
+    /// 内容左右边距（设计稿 --space-5 = 20pt；海报全幅不受此约束）。
+    private let homeInset: CGFloat = 20
+
+    /// 状态栏 / 灵动岛高度；GeometryReader 在 ignoresSafeArea 后可能读到 0。
+    private static var windowTopSafeAreaInset: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow)
+            ?? scenes.first?.windows.first
+        return window?.safeAreaInsets.top ?? 59
+    }
 
     enum ToolSheet: Identifiable {
         case candidateSongs, roundTrip, preparation, fragments
         var id: Self { self }
-    }
-
-    enum ManagementSheet: Identifiable {
-        case edit, delete
-        var id: Self { self }
-    }
-
-    private struct HomeToolItem: Identifiable {
-        let id: ToolSheet
-        let icon: String
-        let title: String
-        let status: String
-        let accent: Color
-        let priority: Int
-
-        var accessibilityLabel: String {
-            "\(title)，\(status)"
-        }
     }
 
     private var snapshot: CurrentShowSnapshot {
@@ -210,172 +194,28 @@ private struct CurrentShowContentView: View {
         )
     }
 
-    private var phase: CurrentShowTimeState { snapshot.phase }
     private var summary: ShowToolSummary { snapshot.summary }
-
-    private var tip: ShowTip? {
-        ShowTipsResolver.resolve(
-            phase: phase,
-            hasCandidateSongs: summary.hasCandidateSongs,
-            hasOutboundPlan: summary.hasOutboundPlan,
-            hasFragments: summary.hasFragments
-        )
-    }
 
     private var roundTripPlan: RoundTripPlan? {
         roundTripPlans.first { $0.showID == show.id }
     }
 
-    private var showsDepartureAssistant: Bool {
-        guard phase.kind == .today,
-              let plan = roundTripPlan,
-              plan.hasSavedDeparturePlan,
-              let startTime = phase.effectiveStartTime else {
-            return false
-        }
-        return Date() < startTime
-    }
-
-    private var isDepartureOverdue: Bool {
-        guard let leaveAt = roundTripPlan?.departureLeaveAt else { return false }
-        return Date() > leaveAt
-    }
-
-    @ViewBuilder
-    private var departureAssistantCard: some View {
-        if let plan = roundTripPlan,
-           let leaveAt = plan.departureLeaveAt,
-           let mode = plan.savedDepartureMode,
-           let duration = plan.departureDurationMinutes,
-           let arriveAt = plan.departureArriveAt {
-            Button {
-                openDepartureMap(plan)
-            } label: {
-                HStack(spacing: 12) {
-                    toolIcon(mode.iconName, accent: BSColor.Accent.travel, size: 38, iconSize: 15)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 8) {
-                            Text("出行小助手")
-                                .font(.system(size: 11, weight: .semibold))
-                                .tracking(1.2)
-                                .foregroundColor(BSColor.textTertiary)
-                                .textCase(.uppercase)
-                            if isDepartureOverdue {
-                                Text("已过出门时间")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(BSColor.Accent.fragment)
-                            }
-                        }
-                        Text(isDepartureOverdue
-                             ? "该出门了，\(mode.displayName)约 \(duration) 分钟"
-                             : "今天 \(timeText(leaveAt)) 出门，\(mode.displayName)约 \(duration) 分钟")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(BSColor.textSecondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text("预计 \(timeText(arriveAt)) 到场")
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundColor(BSColor.textTertiary)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    Text("打开地图")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.black.opacity(0.88))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Capsule().fill(BSColor.brandGradientSoft))
-                        .clipShape(Capsule())
-                }
-                .padding(13)
-                .homeGlass(cornerRadius: 18, fillOpacity: 0.06, strokeOpacity: 0.10)
-            }
-            .buttonStyle(HomeToolButtonStyle())
-            .accessibilityLabel("出行小助手，今天\(timeText(leaveAt))出门")
-        }
-    }
-
-    @MainActor
-    private func openDepartureMap(_ plan: RoundTripPlan) {
-        if let url = plan.savedDepartureNavigationURL {
-            UIApplication.shared.open(url)
-            return
-        }
-        if let url = DeparturePlanSession.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
-            UIApplication.shared.open(url)
-        }
-    }
-
-    private var homeToolItems: [HomeToolItem] {
-        [
-            candidateSongsToolItem,
-            roundTripToolItem,
-            preparationToolItem,
-            fragmentsToolItem
-        ]
-        .sorted { first, second in
-            if first.priority == second.priority {
-                return first.title < second.title
-            }
-            return first.priority < second.priority
-        }
+    private var homeCandidateSongs: [CandidateSong] {
+        let groupIDs = Set(candidateGroups.filter { $0.showID == show.id }.map(\.id))
+        return candidateSongs
+            .filter { groupIDs.contains($0.groupID) }
+            .sorted { $0.order < $1.order }
     }
 
     var body: some View {
         GeometryReader { geometry in
-            let contentWidth = HomeLayoutMetrics.contentWidth(
-                for: geometry.size.width,
-                viewportWidth: UIScreen.main.bounds.width
-            )
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 18) {
-                    posterStage(contentWidth: contentWidth)
-                        .padding(.top, 8)
-
-                    // 18pt VStack spacing + 2pt = 20pt cover-to-countdown pause.
-                    countdownHero
-                        .padding(.top, 2)
-
-                    if showsDepartureAssistant {
-                        departureAssistantCard
-                            .padding(.top, 6)
-                    }
-
-                    toolsScrollSection(contentWidth: contentWidth)
-                        .padding(.top, 0)
-                }
-                .padding(.horizontal, HomeLayoutMetrics.horizontalInset)
-                .padding(.bottom, BSLayout.tabBarContentInset + 28)
-                .frame(maxWidth: .infinity, minHeight: geometry.size.height, alignment: .top)
-            }
-            .sheet(item: $managementSheet) { sheet in
-                switch sheet {
-                case .edit:
-                    ShowDraftEditorView(
-                        title: "编辑现场",
-                        draft: ShowDraft(show: show),
-                        saveTitle: "保存"
-                    ) { draft in
-                        apply(draft)
-                    }
-                case .delete:
-                    BSDangerConfirmationSheet(
-                        title: "删除现场",
-                        message: "删除后，这场现场的碎片、候选曲目、去程计划和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
-                        destructiveTitle: "删除",
-                        onConfirm: {
-                            managementSheet = nil
-                            deleteShow()
-                        },
-                        onCancel: {
-                            managementSheet = nil
-                        }
-                    )
-                }
+            TimelineView(.everyMinute) { context in
+                homeContent(geometry: geometry, now: context.date)
             }
         }
+        // 让 GeometryReader 铺到状态栏下，才能读到真实 topInset，
+        // 并把海报顶边 stretch 垫进状态栏。
+        .ignoresSafeArea(edges: .top)
         .sheet(item: $activeToolSheet) { tool in
             NavigationStack {
                 Group {
@@ -392,35 +232,164 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    private func toolSheet(for action: ShowTip.ShowTipAction) -> ToolSheet {
-        switch action {
-        case .candidateSongs: return .candidateSongs
-        case .outboundPlan: return .roundTrip
-        case .showPreparation: return .preparation
-        case .showFragments: return .fragments
+    private func toolSheet(for kind: HomeFeatureKind) -> ToolSheet {
+        switch kind {
+        case .setlist: return .candidateSongs
+        case .route: return .roundTrip
+        case .prepare: return .preparation
+        case .fragment: return .fragments
         }
     }
 
-    private func posterStage(contentWidth: CGFloat) -> some View {
-        ZStack(alignment: .topTrailing) {
-            NavigationLink {
-                ShowDetailView(show: show)
-            } label: {
-                coverVisual(contentWidth: contentWidth)
+    @ViewBuilder
+    private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
+        let timeState = CurrentShowTimeState(show: show, now: now)
+        let phase = HomeShowPhase(timeState: timeState, now: now)
+        // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕，
+        // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶（内容列居中回落到真实视口）。
+        let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
+        // GeometryReader 在 ignoresSafeArea 后 safeAreaInsets 可能为 0，
+        // 改用窗口安全区，保证状态栏垫条高度正确。
+        let topInset = max(geometry.safeAreaInsets.top, Self.windowTopSafeAreaInset)
+
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                heroStage(
+                    phase: phase,
+                    timeState: timeState,
+                    width: viewportWidth,
+                    topInset: topInset
+                )
+
+                HomeCountdownCard(show: show)
+                    .padding(.horizontal, homeInset)
+                    .padding(.top, -22)
+
+                HomeFeatureCardsSection(
+                    show: show,
+                    phase: phase,
+                    summary: summary,
+                    candidateSongs: homeCandidateSongs,
+                    roundTripPlan: roundTripPlan,
+                    preparationPlan: preparationPlans.first { $0.showID == show.id },
+                    onOpen: { kind in activeToolSheet = toolSheet(for: kind) },
+                    onOpenMap: openDepartureMapForCurrentPlan
+                )
+                .padding(.horizontal, homeInset)
+                .padding(.top, 18)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
-            .accessibilityAddTraits(.isButton)
-
-            overflowMenu
-                .padding(12)
+            .padding(.bottom, BSLayout.tabBarContentInset + 28)
+            .frame(width: viewportWidth)
+            .frame(width: geometry.size.width, alignment: .center)
+            .frame(minHeight: geometry.size.height, alignment: .top)
         }
     }
 
-    private func coverVisual(contentWidth: CGFloat) -> some View {
-        let coverWidth = contentWidth
-        let coverHeight = coverWidth * 4.0 / 3.0
-        return ShowCoverImageView(
+    // MARK: Hero（全幅 3:4 海报 + 顶边 stretch 进状态栏 + kicker + scrim 元信息）
+
+    private func heroStage(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        width: CGFloat,
+        topInset: CGFloat
+    ) -> some View {
+        NavigationLink {
+            ShowDetailView(show: show)
+        } label: {
+            heroVisual(phase: phase, timeState: timeState, width: width, topInset: topInset)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func heroVisual(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        width: CGFloat,
+        topInset: CGFloat
+    ) -> some View {
+        let height = width * 4.0 / 3.0
+        // 顶边条带略伸进海报，被清晰层盖住，避免 blur 在接缝处发糊边。
+        let bleedOverlap: CGFloat = 18
+        let bleedHeight = max(0, topInset) + bleedOverlap
+
+        return ZStack(alignment: .top) {
+            if bleedHeight > 0 {
+                heroTopBleed(
+                    phase: phase,
+                    width: width,
+                    posterHeight: height,
+                    bleedHeight: bleedHeight
+                )
+            }
+
+            posterArtwork(phase: phase, width: width, height: height)
+                .overlay { heroScrim }
+                .overlay { heroGlow(phase: phase, width: width, height: height) }
+                .overlay(alignment: .bottomLeading) {
+                    heroMeta(phase: phase, timeState: timeState)
+                        .padding(.horizontal, homeInset)
+                        .padding(.bottom, 30)
+                }
+                .overlay(alignment: .bottom) { heroEdgeLine }
+                .offset(y: max(0, topInset))
+        }
+        .frame(width: width, height: height + max(0, topInset), alignment: .top)
+        .clipped()
+    }
+
+    /// 封面顶边向上渗出的光晕：重模糊 + 低不透明度 + 向上很快消散。
+    /// 不是垫满状态栏的色段，更像封面边缘漫出来的一圈气。
+    private func heroTopBleed(
+        phase: HomeShowPhase,
+        width: CGFloat,
+        posterHeight: CGFloat,
+        bleedHeight: CGFloat
+    ) -> some View {
+        // 取稍宽顶边 → 大幅模糊后只剩色温；竖直略拉高，像光从封面缝里溢出来。
+        let sourceStrip = min(max(bleedHeight * 0.7, 36), 56)
+        let stretch = (bleedHeight + 36) / sourceStrip
+
+        return Color.clear
+            .frame(width: width, height: bleedHeight)
+            .background(alignment: .bottom) {
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    alignment: .center,
+                    enforcesAspectRatio: false,
+                    cornerRadius: 0
+                )
+                .frame(width: width, height: posterHeight)
+                .frame(width: width, height: sourceStrip, alignment: .top)
+                .scaleEffect(x: 1.12, y: stretch, anchor: .bottom)
+                .saturation(phase == .ended ? 0.5 : 0.9)
+                .brightness(phase == .ended ? -0.02 : 0.04)
+                .blur(radius: 36)
+                .opacity(phase == .ended ? 0.28 : 0.4)
+            }
+            .mask(
+                // 只在贴海报的下半段有存在感，上半（状态栏顶）几乎透明，不「塞满」。
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.00),
+                        .init(color: .white.opacity(0.12), location: 0.35),
+                        .init(color: .white.opacity(0.45), location: 0.62),
+                        .init(color: .white.opacity(0.85), location: 0.88),
+                        .init(color: .white, location: 1.00),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .clipped()
+            .allowsHitTesting(false)
+    }
+
+    private func posterArtwork(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
+        ShowCoverImageView(
             urlString: show.coverImageURL,
             aspectRatio: 3.0 / 4.0,
             contentMode: .fill,
@@ -428,455 +397,197 @@ private struct CurrentShowContentView: View {
             enforcesAspectRatio: false,
             cornerRadius: 0
         )
-        .frame(width: coverWidth, height: coverHeight)
-        .overlay {
-            LinearGradient(
-                stops: [
-                    .init(color: Color.black.opacity(0.42), location: 0.00),
-                    .init(color: .clear, location: 0.20),
-                    .init(color: .clear, location: 0.46),
-                    .init(color: Color.black.opacity(0.28), location: 0.62),
-                    .init(color: Color.black.opacity(0.86), location: 0.90),
-                    .init(color: Color.black.opacity(0.96), location: 1.00)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .overlay(alignment: .bottomLeading) {
-            coverMetadata
-                .padding(18)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 28))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.18), lineWidth: 0.75)
-        )
-        .shadow(color: .black.opacity(0.45), radius: 18, y: 10)
+        .frame(width: width, height: height)
+        .saturation(phase == .ended ? 0.72 : 1.0)
+        .brightness(phase == .ended ? -0.05 : 0)
+        .clipped()
     }
 
-    private var coverMetadata: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// 设计稿 hero-scrim：顶部更轻，与状态栏 stretch 条带衔接；底部 98% 收进内容区。
+    private var heroScrim: some View {
+        LinearGradient(
+            stops: [
+                .init(color: BSColor.Home.background.opacity(0.14), location: 0.00),
+                .init(color: BSColor.Home.background.opacity(0.10), location: 0.22),
+                .init(color: BSColor.Home.background.opacity(0.22), location: 0.48),
+                .init(color: BSColor.Home.background.opacity(0.86), location: 0.74),
+                .init(color: BSColor.Home.background.opacity(0.98), location: 1.00),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// 设计稿 hero-glow：金 / 蓝 / 紫三束舞台光，screen 混合；live 全开，ended 收半。
+    private func heroGlow(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
+        let opacity: Double = phase == .ended ? 0.45 : (phase == .live ? 1.0 : 0.92)
+        return ZStack {
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [BSColor.Home.accent.opacity(0.36), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: width * 0.39
+                ))
+                .frame(width: width * 0.78, height: height * 0.36)
+                .position(x: width * 0.50, y: height * 0.16)
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [BSColor.Home.route.opacity(0.30), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: width * 0.26
+                ))
+                .frame(width: width * 0.52, height: height * 0.34)
+                .position(x: width * 0.16, y: height * 0.70)
+
+            Ellipse()
+                .fill(RadialGradient(
+                    colors: [BSColor.Home.prepare.opacity(0.28), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: width * 0.23
+                ))
+                .frame(width: width * 0.46, height: height * 0.28)
+                .position(x: width * 0.88, y: height * 0.62)
+        }
+        .blendMode(.screen)
+        .opacity(opacity)
+        .allowsHitTesting(false)
+    }
+
+    /// 海报下缘一线暖金（设计稿 hero-stage::after）。
+    private var heroEdgeLine: some View {
+        LinearGradient(
+            colors: [.clear, BSColor.Home.accent.opacity(0.28), .clear],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
+        .frame(height: 1)
+    }
+
+    private func heroMeta(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            kickerPill(phase: phase, timeState: timeState)
+                .padding(.bottom, 10)
+
+            Text(dateLine(timeState: timeState))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(BSColor.Home.foreground.opacity(0.78))
+                .padding(.bottom, 8)
+
             Text(show.name)
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(.white)
+                .font(.system(size: 28, weight: .semibold))
+                .tracking(-0.8)
+                .foregroundColor(BSColor.Home.foreground)
                 .lineLimit(2)
-                .minimumScaleFactor(0.80)
-                .shadow(color: .black.opacity(0.6), radius: 6)
+                .minimumScaleFactor(0.82)
+                .fixedSize(horizontal: false, vertical: true)
+                .shadow(color: .black.opacity(0.55), radius: 14, y: 4)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(formatter.dateText(for: show))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.72))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                if !locationText.isEmpty {
-                    Text(locationText)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.72))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                }
+            if !locationText.isEmpty {
+                Text(locationText)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(BSColor.Home.foreground.opacity(0.72))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
             }
         }
     }
 
-    private var overflowMenu: some View {
-        Menu {
-            Button {
-                managementSheet = .edit
-            } label: {
-                Label("编辑现场", systemImage: "square.and.pencil")
+    private func kickerPill(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
+        let text = phase == .inactive ? timeState.title : phase.kickerText(city: show.city)
+        return HStack(spacing: 8) {
+            if phase == .live {
+                HomeLivePulse(reduceMotion: reduceMotion)
+            } else {
+                Circle()
+                    .fill(kickerDotColor(for: phase))
+                    .frame(width: 6, height: 6)
             }
-            if shows.count > 1 {
-                Menu {
-                    ForEach(otherShows) { other in
-                        Button {
-                            selectCurrent(other)
-                        } label: {
-                            Text(other.name)
-                        }
-                    }
-                } label: {
-                    Label("切换当前现场", systemImage: "arrow.triangle.2.circlepath")
-                }
-            }
-            Button(role: .destructive) {
-                managementSheet = .delete
-            } label: {
-                Label("删除现场", systemImage: "trash")
-            }
-        } label: {
-            Image(systemName: "ellipsis")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(Color.white.opacity(0.92))
-                .frame(width: 44, height: 44)
-                .background(
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                )
-                .background(
-                    Circle()
-                        .fill(Color.white.opacity(0.035))
-                )
-                .overlay(
-                    Circle()
-                        .stroke(Color.white.opacity(0.12), lineWidth: 0.75)
-                )
-                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+            Text(text)
+                .font(.system(size: 11, weight: .semibold))
+                .tracking(0.9)
         }
-        .accessibilityLabel("更多现场操作")
-    }
-
-    private var otherShows: [Show] {
-        shows.filter { $0.id != show.id }
-    }
-
-    private func selectCurrent(_ other: Show) {
-        let selection = selections.first ?? CurrentShowSelection()
-        if selections.isEmpty {
-            modelContext.insert(selection)
-        }
-        selection.select(showID: other.id)
-        try? modelContext.save()
-    }
-
-    private func apply(_ draft: ShowDraft) {
-        do {
-            try show.apply(draft)
-            try? modelContext.save()
-        } catch {
-            // Invalid draft is rejected; editor only enables ready drafts.
-        }
-    }
-
-    private func deleteShow() {
-        do {
-            try LocalAppDataDeletionService(audioStorage: .applicationSupport())
-                .deleteShow(show, in: modelContext)
-            try? modelContext.save()
-        } catch {
-            // Silent: failure leaves the show in place; home has nothing to dismiss.
-        }
-    }
-
-    private var countdownHero: some View {
-        countdownDisplay
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(countdownAccessibilityLabel)
-    }
-
-    private var countdownAccessibilityLabel: String {
-        switch phase.kind {
-        case .today:
-            return "就是今天"
-        case .ended:
-            return "已结束"
-        case .canceled:
-            return "已取消"
-        case .postponed:
-            return "待定"
-        default:
-            return "距离开场还有 \(phase.countdownNumber) \(phase.countdownUnit)"
-        }
-    }
-
-    @ViewBuilder
-    private var countdownDisplay: some View {
-        switch phase.kind {
-        case .today:
-            Text("就是今天")
-                .font(.system(size: 54, weight: .light))
-                .tracking(1)
-                .bsGradientText()
-        case .ended:
-            Text("已结束")
-                .font(.system(size: 48, weight: .light))
-                .foregroundColor(BSColor.textTertiary)
-        case .canceled:
-            Text("已取消")
-                .font(.system(size: 48, weight: .light))
-                .foregroundColor(BSColor.textTertiary)
-        case .postponed:
-            Text("待定")
-                .font(.system(size: 74, weight: .light))
-                .bsGradientText()
-        default:
-            HStack(alignment: .lastTextBaseline, spacing: 10) {
-                Text(phase.countdownNumber)
-                    .font(.system(size: 74, weight: .light))
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-                    .bsGradientText()
-
-                Text(phase.countdownUnit)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.78))
-                    .offset(y: -6)
-            }
-        }
-    }
-
-    private func toolsScrollSection(contentWidth: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Tips surface is ShowTipsResolver only: message + button + action.
-            // nil ⇒ hide (never invent tool-item copy as Tips).
-            if let tip {
-                homeTipCard(tip, contentWidth: contentWidth)
-            }
-
-            VStack(alignment: .leading, spacing: 9) {
-                Text("也可以顺手看看")
-                    .font(BSFont.tag)
-                    .tracking(1.2)
-                    .foregroundColor(BSColor.textTertiary)
-                    .textCase(.uppercase)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                
-                LazyVGrid(
-                    columns: [
-                        GridItem(.flexible(), spacing: 10),
-                        GridItem(.flexible(), spacing: 10)
-                    ],
-                    alignment: .leading,
-                    spacing: 10
-                ) {
-                    ForEach(homeToolItems) { item in
-                        toolShortcutCard(item)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .frame(width: contentWidth, alignment: .leading)
-    }
-
-    private func homeTipCard(_ tip: ShowTip, contentWidth: CGFloat) -> some View {
-        let chrome = tipChrome(for: tip.action)
-        return Button {
-            activeToolSheet = toolSheet(for: tip.action)
-        } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 12) {
-                    toolIcon(chrome.icon, accent: chrome.accent, size: 38, iconSize: 15)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Tips · \(phase.title)")
-                            .font(.system(size: 11, weight: .semibold))
-                            .tracking(1.2)
-                            .foregroundColor(BSColor.textTertiary)
-                            .textCase(.uppercase)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.88)
-
-                        Text(tip.message)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(BSColor.textSecondary)
-                            .lineLimit(3)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                Text(tip.buttonTitle)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.black.opacity(0.88))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(Capsule().fill(BSColor.brandGradientSoft))
-                    .clipShape(Capsule())
-            }
-            .frame(width: max(0, contentWidth - 20), alignment: .leading)
-            .padding(10)
-            .homeGlass(cornerRadius: 18, fillOpacity: 0.06, strokeOpacity: 0.10)
-        }
-        .frame(width: contentWidth)
-        .buttonStyle(HomeToolButtonStyle())
-        .accessibilityLabel("\(tip.message)，点按\(tip.buttonTitle)")
-    }
-
-    private func tipChrome(for action: ShowTip.ShowTipAction) -> (icon: String, accent: Color) {
-        switch action {
-        case .candidateSongs:
-            return ("mic.fill", BSColor.Accent.candidate)
-        case .outboundPlan:
-            return ("tram.fill", BSColor.Accent.travel)
-        case .showPreparation:
-            return ("sparkles", BSColor.Accent.prepare)
-        case .showFragments:
-            return ("sparkles.rectangle.stack", BSColor.Accent.fragment)
-        }
-    }
-
-    private func toolShortcutCard(_ item: HomeToolItem) -> some View {
-        Button {
-            activeToolSheet = item.id
-        } label: {
-            HStack(spacing: 10) {
-                toolIcon(item.icon, accent: item.accent, size: 36, iconSize: 14)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-                        .lineLimit(1)
-
-                    Text(item.status)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(BSColor.textTertiary)
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 11)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-            .homeGlass(cornerRadius: 17, fillOpacity: 0.045, strokeOpacity: 0.085)
-        }
-        .buttonStyle(HomeToolButtonStyle())
-        .accessibilityLabel(item.accessibilityLabel)
-    }
-
-    private func toolIcon(_ icon: String, accent: Color, size: CGFloat, iconSize: CGFloat) -> some View {
-        ZStack {
-            Circle()
-                .fill(accent.opacity(0.18))
-                .frame(width: size + 4, height: size + 4)
-                .blur(radius: 12)
-
-            Image(systemName: icon)
-                .font(.system(size: iconSize, weight: .semibold))
-                .foregroundColor(accent)
-                .frame(width: size, height: size)
-                .background(Color.white.opacity(0.08))
-                .clipShape(RoundedRectangle(cornerRadius: size * 0.30))
-                .overlay(
-                    RoundedRectangle(cornerRadius: size * 0.30)
-                        .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
-                )
-        }
-    }
-
-    private var candidateSongsToolItem: HomeToolItem {
-        let hasSongs = summary.hasCandidateSongs
-        return HomeToolItem(
-            id: .candidateSongs,
-            icon: "mic.fill",
-            title: "候选曲目",
-            status: summary.candidateSongsStatus,
-            accent: BSColor.Accent.candidate,
-            priority: candidateSongsPriority(hasSongs: hasSongs)
+        .foregroundColor(kickerTextColor(for: phase))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(Capsule().fill(kickerTint(for: phase)))
         )
+        .overlay(Capsule().stroke(kickerBorderColor(for: phase), lineWidth: 1))
     }
 
-    private var roundTripToolItem: HomeToolItem {
-        let hasPlan = summary.hasOutboundPlan
-        return HomeToolItem(
-            id: .roundTrip,
-            icon: "tram.fill",
-            title: "去程计划",
-            status: summary.roundTripStatus,
-            accent: BSColor.Accent.travel,
-            priority: roundTripPriority(hasPlan: hasPlan)
-        )
-    }
-
-    private var preparationToolItem: HomeToolItem {
-        let hasCheckedAll = summary.hasCheckedAllPreparation
-        return HomeToolItem(
-            id: .preparation,
-            icon: "sparkles",
-            title: "现场准备",
-            status: summary.preparationStatus,
-            accent: BSColor.Accent.prepare,
-            priority: preparationPriority(isComplete: hasCheckedAll)
-        )
-    }
-
-    private var fragmentsToolItem: HomeToolItem {
-        let hasFragments = summary.hasFragments
-        return HomeToolItem(
-            id: .fragments,
-            icon: "sparkles.rectangle.stack",
-            title: "现场碎片",
-            status: summary.fragmentsStatus,
-            accent: BSColor.Accent.fragment,
-            priority: fragmentsPriority(hasFragments: hasFragments)
-        )
-    }
-
-    private func candidateSongsPriority(hasSongs: Bool) -> Int {
-        if hasSongs { return 62 }
-        switch phase.kind {
-        case .before where phase.dayDistance >= 8:
-            return 12
-        case .before:
-            return 34
-        default:
-            return 72
+    private func kickerDotColor(for phase: HomeShowPhase) -> Color {
+        switch phase {
+        case .pre: return BSColor.Home.accent
+        case .live: return BSColor.Home.live
+        case .ended, .inactive: return BSColor.Home.dim
         }
     }
 
-    private func roundTripPriority(hasPlan: Bool) -> Int {
-        if hasPlan { return 54 }
-        switch phase.kind {
-        case .today:
-            return 8
-        case .before where phase.dayDistance <= 7:
-            return 10
-        case .before:
-            return 28
-        default:
-            return 68
+    private func kickerTextColor(for phase: HomeShowPhase) -> Color {
+        switch phase {
+        case .pre: return BSColor.Home.accent
+        case .live: return BSColor.Home.liveTitle
+        case .ended, .inactive: return BSColor.Home.foreground.opacity(0.72)
         }
     }
 
-    private func preparationPriority(isComplete: Bool) -> Int {
-        if isComplete { return 58 }
-        switch phase.kind {
-        case .today:
-            return 9
-        case .before where phase.dayDistance <= 1:
-            return 11
-        case .before where phase.dayDistance <= 7:
-            return 22
-        default:
-            return 46
+    private func kickerTint(for phase: HomeShowPhase) -> Color {
+        switch phase {
+        case .pre: return BSColor.Home.background.opacity(0.38)
+        case .live: return Color(red: 0.31, green: 0.09, blue: 0.13).opacity(0.42)
+        case .ended, .inactive: return BSColor.Home.background.opacity(0.45)
         }
     }
 
-    private func fragmentsPriority(hasFragments: Bool) -> Int {
-        if hasFragments {
-            switch phase.kind {
-            case .postShow, .ended:
-                return 18
-            default:
-                return 56
+    private func kickerBorderColor(for phase: HomeShowPhase) -> Color {
+        switch phase {
+        case .pre: return BSColor.Home.accent.opacity(0.28)
+        case .live: return BSColor.Home.live.opacity(0.42)
+        case .ended, .inactive: return Color.white.opacity(0.14)
+        }
+    }
+
+    /// 设计稿 event-date 行：日期时间 · 约 X 分钟 / 小时（音乐节跨天已有「每日 HH:mm」，不追加时长）。
+    private func dateLine(timeState: CurrentShowTimeState) -> String {
+        let base = formatter.dateText(for: show)
+        guard show.type != .musicFestival, let start = timeState.effectiveStartTime else {
+            return base
+        }
+        if let end = timeState.effectiveEndTime, end > start {
+            let minutes = Int(end.timeIntervalSince(start)) / 60
+            let hours = minutes / 60
+            let rest = minutes % 60
+            let duration: String
+            if hours > 0 && rest > 0 {
+                duration = "约 \(hours) 小时 \(rest) 分"
+            } else if hours > 0 {
+                duration = "约 \(hours) 小时"
+            } else {
+                duration = "约 \(max(1, rest)) 分钟"
             }
+            return "\(base) · \(duration)"
         }
-
-        switch phase.kind {
-        case .today, .postShow:
-            return 7
-        case .ended:
-            return 20
-        default:
-            return 82
-        }
+        return "\(base) · 约 \(CurrentShowTimeState.defaultDurationHours(for: show.type)) 小时"
     }
 
-    private func timeText(_ date: Date) -> String {
-        Self.timeFormatter.string(from: date)
+    @MainActor
+    private func openDepartureMapForCurrentPlan() {
+        guard let plan = roundTripPlan else { return }
+        if let url = plan.savedDepartureNavigationURL {
+            UIApplication.shared.open(url)
+            return
+        }
+        if let url = DeparturePlanSession.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
+            UIApplication.shared.open(url)
+        }
     }
-
-    private static let timeFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
 
     private var locationText: String {
         let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -898,31 +609,6 @@ private struct CurrentShowContentView: View {
             return value
         }
         .joined(separator: " · ")
-    }
-}
-
-private extension View {
-    func homeGlass(cornerRadius: CGFloat, fillOpacity: Double, strokeOpacity: Double) -> some View {
-        self
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
-            .background(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color.white.opacity(fillOpacity))
-            )
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .stroke(Color.white.opacity(strokeOpacity), lineWidth: 0.75)
-            )
-    }
-}
-
-private struct HomeToolButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.985 : 1)
-            .opacity(configuration.isPressed ? 0.82 : 1)
-            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }
 

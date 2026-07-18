@@ -65,6 +65,31 @@ The app is dark-only in V2. These tokens replace pure black plus unrestricted fe
 - Body text must meet WCAG AA contrast. Tertiary copy is not used for essential instructions.
 - New colors must serve a semantic role and be added here before implementation.
 
+### Home 功能卡色板（V3，2026-07）
+
+The current-show home adopts the feature-cards design palette: warm tungsten gold on a blue-tinged stage. Scoped to the home surface only (`BSColor.Home.*`); other surfaces keep the palette above.
+
+| Role | Token | Value | Usage |
+|---|---|---|---|
+| Home stage | `BSColor.Home.background` | `#05070D` | Home root background |
+| Card surface | `BSColor.Home.surface` | `#0D111B` | Feature cards |
+| Raised surface | `BSColor.Home.surfaceRaised` | `#151A27` | Floating countdown card |
+| Foreground | `BSColor.Home.foreground` | `#F2F3F7` | Primary text on home |
+| Muted | `BSColor.Home.muted` | `#9399AA` | Supporting copy |
+| Dim | `BSColor.Home.dim` | `#646B7D` | Tertiary copy |
+| Tungsten gold | `BSColor.Home.accent` | `#E8C78E` | Primary accent + 歌单 card tone |
+| Route blue | `BSColor.Home.route` | `#527FC9` | 去程 card tone |
+| Prepare violet | `BSColor.Home.prepare` | `#7B678F` | 出门清单 card tone |
+| Fragment amber | `BSColor.Home.fragment` | `#D6A36F` | 现场碎片 card tone |
+| Live red | `BSColor.Home.live` | `#FF6B75` | 开场中 pulse and LIVE states |
+| Success | `BSColor.Home.success` | `#A7C9B5` | Checked preparation state |
+
+Rules:
+
+- Card tones tint borders, badges, and top gradients only; text and controls stay on foreground/muted/dim.
+- Badge text uses the card tone pre-mixed toward white (`routeBadge` / `prepareBadge` / `fragmentBadge`).
+- The countdown card is the only blurred raised surface on home; feature cards stay on flat tonal surfaces.
+
 ## 3. Typography
 
 Typography should feel editorial and deliberate while remaining native and legible in Chinese.

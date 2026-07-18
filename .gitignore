@@ -12,3 +12,5 @@ xcuserdata/
 .wrangler
 apps/ios/DerivedData
 scripts
+apps/ios/design-exploration
+apps/ios/screenshots
