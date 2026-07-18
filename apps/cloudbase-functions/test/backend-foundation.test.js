@@ -111,7 +111,9 @@ describe("CloudBase backend foundation", () => {
     assert.equal(result.provider.name, "qwen");
     assert.equal(result.provider.usedFallback, true);
     assert.deepEqual(result.providers.map((provider) => provider.name), ["doubao", "qwen"]);
-    assert.deepEqual(result.response.items, [{ songName: "Song", artist: "Artist" }]);
+    assert.deepEqual(result.response.items, [{ songName: "Song", artist: "Artist", tier: "mid" }]);
+    assert.match(calls[0].body.messages[0].content, /tier.*high\|mid\|guest\|encore/);
+    assert.match(calls[0].body.messages[0].content, /hint/);
     assert.equal(calls.length, 2);
     assert.equal(JSON.stringify(result).includes("secret-"), false);
     assert.equal(JSON.stringify(result).includes("lyrics"), false);
@@ -211,6 +213,6 @@ describe("CloudBase backend foundation", () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.request.requestId, "req-http-body");
-    assert.deepEqual(result.response.items, [{ songName: "Song", artist: "Artist" }]);
+    assert.deepEqual(result.response.items, [{ songName: "Song", artist: "Artist", tier: "mid" }]);
   });
 });

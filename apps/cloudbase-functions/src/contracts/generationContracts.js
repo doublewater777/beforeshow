@@ -10,7 +10,6 @@ const FORBIDDEN_RESPONSE_KEYS = new Set([
   "lyric",
   "recommendationReason",
   "reason",
-  "confidence",
   "score",
   "sourceText",
   "coverUrl",
@@ -22,6 +21,9 @@ const FORBIDDEN_RESPONSE_KEYS = new Set([
   "pageContent",
   "platformId"
 ]);
+
+const SONG_TIERS = new Set(["high", "mid", "guest", "encore"]);
+const LEGACY_SONG_CONFIDENCE = new Set(["high", "mid"]);
 
 export class ContractError extends Error {
   constructor(code, message, path = "$") {
@@ -165,13 +167,45 @@ function validateCandidateSongsResponse(input) {
     items: input.items.map((item, index) => {
       const path = `$.items[${index}]`;
       assertPlainObject(item, path);
-      assertAllowedKeys(item, ["songName", "artist"], path);
+      assertAllowedKeys(item, ["songName", "artist", "tier", "hint", "confidence"], path);
       assertNonEmptyString(item.songName, `${path}.songName`);
       assertNonEmptyString(item.artist, `${path}.artist`);
-      return {
+
+      let tier = "mid";
+      if (item.tier !== undefined) {
+        if (typeof item.tier !== "string" || !SONG_TIERS.has(item.tier)) {
+          throw new ContractError(
+            "INVALID_SONG_TIER",
+            "Song tier must be \"high\", \"mid\", \"guest\", or \"encore\".",
+            `${path}.tier`
+          );
+        }
+        tier = item.tier;
+      }
+
+      if (item.confidence !== undefined) {
+        if (typeof item.confidence !== "string" || !LEGACY_SONG_CONFIDENCE.has(item.confidence)) {
+          throw new ContractError(
+            "INVALID_SONG_CONFIDENCE",
+            "Song confidence must be \"high\" or \"mid\".",
+            `${path}.confidence`
+          );
+        }
+        if (item.tier === undefined) {
+          tier = item.confidence;
+        }
+      }
+
+      const normalized = {
         songName: item.songName.trim(),
-        artist: item.artist.trim()
+        artist: item.artist.trim(),
+        tier
       };
+      if (item.hint !== undefined) {
+        assertNonEmptyString(item.hint, `${path}.hint`);
+        normalized.hint = item.hint.trim();
+      }
+      return normalized;
     })
   };
 }

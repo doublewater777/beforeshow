@@ -15,6 +15,41 @@ enum CandidateSongGenerationError: Error, Equatable {
     case backendRejected(String)
 }
 
+enum SongTier: String, Codable, Equatable, CaseIterable, Sendable {
+    case high
+    case mid
+    case guest
+    case encore
+
+    static func parse(_ raw: String?) -> SongTier {
+        guard let raw else { return .mid }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return SongTier(rawValue: trimmed) ?? .mid
+    }
+
+    static func parseStrict(_ raw: String) -> SongTier? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return SongTier(rawValue: trimmed)
+    }
+
+    static func parseLegacyConfidence(_ raw: String) -> SongTier? {
+        switch raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "high": return .high
+        case "mid": return .mid
+        default: return nil
+        }
+    }
+}
+
+enum SongConfidence: String, Codable, Equatable, CaseIterable, Sendable {
+    case high
+    case mid
+
+    init(tier: SongTier) {
+        self = tier == .high ? .high : .mid
+    }
+}
+
 @Model
 final class CandidateSong {
     var id: UUID
@@ -23,8 +58,43 @@ final class CandidateSong {
     var artist: String
     var order: Int
     var isUserAdded: Bool
+    var isStarred: Bool = false
+    private var confidenceRawValue: String = "mid"
+    var hint: String?
 
-    init(id: UUID = UUID(), groupID: UUID, songName: String, artist: String, order: Int, isUserAdded: Bool = false) throws {
+    var tier: SongTier {
+        get { SongTier.parse(confidenceRawValue) }
+        set { confidenceRawValue = newValue.rawValue }
+    }
+
+    var confidence: SongConfidence {
+        get { SongConfidence(tier: tier) }
+        set { tier = newValue == .high ? .high : .mid }
+    }
+
+    var isMostWanted: Bool {
+        get { isStarred }
+        set { isStarred = newValue }
+    }
+
+    var shortHint: String? {
+        get { hint }
+        set { hint = Self.normalizedHint(newValue) }
+    }
+
+    init(
+        id: UUID = UUID(),
+        groupID: UUID,
+        songName: String,
+        artist: String,
+        order: Int,
+        isUserAdded: Bool = false,
+        isMostWanted: Bool = false,
+        tier: SongTier = .mid,
+        hint: String? = nil,
+        isStarred: Bool? = nil,
+        confidence: SongConfidence? = nil
+    ) throws {
         let trimmedSongName = songName.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -41,6 +111,15 @@ final class CandidateSong {
         self.artist = trimmedArtist
         self.order = order
         self.isUserAdded = isUserAdded
+        self.isStarred = isStarred ?? isMostWanted
+        self.confidenceRawValue = (confidence.map { $0 == .high ? SongTier.high : SongTier.mid } ?? tier).rawValue
+        self.hint = Self.normalizedHint(hint)
+    }
+
+    private static func normalizedHint(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 
@@ -124,6 +203,26 @@ final class ArtistInterestItem {
 struct CandidateSongInput: Equatable {
     let songName: String
     let artist: String
+    let tier: SongTier
+    let hint: String?
+
+    init(
+        songName: String,
+        artist: String,
+        tier: SongTier = .mid,
+        hint: String? = nil,
+        confidence: SongConfidence? = nil
+    ) {
+        self.songName = songName
+        self.artist = artist
+        self.tier = confidence.map { $0 == .high ? SongTier.high : SongTier.mid } ?? tier
+        let trimmedHint = hint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        self.hint = trimmedHint.isEmpty ? nil : trimmedHint
+    }
+
+    var confidence: SongConfidence {
+        SongConfidence(tier: tier)
+    }
 }
 
 struct CandidateSongSnapshot: Equatable {
@@ -156,6 +255,9 @@ struct CandidateSongGenerationResponse: Decodable, Equatable {
     private enum ItemCodingKeys: String, CodingKey, CaseIterable {
         case songName
         case artist
+        case tier
+        case hint
+        case confidence
     }
 
     init(from decoder: Decoder) throws {
@@ -193,7 +295,42 @@ struct CandidateSongGenerationResponse: Decodable, Equatable {
                 throw CandidateSongValidationError.emptyArtist
             }
 
-            decodedItems.append(CandidateSongInput(songName: songName, artist: artist))
+            let legacyTier: SongTier?
+            if itemContainer.contains(.confidence) {
+                guard let raw = try? itemContainer.decode(String.self, forKey: .confidence),
+                      let parsed = SongTier.parseLegacyConfidence(raw) else {
+                    throw CandidateSongValidationError.invalidGenerationPayload
+                }
+                legacyTier = parsed
+            } else {
+                legacyTier = nil
+            }
+
+            let tier: SongTier
+            if itemContainer.contains(.tier) {
+                guard let raw = try? itemContainer.decode(String.self, forKey: .tier),
+                      let parsed = SongTier.parseStrict(raw) else {
+                    throw CandidateSongValidationError.invalidGenerationPayload
+                }
+                tier = parsed
+            } else {
+                tier = legacyTier ?? .mid
+            }
+
+            let hint: String?
+            if itemContainer.contains(.hint) {
+                guard let raw = try? itemContainer.decode(String.self, forKey: .hint) else {
+                    throw CandidateSongValidationError.invalidGenerationPayload
+                }
+                let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+                hint = trimmed.isEmpty ? nil : trimmed
+            } else {
+                hint = nil
+            }
+
+            decodedItems.append(
+                CandidateSongInput(songName: songName, artist: artist, tier: tier, hint: hint)
+            )
         }
 
         guard !decodedItems.isEmpty else {
@@ -422,9 +559,22 @@ struct CandidateSongEditingService {
                 groupID: groupID,
                 songName: input.songName,
                 artist: input.artist,
-                order: index
+                order: index,
+                tier: input.tier,
+                hint: input.hint
             )
         }
+    }
+
+    /// Identity for star/preserve matching: trimmed song name + artist.
+    static func songIdentity(songName: String, artist: String) -> String {
+        let name = songName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artistName = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        return "\(name)\u{1e}\(artistName)"
+    }
+
+    static func songIdentity(for song: CandidateSong) -> String {
+        songIdentity(songName: song.songName, artist: song.artist)
     }
 
     /// Groups generated inputs by their `artist`, preserving the order in which each artist
@@ -508,4 +658,3 @@ struct CandidateSongEditingService {
         return songs
     }
 }
-

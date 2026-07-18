@@ -45,12 +45,31 @@ final class CandidateSongsTests: XCTestCase {
     }
 
     @MainActor
-    func testCandidateSongAndGroupDefaultUserFlagsAreFalse() throws {
+    func testCandidateSongStoresFourTierHintAndMostWantedState() throws {
         let song = try CandidateSong(groupID: UUID(), songName: "歌", artist: "艺人", order: 0)
         let group = try CandidateSongGroup(showID: UUID(), uncertaintyNote: "仅供参考")
 
         XCTAssertFalse(song.isUserAdded)
+        XCTAssertFalse(song.isStarred)
+        XCTAssertFalse(song.isMostWanted)
+        XCTAssertEqual(song.confidence, .mid)
+        XCTAssertEqual(song.tier, .mid)
+        XCTAssertNil(song.hint)
         XCTAssertFalse(group.isUserCurated)
+
+        let marked = try CandidateSong(
+            groupID: UUID(),
+            songName: "安可",
+            artist: "艺人",
+            order: 0,
+            isMostWanted: true,
+            tier: .encore,
+            hint: "安可位的老熟人"
+        )
+        XCTAssertTrue(marked.isMostWanted)
+        XCTAssertTrue(marked.isStarred)
+        XCTAssertEqual(marked.tier, .encore)
+        XCTAssertEqual(marked.hint, "安可位的老熟人")
     }
 
     @MainActor
@@ -69,10 +88,13 @@ final class CandidateSongsTests: XCTestCase {
         XCTAssertTrue(songs.allSatisfy { !$0.isUserAdded })
     }
 
-    func testGenerationResponseRejectsLyricsConfidenceReasonsAndPlatformMetadata() {
+    func testGenerationResponseRejectsLyricsNumericConfidenceReasonsAndPlatformMetadata() {
         let payloads = [
             #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","lyrics":"x"}]}"#,
             #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","confidence":0.9}]}"#,
+            #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","tier":0}]}"#,
+            #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","tier":"low"}]}"#,
+            #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","hint":4}]}"#,
             #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","recommendationReason":"hot"}]}"#,
             #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","platformId":"123"}]}"#,
             #"{"type":"candidateSongs","items":[{"songName":"A","artist":"B","coverUrl":"https://example.com/a.jpg"}]}"#,
@@ -84,6 +106,30 @@ final class CandidateSongsTests: XCTestCase {
                 try JSONDecoder().decode(CandidateSongGenerationResponse.self, from: Data(payload.utf8))
             )
         }
+    }
+
+    func testGenerationResponseAcceptsFourTiersHintsAndLegacyConfidence() throws {
+        let payload = """
+        {
+          "type": "candidateSongs",
+          "items": [
+            { "songName": "Song A", "artist": "Artist A", "tier": "high", "hint": "这轮巡演主题曲" },
+            { "songName": "Song B", "artist": "Artist B", "tier": "mid" },
+            { "songName": "Song C", "artist": "Artist C", "tier": "guest", "hint": "给北京场的彩蛋" },
+            { "songName": "Song D", "artist": "Artist D", "tier": "encore" },
+            { "songName": "Song E", "artist": "Artist E" },
+            { "songName": "Song F", "artist": "Artist F", "confidence": "high" }
+          ]
+        }
+        """
+
+        let response = try JSONDecoder().decode(
+            CandidateSongGenerationResponse.self,
+            from: Data(payload.utf8)
+        )
+
+        XCTAssertEqual(response.items.map(\.tier), [.high, .mid, .guest, .encore, .mid, .high])
+        XCTAssertEqual(response.items.map(\.hint), ["这轮巡演主题曲", nil, "给北京场的彩蛋", nil, nil, nil])
     }
 
     func testGenerationResponseAcceptsOrderedSongNameAndArtistOnly() throws {
@@ -105,10 +151,25 @@ final class CandidateSongsTests: XCTestCase {
         XCTAssertEqual(
             response.items,
             [
-                CandidateSongInput(songName: "Song A", artist: "Artist A"),
-                CandidateSongInput(songName: "Song B", artist: "Artist B")
+                CandidateSongInput(songName: "Song A", artist: "Artist A", confidence: .mid),
+                CandidateSongInput(songName: "Song B", artist: "Artist B", confidence: .mid)
             ]
         )
+    }
+
+    @MainActor
+    func testMakeSongsAppliesInputTierAndHint() throws {
+        let service = CandidateSongEditingService()
+        let songs = try service.makeSongs(
+            groupID: UUID(),
+            inputs: [
+                CandidateSongInput(songName: "S1", artist: "A", tier: .guest, hint: "嘉宾合作"),
+                CandidateSongInput(songName: "S2", artist: "A", tier: .encore)
+            ]
+        )
+        XCTAssertEqual(songs.map(\.tier), [.guest, .encore])
+        XCTAssertEqual(songs.map(\.hint), ["嘉宾合作", nil])
+        XCTAssertTrue(songs.allSatisfy { !$0.isStarred })
     }
 
     func testManualEditingCanAddRemoveReorderAndCopyPlainText() throws {

@@ -1,10 +1,10 @@
 import Foundation
 import SwiftData
 
-/// Deep module for 候选曲目 transactions: generate/replace, add/remove/reorder.
+/// Deep module for 歌单猜想 transactions: generate/replace, add/remove/reorder, star preserve.
 ///
-/// Deletion test: removing this module forces replace-preserving-user-songs,
-/// renumber, and generate orchestration back into CandidateSongsView (and any
+/// Deletion test: removing this module forces replace-preserving-user-songs-and-stars,
+/// renumber, and generate orchestration back into the setlist sheet (and any
 /// other call site). The view is a thin adapter over this interface.
 @MainActor
 struct CandidateSongsSession {
@@ -67,17 +67,17 @@ struct CandidateSongsSession {
 
     func copyText(headline: String, scope: String, songs: [CandidateSong]) -> String {
         let body = playlistBody(for: songs)
-        return "\(headline)\n猜歌单 · \(scope)（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
+        return "\(headline)\n歌单猜想 · \(scope)（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
     }
 
     func shareText(headline: String, songs: [CandidateSong]) -> String {
         let body = playlistBody(for: songs)
-        return "\(headline)\n猜歌单（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
+        return "\(headline)\n歌单猜想（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
     }
 
     // MARK: - Mutations
 
-    /// Generate remote inputs and replace the show's catalog, preserving user-added songs.
+    /// Generate remote inputs and replace the show's catalog, preserving user-added and starred songs.
     func generateAndReplace(
         artistInterests: [ArtistInterestItem],
         existingGroups: [CandidateSongGroup],
@@ -94,7 +94,8 @@ struct CandidateSongsSession {
         )
     }
 
-    /// Replace generated catalog; keep `isUserAdded` songs in a curated group at the end.
+    /// Replace generated catalog.
+    /// Keeps `isUserAdded` songs (curated group at end) and **星标曲目** (re-applied on match or re-inserted).
     func replaceGenerated(
         with inputs: [CandidateSongInput],
         existingGroups: [CandidateSongGroup],
@@ -106,10 +107,15 @@ struct CandidateSongsSession {
         let oldSongs = existingSongs.filter { showGroupIDs.contains($0.groupID) }
         let oldGroups = existingGroups
 
-        let preservedInputs = oldSongs
+        let mostWantedIdentitySet = Set(
+            oldSongs
+                .filter(\.isMostWanted)
+                .map { CandidateSongEditingService.songIdentity(for: $0) }
+        )
+
+        let preservedUserSongs = oldSongs
             .filter(\.isUserAdded)
             .sorted { $0.order < $1.order }
-            .map { CandidateSongInput(songName: $0.songName, artist: $0.artist) }
 
         let grouped = editingService.groupedInputsByArtist(
             inputs: inputs,
@@ -117,6 +123,7 @@ struct CandidateSongsSession {
         )
 
         var created: [CandidateSong] = []
+        var coveredMostWantedIdentities = Set<String>()
 
         for entry in grouped {
             let group = try CandidateSongGroup(
@@ -127,20 +134,73 @@ struct CandidateSongsSession {
             )
             context.insert(group)
             for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
+                let identity = CandidateSongEditingService.songIdentity(for: song)
+                if mostWantedIdentitySet.contains(identity) {
+                    song.isMostWanted = true
+                    coveredMostWantedIdentities.insert(identity)
+                }
                 context.insert(song)
                 created.append(song)
             }
         }
 
-        if !preservedInputs.isEmpty {
+        // Starred generated songs not in the new list: re-insert with prior confidence.
+        let missingStarred = oldSongs
+            .filter { song in
+                song.isMostWanted
+                    && !song.isUserAdded
+                    && !coveredMostWantedIdentities.contains(CandidateSongEditingService.songIdentity(for: song))
+            }
+            .sorted { $0.order < $1.order }
+
+        if !missingStarred.isEmpty {
+            let reinsertInputs = missingStarred.map {
+                CandidateSongInput(
+                    songName: $0.songName,
+                    artist: $0.artist,
+                    tier: $0.tier,
+                    hint: $0.hint
+                )
+            }
+            let reinsertGrouped = editingService.groupedInputsByArtist(
+                inputs: reinsertInputs,
+                artistInterests: artistInterests
+            )
+            for entry in reinsertGrouped {
+                let group = try CandidateSongGroup(
+                    showID: show.id,
+                    artistInterestID: entry.artistInterestID,
+                    artistName: entry.artistName,
+                    uncertaintyNote: Self.defaultUncertaintyNote
+                )
+                context.insert(group)
+                for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
+                    song.isMostWanted = true
+                    context.insert(song)
+                    created.append(song)
+                    coveredMostWantedIdentities.insert(CandidateSongEditingService.songIdentity(for: song))
+                }
+            }
+        }
+
+        if !preservedUserSongs.isEmpty {
             let group = try CandidateSongGroup(
                 showID: show.id,
                 uncertaintyNote: Self.defaultUncertaintyNote,
                 isUserCurated: true
             )
             context.insert(group)
-            for song in try editingService.makeSongs(groupID: group.id, inputs: preservedInputs) {
-                song.isUserAdded = true
+            for old in preservedUserSongs {
+                let song = try CandidateSong(
+                    groupID: group.id,
+                    songName: old.songName,
+                    artist: old.artist,
+                    order: created.count,
+                    isUserAdded: true,
+                    isMostWanted: old.isMostWanted,
+                    tier: old.tier,
+                    hint: old.hint
+                )
                 context.insert(song)
                 created.append(song)
             }
@@ -206,6 +266,15 @@ struct CandidateSongsSession {
         try context.save()
     }
 
+    func setMostWanted(_ song: CandidateSong, isMostWanted: Bool, in context: ModelContext) throws {
+        song.isMostWanted = isMostWanted
+        try context.save()
+    }
+
+    func setStarred(_ song: CandidateSong, isStarred: Bool, in context: ModelContext) throws {
+        try setMostWanted(song, isMostWanted: isStarred, in: context)
+    }
+
     func renumber(_ songs: [CandidateSong]) {
         for (index, song) in songs.enumerated() {
             song.order = index
@@ -230,7 +299,7 @@ struct CandidateSongsSession {
         return group
     }
 
-    private static let defaultUncertaintyNote = "候选曲目来自公开信息推测，不代表官方歌单。"
+    private static let defaultUncertaintyNote = "歌单猜想来自公开信息推测，不代表官方歌单。"
 
     static func makeDefaultGenerationService() -> RemoteCandidateSongGenerationService {
         RemoteCandidateSongGenerationService(client: .production())

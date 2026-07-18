@@ -94,12 +94,12 @@ function systemPromptFor(type) {
   const common = [
     "You are the BeforeShow backend generation service.",
     "Return only one JSON object. Do not return markdown, prose, comments, or code fences.",
-    "Do not include lyrics, recommendation reasons, confidence scores, cover URLs, audio URLs, video URLs, comments, danmaku, page contents, or platform IDs.",
+    "Do not include lyrics, recommendation reasons, numeric confidence scores, cover URLs, audio URLs, video URLs, comments, danmaku, page contents, or platform IDs.",
     "Use concise Simplified Chinese where natural."
   ].join("\n");
 
   if (type === "candidateSongs") {
-    return `${common}\nReturn exactly: {"type":"candidateSongs","items":[{"songName":"...","artist":"..."}]}. Order items as a guessed live-show order.`;
+    return `${common}\nReturn exactly: {"type":"candidateSongs","items":[{"songName":"...","artist":"...","tier":"high|mid|guest|encore","hint":"..."}]}. tier must be one of "high", "mid", "guest", or "encore". hint is optional, concise (about 6–12 Chinese characters), and should be omitted when there is no short reason. Order items as a guessed live-show order.`;
   }
 
   if (type === "roundTripDraft") {

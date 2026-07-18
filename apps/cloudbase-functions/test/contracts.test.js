@@ -9,7 +9,7 @@ import {
 } from "../src/contracts/generationContracts.js";
 
 describe("generation contracts", () => {
-  it("accepts a minimal candidate songs request and ordered song-name/artist response", () => {
+  it("accepts a minimal candidate songs request and defaults a missing tier", () => {
     const request = validateGenerationRequest({
       type: GENERATION_TYPES.candidateSongs,
       requestId: "req-candidate-1",
@@ -38,11 +38,30 @@ describe("generation contracts", () => {
     assert.equal(request.show.type, "concert");
     assert.deepEqual(response.items[0], {
       songName: "Vanilla Villa",
-      artist: "落日飞车"
+      artist: "落日飞车",
+      tier: "mid"
     });
   });
 
-  it("rejects candidate song lyrics, recommendation reasons, confidence and prose", () => {
+  it("accepts four song tiers, optional hints, and legacy confidence", () => {
+    const withTiers = validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
+      type: GENERATION_TYPES.candidateSongs,
+      items: [
+        { songName: "A", artist: "Artist", tier: "high", hint: "这轮巡演主题曲" },
+        { songName: "B", artist: "Artist", tier: "mid" },
+        { songName: "C", artist: "Artist", tier: "guest", hint: "给北京场的彩蛋" },
+        { songName: "D", artist: "Artist", tier: "encore" },
+        { songName: "E", artist: "Artist" },
+        { songName: "F", artist: "Artist", confidence: "high" }
+      ]
+    });
+
+    assert.deepEqual(withTiers.items.map((item) => item.tier), ["high", "mid", "guest", "encore", "mid", "high"]);
+    assert.equal(withTiers.items[0].hint, "这轮巡演主题曲");
+    assert.equal(withTiers.items[1].hint, undefined);
+  });
+
+  it("rejects candidate song lyrics, URLs, numeric tiers, invalid tiers and prose", () => {
     assert.throws(
       () => validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
         type: GENERATION_TYPES.candidateSongs,
@@ -61,11 +80,46 @@ describe("generation contracts", () => {
         items: [{
           songName: "Song",
           artist: "Artist",
-          recommendationReason: "not allowed",
-          confidence: 0.8
+          recommendationReason: "not allowed"
         }]
       }),
       errorWithCode("UNSUPPORTED_RESPONSE_FIELD")
+    );
+
+    assert.throws(
+      () => validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
+        type: GENERATION_TYPES.candidateSongs,
+        items: [{
+          songName: "Song",
+          artist: "Artist",
+          tier: 0
+        }]
+      }),
+      errorWithCode("INVALID_SONG_TIER")
+    );
+
+    assert.throws(
+      () => validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
+        type: GENERATION_TYPES.candidateSongs,
+        items: [{
+          songName: "Song",
+          artist: "Artist",
+          coverUrl: "https://example.com/song.jpg"
+        }]
+      }),
+      errorWithCode("UNSUPPORTED_RESPONSE_FIELD")
+    );
+
+    assert.throws(
+      () => validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
+        type: GENERATION_TYPES.candidateSongs,
+        items: [{
+          songName: "Song",
+          artist: "Artist",
+          tier: "low"
+        }]
+      }),
+      errorWithCode("INVALID_SONG_TIER")
     );
 
     assert.throws(
