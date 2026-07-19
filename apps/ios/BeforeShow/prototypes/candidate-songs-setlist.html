@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BeforeShow · 候选曲目 = 猜歌单（throwaway）</title>
+  <title>BeforeShow · 歌单猜想（throwaway）</title>
   <style>
     :root {
       --text: #fff;
@@ -257,7 +257,7 @@
       background: linear-gradient(160deg, #1c1220 0%, #0a0a0c 55%, #121018 100%);
       border: 1px solid rgba(255,255,255,0.12);
       padding: 20px 18px 18px;
-      aspect-ratio: 3 / 4;
+      min-height: 420px;
       display: flex; flex-direction: column;
     }
     .share-card .brand {
@@ -276,7 +276,7 @@
       text-transform: uppercase; color: var(--candidate); font-weight: 600;
     }
     .share-card .songs {
-      margin-top: 10px; flex: 1; overflow: hidden;
+      margin-top: 10px; flex: 1; overflow: visible;
       font-size: 13px; line-height: 1.55; color: rgba(255,255,255,0.82);
     }
     .share-card .songs span { color: rgba(255,255,255,0.35); margin-right: 6px; }
@@ -319,7 +319,7 @@
 <body>
   <div class="page-head">
     <div class="badge">Prototype · throwaway · v2</div>
-    <h1>候选曲目 = 猜一份 setlist</h1>
+    <h1>歌单猜想 = 猜一份 setlist</h1>
     <p>
       上一版偏「展示艺人图」和 Tips，偏离了。这页主物体是<strong>可编辑的猜测歌单</strong>：
       列表是核心；复制全文、分享卡片是一级动作；播放预留但未做实。
@@ -347,7 +347,7 @@
             <div class="nav">
               <button class="nav-back" type="button">‹</button>
               <div class="nav-mid">
-                <h2>候选曲目</h2>
+                <h2>歌单猜想</h2>
                 <p id="navSub">—</p>
               </div>
               <button class="nav-more" type="button" title="更多">···</button>
@@ -433,17 +433,15 @@
       const show = scene === "single" ? SINGLE.show : MULTI.show;
       const meta = scene === "single" ? SINGLE.meta : MULTI.meta;
       const list = songs
-        .slice(0, 12)
         .map((s, i) => `<div><span>${String(i + 1).padStart(2, "0")}</span>${s.title}</div>`)
         .join("");
-      const more = songs.length > 12 ? `<div style="margin-top:6px;color:rgba(255,255,255,0.35)">…共 ${songs.length} 首</div>` : "";
       document.getElementById("shareCard").innerHTML = `
         <div class="brand">BeforeShow</div>
         <div class="show-name">${show}</div>
         <div class="show-meta">${meta}</div>
-        <div class="label">猜歌单</div>
-        <div class="songs">${list}${more}</div>
-        <div class="footer">非官方推测 · 开场前慢慢靠近</div>
+        <div class="label">歌单猜想</div>
+        <div class="songs">${list}</div>
+        <div class="footer">非官方 · 开场前慢慢靠近</div>
       `;
       document.getElementById("scrim").classList.add("open");
     }

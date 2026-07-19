@@ -237,9 +237,84 @@ final class CandidateSongsSessionTests: XCTestCase {
         songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
         XCTAssertEqual(songs.map(\.songName), ["二", "一"])
 
+        try session.moveDown(songs[0], previouslyOrdered: songs, in: context)
+        songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["一", "二"])
+
+        try session.moveUp(songs[1], previouslyOrdered: songs, in: context)
+        songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["二", "一"])
+
         try session.remove(songs[0], previouslyOrdered: songs, in: context)
         songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
         XCTAssertEqual(songs.map(\.songName), ["一"])
+        XCTAssertEqual(songs[0].order, 0)
+    }
+
+    func testAddUserSongRejectsDuplicateSongArtistPair() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let session = CandidateSongsSession(show: show)
+        try session.addUserSong(
+            name: "晴天",
+            artist: "周杰伦",
+            groups: [],
+            currentSongs: [],
+            in: context
+        )
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+
+        XCTAssertThrowsError(
+            try session.addUserSong(
+                name: " 晴天 ",
+                artist: "周杰伦",
+                groups: try context.fetch(FetchDescriptor<CandidateSongGroup>()),
+                currentSongs: songs,
+                in: context
+            )
+        ) { error in
+            XCTAssertEqual(error as? CandidateSongValidationError, .duplicateSong)
+        }
+    }
+
+    func testDeduplicateSongsKeepsUserAddedAndMostWantedState() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let generatedGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "生成")
+        let userGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "手加", isUserCurated: true)
+        let generated = try CandidateSong(
+            groupID: generatedGroup.id,
+            songName: "晴天",
+            artist: "周杰伦",
+            order: 0
+        )
+        let userAdded = try CandidateSong(
+            groupID: userGroup.id,
+            songName: "晴天",
+            artist: " 周杰伦 ",
+            order: 1,
+            isUserAdded: true,
+            isMostWanted: true
+        )
+        context.insert(generatedGroup)
+        context.insert(userGroup)
+        context.insert(generated)
+        context.insert(userAdded)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.deduplicateSongs(songs: [generated, userAdded], in: context)
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.count, 1)
+        XCTAssertTrue(songs[0].isUserAdded)
+        XCTAssertTrue(songs[0].isMostWanted)
         XCTAssertEqual(songs[0].order, 0)
     }
 
@@ -259,6 +334,181 @@ final class CandidateSongsSessionTests: XCTestCase {
         XCTAssertFalse(text.contains("官方 setlist"))
     }
 
+    func testPlaylistBodyMarksMostWantedSongs() throws {
+        let show = try makeShow()
+        let session = CandidateSongsSession(show: show)
+        let groupID = UUID()
+        let wanted = try CandidateSong(
+            groupID: groupID,
+            songName: "晴天",
+            artist: "周杰伦",
+            order: 0,
+            isMostWanted: true
+        )
+        let plain = try CandidateSong(groupID: groupID, songName: "七里香", artist: "周杰伦", order: 1)
+        let body = session.playlistBody(for: [wanted, plain])
+        XCTAssertTrue(body.contains("（最想看）"))
+        XCTAssertTrue(body.contains("七里香"))
+    }
+
+    func testRepairLegacyTiersAndHintsFillsAllMidEmptyCatalog() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        context.insert(group)
+        for index in 0..<6 {
+            let song = try CandidateSong(
+                groupID: group.id,
+                songName: "歌\(index)",
+                artist: "艺人",
+                order: index,
+                isUserAdded: false
+            )
+            context.insert(song)
+        }
+        let userAdded = try CandidateSong(
+            groupID: group.id,
+            songName: "手加",
+            artist: "用户",
+            order: 6,
+            isUserAdded: true
+        )
+        context.insert(userAdded)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        let before = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        try session.repairLegacyTiersAndHintsIfNeeded(songs: before, in: context)
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        let generated = songs.filter { !$0.isUserAdded }
+        XCTAssertTrue(generated.contains { $0.tier == .high })
+        XCTAssertTrue(generated.contains { $0.tier == .encore })
+        XCTAssertTrue(generated.allSatisfy { ($0.hint?.isEmpty ?? true) == false })
+        // User-added rows are left alone.
+        XCTAssertEqual(songs.last?.songName, "手加")
+        XCTAssertEqual(songs.last?.tier, .mid)
+        XCTAssertNil(songs.last?.hint)
+    }
+
+    func testRepairLegacyTiersAndHintsSkipsWhenAlreadyEnriched() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        let high = try CandidateSong(
+            groupID: group.id,
+            songName: "A",
+            artist: "艺人",
+            order: 0,
+            tier: .high,
+            hint: "这轮巡演主题曲"
+        )
+        let mid = try CandidateSong(
+            groupID: group.id,
+            songName: "B",
+            artist: "艺人",
+            order: 1,
+            tier: .mid,
+            hint: "近期巡演常演"
+        )
+        context.insert(group)
+        context.insert(high)
+        context.insert(mid)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.repairLegacyTiersAndHintsIfNeeded(songs: [high, mid], in: context)
+
+        XCTAssertEqual(high.tier, .high)
+        XCTAssertEqual(high.hint, "这轮巡演主题曲")
+        XCTAssertEqual(mid.tier, .mid)
+        XCTAssertEqual(mid.hint, "近期巡演常演")
+    }
+
+    func testParseLineupNamesSplitsCommonSeparators() {
+        XCTAssertEqual(
+            CandidateSongsSession.parseLineupNames(from: "薛之谦、毛不易，单依纯/陈粒"),
+            ["薛之谦", "毛不易", "单依纯", "陈粒"]
+        )
+        // Damai / ShowStart join style
+        XCTAssertEqual(
+            CandidateSongsSession.parseLineupNames(from: "刘雨昕, 姚琛, 二手玫瑰, DOUDOU"),
+            ["刘雨昕", "姚琛", "二手玫瑰", "DOUDOU"]
+        )
+        XCTAssertEqual(
+            CandidateSongsSession.parseLineupNames(from: "A · B · C"),
+            ["A", "B", "C"]
+        )
+        XCTAssertEqual(
+            CandidateSongsSession.parseLineupNames(from: "The 1975"),
+            ["The 1975"]
+        )
+        XCTAssertEqual(
+            CandidateSongsSession.parseLineupNames(from: "  唯一  "),
+            ["唯一"]
+        )
+        XCTAssertEqual(CandidateSongsSession.parseLineupNames(from: nil), [])
+        XCTAssertEqual(CandidateSongsSession.parseLineupNames(from: "  "), [])
+    }
+
+    func testSeedFestivalInterestsFromShowArtist() throws {
+        let show = try Show(
+            name: "音乐节",
+            date: DateComponents(calendar: calendar, year: 2026, month: 8, day: 1).date!,
+            startTime: DateComponents(calendar: calendar, year: 2026, month: 8, day: 1, hour: 20).date!,
+            artist: "A、B，C",
+            type: .musicFestival
+        )
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        let seeded = try session.seedFestivalInterestsIfNeeded(existing: [], in: context)
+        XCTAssertEqual(seeded.map(\.artistName), ["A", "B", "C"])
+        XCTAssertTrue(seeded.allSatisfy { $0.status == .wantToSee })
+
+        // Second call is no-op when interests already exist.
+        let again = try session.seedFestivalInterestsIfNeeded(existing: seeded, in: context)
+        XCTAssertEqual(again.count, 3)
+    }
+
+    func testGenerateAndReplaceEnrichesLegacyGeneratorPayload() async throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        try context.save()
+
+        let stub = StubCandidateSongGenerator(inputs: [
+            CandidateSongInput(songName: "一", artist: "甲"),
+            CandidateSongInput(songName: "二", artist: "甲"),
+            CandidateSongInput(songName: "三", artist: "甲"),
+            CandidateSongInput(songName: "四", artist: "甲"),
+            CandidateSongInput(songName: "五", artist: "甲")
+        ])
+        let session = CandidateSongsSession(show: show, generationService: stub)
+        try await session.generateAndReplace(
+            artistInterests: [],
+            existingGroups: [],
+            existingSongs: [],
+            in: context
+        )
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.count, 5)
+        XCTAssertTrue(songs.contains { $0.tier == .high })
+        XCTAssertEqual(songs.last?.tier, .encore)
+        XCTAssertTrue(songs.allSatisfy { ($0.hint?.isEmpty ?? true) == false })
+    }
+
     private func makeShow() throws -> Show {
         try Show(
             name: "Session 测试现场",
@@ -273,5 +523,14 @@ final class CandidateSongsSessionTests: XCTestCase {
             for: Show.self, CandidateSongGroup.self, CandidateSong.self, ArtistInterestItem.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true)
         )
+    }
+}
+
+@MainActor
+private struct StubCandidateSongGenerator: CandidateSongGenerating {
+    let inputs: [CandidateSongInput]
+
+    func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
+        inputs
     }
 }

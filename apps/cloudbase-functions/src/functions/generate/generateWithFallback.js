@@ -35,7 +35,7 @@ export async function generateWithFallback(request, options = {}) {
       }
 
       try {
-        const response = validateGenerationResponse(request.type, result.response);
+        const response = validateGenerationResponse(request.type, result.response, request.limits);
         return {
           selected: {
             provider: result.provider,
@@ -69,7 +69,7 @@ export async function generateWithFallback(request, options = {}) {
 
   // Preserve contract error shape when nothing valid remained.
   return {
-    selected: selectValidProviderResponse(request.type, providerResults),
+    selected: selectValidProviderResponse(request.type, providerResults, request.limits),
     providerResults,
     providerErrors,
     durationMs: undefined

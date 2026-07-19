@@ -43,7 +43,7 @@ export async function callOpenAICompatibleProvider(provider, request, options = 
       messages: [
         {
           role: "system",
-          content: systemPromptFor(request.type)
+          content: systemPromptFor(request)
         },
         {
           role: "user",
@@ -90,23 +90,48 @@ export async function callOpenAICompatibleProvider(provider, request, options = 
   }
 }
 
-function systemPromptFor(type) {
+function systemPromptFor(request) {
+  const { type } = request;
   const common = [
     "You are the BeforeShow backend generation service.",
     "Return only one JSON object. Do not return markdown, prose, comments, or code fences.",
-    "Do not include lyrics, recommendation reasons, numeric confidence scores, cover URLs, audio URLs, video URLs, comments, danmaku, page contents, or platform IDs.",
     "Use concise Simplified Chinese where natural."
   ].join("\n");
 
+  const noMediaOrIds =
+    "Do not include lyrics, numeric confidence scores, cover URLs, audio URLs, video URLs, comments, danmaku, page contents, or platform IDs.";
+
   if (type === "candidateSongs") {
-    return `${common}\nReturn exactly: {"type":"candidateSongs","items":[{"songName":"...","artist":"...","tier":"high|mid|guest|encore","hint":"..."}]}. tier must be one of "high", "mid", "guest", or "encore". hint is optional, concise (about 6–12 Chinese characters), and should be omitted when there is no short reason. Order items as a guessed live-show order.`;
+    const targetSongs = request.show?.type === "musicFestival"
+      ? Math.max(10, request.limits?.targetSongs ?? 10)
+      : request.limits?.targetSongs;
+    const quantityRequirement = targetSongs === undefined
+      ? "Return a useful setlist-sized list of songs."
+      : `Aim for ${targetSongs}–${request.limits?.maxSongs ?? targetSongs} songs. If the selected artist genuinely has fewer plausible songs, return all credible songs you can identify rather than inventing songs to reach the target.`;
+
+    // Short `hint` is intentional product copy (曲目短因), not long recommendation prose.
+    return [
+      common,
+      noMediaOrIds,
+      'Return exactly: {"type":"candidateSongs","items":[{"songName":"...","artist":"...","tier":"high|mid|guest|encore","hint":"..."}]}.',
+      quantityRequirement,
+      'tier is required and must be one of "high", "mid", "guest", or "encore".',
+      "Use a realistic live-set mix: about 2–4 high near the front, mostly mid in the middle, 0–1 guest when a collab/guest is plausible, and 1–2 encore near the end. Do not mark every song mid.",
+      "hint is required: a short Chinese reason (about 6–12 characters) for why this song might appear, e.g. 这轮巡演主题曲 / 近巡必唱 / 嘉宾合作曲 / 安可位常客. Not a long review or free-form recommendation essay.",
+      "Order items as a guessed live-show setlist order."
+    ].join("\n");
   }
 
   if (type === "roundTripDraft") {
-    return `${common}\nReturn exactly: {"type":"roundTripDraft","direction":"outbound|return","summary":"...","steps":[{"title":"...","detail":"..."}],"evidence":[{"title":"...","url":"..."}]}. Include evidence only when it is reliable; never invent specific traffic facts.`;
+    return [
+      common,
+      noMediaOrIds,
+      "Do not invent long recommendation narratives.",
+      'Return exactly: {"type":"roundTripDraft","direction":"outbound|return","summary":"...","steps":[{"title":"...","detail":"..."}],"evidence":[{"title":"...","url":"..."}]}. Include evidence only when it is reliable; never invent specific traffic facts.'
+    ].join("\n");
   }
 
-  return common;
+  return `${common}\n${noMediaOrIds}\nDo not invent long recommendation narratives.`;
 }
 
 function safePromptPayload(request) {

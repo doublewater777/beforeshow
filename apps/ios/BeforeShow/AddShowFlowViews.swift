@@ -535,6 +535,14 @@ struct AddShowFlowView: View {
                 modelContext.insert(NotificationSchedulingState(focusedShowID: show.id))
             }
 
+            // 音乐节：把「艺人 / 阵容」拆成艺人关注项，歌单勾选直接用这份名单。
+            if show.type == .musicFestival {
+                _ = try CandidateSongsSession(show: show).seedFestivalInterestsIfNeeded(
+                    existing: [],
+                    in: modelContext
+                )
+            }
+
             try modelContext.save()
             presentToast(.success, message: "已放入当前现场")
             Task { @MainActor in

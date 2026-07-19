@@ -98,7 +98,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
 
         XCTAssertEqual(ProLimitReason.candidateSongsRegeneration.title, "重复生成需要 Pro")
-        XCTAssertTrue(ProLimitReason.candidateSongsRegeneration.message.contains("候选曲目"))
+        XCTAssertTrue(ProLimitReason.candidateSongsRegeneration.message.contains("歌单猜想"))
         XCTAssertTrue(ProLimitReason.roundTripRegeneration.message.contains("去程计划"))
     }
 
@@ -140,7 +140,6 @@ final class ProSubscriptionTests: XCTestCase {
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
         XCTAssertEqual(SettingsInformation.orderedEntries, [
             .proMembership,
-            .defaultMusicPlatform,
             .privacyAndLocalData,
             .feedback,
             .about
@@ -149,6 +148,8 @@ final class ProSubscriptionTests: XCTestCase {
         let copy = SettingsInformation.orderedEntries.map(\.rawValue).joined(separator: " ")
         XCTAssertFalse(copy.contains("账号"))
         XCTAssertFalse(copy.contains("同步"))
+        XCTAssertFalse(copy.contains("默认音乐平台"))
+        XCTAssertFalse(SettingsEntry.allCases.map(\.rawValue).contains("默认音乐平台"))
     }
 
     func testPrivacyCopyCoversRequiredBoundaries() {

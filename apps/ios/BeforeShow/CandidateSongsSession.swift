@@ -61,18 +61,19 @@ struct CandidateSongsSession {
     /// Plain-text playlist body used by copy/share (1-based lines).
     func playlistBody(for songs: [CandidateSong]) -> String {
         songs.enumerated()
-            .map { "\($0.offset + 1). \($0.element.songName) - \($0.element.artist)" }
+            .map { index, song in
+                var line = "\(index + 1). \(song.songName) - \(song.artist)"
+                if song.isMostWanted {
+                    line += "（最想看）"
+                }
+                return line
+            }
             .joined(separator: "\n")
     }
 
     func copyText(headline: String, scope: String, songs: [CandidateSong]) -> String {
         let body = playlistBody(for: songs)
         return "\(headline)\n歌单猜想 · \(scope)（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
-    }
-
-    func shareText(headline: String, songs: [CandidateSong]) -> String {
-        let body = playlistBody(for: songs)
-        return "\(headline)\n歌单猜想（非官方）\n\n\(body)\n\n— 开场前 BeforeShow"
     }
 
     // MARK: - Mutations
@@ -84,7 +85,8 @@ struct CandidateSongsSession {
         existingSongs: [CandidateSong],
         in context: ModelContext
     ) async throws {
-        let inputs = try await generationService.generate(for: show, artistInterests: artistInterests)
+        let raw = try await generationService.generate(for: show, artistInterests: artistInterests)
+        let inputs = CandidateSongEditingService.enrichMissingTierAndHints(raw)
         try replaceGenerated(
             with: inputs,
             existingGroups: existingGroups,
@@ -94,8 +96,69 @@ struct CandidateSongsSession {
         )
     }
 
+    /// One-shot repair for catalogs that look like legacy songName+artist-only generations
+    /// (every generated row is mid with no short hint). Safe to call on sheet appear.
+    func repairLegacyTiersAndHintsIfNeeded(
+        songs: [CandidateSong],
+        in context: ModelContext
+    ) throws {
+        let generated = songs
+            .filter { !$0.isUserAdded }
+            .sorted { $0.order < $1.order }
+        guard generated.count >= 2 else { return }
+        guard generated.allSatisfy({ $0.tier == .mid && ($0.hint?.isEmpty ?? true) }) else { return }
+
+        let enriched = CandidateSongEditingService.enrichMissingTierAndHints(
+            generated.map {
+                CandidateSongInput(
+                    songName: $0.songName,
+                    artist: $0.artist,
+                    tier: $0.tier,
+                    hint: $0.hint
+                )
+            }
+        )
+        for (song, input) in zip(generated, enriched) {
+            song.tier = input.tier
+            song.shortHint = input.hint
+        }
+        try context.save()
+    }
+
+    func deduplicateSongs(
+        songs: [CandidateSong],
+        in context: ModelContext
+    ) throws {
+        let ordered = songs
+        var retained: [CandidateSong] = []
+        var retainedIndexByIdentity: [String: Int] = [:]
+
+        for song in ordered {
+            let identity = CandidateSongEditingService.songIdentity(for: song)
+            guard let retainedIndex = retainedIndexByIdentity[identity] else {
+                retainedIndexByIdentity[identity] = retained.count
+                retained.append(song)
+                continue
+            }
+
+            let existing = retained[retainedIndex]
+            if song.isUserAdded && !existing.isUserAdded {
+                song.isMostWanted = song.isMostWanted || existing.isMostWanted
+                context.delete(existing)
+                retained[retainedIndex] = song
+                retainedIndexByIdentity[identity] = retainedIndex
+            } else {
+                existing.isMostWanted = existing.isMostWanted || song.isMostWanted
+                context.delete(song)
+            }
+        }
+
+        renumber(retained)
+        try context.save()
+    }
+
     /// Replace generated catalog.
-    /// Keeps `isUserAdded` songs (curated group at end) and **星标曲目** (re-applied on match or re-inserted).
+    /// Keeps `isUserAdded` songs (curated group at end) and **最想看曲目** (re-applied on match or re-inserted).
     func replaceGenerated(
         with inputs: [CandidateSongInput],
         existingGroups: [CandidateSongGroup],
@@ -118,7 +181,7 @@ struct CandidateSongsSession {
             .sorted { $0.order < $1.order }
 
         let grouped = editingService.groupedInputsByArtist(
-            inputs: inputs,
+            inputs: CandidateSongEditingService.deduplicatedInputs(inputs),
             artistInterests: artistInterests
         )
 
@@ -163,7 +226,7 @@ struct CandidateSongsSession {
                 )
             }
             let reinsertGrouped = editingService.groupedInputsByArtist(
-                inputs: reinsertInputs,
+                inputs: CandidateSongEditingService.deduplicatedInputs(reinsertInputs),
                 artistInterests: artistInterests
             )
             for entry in reinsertGrouped {
@@ -213,8 +276,7 @@ struct CandidateSongsSession {
             context.delete(group)
         }
 
-        renumber(created)
-        try context.save()
+        try deduplicateSongs(songs: created, in: context)
     }
 
     func addUserSong(
@@ -227,6 +289,15 @@ struct CandidateSongsSession {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedArtist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedArtist.isEmpty else { return }
+        let identity = CandidateSongEditingService.songIdentity(
+            songName: trimmedName,
+            artist: trimmedArtist
+        )
+        guard !currentSongs.contains(where: {
+            CandidateSongEditingService.songIdentity(for: $0) == identity
+        }) else {
+            throw CandidateSongValidationError.duplicateSong
+        }
 
         let group = try userCuratedGroup(in: groups, context: context)
         let song = try CandidateSong(
@@ -266,6 +337,33 @@ struct CandidateSongsSession {
         try context.save()
     }
 
+    /// Move one song up by one position (no-op at top).
+    func moveUp(
+        _ song: CandidateSong,
+        previouslyOrdered: [CandidateSong],
+        in context: ModelContext
+    ) throws {
+        guard let index = previouslyOrdered.firstIndex(where: { $0.id == song.id }), index > 0 else { return }
+        var songs = previouslyOrdered
+        songs.swapAt(index, index - 1)
+        renumber(songs)
+        try context.save()
+    }
+
+    /// Move one song down by one position (no-op at bottom).
+    func moveDown(
+        _ song: CandidateSong,
+        previouslyOrdered: [CandidateSong],
+        in context: ModelContext
+    ) throws {
+        guard let index = previouslyOrdered.firstIndex(where: { $0.id == song.id }),
+              index < previouslyOrdered.count - 1 else { return }
+        var songs = previouslyOrdered
+        songs.swapAt(index, index + 1)
+        renumber(songs)
+        try context.save()
+    }
+
     func setMostWanted(_ song: CandidateSong, isMostWanted: Bool, in context: ModelContext) throws {
         song.isMostWanted = isMostWanted
         try context.save()
@@ -279,6 +377,104 @@ struct CandidateSongsSession {
         for (index, song) in songs.enumerated() {
             song.order = index
         }
+    }
+
+    // MARK: - Festival lineup seed
+
+    /// Split `show.artist` into lineup names (、，,/| 等).
+    static func parseLineupNames(from raw: String?) -> [String] {
+        guard let raw else { return [] }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+
+        // Damai/ShowStart join with ", "; OCR may use 、/换行/·/& 等.
+        let normalized = trimmed
+            .replacingOccurrences(of: "\r\n", with: "、")
+            .replacingOccurrences(of: "\n", with: "、")
+            .replacingOccurrences(of: "\r", with: "、")
+            .replacingOccurrences(of: " / ", with: "、")
+            .replacingOccurrences(of: " /", with: "、")
+            .replacingOccurrences(of: "/ ", with: "、")
+            .replacingOccurrences(of: " · ", with: "、")
+            .replacingOccurrences(of: "·", with: "、")
+            .replacingOccurrences(of: "｜", with: "、")
+            .replacingOccurrences(of: "|", with: "、")
+            .replacingOccurrences(of: "；", with: "、")
+            .replacingOccurrences(of: ";", with: "、")
+            .replacingOccurrences(of: "，", with: "、")
+            .replacingOccurrences(of: ",", with: "、")
+            .replacingOccurrences(of: "／", with: "、")
+            .replacingOccurrences(of: "/", with: "、")
+            .replacingOccurrences(of: "＆", with: "、")
+            .replacingOccurrences(of: " & ", with: "、")
+            .replacingOccurrences(of: "&", with: "、")
+            .replacingOccurrences(of: " 和 ", with: "、")
+            .replacingOccurrences(of: "、、", with: "、")
+
+        let parts = normalized
+            .components(separatedBy: "、")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        // Dedupe preserving order
+        var seen = Set<String>()
+        return parts.filter { seen.insert($0).inserted }
+    }
+
+    /// If festival has no 艺人关注项 yet, create them from `show.artist` lineup text.
+    /// Returns the interests for this show after seeding (may still be empty).
+    @discardableResult
+    func seedFestivalInterestsIfNeeded(
+        existing: [ArtistInterestItem],
+        in context: ModelContext
+    ) throws -> [ArtistInterestItem] {
+        guard show.type == .musicFestival else { return existing }
+        let forShow = existing.filter { $0.showID == show.id }
+        if !forShow.isEmpty { return forShow.sorted { $0.order < $1.order } }
+
+        let names = Self.parseLineupNames(from: show.artist)
+        guard !names.isEmpty else { return [] }
+
+        var created: [ArtistInterestItem] = []
+        for (index, name) in names.enumerated() {
+            let item = try ArtistInterestItem(
+                showID: show.id,
+                artistName: name,
+                status: .wantToSee,
+                order: index
+            )
+            context.insert(item)
+            created.append(item)
+        }
+        try context.save()
+        return created
+    }
+
+    /// Append one artist interest; returns the new item (or existing match).
+    func addFestivalArtist(
+        name: String,
+        existing: [ArtistInterestItem],
+        in context: ModelContext
+    ) throws -> ArtistInterestItem {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CandidateSongValidationError.emptyArtist
+        }
+        if let found = existing.first(where: {
+            $0.showID == show.id && $0.artistName == trimmed
+        }) {
+            return found
+        }
+        let order = (existing.map(\.order).max() ?? -1) + 1
+        let item = try ArtistInterestItem(
+            showID: show.id,
+            artistName: trimmed,
+            status: .wantToSee,
+            order: order
+        )
+        context.insert(item)
+        try context.save()
+        return item
     }
 
     // MARK: - Internals

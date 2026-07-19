@@ -170,6 +170,55 @@ describe("CloudBase backend foundation", () => {
     assert.equal(calls[0].includes("volces"), true);
   });
 
+  it("passes the festival ten-song target and twelve-song cap to the provider prompt", async () => {
+    const calls = [];
+    const fetch = async (_url, options) => {
+      calls.push(JSON.parse(options.body));
+      return {
+        ok: true,
+        status: 200,
+        async text() {
+          return JSON.stringify({
+            choices: [{
+              message: {
+                content: JSON.stringify({
+                  type: "candidateSongs",
+                  items: [{ songName: "Song", artist: "Artist" }]
+                })
+              }
+            }]
+          });
+        }
+      };
+    };
+
+    const result = await main({
+      appInstanceId: "app-instance",
+      appSignature: "signature",
+      body: {
+        type: "candidateSongs",
+        requestId: "req-festival-target",
+        show: {
+          name: "音乐节",
+          date: "2026-07-01",
+          type: "musicFestival"
+        },
+        limits: {
+          maxSongs: 12,
+          targetSongs: 10
+        }
+      }
+    }, {}, {
+      env: { DOUBAO_API_KEY: "secret-doubao" },
+      fetch
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].messages[0].content, /Aim for 10–12 songs/);
+    assert.match(calls[0].messages[0].content, /genuinely has fewer plausible songs/);
+  });
+
   it("accepts HTTP string bodies from the iOS client", async () => {
     const fetch = async () => ({
       ok: true,

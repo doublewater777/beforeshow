@@ -28,7 +28,7 @@ enum ProSubscriptionCatalog {
             priceText: "¥12/月",
             benefitCopy: [
                 "无限添加现场",
-                "重复生成候选曲目"
+                "重复生成歌单猜想"
             ]
         ),
         ProSubscriptionProduct(
@@ -38,7 +38,7 @@ enum ProSubscriptionCatalog {
             priceText: "¥68/年",
             benefitCopy: [
                 "无限添加现场",
-                "重复生成候选曲目"
+                "重复生成歌单猜想"
             ]
         )
     ]
@@ -359,7 +359,7 @@ enum ProLimitReason: Equatable {
         case .saveLimit:
             return "开通 Pro 后可以无限保存现场。"
         case .candidateSongsRegeneration:
-            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成候选曲目。"
+            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成歌单猜想。"
         case .roundTripRegeneration:
             return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成去程计划。"
         }

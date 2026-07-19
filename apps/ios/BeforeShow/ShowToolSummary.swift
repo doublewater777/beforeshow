@@ -2,8 +2,8 @@ import Foundation
 
 /// 围绕单场现场的工具状态汇总。
 ///
-/// 首页（当前现场）和现场详情页都需要展示「候选曲目 / 去程计划 / 现场准备 /
-/// 现场视频 / 现场碎片」的状态文案。这里把计数与状态文案计算收敛到一处，
+/// 首页（当前现场）和现场详情页都需要展示「歌单猜想 / 去程计划 / 现场准备 /
+/// 现场碎片」的状态文案。这里把计数与状态文案计算收敛到一处，
 /// 避免两个页面各算一遍、文案漂移。
 ///
 /// Tips 文案与显隐由 ShowTipsResolver 单独负责；
@@ -54,7 +54,7 @@ struct ShowToolSummary {
     // MARK: - Status Copy
 
     var candidateSongsStatus: String {
-        hasCandidateSongs ? "\(candidateSongCount) 首候选" : "未生成"
+        hasCandidateSongs ? "\(candidateSongCount) 首猜想" : "未生成"
     }
 
     var roundTripStatus: String {

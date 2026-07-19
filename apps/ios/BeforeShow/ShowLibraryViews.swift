@@ -483,7 +483,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $showsDeleteConfirmation) {
             BSDangerConfirmationSheet(
                 title: "删除现场",
-                message: "删除后，这场现场的碎片、候选曲目、去程计划和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
+                message: "删除后，这场现场的碎片、歌单猜想、去程计划和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
                 destructiveTitle: "删除",
                 onConfirm: {
                     deleteShow()
@@ -709,7 +709,7 @@ struct ShowDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             BSSectionHeader(title: "工具")
             NavigationLink { CandidateSongsView(show: show) } label: {
-                CurrentFeatureRow(iconName: "mic.fill", title: "候选曲目", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
+                CurrentFeatureRow(iconName: "mic.fill", title: "歌单猜想", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
             }
             NavigationLink { RoundTripPlanView(show: show) } label: {
                 CurrentFeatureRow(iconName: "tram.fill", title: "去程计划", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
@@ -827,6 +827,14 @@ struct ShowDetailView: View {
     private func apply(_ draft: ShowDraft) {
         do {
             try show.apply(draft)
+            if show.type == .musicFestival {
+                let existing = (try? modelContext.fetch(FetchDescriptor<ArtistInterestItem>()))?
+                    .filter { $0.showID == show.id } ?? []
+                _ = try CandidateSongsSession(show: show).seedFestivalInterestsIfNeeded(
+                    existing: existing,
+                    in: modelContext
+                )
+            }
             try? modelContext.save()
         } catch {
             // Invalid draft is rejected; editor only enables ready drafts.

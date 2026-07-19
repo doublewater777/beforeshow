@@ -298,7 +298,7 @@ The onboarding does not ask a first-time user to prepare material before they un
 ### Activation copy
 
 - Countdown accessibility phrase: the real day difference between today and the showcase start date.
-- Tip: `先从候选曲目找到熟悉感`
+- Tip: `先从歌单猜想找到熟悉感`
 - Primary: `添加我的现场`
 
 ### Must not include

@@ -44,6 +44,15 @@ final class CandidateSongsTests: XCTestCase {
         XCTAssertEqual(groups[0].uncertaintyNote, "候选曲目来自公开信息推测，不代表官方歌单。")
     }
 
+    func testFestivalGenerationTargetsTenSongsButAllowsSmallerRepertoires() {
+        XCTAssertEqual(
+            CandidateSongGenerationPolicy.targetSongs(for: .musicFestival),
+            10
+        )
+        XCTAssertNil(CandidateSongGenerationPolicy.targetSongs(for: .concert))
+        XCTAssertEqual(CandidateSongGenerationPolicy.maximumSongs, 12)
+    }
+
     @MainActor
     func testCandidateSongStoresFourTierHintAndMostWantedState() throws {
         let song = try CandidateSong(groupID: UUID(), songName: "歌", artist: "艺人", order: 0)
@@ -86,6 +95,24 @@ final class CandidateSongsTests: XCTestCase {
 
         XCTAssertEqual(songs.count, 2)
         XCTAssertTrue(songs.allSatisfy { !$0.isUserAdded })
+    }
+
+    @MainActor
+    func testMakeSongsDeduplicatesSongArtistPairsKeepingFirstOccurrence() throws {
+        let service = CandidateSongEditingService()
+        let songs = try service.makeSongs(
+            groupID: UUID(),
+            inputs: [
+                CandidateSongInput(songName: " 晴天 ", artist: "周杰伦", tier: .high),
+                CandidateSongInput(songName: "晴天", artist: "周杰伦", tier: .encore),
+                CandidateSongInput(songName: "晴天", artist: "另一位", tier: .mid)
+            ]
+        )
+
+        XCTAssertEqual(songs.map(\.songName), ["晴天", "晴天"])
+        XCTAssertEqual(songs.map(\.artist), ["周杰伦", "另一位"])
+        XCTAssertEqual(songs.map(\.tier), [.high, .mid])
+        XCTAssertEqual(songs.map(\.order), [0, 1])
     }
 
     func testGenerationResponseRejectsLyricsNumericConfidenceReasonsAndPlatformMetadata() {
@@ -170,6 +197,36 @@ final class CandidateSongsTests: XCTestCase {
         XCTAssertEqual(songs.map(\.tier), [.guest, .encore])
         XCTAssertEqual(songs.map(\.hint), ["嘉宾合作", nil])
         XCTAssertTrue(songs.allSatisfy { !$0.isStarred })
+    }
+
+    func testEnrichMissingTierAndHintsFillsLegacySongOnlyPayload() {
+        let raw = (0..<8).map { index in
+            CandidateSongInput(songName: "S\(index)", artist: "A")
+        }
+        let enriched = CandidateSongEditingService.enrichMissingTierAndHints(raw)
+
+        XCTAssertTrue(enriched.contains { $0.tier == .high })
+        XCTAssertTrue(enriched.contains { $0.tier == .mid })
+        XCTAssertTrue(enriched.contains { $0.tier == .encore })
+        XCTAssertEqual(enriched.last?.tier, .encore)
+        XCTAssertTrue(enriched.allSatisfy { ($0.hint?.isEmpty ?? true) == false })
+        XCTAssertTrue(enriched.contains { $0.hint == "这轮巡演主题曲" || $0.hint == "近巡必唱" || $0.hint == "开场热身曲" })
+    }
+
+    func testEnrichMissingTiersAndHintsPreservesModelProvidedTiersAndHints() {
+        let raw = [
+            CandidateSongInput(songName: "A", artist: "X", tier: .high, hint: "这轮巡演主题曲"),
+            CandidateSongInput(songName: "B", artist: "X", tier: .mid),
+            CandidateSongInput(songName: "C", artist: "X", tier: .encore, hint: "安可位常客")
+        ]
+        let enriched = CandidateSongEditingService.enrichMissingTierAndHints(raw)
+
+        XCTAssertEqual(enriched.map(\.tier), [.high, .mid, .encore])
+        XCTAssertEqual(enriched[0].hint, "这轮巡演主题曲")
+        XCTAssertEqual(enriched[2].hint, "安可位常客")
+        // Mid without hint gets a short 因, but tier stays mid.
+        XCTAssertEqual(enriched[1].tier, .mid)
+        XCTAssertFalse(enriched[1].hint?.isEmpty ?? true)
     }
 
     func testManualEditingCanAddRemoveReorderAndCopyPlainText() throws {

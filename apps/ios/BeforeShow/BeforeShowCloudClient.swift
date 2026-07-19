@@ -17,7 +17,7 @@ enum BeforeShowCloudClientError: Error, Equatable {
 /// Single CloudBase HTTP seam for iOS.
 ///
 /// Owns root host, app credentials, and POST JSON transport.
-/// Feature remotes (链接解析 / 候选曲目 / 去程草稿) map domain payloads only.
+/// Feature remotes (链接解析 / 歌单猜想 / 去程草稿) map domain payloads only.
 ///
 /// Deletion test: without this client, baseURL + signature + HTTP envelope scatter
 /// across CandidateSongsSession, AddShowFlowViews, and remote generation services.

@@ -4,6 +4,7 @@ import SwiftData
 enum CandidateSongValidationError: Error, Equatable {
     case emptySongName
     case emptyArtist
+    case duplicateSong
     case emptyUncertaintyNote
     case replacementNeedsConfirmation
     case invalidGenerationPayload
@@ -418,6 +419,15 @@ struct CandidateSongGenerationRequest {
     }
 }
 
+enum CandidateSongGenerationPolicy {
+    static let festivalTargetSongs = 10
+    static let maximumSongs = 12
+
+    static func targetSongs(for showType: ShowType) -> Int? {
+        showType == .musicFestival ? festivalTargetSongs : nil
+    }
+}
+
 @MainActor
 protocol CandidateSongGenerating: Sendable {
     func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput]
@@ -440,6 +450,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
         guard let generationRequest = requests.first else {
             throw CandidateSongGenerationError.invalidResponse
         }
+        let targetSongs = CandidateSongGenerationPolicy.targetSongs(for: show.type)
 
         let data: Data
         do {
@@ -459,7 +470,10 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
                         type: generationRequest.showType.rawValue,
                         artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
                     ),
-                    limits: Limits(maxSongs: 12)
+                    limits: Limits(
+                        maxSongs: CandidateSongGenerationPolicy.maximumSongs,
+                        targetSongs: targetSongs
+                    )
                 )
             )
         } catch {
@@ -513,6 +527,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
 
     private struct Limits: Encodable {
         let maxSongs: Int
+        let targetSongs: Int?
     }
 
     private struct GenerationResponse: Decodable {
@@ -553,8 +568,74 @@ struct CandidateSongEditingService {
             }
     }
 
+    /// When generation omits `tier`/`hint` (legacy songName+artist-only payloads), assign a
+    /// plausible live-set shape and short 中文短因 so the UI is not all「较可能」with empty sides.
+    /// Preserves any non-default tier or existing hint from the model.
+    static func enrichMissingTierAndHints(_ inputs: [CandidateSongInput]) -> [CandidateSongInput] {
+        guard !inputs.isEmpty else { return inputs }
+
+        let needsFullShape = inputs.allSatisfy { $0.tier == .mid && $0.hint == nil }
+        let count = inputs.count
+
+        return inputs.enumerated().map { index, input in
+            let tier: SongTier
+            if needsFullShape {
+                tier = defaultTier(index: index, count: count)
+            } else {
+                tier = input.tier
+            }
+
+            let hint: String?
+            if let existing = input.hint {
+                hint = existing
+            } else {
+                hint = defaultHint(for: tier, index: index, count: count)
+            }
+
+            if tier == input.tier, hint == input.hint {
+                return input
+            }
+            return CandidateSongInput(
+                songName: input.songName,
+                artist: input.artist,
+                tier: tier,
+                hint: hint
+            )
+        }
+    }
+
+    /// Live-set-ish defaults for songName+artist-only responses.
+    private static func defaultTier(index: Int, count: Int) -> SongTier {
+        if count <= 1 { return .high }
+        if index == count - 1 { return .encore }
+        if count >= 8, index == count - 2 { return .encore }
+
+        let highCount = max(1, min(3, (count + 2) / 3))
+        if index < highCount { return .high }
+
+        // One guest slot mid-back when the list is long enough to look like a real set.
+        if count >= 7, index == (count * 2) / 3 { return .guest }
+
+        return .mid
+    }
+
+    private static func defaultHint(for tier: SongTier, index: Int, count: Int) -> String {
+        switch tier {
+        case .high:
+            let options = ["这轮巡演主题曲", "近巡必唱", "开场热身曲", "代表作常驻"]
+            return options[index % options.count]
+        case .mid:
+            let options = ["近期巡演常演", "歌迷呼声高", "转场过渡曲", "热歌候选"]
+            return options[index % options.count]
+        case .guest:
+            return "嘉宾合作彩蛋"
+        case .encore:
+            return index == count - 1 ? "安可位常客" : "返场高能曲"
+        }
+    }
+
     func makeSongs(groupID: UUID, inputs: [CandidateSongInput]) throws -> [CandidateSong] {
-        try inputs.enumerated().map { index, input in
+        try Self.deduplicatedInputs(inputs).enumerated().map { index, input in
             try CandidateSong(
                 groupID: groupID,
                 songName: input.songName,
@@ -566,11 +647,24 @@ struct CandidateSongEditingService {
         }
     }
 
-    /// Identity for star/preserve matching: trimmed song name + artist.
+    static func deduplicatedInputs(_ inputs: [CandidateSongInput]) -> [CandidateSongInput] {
+        var seen = Set<String>()
+        return inputs.filter { input in
+            seen.insert(songIdentity(songName: input.songName, artist: input.artist)).inserted
+        }
+    }
+
     static func songIdentity(songName: String, artist: String) -> String {
-        let name = songName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let artistName = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = normalizedIdentityPart(songName)
+        let artistName = normalizedIdentityPart(artist)
         return "\(name)\u{1e}\(artistName)"
+    }
+
+    private static func normalizedIdentityPart(_ value: String) -> String {
+        value
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
     }
 
     static func songIdentity(for song: CandidateSong) -> String {

@@ -106,7 +106,7 @@ enum HomeFeatureCopySource {
         case .pre, .inactive:
             switch kind {
             case .setlist:
-                return HomeFeatureCopy(badge: "歌单猜想", title: "这场可能会唱什么", note: "按艺人和城市猜本场歌单", cta: "快速生成")
+                return HomeFeatureCopy(badge: "歌单猜想", title: "这场可能会唱什么", note: "按本场信息猜想 · 可手动调整", cta: "猜一份歌单")
             case .route:
                 return HomeFeatureCopy(badge: "怎么去", title: "几点出发比较合适", note: "按出发地算到场时间", cta: "快速生成")
             case .prepare:
@@ -121,8 +121,8 @@ enum HomeFeatureCopySource {
             switch kind {
             case .setlist:
                 return HomeFeatureCopy(
-                    badge: "本场歌单", title: "现在对照着听", note: "打开候选曲目，记下现场唱到的歌", cta: "打开歌单",
-                    filledTitle: "候选歌单 · 对照听", filledNote: "勾一下唱过的，别只顾着拍"
+                    badge: "本场歌单", title: "现在对照着听", note: "打开歌单猜想，对照现场听", cta: "打开歌单",
+                    filledTitle: "歌单猜想 · 对照听", filledNote: "对照现场，别只顾着拍"
                 )
             case .fragment:
                 return HomeFeatureCopy(
@@ -144,8 +144,8 @@ enum HomeFeatureCopySource {
             switch kind {
             case .setlist:
                 return HomeFeatureCopy(
-                    badge: "本场回顾", title: "今晚唱了什么", note: "对照候选，补全真实曲目", cta: "回顾歌单",
-                    filledTitle: "今晚的曲目回顾", filledNote: "补全真实曲序，下次更好猜"
+                    badge: "本场回顾", title: "今晚唱了什么", note: "回看今晚的歌单猜想", cta: "回顾歌单",
+                    filledTitle: "今晚的曲目回顾", filledNote: "对照猜想回味，下次更好猜"
                 )
             case .fragment:
                 return HomeFeatureCopy(
@@ -167,20 +167,22 @@ struct HomeFeatureCardsSection: View {
     let show: Show
     let phase: HomeShowPhase
     let summary: ShowToolSummary
-    /// 已按本场过滤、按 order 排序的候选曲目。
+    /// 已按本场过滤、按 order 排序的歌单猜想曲目。
     let candidateSongs: [CandidateSong]
     let roundTripPlan: RoundTripPlan?
     let preparationPlan: ShowPreparationPlan?
     let onOpen: (HomeFeatureKind) -> Void
+    var onOpenSetlistEdit: (() -> Void)? = nil
+    var onOpenSetlistShare: (() -> Void)? = nil
     let onOpenMap: () -> Void
 
     @Environment(\.modelContext) private var modelContext
 
     var body: some View {
-        VStack(spacing: 14) {
+        // index.html `main` gap: var(--space-4) = 16
+        VStack(spacing: 16) {
             if let label = HomeFeatureCopySource.recsLabel(for: phase) {
                 HomeRecsSection(label: label, chips: HomeFeatureCopySource.chips(for: phase), onOpen: onOpen)
-                    .padding(.bottom, 2)
             }
 
             ForEach(HomeFeatureCopySource.order(for: phase)) { kind in
@@ -190,7 +192,9 @@ struct HomeFeatureCardsSection: View {
                     isFilled: isFilled(kind),
                     isRecommended: HomeFeatureCopySource.recommended(for: phase).contains(kind),
                     isDimmed: HomeFeatureCopySource.dimmed(for: phase).contains(kind),
-                    onOpen: { onOpen(kind) }
+                    onOpen: { onOpen(kind) },
+                    onEdit: kind == .setlist ? onOpenSetlistEdit : nil,
+                    onShare: kind == .setlist ? onOpenSetlistShare : nil
                 ) {
                     preview(for: kind)
                 }
@@ -211,7 +215,7 @@ struct HomeFeatureCardsSection: View {
     private func preview(for kind: HomeFeatureKind) -> some View {
         switch kind {
         case .setlist:
-            HomeSetlistPreview(songs: candidateSongs, showType: show.type)
+            HomeSetlistPreview(songs: candidateSongs, showType: show.type, onOpenAll: { onOpen(.setlist) })
         case .route:
             HomeRoutePreview(plan: roundTripPlan, onOpenMap: onOpenMap)
         case .prepare:
@@ -247,10 +251,13 @@ private struct HomeRecsSection: View {
     let onOpen: (HomeFeatureKind) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        // index.html `.phase-recs` gap 10; chips gap 8
+        VStack(alignment: .leading, spacing: 10) {
             Text(label)
                 .font(.system(size: 12, weight: .medium))
+                .tracking(0.48)
                 .foregroundColor(BSColor.Home.muted)
+                .padding(.horizontal, 2)
 
             HStack(spacing: 8) {
                 ForEach(chips) { chip in
@@ -303,52 +310,30 @@ struct HomeFeatureCard<Content: View>: View {
     let isRecommended: Bool
     let isDimmed: Bool
     let onOpen: () -> Void
+    var onEdit: (() -> Void)? = nil
+    var onShare: (() -> Void)? = nil
     @ViewBuilder var content: Content
 
+    /// Prototype `--white-soft` on circular entry/tool icons.
+    private var iconSoft: Color { Color.white.opacity(0.72) }
+
     var body: some View {
+        // index.html `.feature-card` padding 18 18 16 + `.section-head` margin-bottom 14
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                badgePill
-                if isRecommended {
-                    recPill
-                }
-                Spacer(minLength: 0)
-                entryButton
-            }
-            .padding(.bottom, 10)
-
-            Text(isFilled ? (copy.filledTitle ?? copy.title) : copy.title)
-                .font(.system(size: 18, weight: .semibold))
-                .tracking(-0.2)
-                .foregroundColor(BSColor.Home.foreground)
-                .fixedSize(horizontal: false, vertical: true)
-
-            Text(isFilled ? (copy.filledNote ?? copy.note) : copy.note)
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Home.muted)
-                .lineSpacing(1.5)
-                .padding(.top, 5)
-                .fixedSize(horizontal: false, vertical: true)
+            sectionHead
+                .padding(.bottom, 14)
 
             if isFilled {
                 content
                     .padding(.top, 12)
-                    .background(alignment: .top) {
-                        BSColor.Home.foreground.opacity(0.06).frame(height: 1)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(Color.white.opacity(0.06))
+                            .frame(height: 1)
                     }
-                    .padding(.top, 12)
             } else {
-                Button(action: onOpen) {
-                    Text(copy.cta)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(BSColor.Home.background)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 40)
-                        .background(Capsule().fill(BSColor.Home.accent))
-                }
-                .buttonStyle(HomeChipButtonStyle())
-                .padding(.top, 14)
-                .accessibilityLabel(copy.cta)
+                SetlistProtoPrimaryCTA(title: copy.cta, action: onOpen)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -358,21 +343,65 @@ struct HomeFeatureCard<Content: View>: View {
         .accessibilityElement(children: .contain)
     }
 
+    /// `.section-head` = top row + title + note
+    private var sectionHead: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                HStack(spacing: 8) {
+                    badgePill
+                    if isRecommended {
+                        recPill
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                trailingChrome
+            }
+            .frame(minHeight: 28, alignment: .center)
+            .padding(.bottom, 10)
+
+            Text(isFilled ? (copy.filledTitle ?? copy.title) : copy.title)
+                .font(.system(size: 18, weight: .semibold))
+                .tracking(-0.27) // ~-0.015em at 18px
+                .foregroundColor(BSColor.Home.foreground)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text(isFilled ? (copy.filledNote ?? copy.note) : copy.note)
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(BSColor.Home.muted)
+                .lineSpacing(1.5)
+                .padding(.top, 6)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var trailingChrome: some View {
+        // Prototype: empty setlist has no top-right control; filled shows edit + share tools.
+        if kind == .setlist {
+            if isFilled, onEdit != nil || onShare != nil {
+                setlistTools
+            }
+        } else {
+            entryButton
+        }
+    }
+
     private var badgePill: some View {
         Text(copy.badge)
             .font(.system(size: 11, weight: .medium))
-            .tracking(0.4)
+            .tracking(0.44)
             .foregroundColor(badgeTextColor)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(Capsule().fill(tone.opacity(0.12)))
-            .overlay(Capsule().stroke(tone.opacity(0.26), lineWidth: 1))
+            .background(Capsule().fill(badgeFill))
+            .overlay(Capsule().stroke(badgeStroke, lineWidth: 1))
     }
 
     private var recPill: some View {
         Text("此刻推荐")
             .font(.system(size: 10, weight: .semibold))
-            .tracking(0.5)
+            .tracking(0.6)
             .foregroundColor(BSColor.Home.accent)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -380,20 +409,54 @@ struct HomeFeatureCard<Content: View>: View {
             .overlay(Capsule().stroke(BSColor.Home.accent.opacity(0.34), lineWidth: 1))
     }
 
+    /// `.section-entry` — 32pt circle, 15pt icon (sliders / plus).
     private var entryButton: some View {
         Button(action: onOpen) {
             Image(systemName: kind == .fragment ? "plus" : "slider.horizontal.3")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(BSColor.Home.foreground.opacity(0.72))
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(iconSoft)
                 .frame(width: 32, height: 32)
-                .background(BSColor.Home.foreground.opacity(0.05))
-                .clipShape(Circle())
-                .overlay(Circle().stroke(BSColor.Home.foreground.opacity(0.10), lineWidth: 1))
-                .frame(width: 44, height: 44)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.05))
+                        .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 1))
+                        .shadow(color: Color.white.opacity(0.06), radius: 0, y: 1)
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(HomeChipButtonStyle())
+        .padding(.trailing, -2) // prototype `.section-entry { margin-right: -2px }`
         .accessibilityLabel("打开\(copy.badge)")
+    }
+
+    /// Prototype setlist tools: pencil + share-up, 32pt, gap 8, icon 14.
+    private var setlistTools: some View {
+        HStack(spacing: 8) {
+            if let onEdit {
+                toolButton(systemName: "pencil", label: "编辑歌单猜想", action: onEdit)
+            }
+            if let onShare {
+                toolButton(systemName: "square.and.arrow.up", label: "分享歌单猜想", action: onShare)
+            }
+        }
+    }
+
+    private func toolButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(iconSoft)
+                .frame(width: 32, height: 32)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.05))
+                        .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 1))
+                        .shadow(color: Color.white.opacity(0.06), radius: 0, y: 1)
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(HomeChipButtonStyle())
+        .accessibilityLabel(label)
     }
 
     private var cardSurface: some View {
@@ -405,7 +468,7 @@ struct HomeFeatureCard<Content: View>: View {
                         LinearGradient(
                             colors: [tone.opacity(toneTopOpacity), .clear],
                             startPoint: .top,
-                            endPoint: UnitPoint(x: 0.5, y: 0.42)
+                            endPoint: UnitPoint(x: 0.5, y: 0.40)
                         )
                     )
             )
@@ -416,8 +479,20 @@ struct HomeFeatureCard<Content: View>: View {
                         lineWidth: 1
                     )
             )
-            .shadow(color: isRecommended ? BSColor.Home.accent.opacity(0.10) : .clear, radius: 12)
-            .shadow(color: .black.opacity(0.34), radius: 14, y: 7)
+            // Inset top highlight + depth shadow (prototype box-shadow)
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                    .blur(radius: 0.5)
+                    .mask(
+                        LinearGradient(
+                            colors: [.white, .clear],
+                            startPoint: .top,
+                            endPoint: UnitPoint(x: 0.5, y: 0.15)
+                        )
+                    )
+            )
+            .shadow(color: .black.opacity(0.34), radius: 18, y: 7)
     }
 
     private var tone: Color {
@@ -435,6 +510,24 @@ struct HomeFeatureCard<Content: View>: View {
         case .route: return BSColor.Home.routeBadge
         case .prepare: return BSColor.Home.prepareBadge
         case .fragment: return BSColor.Home.fragmentBadge
+        }
+    }
+
+    private var badgeFill: Color {
+        switch kind {
+        case .setlist: return BSColor.Home.accent.opacity(0.10)
+        case .route: return BSColor.Home.route.opacity(0.12)
+        case .prepare: return BSColor.Home.prepare.opacity(0.14)
+        case .fragment: return BSColor.Home.fragment.opacity(0.14)
+        }
+    }
+
+    private var badgeStroke: Color {
+        switch kind {
+        case .setlist: return BSColor.Home.accent.opacity(0.22)
+        case .route: return BSColor.Home.route.opacity(0.28)
+        case .prepare: return BSColor.Home.prepare.opacity(0.32)
+        case .fragment: return BSColor.Home.fragment.opacity(0.34)
         }
     }
 
@@ -462,43 +555,32 @@ struct HomeFeatureCard<Content: View>: View {
 private struct HomeSetlistPreview: View {
     let songs: [CandidateSong]
     let showType: ShowType
+    let onOpenAll: () -> Void
 
     private static let maxRows = 5
 
+    private var mostWantedCount: Int { songs.filter(\.isMostWanted).count }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(songs.prefix(Self.maxRows).enumerated()), id: \.element.id) { index, song in
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(BSColor.Home.accent)
-                        .frame(width: 8, height: 8)
-                    Text(song.songName)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(BSColor.Home.foreground)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    if showType == .musicFestival {
-                        Text(song.artist)
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundColor(BSColor.Home.dim)
-                            .lineLimit(1)
-                    }
-                }
-                .padding(.vertical, 10)
-                .overlay(alignment: .bottom) {
-                    if index < min(songs.count, Self.maxRows) - 1 {
-                        BSColor.Home.foreground.opacity(0.06).frame(height: 1)
-                    }
-                }
+            ForEach(Array(songs.prefix(Self.maxRows).enumerated()), id: \.element.id) { _, song in
+                SetlistProtoTrackRow(
+                    song: song,
+                    bare: true,
+                    preferArtistSide: showType == .musicFestival
+                )
             }
 
-            if songs.count > Self.maxRows {
-                Text("共 \(songs.count) 首候选 · 点右上角查看全部")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Home.dim)
-                    .padding(.top, 10)
-            }
+            SetlistProtoOpenAllRow(label: openAllLabel, action: onOpenAll)
         }
+    }
+
+    private var openAllLabel: String {
+        var label = "查看全部 \(songs.count) 首"
+        if mostWantedCount > 0 {
+            label += " · 最想看 \(mostWantedCount)"
+        }
+        return label
     }
 }
 

@@ -5,8 +5,6 @@ import UIKit
 // MARK: - Settings View
 
 struct SettingsView: View {
-    @AppStorage("defaultMusicPlatform") private var defaultMusicPlatformName = SettingsInformation.defaultMusicPlatformName
-
     var body: some View {
         NavigationStack {
             BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
@@ -25,23 +23,6 @@ struct SettingsView: View {
                     }
                 }
                 .buttonStyle(.plain)
-
-                SettingsGroup(title: "基础") {
-                    Divider().overlay(BSColor.border)
-
-                    NavigationLink {
-                        MusicPlatformSettingsView(selectedPlatformName: $defaultMusicPlatformName)
-                    } label: {
-                        SettingsRowContent(
-                            iconName: "music.note",
-                            title: SettingsEntry.defaultMusicPlatform.rawValue,
-                            subtitle: nil,
-                            value: defaultMusicPlatformName,
-                            tint: BSColor.Accent.music
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
 
                 SettingsGroup(title: "隐私与支持") {
                     NotificationSettingsRow()
@@ -479,7 +460,7 @@ struct ProMembershipView: View {
         case .expired:
             return "Pro 已过期，已有本地内容仍可查看和编辑。"
         case .free:
-            return "当前为免费版：可保存 1 场现场，并首次生成候选曲目。"
+            return "当前为免费版：可保存 1 场现场，并首次生成歌单猜想。"
         }
     }
 
@@ -554,49 +535,6 @@ struct ProMembershipSheetView: View {
                         }
                     }
                 }
-        }
-    }
-}
-
-private struct MusicPlatformSettingsView: View {
-    @Binding var selectedPlatformName: String
-
-    var body: some View {
-        BSStageScaffold(title: "默认音乐平台", subtitle: "候选曲目会把搜索交给你选择的平台") {
-            ForEach(SettingsInformation.musicPlatformNames, id: \.self) { platformName in
-                Button {
-                    selectedPlatformName = platformName
-                } label: {
-                    HStack(spacing: BSSpacing.md) {
-                        Image(systemName: "music.note")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.music)
-                            .frame(width: 34, height: 34)
-                            .background(BSColor.Accent.music.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-
-                        Text(platformName)
-                            .font(BSFont.body.weight(.semibold))
-                            .foregroundColor(BSColor.textPrimary)
-
-                        Spacer()
-
-                        if selectedPlatformName == platformName {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundColor(BSColor.Accent.prepare)
-                        }
-                    }
-                    .padding(BSSpacing.md)
-                    .background(Color.white.opacity(selectedPlatformName == platformName ? 0.07 : 0.045))
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.lg)
-                            .stroke(selectedPlatformName == platformName ? BSColor.Accent.prepare.opacity(0.34) : BSColor.borderProminent, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 }

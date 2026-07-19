@@ -167,6 +167,7 @@ private struct CurrentShowContentView: View {
     private let session = CurrentShowSession()
 
     @State private var activeToolSheet: ToolSheet?
+    @State private var setlistLaunch: SetlistSheetLaunch = .browse
 
     /// 内容左右边距（设计稿 --space-5 = 20pt；海报全幅不受此约束）。
     private let homeInset: CGFloat = 20
@@ -216,28 +217,46 @@ private struct CurrentShowContentView: View {
         // 让 GeometryReader 铺到状态栏下，才能读到真实 topInset，
         // 并把海报顶边 stretch 垫进状态栏。
         .ignoresSafeArea(edges: .top)
-        .sheet(item: $activeToolSheet) { tool in
-            NavigationStack {
-                Group {
-                    switch tool {
-                    case .candidateSongs: CandidateSongsView(show: show)
-                    case .roundTrip: RoundTripPlanView(show: show)
-                    case .preparation: ShowPreparationView(show: show)
-                    case .fragments: ShowFragmentListView(show: show)
+        .sheet(item: $activeToolSheet, onDismiss: {
+            setlistLaunch = .browse
+        }) { tool in
+            Group {
+                switch tool {
+                case .candidateSongs:
+                    // Detents live in CandidateSongsView: medium when empty, large when filled.
+                    CandidateSongsView(show: show, launch: setlistLaunch)
+                        .presentationDragIndicator(.hidden)
+                        .presentationCornerRadius(24)
+                case .roundTrip:
+                    NavigationStack {
+                        RoundTripPlanView(show: show)
+                            .toolbarBackground(.hidden, for: .navigationBar)
+                    }
+                case .preparation:
+                    NavigationStack {
+                        ShowPreparationView(show: show)
+                            .toolbarBackground(.hidden, for: .navigationBar)
+                    }
+                case .fragments:
+                    NavigationStack {
+                        ShowFragmentListView(show: show)
+                            .toolbarBackground(.hidden, for: .navigationBar)
                     }
                 }
-                .toolbarBackground(.hidden, for: .navigationBar)
             }
             .preferredColorScheme(.dark)
         }
     }
 
-    private func toolSheet(for kind: HomeFeatureKind) -> ToolSheet {
+    private func openTool(_ kind: HomeFeatureKind, setlist: SetlistSheetLaunch = .browse) {
+        if kind == .setlist {
+            setlistLaunch = setlist
+        }
         switch kind {
-        case .setlist: return .candidateSongs
-        case .route: return .roundTrip
-        case .prepare: return .preparation
-        case .fragment: return .fragments
+        case .setlist: activeToolSheet = .candidateSongs
+        case .route: activeToolSheet = .roundTrip
+        case .prepare: activeToolSheet = .preparation
+        case .fragment: activeToolSheet = .fragments
         }
     }
 
@@ -272,7 +291,16 @@ private struct CurrentShowContentView: View {
                     candidateSongs: homeCandidateSongs,
                     roundTripPlan: roundTripPlan,
                     preparationPlan: preparationPlans.first { $0.showID == show.id },
-                    onOpen: { kind in activeToolSheet = toolSheet(for: kind) },
+                    onOpen: { kind in
+                        // Prototype: empty 猜一份 / 生成歌单 chip opens sheet and generates.
+                        if kind == .setlist, !summary.hasCandidateSongs {
+                            openTool(.setlist, setlist: .generate)
+                        } else {
+                            openTool(kind)
+                        }
+                    },
+                    onOpenSetlistEdit: { openTool(.setlist, setlist: .edit) },
+                    onOpenSetlistShare: { openTool(.setlist, setlist: .share) },
                     onOpenMap: openDepartureMapForCurrentPlan
                 )
                 .padding(.horizontal, homeInset)

@@ -7,6 +7,22 @@ import UIKit
 import UniformTypeIdentifiers
 import WebKit
 
+private final class PhotoLibrarySaveDelegate: NSObject, @unchecked Sendable {
+    let completion: (Error?) -> Void
+
+    init(completion: @escaping (Error?) -> Void) {
+        self.completion = completion
+    }
+
+    @objc func image(
+        _ image: UIImage,
+        didFinishSavingWithError error: Error?,
+        contextInfo: UnsafeMutableRawPointer?
+    ) {
+        completion(error)
+    }
+}
+
 struct CurrentAllToolsRow: View {
     let summary: String
 
@@ -146,8 +162,8 @@ struct CurrentShowAllToolsView: View {
                         } label: {
                             CurrentToolTile(
                                 iconName: "mic.fill",
-                                title: "候选曲目",
-                                subtitle: "编辑推测歌单",
+                                title: "歌单猜想",
+                                subtitle: "猜本场可能会唱什么",
                                 accent: BSColor.Accent.candidate
                             )
                         }
@@ -231,32 +247,88 @@ private struct CurrentToolTile: View {
     }
 }
 
+enum SetlistSheetLaunch: Equatable {
+    case browse
+    /// Open sheet and immediately run 歌单生成 (prototype card CTA / 生成歌单 chip).
+    case generate
+    case edit
+    case share
+}
+
+/// 歌单猜想 sheet（浏览 + 就地编辑 + 生成/重生成）。
 struct CandidateSongsView: View {
     let show: Show
+    var launch: SetlistSheetLaunch = .browse
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var artistInterests: [ArtistInterestItem]
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @AppStorage(ProUsageStorage.usedFreeGenerationFeaturesKey) private var usedFreeGenerationFeaturesRawValue = ""
-    @AppStorage("defaultMusicPlatform") private var defaultMusicPlatformName = SettingsInformation.defaultMusicPlatformName
 
-    @State private var artistFilter: String? = nil // nil = 全部
     @State private var isGenerating = false
     @State private var lastGenerationFailed = false
     @State private var showsReplacementConfirmation = false
     @State private var showsProLimit = false
     @State private var showsProMembership = false
-    @State private var showsEditSheet = false
-    @State private var showsAddSheet = false
-    @State private var sharePayload: CandidateSongsSharePayload?
+    @State private var isEditingSetlist = false
+    @State private var didApplyLaunch = false
+    @State private var addSongName = ""
+    @State private var addSongArtist = ""
+    @State private var showsLineupEdit = false
+    @State private var showsLineupRegenConfirm = false
+    @State private var showsSetlistShareSheet = false
     @State private var songPendingRemoval: CandidateSong?
     @State private var toast: BSToastPayload?
+    @State private var genStatusIndex = 0
+    @State private var revealNewList = false
+    @State private var didAutoGenerate = false
+    /// Multi-artist first generate: pick artists (default all on).
+    @State private var isPickingLineupForGenerate = false
+    @State private var lineupPickSelection: Set<UUID> = []
+    /// Snapshot for pick UI (avoids @Query lag right after seed/add).
+    @State private var lineupPickArtists: [ArtistInterestItem] = []
+    @State private var lineupAddName = ""
+    /// Empty / pre-generate → medium; after songs exist → large (mrnv1rxl setlist sheet).
+    @State private var sheetDetent: PresentationDetent = .medium
+    @State private var selectedAddArtist: String = ""
+    @State private var photoSaveDelegate: PhotoLibrarySaveDelegate?
+    @State private var isSavingShareImage = false
 
     private let gate = ProFeatureGate()
     private var session: CandidateSongsSession { CandidateSongsSession(show: show) }
+    private var isFestival: Bool { show.type == .musicFestival }
+
+    /// Festival first generate always goes through lineup pick (seed from 艺人/阵容 first).
+    private var needsLineupPickBeforeGenerate: Bool {
+        isFestival
+    }
+
+    /// Interested lineup for festival (想看 + 待定), order preserved.
+    private var participatingArtists: [ArtistInterestItem] {
+        showArtistInterests
+            .filter { $0.status != .notInterested }
+            .sorted { $0.order < $1.order }
+    }
+
+    private var orderedLineupArtists: [ArtistInterestItem] {
+        showArtistInterests.sorted { $0.order < $1.order }
+    }
+
+    private var isEmptyCatalog: Bool {
+        allSongs.isEmpty
+    }
+
+    private var sheetDetents: Set<PresentationDetent> {
+        // 勾选艺人 / 未生成 / 生成中：medium；有歌单：可 large
+        if isPickingLineupForGenerate || isGenerating || isEmptyCatalog {
+            return [.medium]
+        }
+        return [.medium, .large]
+    }
 
     private var showGroups: [CandidateSongGroup] {
         candidateGroups.filter { $0.showID == show.id }
@@ -266,7 +338,6 @@ struct CandidateSongsView: View {
         artistInterests.filter { $0.showID == show.id }
     }
 
-    /// Global setlist order (order field is unique across groups after renumber).
     private var allSongs: [CandidateSong] {
         session.orderedSongs(groups: showGroups, songs: candidateSongs)
     }
@@ -277,17 +348,8 @@ struct CandidateSongsView: View {
 
     private var isMultiArtist: Bool { artistNames.count > 1 }
 
-    private var visibleSongs: [CandidateSong] {
-        guard let artistFilter else { return allSongs }
-        return allSongs.filter { $0.artist == artistFilter }
-    }
-
     private var fallbackArtistName: String {
         session.fallbackArtistName(showArtist: show.artist, songArtists: artistNames)
-    }
-
-    private var musicPlatform: MusicPlatform {
-        MusicPlatform(rawValue: defaultMusicPlatformName) ?? .neteaseCloudMusic
     }
 
     private var entitlement: ProEntitlementState {
@@ -305,48 +367,131 @@ struct CandidateSongsView: View {
     }
 
     private var shareHeadline: String {
-        session.shareHeadline(showName: show.name, artistFilter: artistFilter)
+        session.shareHeadline(showName: show.name, artistFilter: nil)
+    }
+
+    private var sheetNote: String {
+        // Prototype setlistSheetNoteText: show · city · (artists) · 按本场信息猜测
+        let artist = show.artist?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        var parts: [String] = [show.name]
+        if !city.isEmpty { parts.append(city) }
+        if isFestival {
+            let n = showArtistInterests.filter { $0.status != .notInterested }.count
+            if n > 0 { parts.append("\(n) 组艺人") }
+        } else if !artist.isEmpty {
+            parts.insert(artist, at: 0)
+        }
+        parts.append("按本场信息猜测")
+        return parts.joined(separator: " · ")
+    }
+
+    private var genStatusLines: [String] {
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let place = city.isEmpty ? show.name : city
+        if isFestival {
+            let n = max(1, showArtistInterests.filter { $0.status != .notInterested }.count)
+            return [
+                "正在读取 \(show.name) · \(place)（\(n) 组艺人）…",
+                "比对各艺人近期现场…",
+                "按阵容生成歌单猜想…"
+            ]
+        }
+        let guestHint = artistNames.count > 1 || !(show.artist?.isEmpty ?? true) ? "（含嘉宾）" : ""
+        return [
+            "正在读取 \(show.name) · \(place)\(guestHint)…",
+            "比对本轮巡演近期场次…",
+            "生成歌单猜想…"
+        ]
+    }
+
+    /// Festival sheet: group rows by artist with prototype headers (mrnv1rxl multi-artist).
+    private var sheetListSections: [(artist: String?, songs: [(offset: Int, song: CandidateSong)])] {
+        // Group whenever multi-artist catalog (festival or multi-name list).
+        guard isMultiArtist else {
+            return [(nil, allSongs.enumerated().map { ($0.offset, $0.element) })]
+        }
+        var sections: [(artist: String, songs: [(offset: Int, song: CandidateSong)])] = []
+        for (index, song) in allSongs.enumerated() {
+            if sections.last?.artist != song.artist {
+                sections.append((artist: song.artist, songs: []))
+            }
+            sections[sections.count - 1].songs.append((offset: index, song: song))
+        }
+        return sections.map { (artist: $0.artist, songs: $0.songs) }
     }
 
     var body: some View {
+        // Prototype setlist-sheet: head → gen-status → scroll list → sticky foot
         ZStack {
-            Color.black.ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    SetlistProto.surfaceRaised.opacity(0.98),
+                    SetlistProto.surface
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
-            if isGenerating && allSongs.isEmpty {
-                ProgressView("正在生成候选曲目…")
-                    .tint(.white)
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        playlistHero
-                        if allSongs.isEmpty {
-                            emptyBlock
-                                .padding(.horizontal, 20)
-                                .padding(.top, 28)
-                        } else {
-                            if isMultiArtist {
-                                artistFilterBar
-                                    .padding(.top, 8)
-                            }
-                            songList
-                            footerActions
-                                .padding(.horizontal, 20)
-                                .padding(.top, 20)
-                                .padding(.bottom, 40)
-                        }
+            VStack(alignment: .leading, spacing: 0) {
+                SetlistProtoSheetHeader(
+                    title: sheetHeaderTitle,
+                    note: sheetHeaderNote,
+                    onClose: { dismiss() }
+                )
+                .padding(.horizontal, 20)
+
+                if isPickingLineupForGenerate {
+                    lineupPickForGenerateBody
+                } else if isGenerating {
+                    // HTML: gen-status under head; body empty until apply.
+                    SetlistProtoGenStatus(
+                        text: genStatusLines[min(genStatusIndex, genStatusLines.count - 1)],
+                        reduceMotion: reduceMotion
+                    )
+                    .padding(.horizontal, 20)
+                    .transition(.opacity)
+
+                    if isEmptyCatalog {
+                        Spacer(minLength: 0)
+                    } else {
+                        filledOrEditingBody
                     }
+                } else if isEmptyCatalog, !isEditingSetlist {
+                    emptyGenerateState
+                } else {
+                    filledOrEditingBody
                 }
-                .scrollIndicators(.hidden)
             }
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .alert("重新生成候选曲目？", isPresented: $showsReplacementConfirmation) {
+        .presentationDetents(sheetDetents, selection: $sheetDetent)
+        .onChange(of: isEmptyCatalog) { _, empty in
+            withAnimation(.easeInOut(duration: 0.28)) {
+                sheetDetent = empty ? .medium : .large
+            }
+        }
+        .onChange(of: isGenerating) { _, generating in
+            if generating, isEmptyCatalog {
+                sheetDetent = .medium
+            }
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .alert("重新生成歌单猜想？", isPresented: $showsReplacementConfirmation) {
             Button("取消", role: .cancel) {}
             Button("重新生成", role: .destructive) {
                 Task { await generateCandidateSongs() }
             }
         } message: {
-            Text("会用新的推测替换生成的曲目，保留你手动补充的。")
+            Text("会用新的猜想替换生成曲目，保留你手加的歌和最想看标记。")
+        }
+        .alert("按新阵容重新生成？", isPresented: $showsLineupRegenConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("重新生成", role: .destructive) {
+                Task { await generateCandidateSongs() }
+            }
+        } message: {
+            Text("阵容已保存。重新生成会替换生成曲目，并保留手加与最想看。")
         }
         .confirmationDialog(
             "从歌单移除？",
@@ -366,32 +511,62 @@ struct CandidateSongsView: View {
                 songPendingRemoval = nil
             }
         }
-        .sheet(isPresented: $showsEditSheet) {
-            CandidateSongsEditSheet(
-                songs: allSongs,
-                onMove: moveGlobally,
-                onRemove: { remove($0) },
-                onAdd: { showsAddSheet = true },
-                onDone: { showsEditSheet = false }
-            )
-            .presentationDetents([.large])
-            .preferredColorScheme(.dark)
-        }
-        .sheet(isPresented: $showsAddSheet) {
-            CandidateSongsAddSheet(
-                defaultArtist: fallbackArtistName,
-                onCancel: { showsAddSheet = false },
-                onAdd: { name, artist in
-                    addSong(name: name, artist: artist)
-                    showsAddSheet = false
-                }
+        .sheet(isPresented: $showsLineupEdit) {
+            FestivalLineupEditSheet(
+                interests: showArtistInterests,
+                onCancel: { showsLineupEdit = false },
+                onSave: { applyLineupSelection($0) }
             )
             .presentationDetents([.medium, .large])
             .preferredColorScheme(.dark)
         }
-        .sheet(item: $sharePayload) { payload in
-            ActivityView(activityItems: payload.items)
-                .presentationDetents([.medium])
+        .sheet(isPresented: $showsSetlistShareSheet) {
+            ZStack {
+                LinearGradient(
+                    colors: [SetlistProto.surfaceRaised.opacity(0.98), SetlistProto.surface],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea()
+
+                VStack(alignment: .leading, spacing: 0) {
+                    SetlistProtoSheetHeader(
+                        title: "分享歌单猜想",
+                        note: "发给一起去现场的人 · 各自猜，开场对答案",
+                        onClose: { showsSetlistShareSheet = false }
+                    )
+                    .padding(.horizontal, 20)
+
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            SetlistProtoShareCard(
+                                title: shareHeadline,
+                                meta: show.city.map { "\($0) · 共 \(allSongs.count) 首" } ?? "共 \(allSongs.count) 首",
+                                rows: allSongs.map {
+                                    .init(
+                                        name: $0.songName,
+                                        artist: isMultiArtist ? $0.artist : nil,
+                                        isMostWanted: $0.isMostWanted
+                                    )
+                                }
+                            )
+                            .frame(height: shareCardHeight(songCount: allSongs.count))
+
+                            SetlistProtoShareActions(
+                                onCopy: { copyPlaylist() },
+                                onSave: { saveShareImageToPhotos() },
+                                isSaving: isSavingShareImage
+                            )
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 28)
+                    }
+                    .scrollIndicators(.hidden)
+                }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.hidden)
+            .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showsProMembership) {
             ProMembershipSheetView()
@@ -410,270 +585,632 @@ struct CandidateSongsView: View {
             )
         }
         .bsToastOverlay(toast)
-    }
-
-    // MARK: - Hero
-
-    private var playlistHero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Color.clear.frame(height: 8)
-
-            HStack {
-                Spacer()
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .center,
-                    enforcesAspectRatio: true,
-                    cornerRadius: 10
-                )
-                .frame(width: 168)
-                .aspectRatio(3.0 / 4.0, contentMode: .fit)
-                .shadow(color: .black.opacity(0.5), radius: 24, y: 12)
-                Spacer()
+        .onAppear {
+            if !allSongs.isEmpty {
+                try? session.deduplicateSongs(songs: allSongs, in: modelContext)
             }
-            .padding(.top, 8)
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("猜歌单")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Color.white.opacity(0.65))
-
-                Text(show.name)
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundColor(.white)
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.8)
-
-                Text(heroByline)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.72))
-
-                Text(heroStats)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(Color.white.opacity(0.45))
+            // Legacy generations often stored all-mid + empty hints; fill shape once without API.
+            try? session.repairLegacyTiersAndHintsIfNeeded(songs: allSongs, in: modelContext)
+            // 音乐节：把现场「艺人 / 阵容」拆成艺人关注项（添加时已有名单，这里补建关注项）。
+            if isFestival {
+                seedFestivalInterestsIfNeeded()
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 18)
 
             if !allSongs.isEmpty {
-                actionBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 18)
-                    .padding(.bottom, 12)
+                sheetDetent = .large
             } else {
-                Color.clear.frame(height: 12)
+                sheetDetent = .medium
+            }
+
+            guard !didApplyLaunch else { return }
+            didApplyLaunch = true
+            switch launch {
+            case .browse:
+                break
+            case .generate:
+                break
+            case .edit:
+                isEditingSetlist = true
+                ensureDefaultAddArtist()
+            case .share:
+                if !allSongs.isEmpty {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                        showsSetlistShareSheet = true
+                    }
+                }
             }
         }
-        .background {
-            ZStack {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .center,
-                    enforcesAspectRatio: false,
-                    cornerRadius: 0
-                )
-                .scaleEffect(1.2)
-                .blur(radius: 28)
-                .saturation(1.1)
-                .opacity(0.45)
-                .allowsHitTesting(false)
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.2),
-                        Color.black.opacity(0.75),
-                        Color.black
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+        // Prefer `.task` over onAppear for first generate — runs after sheet is presented.
+        .task(id: "\(launch)-\(show.id.uuidString)") {
+            guard launch == .generate, allSongs.isEmpty, !didAutoGenerate else { return }
+            didAutoGenerate = true
+            if isFestival {
+                seedFestivalInterestsIfNeeded()
+                beginLineupPickForGenerate()
+            } else {
+                await startEmptyGeneration()
             }
-            .ignoresSafeArea(edges: .top)
         }
     }
 
-    private var heroByline: String {
-        if isMultiArtist {
-            return "\(artistNames.count) 位艺人"
+    private var sheetHeaderTitle: String {
+        if isPickingLineupForGenerate { return "调整阵容" }
+        if isEditingSetlist { return "编辑歌单猜想" }
+        return "歌单猜想"
+    }
+
+    private var sheetHeaderNote: String {
+        if isPickingLineupForGenerate {
+            return "关掉不打算看的艺人 · 至少留 1 组 · 默认全选"
         }
-        return fallbackArtistName
+        if isEditingSetlist { return "增删、排序都会直接保存到歌单" }
+        return sheetNote
     }
 
-    private var heroStats: String {
-        "\(allSongs.count) 首 · 推测演出顺序 · 非官方"
+    /// Multi-artist step before first generate: check artists (default all on).
+    private var lineupPickForGenerateBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(
+                lineupPickArtists.isEmpty
+                    ? "本场还没有艺人名单 · 先加几组再猜"
+                    : "关掉不打算看的艺人，再按阵容猜想"
+            )
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(SetlistProto.dim)
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+
+            ScrollView {
+                LazyVStack(spacing: 0) {
+                    ForEach(lineupPickArtists, id: \.id) { interest in
+                        let on = lineupPickSelection.contains(interest.id)
+                        Button {
+                            toggleLineupPick(interest.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                Text(interest.artistName)
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(on ? SetlistProto.fg : SetlistProto.dim.opacity(0.55))
+                                Spacer(minLength: 0)
+                                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 22, weight: .regular))
+                                    .foregroundColor(on ? SetlistProto.accent : SetlistProto.dim)
+                            }
+                            .padding(.horizontal, 2)
+                            .frame(minHeight: 52)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("\(interest.artistName) \(on ? "参与" : "不看")")
+                        .overlay(alignment: .bottom) {
+                            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+            .scrollIndicators(.hidden)
+
+            // Always allow adding artists (seed may be empty or incomplete).
+            HStack(spacing: 8) {
+                TextField("加一组艺人", text: $lineupAddName)
+                    .textInputAutocapitalization(.never)
+                    .disableAutocorrection(true)
+                    .font(.system(size: 15))
+                    .foregroundColor(SetlistProto.fg)
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.white.opacity(0.04))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .onSubmit { addArtistToLineupPick() }
+
+                Button(action: addArtistToLineupPick) {
+                    Text("添加")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(SetlistProto.accent)
+                        .padding(.horizontal, 14)
+                        .frame(minHeight: 44)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(SetlistProto.accent.opacity(0.14))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .stroke(SetlistProto.accent.opacity(0.35), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button {
+                    confirmLineupPickAndGenerate()
+                } label: {
+                    Text("按此阵容猜想")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(SetlistProto.inkOnAccent)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 34)
+                        .background(Capsule().fill(SetlistProto.accent))
+                }
+                .buttonStyle(.plain)
+                .disabled(lineupPickSelection.isEmpty)
+                .opacity(lineupPickSelection.isEmpty ? 0.45 : 1)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
-    private var actionBar: some View {
-        HStack(alignment: .top, spacing: 18) {
-            // 播放未接入，不展示禁用占位（HIG：避免假控件）
-            actionItem(systemImage: "doc.on.doc", caption: "复制", action: copyPlaylist)
-            actionItem(systemImage: "square.and.arrow.up", caption: "分享", action: sharePlaylist)
-            actionItem(systemImage: "square.and.pencil", caption: "编辑") {
-                showsEditSheet = true
+    /// Filled list + optional edit/add + foot (HTML setlist-sheet body + foot when generated).
+    @ViewBuilder
+    private var filledOrEditingBody: some View {
+        ScrollView {
+            LazyVStack(spacing: 0, pinnedViews: []) {
+                if isEmptyCatalog {
+                    Text("歌单空了 · 在下面加一首，或重新生成")
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundColor(SetlistProto.dim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 20)
+                        .padding(.horizontal, 2)
+                } else {
+                    ForEach(Array(sheetListSections.enumerated()), id: \.offset) { sectionIndex, section in
+                        if let artist = section.artist {
+                            SetlistProtoArtistGroupHeader(
+                                name: artist,
+                                count: section.songs.count,
+                                isFirst: sectionIndex == 0
+                            )
+                        }
+                        ForEach(section.songs, id: \.song.id) { item in
+                            SetlistProtoTrackRow(
+                                song: item.song,
+                                isEditing: isEditingSetlist,
+                                canMoveUp: item.offset > 0,
+                                canMoveDown: item.offset < allSongs.count - 1,
+                                revealDelay: Double(item.offset) * 0.09,
+                                reveal: revealNewList && !reduceMotion,
+                                onToggleMostWanted: { toggleMostWanted(item.song) },
+                                onMoveUp: { moveSongUp(item.song) },
+                                onMoveDown: { moveSongDown(item.song) },
+                                onDelete: { songPendingRemoval = item.song }
+                            )
+                        }
+                    }
+                }
+
+                if isEditingSetlist {
+                    inlineAddSongForm
+                        .padding(.top, 16)
+                } else if isFestival, !isEmptyCatalog, !isGenerating {
+                    festivalAddSongEntry
+                        .padding(.top, 8)
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 4)
+            .padding(.bottom, 12)
+            .opacity(isGenerating && !reduceMotion ? 0.35 : 1)
+            .animation(.easeOut(duration: 0.42), value: isGenerating)
+        }
+        .scrollIndicators(.hidden)
+
+        // HTML: foot only after generated (setlistSheetFoot.hidden = !st.generated)
+        if !isGenerating, !isEmptyCatalog || isEditingSetlist {
+            footerActions
+                .padding(.horizontal, 20)
+                .padding(.bottom, 20)
+        }
+    }
+
+    private var emptyGenerateState: some View {
+        // Fallback only (gen failed / opened empty without generate). HTML home CTA is on the card.
+        VStack(alignment: .leading, spacing: 14) {
+            if lastGenerationFailed {
+                Text("这次没猜出来")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(SetlistProto.fg)
+                Text("网络或服务有点问题 · 再试一次")
+                    .font(.system(size: 12.5, weight: .regular))
+                    .foregroundColor(SetlistProto.muted)
+                SetlistProtoPrimaryCTA(title: "再试一次") {
+                    beginGenerateFlowFromEmpty()
+                }
+            } else {
+                Text("这场可能会唱什么")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(SetlistProto.fg)
+                Text(
+                    needsLineupPickBeforeGenerate
+                        ? "先勾选要猜的艺人 · 默认全选"
+                        : "按本场信息猜想 · 可手动调整"
+                )
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(SetlistProto.muted)
+                SetlistProtoPrimaryCTA(
+                    title: needsLineupPickBeforeGenerate ? "选艺人再猜" : "猜一份歌单",
+                    action: beginGenerateFlowFromEmpty
+                )
             }
             Spacer(minLength: 0)
         }
-    }
-
-    private func actionItem(
-        systemImage: String,
-        caption: String,
-        reserved: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 7) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(reserved ? Color.white.opacity(0.28) : .white)
-                    .frame(width: 44, height: 44)
-                    .background(
-                        Circle()
-                            .fill(Color.white.opacity(reserved ? 0.06 : 0.12))
-                    )
-                    .overlay(
-                        Circle()
-                            .stroke(
-                                reserved
-                                    ? Color.white.opacity(0.14)
-                                    : Color.white.opacity(0.06),
-                                style: StrokeStyle(lineWidth: 1, dash: reserved ? [4, 3] : [])
-                            )
-                    )
-                Text(caption)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(reserved ? Color.white.opacity(0.28) : Color.white.opacity(0.55))
-            }
-        }
-        .buttonStyle(.plain)
-        .disabled(reserved)
-        .accessibilityLabel(reserved ? "\(caption)（即将支持）" : caption)
-    }
-
-    // MARK: - Filter / List
-
-    private var artistFilterBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                filterChip(title: "全部", selected: artistFilter == nil) {
-                    artistFilter = nil
-                }
-                ForEach(artistNames, id: \.self) { name in
-                    filterChip(title: name, selected: artistFilter == name) {
-                        artistFilter = name
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-        }
-    }
-
-    private func filterChip(title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(selected ? .black : Color.white.opacity(0.75))
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(Capsule().fill(selected ? Color.white : Color.white.opacity(0.08)))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var songList: some View {
-        LazyVStack(spacing: 0) {
-            ForEach(visibleSongs, id: \.id) { song in
-                CandidateSongPlaylistRow(
-                    song: song,
-                    showsArtist: isMultiArtist && artistFilter == nil,
-                    onTap: { openSearch(for: song) },
-                    onMore: { songPendingRemoval = song }
-                )
-            }
-        }
+        .padding(.horizontal, 20)
         .padding(.top, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    private var emptyBlock: some View {
-        VStack(spacing: BSSpacing.md) {
-            BSEmptyPanel(
-                iconName: "music.mic",
-                title: "还没有猜歌单",
-                message: "根据公开信息推测可能出现的歌和大致顺序。不是官方 setlist，生成后你可以改。"
-            )
-            Button {
-                requestGeneration()
-            } label: {
-                Text(lastGenerationFailed ? "重试" : "生成候选曲目")
-            }
-            .buttonStyle(BSPrimaryButtonStyle())
+    private func beginGenerateFlowFromEmpty() {
+        if isFestival {
+            seedFestivalInterestsIfNeeded()
+            beginLineupPickForGenerate()
+        } else {
+            Task { await startEmptyGeneration() }
         }
+    }
+
+    private func seedFestivalInterestsIfNeeded() {
+        guard isFestival else { return }
+        do {
+            _ = try session.seedFestivalInterestsIfNeeded(
+                existing: showArtistInterests,
+                in: modelContext
+            )
+        } catch {
+            // Non-fatal; user can add artists manually on pick screen.
+        }
+    }
+
+    private func beginLineupPickForGenerate() {
+        // 默认全选
+        let interests = fetchInterestsForShow()
+        lineupPickArtists = interests
+        lineupPickSelection = Set(interests.map(\.id))
+        isPickingLineupForGenerate = true
+        sheetDetent = .medium
+    }
+
+    private func fetchInterestsForShow() -> [ArtistInterestItem] {
+        let showID = show.id
+        let descriptor = FetchDescriptor<ArtistInterestItem>(
+            predicate: #Predicate { $0.showID == showID }
+        )
+        let fetched = (try? modelContext.fetch(descriptor)) ?? showArtistInterests
+        return fetched.sorted { $0.order < $1.order }
+    }
+
+    private func toggleLineupPick(_ id: UUID) {
+        if lineupPickSelection.contains(id) {
+            if lineupPickSelection.count <= 1 {
+                presentToast(.neutral, message: "至少保留 1 组艺人")
+                return
+            }
+            lineupPickSelection.remove(id)
+        } else {
+            lineupPickSelection.insert(id)
+        }
+    }
+
+    private func addArtistToLineupPick() {
+        let name = lineupAddName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        do {
+            let item = try session.addFestivalArtist(
+                name: name,
+                existing: fetchInterestsForShow(),
+                in: modelContext
+            )
+            lineupPickArtists = fetchInterestsForShow()
+            lineupPickSelection.insert(item.id)
+            lineupAddName = ""
+        } catch {
+            presentToast(.failure, message: "添加艺人失败")
+        }
+    }
+
+    private func confirmLineupPickAndGenerate() {
+        guard !lineupPickSelection.isEmpty else {
+            presentToast(.neutral, message: "先勾选至少 1 组艺人")
+            return
+        }
+        guard canGenerate else {
+            showsProLimit = true
+            return
+        }
+        let interests = fetchInterestsForShow()
+        for interest in interests {
+            interest.status = lineupPickSelection.contains(interest.id) ? .wantToSee : .notInterested
+        }
+        do {
+            try modelContext.save()
+            isPickingLineupForGenerate = false
+            Task { await startEmptyGeneration() }
+        } catch {
+            presentToast(.failure, message: "阵容保存失败")
+        }
+    }
+
+    private var festivalAddSongEntry: some View {
+        Button {
+            isEditingSetlist = true
+            ensureDefaultAddArtist()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.system(size: 14, weight: .semibold))
+                Text("加一首")
+                    .font(.system(size: 13, weight: .medium))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(SetlistProto.muted)
+            .padding(.horizontal, 2)
+            .frame(minHeight: 48)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+        }
+        .accessibilityLabel("加一首")
     }
 
     private var footerActions: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("列表顺序即你猜的开场顺序。点「编辑」可排序、删改和添加。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(alignment: .leading, spacing: 10) {
+            if isEditingSetlist {
+                SetlistProtoChip(title: "完成", isPrimary: true) {
+                    isEditingSetlist = false
+                    addSongName = ""
+                    addSongArtist = ""
+                }
+            } else {
+                // Prototype `.gen-note`
+                Text("模型按本场演出信息猜测 · 实际以现场为准")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(SetlistProto.dim)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            Button {
-                requestGeneration()
-            } label: {
-                HStack {
-                    if isGenerating {
-                        ProgressView().tint(BSColor.textSecondary)
+                // Prototype `.gen-actions` flex-wrap (~30% min → ~3 per row)
+                let columns = [
+                    GridItem(.flexible(minimum: 88), spacing: 8),
+                    GridItem(.flexible(minimum: 88), spacing: 8),
+                    GridItem(.flexible(minimum: 88), spacing: 8)
+                ]
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+                    if isFestival {
+                        SetlistProtoChip(title: "调整阵容") { showsLineupEdit = true }
                     }
-                    Text(lastGenerationFailed ? "重试生成" : "重新生成")
+                    SetlistProtoChip(title: "编辑歌单猜想") { isEditingSetlist = true }
+                    SetlistProtoChip(title: "分享歌单猜想") { sharePlaylist() }
+                    SetlistProtoChip(
+                        title: lastGenerationFailed ? "重试" : "重新生成",
+                        isLoading: isGenerating,
+                        action: requestGeneration
+                    )
+                    .disabled(isGenerating)
                 }
             }
-            .buttonStyle(BSSecondaryButtonStyle())
-            .disabled(isGenerating)
+        }
+        .padding(.top, 16)
+        .overlay(alignment: .top) {
+            Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+        }
+    }
+
+    private func ensureDefaultAddArtist() {
+        guard selectedAddArtist.isEmpty || !participatingArtists.contains(where: { $0.artistName == selectedAddArtist }) else {
+            return
+        }
+        selectedAddArtist = participatingArtists.first?.artistName ?? fallbackArtistName
+    }
+
+    private var inlineAddSongForm: some View {
+        Group {
+            if isFestival {
+                festivalSongAddForm
+            } else {
+                soloSongAddForm
+            }
+        }
+        .onAppear { ensureDefaultAddArtist() }
+    }
+
+    /// Concert: single-line name + 添加 (prototype non-festival).
+    private var soloSongAddForm: some View {
+        HStack(spacing: 8) {
+            TextField("加一首，例如：认真的雪", text: $addSongName)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .font(.system(size: 15))
+                .foregroundColor(SetlistProto.fg)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+
+            Button(action: submitInlineAdd) {
+                Text("添加")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(SetlistProto.accent)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 46)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(SetlistProto.accent.opacity(0.14))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(SetlistProto.accent.opacity(0.35), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    /// Festival: 歌名 + 艺人 chips（mrnv1rxl `.song-add` / `.artist-chip`）.
+    private var festivalSongAddForm: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("歌名 + 艺人，加进对应分组；重新生成会保留")
+                .font(.system(size: 11, weight: .regular))
+                .foregroundColor(SetlistProto.dim)
+
+            TextField("歌名", text: $addSongName)
+                .textInputAutocapitalization(.never)
+                .disableAutocorrection(true)
+                .font(.system(size: 15))
+                .foregroundColor(SetlistProto.fg)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .background(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color.white.opacity(0.04))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+
+            if !participatingArtists.isEmpty {
+                FlowArtistChips(
+                    artists: participatingArtists.map(\.artistName),
+                    selected: $selectedAddArtist
+                )
+            }
+
+            HStack(spacing: 8) {
+                SetlistProtoChip(title: "取消", expands: false) {
+                    isEditingSetlist = false
+                    addSongName = ""
+                }
+                Spacer(minLength: 0)
+                Button(action: submitInlineAdd) {
+                    Text("加入歌单")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(SetlistProto.inkOnAccent)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 34)
+                        .background(Capsule().fill(SetlistProto.accent))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
     // MARK: - Actions
 
     private func copyPlaylist() {
-        let songs = visibleSongs
-        let scope = artistFilter ?? "全部"
-        UIPasteboard.general.string = session.copyText(headline: shareHeadline, scope: scope, songs: songs)
-        presentToast(.success, message: artistFilter == nil ? "已复制全部歌单" : "已复制「\(artistFilter!)」")
+        UIPasteboard.general.string = session.copyText(
+            headline: shareHeadline,
+            scope: "全部",
+            songs: allSongs
+        )
+        presentToast(.success, message: "已复制歌单猜想")
     }
 
     private func sharePlaylist() {
-        let songs = visibleSongs
-        let text = session.shareText(headline: shareHeadline, songs: songs)
-        var items: [Any] = [text]
-        if let image = renderShareCardImage(songs: songs) {
-            items.insert(image, at: 0)
-        }
-        sharePayload = CandidateSongsSharePayload(items: items)
+        showsSetlistShareSheet = true
     }
 
     @MainActor
     private func renderShareCardImage(songs: [CandidateSong]) -> UIImage? {
-        let card = CandidateSongsShareCardView(
+        let card = SetlistProtoShareCard(
             title: shareHeadline,
-            subtitle: "\(songs.count) 首 · 非官方推测",
-            songTitles: songs.prefix(12).map(\.songName),
-            totalCount: songs.count
+            meta: show.city.map { "\($0) · 共 \(songs.count) 首" } ?? "共 \(songs.count) 首",
+            rows: songs.map {
+                .init(name: $0.songName, artist: isMultiArtist ? $0.artist : nil, isMostWanted: $0.isMostWanted)
+            }
         )
-        .frame(width: 320, height: 426)
+        .frame(width: 320, height: shareCardHeight(songCount: songs.count))
         let renderer = ImageRenderer(content: card)
-        renderer.scale = UIScreen.main.scale
+        renderer.scale = 3
         return renderer.uiImage
     }
 
-    private func openSearch(for song: CandidateSong) {
-        let snapshot = CandidateSongSnapshot(songName: song.songName, artist: song.artist, order: song.order)
-        let url = musicPlatform.searchURL(for: snapshot)
-        UIApplication.shared.open(url)
+    private func shareCardHeight(songCount: Int) -> CGFloat {
+        max(426, 180 + CGFloat(songCount) * 24)
+    }
+
+    private func saveShareImageToPhotos() {
+        guard !isSavingShareImage else { return }
+        isSavingShareImage = true
+
+        guard let image = renderShareCardImage(songs: allSongs) else {
+            isSavingShareImage = false
+            presentToast(.failure, message: "生成海报失败")
+            return
+        }
+
+        let delegate = PhotoLibrarySaveDelegate { error in
+            Task { @MainActor in
+                photoSaveDelegate = nil
+                isSavingShareImage = false
+                if error == nil {
+                    presentToast(.success, message: "海报已保存到相册")
+                } else {
+                    presentToast(.failure, message: "海报保存失败，请稍后再试")
+                }
+            }
+        }
+        photoSaveDelegate = delegate
+
+        PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+            Task { @MainActor in
+                guard status == .authorized || status == .limited else {
+                    photoSaveDelegate = nil
+                    isSavingShareImage = false
+                    presentToast(.failure, message: "无法保存海报，请在设置中允许相册访问")
+                    return
+                }
+                UIImageWriteToSavedPhotosAlbum(
+                    image,
+                    delegate,
+                    #selector(PhotoLibrarySaveDelegate.image(_:didFinishSavingWithError:contextInfo:)),
+                    nil
+                )
+            }
+        }
+    }
+
+    /// Apply festival 艺人关注项 from lineup editor. Does not silently rewrite songs.
+    private func applyLineupSelection(_ participatingIDs: Set<UUID>) {
+        guard !participatingIDs.isEmpty else {
+            presentToast(.failure, message: "至少保留 1 组艺人")
+            return
+        }
+        for interest in showArtistInterests {
+            interest.status = participatingIDs.contains(interest.id) ? .wantToSee : .notInterested
+        }
+        do {
+            try modelContext.save()
+            showsLineupEdit = false
+            if allSongs.isEmpty {
+                presentToast(.success, message: "阵容已更新 · \(participatingIDs.count) 组艺人")
+            } else {
+                showsLineupRegenConfirm = true
+            }
+        } catch {
+            presentToast(.failure, message: "阵容保存失败")
+        }
     }
 
     private func addSong(name: String, artist: String) {
@@ -686,6 +1223,8 @@ struct CandidateSongsView: View {
                 in: modelContext
             )
             presentToast(.success, message: "已添加")
+        } catch CandidateSongValidationError.duplicateSong {
+            presentToast(.neutral, message: "这首歌已经在歌单里")
         } catch {
             presentToast(.failure, message: "添加失败")
         }
@@ -713,46 +1252,159 @@ struct CandidateSongsView: View {
         }
     }
 
+    private func toggleMostWanted(_ song: CandidateSong) {
+        do {
+            let next = !song.isMostWanted
+            try session.setMostWanted(song, isMostWanted: next, in: modelContext)
+            presentToast(.neutral, message: next ? "已标记最想看「\(song.songName)」" : "已取消最想看")
+        } catch {
+            presentToast(.failure, message: "标记失败")
+        }
+    }
+
+    private func moveSongUp(_ song: CandidateSong) {
+        do {
+            try session.moveUp(song, previouslyOrdered: allSongs, in: modelContext)
+        } catch {
+            presentToast(.failure, message: "上移失败")
+        }
+    }
+
+    private func moveSongDown(_ song: CandidateSong) {
+        do {
+            try session.moveDown(song, previouslyOrdered: allSongs, in: modelContext)
+        } catch {
+            presentToast(.failure, message: "下移失败")
+        }
+    }
+
+    private func submitInlineAdd() {
+        let name = addSongName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        if allSongs.contains(where: { $0.songName == name }) {
+            presentToast(.neutral, message: "「\(name)」已经在歌单里")
+            return
+        }
+        if allSongs.count >= 24 {
+            presentToast(.neutral, message: "歌单最多 24 首 · 先删掉几首")
+            return
+        }
+        let artist: String = {
+            if isFestival {
+                let chosen = selectedAddArtist.trimmingCharacters(in: .whitespacesAndNewlines)
+                return chosen.isEmpty ? fallbackArtistName : chosen
+            }
+            return fallbackArtistName
+        }()
+        addSong(name: name, artist: artist)
+        addSongName = ""
+        addSongArtist = ""
+        if isFestival {
+            isEditingSetlist = false
+            presentToast(.success, message: "已加入「\(name)」· \(artist) 组")
+        }
+    }
+
     private func requestGeneration() {
         guard canGenerate else {
             showsProLimit = true
             return
         }
         if allSongs.isEmpty {
-            Task { await generateCandidateSongs() }
+            beginGenerateFlowFromEmpty()
         } else {
+            // Product: confirm before replace (HTML skips confirm; we keep confirm for real data).
             showsReplacementConfirmation = true
         }
     }
 
+    /// HTML `generateSetlist(false)`: sheet already open → gen-status → apply list.
     @MainActor
-    private func generateCandidateSongs() async {
+    private func startEmptyGeneration() async {
         guard canGenerate else {
             showsProLimit = true
+            isGenerating = false
+            return
+        }
+        // Flip UI to generating immediately so empty CTA never flashes (match HTML).
+        isGenerating = true
+        genStatusIndex = 0
+        sheetDetent = .medium
+        await generateCandidateSongs(isFirstEmptyGenerate: true)
+    }
+
+    @MainActor
+    private func generateCandidateSongs(isFirstEmptyGenerate: Bool = false) async {
+        guard canGenerate else {
+            showsProLimit = true
+            isGenerating = false
             return
         }
 
-        isGenerating = true
+        let wasEmpty = allSongs.isEmpty
+        if !isGenerating {
+            isGenerating = true
+            genStatusIndex = 0
+        }
+        revealNewList = false
         defer { isGenerating = false }
+
+        // Status animation in parallel (HTML stepThrough); network may finish earlier or later.
+        let statusTask: Task<Void, Never>? = reduceMotion
+            ? nil
+            : Task { @MainActor in
+                let lines = genStatusLines
+                for index in lines.indices where !Task.isCancelled {
+                    genStatusIndex = index
+                    try? await Task.sleep(nanoseconds: index == 0 ? 920_000_000 : 860_000_000)
+                }
+            }
+
+        let interestsForGenerate = fetchInterestsForShow()
+        if isFestival {
+            let included = interestsForGenerate.filter { $0.status != .notInterested }
+            guard !included.isEmpty else {
+                lastGenerationFailed = true
+                presentToast(.failure, message: "先勾选至少 1 组艺人")
+                if isFestival { beginLineupPickForGenerate() }
+                return
+            }
+        }
 
         do {
             try await session.generateAndReplace(
-                artistInterests: showArtistInterests,
+                artistInterests: interestsForGenerate,
                 existingGroups: showGroups,
                 existingSongs: candidateSongs,
                 in: modelContext
             )
+            // Wait out remaining status steps so UI doesn't flash empty → full.
+            if let statusTask {
+                _ = await statusTask.result
+            }
+
             usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(
                 .candidateSongs,
                 in: usedFreeGenerationFeaturesRawValue
             )
             lastGenerationFailed = false
-            artistFilter = nil
-            presentToast(.success, message: "候选曲目已更新")
+            withAnimation(.easeInOut(duration: 0.28)) {
+                sheetDetent = .large
+            }
+            if !reduceMotion {
+                revealNewList = true
+            }
+            presentToast(
+                .success,
+                message: wasEmpty || isFirstEmptyGenerate
+                    ? "猜好了 · 点爱心标记最想看的"
+                    : "已重新猜想 · 最想看的歌保留"
+            )
         } catch {
             modelContext.rollback()
             lastGenerationFailed = true
             presentToast(.failure, message: "生成失败")
+            statusTask?.cancel()
         }
     }
 
@@ -768,50 +1420,240 @@ struct CandidateSongsView: View {
     }
 }
 
-// MARK: - Playlist row / sheets
+// MARK: - Setlist row / edit sheets
 
-private struct CandidateSongPlaylistRow: View {
-    let song: CandidateSong
-    let showsArtist: Bool
-    let onTap: () -> Void
-    let onMore: () -> Void
+/// Music-festival 歌单阵容调整：读写艺人关注项（参与 vs 不看）。
+private struct FestivalLineupEditSheet: View {
+    let interests: [ArtistInterestItem]
+    let onCancel: () -> Void
+    let onSave: (Set<UUID>) -> Void
+
+    @State private var participating: Set<UUID> = []
+
+    private var ordered: [ArtistInterestItem] {
+        interests.sorted { $0.order < $1.order }
+    }
 
     var body: some View {
-        HStack(spacing: 0) {
-            Button(action: onTap) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(song.songName)
-                        .font(.system(size: 16, weight: .regular))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                    if showsArtist {
-                        Text(song.artist)
-                            .font(.system(size: 13, weight: .regular))
-                            .foregroundColor(Color.white.opacity(0.45))
-                            .lineLimit(1)
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 12)
-                .padding(.leading, 16)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("关掉不打算看的艺人。若已有歌单，保存后会询问是否按新阵容重新生成。")
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundColor(BSColor.Home.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
 
-            Button(action: onMore) {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.35))
-                    .frame(width: 40, height: 52)
+                if ordered.isEmpty {
+                    Text("本场还没有艺人关注项。")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(BSColor.Home.dim)
+                        .padding(20)
+                    Spacer()
+                } else {
+                    List {
+                        ForEach(ordered, id: \.id) { interest in
+                            let on = participating.contains(interest.id)
+                            Button {
+                                toggle(interest.id)
+                            } label: {
+                                HStack {
+                                    Text(interest.artistName)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(on ? BSColor.Home.foreground : BSColor.Home.dim)
+                                    Spacer()
+                                    Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(on ? BSColor.Home.accent : BSColor.Home.dim)
+                                        .font(.system(size: 20, weight: .semibold))
+                                }
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.clear)
+                            .accessibilityLabel("\(interest.artistName) \(on ? "参与" : "不看")")
+                        }
+                    }
+                    .scrollContentBackground(.hidden)
+                    .listStyle(.plain)
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("更多")
+            .background(BSColor.Home.background.ignoresSafeArea())
+            .navigationTitle("调整阵容")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消", action: onCancel)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        onSave(participating)
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(participating.isEmpty)
+                }
+            }
+            .onAppear {
+                participating = Set(
+                    ordered
+                        .filter { $0.status != .notInterested }
+                        .map(\.id)
+                )
+                if participating.isEmpty, let first = ordered.first {
+                    participating = [first.id]
+                }
+            }
         }
+    }
+
+    private func toggle(_ id: UUID) {
+        if participating.contains(id) {
+            if participating.count <= 1 { return }
+            participating.remove(id)
+        } else {
+            participating.insert(id)
+        }
+    }
+}
+
+/// Wraps footer chips so they wrap on narrow widths (prototype gen-actions row).
+private struct FlowFooterActions<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        // Simple wrapping via flexible stack; chips stay tappable at 36pt min height.
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 10) { content }
+            VStack(alignment: .leading, spacing: 10) { content }
+        }
+    }
+}
+
+private struct SetlistSongRow: View {
+    let song: CandidateSong
+    let showsArtist: Bool
+    let isEditing: Bool
+    let canMoveUp: Bool
+    let canMoveDown: Bool
+    let onToggleMostWanted: () -> Void
+    let onMoveUp: () -> Void
+    let onMoveDown: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Circle()
+                .fill(tierColor)
+                .frame(width: 8, height: 8)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(song.songName)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(BSColor.Home.foreground)
+                    .lineLimit(1)
+                if !isEditing {
+                    HStack(spacing: 8) {
+                        Text(tierLabel)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(tierLabelColor)
+                        if let hint = song.shortHint, !hint.isEmpty {
+                            Text(hint)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(BSColor.Home.dim)
+                                .lineLimit(1)
+                        } else if showsArtist {
+                            Text(song.artist)
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(BSColor.Home.dim)
+                                .lineLimit(1)
+                        } else if song.tier == .guest {
+                            Text("嘉宾 · \(song.artist)")
+                                .font(.system(size: 11, weight: .regular))
+                                .foregroundColor(BSColor.Home.dim)
+                                .lineLimit(1)
+                        }
+                    }
+                } else if isMultiArtistMeta {
+                    Text(song.artist)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(BSColor.Home.dim)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if isEditing {
+                HStack(spacing: 2) {
+                    editAct(systemName: "arrow.up", enabled: canMoveUp, label: "上移 \(song.songName)", action: onMoveUp)
+                    editAct(systemName: "arrow.down", enabled: canMoveDown, label: "下移 \(song.songName)", action: onMoveDown)
+                    editAct(systemName: "xmark", enabled: true, label: "删除 \(song.songName)", destructive: true, action: onDelete)
+                }
+            } else {
+                Button(action: onToggleMostWanted) {
+                    Image(systemName: song.isMostWanted ? "heart.fill" : "heart")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(song.isMostWanted ? BSColor.Home.accent : BSColor.Home.dim)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(song.isMostWanted ? "取消最想看 \(song.songName)" : "最想看 \(song.songName)")
+            }
+        }
+        .padding(.horizontal, 8)
+        .frame(minHeight: 52)
         .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Color.white.opacity(0.06))
-                .frame(height: 1)
-                .padding(.leading, 16)
+            BSColor.Home.foreground.opacity(0.06).frame(height: 1)
+        }
+    }
+
+    private var isMultiArtistMeta: Bool { showsArtist }
+
+    private func editAct(
+        systemName: String,
+        enabled: Bool,
+        label: String,
+        destructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(
+                    enabled
+                        ? (destructive ? BSColor.Home.live : BSColor.Home.muted)
+                        : BSColor.Home.dim.opacity(0.35)
+                )
+                .frame(width: 40, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+
+    private var tierLabel: String {
+        switch song.tier {
+        case .high: return "高可能"
+        case .mid: return "较可能"
+        case .guest: return "嘉宾"
+        case .encore: return "返场"
+        }
+    }
+
+    private var tierLabelColor: Color {
+        switch song.tier {
+        case .high: return BSColor.Home.accent
+        case .mid, .guest, .encore: return BSColor.Home.dim
+        }
+    }
+
+    private var tierColor: Color {
+        switch song.tier {
+        case .high: return BSColor.Home.accent
+        case .mid: return BSColor.Home.prepare.opacity(0.95)
+        case .guest: return BSColor.Home.fragment
+        case .encore: return BSColor.Home.route
         }
     }
 }
@@ -865,7 +1707,7 @@ private struct CandidateSongsEditSheet: View {
             .scrollContentBackground(.hidden)
             .background(Color(red: 0.07, green: 0.07, blue: 0.07))
             .environment(\.editMode, .constant(.active))
-            .navigationTitle("编辑歌单")
+            .navigationTitle("编辑歌单猜想")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -970,82 +1812,6 @@ private struct CandidateSongsAddSheet: View {
         }
         .preferredColorScheme(.dark)
     }
-}
-
-private struct CandidateSongsSharePayload: Identifiable {
-    let id = UUID()
-    let items: [Any]
-}
-
-private struct CandidateSongsShareCardView: View {
-    let title: String
-    let subtitle: String
-    let songTitles: [String]
-    let totalCount: Int
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(red: 0.12, green: 0.08, blue: 0.14),
-                    Color.black,
-                    Color(red: 0.08, green: 0.08, blue: 0.1)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text("BEFORESHOW · 猜歌单")
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundColor(Color.white.opacity(0.45))
-
-                Text(title)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(.white)
-                    .lineLimit(3)
-                    .padding(.top, 12)
-
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(BSColor.Accent.candidate)
-                    .padding(.top, 8)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(Array(songTitles.enumerated()), id: \.offset) { _, name in
-                        Text(name)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.85))
-                            .lineLimit(1)
-                    }
-                    if totalCount > songTitles.count {
-                        Text("…共 \(totalCount) 首")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color.white.opacity(0.4))
-                    }
-                }
-                .padding(.top, 18)
-
-                Spacer()
-
-                Text("非官方推测 · 开场前慢慢靠近")
-                    .font(.system(size: 11))
-                    .foregroundColor(Color.white.opacity(0.35))
-            }
-            .padding(22)
-        }
-    }
-}
-
-private struct ActivityView: UIViewControllerRepresentable {
-    let activityItems: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 struct CurrentFeatureRow: View {

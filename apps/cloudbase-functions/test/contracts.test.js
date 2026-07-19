@@ -23,7 +23,8 @@ describe("generation contracts", () => {
         artists: ["落日飞车"]
       },
       limits: {
-        maxSongs: 24
+        maxSongs: 24,
+        targetSongs: 10
       }
     });
 
@@ -36,6 +37,7 @@ describe("generation contracts", () => {
     });
 
     assert.equal(request.show.type, "concert");
+    assert.equal(request.limits.targetSongs, 10);
     assert.deepEqual(response.items[0], {
       songName: "Vanilla Villa",
       artist: "落日飞车",
@@ -59,6 +61,53 @@ describe("generation contracts", () => {
     assert.deepEqual(withTiers.items.map((item) => item.tier), ["high", "mid", "guest", "encore", "mid", "high"]);
     assert.equal(withTiers.items[0].hint, "这轮巡演主题曲");
     assert.equal(withTiers.items[1].hint, undefined);
+  });
+
+  it("accepts a shorter candidate-song response when the artist has a smaller repertoire", () => {
+    const response = validateGenerationResponse(GENERATION_TYPES.candidateSongs, {
+      type: GENERATION_TYPES.candidateSongs,
+      items: Array.from({ length: 9 }, (_, index) => ({
+        songName: `Song ${index}`,
+        artist: "Artist"
+      }))
+    });
+
+    assert.equal(response.items.length, 9);
+  });
+
+  it("rejects candidate-song responses above the requested maximum", () => {
+    assert.throws(
+      () => validateGenerationResponse(
+        GENERATION_TYPES.candidateSongs,
+        {
+          type: GENERATION_TYPES.candidateSongs,
+          items: Array.from({ length: 13 }, (_, index) => ({
+            songName: `Song ${index}`,
+            artist: "Artist"
+          }))
+        },
+        { maxSongs: 12 }
+      ),
+      errorWithCode("TOO_MANY_SONGS")
+    );
+  });
+
+  it("requires festival requests to leave room for the ten-song target", () => {
+    assert.throws(
+      () => validateGenerationRequest({
+        type: GENERATION_TYPES.candidateSongs,
+        requestId: "req-festival-too-small",
+        show: {
+          name: "音乐节",
+          date: "2026-07-01",
+          type: "musicFestival"
+        },
+        limits: {
+          maxSongs: 8
+        }
+      }),
+      errorWithCode("INVALID_SONG_LIMIT")
+    );
   });
 
   it("rejects candidate song lyrics, URLs, numeric tiers, invalid tiers and prose", () => {

@@ -1,25 +1,18 @@
-# Plan 03 · 候选曲目 UX（已实现方向）
+# Plan 03 · 歌单猜想 UX
 
-> 状态：**核心 UI 已按歌单原型落地**（`CandidateSongsView`）。下文为产品约定，后续只做修补。
+> 状态：**以 ADRs 0014–0020 + `CONTEXT.md` 为准**。旧「候选曲目 / 播放预留 / 默认音乐平台试听」方向已废止。
 
-## 已落地
+## 当前约定（摘要）
 
-- 猜歌单 hero：3:4 海报、标题、首数、操作区（播放预留 / 复制 / 分享 / 编辑）
-- **无序号**、无行左小图；多艺人「全部 + 艺人」筛选，单艺人不显示筛选
-- **编辑** → sheet：List 删除 + 拖动排序 + 添加入口
-- **添加** → sheet：歌名 + 艺人
-- **复制** 纯文本；**分享** 文本 + 简单卡片图
-- 去掉显眼 Tips 卡；重新生成仍需确认
-- 全局 `order` 作为演出顺序
-
-## 后续可选
-
-- 分享卡更精致 / 保存相册
-- 播放接入
-- 编辑弹窗内改歌名（现 ··· 仅移除确认；可补编辑信息）
-- 音乐节艺人关注管理
+- App 内名称：**歌单猜想**（猜一份歌单）；不用「候选曲目」
+- 行字段：歌名、艺人、**四档曲目档位**、**曲目短因**、爱心**最想看**（可多选）
+- 三面：首页歌单卡 + 歌单 sheet（含 sheet 内编辑）+ 分享层海报；对齐 home feature-cards 原型 1:1（ADR 0019）
+- 生成：一键猜；重猜确认；保留手加 + 最想看；缺档位/短因时客户端补全（ADR 0020）
+- 不做：音乐平台试听跳转、官方 setlist 承诺、逐条来源 URL、数值置信度、长推荐文
 
 ## 文件
 
-- `apps/ios/BeforeShow/ShowToolViews.swift`（`CandidateSongsView` 等）
-- 原型：`apps/ios/BeforeShow/prototypes/candidate-songs-playlist.html`
+- `apps/ios/BeforeShow/ShowToolViews.swift`（`CandidateSongsView`）
+- `apps/ios/BeforeShow/SetlistPrototypeChrome.swift`
+- `apps/ios/BeforeShow/CandidateSongs.swift` / `CandidateSongsSession.swift`
+- 术语：`CONTEXT.md`；决策：`docs/adr/0014`–`0020`

@@ -62,14 +62,14 @@ export function validateGenerationRequest(input) {
   }
 }
 
-export function validateGenerationResponse(type, input) {
+export function validateGenerationResponse(type, input, limits) {
   assertNonEmptyString(type, "type");
   assertPlainObject(input, "$");
   rejectForbiddenKeysDeep(input, "$");
 
   switch (type) {
   case GENERATION_TYPES.candidateSongs:
-    return validateCandidateSongsResponse(input);
+    return validateCandidateSongsResponse(input, limits);
   case GENERATION_TYPES.roundTripDraft:
     return validateRoundTripDraftResponse(input);
   default:
@@ -77,7 +77,7 @@ export function validateGenerationResponse(type, input) {
   }
 }
 
-export function selectValidProviderResponse(type, providerResults) {
+export function selectValidProviderResponse(type, providerResults, limits) {
   if (!Array.isArray(providerResults) || providerResults.length === 0) {
     throw new ContractError(
       "NO_PROVIDER_RESULTS",
@@ -100,7 +100,7 @@ export function selectValidProviderResponse(type, providerResults) {
     try {
       return {
         provider: result.provider,
-        response: validateGenerationResponse(type, result.response),
+        response: validateGenerationResponse(type, result.response, limits),
         usedFallback: result !== providerResults[0]
       };
     } catch (error) {
@@ -125,8 +125,25 @@ function validateCandidateSongsRequest(input) {
 
   if (input.limits !== undefined) {
     assertPlainObject(input.limits, "$.limits");
-    assertAllowedKeys(input.limits, ["maxSongs"], "$.limits");
+    assertAllowedKeys(input.limits, ["maxSongs", "targetSongs"], "$.limits");
     assertPositiveInteger(input.limits.maxSongs, "$.limits.maxSongs");
+    if (show.type === "musicFestival" && input.limits.maxSongs < 10) {
+      throw new ContractError(
+        "INVALID_SONG_LIMIT",
+        "Music festival requests must allow at least 10 songs.",
+        "$.limits.maxSongs"
+      );
+    }
+    if (input.limits.targetSongs !== undefined) {
+      assertPositiveInteger(input.limits.targetSongs, "$.limits.targetSongs");
+      if (input.limits.targetSongs > input.limits.maxSongs) {
+        throw new ContractError(
+          "INVALID_SONG_TARGET",
+          "Target songs cannot exceed maximum songs.",
+          "$.limits"
+        );
+      }
+    }
   }
 
   return { ...input, show };
@@ -157,11 +174,17 @@ function validateRoundTripDraftRequest(input) {
   return { ...input, show };
 }
 
-function validateCandidateSongsResponse(input) {
+function validateCandidateSongsResponse(input, limits) {
   assertAllowedKeys(input, ["type", "items"], "$");
   assertResponseType(input, GENERATION_TYPES.candidateSongs);
   assertArray(input.items, "$.items", { min: 1 });
-
+  if (limits?.maxSongs !== undefined && input.items.length > limits.maxSongs) {
+    throw new ContractError(
+      "TOO_MANY_SONGS",
+      "Candidate song response exceeds the requested maximum.",
+      "$.items"
+    );
+  }
   return {
     type: GENERATION_TYPES.candidateSongs,
     items: input.items.map((item, index) => {

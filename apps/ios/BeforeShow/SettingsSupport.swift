@@ -2,7 +2,6 @@ import Foundation
 
 enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
-    case defaultMusicPlatform = "默认音乐平台"
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
     case about = "关于开场前"
@@ -15,12 +14,8 @@ enum HomeStyle: String, Equatable {
 }
 
 enum SettingsInformation {
-    static let defaultMusicPlatformName = MusicPlatform.neteaseCloudMusic.displayName
-    static let musicPlatformNames = MusicPlatform.allCases.map(\.displayName)
-
     static let orderedEntries: [SettingsEntry] = [
         .proMembership,
-        .defaultMusicPlatform,
         .privacyAndLocalData,
         .feedback,
         .about
@@ -32,7 +27,7 @@ enum PrivacyLocalDataCopy {
         "票务截图只用于设备端 OCR，截图不会为了识别上传。",
         "相册里的图片和视频以系统相册引用保存，原文件仍由系统相册管理。",
         "App 内创建的语音片段保存在 BeforeShow 本地沙盒。",
-        "候选曲目和往返草稿只在用户主动触发时发起 AI 请求。"
+        "歌单猜想和往返草稿只在用户主动触发时发起 AI 请求。"
     ]
 
     static let clearDataExplanation = "清除本地数据会删除 BeforeShow 创建和保存的本地数据，包括现场、设置、生成结果和 App 内录音；不会删除系统相册中的原始图片或视频。"
@@ -41,10 +36,10 @@ enum PrivacyLocalDataCopy {
 enum ProMembershipCopy {
     static let summary = "Pro 锁的是重复 AI 生成与保存额度，不锁本地已有内容。"
 
-    /// 以 `ProFeatureGate` 实际接线的 feature 为准：保存额度（canAddShow）与候选曲目重复生成（canGenerate）。
+    /// 以 `ProFeatureGate` 实际接线的 feature 为准：保存额度（canAddShow）与歌单猜想重复生成（canGenerate）。
     static let unlockedPoints = [
         "无限添加现场（免费版限 1 场）",
-        "重复生成候选曲目（免费版每类体验一次）"
+        "重复生成歌单猜想（免费版每类体验一次）"
     ]
 
     /// `ProFeatureGate` 中始终放行的能力：已有现场、碎片添加、手动编辑。
@@ -126,7 +121,7 @@ struct LocalDataClearancePlan: Equatable {
 enum LocalDataClearancePolicy {
     static let defaultPlan = LocalDataClearancePlan(
         deletesAppOwnedData: [
-            "SwiftData 中的现场、候选曲目、去程计划和偏好设置",
+            "SwiftData 中的现场、歌单猜想、去程计划和偏好设置",
             "BeforeShow 沙盒中的 App 内录音与临时缓存"
         ],
         preservesSystemData: [

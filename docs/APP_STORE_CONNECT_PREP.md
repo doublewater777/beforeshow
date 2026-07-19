@@ -133,7 +133,7 @@ Run this on a fresh install before submitting the first external TestFlight buil
 
 - [ ] Fresh launch starts without requiring an account and without asking for ticket screenshots.
 - [ ] Add one `现场` manually; save succeeds and the new show becomes the current show.
-- [ ] Open `候选曲目`; candidate songs generate once, store only song title and artist, and can be edited locally.
+- [ ] Open `歌单猜想`; generate once; rows show 曲目档位 + 曲目短因 (not all「较可能」with empty sides); edit/heart/share work locally.
 - [ ] Open `往返计划`; fill direction info, generate one outbound draft, edit and save it locally.
 - [ ] Generate one return draft or save an undecided return note; repeated outbound/return generation as a free user opens Pro.
 - [ ] Open `现场准备`; check and uncheck items, save a reminder time, save private notes, then leave and re-enter to confirm persistence.
@@ -142,11 +142,11 @@ Run this on a fresh install before submitting the first external TestFlight buil
 - [ ] Open `设置 > Pro会员`; monthly and yearly products load with App Store/TestFlight prices for `com.doublewaterapps.beforeshow.pro.monthly` and `com.doublewaterapps.beforeshow.pro.yearly`.
 - [ ] Buy monthly Pro in the sandbox sheet; the Pro page shows active status.
 - [ ] After purchase, add a second `现场`; save succeeds.
-- [ ] After purchase, regenerate `候选曲目`; repeated generation succeeds and replaces the local candidate group after confirmation.
+- [ ] After purchase, regenerate `歌单猜想`; confirmation required; hand-added and 最想看 preserved; tiers/hints present after generate.
 - [ ] Delete and reinstall, then use `恢复购买`; Pro entitlement restores from StoreKit.
 - [ ] Verify privacy and copyright boundaries: no lyrics, no uploaded ticket screenshot flow, no self-hosted media playback, and no BeforeShow account/sync prompt.
 - [ ] Repeat the free-limit path once with App Store sandbox/TestFlight products, not only the local `.storekit` file.
-- [ ] Verify metadata uses approved product language: `现场`, `候选曲目`, `往返计划`, `Pro会员`.
+- [ ] Verify App UI uses `现场`, `歌单猜想`, 去程/出门方案, `Pro会员`（Store 元数据若仍写「候选曲目」可另排期，见 ADR 0015）。
 
 ## Current External Blockers
 
