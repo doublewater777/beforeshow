@@ -127,9 +127,15 @@ struct CandidateSongsSession {
 
     func deduplicateSongs(
         songs: [CandidateSong],
+        groups: [CandidateSongGroup],
         in context: ModelContext
     ) throws {
-        let ordered = songs
+        let groupIDs = Set(
+            groups
+                .filter { $0.showID == show.id }
+                .map(\.id)
+        )
+        let ordered = songs.filter { groupIDs.contains($0.groupID) }
         var retained: [CandidateSong] = []
         var retainedIndexByIdentity: [String: Int] = [:]
 
@@ -145,8 +151,13 @@ struct CandidateSongsSession {
             if song.isUserAdded && !existing.isUserAdded {
                 song.isMostWanted = song.isMostWanted || existing.isMostWanted
                 context.delete(existing)
-                retained[retainedIndex] = song
-                retainedIndexByIdentity[identity] = retainedIndex
+                retained.remove(at: retainedIndex)
+                retained.append(song)
+                retainedIndexByIdentity = Dictionary(
+                    uniqueKeysWithValues: retained.enumerated().map { index, retainedSong in
+                        (CandidateSongEditingService.songIdentity(for: retainedSong), index)
+                    }
+                )
             } else {
                 existing.isMostWanted = existing.isMostWanted || song.isMostWanted
                 context.delete(song)
@@ -186,6 +197,7 @@ struct CandidateSongsSession {
         )
 
         var created: [CandidateSong] = []
+        var createdGroups: [CandidateSongGroup] = []
         var coveredMostWantedIdentities = Set<String>()
 
         for entry in grouped {
@@ -196,6 +208,7 @@ struct CandidateSongsSession {
                 uncertaintyNote: Self.defaultUncertaintyNote
             )
             context.insert(group)
+            createdGroups.append(group)
             for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
                 let identity = CandidateSongEditingService.songIdentity(for: song)
                 if mostWantedIdentitySet.contains(identity) {
@@ -237,6 +250,7 @@ struct CandidateSongsSession {
                     uncertaintyNote: Self.defaultUncertaintyNote
                 )
                 context.insert(group)
+                createdGroups.append(group)
                 for song in try editingService.makeSongs(groupID: group.id, inputs: entry.songs) {
                     song.isMostWanted = true
                     context.insert(song)
@@ -253,6 +267,7 @@ struct CandidateSongsSession {
                 isUserCurated: true
             )
             context.insert(group)
+            createdGroups.append(group)
             for old in preservedUserSongs {
                 let song = try CandidateSong(
                     groupID: group.id,
@@ -276,7 +291,7 @@ struct CandidateSongsSession {
             context.delete(group)
         }
 
-        try deduplicateSongs(songs: created, in: context)
+        try deduplicateSongs(songs: created, groups: createdGroups, in: context)
     }
 
     func addUserSong(

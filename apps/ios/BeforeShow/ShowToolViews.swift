@@ -587,7 +587,7 @@ struct CandidateSongsView: View {
         .bsToastOverlay(toast)
         .onAppear {
             if !allSongs.isEmpty {
-                try? session.deduplicateSongs(songs: allSongs, in: modelContext)
+                try? session.deduplicateSongs(songs: allSongs, groups: showGroups, in: modelContext)
             }
             // Legacy generations often stored all-mid + empty hints; fill shape once without API.
             try? session.repairLegacyTiersAndHintsIfNeeded(songs: allSongs, in: modelContext)
@@ -1281,14 +1281,6 @@ struct CandidateSongsView: View {
     private func submitInlineAdd() {
         let name = addSongName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
-        if allSongs.contains(where: { $0.songName == name }) {
-            presentToast(.neutral, message: "「\(name)」已经在歌单里")
-            return
-        }
-        if allSongs.count >= 24 {
-            presentToast(.neutral, message: "歌单最多 24 首 · 先删掉几首")
-            return
-        }
         let artist: String = {
             if isFestival {
                 let chosen = selectedAddArtist.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1296,6 +1288,17 @@ struct CandidateSongsView: View {
             }
             return fallbackArtistName
         }()
+        let identity = CandidateSongEditingService.songIdentity(songName: name, artist: artist)
+        if allSongs.contains(where: {
+            CandidateSongEditingService.songIdentity(for: $0) == identity
+        }) {
+            presentToast(.neutral, message: "「\(name)」已经在歌单里")
+            return
+        }
+        if allSongs.count >= 24 {
+            presentToast(.neutral, message: "歌单最多 24 首 · 先删掉几首")
+            return
+        }
         addSong(name: name, artist: artist)
         addSongName = ""
         addSongArtist = ""

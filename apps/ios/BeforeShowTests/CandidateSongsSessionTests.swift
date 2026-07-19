@@ -309,13 +309,87 @@ final class CandidateSongsSessionTests: XCTestCase {
         try context.save()
 
         let session = CandidateSongsSession(show: show)
-        try session.deduplicateSongs(songs: [generated, userAdded], in: context)
+        try session.deduplicateSongs(
+            songs: [generated, userAdded],
+            groups: [generatedGroup, userGroup],
+            in: context
+        )
 
         let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
         XCTAssertEqual(songs.count, 1)
         XCTAssertTrue(songs[0].isUserAdded)
         XCTAssertTrue(songs[0].isMostWanted)
         XCTAssertEqual(songs[0].order, 0)
+    }
+
+    func testDeduplicateSongsDoesNotDeleteAnotherShowsSongs() throws {
+        let show = try makeShow()
+        let otherShow = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        context.insert(otherShow)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "本场")
+        let otherGroup = try CandidateSongGroup(showID: otherShow.id, uncertaintyNote: "另一场")
+        let song = try CandidateSong(groupID: group.id, songName: "晴天", artist: "周杰伦", order: 0)
+        let otherSong = try CandidateSong(
+            groupID: otherGroup.id,
+            songName: "晴天",
+            artist: "周杰伦",
+            order: 0
+        )
+        context.insert(group)
+        context.insert(otherGroup)
+        context.insert(song)
+        context.insert(otherSong)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.deduplicateSongs(
+            songs: [song, otherSong],
+            groups: [group, otherGroup],
+            in: context
+        )
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>())
+        XCTAssertEqual(songs.count, 2)
+        XCTAssertTrue(songs.contains { $0.groupID == group.id })
+        XCTAssertTrue(songs.contains { $0.groupID == otherGroup.id })
+    }
+
+    func testDeduplicateSongsKeepsUserAddedDuplicateAtItsOriginalPosition() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "本场")
+        let generated = try CandidateSong(groupID: group.id, songName: "重复歌", artist: "艺人", order: 0)
+        let other = try CandidateSong(groupID: group.id, songName: "中间歌", artist: "艺人", order: 1)
+        let userAdded = try CandidateSong(
+            groupID: group.id,
+            songName: "重复歌",
+            artist: "艺人",
+            order: 2,
+            isUserAdded: true
+        )
+        context.insert(group)
+        context.insert(generated)
+        context.insert(other)
+        context.insert(userAdded)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.deduplicateSongs(
+            songs: [generated, other, userAdded],
+            groups: [group],
+            in: context
+        )
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["中间歌", "重复歌"])
+        XCTAssertTrue(songs.last?.isUserAdded == true)
     }
 
     func testCopyTextUsesResolverStylePlaylistBody() throws {
