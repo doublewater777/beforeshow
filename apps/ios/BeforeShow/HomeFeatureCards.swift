@@ -8,7 +8,7 @@ import SwiftUI
 // 此阶段 prepare/route 卡保留真实工具文案（见 DESIGN.md 与改版计划）。
 
 enum HomeFeatureKind: String, CaseIterable, Identifiable {
-    case setlist, route, prepare, fragment
+    case setlist, route, fragment
     var id: Self { self }
 }
 
@@ -22,11 +22,11 @@ enum HomeFeatureCopySource {
     static func order(for phase: HomeShowPhase) -> [HomeFeatureKind] {
         switch phase {
         case .pre, .inactive:
-            return [.setlist, .route, .prepare, .fragment]
+            return [.setlist, .route, .fragment]
         case .live:
-            return [.setlist, .fragment, .prepare, .route]
+            return [.setlist, .fragment, .route]
         case .ended:
-            return [.route, .fragment, .setlist, .prepare]
+            return [.route, .fragment, .setlist]
         }
     }
 
@@ -42,7 +42,7 @@ enum HomeFeatureCopySource {
     static func dimmed(for phase: HomeShowPhase) -> Set<HomeFeatureKind> {
         switch phase {
         case .pre: return [.fragment]
-        case .live: return [.prepare, .route]
+        case .live: return [.route]
         case .ended: return []
         case .inactive: return []
         }
@@ -64,8 +64,6 @@ enum HomeFeatureCopySource {
                 return HomeFeatureCopy(badge: "歌单猜想", note: "按本场信息猜想 · 可手动调整", cta: "猜一份歌单")
             case .route:
                 return HomeFeatureCopy(badge: "怎么去", note: "按出发地算到场时间", cta: "快速生成")
-            case .prepare:
-                return HomeFeatureCopy(badge: "出门清单", note: "票证、充电和随身物品", cta: "快速生成")
             case .fragment:
                 return HomeFeatureCopy(badge: "现场碎片", note: "独立入口 · 现场随手记瞬间", cta: "开场后再用")
             }
@@ -75,8 +73,6 @@ enum HomeFeatureCopySource {
                 return HomeFeatureCopy(badge: "本场歌单", note: "打开歌单猜想，对照现场听", cta: "打开歌单")
             case .fragment:
                 return HomeFeatureCopy(badge: "现场碎片", note: "歌词、偶遇、舞美，随手记一条", cta: "记一条碎片")
-            case .prepare:
-                return HomeFeatureCopy(badge: "出门清单", note: "入场已勾完的可收起，现场用碎片", cta: "看清单")
             case .route:
                 return HomeFeatureCopy(badge: "怎么去", note: "填好目的地和离开时间", cta: "备好返程")
             }
@@ -86,8 +82,6 @@ enum HomeFeatureCopySource {
                 return HomeFeatureCopy(badge: "歌单猜想", note: "回看开场前的猜想", cta: "回看猜想")
             case .fragment:
                 return HomeFeatureCopy(badge: "本场碎片", note: "把碎片收进回忆，或再补一条", cta: "回看碎片")
-            case .prepare:
-                return HomeFeatureCopy(badge: "出门清单", note: "勾过的清单还在这，下次更顺手", cta: "看清单")
             case .route:
                 return HomeFeatureCopy(badge: "怎么去", note: "填好目的地和离开时间", cta: "备好返程")
             }
@@ -104,7 +98,6 @@ struct HomeFeatureCardsSection: View {
     /// 已按本场过滤、按 order 排序的歌单猜想曲目。
     let candidateSongs: [CandidateSong]
     let roundTripPlan: RoundTripPlan?
-    let preparationPlan: ShowPreparationPlan?
     let onOpen: (HomeFeatureKind) -> Void
     let onOpenMap: (RoundTripDirection) -> Void
 
@@ -152,7 +145,6 @@ struct HomeFeatureCardsSection: View {
         case .setlist: return summary.hasCandidateSongs
         case .route:
             return show.changeStatus == .canceled || HomeFeatureCopySource.hasRoutePlan(roundTripPlan, for: phase)
-        case .prepare: return true // 建议项常驻，卡片总是展示可勾清单
         case .fragment: return summary.hasFragments
         }
     }
@@ -169,12 +161,6 @@ struct HomeFeatureCardsSection: View {
                 phase: phase,
                 onOpenMap: { onOpenMap(HomeFeatureCopySource.routeDirection(for: phase)) }
             )
-        case .prepare:
-            HomePreparePreview(
-                suggestions: ShowPreparationGuide().sections(for: show).flatMap(\.suggestions),
-                plan: preparationPlan,
-                onToggle: togglePreparation
-            )
         case .fragment:
             HomeFragmentPreview(
                 fragments: ShowFragment.sortedByCreationTime(show.fragments).suffix(3).reversed(),
@@ -182,15 +168,6 @@ struct HomeFeatureCardsSection: View {
                 onAdd: { onOpen(.fragment) }
             )
         }
-    }
-
-    private func togglePreparation(_ text: String) {
-        let plan = preparationPlan ?? ShowPreparationPlan(showID: show.id)
-        if preparationPlan == nil {
-            modelContext.insert(plan)
-        }
-        plan.setChecked(!plan.isChecked(text), suggestionText: text)
-        try? modelContext.save()
     }
 }
 
@@ -316,7 +293,6 @@ struct HomeFeatureCard<Content: View>: View {
         switch kind {
         case .setlist: return BSColor.Stage.accent
         case .route: return BSColor.Stage.route
-        case .prepare: return BSColor.Stage.prepare
         case .fragment: return BSColor.Stage.fragment
         }
     }
@@ -325,7 +301,6 @@ struct HomeFeatureCard<Content: View>: View {
         switch kind {
         case .setlist: return BSColor.Stage.accent
         case .route: return BSColor.Stage.routeBadge
-        case .prepare: return BSColor.Stage.prepareBadge
         case .fragment: return BSColor.Stage.fragmentBadge
         }
     }
@@ -334,7 +309,6 @@ struct HomeFeatureCard<Content: View>: View {
         switch kind {
         case .setlist: return 0.08
         case .route: return 0.10
-        case .prepare: return 0.12
         case .fragment: return 0.14
         }
     }
@@ -343,7 +317,6 @@ struct HomeFeatureCard<Content: View>: View {
         switch kind {
         case .setlist: return 0.24
         case .route: return 0.28
-        case .prepare: return 0.30
         case .fragment: return 0.32
         }
     }
@@ -462,95 +435,6 @@ private struct HomeRoutePreview: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: date)
-    }
-}
-
-// MARK: - Prepare Preview
-
-private struct HomePreparePreview: View {
-    let suggestions: [ShowPreparationSuggestion]
-    let plan: ShowPreparationPlan?
-    let onToggle: (String) -> Void
-
-    private static let maxRows = 4
-
-    private var checkedCount: Int {
-        guard let plan else { return 0 }
-        return suggestions.filter { plan.isChecked($0.text) }.count
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text("已完成 \(checkedCount) / \(suggestions.count)")
-                    .font(.system(size: 12.5, weight: .regular))
-                    .foregroundColor(BSColor.Stage.muted)
-                Spacer(minLength: 0)
-                Capsule()
-                    .fill(BSColor.Stage.surfaceRaised)
-                    .frame(width: 112, height: 3)
-                    .overlay(alignment: .leading) {
-                        Capsule()
-                            .fill(BSColor.Stage.accent)
-                            .frame(width: progressWidth, height: 3)
-                    }
-            }
-            .padding(.bottom, 12)
-
-            ForEach(suggestions.prefix(Self.maxRows)) { suggestion in
-                let checked = plan?.isChecked(suggestion.text) == true
-                Button {
-                    onToggle(suggestion.text)
-                } label: {
-                    HStack(alignment: .top, spacing: 12) {
-                        ZStack {
-                            Circle()
-                                .fill(checked ? BSColor.Stage.accent : BSColor.Stage.surfaceRaised)
-                                .frame(width: 22, height: 22)
-                                .overlay(
-                                    Circle()
-                                        .stroke(checked ? .clear : BSColor.Stage.border, lineWidth: 1)
-                                )
-                            if checked {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(BSColor.Stage.background)
-                            }
-                        }
-                        .padding(.top, 1)
-
-                        Text(suggestion.text)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(checked ? BSColor.Stage.muted : BSColor.Stage.foreground)
-                            .strikethrough(checked, color: BSColor.Stage.muted)
-                            .opacity(checked ? 0.55 : 1)
-                            .lineSpacing(2)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.leading)
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        Spacer(minLength: 0)
-                    }
-                    .frame(minHeight: 44)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(suggestion.text)
-                .accessibilityValue(checked ? "已完成" : "待准备")
-            }
-
-            if suggestions.count > Self.maxRows {
-                Text("共 \(suggestions.count) 项 · 点右上角查看全部")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
-                    .padding(.top, 4)
-            }
-        }
-    }
-
-    private var progressWidth: CGFloat {
-        guard !suggestions.isEmpty else { return 0 }
-        return 112 * CGFloat(checkedCount) / CGFloat(suggestions.count)
     }
 }
 

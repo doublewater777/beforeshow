@@ -63,15 +63,13 @@ struct CurrentShowSession {
         for show: Show,
         candidateGroups: [CandidateSongGroup],
         candidateSongs: [CandidateSong],
-        roundTripPlans: [RoundTripPlan],
-        preparationPlans: [ShowPreparationPlan]
+        roundTripPlans: [RoundTripPlan]
     ) -> ShowToolSummary {
         ShowToolSummary(
             show: show,
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans,
-            preparationPlans: preparationPlans
+            roundTripPlans: roundTripPlans
         )
     }
 
@@ -81,7 +79,6 @@ struct CurrentShowSession {
         candidateGroups: [CandidateSongGroup],
         candidateSongs: [CandidateSong],
         roundTripPlans: [RoundTripPlan],
-        preparationPlans: [ShowPreparationPlan],
         now: Date = Date()
     ) -> CurrentShowSnapshot {
         CurrentShowSnapshot(
@@ -91,8 +88,7 @@ struct CurrentShowSession {
                 for: show,
                 candidateGroups: candidateGroups,
                 candidateSongs: candidateSongs,
-                roundTripPlans: roundTripPlans,
-                preparationPlans: preparationPlans
+                roundTripPlans: roundTripPlans
             )
         )
     }
@@ -104,7 +100,6 @@ struct CurrentShowSession {
         candidateGroups: [CandidateSongGroup],
         candidateSongs: [CandidateSong],
         roundTripPlans: [RoundTripPlan],
-        preparationPlans: [ShowPreparationPlan],
         now: Date = Date()
     ) -> CurrentShowSnapshot? {
         guard let show = selectCurrentShow(
@@ -119,7 +114,6 @@ struct CurrentShowSession {
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
             roundTripPlans: roundTripPlans,
-            preparationPlans: preparationPlans,
             now: now
         )
     }
