@@ -81,26 +81,66 @@ final class RoundTripPlanTests: XCTestCase {
     }
 
     func testInvalidPlanDoesNotFullyRestorePlacesAndTimes() {
-        var invalid = makeTravelPlan(direction: .outbound)
+        var invalid = makeTravelPlan(direction: .outbound, fingerprint: "current")
         invalid.validity = .needsRegeneration
-        let valid = makeTravelPlan(direction: .outbound)
+        let valid = makeTravelPlan(direction: .outbound, fingerprint: "current")
 
-        XCTAssertFalse(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: invalid))
-        XCTAssertTrue(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: valid))
+        XCTAssertFalse(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: invalid, fingerprint: "current"))
+        XCTAssertTrue(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: valid, fingerprint: "current"))
     }
 
     func testInvalidOutboundIsNotReusedAsReturnSeed() {
-        var invalidOutbound = makeTravelPlan(direction: .outbound)
+        var invalidOutbound = makeTravelPlan(direction: .outbound, fingerprint: "current")
         invalidOutbound.validity = .needsRegeneration
-        let validOutbound = makeTravelPlan(direction: .outbound)
+        let validOutbound = makeTravelPlan(direction: .outbound, fingerprint: "current")
 
-        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: invalidOutbound))
-        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: nil))
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: invalidOutbound, fingerprint: "current"))
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: nil, fingerprint: "current"))
 
-        let seed = TravelPlanFormValidation.returnSeed(fromOutbound: validOutbound)
+        let seed = TravelPlanFormValidation.returnSeed(fromOutbound: validOutbound, fingerprint: "current")
         XCTAssertEqual(seed?.mode, validOutbound.mode)
         XCTAssertEqual(seed?.origin, validOutbound.destination)
         XCTAssertEqual(seed?.destination, validOutbound.origin)
+    }
+
+    /// 指纹已变但首页失效任务尚未跑（validity 仍为 .valid）时，不得回填/作返程种子。
+    func testOldFingerprintIsRejectedBeforeHomeInvalidationRuns() {
+        let stale = makeTravelPlan(direction: .outbound, fingerprint: "venue-A")
+        XCTAssertEqual(stale.validity, .valid)
+
+        let currentFingerprint = "venue-B"
+        XCTAssertFalse(TravelPlanFormValidation.isCurrent(stale, fingerprint: currentFingerprint))
+        XCTAssertFalse(
+            TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: stale, fingerprint: currentFingerprint)
+        )
+        XCTAssertNil(
+            TravelPlanFormValidation.returnSeed(fromOutbound: stale, fingerprint: currentFingerprint)
+        )
+
+        // 同指纹仍可回填
+        XCTAssertTrue(TravelPlanFormValidation.isCurrent(stale, fingerprint: "venue-A"))
+        XCTAssertNotNil(
+            TravelPlanFormValidation.returnSeed(fromOutbound: stale, fingerprint: "venue-A")
+        )
+    }
+
+    func testInvalidatePlansMarksStaleFingerprintEvenWhenStillValid() {
+        let store = RoundTripPlan(showID: UUID())
+        store.save(makeTravelPlan(direction: .outbound, fingerprint: "venue-A"))
+        store.save(makeTravelPlan(direction: .return, fingerprint: "venue-A"))
+        XCTAssertEqual(store.outboundPlan?.validity, .valid)
+
+        let didInvalidate = store.invalidatePlans(ifShowFingerprintChangedTo: "venue-B")
+        XCTAssertTrue(didInvalidate)
+        XCTAssertEqual(store.outboundPlan?.validity, .needsRegeneration)
+        XCTAssertEqual(store.returnPlan?.validity, .needsRegeneration)
+        // 失效后也不得回填
+        XCTAssertFalse(
+            TravelPlanFormValidation.shouldRestorePlacesAndTimes(
+                from: store.outboundPlan!,
+                fingerprint: "venue-B"
+            )
+        )
     }
 
     func testFormDirectionIsResolvedOnceFromNowNotLiveClock() throws {

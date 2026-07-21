@@ -12,14 +12,23 @@ enum TravelPlanFormValidation {
         origin != nil && destination != nil && (!requiresExplicitTime || hasEnteredTargetTime)
     }
 
-    /// 失效方案不得完整回填起终点与目标时间，否则会把旧场馆重新存成有效方案。
-    static func shouldRestorePlacesAndTimes(from existing: TravelPlan) -> Bool {
-        existing.validity == .valid
+    /// 方案可回填的充分条件：标记有效且指纹与当前现场一致。
+    /// 不完全依赖 `validity`，避免首页失效任务未跑时仍把旧场馆回填进表单。
+    static func isCurrent(_ plan: TravelPlan, fingerprint: String) -> Bool {
+        plan.validity == .valid && plan.showFingerprint == fingerprint
     }
 
-    /// 返程仅在去程有效时复用其起终点（去程终点=场馆作返程起点，去程起点=家作返程终点）。
-    static func returnSeed(fromOutbound outbound: TravelPlan?) -> (mode: TravelMode, origin: TravelPlace, destination: TravelPlace)? {
-        guard let outbound, outbound.validity == .valid else { return nil }
+    /// 失效或指纹过期方案不得完整回填起终点与目标时间。
+    static func shouldRestorePlacesAndTimes(from existing: TravelPlan, fingerprint: String) -> Bool {
+        isCurrent(existing, fingerprint: fingerprint)
+    }
+
+    /// 返程仅在去程对当前指纹有效时复用其起终点（去程终点=场馆作返程起点，去程起点=家作返程终点）。
+    static func returnSeed(
+        fromOutbound outbound: TravelPlan?,
+        fingerprint: String
+    ) -> (mode: TravelMode, origin: TravelPlace, destination: TravelPlace)? {
+        guard let outbound, isCurrent(outbound, fingerprint: fingerprint) else { return nil }
         return (outbound.mode, outbound.destination, outbound.origin)
     }
 }
@@ -537,6 +546,15 @@ struct RoundTripPlanView: View {
         guard !didBootstrap else { return }
         didBootstrap = true
 
+        // 详情页等入口可能绕过首页失效任务：打开表单时先按当前指纹刷新 validity。
+        let fingerprint = session.showFingerprint
+        if let plan {
+            let didInvalidate = plan.invalidatePlans(ifShowFingerprintChangedTo: fingerprint)
+            if didInvalidate {
+                try? modelContext.save()
+            }
+        }
+
         if direction == .outbound {
             targetTime = session.defaultTargetArrivalAt
             customLeaveAt = targetTime.addingTimeInterval(-3_600)
@@ -547,8 +565,11 @@ struct RoundTripPlanView: View {
             targetTime = session.defaultReturnLeaveAt()
             customLeaveAt = targetTime
             customArriveAt = targetTime.addingTimeInterval(3_600)
-            // 仅复用有效去程；失效去程的旧场馆不得预填为返程起点。
-            if let seed = TravelPlanFormValidation.returnSeed(fromOutbound: plan?.outboundPlan) {
+            // 仅复用对当前指纹有效的去程；旧指纹/失效去程不得预填旧场馆。
+            if let seed = TravelPlanFormValidation.returnSeed(
+                fromOutbound: plan?.outboundPlan,
+                fingerprint: fingerprint
+            ) {
                 selectedMode = seed.mode
                 selectedOrigin = seed.origin
                 originQuery = seed.origin.name
@@ -560,10 +581,10 @@ struct RoundTripPlanView: View {
             }
         }
 
-        // 仅有效方案完整回填；失效方案最多保留交通方式，起终点与目标时间沿用最新现场初始化。
+        // 仅当前指纹下的有效方案完整回填；否则最多保留交通方式。
         if let existing = plan?.plan(for: direction) {
             selectedMode = existing.mode
-            if TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: existing) {
+            if TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: existing, fingerprint: fingerprint) {
                 selectedOrigin = existing.origin
                 originQuery = existing.origin.name
                 selectedDestination = existing.destination

@@ -372,7 +372,12 @@ struct MapKitTravelRouteProvider: TravelRouteProviding {
                 forArrival: arrivalDate,
                 duration: first.durationSeconds
             )
-            return try await performRouteCalculation(request)
+            // 第二次请求是精度增强；失败时降级使用首次结果。
+            do {
+                return try await performRouteCalculation(request)
+            } catch {
+                return first
+            }
         }
     }
 
