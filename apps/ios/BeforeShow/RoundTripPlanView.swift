@@ -16,6 +16,12 @@ enum TravelPlanFormValidation {
     static func shouldRestorePlacesAndTimes(from existing: TravelPlan) -> Bool {
         existing.validity == .valid
     }
+
+    /// 返程仅在去程有效时复用其起终点（去程终点=场馆作返程起点，去程起点=家作返程终点）。
+    static func returnSeed(fromOutbound outbound: TravelPlan?) -> (mode: TravelMode, origin: TravelPlace, destination: TravelPlace)? {
+        guard let outbound, outbound.validity == .valid else { return nil }
+        return (outbound.mode, outbound.destination, outbound.origin)
+    }
 }
 
 /// 打开路线表单时的方向解析（一次性，不随实时时钟翻转）。
@@ -37,7 +43,7 @@ enum RoundTripPlanDirectionResolver {
 
 struct RoundTripPlanView: View {
     let show: Show
-    /// 打开 Sheet 时固定的方向，避免表单停留到开场后 `Date()` 静默翻转。
+    /// 必须由父视图在打开 Sheet 时确定并传入；勿在 View 内用实时 `Date()` 推导。
     let direction: RoundTripDirection
 
     @Environment(\.modelContext) private var modelContext
@@ -68,9 +74,9 @@ struct RoundTripPlanView: View {
 
     private var session: DeparturePlanSession { DeparturePlanSession(show: show) }
 
-    init(show: Show, direction: RoundTripDirection? = nil, now: Date = Date()) {
+    init(show: Show, direction: RoundTripDirection) {
         self.show = show
-        self.direction = direction ?? RoundTripPlanDirectionResolver.resolve(show: show, now: now)
+        self.direction = direction
         let showID = show.id
         _plans = Query(
             filter: #Predicate<RoundTripPlan> { $0.showID == showID },
@@ -541,12 +547,13 @@ struct RoundTripPlanView: View {
             targetTime = session.defaultReturnLeaveAt()
             customLeaveAt = targetTime
             customArriveAt = targetTime.addingTimeInterval(3_600)
-            if let outbound = plan?.outboundPlan {
-                selectedMode = outbound.mode
-                selectedOrigin = outbound.destination
-                originQuery = outbound.destination.name
-                selectedDestination = outbound.origin
-                destinationQuery = outbound.origin.name
+            // 仅复用有效去程；失效去程的旧场馆不得预填为返程起点。
+            if let seed = TravelPlanFormValidation.returnSeed(fromOutbound: plan?.outboundPlan) {
+                selectedMode = seed.mode
+                selectedOrigin = seed.origin
+                originQuery = seed.origin.name
+                selectedDestination = seed.destination
+                destinationQuery = seed.destination.name
             } else {
                 selectedDestination = nil
                 await resolveReturnOriginFromVenue()

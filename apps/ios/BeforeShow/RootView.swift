@@ -182,8 +182,20 @@ private struct CurrentShowContentView: View {
     }
 
     enum ToolSheet: Identifiable {
-        case candidateSongs, roundTrip, preparation, fragments
-        var id: Self { self }
+        case candidateSongs
+        /// 方向在打开时固定写入 associated value，避免父视图重绘时重新用 `Date()` 推导。
+        case roundTrip(RoundTripDirection)
+        case preparation
+        case fragments
+
+        var id: String {
+            switch self {
+            case .candidateSongs: return "candidateSongs"
+            case .roundTrip: return "roundTrip"
+            case .preparation: return "preparation"
+            case .fragments: return "fragments"
+            }
+        }
     }
 
     private var snapshot: CurrentShowSnapshot {
@@ -228,8 +240,8 @@ private struct CurrentShowContentView: View {
                     CandidateSongsView(show: show, launch: setlistLaunch)
                         .presentationDragIndicator(.hidden)
                         .presentationCornerRadius(24)
-                case .roundTrip:
-                    RoundTripPlanView(show: show)
+                case .roundTrip(let direction):
+                    RoundTripPlanView(show: show, direction: direction)
                         .presentationDragIndicator(.hidden)
                         .presentationDetents([.medium, .large])
                         .presentationCornerRadius(24)
@@ -259,7 +271,7 @@ private struct CurrentShowContentView: View {
         guard ProcessInfo.processInfo.environment["BS_ROUTE_FORM_SCREENSHOT"] == "1" else { return }
         try? await Task.sleep(nanoseconds: 600_000_000)
         guard !Task.isCancelled else { return }
-        activeToolSheet = .roundTrip
+        activeToolSheet = .roundTrip(RoundTripPlanDirectionResolver.resolve(show: show))
         #endif
     }
 
@@ -269,7 +281,7 @@ private struct CurrentShowContentView: View {
         }
         switch kind {
         case .setlist: activeToolSheet = .candidateSongs
-        case .route: activeToolSheet = .roundTrip
+        case .route: activeToolSheet = .roundTrip(RoundTripPlanDirectionResolver.resolve(show: show))
         case .prepare: activeToolSheet = .preparation
         case .fragment: activeToolSheet = .fragments
         }

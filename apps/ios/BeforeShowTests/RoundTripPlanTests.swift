@@ -89,6 +89,20 @@ final class RoundTripPlanTests: XCTestCase {
         XCTAssertTrue(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: valid))
     }
 
+    func testInvalidOutboundIsNotReusedAsReturnSeed() {
+        var invalidOutbound = makeTravelPlan(direction: .outbound)
+        invalidOutbound.validity = .needsRegeneration
+        let validOutbound = makeTravelPlan(direction: .outbound)
+
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: invalidOutbound))
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: nil))
+
+        let seed = TravelPlanFormValidation.returnSeed(fromOutbound: validOutbound)
+        XCTAssertEqual(seed?.mode, validOutbound.mode)
+        XCTAssertEqual(seed?.origin, validOutbound.destination)
+        XCTAssertEqual(seed?.destination, validOutbound.origin)
+    }
+
     func testFormDirectionIsResolvedOnceFromNowNotLiveClock() throws {
         let show = try Show(
             name: "方向测试",
@@ -99,26 +113,35 @@ final class RoundTripPlanTests: XCTestCase {
         let beforeStart = Date(timeIntervalSince1970: 17_000)
         let afterStart = Date(timeIntervalSince1970: 19_000)
 
-        XCTAssertEqual(RoundTripPlanDirectionResolver.resolve(show: show, now: beforeStart), .outbound)
+        // 父视图应在打开时保存这一次解析结果，而不是让 View 随实时时钟重算。
+        let openedDirection = RoundTripPlanDirectionResolver.resolve(show: show, now: beforeStart)
+        XCTAssertEqual(openedDirection, .outbound)
         XCTAssertEqual(RoundTripPlanDirectionResolver.resolve(show: show, now: afterStart), .return)
+        // 已打开表单持有的方向不随后续时间变化。
+        XCTAssertEqual(openedDirection, .outbound)
     }
 
-    func testMapKitAppliesDepartAtToAllModesAndSeedsRouteArriveAt() {
-        let depart = Date(timeIntervalSince1970: 20_000)
+    func testMapKitArriveAtRefinesDepartureFromFirstPassDuration() {
         let arrive = Date(timeIntervalSince1970: 30_000)
+        let threeHours: TimeInterval = 3 * 3_600
 
-        let departRequest = MKDirections.Request()
-        MapKitTravelRouteProvider.applyTiming(.departAt(depart), calculation: .route, to: departRequest)
-        XCTAssertEqual(departRequest.departureDate, depart)
+        XCTAssertEqual(
+            MapKitTravelRouteProvider.provisionalDeparture(forArrival: arrive),
+            arrive.addingTimeInterval(-MapKitTravelRouteProvider.provisionalLeadTime)
+        )
+        XCTAssertEqual(
+            MapKitTravelRouteProvider.refinedDeparture(forArrival: arrive, duration: threeHours),
+            arrive.addingTimeInterval(-threeHours)
+        )
 
         let transitArriveRequest = MKDirections.Request()
         MapKitTravelRouteProvider.applyTiming(.arriveAt(arrive), calculation: .estimatedTime, to: transitArriveRequest)
         XCTAssertEqual(transitArriveRequest.arrivalDate, arrive)
 
-        let drivingArriveRequest = MKDirections.Request()
-        MapKitTravelRouteProvider.applyTiming(.arriveAt(arrive), calculation: .route, to: drivingArriveRequest)
-        XCTAssertEqual(drivingArriveRequest.departureDate, arrive.addingTimeInterval(-3_600))
-        XCTAssertNil(drivingArriveRequest.arrivalDate)
+        let depart = Date(timeIntervalSince1970: 20_000)
+        let departRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.departAt(depart), calculation: .route, to: departRequest)
+        XCTAssertEqual(departRequest.departureDate, depart)
     }
 
     private func makeTravelPlan(

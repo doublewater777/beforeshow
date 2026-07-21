@@ -383,7 +383,8 @@ struct ShowDetailView: View {
     let show: Show
 
     @State private var isEditing = false
-    @State private var showsTravelSheet = false
+    /// 打开时固定方向；nil 表示 sheet 关闭。
+    @State private var travelSheetDirection: RoundTripDirection?
     @State private var showsPostponeDialog = false
     @State private var showsCancelConfirmation = false
     @State private var showsDeleteConfirmation = false
@@ -448,8 +449,8 @@ struct ShowDetailView: View {
                 apply(draft)
             }
         }
-        .sheet(isPresented: $showsTravelSheet) {
-            RoundTripPlanView(show: show)
+        .sheet(item: $travelSheetDirection) { direction in
+            RoundTripPlanView(show: show, direction: direction)
                 .presentationDragIndicator(.hidden)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(BSRadius.sheet)
@@ -724,7 +725,9 @@ struct ShowDetailView: View {
             } label: {
                 CurrentFeatureRow(iconName: "mic.fill", title: "歌单猜想", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
             }
-            Button { showsTravelSheet = true } label: {
+            Button {
+                travelSheetDirection = RoundTripPlanDirectionResolver.resolve(show: show)
+            } label: {
                 CurrentFeatureRow(iconName: "tram.fill", title: "怎么去", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
             }
             NavigationLink { ShowPreparationView(show: show) } label: {
