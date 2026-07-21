@@ -383,6 +383,7 @@ struct ShowDetailView: View {
     let show: Show
 
     @State private var isEditing = false
+    @State private var showsTravelSheet = false
     @State private var showsPostponeDialog = false
     @State private var showsCancelConfirmation = false
     @State private var showsDeleteConfirmation = false
@@ -447,6 +448,13 @@ struct ShowDetailView: View {
                 apply(draft)
             }
         }
+        .sheet(isPresented: $showsTravelSheet) {
+            RoundTripPlanView(show: show)
+                .presentationDragIndicator(.hidden)
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(BSRadius.sheet)
+                .presentationBackground(BSColor.Stage.surfaceRaised)
+        }
         .sheet(isPresented: $showsPostponeDialog) {
             PostponeShowSheet(
                 newDate: $newPostponedDate,
@@ -483,7 +491,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $showsDeleteConfirmation) {
             BSDangerConfirmationSheet(
                 title: "删除现场",
-                message: "删除后，这场现场的碎片、歌单猜想、去程计划和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
+                message: "删除后，这场现场的碎片、歌单猜想、怎么去和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
                 destructiveTitle: "删除",
                 onConfirm: {
                     deleteShow()
@@ -708,11 +716,16 @@ struct ShowDetailView: View {
     private var toolList: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             BSSectionHeader(title: "工具")
-            NavigationLink { CandidateSongsView(show: show) } label: {
+            NavigationLink {
+                CandidateSongsView(
+                    show: show,
+                    launch: summary.hasCandidateSongs ? .browse : .generate
+                )
+            } label: {
                 CurrentFeatureRow(iconName: "mic.fill", title: "歌单猜想", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
             }
-            NavigationLink { RoundTripPlanView(show: show) } label: {
-                CurrentFeatureRow(iconName: "tram.fill", title: "去程计划", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
+            Button { showsTravelSheet = true } label: {
+                CurrentFeatureRow(iconName: "tram.fill", title: "怎么去", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
             }
             NavigationLink { ShowPreparationView(show: show) } label: {
                 CurrentFeatureRow(iconName: "sparkles", title: "现场准备", subtitle: summary.preparationStatus, accent: BSColor.Accent.prepare)

@@ -31,7 +31,7 @@
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于把你生成的歌单猜想海报保存到相册。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>用于一键把当前位置填为出发地，生成去程方案；仅在去程计划里点击「使用当前位置」时请求。</string>
+	<string>用于在生成去程时把当前位置填为默认出发地；不会持续追踪位置。</string>
 
 	<key>UIApplicationSceneManifest</key>
 	<dict>

@@ -173,6 +173,7 @@ final class ArtistInterestItem {
     var showID: UUID
     var artistName: String
     var order: Int
+    var isHeadliner: Bool
 
     private var statusRawValue: String
 
@@ -186,7 +187,8 @@ final class ArtistInterestItem {
         showID: UUID,
         artistName: String,
         status: ArtistInterestStatus,
-        order: Int
+        order: Int,
+        isHeadliner: Bool = false
     ) throws {
         let trimmedArtistName = artistName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedArtistName.isEmpty else {
@@ -198,6 +200,7 @@ final class ArtistInterestItem {
         self.artistName = trimmedArtistName
         self.statusRawValue = status.rawValue
         self.order = order
+        self.isHeadliner = isHeadliner
     }
 }
 
@@ -384,6 +387,8 @@ struct CandidateSongGenerationRequest {
                 return []
             }
 
+            // Always include the full selected lineup. Large lineups are batched at the
+            // network layer (cloud ~30s timeout), not truncated here.
             return [
                 CandidateSongGenerationRequest(
                     showID: show.id,
@@ -420,17 +425,62 @@ struct CandidateSongGenerationRequest {
 }
 
 enum CandidateSongGenerationPolicy {
+    /// Soft product intent for festivals (used as festival maxSongs).
     static let festivalTargetSongs = 10
     static let maximumSongs = 12
 
-    static func targetSongs(for showType: ShowType) -> Int? {
-        showType == .musicFestival ? festivalTargetSongs : nil
+    /// Cloud `limits.maxSongs` only — unknown limit keys are rejected by generate.
+    static func maxSongs(for showType: ShowType) -> Int {
+        showType == .musicFestival ? festivalTargetSongs : maximumSongs
     }
 }
 
 @MainActor
 protocol CandidateSongGenerating: Sendable {
     func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput]
+
+    /// Yields cumulative progress and one explicit authoritative final result.
+    /// A stream that ends without `.final` is incomplete and must never be persisted.
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error>
+}
+
+enum CandidateSongGenerationSnapshot: Equatable {
+    case progress([CandidateSongInput])
+    case final([CandidateSongInput])
+
+    var items: [CandidateSongInput] {
+        switch self {
+        case let .progress(items), let .final(items):
+            return items
+        }
+    }
+}
+
+extension CandidateSongGenerating {
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor in
+                do {
+                    try Task.checkCancellation()
+                    let all = try await generate(for: show, artistInterests: artistInterests)
+                    try Task.checkCancellation()
+                    continuation.yield(.final(all))
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
 }
 
 struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
@@ -446,12 +496,146 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
     }
 
     func generate(for show: Show, artistInterests: [ArtistInterestItem] = []) async throws -> [CandidateSongInput] {
-        let requests = CandidateSongGenerationRequest.requests(for: show, artistInterests: artistInterests)
-        guard let generationRequest = requests.first else {
+        var final: [CandidateSongInput]?
+        for try await snapshot in generateCumulativeSnapshots(for: show, artistInterests: artistInterests) {
+            if case let .final(items) = snapshot {
+                final = items
+            }
+        }
+        guard let final, !final.isEmpty else {
             throw CandidateSongGenerationError.invalidResponse
         }
-        let targetSongs = CandidateSongGenerationPolicy.targetSongs(for: show.type)
+        return final
+    }
 
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor in
+                do {
+                    try Task.checkCancellation()
+                    let requests = CandidateSongGenerationRequest.requests(
+                        for: show,
+                        artistInterests: artistInterests
+                    )
+                    guard let generationRequest = requests.first else {
+                        throw CandidateSongGenerationError.invalidResponse
+                    }
+
+                    let maxSongs = CandidateSongGenerationPolicy.maxSongs(for: show.type)
+                    let body = RequestBody(
+                        appInstanceId: self.client.credentials.appInstanceId,
+                        appSignature: self.client.credentials.appSignature,
+                        type: "candidateSongs",
+                        requestId: UUID().uuidString,
+                        locale: "zh-CN",
+                        stream: true,
+                        show: ShowPayload(
+                            name: generationRequest.showName,
+                            date: Self.dateFormatter.string(from: show.effectiveDate),
+                            city: self.trimmedOptional(show.city),
+                            venueName: self.trimmedOptional(show.venueName),
+                            type: generationRequest.showType.rawValue,
+                            artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
+                        ),
+                        limits: Limits(maxSongs: maxSongs)
+                    )
+
+                    var cumulative: [CandidateSongInput] = []
+                    var sawDone = false
+                    var streamError: String?
+
+                    for try await event in self.client.postEventStream(path: "generate", body: body) {
+                        try Task.checkCancellation()
+                        switch event.event {
+                        case "item":
+                            if let item = try? JSONDecoder().decode(StreamItemEnvelope.self, from: event.data).item {
+                                let input = CandidateSongInput(
+                                    songName: item.songName,
+                                    artist: item.artist,
+                                    tier: SongTier.parse(item.tier),
+                                    hint: item.hint
+                                )
+                                let identity = CandidateSongEditingService.songIdentity(
+                                    songName: input.songName,
+                                    artist: input.artist
+                                )
+                                if !cumulative.contains(where: {
+                                    CandidateSongEditingService.songIdentity(
+                                        songName: $0.songName,
+                                        artist: $0.artist
+                                    ) == identity
+                                }) {
+                                    cumulative.append(input)
+                                    if cumulative.count > maxSongs {
+                                        cumulative = Array(cumulative.prefix(maxSongs))
+                                    }
+                                    // Progressive paint only — not authority until `done`.
+                                    continuation.yield(.progress(cumulative))
+                                }
+                            }
+                        case "done":
+                            // Only a contract-shaped done is success; never treat progressive items alone as final.
+                            guard let done = try? JSONDecoder().decode(StreamDoneEnvelope.self, from: event.data),
+                                  done.ok != false,
+                                  let items = done.response?.items,
+                                  !items.isEmpty else {
+                                throw CandidateSongGenerationError.invalidResponse
+                            }
+                            sawDone = true
+                            cumulative = items
+                            continuation.yield(.final(cumulative))
+                        case "error":
+                            if let err = try? JSONDecoder().decode(StreamErrorEnvelope.self, from: event.data) {
+                                streamError = err.message
+                            } else {
+                                streamError = "生成失败"
+                            }
+                        default:
+                            break
+                        }
+                    }
+
+                    try Task.checkCancellation()
+
+                    if let streamError {
+                        throw CandidateSongGenerationError.backendRejected(streamError)
+                    }
+                    if sawDone {
+                        continuation.finish()
+                        return
+                    }
+                    if cumulative.isEmpty {
+                        // Fallback: non-stream one-shot (older cloud without SSE).
+                        let once = try await self.fetchCandidateSongsOneShot(
+                            show: show,
+                            generationRequest: generationRequest,
+                            maxSongs: maxSongs
+                        )
+                        try Task.checkCancellation()
+                        continuation.yield(.final(once))
+                        continuation.finish()
+                        return
+                    }
+                    // Items without a validated done are not a success.
+                    throw CandidateSongGenerationError.invalidResponse
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func fetchCandidateSongsOneShot(
+        show: Show,
+        generationRequest: CandidateSongGenerationRequest,
+        maxSongs: Int
+    ) async throws -> [CandidateSongInput] {
         let data: Data
         do {
             data = try await client.postJSON(
@@ -462,6 +646,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
                     type: "candidateSongs",
                     requestId: UUID().uuidString,
                     locale: "zh-CN",
+                    stream: false,
                     show: ShowPayload(
                         name: generationRequest.showName,
                         date: Self.dateFormatter.string(from: show.effectiveDate),
@@ -470,10 +655,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
                         type: generationRequest.showType.rawValue,
                         artists: generationRequest.artists.isEmpty ? nil : generationRequest.artists
                     ),
-                    limits: Limits(
-                        maxSongs: CandidateSongGenerationPolicy.maximumSongs,
-                        targetSongs: targetSongs
-                    )
+                    limits: Limits(maxSongs: maxSongs)
                 )
             )
         } catch {
@@ -512,6 +694,7 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
         let type: String
         let requestId: String
         let locale: String
+        let stream: Bool
         let show: ShowPayload
         let limits: Limits
     }
@@ -527,7 +710,6 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
 
     private struct Limits: Encodable {
         let maxSongs: Int
-        let targetSongs: Int?
     }
 
     private struct GenerationResponse: Decodable {
@@ -537,6 +719,27 @@ struct RemoteCandidateSongGenerationService: CandidateSongGenerating {
     }
 
     private struct ErrorInfo: Decodable {
+        let code: String?
+        let message: String
+    }
+
+    private struct StreamItemEnvelope: Decodable {
+        let item: StreamItem
+    }
+
+    private struct StreamItem: Decodable {
+        let songName: String
+        let artist: String
+        let tier: String?
+        let hint: String?
+    }
+
+    private struct StreamDoneEnvelope: Decodable {
+        let ok: Bool?
+        let response: CandidateSongGenerationResponse?
+    }
+
+    private struct StreamErrorEnvelope: Decodable {
         let code: String?
         let message: String
     }
@@ -724,6 +927,14 @@ struct CandidateSongEditingService {
         let moving = ordered.remove(at: sourceIndex)
         ordered.insert(moving, at: min(destinationIndex, ordered.count))
         return renumber(ordered)
+    }
+
+    /// Destination index for `Array.move(fromOffsets:toOffset:)` when dropping onto `target`.
+    /// Moving down needs `target + 1` because removal of source shifts later indices.
+    /// Returns `nil` when source == target (no-op).
+    static func dropDestinationIndex(source: Int, target: Int) -> Int? {
+        guard source != target else { return nil }
+        return source < target ? target + 1 : target
     }
 
     func plainText(for songs: [CandidateSong]) -> String {

@@ -9,7 +9,7 @@
       "name": "generate",
       "type": "HTTP",
       "runtime": "Nodejs18.15",
-      "timeout": 30,
+      "timeout": 60,
       "memorySize": 256,
       "envVariables": {
         "DOUBAO_API_KEY": "{{env.DOUBAO_API_KEY}}",

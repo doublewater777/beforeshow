@@ -28,7 +28,6 @@ struct BeforeShowApp: App {
             NotificationSchedulingState.self,
             ShowNotificationScheduleRecord.self,
             RoundTripPlan.self,
-            SavedOrigin.self,
             ShowPreparationPlan.self,
             CandidateSongGroup.self,
             CandidateSong.self,

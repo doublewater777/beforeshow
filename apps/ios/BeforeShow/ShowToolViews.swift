@@ -4,7 +4,6 @@ import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 import WebKit
 
 private final class PhotoLibrarySaveDelegate: NSObject, @unchecked Sendable {
@@ -124,6 +123,8 @@ private struct BSTipPromptCard: View {
 struct CurrentShowAllToolsView: View {
     let show: Show
 
+    @State private var showsTravelSheet = false
+
     private let columns = [
         GridItem(.flexible(), spacing: BSSpacing.md),
         GridItem(.flexible(), spacing: BSSpacing.md)
@@ -146,19 +147,20 @@ struct CurrentShowAllToolsView: View {
                     }
 
                     LazyVGrid(columns: columns, spacing: BSSpacing.md) {
-                        NavigationLink {
-                            RoundTripPlanView(show: show)
+                        Button {
+                            showsTravelSheet = true
                         } label: {
                             CurrentToolTile(
                                 iconName: "tram.fill",
-                                title: "去程计划",
+                                title: "怎么去",
                                 subtitle: "怎么去、几点到",
                                 accent: BSColor.Accent.travel
                             )
                         }
 
                         NavigationLink {
-                            CandidateSongsView(show: show)
+                            // Empty single-artist catalog auto-generates inside the sheet.
+                            CandidateSongsView(show: show, launch: .generate)
                         } label: {
                             CurrentToolTile(
                                 iconName: "mic.fill",
@@ -206,6 +208,13 @@ struct CurrentShowAllToolsView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showsTravelSheet) {
+            RoundTripPlanView(show: show)
+                .presentationDragIndicator(.hidden)
+                .presentationDetents([.medium, .large])
+                .presentationCornerRadius(BSRadius.sheet)
+                .presentationBackground(BSColor.Stage.surfaceRaised)
+        }
     }
 }
 
@@ -253,6 +262,27 @@ enum SetlistSheetLaunch: Equatable {
     case generate
     case edit
     case share
+
+    /// Whether opening an empty catalog should start generation without a second tap.
+    /// Single-artist (concert / livehouse): yes for browse/generate.
+    /// Festival: only when launch is `.generate` (then lineup pick first).
+    static func shouldAutoStartEmptyGeneration(
+        launch: SetlistSheetLaunch,
+        isFestival: Bool,
+        catalogIsEmpty: Bool,
+        didAutoGenerate: Bool
+    ) -> Bool {
+        guard catalogIsEmpty, !didAutoGenerate else { return false }
+        if isFestival {
+            return launch == .generate
+        }
+        switch launch {
+        case .browse, .generate:
+            return true
+        case .edit, .share:
+            return false
+        }
+    }
 }
 
 /// 歌单猜想 sheet（浏览 + 就地编辑 + 生成/重生成）。
@@ -276,11 +306,10 @@ struct CandidateSongsView: View {
     @State private var showsProMembership = false
     @State private var isEditingSetlist = false
     @State private var didApplyLaunch = false
-    @State private var addSongName = ""
-    @State private var addSongArtist = ""
     @State private var showsLineupEdit = false
     @State private var showsLineupRegenConfirm = false
     @State private var showsSetlistShareSheet = false
+    @State private var showsSongAddSheet = false
     @State private var songPendingRemoval: CandidateSong?
     @State private var toast: BSToastPayload?
     @State private var genStatusIndex = 0
@@ -292,11 +321,15 @@ struct CandidateSongsView: View {
     /// Snapshot for pick UI (avoids @Query lag right after seed/add).
     @State private var lineupPickArtists: [ArtistInterestItem] = []
     @State private var lineupAddName = ""
-    /// Empty / pre-generate → medium; after songs exist → large (mrnv1rxl setlist sheet).
-    @State private var sheetDetent: PresentationDetent = .medium
-    @State private var selectedAddArtist: String = ""
+    /// Setlist sheet stays large by default (add / lineup / empty / filled).
+    @State private var sheetDetent: PresentationDetent = .large
+    /// Custom long-press reorder (not system onDrag — that left a stuck lift visual after drop).
+    @State private var setlistDrag: SetlistManualDragState?
     @State private var photoSaveDelegate: PhotoLibrarySaveDelegate?
     @State private var isSavingShareImage = false
+    /// Sole in-flight generation task; cancelled on dismiss or when starting a new one.
+    @State private var generationTask: Task<Void, Never>?
+    @State private var generationRunID: UUID?
 
     private let gate = ProFeatureGate()
     private var session: CandidateSongsSession { CandidateSongsSession(show: show) }
@@ -305,13 +338,6 @@ struct CandidateSongsView: View {
     /// Festival first generate always goes through lineup pick (seed from 艺人/阵容 first).
     private var needsLineupPickBeforeGenerate: Bool {
         isFestival
-    }
-
-    /// Interested lineup for festival (想看 + 待定), order preserved.
-    private var participatingArtists: [ArtistInterestItem] {
-        showArtistInterests
-            .filter { $0.status != .notInterested }
-            .sorted { $0.order < $1.order }
     }
 
     private var orderedLineupArtists: [ArtistInterestItem] {
@@ -323,11 +349,7 @@ struct CandidateSongsView: View {
     }
 
     private var sheetDetents: Set<PresentationDetent> {
-        // 勾选艺人 / 未生成 / 生成中：medium；有歌单：可 large
-        if isPickingLineupForGenerate || isGenerating || isEmptyCatalog {
-            return [.medium]
-        }
-        return [.medium, .large]
+        [.large]
     }
 
     private var showGroups: [CandidateSongGroup] {
@@ -350,6 +372,14 @@ struct CandidateSongsView: View {
 
     private var fallbackArtistName: String {
         session.fallbackArtistName(showArtist: show.artist, songArtists: artistNames)
+    }
+
+    private var addSongArtistOptions: [String] {
+        let options = showArtistInterests
+            .filter { $0.status != .notInterested }
+            .sorted { $0.order < $1.order }
+            .map(\.artistName)
+        return options.isEmpty ? artistNames : options
     }
 
     private var entitlement: ProEntitlementState {
@@ -438,11 +468,35 @@ struct CandidateSongsView: View {
                 SetlistProtoSheetHeader(
                     title: sheetHeaderTitle,
                     note: sheetHeaderNote,
-                    onClose: { dismiss() }
+                    onClose: {
+                        if showsSongAddSheet {
+                            showsSongAddSheet = false
+                        } else {
+                            cancelGenerationTask()
+                            dismiss()
+                        }
+                    }
                 )
                 .padding(.horizontal, 20)
 
-                if isPickingLineupForGenerate {
+                if showsSongAddSheet {
+                    CandidateSongsAddSheet(
+                        isFestival: isFestival,
+                        artistOptions: addSongArtistOptions,
+                        defaultArtist: fallbackArtistName,
+                        onCancel: { showsSongAddSheet = false },
+                        onAdd: { name, artist in
+                            if addSong(name: name, artist: artist) {
+                                showsSongAddSheet = false
+                            }
+                        }
+                    )
+                    .padding(.horizontal, 20)
+                    .padding(.top, 4)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityAddTraits(.isModal)
+                } else if isPickingLineupForGenerate {
                     lineupPickForGenerateBody
                 } else if isGenerating {
                     // HTML: gen-status under head; body empty until apply.
@@ -466,21 +520,13 @@ struct CandidateSongsView: View {
             }
         }
         .presentationDetents(sheetDetents, selection: $sheetDetent)
-        .onChange(of: isEmptyCatalog) { _, empty in
-            withAnimation(.easeInOut(duration: 0.28)) {
-                sheetDetent = empty ? .medium : .large
-            }
-        }
-        .onChange(of: isGenerating) { _, generating in
-            if generating, isEmptyCatalog {
-                sheetDetent = .medium
-            }
-        }
         .toolbar(.hidden, for: .navigationBar)
         .alert("重新生成歌单猜想？", isPresented: $showsReplacementConfirmation) {
             Button("取消", role: .cancel) {}
             Button("重新生成", role: .destructive) {
-                Task { await generateCandidateSongs() }
+                startGenerationTask { runID in
+                    await generateCandidateSongs(runID: runID)
+                }
             }
         } message: {
             Text("会用新的猜想替换生成曲目，保留你手加的歌和最想看标记。")
@@ -488,7 +534,9 @@ struct CandidateSongsView: View {
         .alert("按新阵容重新生成？", isPresented: $showsLineupRegenConfirm) {
             Button("取消", role: .cancel) {}
             Button("重新生成", role: .destructive) {
-                Task { await generateCandidateSongs() }
+                startGenerationTask { runID in
+                    await generateCandidateSongs(runID: runID)
+                }
             }
         } message: {
             Text("阵容已保存。重新生成会替换生成曲目，并保留手加与最想看。")
@@ -596,11 +644,7 @@ struct CandidateSongsView: View {
                 seedFestivalInterestsIfNeeded()
             }
 
-            if !allSongs.isEmpty {
-                sheetDetent = .large
-            } else {
-                sheetDetent = .medium
-            }
+            sheetDetent = .large
 
             guard !didApplyLaunch else { return }
             didApplyLaunch = true
@@ -611,7 +655,6 @@ struct CandidateSongsView: View {
                 break
             case .edit:
                 isEditingSetlist = true
-                ensureDefaultAddArtist()
             case .share:
                 if !allSongs.isEmpty {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
@@ -621,27 +664,41 @@ struct CandidateSongsView: View {
             }
         }
         // Prefer `.task` over onAppear for first generate — runs after sheet is presented.
+        // Single-artist empty: auto-start (一键触发，不再多点一次「猜一份歌单」).
+        // Festival empty: only when launch == .generate → lineup pick first.
         .task(id: "\(launch)-\(show.id.uuidString)") {
-            guard launch == .generate, allSongs.isEmpty, !didAutoGenerate else { return }
+            guard SetlistSheetLaunch.shouldAutoStartEmptyGeneration(
+                launch: launch,
+                isFestival: isFestival,
+                catalogIsEmpty: allSongs.isEmpty,
+                didAutoGenerate: didAutoGenerate
+            ) else { return }
             didAutoGenerate = true
             if isFestival {
                 seedFestivalInterestsIfNeeded()
                 beginLineupPickForGenerate()
             } else {
-                await startEmptyGeneration()
+                startGenerationTask { runID in
+                    await startEmptyGeneration(runID: runID)
+                }
             }
+        }
+        .onDisappear {
+            cancelGenerationTask()
         }
     }
 
     private var sheetHeaderTitle: String {
+        if showsSongAddSheet { return "加一首" }
         if isPickingLineupForGenerate { return "调整阵容" }
         if isEditingSetlist { return "编辑歌单猜想" }
         return "歌单猜想"
     }
 
     private var sheetHeaderNote: String {
+        if showsSongAddSheet { return "歌名 + 艺人，加进对应分组；重新生成会保留" }
         if isPickingLineupForGenerate {
-            return "关掉不打算看的艺人 · 至少留 1 组 · 默认全选"
+            return "保留想看或待定的艺人 · 至少留 1 组"
         }
         if isEditingSetlist { return "增删、排序都会直接保存到歌单" }
         return sheetNote
@@ -761,7 +818,8 @@ struct CandidateSongsView: View {
     @ViewBuilder
     private var filledOrEditingBody: some View {
         ScrollView {
-            LazyVStack(spacing: 0, pinnedViews: []) {
+            // VStack while editing: stable frames for long-press drag.
+            Group {
                 if isEmptyCatalog {
                     Text("歌单空了 · 在下面加一首，或重新生成")
                         .font(.system(size: 13, weight: .regular))
@@ -769,47 +827,48 @@ struct CandidateSongsView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.vertical, 20)
                         .padding(.horizontal, 2)
-                } else {
-                    ForEach(Array(sheetListSections.enumerated()), id: \.offset) { sectionIndex, section in
-                        if let artist = section.artist {
-                            SetlistProtoArtistGroupHeader(
-                                name: artist,
-                                count: section.songs.count,
-                                isFirst: sectionIndex == 0
-                            )
-                        }
-                        ForEach(section.songs, id: \.song.id) { item in
-                            SetlistProtoTrackRow(
-                                song: item.song,
-                                isEditing: isEditingSetlist,
-                                canMoveUp: item.offset > 0,
-                                canMoveDown: item.offset < allSongs.count - 1,
-                                revealDelay: Double(item.offset) * 0.09,
-                                reveal: revealNewList && !reduceMotion,
-                                onToggleMostWanted: { toggleMostWanted(item.song) },
-                                onMoveUp: { moveSongUp(item.song) },
-                                onMoveDown: { moveSongDown(item.song) },
-                                onDelete: { songPendingRemoval = item.song }
-                            )
+                } else if isEditingSetlist {
+                    VStack(spacing: 0) {
+                        ForEach(Array(sheetListSections.enumerated()), id: \.offset) { sectionIndex, section in
+                            if let artist = section.artist {
+                                SetlistProtoArtistGroupHeader(
+                                    name: artist,
+                                    count: section.songs.count,
+                                    isFirst: sectionIndex == 0
+                                )
+                            }
+                            ForEach(section.songs, id: \.song.id) { item in
+                                trackRow(item)
+                            }
                         }
                     }
-                }
-
-                if isEditingSetlist {
-                    inlineAddSongForm
-                        .padding(.top, 16)
-                } else if isFestival, !isEmptyCatalog, !isGenerating {
-                    festivalAddSongEntry
-                        .padding(.top, 8)
+                    .coordinateSpace(name: Self.setlistEditDragSpace)
+                } else {
+                    LazyVStack(spacing: 0, pinnedViews: []) {
+                        ForEach(Array(sheetListSections.enumerated()), id: \.offset) { sectionIndex, section in
+                            if let artist = section.artist {
+                                SetlistProtoArtistGroupHeader(
+                                    name: artist,
+                                    count: section.songs.count,
+                                    isFirst: sectionIndex == 0
+                                )
+                            }
+                            ForEach(section.songs, id: \.song.id) { item in
+                                trackRow(item)
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
             .padding(.bottom, 12)
-            .opacity(isGenerating && !reduceMotion ? 0.35 : 1)
+            // While streaming progressive batches, keep rows readable (not heavily dimmed).
+            .opacity(isGenerating && !reduceMotion ? (isEmptyCatalog ? 0.35 : 0.92) : 1)
             .animation(.easeOut(duration: 0.42), value: isGenerating)
         }
         .scrollIndicators(.hidden)
+        .scrollDisabled(setlistDrag != nil)
 
         // HTML: foot only after generated (setlistSheetFoot.hidden = !st.generated)
         if !isGenerating, !isEmptyCatalog || isEditingSetlist {
@@ -817,6 +876,96 @@ struct CandidateSongsView: View {
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)
         }
+    }
+
+    private static let setlistEditDragSpace = "setlistEditDrag"
+    private static let setlistRowStride: CGFloat = 52
+
+    @ViewBuilder
+    private func trackRow(_ item: (offset: Int, song: CandidateSong)) -> some View {
+        let songID = item.song.id
+        let isDraggingThis = setlistDrag?.songID == songID
+        let row = SetlistProtoTrackRow(
+            song: item.song,
+            isEditing: isEditingSetlist,
+            revealDelay: Double(item.offset) * 0.09,
+            reveal: revealNewList && !reduceMotion,
+            isDragPlaceholder: isDraggingThis,
+            onToggleMostWanted: { toggleMostWanted(item.song) },
+            onMoveUp: item.offset > 0 ? {
+                moveGlobally(from: IndexSet(integer: item.offset), to: item.offset - 1)
+            } : nil,
+            onMoveDown: item.offset < allSongs.count - 1 ? {
+                moveGlobally(from: IndexSet(integer: item.offset), to: item.offset + 2)
+            } : nil,
+            onDelete: { songPendingRemoval = item.song }
+        )
+
+        if isEditingSetlist {
+            row
+                .offset(y: isDraggingThis ? (setlistDrag?.translationY ?? 0) : 0)
+                .zIndex(isDraggingThis ? 10 : 0)
+                .shadow(
+                    color: isDraggingThis ? Color.black.opacity(0.35) : .clear,
+                    radius: isDraggingThis ? 10 : 0,
+                    y: isDraggingThis ? 4 : 0
+                )
+                .gesture(setlistRowDragGesture(songID: songID, index: item.offset))
+        } else {
+            row
+        }
+    }
+
+    /// Long-press then drag. Visual follows finger; order commits once on finger-up (no system onDrag).
+    private func setlistRowDragGesture(songID: UUID, index: Int) -> some Gesture {
+        LongPressGesture(minimumDuration: 0.28)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named(Self.setlistEditDragSpace)))
+            .onChanged { value in
+                switch value {
+                case .second(true, let drag?):
+                    if setlistDrag == nil {
+                        setlistDrag = SetlistManualDragState(
+                            songID: songID,
+                            originIndex: index,
+                            lastIndex: index,
+                            translationY: 0
+                        )
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                    guard setlistDrag?.songID == songID else { return }
+                    // Do not mutate list order mid-gesture — that cancels the gesture and used to
+                    // leave a stuck lift. Commit once in onEnded.
+                    setlistDrag = SetlistManualDragState(
+                        songID: songID,
+                        originIndex: setlistDrag?.originIndex ?? index,
+                        lastIndex: setlistDrag?.lastIndex ?? index,
+                        translationY: drag.translation.height
+                    )
+                default:
+                    break
+                }
+            }
+            .onEnded { _ in
+                defer { setlistDrag = nil }
+                guard let session = setlistDrag, session.songID == songID else { return }
+                let proposed = session.originIndex + Int(
+                    (session.translationY / Self.setlistRowStride).rounded()
+                )
+                let clamped = min(max(0, proposed), max(0, allSongs.count - 1))
+                guard clamped != session.originIndex,
+                      let from = allSongs.firstIndex(where: { $0.id == songID }),
+                      from != clamped else {
+                    return
+                }
+                let destination = from < clamped ? clamped + 1 : clamped
+                withAnimation(.snappy(duration: 0.22)) {
+                    moveGlobally(from: IndexSet(integer: from), to: destination)
+                }
+            }
+    }
+
+    private func endSetlistDragSession() {
+        setlistDrag = nil
     }
 
     private var emptyGenerateState: some View {
@@ -860,7 +1009,9 @@ struct CandidateSongsView: View {
             seedFestivalInterestsIfNeeded()
             beginLineupPickForGenerate()
         } else {
-            Task { await startEmptyGeneration() }
+            startGenerationTask { runID in
+                await startEmptyGeneration(runID: runID)
+            }
         }
     }
 
@@ -877,12 +1028,32 @@ struct CandidateSongsView: View {
     }
 
     private func beginLineupPickForGenerate() {
-        // 默认全选
+        // wantToSee / undecided selected; notInterested stays off unless user re-checks.
         let interests = fetchInterestsForShow()
         lineupPickArtists = interests
-        lineupPickSelection = Set(interests.map(\.id))
+        lineupPickSelection = CandidateSongsSession.defaultLineupPickSelection(interests: interests)
         isPickingLineupForGenerate = true
-        sheetDetent = .medium
+        sheetDetent = .large
+    }
+
+    /// Cancel any in-flight generation and start a single new task.
+    private func startGenerationTask(_ work: @escaping @MainActor (UUID) async -> Void) {
+        generationTask?.cancel()
+        let runID = UUID()
+        generationRunID = runID
+        generationTask = Task { @MainActor in
+            await work(runID)
+            if generationRunID == runID {
+                generationTask = nil
+            }
+        }
+    }
+
+    private func cancelGenerationTask() {
+        generationRunID = nil
+        generationTask?.cancel()
+        generationTask = nil
+        isGenerating = false
     }
 
     private func fetchInterestsForShow() -> [ArtistInterestItem] {
@@ -910,12 +1081,14 @@ struct CandidateSongsView: View {
         let name = lineupAddName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty else { return }
         do {
-            let item = try session.addFestivalArtist(
+            let item = try session.makeFestivalArtistDraft(
                 name: name,
-                existing: fetchInterestsForShow(),
-                in: modelContext
+                existing: lineupPickArtists
             )
-            lineupPickArtists = fetchInterestsForShow()
+            if !lineupPickArtists.contains(where: { $0.id == item.id }) {
+                lineupPickArtists.append(item)
+                lineupPickArtists.sort { $0.order < $1.order }
+            }
             lineupPickSelection.insert(item.id)
             lineupAddName = ""
         } catch {
@@ -932,50 +1105,42 @@ struct CandidateSongsView: View {
             showsProLimit = true
             return
         }
-        let interests = fetchInterestsForShow()
-        for interest in interests {
+        let persistedIDs = Set(fetchInterestsForShow().map(\.id))
+        for interest in lineupPickArtists {
+            if !persistedIDs.contains(interest.id) {
+                modelContext.insert(interest)
+            }
             interest.status = lineupPickSelection.contains(interest.id) ? .wantToSee : .notInterested
         }
         do {
             try modelContext.save()
             isPickingLineupForGenerate = false
-            Task { await startEmptyGeneration() }
+            startGenerationTask { runID in
+                await startEmptyGeneration(runID: runID)
+            }
         } catch {
             presentToast(.failure, message: "阵容保存失败")
         }
     }
 
-    private var festivalAddSongEntry: some View {
-        Button {
-            isEditingSetlist = true
-            ensureDefaultAddArtist()
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .semibold))
-                Text("加一首")
-                    .font(.system(size: 13, weight: .medium))
-                Spacer(minLength: 0)
-            }
-            .foregroundColor(SetlistProto.muted)
-            .padding(.horizontal, 2)
-            .frame(minHeight: 48)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
-        }
-        .accessibilityLabel("加一首")
-    }
-
     private var footerActions: some View {
         VStack(alignment: .leading, spacing: 10) {
             if isEditingSetlist {
+                Button {
+                    showsSongAddSheet = true
+                    sheetDetent = .large
+                } label: {
+                    Label("加一首", systemImage: "plus")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(SetlistProto.muted)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("加一首")
+
                 SetlistProtoChip(title: "完成", isPrimary: true) {
+                    endSetlistDragSession()
                     isEditingSetlist = false
-                    addSongName = ""
-                    addSongArtist = ""
                 }
             } else {
                 // Prototype `.gen-note`
@@ -1008,111 +1173,6 @@ struct CandidateSongsView: View {
         .padding(.top, 16)
         .overlay(alignment: .top) {
             Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-        }
-    }
-
-    private func ensureDefaultAddArtist() {
-        guard selectedAddArtist.isEmpty || !participatingArtists.contains(where: { $0.artistName == selectedAddArtist }) else {
-            return
-        }
-        selectedAddArtist = participatingArtists.first?.artistName ?? fallbackArtistName
-    }
-
-    private var inlineAddSongForm: some View {
-        Group {
-            if isFestival {
-                festivalSongAddForm
-            } else {
-                soloSongAddForm
-            }
-        }
-        .onAppear { ensureDefaultAddArtist() }
-    }
-
-    /// Concert: single-line name + 添加 (prototype non-festival).
-    private var soloSongAddForm: some View {
-        HStack(spacing: 8) {
-            TextField("加一首，例如：认真的雪", text: $addSongName)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .font(.system(size: 15))
-                .foregroundColor(SetlistProto.fg)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 46)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-
-            Button(action: submitInlineAdd) {
-                Text("添加")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(SetlistProto.accent)
-                    .padding(.horizontal, 18)
-                    .frame(minHeight: 46)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(SetlistProto.accent.opacity(0.14))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(SetlistProto.accent.opacity(0.35), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    /// Festival: 歌名 + 艺人 chips（mrnv1rxl `.song-add` / `.artist-chip`）.
-    private var festivalSongAddForm: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("歌名 + 艺人，加进对应分组；重新生成会保留")
-                .font(.system(size: 11, weight: .regular))
-                .foregroundColor(SetlistProto.dim)
-
-            TextField("歌名", text: $addSongName)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
-                .font(.system(size: 15))
-                .foregroundColor(SetlistProto.fg)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 46)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                )
-
-            if !participatingArtists.isEmpty {
-                FlowArtistChips(
-                    artists: participatingArtists.map(\.artistName),
-                    selected: $selectedAddArtist
-                )
-            }
-
-            HStack(spacing: 8) {
-                SetlistProtoChip(title: "取消", expands: false) {
-                    isEditingSetlist = false
-                    addSongName = ""
-                }
-                Spacer(minLength: 0)
-                Button(action: submitInlineAdd) {
-                    Text("加入歌单")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(SetlistProto.inkOnAccent)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 34)
-                        .background(Capsule().fill(SetlistProto.accent))
-                }
-                .buttonStyle(.plain)
-            }
         }
     }
 
@@ -1213,20 +1273,33 @@ struct CandidateSongsView: View {
         }
     }
 
-    private func addSong(name: String, artist: String) {
+    @discardableResult
+    private func addSong(name: String, artist: String) -> Bool {
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let artist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !artist.isEmpty else { return false }
+        guard allSongs.count < 24 else {
+            presentToast(.neutral, message: "歌单最多 24 首 · 先删掉几首")
+            return false
+        }
+
         do {
             try session.addUserSong(
                 name: name,
                 artist: artist,
                 groups: showGroups,
                 currentSongs: allSongs,
+                artistInterests: showArtistInterests,
                 in: modelContext
             )
             presentToast(.success, message: "已添加")
+            return true
         } catch CandidateSongValidationError.duplicateSong {
             presentToast(.neutral, message: "这首歌已经在歌单里")
+            return false
         } catch {
             presentToast(.failure, message: "添加失败")
+            return false
         }
     }
 
@@ -1262,52 +1335,6 @@ struct CandidateSongsView: View {
         }
     }
 
-    private func moveSongUp(_ song: CandidateSong) {
-        do {
-            try session.moveUp(song, previouslyOrdered: allSongs, in: modelContext)
-        } catch {
-            presentToast(.failure, message: "上移失败")
-        }
-    }
-
-    private func moveSongDown(_ song: CandidateSong) {
-        do {
-            try session.moveDown(song, previouslyOrdered: allSongs, in: modelContext)
-        } catch {
-            presentToast(.failure, message: "下移失败")
-        }
-    }
-
-    private func submitInlineAdd() {
-        let name = addSongName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty else { return }
-        let artist: String = {
-            if isFestival {
-                let chosen = selectedAddArtist.trimmingCharacters(in: .whitespacesAndNewlines)
-                return chosen.isEmpty ? fallbackArtistName : chosen
-            }
-            return fallbackArtistName
-        }()
-        let identity = CandidateSongEditingService.songIdentity(songName: name, artist: artist)
-        if allSongs.contains(where: {
-            CandidateSongEditingService.songIdentity(for: $0) == identity
-        }) {
-            presentToast(.neutral, message: "「\(name)」已经在歌单里")
-            return
-        }
-        if allSongs.count >= 24 {
-            presentToast(.neutral, message: "歌单最多 24 首 · 先删掉几首")
-            return
-        }
-        addSong(name: name, artist: artist)
-        addSongName = ""
-        addSongArtist = ""
-        if isFestival {
-            isEditingSetlist = false
-            presentToast(.success, message: "已加入「\(name)」· \(artist) 组")
-        }
-    }
-
     private func requestGeneration() {
         guard canGenerate else {
             showsProLimit = true
@@ -1323,7 +1350,8 @@ struct CandidateSongsView: View {
 
     /// HTML `generateSetlist(false)`: sheet already open → gen-status → apply list.
     @MainActor
-    private func startEmptyGeneration() async {
+    private func startEmptyGeneration(runID: UUID) async {
+        guard generationRunID == runID else { return }
         guard canGenerate else {
             showsProLimit = true
             isGenerating = false
@@ -1332,12 +1360,13 @@ struct CandidateSongsView: View {
         // Flip UI to generating immediately so empty CTA never flashes (match HTML).
         isGenerating = true
         genStatusIndex = 0
-        sheetDetent = .medium
-        await generateCandidateSongs(isFirstEmptyGenerate: true)
+        sheetDetent = .large
+        await generateCandidateSongs(runID: runID, isFirstEmptyGenerate: true)
     }
 
     @MainActor
-    private func generateCandidateSongs(isFirstEmptyGenerate: Bool = false) async {
+    private func generateCandidateSongs(runID: UUID, isFirstEmptyGenerate: Bool = false) async {
+        guard generationRunID == runID else { return }
         guard canGenerate else {
             showsProLimit = true
             isGenerating = false
@@ -1350,7 +1379,11 @@ struct CandidateSongsView: View {
             genStatusIndex = 0
         }
         revealNewList = false
-        defer { isGenerating = false }
+        defer {
+            if generationRunID == runID {
+                isGenerating = false
+            }
+        }
 
         // Status animation in parallel (HTML stepThrough); network may finish earlier or later.
         let statusTask: Task<Void, Never>? = reduceMotion
@@ -1375,15 +1408,37 @@ struct CandidateSongsView: View {
         }
 
         do {
+            try Task.checkCancellation()
+            guard generationRunID == runID else { throw CancellationError() }
+            var receivedSnapshot = false
             try await session.generateAndReplace(
                 artistInterests: interestsForGenerate,
                 existingGroups: showGroups,
                 existingSongs: candidateSongs,
-                in: modelContext
+                in: modelContext,
+                onSnapshot: { _ in
+                    // Progressive snapshots are temporary UI only (not yet persisted).
+                    if !receivedSnapshot {
+                        receivedSnapshot = true
+                        statusTask?.cancel()
+                        withAnimation(.easeInOut(duration: 0.28)) {
+                            sheetDetent = .large
+                        }
+                        if !reduceMotion {
+                            revealNewList = true
+                        }
+                    }
+                }
             )
-            // Wait out remaining status steps so UI doesn't flash empty → full.
-            if let statusTask {
+
+            try Task.checkCancellation()
+            guard generationRunID == runID else { throw CancellationError() }
+
+            if let statusTask, !receivedSnapshot {
+                // One-shot generate still waits out the status strip (no empty flash).
                 _ = await statusTask.result
+            } else {
+                statusTask?.cancel()
             }
 
             usedFreeGenerationFeaturesRawValue = ProUsageStorage.markUsed(
@@ -1394,7 +1449,7 @@ struct CandidateSongsView: View {
             withAnimation(.easeInOut(duration: 0.28)) {
                 sheetDetent = .large
             }
-            if !reduceMotion {
+            if !reduceMotion, !receivedSnapshot {
                 revealNewList = true
             }
             presentToast(
@@ -1403,10 +1458,12 @@ struct CandidateSongsView: View {
                     ? "猜好了 · 点爱心标记最想看的"
                     : "已重新猜想 · 最想看的歌保留"
             )
+        } catch is CancellationError {
+            // Dismiss / superseded task: silent — no toast, no usage burn, no data write.
+            statusTask?.cancel()
         } catch {
-            modelContext.rollback()
             lastGenerationFailed = true
-            presentToast(.failure, message: "生成失败")
+            presentToast(.failure, message: "生成失败 · 再试一次")
             statusTask?.cancel()
         }
     }
@@ -1424,6 +1481,14 @@ struct CandidateSongsView: View {
 }
 
 // MARK: - Setlist row / edit sheets
+
+/// In-edit long-press reorder session (fully owned; no system drag lift leftovers).
+private struct SetlistManualDragState: Equatable {
+    let songID: UUID
+    let originIndex: Int
+    var lastIndex: Int
+    var translationY: CGFloat
+}
 
 /// Music-festival 歌单阵容调整：读写艺人关注项（参与 vs 不看）。
 private struct FestivalLineupEditSheet: View {
@@ -1661,160 +1726,92 @@ private struct SetlistSongRow: View {
     }
 }
 
-private struct CandidateSongsEditSheet: View {
-    let songs: [CandidateSong]
-    let onMove: (IndexSet, Int) -> Void
-    let onRemove: (CandidateSong) -> Void
-    let onAdd: () -> Void
-    let onDone: () -> Void
-
-    @State private var songPendingRemoval: CandidateSong?
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button(action: onAdd) {
-                        Label("添加歌曲", systemImage: "plus.circle.fill")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                    }
-                    .listRowBackground(Color.white.opacity(0.06))
-                }
-
-                Section {
-                    ForEach(songs, id: \.id) { song in
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(song.songName)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundColor(.white)
-                            Text(song.artist)
-                                .font(.system(size: 12))
-                                .foregroundColor(Color.white.opacity(0.45))
-                        }
-                        .padding(.vertical, 4)
-                        .listRowBackground(Color.clear)
-                    }
-                    .onDelete { indexSet in
-                        if let index = indexSet.first {
-                            songPendingRemoval = songs[index]
-                        }
-                    }
-                    .onMove(perform: onMove)
-                } header: {
-                    Text("拖动调整演出顺序")
-                        .foregroundColor(Color.white.opacity(0.45))
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color(red: 0.07, green: 0.07, blue: 0.07))
-            .environment(\.editMode, .constant(.active))
-            .navigationTitle("编辑歌单猜想")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("完成", action: onDone)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.white)
-                        .frame(minHeight: BSLayout.minTouchTarget)
-                }
-            }
-            .toolbarBackground(Color(red: 0.07, green: 0.07, blue: 0.07), for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .confirmationDialog(
-                "从猜歌单移除这首歌？",
-                isPresented: Binding(
-                    get: { songPendingRemoval != nil },
-                    set: { if !$0 { songPendingRemoval = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("移除", role: .destructive) {
-                    if let song = songPendingRemoval {
-                        onRemove(song)
-                    }
-                    songPendingRemoval = nil
-                }
-                Button("取消", role: .cancel) {
-                    songPendingRemoval = nil
-                }
-            }
-        }
-        .preferredColorScheme(.dark)
-    }
-}
-
 private struct CandidateSongsAddSheet: View {
+    let isFestival: Bool
+    let artistOptions: [String]
     let defaultArtist: String
     let onCancel: () -> Void
     let onAdd: (String, String) -> Void
 
     @State private var songName = ""
-    @State private var artist = ""
+    @State private var selectedArtist = ""
 
     private var canSubmit: Bool {
         !songName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (!isFestival || !selectedArtist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
     var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                Text("把你觉得当晚会唱的歌加进猜歌单。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("歌曲名称")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                    TextField("歌名", text: $songName)
-                        .bsInputField()
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("歌名", text: $songName)
+                .font(.system(size: 15, weight: .regular))
+                .foregroundColor(SetlistProto.fg)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 46)
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                )
+                .onChange(of: songName) { _, value in
+                    if value.count > 80 {
+                        songName = String(value.prefix(80))
+                    }
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("艺人")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                    TextField("艺人", text: $artist)
-                        .bsInputField()
-                }
+            if isFestival {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("选择艺人")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(Color.white.opacity(0.72))
 
-                Button {
-                    onAdd(songName, artist)
-                } label: {
-                    Text("添加到歌单")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSubmit ? Color.white : Color.white.opacity(0.35))
-                        .clipShape(Capsule())
+                    // HTML packs foot under chips. Avoid expandable ScrollView (it leaves a tall empty band).
+                    // Only wrap when the lineup is large enough to need a scroll region.
+                    let chips = FlowArtistChips(
+                        artists: artistOptions,
+                        selected: $selectedArtist
+                    )
+                    if artistOptions.count > 16 {
+                        ScrollView(.vertical) {
+                            chips
+                        }
+                        .scrollIndicators(.hidden)
+                        .frame(maxHeight: 220, alignment: .top)
+                    } else {
+                        chips
+                    }
+                }
+                .padding(.top, 16)
+            }
+
+            HStack(spacing: 8) {
+                Spacer(minLength: 0)
+                SetlistProtoChip(title: "取消", expands: false, compact: true, action: onCancel)
+                SetlistProtoChip(title: "加入歌单", isPrimary: true, expands: false, compact: true) {
+                    onAdd(songName, isFestival ? selectedArtist : defaultArtist)
                 }
                 .disabled(!canSubmit)
-                .padding(.top, BSSpacing.sm)
+            }
+            .padding(.top, 16)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1)
+            }
 
-                Spacer()
-            }
-            .padding(20)
-            .background(Color(red: 0.07, green: 0.07, blue: 0.07).ignoresSafeArea())
-            .navigationTitle("添加歌曲")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("取消", action: onCancel)
-                        .foregroundColor(Color.white.opacity(0.7))
-                }
-            }
-            .onAppear {
-                if artist.isEmpty {
-                    artist = defaultArtist
-                }
+            Spacer(minLength: 0)
+        }
+        .padding(.bottom, 20)
+        .onAppear {
+            if selectedArtist.isEmpty {
+                selectedArtist = artistOptions.first(where: { $0 == defaultArtist })
+                    ?? artistOptions.first
+                    ?? defaultArtist
             }
         }
-        .preferredColorScheme(.dark)
     }
+
 }
 
 struct CurrentFeatureRow: View {
@@ -1867,704 +1864,6 @@ struct CurrentFeatureRow: View {
             RoundedRectangle(cornerRadius: BSRadius.lg)
                 .stroke(BSColor.borderProminent, lineWidth: 1)
         )
-    }
-}
-
-struct RoundTripPlanView: View {
-    let show: Show
-
-    @Environment(\.modelContext) private var modelContext
-    @Query private var plans: [RoundTripPlan]
-    @Query(sort: \SavedOrigin.updatedAt, order: .reverse) private var savedOrigins: [SavedOrigin]
-
-    @State private var origin = ""
-    @State private var destination = ""
-    @State private var meetingPoint = ""
-    @State private var targetArrivalAt = Date()
-    @State private var selectedMode: DepartureTransportMode = .publicTransit
-    @State private var recommendations: [DepartureTransportMode: DepartureTransportOption] = [:]
-    @State private var isSearchingOptions = false
-    @State private var searchError: String?
-    @State private var showsManualSave = false
-    @State private var showsAdvanced = false
-    @State private var showsVenueEditor = false
-    @State private var manualMode: DepartureTransportMode = .publicTransit
-    @State private var manualLeaveAt = Date()
-    @State private var manualArriveAt = Date()
-    @State private var manualSummary = ""
-    @State private var toast: BSToastPayload?
-    @State private var didLoadPlan = false
-
-    @StateObject private var locator = OriginLocator()
-
-    private let modeDisplayOrder: [DepartureTransportMode] = [.publicTransit, .taxiReference, .driving]
-    private var session: DeparturePlanSession { DeparturePlanSession(show: show) }
-
-    init(show: Show) {
-        self.show = show
-        let showID = show.id
-        _plans = Query(
-            filter: #Predicate<RoundTripPlan> { $0.showID == showID },
-            sort: [SortDescriptor(\RoundTripPlan.updatedAt, order: .reverse)]
-        )
-    }
-
-    private var plan: RoundTripPlan? {
-        plans.first
-    }
-
-    private var savedOrigin: SavedOrigin? {
-        savedOrigins.first
-    }
-
-    private var hasSavedDeparturePlan: Bool {
-        plan?.hasSavedDeparturePlan == true
-    }
-
-    private var showDestination: ShowDepartureDestination {
-        show.departureDestination
-    }
-
-    private var trimmedOrigin: String {
-        origin.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var trimmedDestination: String {
-        destination.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var canRecommend: Bool {
-        !trimmedOrigin.isEmpty && !trimmedDestination.isEmpty
-    }
-
-    private var currentRecommendation: DepartureTransportOption? {
-        recommendations[selectedMode]
-    }
-
-    private var hasAnyRecommendation: Bool {
-        !recommendations.isEmpty
-    }
-
-    private var defaultTargetArrivalAt: Date {
-        session.defaultTargetArrivalAt
-    }
-
-    private var effectiveStartDate: Date {
-        session.effectiveStartDate
-    }
-
-    private var isShowStarted: Bool {
-        session.isShowStarted
-    }
-
-    var body: some View {
-        BSStageScaffold(title: "去程计划", subtitle: show.name) {
-            if hasSavedDeparturePlan, let plan = plan {
-                savedSummaryCard(plan)
-            } else {
-                departureGuideCard
-            }
-
-            recommendationPanel
-
-            actionArea
-
-            destinationReadOnlySection
-
-            if showsManualSave {
-                manualSavePanel
-            }
-
-            advancedSection
-
-            Text("BeforeShow 只保存出门方案，不替代地图导航。出发前请打开地图确认实时路况和班次。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-        }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: loadPlanIfNeeded)
-        .sheet(isPresented: $showsVenueEditor) {
-            ShowDraftEditorView(
-                title: "编辑现场",
-                draft: ShowDraft(show: show),
-                saveTitle: "保存"
-            ) { draft in
-                applyShowDraft(draft)
-                destination = show.departureDestination.text
-            }
-        }
-        .bsToastOverlay(toast)
-    }
-
-    /// 首次引导：固定三步，让用户一眼看懂去程计划怎么用。
-    private var departureGuideCard: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                HStack(spacing: 8) {
-                    Image(systemName: "tram.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.Accent.travel)
-                    Text("怎么用去程计划")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    departureGuideStep(1, "填出发地（可定位 / 常用出发地）")
-                    departureGuideStep(2, "选一种交通方式看选项")
-                    departureGuideStep(3, "保存为出门方案")
-                }
-
-                Text("不替代地图导航，只帮你定出门时间。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    private func departureGuideStep(_ number: Int, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text("\(number)")
-                .font(BSFont.tag)
-                .foregroundColor(BSColor.Accent.travel)
-                .frame(width: 22, height: 22)
-                .background(BSColor.Accent.travel.opacity(0.14))
-                .clipShape(Circle())
-            Text(text)
-                .font(BSFont.body)
-                .foregroundColor(BSColor.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var recommendationPanel: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("出发地")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                    HStack(spacing: BSSpacing.xs) {
-                        TextField("家、公司或酒店", text: $origin)
-                            .bsInputField()
-                            .accessibilityLabel("出发地")
-                            .submitLabel(.search)
-                            .onSubmit {
-                                if canRecommend {
-                                    Task { await searchRecommendations(force: false) }
-                                }
-                            }
-                        if locator.isLocating {
-                            ProgressView()
-                                .tint(BSColor.textPrimary)
-                                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        } else {
-                            Button {
-                                Task { await handleLocate() }
-                            } label: {
-                                Image(systemName: "location.fill")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(BSColor.Accent.travel)
-                                    .frame(width: 38, height: 38)
-                                    .background(Color.white.opacity(0.045))
-                                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: BSRadius.md)
-                                            .stroke(BSColor.border, lineWidth: 1)
-                                    )
-                                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("使用当前位置")
-                        }
-                    }
-                }
-
-                Divider().overlay(BSColor.border)
-
-                recommendationContent
-
-                Picker("交通方式", selection: $selectedMode) {
-                    ForEach(modeDisplayOrder, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("交通方式")
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var recommendationContent: some View {
-        if isSearchingOptions && !hasAnyRecommendation {
-            HStack(spacing: BSSpacing.sm) {
-                ProgressView().tint(BSColor.textPrimary)
-                Text("正在按希望到达时间倒推出门时间…")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        } else if let option = currentRecommendation {
-            recommendationDetail(option)
-        } else if !canRecommend {
-            Text(trimmedDestination.isEmpty
-                ? "这场还没填场馆地址，没法查路线。"
-                : "填上出发地或定位，就能生成出门方案。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("\(selectedMode.displayName)暂时没查到路线。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                if !hasSavedDeparturePlan {
-                    Button("换种方式看看，或手动保存") {
-                        prepareManualEntry()
-                        showsManualSave = true
-                    }
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.travel)
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private func recommendationDetail(_ option: DepartureTransportOption) -> some View {
-        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-            HStack(spacing: 8) {
-                Image(systemName: option.mode.iconName)
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.travel)
-                Text(option.experienceTag)
-                    .font(BSFont.tag)
-                    .foregroundColor(BSColor.Accent.travel)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(BSColor.Accent.travel.opacity(0.12))
-                    .clipShape(Capsule())
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(timeText(option.leaveAt))
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(BSColor.textPrimary)
-                Text("出门")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-            }
-
-            Text("约 \(option.durationText) · \(timeText(option.arriveAt)) 到场")
-                .font(BSFont.body)
-                .foregroundColor(BSColor.textSecondary)
-
-            Text(option.summary)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-
-            if isShowStarted {
-                Text("这场已经开场，时间仅用于记录。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.music.opacity(0.9))
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var actionArea: some View {
-        if hasSavedDeparturePlan {
-            VStack(spacing: BSSpacing.sm) {
-                Button {
-                    openSavedMap()
-                } label: {
-                    Text("打开地图")
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-
-                if let option = currentRecommendation, !isSearchingOptions {
-                    Button {
-                        save(option)
-                    } label: {
-                        Text("换成这个方案")
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                }
-            }
-        } else if let option = currentRecommendation, !isSearchingOptions {
-            Button {
-                save(option)
-            } label: {
-                Text("保存出门方案")
-            }
-            .buttonStyle(BSPrimaryButtonStyle())
-        }
-    }
-
-    private func savedSummaryCard(_ plan: RoundTripPlan) -> some View {
-        BSGlassPanel {
-            HStack(spacing: BSSpacing.sm) {
-                Image(systemName: plan.savedDepartureMode?.iconName ?? "location.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.travel)
-                    .frame(width: 34, height: 34)
-                    .background(BSColor.Accent.travel.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 11))
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("已保存出门方案")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                    Text(savedDepartureTimeLine(plan))
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private var destinationReadOnlySection: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text("到场地址")
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.textPrimary)
-
-                if showDestination.quality == .missing {
-                    Text("这场还没有场馆地址，没法查路线。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button("去编辑现场补地址") {
-                        showsVenueEditor = true
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                } else {
-                    VStack(alignment: .leading, spacing: 3) {
-                        if let venueName = showDestination.venueName {
-                            Text(venueName)
-                                .font(BSFont.body)
-                                .foregroundColor(BSColor.textPrimary)
-                        }
-                        if let city = showDestination.city {
-                            Text(city)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textTertiary)
-                        }
-                        if let address = showDestination.address {
-                            Text(address)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textSecondary)
-                        }
-                    }
-                    if let guidance = showDestination.guidance {
-                        Text(guidance)
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.Accent.travel.opacity(0.92))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Button("编辑现场信息") {
-                        showsVenueEditor = true
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                }
-            }
-        }
-    }
-
-    private var advancedSection: some View {
-        DisclosureGroup(isExpanded: $showsAdvanced) {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    DatePicker("希望到达", selection: $targetArrivalAt, displayedComponents: [.date, .hourAndMinute])
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textSecondary)
-                        .datePickerStyle(.compact)
-                        .accessibilityLabel("希望到达时间")
-                    Text("默认开场前 1 小时到，改了要重新生成才会更新。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                }
-
-                directionField(label: "集合点", placeholder: "入口、朋友汇合点", text: $meetingPoint)
-
-                Button {
-                    Task { await searchRecommendations(force: true) }
-                } label: {
-                    HStack {
-                        if isSearchingOptions {
-                            ProgressView().tint(.black)
-                        }
-                        Text("重新生成方案")
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-                .disabled(!canRecommend || isSearchingOptions)
-            }
-            .padding(.top, BSSpacing.sm)
-        } label: {
-            Text(showsAdvanced ? "收起更多" : "更多")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textSecondary)
-        }
-        .tint(BSColor.textSecondary)
-    }
-
-    private var manualSavePanel: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    Text("手动保存一个方案")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                    Text(searchError ?? "查不到路线时，可以自己填出门和到达时间。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Picker("交通方式", selection: $manualMode) {
-                    ForEach(modeDisplayOrder, id: \.self) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                DatePicker("出门时间", selection: $manualLeaveAt, displayedComponents: [.date, .hourAndMinute])
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-                    .datePickerStyle(.compact)
-
-                DatePicker("预计到达", selection: $manualArriveAt, displayedComponents: [.date, .hourAndMinute])
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-                    .datePickerStyle(.compact)
-
-                directionField(label: "方案摘要", placeholder: "比如地铁到场，A 口集合", text: $manualSummary)
-
-                Button("保存手动方案") {
-                    saveManualDeparture()
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-            }
-        }
-    }
-
-    private func directionField(label: String, placeholder: String, text: Binding<String>) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(label)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-            TextField(placeholder, text: text)
-                .bsInputField()
-                .accessibilityLabel(label)
-        }
-    }
-
-    private func mutablePlan() -> RoundTripPlan {
-        session.ensurePlan(existing: plan, in: modelContext)
-    }
-
-    private func loadPlanIfNeeded() {
-        guard !didLoadPlan else { return }
-        didLoadPlan = true
-
-        targetArrivalAt = defaultTargetArrivalAt
-        manualArriveAt = defaultTargetArrivalAt
-        manualLeaveAt = Calendar.current.date(byAdding: .minute, value: -45, to: defaultTargetArrivalAt) ?? defaultTargetArrivalAt
-        destination = show.departureDestination.text
-        origin = session.resolvedOrigin(plan: plan, savedOrigin: savedOrigin)
-
-        if let plan {
-            destination = session.resolvedDestination(plan: plan)
-            meetingPoint = session.resolvedMeetingPoint(plan: plan)
-            if let arriveAt = plan.departureArriveAt {
-                targetArrivalAt = arriveAt
-                manualArriveAt = arriveAt
-            }
-            if let leaveAt = plan.departureLeaveAt {
-                manualLeaveAt = leaveAt
-            }
-            if let mode = plan.savedDepartureMode {
-                manualMode = mode
-                selectedMode = mode
-            }
-            manualSummary = plan.departureSummary ?? ""
-        }
-
-        if canRecommend {
-            Task { await searchRecommendations(force: false) }
-        }
-    }
-
-    @MainActor
-    private func searchRecommendations(force: Bool) async {
-        isSearchingOptions = true
-        defer { isSearchingOptions = false }
-
-        let outcome = await session.searchOptions(
-            origin: origin,
-            destination: destination,
-            meetingPoint: meetingPoint,
-            targetArrivalAt: targetArrivalAt,
-            preferredModes: modeDisplayOrder,
-            selectedMode: selectedMode,
-            force: force,
-            hasSavedDeparturePlan: hasSavedDeparturePlan
-        )
-
-        recommendations = outcome.recommendations
-        searchError = outcome.searchError
-
-        if outcome.shouldOfferManualSave {
-            showsManualSave = true
-            prepareManualEntry()
-            if manualSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                manualSummary = "\(manualMode.displayName)到 \(trimmedDestination)"
-            }
-        } else if !outcome.recommendations.isEmpty {
-            showsManualSave = false
-            selectedMode = session.preferredMode(
-                after: outcome.recommendations,
-                current: selectedMode,
-                displayOrder: modeDisplayOrder
-            )
-        }
-
-        if let feedback = outcome.feedback {
-            presentSessionFeedback(feedback)
-        }
-    }
-
-    private func presentSessionFeedback(_ feedback: DepartureSessionFeedback) {
-        switch feedback {
-        case .success(let message):
-            presentToast(.success, message: message)
-        case .failure(let message):
-            presentToast(.failure, message: message)
-        case .neutral(let message):
-            presentToast(.neutral, message: message)
-        }
-    }
-
-    @MainActor
-    private func handleLocate() async {
-        do {
-            let resolved = try await locator.requestCurrentOrigin()
-            origin = resolved.addressText
-            if canRecommend {
-                await searchRecommendations(force: false)
-            }
-        } catch {
-            let message = (error as? OriginLocator.LocatorError)?.errorDescription
-                ?? "暂时拿不到当前位置，可以手动填出发地。"
-            presentToast(.neutral, message: message)
-        }
-    }
-
-    private func prepareManualEntry() {
-        manualArriveAt = targetArrivalAt
-        if manualLeaveAt >= targetArrivalAt {
-            manualLeaveAt = Calendar.current.date(byAdding: .minute, value: -45, to: targetArrivalAt) ?? targetArrivalAt
-        }
-        if recommendations[manualMode] == nil {
-            manualMode = modeDisplayOrder.first(where: { recommendations[$0] != nil }) ?? selectedMode
-        }
-    }
-
-    private func save(_ option: DepartureTransportOption) {
-        do {
-            try session.save(
-                option: option,
-                plan: mutablePlan(),
-                origin: origin,
-                destination: destination,
-                meetingPoint: meetingPoint,
-                savedOrigin: savedOrigin,
-                in: modelContext
-            )
-            searchError = nil
-            presentToast(.success, message: "已保存出门方案")
-        } catch {
-            presentToast(.failure, message: "保存失败")
-        }
-    }
-
-    private func saveManualDeparture() {
-        do {
-            try session.saveManual(
-                plan: mutablePlan(),
-                origin: origin,
-                destination: destination,
-                leaveAt: manualLeaveAt,
-                arriveAt: manualArriveAt,
-                mode: manualMode,
-                summary: manualSummary,
-                meetingPoint: meetingPoint,
-                savedOrigin: savedOrigin,
-                in: modelContext
-            )
-            searchError = nil
-            showsManualSave = false
-            presentToast(.success, message: "已保存出门方案")
-        } catch let error as DeparturePlanSession.ManualSaveError {
-            switch error {
-            case .missingOrigin:
-                presentToast(.neutral, message: "请先填写或定位出发地")
-            case .missingDestination:
-                presentToast(.neutral, message: "请补充到场地址")
-            }
-        } catch {
-            presentToast(.failure, message: "保存失败")
-        }
-    }
-
-    @MainActor
-    private func openSavedMap() {
-        if let plan = plan, let url = session.navigationURL(for: plan) {
-            UIApplication.shared.open(url)
-            return
-        }
-        presentToast(.neutral, message: "暂无地图链接，请手动打开地图")
-    }
-
-    private func savedOption(from plan: RoundTripPlan) -> DepartureTransportOption? {
-        session.savedOption(from: plan)
-    }
-
-    private func savedDepartureTimeLine(_ plan: RoundTripPlan) -> String {
-        session.savedDepartureTimeLine(plan)
-    }
-
-    private func timeText(_ date: Date) -> String {
-        session.timeText(date)
-    }
-
-    private func applyShowDraft(_ draft: ShowDraft) {
-        do {
-            try show.apply(draft)
-            try? modelContext.save()
-        } catch {
-            // Invalid draft is rejected; editor only enables ready drafts.
-        }
-    }
-
-    private func presentToast(_ tone: BSToastTone, message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if toast == payload {
-                toast = nil
-            }
-        }
     }
 }
 

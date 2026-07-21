@@ -153,11 +153,12 @@ private struct CurrentShowHomeView: View {
 
 /// 首页 V3（2026-07 功能卡设计稿）：
 /// 全幅 3:4 海报 + 三态秒级倒计时卡 + 阶段推荐 chips + 四张功能卡（内嵌真实预览）。
-/// 布局与色板令牌见 HomeCountdownCard / HomeFeatureCards / BSColor.Home。
+/// 布局与色板令牌见 HomeCountdownCard / HomeFeatureCards / BSColor.Stage。
 private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
 
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
@@ -228,10 +229,11 @@ private struct CurrentShowContentView: View {
                         .presentationDragIndicator(.hidden)
                         .presentationCornerRadius(24)
                 case .roundTrip:
-                    NavigationStack {
-                        RoundTripPlanView(show: show)
-                            .toolbarBackground(.hidden, for: .navigationBar)
-                    }
+                    RoundTripPlanView(show: show)
+                        .presentationDragIndicator(.hidden)
+                        .presentationDetents([.medium, .large])
+                        .presentationCornerRadius(24)
+                        .presentationBackground(BSColor.Stage.surfaceRaised)
                 case .preparation:
                     NavigationStack {
                         ShowPreparationView(show: show)
@@ -246,6 +248,19 @@ private struct CurrentShowContentView: View {
             }
             .preferredColorScheme(.dark)
         }
+        .task { seedRouteScreenshotScenarioIfNeeded() }
+        .task { await openRouteFormForScreenshotIfNeeded() }
+    }
+
+    /// DEBUG 截图钩子：自动展开「怎么去」表单（配合 BS_ROUTE_SCREENSHOT_SCENARIO 控制方向）。
+    @MainActor
+    private func openRouteFormForScreenshotIfNeeded() async {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["BS_ROUTE_FORM_SCREENSHOT"] == "1" else { return }
+        try? await Task.sleep(nanoseconds: 600_000_000)
+        guard !Task.isCancelled else { return }
+        activeToolSheet = .roundTrip
+        #endif
     }
 
     private func openTool(_ kind: HomeFeatureKind, setlist: SetlistSheetLaunch = .browse) {
@@ -263,7 +278,7 @@ private struct CurrentShowContentView: View {
     @ViewBuilder
     private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
         let timeState = CurrentShowTimeState(show: show, now: now)
-        let phase = HomeShowPhase(timeState: timeState, now: now)
+        let phase = routeScreenshotPhase ?? HomeShowPhase(timeState: timeState, now: now)
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕，
         // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶（内容列居中回落到真实视口）。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
@@ -271,46 +286,58 @@ private struct CurrentShowContentView: View {
         // 改用窗口安全区，保证状态栏垫条高度正确。
         let topInset = max(geometry.safeAreaInsets.top, Self.windowTopSafeAreaInset)
 
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                heroStage(
-                    phase: phase,
-                    timeState: timeState,
-                    width: viewportWidth,
-                    topInset: topInset
-                )
+        ScrollViewReader { proxy in
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    heroStage(
+                        phase: phase,
+                        timeState: timeState,
+                        width: viewportWidth,
+                        topInset: topInset
+                    )
 
-                HomeCountdownCard(show: show)
+                    HomeCountdownCard(show: show)
+                        .padding(.horizontal, homeInset)
+                        .padding(.top, -22)
+
+                    HomeFeatureCardsSection(
+                        show: show,
+                        phase: phase,
+                        summary: summary,
+                        candidateSongs: homeCandidateSongs,
+                        roundTripPlan: roundTripPlan,
+                        preparationPlan: preparationPlans.first { $0.showID == show.id },
+                        onOpen: { kind in
+                            // Empty 猜一份 → generate; filled 右上角 / 查看全部 → browse sheet.
+                            if kind == .setlist, !summary.hasCandidateSongs {
+                                openTool(.setlist, setlist: .generate)
+                            } else {
+                                openTool(kind)
+                            }
+                        },
+                        onOpenMap: openDepartureMapForCurrentPlan
+                    )
                     .padding(.horizontal, homeInset)
-                    .padding(.top, -22)
-
-                HomeFeatureCardsSection(
-                    show: show,
-                    phase: phase,
-                    summary: summary,
-                    candidateSongs: homeCandidateSongs,
-                    roundTripPlan: roundTripPlan,
-                    preparationPlan: preparationPlans.first { $0.showID == show.id },
-                    onOpen: { kind in
-                        // Prototype: empty 猜一份 / 生成歌单 chip opens sheet and generates.
-                        if kind == .setlist, !summary.hasCandidateSongs {
-                            openTool(.setlist, setlist: .generate)
-                        } else {
-                            openTool(kind)
-                        }
-                    },
-                    onOpenSetlistEdit: { openTool(.setlist, setlist: .edit) },
-                    onOpenSetlistShare: { openTool(.setlist, setlist: .share) },
-                    onOpenMap: openDepartureMapForCurrentPlan
-                )
-                .padding(.horizontal, homeInset)
-                .padding(.top, 18)
+                    .padding(.top, 18)
+                }
+                .padding(.bottom, BSLayout.tabBarContentInset + 28)
+                .frame(width: viewportWidth)
+                .frame(width: geometry.size.width, alignment: .center)
+                .frame(minHeight: geometry.size.height, alignment: .top)
             }
-            .padding(.bottom, BSLayout.tabBarContentInset + 28)
-            .frame(width: viewportWidth)
-            .frame(width: geometry.size.width, alignment: .center)
-            .frame(minHeight: geometry.size.height, alignment: .top)
+            .task { await scrollToRouteCardForScreenshotIfNeeded(proxy: proxy) }
         }
+    }
+
+    /// DEBUG 截图钩子：把首页滚动到「怎么去」卡。
+    @MainActor
+    private func scrollToRouteCardForScreenshotIfNeeded(proxy: ScrollViewProxy) async {
+        #if DEBUG
+        guard ProcessInfo.processInfo.environment["BS_ROUTE_SCROLL_SCREENSHOT"] == "1" else { return }
+        try? await Task.sleep(nanoseconds: 800_000_000)
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo("homeCard-route", anchor: .top)
+        #endif
     }
 
     // MARK: Hero（全幅 3:4 海报 + 顶边 stretch 进状态栏 + kicker + scrim 元信息）
@@ -360,7 +387,6 @@ private struct CurrentShowContentView: View {
                         .padding(.horizontal, homeInset)
                         .padding(.bottom, 30)
                 }
-                .overlay(alignment: .bottom) { heroEdgeLine }
                 .offset(y: max(0, topInset))
         }
         .frame(width: width, height: height + max(0, topInset), alignment: .top)
@@ -435,34 +461,26 @@ private struct CurrentShowContentView: View {
     private var heroScrim: some View {
         LinearGradient(
             stops: [
-                .init(color: BSColor.Home.background.opacity(0.14), location: 0.00),
-                .init(color: BSColor.Home.background.opacity(0.10), location: 0.22),
-                .init(color: BSColor.Home.background.opacity(0.22), location: 0.48),
-                .init(color: BSColor.Home.background.opacity(0.86), location: 0.74),
-                .init(color: BSColor.Home.background.opacity(0.98), location: 1.00),
+                .init(color: BSColor.Stage.background.opacity(0.14), location: 0.00),
+                .init(color: BSColor.Stage.background.opacity(0.10), location: 0.22),
+                .init(color: BSColor.Stage.background.opacity(0.24), location: 0.48),
+                .init(color: BSColor.Stage.background.opacity(0.55), location: 0.68),
+                .init(color: BSColor.Stage.background.opacity(0.92), location: 0.88),
+                .init(color: BSColor.Stage.background, location: 1.00),
             ],
             startPoint: .top,
             endPoint: .bottom
         )
     }
 
-    /// 设计稿 hero-glow：金 / 蓝 / 紫三束舞台光，screen 混合；live 全开，ended 收半。
+    /// 设计稿 hero-glow：蓝 / 紫两束舞台侧光，screen 混合；live 全开，ended 收半。
+    /// （顶部暖金椭圆已去掉，避免海报上方出现明显光斑。）
     private func heroGlow(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
         let opacity: Double = phase == .ended ? 0.45 : (phase == .live ? 1.0 : 0.92)
         return ZStack {
             Ellipse()
                 .fill(RadialGradient(
-                    colors: [BSColor.Home.accent.opacity(0.36), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: width * 0.39
-                ))
-                .frame(width: width * 0.78, height: height * 0.36)
-                .position(x: width * 0.50, y: height * 0.16)
-
-            Ellipse()
-                .fill(RadialGradient(
-                    colors: [BSColor.Home.route.opacity(0.30), .clear],
+                    colors: [BSColor.Stage.route.opacity(0.30), .clear],
                     center: .center,
                     startRadius: 0,
                     endRadius: width * 0.26
@@ -472,7 +490,7 @@ private struct CurrentShowContentView: View {
 
             Ellipse()
                 .fill(RadialGradient(
-                    colors: [BSColor.Home.prepare.opacity(0.28), .clear],
+                    colors: [BSColor.Stage.prepare.opacity(0.28), .clear],
                     center: .center,
                     startRadius: 0,
                     endRadius: width * 0.23
@@ -485,16 +503,6 @@ private struct CurrentShowContentView: View {
         .allowsHitTesting(false)
     }
 
-    /// 海报下缘一线暖金（设计稿 hero-stage::after）。
-    private var heroEdgeLine: some View {
-        LinearGradient(
-            colors: [.clear, BSColor.Home.accent.opacity(0.28), .clear],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-        .frame(height: 1)
-    }
-
     private func heroMeta(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             kickerPill(phase: phase, timeState: timeState)
@@ -502,13 +510,13 @@ private struct CurrentShowContentView: View {
 
             Text(dateLine(timeState: timeState))
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(BSColor.Home.foreground.opacity(0.78))
+                .foregroundColor(BSColor.Stage.foreground.opacity(0.78))
                 .padding(.bottom, 8)
 
             Text(show.name)
                 .font(.system(size: 28, weight: .semibold))
                 .tracking(-0.8)
-                .foregroundColor(BSColor.Home.foreground)
+                .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(2)
                 .minimumScaleFactor(0.82)
                 .fixedSize(horizontal: false, vertical: true)
@@ -517,7 +525,7 @@ private struct CurrentShowContentView: View {
             if !locationText.isEmpty {
                 Text(locationText)
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(BSColor.Home.foreground.opacity(0.72))
+                    .foregroundColor(BSColor.Stage.foreground.opacity(0.72))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 10)
@@ -552,32 +560,32 @@ private struct CurrentShowContentView: View {
 
     private func kickerDotColor(for phase: HomeShowPhase) -> Color {
         switch phase {
-        case .pre: return BSColor.Home.accent
-        case .live: return BSColor.Home.live
-        case .ended, .inactive: return BSColor.Home.dim
+        case .pre: return BSColor.Stage.accent
+        case .live: return BSColor.Stage.live
+        case .ended, .inactive: return BSColor.Stage.dim
         }
     }
 
     private func kickerTextColor(for phase: HomeShowPhase) -> Color {
         switch phase {
-        case .pre: return BSColor.Home.accent
-        case .live: return BSColor.Home.liveTitle
-        case .ended, .inactive: return BSColor.Home.foreground.opacity(0.72)
+        case .pre: return BSColor.Stage.accent
+        case .live: return BSColor.Stage.liveTitle
+        case .ended, .inactive: return BSColor.Stage.foreground.opacity(0.72)
         }
     }
 
     private func kickerTint(for phase: HomeShowPhase) -> Color {
         switch phase {
-        case .pre: return BSColor.Home.background.opacity(0.38)
+        case .pre: return BSColor.Stage.background.opacity(0.38)
         case .live: return Color(red: 0.31, green: 0.09, blue: 0.13).opacity(0.42)
-        case .ended, .inactive: return BSColor.Home.background.opacity(0.45)
+        case .ended, .inactive: return BSColor.Stage.background.opacity(0.45)
         }
     }
 
     private func kickerBorderColor(for phase: HomeShowPhase) -> Color {
         switch phase {
-        case .pre: return BSColor.Home.accent.opacity(0.28)
-        case .live: return BSColor.Home.live.opacity(0.42)
+        case .pre: return BSColor.Stage.accent.opacity(0.28)
+        case .live: return BSColor.Stage.live.opacity(0.42)
         case .ended, .inactive: return Color.white.opacity(0.14)
         }
     }
@@ -606,15 +614,81 @@ private struct CurrentShowContentView: View {
     }
 
     @MainActor
-    private func openDepartureMapForCurrentPlan() {
+    private func openDepartureMapForCurrentPlan(direction: RoundTripDirection) {
         guard let plan = roundTripPlan else { return }
-        if let url = plan.savedDepartureNavigationURL {
+        let travel = plan.plan(for: direction)
+        if let url = travel?.navigationURL {
             UIApplication.shared.open(url)
+        }
+    }
+
+    private var routeScreenshotPhase: HomeShowPhase? {
+        #if DEBUG
+        switch ProcessInfo.processInfo.environment["BS_ROUTE_SCREENSHOT_SCENARIO"] {
+        case "outbound": return .pre
+        case "return", "custom": return .ended
+        default: return nil
+        }
+        #else
+        return nil
+        #endif
+    }
+
+    @MainActor
+    private func seedRouteScreenshotScenarioIfNeeded() {
+        #if DEBUG
+        guard let scenario = ProcessInfo.processInfo.environment["BS_ROUTE_SCREENSHOT_SCENARIO"] else { return }
+        if scenario == "empty" {
+            roundTripPlan?.outboundPlan = nil
+            roundTripPlan?.returnPlan = nil
+            try? modelContext.save()
             return
         }
-        if let url = DeparturePlanSession.appleMapsDirectionsURL(origin: plan.departureOrigin, destination: plan.departureDestination) {
-            UIApplication.shared.open(url)
+        let direction: RoundTripDirection = scenario == "outbound" ? .outbound : .return
+        let origin = TravelPlace(name: direction == .outbound ? "我的位置" : "吴乐湾音乐广场", address: "湖州市吴兴区吴乐湾", latitude: 30.867, longitude: 120.105)
+        let destination = TravelPlace(name: direction == .outbound ? "吴乐湾音乐广场" : "杭州东站", address: direction == .outbound ? "湖州市吴兴区吴乐湾" : "杭州市上城区全福桥路", latitude: 30.292, longitude: 120.212)
+        let leaveAt = Date().addingTimeInterval(direction == .outbound ? 1_800 : 900)
+        let arriveAt = leaveAt.addingTimeInterval(3_300)
+        let travel: TravelPlan
+        if scenario == "custom" {
+            travel = TravelPlan.custom(
+                direction: .return,
+                origin: origin,
+                destination: destination,
+                leaveAt: leaveAt,
+                arriveAt: arriveAt,
+                summary: "散场后乘主办方接驳车到杭州东站",
+                showFingerprint: DeparturePlanSession(show: show).showFingerprint
+            )
+        } else {
+            let mode: TravelMode = direction == .outbound ? .driving : .transit
+            let middleNodes: [TravelTimelineNode] = mode == .transit
+                ? [
+                    TravelTimelineNode(kind: .transfer, title: "步行至湖州站"),
+                    TravelTimelineNode(kind: .transfer, title: "乘高铁到杭州东站"),
+                ]
+                : []
+            travel = TravelPlan(
+                direction: direction,
+                mode: mode,
+                origin: origin,
+                destination: destination,
+                leaveAt: leaveAt,
+                arriveAt: arriveAt,
+                durationMinutes: 55,
+                distanceMeters: 62_000,
+                summary: "从\(origin.name)\(mode.displayName)到\(destination.name)，约 55 分钟",
+                timeline: [TravelTimelineNode(kind: .origin, title: "从\(origin.name)出发", date: leaveAt)]
+                    + middleNodes
+                    + [TravelTimelineNode(kind: .destination, title: "抵达\(destination.name)", date: arriveAt)],
+                showFingerprint: DeparturePlanSession(show: show).showFingerprint
+            )
         }
+        let store = roundTripPlan ?? RoundTripPlan(showID: show.id)
+        if roundTripPlan == nil { modelContext.insert(store) }
+        store.save(travel)
+        try? modelContext.save()
+        #endif
     }
 
     private var locationText: String {

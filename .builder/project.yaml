@@ -1,7 +1,7 @@
 name: beforeshow
 current_stage: business-model
-active_cycle: 2026-06-23-home-visual-redesign
-updated_at: 2026-06-23
+active_cycle: 2026-07-20-setlist-reliability-verification
+updated_at: 2026-07-20
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -9,3 +9,5 @@ links:
   pro_membership_cycle: .builder/cycles/2026-06-14-pro-membership/
   core_show_loop_cycle: .builder/cycles/2026-06-16-core-show-loop/
   home_visual_redesign_cycle: .builder/cycles/2026-06-23-home-visual-redesign/
+  global_transit_eta_cycle: .builder/cycles/2026-07-19-global-transit-eta/
+  setlist_reliability_verification_cycle: .builder/cycles/2026-07-20-setlist-reliability-verification/

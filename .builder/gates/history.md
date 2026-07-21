@@ -39,3 +39,23 @@ Cycle: `.builder/cycles/2026-06-23-home-visual-redesign/`
 Decision: implementation in progress, validation pending.
 
 Reason: the V2.1 loop exists, but the home surface needs a stronger theatrical visual language, clearer current-show focus, and a simpler two-entry action model before user validation.
+
+## 2026-07-19
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-19-global-transit-eta/`
+
+Decision: implementation in progress, validation pending.
+
+Reason: MapKit can return public-transit ETA globally where supported but does not expose complete transit route steps; the product will test whether ETA, manual-duration fallback, and Apple Maps handoff are sufficient for trip planning.
+
+## 2026-07-20
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-20-setlist-reliability-verification/`
+
+Decision: implementation and simulator verification complete; user validation pending.
+
+Reason: generation now requires an explicit contract-valid final response, cancellation preserves the prior catalog, and festival lineup edits remain local until confirmation; responsiveness and real-user trust still require release observation.

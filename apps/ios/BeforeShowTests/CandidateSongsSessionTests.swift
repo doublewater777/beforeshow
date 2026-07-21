@@ -280,6 +280,43 @@ final class CandidateSongsSessionTests: XCTestCase {
         }
     }
 
+    func testFestivalAddSongInsertsIntoSelectedArtistGroup() throws {
+        let show = try Show(
+            name: "音乐节",
+            date: DateComponents(calendar: calendar, year: 2026, month: 8, day: 1).date!,
+            startTime: DateComponents(calendar: calendar, year: 2026, month: 8, day: 1, hour: 20).date!,
+            artist: "甲、乙",
+            type: .musicFestival
+        )
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let groupA = try CandidateSongGroup(showID: show.id, artistName: "甲", uncertaintyNote: "猜想")
+        let groupB = try CandidateSongGroup(showID: show.id, artistName: "乙", uncertaintyNote: "猜想")
+        let firstA = try CandidateSong(groupID: groupA.id, songName: "甲一", artist: "甲", order: 0)
+        let firstB = try CandidateSong(groupID: groupB.id, songName: "乙一", artist: "乙", order: 1)
+        context.insert(groupA)
+        context.insert(groupB)
+        context.insert(firstA)
+        context.insert(firstB)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.addUserSong(
+            name: "甲手加",
+            artist: "甲",
+            groups: [groupA, groupB],
+            currentSongs: [firstA, firstB],
+            in: context
+        )
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["甲一", "甲手加", "乙一"])
+        XCTAssertEqual(songs[1].groupID, groupA.id)
+        XCTAssertTrue(songs[1].isUserAdded)
+    }
+
     func testDeduplicateSongsKeepsUserAddedAndMostWantedState() throws {
         let show = try makeShow()
         let container = try makeContainer()
@@ -548,6 +585,7 @@ final class CandidateSongsSessionTests: XCTestCase {
         let seeded = try session.seedFestivalInterestsIfNeeded(existing: [], in: context)
         XCTAssertEqual(seeded.map(\.artistName), ["A", "B", "C"])
         XCTAssertTrue(seeded.allSatisfy { $0.status == .wantToSee })
+        XCTAssertTrue(seeded.allSatisfy { !$0.isHeadliner })
 
         // Second call is no-op when interests already exist.
         let again = try session.seedFestivalInterestsIfNeeded(existing: seeded, in: context)
@@ -583,6 +621,370 @@ final class CandidateSongsSessionTests: XCTestCase {
         XCTAssertTrue(songs.allSatisfy { ($0.hint?.isEmpty ?? true) == false })
     }
 
+    func testGenerateAndReplaceAppliesProgressiveSnapshotsOnlyOnFinalPersist() async throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        try context.save()
+
+        let stub = ProgressiveStubCandidateSongGenerator(snapshots: [
+            [CandidateSongInput(songName: "一", artist: "甲")],
+            [
+                CandidateSongInput(songName: "一", artist: "甲"),
+                CandidateSongInput(songName: "二", artist: "乙")
+            ],
+            [
+                CandidateSongInput(songName: "一", artist: "甲"),
+                CandidateSongInput(songName: "二", artist: "乙"),
+                CandidateSongInput(songName: "三", artist: "丙")
+            ]
+        ])
+        let session = CandidateSongsSession(show: show, generationService: stub)
+        var snapshotProgressiveCounts: [Int] = []
+        var persistedDuringProgressive: [Int] = []
+        try await session.generateAndReplace(
+            artistInterests: [],
+            existingGroups: [],
+            existingSongs: [],
+            in: context,
+            onSnapshot: { progressive in
+                snapshotProgressiveCounts.append(progressive.count)
+                let count = (try? context.fetch(FetchDescriptor<CandidateSong>()).count) ?? 0
+                persistedDuringProgressive.append(count)
+            }
+        )
+
+        XCTAssertEqual(snapshotProgressiveCounts, [1, 2, 3])
+        // Progressive rows are temporary UI only — not written until stream completes.
+        XCTAssertEqual(persistedDuringProgressive, [0, 0, 0])
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["一", "二", "三"])
+    }
+
+    func testGenerateAndReplaceThrowsOnPartialStreamFailureWithoutOverwritingCatalog() async throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let oldGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        let oldSong = try CandidateSong(
+            groupID: oldGroup.id,
+            songName: "旧完整",
+            artist: "甲",
+            order: 0,
+            tier: .high,
+            hint: "近巡必唱"
+        )
+        let userSong = try CandidateSong(
+            groupID: oldGroup.id,
+            songName: "手加",
+            artist: "用户",
+            order: 1,
+            isUserAdded: true,
+            isMostWanted: true,
+            tier: .mid
+        )
+        context.insert(oldGroup)
+        context.insert(oldSong)
+        context.insert(userSong)
+        try context.save()
+
+        let oldIDs = Set([oldSong.id, userSong.id])
+        let failing = PartialThenFailGenerator(first: [
+            CandidateSongInput(songName: "残缺一首", artist: "乙", tier: .mid)
+        ])
+        let session = CandidateSongsSession(show: show, generationService: failing)
+
+        do {
+            try await session.generateAndReplace(
+                artistInterests: [],
+                existingGroups: [oldGroup],
+                existingSongs: [oldSong, userSong],
+                in: context
+            )
+            XCTFail("expected partial stream failure to throw")
+        } catch {
+            XCTAssertEqual(error as? CandidateSongGenerationError, .invalidResponse)
+        }
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>()).sorted { $0.order < $1.order }
+        XCTAssertEqual(songs.map(\.songName), ["旧完整", "手加"])
+        XCTAssertEqual(songs.map(\.id), [oldSong.id, userSong.id])
+        XCTAssertEqual(songs.map(\.tier), [.high, .mid])
+        XCTAssertEqual(songs.map(\.hint), ["近巡必唱", nil])
+        XCTAssertEqual(songs.map(\.isMostWanted), [false, true])
+        XCTAssertEqual(songs.map(\.isUserAdded), [false, true])
+        XCTAssertEqual(Set(songs.map(\.id)), oldIDs)
+        XCTAssertFalse(songs.contains { $0.songName == "残缺一首" })
+    }
+
+    func testGenerateAndReplaceRejectsCleanlyFinishedProgressWithoutFinal() async throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let oldGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        let oldSong = try CandidateSong(
+            groupID: oldGroup.id,
+            songName: "旧完整",
+            artist: "甲",
+            order: 0,
+            tier: .high,
+            hint: "近巡必唱"
+        )
+        context.insert(oldGroup)
+        context.insert(oldSong)
+        try context.save()
+
+        let session = CandidateSongsSession(
+            show: show,
+            generationService: ProgressThenFinishGenerator(progress: [
+                CandidateSongInput(songName: "残缺一首", artist: "乙")
+            ])
+        )
+
+        do {
+            try await session.generateAndReplace(
+                artistInterests: [],
+                existingGroups: [oldGroup],
+                existingSongs: [oldSong],
+                in: context
+            )
+            XCTFail("expected missing final snapshot to fail")
+        } catch {
+            XCTAssertEqual(error as? CandidateSongGenerationError, .invalidResponse)
+        }
+
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>())
+        XCTAssertEqual(songs.map(\.id), [oldSong.id])
+        XCTAssertFalse(songs.contains { $0.songName == "残缺一首" })
+    }
+
+    func testGenerateAndReplaceCancellationDoesNotWriteOrReplaceCatalog() async throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let oldGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        let oldSong = try CandidateSong(
+            groupID: oldGroup.id,
+            songName: "保留",
+            artist: "甲",
+            order: 0,
+            tier: .encore,
+            hint: "安可位常客"
+        )
+        context.insert(oldGroup)
+        context.insert(oldSong)
+        try context.save()
+
+        let gate = CancellableGeneratorGate()
+        let cancellable = CancellableStubCandidateSongGenerator(
+            gate: gate,
+            final: [CandidateSongInput(songName: "新歌", artist: "甲", tier: .high, hint: "主题曲")]
+        )
+        let session = CandidateSongsSession(show: show, generationService: cancellable)
+
+        let task = Task { @MainActor in
+            try await session.generateAndReplace(
+                artistInterests: [],
+                existingGroups: [oldGroup],
+                existingSongs: [oldSong],
+                in: context
+            )
+        }
+
+        await gate.waitUntilStarted()
+        task.cancel()
+        do {
+            _ = try await task.value
+            XCTFail("expected CancellationError")
+        } catch is CancellationError {
+            // expected
+        } catch {
+            XCTFail("expected CancellationError, got \(error)")
+        }
+
+        // Give the producer a beat to observe cancel via onTermination.
+        try await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertTrue(gate.observedCancellation)
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>())
+        XCTAssertEqual(songs.count, 1)
+        XCTAssertEqual(songs[0].songName, "保留")
+        XCTAssertEqual(songs[0].id, oldSong.id)
+        XCTAssertEqual(songs[0].tier, .encore)
+        XCTAssertFalse(songs.contains { $0.songName == "新歌" })
+    }
+
+    func testRepairLegacyTiersAndHintsFillsSingleGeneratedMidWithoutHint() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组")
+        let only = try CandidateSong(
+            groupID: group.id,
+            songName: "唯一生成",
+            artist: "艺人",
+            order: 0,
+            isUserAdded: false
+        )
+        XCTAssertEqual(only.tier, .mid)
+        XCTAssertNil(only.hint)
+        context.insert(group)
+        context.insert(only)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.repairLegacyTiersAndHintsIfNeeded(songs: [only], in: context)
+
+        XCTAssertEqual(only.tier, .high)
+        XCTAssertFalse(only.hint?.isEmpty ?? true)
+    }
+
+    func testRepairLegacyTiersAndHintsNoOpsOnEmptyList() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.repairLegacyTiersAndHintsIfNeeded(songs: [], in: context)
+        let songs = try context.fetch(FetchDescriptor<CandidateSong>())
+        XCTAssertTrue(songs.isEmpty)
+    }
+
+    func testRepairLegacyTiersAndHintsDoesNotTouchUserAddedOnlyCatalog() throws {
+        let show = try makeShow()
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+
+        let group = try CandidateSongGroup(showID: show.id, uncertaintyNote: "旧组", isUserCurated: true)
+        let user = try CandidateSong(
+            groupID: group.id,
+            songName: "手加",
+            artist: "用户",
+            order: 0,
+            isUserAdded: true
+        )
+        context.insert(group)
+        context.insert(user)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        try session.repairLegacyTiersAndHintsIfNeeded(songs: [user], in: context)
+
+        XCTAssertEqual(user.tier, .mid)
+        XCTAssertNil(user.hint)
+    }
+
+    func testDefaultLineupPickSelectionRespectsNotInterested() throws {
+        let showID = UUID()
+        let want = try ArtistInterestItem(showID: showID, artistName: "想看", status: .wantToSee, order: 0)
+        let undecided = try ArtistInterestItem(showID: showID, artistName: "待定", status: .undecided, order: 1)
+        let no = try ArtistInterestItem(showID: showID, artistName: "不看", status: .notInterested, order: 2)
+
+        let selection = CandidateSongsSession.defaultLineupPickSelection(
+            interests: [want, undecided, no]
+        )
+        XCTAssertEqual(selection, Set([want.id, undecided.id]))
+        XCTAssertFalse(selection.contains(no.id))
+    }
+
+    func testDefaultLineupPickSelectionSelectsAllNewSeedWantToSee() throws {
+        let showID = UUID()
+        let a = try ArtistInterestItem(showID: showID, artistName: "A", status: .wantToSee, order: 0)
+        let b = try ArtistInterestItem(showID: showID, artistName: "B", status: .wantToSee, order: 1)
+        let selection = CandidateSongsSession.defaultLineupPickSelection(interests: [a, b])
+        XCTAssertEqual(selection, Set([a.id, b.id]))
+    }
+
+    func testDefaultLineupPickSelectionEmptyWhenAllNotInterested() throws {
+        let showID = UUID()
+        let no = try ArtistInterestItem(showID: showID, artistName: "不看", status: .notInterested, order: 0)
+        let selection = CandidateSongsSession.defaultLineupPickSelection(interests: [no])
+        XCTAssertTrue(selection.isEmpty)
+    }
+
+    func testFestivalArtistDraftIsNotPersistedUntilCallerConfirms() throws {
+        let show = try Show(
+            name: "音乐节",
+            date: Date(),
+            startTime: Date(),
+            type: .musicFestival
+        )
+        let container = try makeContainer()
+        let context = container.mainContext
+        context.insert(show)
+        try context.save()
+
+        let session = CandidateSongsSession(show: show)
+        let draft = try session.makeFestivalArtistDraft(name: "新艺人", existing: [])
+
+        XCTAssertEqual(draft.artistName, "新艺人")
+        XCTAssertEqual(draft.status, .wantToSee)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<ArtistInterestItem>()).isEmpty)
+    }
+
+    func testDropDestinationIndexMovesDownAndUpCorrectly() {
+        // [A,B,C,D]: A→C → destination after C so result [B,C,A,D]
+        XCTAssertEqual(
+            CandidateSongEditingService.dropDestinationIndex(source: 0, target: 2),
+            3
+        )
+        // C→A → [C,A,B,D]
+        XCTAssertEqual(
+            CandidateSongEditingService.dropDestinationIndex(source: 2, target: 0),
+            0
+        )
+        // A down one slot → [B,A,C,D]
+        XCTAssertEqual(
+            CandidateSongEditingService.dropDestinationIndex(source: 0, target: 1),
+            2
+        )
+        // self drop is no-op
+        XCTAssertNil(CandidateSongEditingService.dropDestinationIndex(source: 1, target: 1))
+    }
+
+    func testMoveWithDropDestinationProducesExpectedOrder() {
+        func names(from source: Int, to target: Int) -> [String] {
+            var songs = ["A", "B", "C", "D"]
+            guard let dest = CandidateSongEditingService.dropDestinationIndex(source: source, target: target) else {
+                return songs
+            }
+            songs.move(fromOffsets: IndexSet(integer: source), toOffset: dest)
+            return songs
+        }
+
+        XCTAssertEqual(names(from: 0, to: 2), ["B", "C", "A", "D"])
+        XCTAssertEqual(names(from: 2, to: 0), ["C", "A", "B", "D"])
+        XCTAssertEqual(names(from: 0, to: 1), ["B", "A", "C", "D"])
+        XCTAssertEqual(names(from: 1, to: 1), ["A", "B", "C", "D"])
+    }
+
+    func testEndedSetlistHomeCopyIsGuessNotActualSetlist() {
+        let copy = HomeFeatureCopySource.copy(for: .setlist, phase: .ended)
+        XCTAssertEqual(copy.badge, "歌单猜想")
+        XCTAssertEqual(copy.note, "回看开场前的猜想")
+        XCTAssertEqual(copy.cta, "回看猜想")
+
+        let surfaces = [copy.badge, copy.note, copy.cta]
+        for text in surfaces {
+            XCTAssertFalse(text.contains("今晚唱了什么"))
+            XCTAssertFalse(text.contains("实际歌单"))
+            XCTAssertFalse(text.contains("已唱"))
+            XCTAssertFalse(text.contains("官方"))
+            XCTAssertTrue(text.contains("猜想"), "expected 猜想 in: \(text)")
+        }
+    }
+
     private func makeShow() throws -> Show {
         try Show(
             name: "Session 测试现场",
@@ -606,5 +1008,150 @@ private struct StubCandidateSongGenerator: CandidateSongGenerating {
 
     func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
         inputs
+    }
+}
+
+@MainActor
+private struct ProgressiveStubCandidateSongGenerator: CandidateSongGenerating {
+    let snapshots: [[CandidateSongInput]]
+
+    func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
+        guard let last = snapshots.last else {
+            throw CandidateSongGenerationError.invalidResponse
+        }
+        return last
+    }
+
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        let snapshots = snapshots
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                for (index, snapshot) in snapshots.enumerated() {
+                    if Task.isCancelled {
+                        continuation.finish(throwing: CancellationError())
+                        return
+                    }
+                    if index == snapshots.count - 1 {
+                        continuation.yield(.final(snapshot))
+                    } else {
+                        continuation.yield(.progress(snapshot))
+                    }
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+}
+
+@MainActor
+private struct PartialThenFailGenerator: CandidateSongGenerating {
+    let first: [CandidateSongInput]
+
+    func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
+        throw CandidateSongGenerationError.invalidResponse
+    }
+
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        let first = first
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                continuation.yield(.progress(first))
+                continuation.finish(throwing: CandidateSongGenerationError.invalidResponse)
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+}
+
+@MainActor
+private struct ProgressThenFinishGenerator: CandidateSongGenerating {
+    let progress: [CandidateSongInput]
+
+    func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
+        throw CandidateSongGenerationError.invalidResponse
+    }
+
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        let progress = progress
+        return AsyncThrowingStream { continuation in
+            continuation.yield(.progress(progress))
+            continuation.finish()
+        }
+    }
+}
+
+/// Blocks until the consumer cancels, then reports whether cancellation was observed.
+@MainActor
+private final class CancellableGeneratorGate {
+    private var startedContinuation: CheckedContinuation<Void, Never>?
+    private var didStart = false
+    private(set) var observedCancellation = false
+
+    func markStarted() {
+        didStart = true
+        startedContinuation?.resume()
+        startedContinuation = nil
+    }
+
+    func waitUntilStarted() async {
+        if didStart { return }
+        await withCheckedContinuation { continuation in
+            startedContinuation = continuation
+        }
+    }
+
+    func markCancelled() {
+        observedCancellation = true
+    }
+}
+
+@MainActor
+private struct CancellableStubCandidateSongGenerator: CandidateSongGenerating {
+    let gate: CancellableGeneratorGate
+    let final: [CandidateSongInput]
+
+    func generate(for show: Show, artistInterests: [ArtistInterestItem]) async throws -> [CandidateSongInput] {
+        final
+    }
+
+    func generateCumulativeSnapshots(
+        for show: Show,
+        artistInterests: [ArtistInterestItem]
+    ) -> AsyncThrowingStream<CandidateSongGenerationSnapshot, Error> {
+        let gate = gate
+        let final = final
+        return AsyncThrowingStream { continuation in
+            let task = Task { @MainActor in
+                gate.markStarted()
+                while !Task.isCancelled {
+                    try? await Task.sleep(nanoseconds: 20_000_000)
+                }
+                gate.markCancelled()
+                // If not cancelled in time, would yield final — but cancellation path must not write.
+                if Task.isCancelled {
+                    continuation.finish(throwing: CancellationError())
+                } else {
+                    continuation.yield(.final(final))
+                    continuation.finish()
+                }
+            }
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
     }
 }

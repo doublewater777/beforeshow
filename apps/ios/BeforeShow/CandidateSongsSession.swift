@@ -79,14 +79,41 @@ struct CandidateSongsSession {
     // MARK: - Mutations
 
     /// Generate remote inputs and replace the show's catalog, preserving user-added and starred songs.
+    ///
+    /// Progressive snapshots are temporary UI only (`onSnapshot`); the catalog is written once
+    /// after the stream completes successfully. Mid-stream errors / cancellation leave the
+    /// previous catalog untouched and never count as success.
     func generateAndReplace(
         artistInterests: [ArtistInterestItem],
         existingGroups: [CandidateSongGroup],
         existingSongs: [CandidateSong],
-        in context: ModelContext
+        in context: ModelContext,
+        onSnapshot: (([CandidateSongInput]) -> Void)? = nil
     ) async throws {
-        let raw = try await generationService.generate(for: show, artistInterests: artistInterests)
-        let inputs = CandidateSongEditingService.enrichMissingTierAndHints(raw)
+        var finalRaw: [CandidateSongInput]?
+
+        for try await snapshot in generationService.generateCumulativeSnapshots(
+            for: show,
+            artistInterests: artistInterests
+        ) {
+            try Task.checkCancellation()
+            switch snapshot {
+            case let .progress(items):
+                onSnapshot?(items)
+            case let .final(items):
+                finalRaw = items
+                onSnapshot?(items)
+            }
+        }
+
+        try Task.checkCancellation()
+
+        guard let finalRaw, !finalRaw.isEmpty else {
+            throw CandidateSongGenerationError.invalidResponse
+        }
+
+        let inputs = CandidateSongEditingService.enrichMissingTierAndHints(finalRaw)
+        try Task.checkCancellation()
         try replaceGenerated(
             with: inputs,
             existingGroups: existingGroups,
@@ -94,6 +121,8 @@ struct CandidateSongsSession {
             artistInterests: artistInterests,
             in: context
         )
+        try Task.checkCancellation()
+        try context.save()
     }
 
     /// One-shot repair for catalogs that look like legacy songName+artist-only generations
@@ -105,7 +134,7 @@ struct CandidateSongsSession {
         let generated = songs
             .filter { !$0.isUserAdded }
             .sorted { $0.order < $1.order }
-        guard generated.count >= 2 else { return }
+        guard !generated.isEmpty else { return }
         guard generated.allSatisfy({ $0.tier == .mid && ($0.hint?.isEmpty ?? true) }) else { return }
 
         let enriched = CandidateSongEditingService.enrichMissingTierAndHints(
@@ -299,6 +328,7 @@ struct CandidateSongsSession {
         artist: String,
         groups: [CandidateSongGroup],
         currentSongs: [CandidateSong],
+        artistInterests: [ArtistInterestItem] = [],
         in context: ModelContext
     ) throws {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -314,17 +344,46 @@ struct CandidateSongsSession {
             throw CandidateSongValidationError.duplicateSong
         }
 
-        let group = try userCuratedGroup(in: groups, context: context)
+        let group: CandidateSongGroup
+        if show.type == .musicFestival {
+            if let existing = groups.first(where: {
+                !$0.isUserCurated && normalizedArtistName($0.artistName) == normalizedArtistName(trimmedArtist)
+            }) {
+                group = existing
+            } else {
+                let interestID = artistInterests.first {
+                    normalizedArtistName($0.artistName) == normalizedArtistName(trimmedArtist)
+                }?.id
+                group = try CandidateSongGroup(
+                    showID: show.id,
+                    artistInterestID: interestID,
+                    artistName: trimmedArtist,
+                    uncertaintyNote: Self.defaultUncertaintyNote
+                )
+                context.insert(group)
+            }
+        } else {
+            group = try userCuratedGroup(in: groups, context: context)
+        }
+
+        let insertIndex: Int
+        if show.type == .musicFestival,
+           let lastSongIndex = currentSongs.lastIndex(where: { $0.groupID == group.id }) {
+            insertIndex = lastSongIndex + 1
+        } else {
+            insertIndex = currentSongs.count
+        }
         let song = try CandidateSong(
             groupID: group.id,
             songName: trimmedName,
             artist: trimmedArtist,
-            order: currentSongs.count,
+            order: insertIndex,
             isUserAdded: true
         )
         context.insert(song)
-        try context.save()
-        renumber(currentSongs + [song])
+        var ordered = currentSongs
+        ordered.insert(song, at: min(insertIndex, ordered.count))
+        renumber(ordered)
         try context.save()
     }
 
@@ -396,6 +455,17 @@ struct CandidateSongsSession {
 
     // MARK: - Festival lineup seed
 
+    /// Default selection for festival first-generate / lineup pick.
+    /// Seeds (all `.wantToSee`) and existing `.wantToSee` / `.undecided` are on;
+    /// `.notInterested` stays off until the user re-selects them.
+    static func defaultLineupPickSelection(interests: [ArtistInterestItem]) -> Set<UUID> {
+        Set(
+            interests
+                .filter { $0.status != .notInterested }
+                .map(\.id)
+        )
+    }
+
     /// Split `show.artist` into lineup names (、，,/| 等).
     static func parseLineupNames(from raw: String?) -> [String] {
         guard let raw else { return [] }
@@ -445,7 +515,9 @@ struct CandidateSongsSession {
     ) throws -> [ArtistInterestItem] {
         guard show.type == .musicFestival else { return existing }
         let forShow = existing.filter { $0.showID == show.id }
-        if !forShow.isEmpty { return forShow.sorted { $0.order < $1.order } }
+        if !forShow.isEmpty {
+            return forShow.sorted { $0.order < $1.order }
+        }
 
         let names = Self.parseLineupNames(from: show.artist)
         guard !names.isEmpty else { return [] }
@@ -465,11 +537,11 @@ struct CandidateSongsSession {
         return created
     }
 
-    /// Append one artist interest; returns the new item (or existing match).
-    func addFestivalArtist(
+    /// Create an uninserted lineup draft (or return an existing match).
+    /// The picker commits drafts only when the user confirms generation.
+    func makeFestivalArtistDraft(
         name: String,
-        existing: [ArtistInterestItem],
-        in context: ModelContext
+        existing: [ArtistInterestItem]
     ) throws -> ArtistInterestItem {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -487,8 +559,6 @@ struct CandidateSongsSession {
             status: .wantToSee,
             order: order
         )
-        context.insert(item)
-        try context.save()
         return item
     }
 
@@ -508,6 +578,13 @@ struct CandidateSongsSession {
         )
         context.insert(group)
         return group
+    }
+
+    private func normalizedArtistName(_ value: String?) -> String {
+        (value ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .lowercased()
     }
 
     private static let defaultUncertaintyNote = "歌单猜想来自公开信息推测，不代表官方歌单。"

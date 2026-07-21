@@ -153,7 +153,7 @@ final class ShowFragmentTests: XCTestCase {
         _ = fragment.addGalleryMediaReference(assetLocalIdentifier: "system-gallery-original", kind: .photo)
         _ = fragment.attachAudioReference(relativePath: "FragmentAudio/local-audio.m4a")
         let selection = CurrentShowSelection(selectedShowID: show.id)
-        let roundTripPlan = RoundTripPlan(showID: show.id, outboundContent: "地铁")
+        let roundTripPlan = RoundTripPlan(showID: show.id)
         let preparationPlan = ShowPreparationPlan(showID: show.id, notes: "带耳塞")
         let candidateGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "仅供参考")
         let candidateSong = try CandidateSong(

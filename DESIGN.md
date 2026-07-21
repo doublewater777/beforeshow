@@ -1,6 +1,6 @@
 # BeforeShow Design System
 
-> Status: V2 direction contract. This document defines the intended product language for the iOS app and the onboarding prototype. It supersedes the visual and onboarding direction in `docs/INDIE_APP_DESIGN_SYSTEM.md` and `docs/agents/ux-plans/11-onboarding-splash.md`; those files remain implementation history. Existing production screens can migrate incrementally.
+> Status: V3 direction contract. The `mrnv1rxl-beforeshow-home-feature-cards.html` visual language is the global design-system source of truth. Home and 「怎么去」 migrate in the current work; other production screens migrate incrementally. This document supersedes `docs/INDIE_APP_DESIGN_SYSTEM.md` and the earlier V2 palette below, which remain migration history only.
 
 ## 1. Atmosphere & Identity
 
@@ -34,9 +34,9 @@ The product should be recognizable even with the wordmark removed: a portrait po
 
 ## 2. Color
 
-The app is dark-only in V2. These tokens replace pure black plus unrestricted feature colors.
+The app is dark-only. V3 promotes the HTML feature-card palette from a home-only namespace to the global primitive and semantic token source.
 
-### Palette
+### Legacy V2 palette — migration reference only
 
 | Role | Swift token | Prototype token | Value | Usage |
 |---|---|---|---|---|
@@ -65,30 +65,39 @@ The app is dark-only in V2. These tokens replace pure black plus unrestricted fe
 - Body text must meet WCAG AA contrast. Tertiary copy is not used for essential instructions.
 - New colors must serve a semantic role and be added here before implementation.
 
-### Home 功能卡色板（V3，2026-07）
+### Global V3 palette — HTML source of truth
 
-The current-show home adopts the feature-cards design palette: warm tungsten gold on a blue-tinged stage. Scoped to the home surface only (`BSColor.Home.*`); other surfaces keep the palette above.
+The complete app adopts the feature-cards palette: warm tungsten gold on a blue-tinged stage. Existing `BSColor.Home.*` values become global primitives and semantic aliases; the home-only namespace is transitional and must not be extended.
 
 | Role | Token | Value | Usage |
 |---|---|---|---|
-| Home stage | `BSColor.Home.background` | `#05070D` | Home root background |
-| Card surface | `BSColor.Home.surface` | `#0D111B` | Feature cards |
-| Raised surface | `BSColor.Home.surfaceRaised` | `#151A27` | Floating countdown card |
-| Foreground | `BSColor.Home.foreground` | `#F2F3F7` | Primary text on home |
-| Muted | `BSColor.Home.muted` | `#9399AA` | Supporting copy |
-| Dim | `BSColor.Home.dim` | `#646B7D` | Tertiary copy |
-| Tungsten gold | `BSColor.Home.accent` | `#E8C78E` | Primary accent + 歌单 card tone |
-| Route blue | `BSColor.Home.route` | `#527FC9` | 去程 card tone |
-| Prepare violet | `BSColor.Home.prepare` | `#7B678F` | 出门清单 card tone |
-| Fragment amber | `BSColor.Home.fragment` | `#D6A36F` | 现场碎片 card tone |
-| Live red | `BSColor.Home.live` | `#FF6B75` | 开场中 pulse and LIVE states |
-| Success | `BSColor.Home.success` | `#A7C9B5` | Checked preparation state |
+| Stage background | `BSColor.background` | `#05070D` | Root background |
+| Surface | `BSColor.surface` | `#0D111B` | Cards and grouped content |
+| Raised surface | `BSColor.surfaceRaised` | `#151A27` | Sheets and selected/elevated content |
+| Foreground | `BSColor.foreground` | `#F2F3F7` | Primary text |
+| Muted | `BSColor.muted` | `#9399AA` | Supporting copy |
+| Dim | `BSColor.dim` | `#646B7D` | Tertiary copy |
+| Hairline | `BSColor.border` | white 9% | Dividers and subtle borders |
+| Tungsten gold | `BSColor.accent` | `#E8C78E` | Primary action and selected state |
+| Stage blue | `BSColor.stageBlue` | `#527FC9` | Cool stage light and route tone |
+| Stage violet | `BSColor.stageViolet` | `#7B678F` | Secondary stage tone |
+| Warning | `BSColor.warning` | `#D6A36F` | Recoverable caution |
+| Danger | `BSColor.danger` | `#D98991` | Destructive and inline errors |
+| Success | `BSColor.success` | `#A7C9B5` | Confirmed and saved state |
 
 Rules:
 
+- Primitive values never appear directly inside product views; semantic aliases describe purpose and component tokens describe local usage.
 - Card tones tint borders, badges, and top gradients only; text and controls stay on foreground/muted/dim.
-- Badge text uses the card tone pre-mixed toward white (`routeBadge` / `prepareBadge` / `fragmentBadge`).
-- The countdown card is the only blurred raised surface on home; feature cards stay on flat tonal surfaces.
+- Blur is reserved for overlays and the countdown bridge; repeated feature cards stay on flat tonal surfaces.
+
+### Token architecture
+
+1. **Primitive:** raw HTML-derived color, space, radius, type, shadow, opacity, and duration values.
+2. **Semantic:** purpose aliases such as background, foreground, muted, border, accent, warning, error, success, and stage tones.
+3. **Component:** local contracts such as feature-card surface, sheet surface, selector selected state, timeline marker, metric label, and inline error.
+
+Product views consume semantic or component tokens only. Domain concepts, provider state, and user-facing copy never become design tokens.
 
 ## 3. Typography
 
@@ -107,14 +116,12 @@ Typography should feel editorial and deliberate while remaining native and legib
 |---|---:|---:|---:|---:|---|
 | Countdown | 80 | 300 | 0.95 | -1.0 | Days/state number |
 | Display | 40 | 400 | 1.12 | -0.6 | Onboarding promise |
-| Hero title | 32 | 600 | 1.18 | -0.4 | Current show name |
-| H1 | 28 | 700 | 1.2 | -0.3 | Sheet/page title |
+| H1 | 28 | 600 | 1.2 | -0.3 | Sheet/page title |
 | H2 | 22 | 600 | 1.3 | -0.1 | Section heading |
-| Body large | 18 | 400 | 1.65 | 0 | Onboarding support copy |
-| Body | 16 | 400 | 1.65 | Default content |
-| Body small | 14 | 400 | 1.55 | Secondary information |
-| Caption | 12 | 500 | 1.4 | Metadata and privacy note |
-| Eyebrow | 11 | 600 | 1.3 | Short brand/context label |
+| H3 | 17 | 550 | 1.35 | Card title and timeline place |
+| Body | 15 | 400 | 1.55 | Default content |
+| Small | 13 | 400 | 1.55 | Secondary information |
+| Caption | 11 | 500 | 1.4 | Metadata, badges, and helper text |
 
 ### Rules
 
@@ -151,7 +158,7 @@ All spacing derives from 4pt.
 - Primary action remains reachable without scrolling on the onboarding entry and confirmation screens.
 - The standard cover aspect ratio is 3:4. Source artwork keeps its natural crop inside a 3:4 container.
 - Home and onboarding use asymmetric vertical composition: atmosphere above, action anchored toward the lower third.
-- Radius tokens are 10pt for compact media, 16pt for controls, and 24pt for stage surfaces. Pills are reserved for status, not default containers.
+- Radius tokens are 8pt for compact elements, 16pt for controls, 20pt for feature cards, and 24pt for sheets. Pills are reserved for actions, status, and compact selectors.
 - Native implementation supports Dynamic Type. At accessibility sizes, metadata stacks, decorative copy yields, and the primary action remains reachable.
 
 ### Responsive prototype
@@ -224,16 +231,47 @@ All spacing derives from 4pt.
 - **States:** default, scroll, keyboard, error.
 - **Accessibility:** logical focus order and dismiss action.
 
+### `FeatureCard`
+
+- **Structure:** badge/title/note header, optional action, content preview, flat tonal surface, hairline border, restrained top tint.
+- **Variants:** neutral, route, preparation, fragment, recommended, dimmed.
+- **States:** empty, loading, filled, stale, error, pressed.
+
+### `StageBottomSheet`
+
+- **Structure:** 44×5 handle, title/note header, scrollable form, safe-area-aware action.
+- **States:** default, keyboard, loading, validation error, provider error.
+
+### `IconModeSelector`
+
+- **Structure:** equal-width 44pt icon controls in one row; selected state uses accent fill/rim and a non-color selected trait.
+- **States:** default, selected, pressed, loading, unavailable, disabled.
+
+### `MetricSummaryGrid`
+
+- **Structure:** three equal columns with caption label and tabular H3 value, followed by a hairline divider.
+- **Variants:** outbound, return, custom.
+
+### `TravelTimeline`
+
+- **Structure:** time column, marker/line column, place/detail/tag content column.
+- **Variants:** MapKit up to six nodes, custom two nodes.
+- **States:** loading reveal, filled, stale, Reduce Motion static.
+
+### `InlineStatus`
+
+- **Structure:** optional icon, concise message, optional retry action.
+- **Variants:** neutral, loading, warning, error, success.
+
 ## 6. Motion & Interaction
 
 ### Timing
 
 | Type | Duration | Easing | Usage |
 |---|---:|---|---|
-| Press | 120ms | ease-out | Button response |
-| Standard | 240ms | ease-in-out | Sheet and state changes |
-| Stage reveal | 520ms | cubic-bezier(.16,1,.3,1) | Poster/light resolve |
-| Activation | 640ms | cubic-bezier(.16,1,.3,1) | Recognized poster becomes current show |
+| Micro | 160ms | cubic-bezier(.2,.8,.2,1) | Press and color response |
+| UI | 220ms | cubic-bezier(.2,.8,.2,1) | Sheet and state changes |
+| Emphasis | 600ms | cubic-bezier(.16,1,.3,1) | Poster, timeline, and result reveal |
 
 ### Rules
 

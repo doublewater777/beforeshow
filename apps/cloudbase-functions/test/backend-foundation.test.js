@@ -215,8 +215,9 @@ describe("CloudBase backend foundation", () => {
 
     assert.equal(result.ok, true);
     assert.equal(calls.length, 1);
-    assert.match(calls[0].messages[0].content, /Aim for 10–12 songs/);
-    assert.match(calls[0].messages[0].content, /genuinely has fewer plausible songs/);
+    assert.match(calls[0].messages[0].content, /Aim for about 10 songs \(never more than 12\)/);
+    assert.match(calls[0].messages[0].content, /genuinely have fewer plausible songs/);
+    assert.match(calls[0].messages[0].content, /full provided artist list/);
   });
 
   it("accepts HTTP string bodies from the iOS client", async () => {

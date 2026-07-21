@@ -76,9 +76,24 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(selected?.id, manual.id)
     }
 
-    func testLegacyOutboundContentSurfacesInSnapshotSummary() throws {
-        let show = try makeShow(name: "有草稿", day: 16)
-        let plan = RoundTripPlan(showID: show.id, outboundContent: "地铁到场")
+    func testSavedOutboundPlanSurfacesInSnapshotSummary() throws {
+        let show = try makeShow(name: "有去程", day: 16)
+        let plan = RoundTripPlan(showID: show.id)
+        plan.save(
+            TravelPlan(
+                direction: .outbound,
+                mode: .transit,
+                origin: TravelPlace(name: "家", address: "家", latitude: 30, longitude: 120),
+                destination: TravelPlace(name: "场馆", address: "场馆", latitude: 31, longitude: 121),
+                leaveAt: Date(timeIntervalSince1970: 1_000),
+                arriveAt: Date(timeIntervalSince1970: 2_000),
+                durationMinutes: 17,
+                distanceMeters: 4_000,
+                summary: "地铁到场",
+                timeline: [],
+                showFingerprint: "v1"
+            )
+        )
         let session = CurrentShowSession(calendar: calendar)
 
         let snapshot = session.snapshot(
@@ -90,7 +105,7 @@ final class CurrentShowSessionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertFalse(plan.hasSavedDeparturePlan)
+        XCTAssertTrue(plan.hasOutboundPlan)
         XCTAssertTrue(snapshot.summary.hasOutboundPlan)
     }
 

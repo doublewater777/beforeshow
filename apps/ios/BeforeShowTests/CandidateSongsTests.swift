@@ -45,11 +45,8 @@ final class CandidateSongsTests: XCTestCase {
     }
 
     func testFestivalGenerationTargetsTenSongsButAllowsSmallerRepertoires() {
-        XCTAssertEqual(
-            CandidateSongGenerationPolicy.targetSongs(for: .musicFestival),
-            10
-        )
-        XCTAssertNil(CandidateSongGenerationPolicy.targetSongs(for: .concert))
+        XCTAssertEqual(CandidateSongGenerationPolicy.maxSongs(for: .musicFestival), 10)
+        XCTAssertEqual(CandidateSongGenerationPolicy.maxSongs(for: .concert), 12)
         XCTAssertEqual(CandidateSongGenerationPolicy.maximumSongs, 12)
     }
 
@@ -303,6 +300,26 @@ final class CandidateSongsTests: XCTestCase {
         XCTAssertTrue(requests.isEmpty)
     }
 
+    func testFestivalRequestIncludesFullSelectedLineup() throws {
+        let show = try Show(name: "音乐节", date: Date(), startTime: Date(), type: .musicFestival)
+        let interests = try (0..<11).map { index in
+            try ArtistInterestItem(
+                showID: show.id,
+                artistName: "艺人\(index)",
+                status: .wantToSee,
+                order: index
+            )
+        }
+
+        let requests = CandidateSongGenerationRequest.requests(
+            for: show,
+            artistInterests: interests
+        )
+        let request = try XCTUnwrap(requests.first)
+        XCTAssertEqual(request.artists.count, 11)
+        XCTAssertEqual(request.artists, (0..<11).map { "艺人\($0)" })
+    }
+
     func testNonFestivalRequestUsesShowArtist() throws {
         let show = try Show(
             name: "专场",
@@ -356,22 +373,16 @@ final class CandidateSongsTests: XCTestCase {
 
     @MainActor
     func testRemoteCandidateSongGenerationMapsBackendEnvelopeAndSendsMinimalShowFields() async throws {
-        let json = """
-        {
-          "ok": true,
-          "response": {
-            "type": "candidateSongs",
-            "items": [
-              { "songName": "Song A", "artist": "Artist A" },
-              { "songName": "Song B", "artist": "Artist B" }
-            ]
-          }
+        let capture = RequestBodyCapture()
+        let stream: @Sendable (URLRequest) -> AsyncThrowingStream<BeforeShowSSEEvent, Error> = { request in
+            capture.body = request.httpBody
+            return AsyncThrowingStream { continuation in
+                let done = #"{"ok":true,"response":{"type":"candidateSongs","items":[{"songName":"Song A","artist":"Artist A"},{"songName":"Song B","artist":"Artist B"}]}}"#
+                    .data(using: .utf8)!
+                continuation.yield(BeforeShowSSEEvent(event: "done", data: done))
+                continuation.finish()
+            }
         }
-        """
-        let session = CapturingURLSession(
-            data: json.data(using: .utf8)!,
-            statusCode: 200
-        )
         let show = try Show(
             name: "测试现场",
             date: makeDate(year: 2026, month: 7, day: 15),
@@ -388,7 +399,8 @@ final class CandidateSongsTests: XCTestCase {
                     appInstanceId: "test-instance",
                     appSignature: "test-signature"
                 ),
-                session: session
+                session: CapturingURLSession(data: Data(), statusCode: 200),
+                eventStreamOverride: stream
             ),
             calendar: calendar
         )
@@ -400,16 +412,149 @@ final class CandidateSongsTests: XCTestCase {
             CandidateSongInput(songName: "Song B", artist: "Artist B")
         ])
 
-        let capturedRequestBodyString = await session.requestBodyString()
-        let requestBodyString = try XCTUnwrap(capturedRequestBodyString)
-        let bodyData = try XCTUnwrap(requestBodyString.data(using: .utf8))
+        let bodyData = try XCTUnwrap(capture.body)
         let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
         XCTAssertEqual(body["type"] as? String, "candidateSongs")
         XCTAssertEqual(body["appInstanceId"] as? String, "test-instance")
+        XCTAssertEqual(body["stream"] as? Bool, true)
+        let limits = try XCTUnwrap(body["limits"] as? [String: Any])
+        XCTAssertEqual(limits["maxSongs"] as? Int, 12)
+        XCTAssertNil(limits["targetSongs"])
         let encodedBody = String(data: try JSONSerialization.data(withJSONObject: body), encoding: .utf8) ?? ""
+        XCTAssertFalse(encodedBody.contains("targetSongs"))
         XCTAssertFalse(encodedBody.contains("lyrics"))
         XCTAssertFalse(encodedBody.contains("coverUrl"))
         XCTAssertFalse(encodedBody.contains("videoUrl"))
+    }
+
+    @MainActor
+    func testRemoteFestivalGenerationSendsMaxSongsWithoutTargetSongs() async throws {
+        let capture = RequestBodyCapture()
+        let stream: @Sendable (URLRequest) -> AsyncThrowingStream<BeforeShowSSEEvent, Error> = { request in
+            capture.body = request.httpBody
+            return AsyncThrowingStream { continuation in
+                let done = #"{"ok":true,"response":{"type":"candidateSongs","items":[{"songName":"Song A","artist":"刘雨昕"},{"songName":"Song B","artist":"姚琛"}]}}"#
+                    .data(using: .utf8)!
+                continuation.yield(BeforeShowSSEEvent(event: "done", data: done))
+                continuation.finish()
+            }
+        }
+        let show = try Show(
+            name: "绿洲音乐节",
+            date: makeDate(year: 2026, month: 6, day: 27),
+            startTime: makeDate(year: 2026, month: 6, day: 27),
+            city: "湖州",
+            venueName: "吴乐湾",
+            artist: "刘雨昕, 姚琛",
+            type: .musicFestival
+        )
+        let interestA = try ArtistInterestItem(
+            showID: show.id,
+            artistName: "刘雨昕",
+            status: .wantToSee,
+            order: 0
+        )
+        let interestB = try ArtistInterestItem(
+            showID: show.id,
+            artistName: "姚琛",
+            status: .wantToSee,
+            order: 1
+        )
+        let service = RemoteCandidateSongGenerationService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: CapturingURLSession(data: Data(), statusCode: 200),
+                eventStreamOverride: stream
+            ),
+            calendar: calendar
+        )
+
+        _ = try await service.generate(for: show, artistInterests: [interestA, interestB])
+
+        let bodyData = try XCTUnwrap(capture.body)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        let limits = try XCTUnwrap(body["limits"] as? [String: Any])
+        XCTAssertEqual(limits["maxSongs"] as? Int, 10)
+        XCTAssertNil(limits["targetSongs"])
+        XCTAssertEqual(body["stream"] as? Bool, true)
+        let showPayload = try XCTUnwrap(body["show"] as? [String: Any])
+        XCTAssertEqual(showPayload["artists"] as? [String], ["刘雨昕", "姚琛"])
+    }
+
+    @MainActor
+    func testRemoteFestivalGenerationStreamsItemsAndSendsFullLineup() async throws {
+        let show = try Show(
+            name: "绿洲音乐节",
+            date: makeDate(year: 2026, month: 6, day: 27),
+            startTime: makeDate(year: 2026, month: 6, day: 27),
+            type: .musicFestival
+        )
+        let interests = try (0..<11).map { index in
+            try ArtistInterestItem(
+                showID: show.id,
+                artistName: "艺人\(index)",
+                status: .wantToSee,
+                order: index
+            )
+        }
+
+        let capture = RequestBodyCapture()
+        let stream: @Sendable (URLRequest) -> AsyncThrowingStream<BeforeShowSSEEvent, Error> = { request in
+            capture.body = request.httpBody
+            return AsyncThrowingStream { continuation in
+                let item1 = #"{"item":{"songName":"歌1","artist":"艺人0","tier":"high","hint":"近巡必唱"}}"#
+                    .data(using: .utf8)!
+                let item2 = #"{"item":{"songName":"歌2","artist":"艺人5","tier":"mid","hint":"热歌候选"}}"#
+                    .data(using: .utf8)!
+                let done = #"{"ok":true,"response":{"type":"candidateSongs","items":[{"songName":"歌1","artist":"艺人0","tier":"high","hint":"近巡必唱"},{"songName":"歌2","artist":"艺人5","tier":"mid","hint":"热歌候选"}]}}"#
+                    .data(using: .utf8)!
+                continuation.yield(BeforeShowSSEEvent(event: "item", data: item1))
+                continuation.yield(BeforeShowSSEEvent(event: "item", data: item2))
+                continuation.yield(BeforeShowSSEEvent(event: "done", data: done))
+                continuation.finish()
+            }
+        }
+
+        let service = RemoteCandidateSongGenerationService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: CapturingURLSession(data: Data(), statusCode: 200),
+                eventStreamOverride: stream
+            ),
+            calendar: calendar
+        )
+
+        var snapshots: [CandidateSongGenerationSnapshot] = []
+        for try await snapshot in service.generateCumulativeSnapshots(
+            for: show,
+            artistInterests: interests
+        ) {
+            snapshots.append(snapshot)
+        }
+
+        XCTAssertEqual(snapshots.count, 3) // item, item, done
+        XCTAssertEqual(snapshots[0], .progress([
+            CandidateSongInput(songName: "歌1", artist: "艺人0", tier: .high, hint: "近巡必唱")
+        ]))
+        XCTAssertEqual(snapshots[1].items.map(\.songName), ["歌1", "歌2"])
+        XCTAssertEqual(snapshots.last?.items.map(\.songName), ["歌1", "歌2"])
+        guard case .final = snapshots.last else {
+            return XCTFail("expected authoritative final snapshot")
+        }
+
+        let bodyData = try XCTUnwrap(capture.body)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: bodyData) as? [String: Any])
+        XCTAssertEqual(body["stream"] as? Bool, true)
+        let showPayload = try XCTUnwrap(body["show"] as? [String: Any])
+        XCTAssertEqual(showPayload["artists"] as? [String], (0..<11).map { "艺人\($0)" })
     }
 
     private func makeDate(year: Int, month: Int, day: Int) -> Date {
@@ -423,10 +568,14 @@ final class CandidateSongsTests: XCTestCase {
     }
 }
 
+private final class RequestBodyCapture: @unchecked Sendable {
+    var body: Data?
+}
+
 private actor CapturingURLSession: URLSessionProtocol {
     var data: Data
     var statusCode: Int
-    private var requestBody: Data?
+    private var requestBodies: [Data] = []
 
     init(data: Data, statusCode: Int) {
         self.data = data
@@ -434,7 +583,9 @@ private actor CapturingURLSession: URLSessionProtocol {
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        requestBody = request.httpBody
+        if let body = request.httpBody {
+            requestBodies.append(body)
+        }
         let response = HTTPURLResponse(
             url: request.url ?? URL(string: "https://example.com")!,
             statusCode: statusCode,
@@ -445,7 +596,11 @@ private actor CapturingURLSession: URLSessionProtocol {
     }
 
     func requestBodyString() -> String? {
-        guard let requestBody else { return nil }
-        return String(data: requestBody, encoding: .utf8)
+        guard let last = requestBodies.last else { return nil }
+        return String(data: last, encoding: .utf8)
+    }
+
+    func requestBodyStrings() -> [String] {
+        requestBodies.compactMap { String(data: $0, encoding: .utf8) }
     }
 }

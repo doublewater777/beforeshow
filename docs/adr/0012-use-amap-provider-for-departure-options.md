@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0021
+---
+
 # Use AMap provider for departure options
 
 BeforeShow will introduce a departure route provider boundary for searching transport options and opening navigation, while keeping saved departure plans and home reminders inside the app domain. The first default provider will use AMap route planning and URI navigation because the product's initial concert and livehouse scenarios are China-centered and need detailed driving, public transport, and taxi-friendly options; Apple MapKit can remain a future fallback behind the same provider boundary.

@@ -58,13 +58,13 @@ struct SetlistProtoTrackRow: View {
     let song: CandidateSong
     var bare: Bool = false
     var isEditing: Bool = false
-    var canMoveUp: Bool = false
-    var canMoveDown: Bool = false
     /// When true (festival home preview), prefer artist over short hint for side text.
     var preferArtistSide: Bool = false
     var sideText: String? = nil
     var revealDelay: Double = 0
     var reveal: Bool = false
+    /// True while this row is the active long-press drag subject (custom gesture).
+    var isDragPlaceholder: Bool = false
     var onToggleMostWanted: (() -> Void)? = nil
     var onMoveUp: (() -> Void)? = nil
     var onMoveDown: (() -> Void)? = nil
@@ -102,16 +102,24 @@ struct SetlistProtoTrackRow: View {
                     }
                 }
                 .layoutPriority(1)
+            } else if !bare {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(SetlistProto.dim)
+                    .frame(width: 40, height: 44)
+                    .accessibilityHidden(true)
             }
 
             if bare {
                 EmptyView()
             } else if isEditing {
-                HStack(spacing: 2) {
-                    protoAct(system: "arrow.up", enabled: canMoveUp, action: onMoveUp)
-                    protoAct(system: "arrow.down", enabled: canMoveDown, action: onMoveDown)
-                    protoAct(system: "xmark", enabled: true, danger: true, action: onDelete)
-                }
+                protoAct(
+                    system: "xmark",
+                    enabled: true,
+                    danger: true,
+                    label: "删除 \(song.songName)",
+                    action: onDelete
+                )
             } else if let onToggleMostWanted {
                 Button(action: onToggleMostWanted) {
                     Image(systemName: song.isMostWanted ? "heart.fill" : "heart")
@@ -124,6 +132,7 @@ struct SetlistProtoTrackRow: View {
                 .accessibilityLabel(song.isMostWanted ? "取消最想看 \(song.songName)" : "最想看 \(song.songName)")
             }
         }
+        .contentShape(Rectangle())
         .frame(minHeight: 52)
         .padding(.horizontal, 2)
         .overlay(alignment: .bottom) {
@@ -131,8 +140,13 @@ struct SetlistProtoTrackRow: View {
                 .fill(Color.white.opacity(0.06))
                 .frame(height: 1)
         }
-        .opacity(reveal ? (revealed ? 1 : 0) : 1)
+        .opacity(isDragPlaceholder ? 0.35 : (reveal ? (revealed ? 1 : 0) : 1))
         .offset(y: reveal ? (revealed ? 0 : 10) : 0)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isEditing ? "\(song.songName)，长按拖动调整顺序" : song.songName)
+        .accessibilityHint(isEditing ? "长按后上下拖动排序" : "")
+        .accessibilityAction(named: "向上移动") { onMoveUp?() }
+        .accessibilityAction(named: "向下移动") { onMoveDown?() }
         .onAppear {
             guard reveal else { return }
             withAnimation(.easeOut(duration: 0.7).delay(revealDelay)) {
@@ -168,6 +182,7 @@ struct SetlistProtoTrackRow: View {
         system: String,
         enabled: Bool,
         danger: Bool = false,
+        label: String? = nil,
         action: (() -> Void)?
     ) -> some View {
         Button {
@@ -185,6 +200,7 @@ struct SetlistProtoTrackRow: View {
         }
         .buttonStyle(.plain)
         .disabled(!enabled || action == nil)
+        .accessibilityLabel(label ?? system)
     }
 }
 
@@ -219,10 +235,8 @@ struct FlowArtistChips: View {
     let artists: [String]
     @Binding var selected: String
 
-    private let columns = [GridItem(.adaptive(minimum: 76), spacing: 8, alignment: .leading)]
-
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+        SetlistProtoFlowLayout(horizontalSpacing: 8, verticalSpacing: 8) {
             ForEach(artists, id: \.self) { name in
                 chip(name)
             }
@@ -237,10 +251,10 @@ struct FlowArtistChips: View {
             Text(name)
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
+                .truncationMode(.tail)
                 .foregroundColor(on ? SetlistProto.accent : SetlistProto.muted)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 34)
-                .frame(maxWidth: .infinity)
                 .background(
                     Capsule().fill(on ? SetlistProto.accent.opacity(0.10) : Color.clear)
                 )
@@ -254,6 +268,74 @@ struct FlowArtistChips: View {
         .buttonStyle(.plain)
         .accessibilityLabel(name)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+private struct SetlistProtoFlowLayout: Layout {
+    let horizontalSpacing: CGFloat
+    let verticalSpacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        let maxWidth = proposal.width ?? .greatestFiniteMagnitude
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var contentWidth: CGFloat = 0
+        var contentHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = measuredSize(for: subview, maxWidth: maxWidth)
+            if rowWidth > 0, rowWidth + horizontalSpacing + size.width > maxWidth {
+                contentWidth = max(contentWidth, rowWidth)
+                contentHeight += rowHeight + verticalSpacing
+                rowWidth = 0
+                rowHeight = 0
+            }
+
+            rowWidth += (rowWidth > 0 ? horizontalSpacing : 0) + size.width
+            rowHeight = max(rowHeight, size.height)
+        }
+
+        contentWidth = max(contentWidth, rowWidth)
+        contentHeight += rowHeight
+        return CGSize(width: proposal.width ?? contentWidth, height: contentHeight)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size = measuredSize(for: subview, maxWidth: bounds.width)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+
+            subview.place(
+                at: CGPoint(x: x, y: y),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(size)
+            )
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+
+    private func measuredSize(for subview: LayoutSubview, maxWidth: CGFloat) -> CGSize {
+        let measured = subview.sizeThatFits(.unspecified)
+        let limit = min(maxWidth, 180)
+        return CGSize(width: min(measured.width, limit), height: measured.height)
     }
 }
 
@@ -293,6 +375,7 @@ struct SetlistProtoChip: View {
     var isLoading: Bool = false
     /// When false, chip hugs content (prototype `.gen-again`); when true, fills grid cell.
     var expands: Bool = true
+    var compact: Bool = false
     let action: () -> Void
 
     var body: some View {
@@ -304,12 +387,15 @@ struct SetlistProtoChip: View {
                         .tint(isPrimary ? SetlistProto.inkOnAccent : SetlistProto.muted)
                 }
                 Text(title)
-                    .font(.system(size: isPrimary ? 13 : 11, weight: isPrimary ? .semibold : .medium))
+                    .font(.system(
+                        size: compact ? 11 : (isPrimary ? 13 : 11),
+                        weight: isPrimary ? .semibold : .medium
+                    ))
                     .lineLimit(1)
             }
             .foregroundColor(isPrimary ? SetlistProto.inkOnAccent : SetlistProto.muted)
-            .padding(.horizontal, isPrimary ? 16 : 14)
-            .frame(minHeight: isPrimary ? 42 : 34)
+            .padding(.horizontal, compact ? 16 : (isPrimary ? 16 : 14))
+            .frame(minHeight: compact ? 34 : (isPrimary ? 42 : 34))
             .frame(maxWidth: expands ? .infinity : nil)
             .background(
                 Capsule().fill(isPrimary ? SetlistProto.accent : Color.clear)

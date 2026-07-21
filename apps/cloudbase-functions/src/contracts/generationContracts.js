@@ -38,7 +38,7 @@ export function validateGenerationRequest(input) {
   assertPlainObject(input, "$");
   assertAllowedKeys(
     input,
-    ["type", "requestId", "locale", "show", "direction", "userPlaces", "constraints", "limits"],
+    ["type", "requestId", "locale", "show", "direction", "userPlaces", "constraints", "limits", "stream"],
     "$"
   );
 
@@ -50,6 +50,9 @@ export function validateGenerationRequest(input) {
   assertNonEmptyString(input.requestId, "$.requestId");
   if (input.locale !== undefined) {
     assertNonEmptyString(input.locale, "$.locale");
+  }
+  if (input.stream !== undefined && typeof input.stream !== "boolean") {
+    throw new ContractError("INVALID_STREAM_FLAG", "stream must be a boolean.", "$.stream");
   }
 
   switch (input.type) {

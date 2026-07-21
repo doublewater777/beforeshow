@@ -70,7 +70,7 @@ struct HomeCountdownCard: View {
             HStack {
                 Text(label(for: phase, timeState: timeState))
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(BSColor.Home.muted)
+                    .foregroundColor(BSColor.Stage.muted)
                 Spacer(minLength: 0)
                 Text(badge(for: phase))
                     .font(.system(size: 11, weight: .semibold))
@@ -115,21 +115,21 @@ struct HomeCountdownCard: View {
                 .font(.system(size: 24, weight: .semibold))
                 .tracking(-0.5)
                 .monospacedDigit()
-                .foregroundColor(BSColor.Home.foreground)
+                .foregroundColor(BSColor.Stage.foreground)
             Text(unit)
                 .font(.system(size: 11, weight: .regular))
-                .foregroundColor(BSColor.Home.dim)
+                .foregroundColor(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 64)
         .background(
             RoundedRectangle(cornerRadius: 14)
-                .fill(BSColor.Home.foreground.opacity(0.03))
+                .fill(BSColor.Stage.foreground.opacity(0.03))
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
                         .fill(
                             LinearGradient(
-                                colors: [BSColor.Home.accent.opacity(0.08), .clear],
+                                colors: [BSColor.Stage.accent.opacity(0.08), .clear],
                                 startPoint: .top,
                                 endPoint: UnitPoint(x: 0.5, y: 0.7)
                             )
@@ -137,7 +137,7 @@ struct HomeCountdownCard: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14)
-                        .stroke(BSColor.Home.foreground.opacity(0.06), lineWidth: 1)
+                        .stroke(BSColor.Stage.foreground.opacity(0.06), lineWidth: 1)
                 )
         )
     }
@@ -151,10 +151,10 @@ struct HomeCountdownCard: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("灯光已亮 · 开场中")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Home.liveTitle)
+                    .foregroundColor(BSColor.Stage.liveTitle)
                 Text("现场进行中，收好票夹与手机电量")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Home.muted)
+                    .foregroundColor(BSColor.Stage.muted)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -165,10 +165,10 @@ struct HomeCountdownCard: View {
                 Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
                     .font(.system(size: 18, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundColor(BSColor.Home.foreground)
+                    .foregroundColor(BSColor.Stage.foreground)
                 Text("已进行")
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Home.dim)
+                    .foregroundColor(BSColor.Stage.dim)
             }
         }
         .padding(.horizontal, 4)
@@ -180,16 +180,16 @@ struct HomeCountdownCard: View {
     private func endedStatus(timeState: CurrentShowTimeState) -> some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(BSColor.Home.dim)
+                .fill(BSColor.Stage.dim)
                 .frame(width: 10, height: 10)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("谢幕了 · 回味还在")
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Home.foreground)
+                    .foregroundColor(BSColor.Stage.foreground)
                 Text("记下的碎片都留在这一场")
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Home.muted)
+                    .foregroundColor(BSColor.Stage.muted)
             }
 
             Spacer(minLength: 0)
@@ -197,11 +197,11 @@ struct HomeCountdownCard: View {
             VStack(spacing: 4) {
                 Text(Self.durationText(from: timeState.effectiveStartTime, to: timeState.endBoundary))
                     .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(BSColor.Home.muted)
+                    .foregroundColor(BSColor.Stage.muted)
                     .multilineTextAlignment(.trailing)
                 Text("本场时长")
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Home.dim)
+                    .foregroundColor(BSColor.Stage.dim)
             }
         }
         .padding(.horizontal, 4)
@@ -213,16 +213,16 @@ struct HomeCountdownCard: View {
     private func inactiveStatus(timeState: CurrentShowTimeState) -> some View {
         HStack(spacing: 12) {
             Circle()
-                .fill(BSColor.Home.dim)
+                .fill(BSColor.Stage.dim)
                 .frame(width: 10, height: 10)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(timeState.title)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Home.muted)
+                    .foregroundColor(BSColor.Stage.muted)
                 Text(timeState.helperText)
                     .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Home.dim)
+                    .foregroundColor(BSColor.Stage.dim)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -255,9 +255,9 @@ struct HomeCountdownCard: View {
 
     private func badgeColor(for phase: HomeShowPhase) -> Color {
         switch phase {
-        case .pre: return BSColor.Home.accent
-        case .live: return BSColor.Home.liveTitle
-        case .ended, .inactive: return BSColor.Home.muted
+        case .pre: return BSColor.Stage.accent
+        case .live: return BSColor.Stage.liveTitle
+        case .ended, .inactive: return BSColor.Stage.muted
         }
     }
 
@@ -266,21 +266,21 @@ struct HomeCountdownCard: View {
         let tintColor: Color
         switch phase {
         case .pre:
-            borderColor = BSColor.Home.foreground.opacity(0.10)
-            tintColor = BSColor.Home.foreground.opacity(0.06)
+            borderColor = BSColor.Stage.foreground.opacity(0.10)
+            tintColor = BSColor.Stage.foreground.opacity(0.06)
         case .live:
-            borderColor = BSColor.Home.live.opacity(0.28)
-            tintColor = BSColor.Home.live.opacity(0.12)
+            borderColor = BSColor.Stage.live.opacity(0.28)
+            tintColor = BSColor.Stage.live.opacity(0.12)
         case .ended, .inactive:
-            borderColor = BSColor.Home.foreground.opacity(0.08)
-            tintColor = BSColor.Home.foreground.opacity(0.04)
+            borderColor = BSColor.Stage.foreground.opacity(0.08)
+            tintColor = BSColor.Stage.foreground.opacity(0.04)
         }
 
         return RoundedRectangle(cornerRadius: 18)
             .fill(.ultraThinMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
-                    .fill(BSColor.Home.surfaceRaised.opacity(0.88))
+                    .fill(BSColor.Stage.surfaceRaised.opacity(0.88))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 18)
@@ -351,11 +351,11 @@ struct HomeLivePulse: View {
 
     var body: some View {
         Circle()
-            .fill(BSColor.Home.live)
+            .fill(BSColor.Stage.live)
             .frame(width: 10, height: 10)
             .overlay(
                 Circle()
-                    .stroke(BSColor.Home.live.opacity(0.55), lineWidth: 1)
+                    .stroke(BSColor.Stage.live.opacity(0.55), lineWidth: 1)
                     .scaleEffect(rippling ? 2.2 : 1)
                     .opacity(rippling ? 0 : 1)
             )
