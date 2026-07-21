@@ -11,10 +11,49 @@ enum TravelPlanFormValidation {
     ) -> Bool {
         origin != nil && destination != nil && (!requiresExplicitTime || hasEnteredTargetTime)
     }
+
+    /// 方案可回填的充分条件：标记有效且指纹与当前现场一致。
+    /// 不完全依赖 `validity`，避免首页失效任务未跑时仍把旧场馆回填进表单。
+    static func isCurrent(_ plan: TravelPlan, fingerprint: String) -> Bool {
+        plan.validity == .valid && plan.showFingerprint == fingerprint
+    }
+
+    /// 失效或指纹过期方案不得完整回填起终点与目标时间。
+    static func shouldRestorePlacesAndTimes(from existing: TravelPlan, fingerprint: String) -> Bool {
+        isCurrent(existing, fingerprint: fingerprint)
+    }
+
+    /// 返程仅在去程对当前指纹有效时复用其起终点（去程终点=场馆作返程起点，去程起点=家作返程终点）。
+    static func returnSeed(
+        fromOutbound outbound: TravelPlan?,
+        fingerprint: String
+    ) -> (mode: TravelMode, origin: TravelPlace, destination: TravelPlace)? {
+        guard let outbound, isCurrent(outbound, fingerprint: fingerprint) else { return nil }
+        return (outbound.mode, outbound.destination, outbound.origin)
+    }
+}
+
+/// 打开路线表单时的方向解析（一次性，不随实时时钟翻转）。
+enum RoundTripPlanDirectionResolver {
+    static func resolve(show: Show, now: Date = Date(), calendar: Calendar = .current) -> RoundTripDirection {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["BS_TRANSIT_FALLBACK_SCREENSHOT"] == "1" {
+            return .return
+        }
+        if let forced = ProcessInfo.processInfo.environment["BS_ROUTE_FORM_DIRECTION"] {
+            return forced == "return" ? .return : .outbound
+        }
+        #endif
+        if show.changeStatus == .postponed, show.postponedDate == nil { return .outbound }
+        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+        return now >= start ? .return : .outbound
+    }
 }
 
 struct RoundTripPlanView: View {
     let show: Show
+    /// 必须由父视图在打开 Sheet 时确定并传入；勿在 View 内用实时 `Date()` 推导。
+    let direction: RoundTripDirection
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -44,8 +83,9 @@ struct RoundTripPlanView: View {
 
     private var session: DeparturePlanSession { DeparturePlanSession(show: show) }
 
-    init(show: Show) {
+    init(show: Show, direction: RoundTripDirection) {
         self.show = show
+        self.direction = direction
         let showID = show.id
         _plans = Query(
             filter: #Predicate<RoundTripPlan> { $0.showID == showID },
@@ -55,19 +95,6 @@ struct RoundTripPlanView: View {
     }
 
     private var plan: RoundTripPlan? { plans.first }
-
-    private var direction: RoundTripDirection {
-        #if DEBUG
-        if ProcessInfo.processInfo.environment["BS_TRANSIT_FALLBACK_SCREENSHOT"] == "1" {
-            return .return
-        }
-        if let forced = ProcessInfo.processInfo.environment["BS_ROUTE_FORM_DIRECTION"] {
-            return forced == "return" ? .return : .outbound
-        }
-        #endif
-        if show.changeStatus == .postponed, show.postponedDate == nil { return .outbound }
-        return Date() >= session.effectiveStartDate ? RoundTripDirection.return : RoundTripDirection.outbound
-    }
 
     private var sheetTitle: String {
         direction == .outbound ? "生成去程" : "备好返程"
@@ -219,7 +246,7 @@ struct RoundTripPlanView: View {
                 }
                 if direction == .return {
                     HStack(spacing: BSSpacing.sm) {
-                        timeChip("现在就走", date: Date())
+                        leaveNowChip
                         if let showEnd = session.estimatedShowEndAt, showEnd > Date() {
                             timeChip("散场后 15 分钟", date: showEnd.addingTimeInterval(15 * 60))
                         }
@@ -476,6 +503,23 @@ struct RoundTripPlanView: View {
         timeChip(title, date: session.effectiveStartDate.addingTimeInterval(TimeInterval(-minutesBefore * 60)))
     }
 
+    /// 「现在就走」在点击时取 `Date()`，避免渲染时捕获的过期时刻。
+    private var leaveNowChip: some View {
+        Button {
+            targetTime = Date()
+            hasEnteredTargetTime = true
+        } label: {
+            Text("现在就走")
+                .font(BSFont.V3.caption)
+                .foregroundStyle(BSColor.Stage.muted)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(BSColor.Stage.surfaceRaised)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
     private func timeChip(_ title: String, date: Date) -> some View {
         let isSelected = targetTime == date
         return Button {
@@ -502,6 +546,15 @@ struct RoundTripPlanView: View {
         guard !didBootstrap else { return }
         didBootstrap = true
 
+        // 详情页等入口可能绕过首页失效任务：打开表单时先按当前指纹刷新 validity。
+        let fingerprint = session.showFingerprint
+        if let plan {
+            let didInvalidate = plan.invalidatePlans(ifShowFingerprintChangedTo: fingerprint)
+            if didInvalidate {
+                try? modelContext.save()
+            }
+        }
+
         if direction == .outbound {
             targetTime = session.defaultTargetArrivalAt
             customLeaveAt = targetTime.addingTimeInterval(-3_600)
@@ -512,34 +565,41 @@ struct RoundTripPlanView: View {
             targetTime = session.defaultReturnLeaveAt()
             customLeaveAt = targetTime
             customArriveAt = targetTime.addingTimeInterval(3_600)
-            if let outbound = plan?.outboundPlan {
-                selectedMode = outbound.mode
-                selectedOrigin = outbound.destination
-                originQuery = outbound.destination.name
-                selectedDestination = outbound.origin
-                destinationQuery = outbound.origin.name
+            // 仅复用对当前指纹有效的去程；旧指纹/失效去程不得预填旧场馆。
+            if let seed = TravelPlanFormValidation.returnSeed(
+                fromOutbound: plan?.outboundPlan,
+                fingerprint: fingerprint
+            ) {
+                selectedMode = seed.mode
+                selectedOrigin = seed.origin
+                originQuery = seed.origin.name
+                selectedDestination = seed.destination
+                destinationQuery = seed.destination.name
             } else {
                 selectedDestination = nil
                 await resolveReturnOriginFromVenue()
             }
         }
 
+        // 仅当前指纹下的有效方案完整回填；否则最多保留交通方式。
         if let existing = plan?.plan(for: direction) {
             selectedMode = existing.mode
-            selectedOrigin = existing.origin
-            originQuery = existing.origin.name
-            selectedDestination = existing.destination
-            destinationQuery = existing.destination.name
-            if direction == .outbound {
-                targetTime = existing.arriveAt
-            } else {
-                targetTime = existing.leaveAt
-                hasEnteredTargetTime = true
-            }
-            if existing.mode == .custom {
-                customLeaveAt = existing.leaveAt
-                customArriveAt = existing.arriveAt
-                customSummary = existing.summary
+            if TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: existing, fingerprint: fingerprint) {
+                selectedOrigin = existing.origin
+                originQuery = existing.origin.name
+                selectedDestination = existing.destination
+                destinationQuery = existing.destination.name
+                if direction == .outbound {
+                    targetTime = existing.arriveAt
+                } else {
+                    targetTime = existing.leaveAt
+                    hasEnteredTargetTime = true
+                }
+                if existing.mode == .custom {
+                    customLeaveAt = existing.leaveAt
+                    customArriveAt = existing.arriveAt
+                    customSummary = existing.summary
+                }
             }
         }
 
@@ -607,7 +667,11 @@ struct RoundTripPlanView: View {
             try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled else { return }
             let results = await TravelPlaceSearch.suggestions(matching: query, regionHint: show.city)
-            await MainActor.run { originSuggestions = results }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard originQuery == query else { return }
+                originSuggestions = results
+            }
         }
     }
 
@@ -621,7 +685,11 @@ struct RoundTripPlanView: View {
             try? await Task.sleep(nanoseconds: 280_000_000)
             guard !Task.isCancelled else { return }
             let results = await TravelPlaceSearch.suggestions(matching: query, regionHint: show.city)
-            await MainActor.run { destinationSuggestions = results }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                guard destinationQuery == query else { return }
+                destinationSuggestions = results
+            }
         }
     }
 

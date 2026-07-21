@@ -123,7 +123,8 @@ private struct BSTipPromptCard: View {
 struct CurrentShowAllToolsView: View {
     let show: Show
 
-    @State private var showsTravelSheet = false
+    /// 打开时固定方向；nil 表示 sheet 关闭。
+    @State private var travelSheetDirection: RoundTripDirection?
 
     private let columns = [
         GridItem(.flexible(), spacing: BSSpacing.md),
@@ -148,7 +149,7 @@ struct CurrentShowAllToolsView: View {
 
                     LazyVGrid(columns: columns, spacing: BSSpacing.md) {
                         Button {
-                            showsTravelSheet = true
+                            travelSheetDirection = RoundTripPlanDirectionResolver.resolve(show: show)
                         } label: {
                             CurrentToolTile(
                                 iconName: "tram.fill",
@@ -208,8 +209,8 @@ struct CurrentShowAllToolsView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $showsTravelSheet) {
-            RoundTripPlanView(show: show)
+        .sheet(item: $travelSheetDirection) { direction in
+            RoundTripPlanView(show: show, direction: direction)
                 .presentationDragIndicator(.hidden)
                 .presentationDetents([.medium, .large])
                 .presentationCornerRadius(BSRadius.sheet)

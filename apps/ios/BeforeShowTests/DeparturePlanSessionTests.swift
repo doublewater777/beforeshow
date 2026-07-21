@@ -182,6 +182,48 @@ final class DeparturePlanSessionTests: XCTestCase {
         XCTAssertNotEqual(unknownDateFingerprint, datedFingerprint)
     }
 
+    func testEndTimeAndShowTypeArePartOfShowFingerprint() throws {
+        let show = try makeShow()
+        let original = DeparturePlanSession(show: show, routeProvider: StubTravelRouteProvider()).showFingerprint
+
+        show.endTime = Date(timeIntervalSince1970: 22_000)
+        let withEndTime = DeparturePlanSession(show: show, routeProvider: StubTravelRouteProvider()).showFingerprint
+        XCTAssertNotEqual(original, withEndTime)
+
+        show.endTime = Date(timeIntervalSince1970: 23_500)
+        let laterEnd = DeparturePlanSession(show: show, routeProvider: StubTravelRouteProvider()).showFingerprint
+        XCTAssertNotEqual(withEndTime, laterEnd)
+
+        show.type = .livehouse
+        let differentType = DeparturePlanSession(show: show, routeProvider: StubTravelRouteProvider()).showFingerprint
+        XCTAssertNotEqual(laterEnd, differentType)
+    }
+
+    func testGeneratePassesRouteTimingToProvider() async throws {
+        let show = try makeShow()
+        let provider = RecordingTravelRouteProvider()
+        let session = DeparturePlanSession(show: show, routeProvider: provider)
+        let target = Date(timeIntervalSince1970: 20_000)
+
+        _ = try await session.generate(
+            direction: .outbound,
+            mode: .driving,
+            origin: place("家"),
+            destination: place("场馆"),
+            targetTime: target
+        )
+        XCTAssertEqual(provider.lastTiming, .arriveAt(target))
+
+        _ = try await session.generate(
+            direction: .return,
+            mode: .walking,
+            origin: place("场馆"),
+            destination: place("家"),
+            targetTime: target
+        )
+        XCTAssertEqual(provider.lastTiming, .departAt(target))
+    }
+
     private func makeShow() throws -> Show {
         try Show(
             name: "路线测试",
@@ -211,5 +253,20 @@ private struct StubTravelRouteProvider: TravelRouteProviding {
         timing: TravelRouteTiming
     ) async throws -> TravelRouteResult {
         try result.get()
+    }
+}
+
+private final class RecordingTravelRouteProvider: TravelRouteProviding, @unchecked Sendable {
+    private(set) var lastTiming: TravelRouteTiming?
+    private let result = TravelRouteResult(durationSeconds: 1_200, distanceMeters: 4_000, steps: ["前往终点"])
+
+    func route(
+        from origin: TravelPlace,
+        to destination: TravelPlace,
+        mode: TravelMode,
+        timing: TravelRouteTiming
+    ) async throws -> TravelRouteResult {
+        lastTiming = timing
+        return result
     }
 }

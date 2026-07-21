@@ -4,9 +4,11 @@ import MapKit
 import SwiftData
 import UIKit
 
-enum RoundTripDirection: String, CaseIterable, Codable, Equatable {
+enum RoundTripDirection: String, CaseIterable, Codable, Equatable, Identifiable {
     case outbound
     case `return`
+
+    var id: String { rawValue }
 
     var displayName: String { self == .outbound ? "去程" : "返程" }
 
@@ -320,6 +322,9 @@ protocol TravelRouteProviding: Sendable {
 }
 
 struct MapKitTravelRouteProvider: TravelRouteProviding {
+    /// 首次估算用的交通窗口：目标到达前 1 小时（仅作种子，真正时长由第二次请求修正）。
+    static let provisionalLeadTime: TimeInterval = 3_600
+
     func route(
         from origin: TravelPlace,
         to destination: TravelPlace,
@@ -337,30 +342,78 @@ struct MapKitTravelRouteProvider: TravelRouteProviding {
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination.coordinate))
         request.transportType = transportType
 
-        if calculation == .estimatedTime {
-            switch timing {
-            case .departAt(let date): request.departureDate = date
-            case .arriveAt(let date): request.arrivalDate = date
-            }
-        }
-
-        let directions = MKDirections(request: request)
         switch calculation {
         case .route:
-            let response = try await directions.calculate()
-            guard let route = response.routes.first else { throw TravelRouteError.noRoute }
-            return TravelRouteResult(
-                durationSeconds: route.expectedTravelTime,
-                distanceMeters: Int(route.distance.rounded()),
-                steps: route.steps.map(\.instructions).filter { !$0.isEmpty }
-            )
+            return try await calculateRoute(request: request, timing: timing)
         case .estimatedTime:
-            let response = try await directions.calculateETA()
+            Self.applyTiming(timing, calculation: calculation, to: request)
+            let response = try await MKDirections(request: request).calculateETA()
             return TravelRouteResult(
                 durationSeconds: response.expectedTravelTime,
                 distanceMeters: Int(response.distance.rounded()),
                 steps: []
             )
+        }
+    }
+
+    /// 驾车/步行/骑行：`departAt` 直接请求；`arriveAt` 先种子估算再按 duration 回推出发时刻二次请求。
+    private func calculateRoute(
+        request: MKDirections.Request,
+        timing: TravelRouteTiming
+    ) async throws -> TravelRouteResult {
+        switch timing {
+        case .departAt(let date):
+            request.departureDate = date
+            return try await performRouteCalculation(request)
+        case .arriveAt(let arrivalDate):
+            request.departureDate = Self.provisionalDeparture(forArrival: arrivalDate)
+            let first = try await performRouteCalculation(request)
+            request.departureDate = Self.refinedDeparture(
+                forArrival: arrivalDate,
+                duration: first.durationSeconds
+            )
+            // 第二次请求是精度增强；失败时降级使用首次结果。
+            do {
+                return try await performRouteCalculation(request)
+            } catch {
+                return first
+            }
+        }
+    }
+
+    private func performRouteCalculation(_ request: MKDirections.Request) async throws -> TravelRouteResult {
+        let response = try await MKDirections(request: request).calculate()
+        guard let route = response.routes.first else { throw TravelRouteError.noRoute }
+        return TravelRouteResult(
+            durationSeconds: route.expectedTravelTime,
+            distanceMeters: Int(route.distance.rounded()),
+            steps: route.steps.map(\.instructions).filter { !$0.isEmpty }
+        )
+    }
+
+    static func provisionalDeparture(forArrival arrival: Date) -> Date {
+        arrival.addingTimeInterval(-provisionalLeadTime)
+    }
+
+    static func refinedDeparture(forArrival arrival: Date, duration: TimeInterval) -> Date {
+        arrival.addingTimeInterval(-duration)
+    }
+
+    /// 把目标时间写入 MapKit 请求（主要用于公交 ETA）。
+    static func applyTiming(
+        _ timing: TravelRouteTiming,
+        calculation: MapKitRouteCalculation,
+        to request: MKDirections.Request
+    ) {
+        switch timing {
+        case .departAt(let date):
+            request.departureDate = date
+        case .arriveAt(let date):
+            if calculation == .estimatedTime {
+                request.arrivalDate = date
+            } else {
+                request.departureDate = provisionalDeparture(forArrival: date)
+            }
         }
     }
 }

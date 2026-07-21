@@ -38,15 +38,19 @@ struct DeparturePlanSession {
         return calendar.date(byAdding: .minute, value: 15, to: now) ?? now
     }
 
+    /// 现场时间/场馆变化指纹。包含开场、散场边界与类型，避免改结束时间后返程仍显示有效。
     var showFingerprint: String {
         [
-            String(show.date.timeIntervalSince1970),
-            String(show.startTime.timeIntervalSince1970),
+            String(effectiveStartDate.timeIntervalSince1970),
+            estimatedShowEndAt.map { String($0.timeIntervalSince1970) } ?? "",
             show.postponedDate.map { String($0.timeIntervalSince1970) } ?? "",
             show.changeStatus.rawValue,
+            show.type.rawValue,
             show.venueName ?? "",
             show.venueAddress ?? "",
             show.city ?? "",
+            show.endDate.map { String($0.timeIntervalSince1970) } ?? "",
+            show.endTime.map { String($0.timeIntervalSince1970) } ?? "",
         ].joined(separator: "|")
     }
 

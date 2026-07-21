@@ -1,3 +1,4 @@
+import MapKit
 import XCTest
 @testable import BeforeShow
 
@@ -77,6 +78,110 @@ final class RoundTripPlanTests: XCTestCase {
         let copy = HomeFeatureCopySource.copy(for: .route, phase: .ended)
         XCTAssertEqual(copy.note, "填好目的地和离开时间")
         XCTAssertEqual(copy.cta, "备好返程")
+    }
+
+    func testInvalidPlanDoesNotFullyRestorePlacesAndTimes() {
+        var invalid = makeTravelPlan(direction: .outbound, fingerprint: "current")
+        invalid.validity = .needsRegeneration
+        let valid = makeTravelPlan(direction: .outbound, fingerprint: "current")
+
+        XCTAssertFalse(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: invalid, fingerprint: "current"))
+        XCTAssertTrue(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: valid, fingerprint: "current"))
+    }
+
+    func testInvalidOutboundIsNotReusedAsReturnSeed() {
+        var invalidOutbound = makeTravelPlan(direction: .outbound, fingerprint: "current")
+        invalidOutbound.validity = .needsRegeneration
+        let validOutbound = makeTravelPlan(direction: .outbound, fingerprint: "current")
+
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: invalidOutbound, fingerprint: "current"))
+        XCTAssertNil(TravelPlanFormValidation.returnSeed(fromOutbound: nil, fingerprint: "current"))
+
+        let seed = TravelPlanFormValidation.returnSeed(fromOutbound: validOutbound, fingerprint: "current")
+        XCTAssertEqual(seed?.mode, validOutbound.mode)
+        XCTAssertEqual(seed?.origin, validOutbound.destination)
+        XCTAssertEqual(seed?.destination, validOutbound.origin)
+    }
+
+    /// 指纹已变但首页失效任务尚未跑（validity 仍为 .valid）时，不得回填/作返程种子。
+    func testOldFingerprintIsRejectedBeforeHomeInvalidationRuns() {
+        let stale = makeTravelPlan(direction: .outbound, fingerprint: "venue-A")
+        XCTAssertEqual(stale.validity, .valid)
+
+        let currentFingerprint = "venue-B"
+        XCTAssertFalse(TravelPlanFormValidation.isCurrent(stale, fingerprint: currentFingerprint))
+        XCTAssertFalse(
+            TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: stale, fingerprint: currentFingerprint)
+        )
+        XCTAssertNil(
+            TravelPlanFormValidation.returnSeed(fromOutbound: stale, fingerprint: currentFingerprint)
+        )
+
+        // 同指纹仍可回填
+        XCTAssertTrue(TravelPlanFormValidation.isCurrent(stale, fingerprint: "venue-A"))
+        XCTAssertNotNil(
+            TravelPlanFormValidation.returnSeed(fromOutbound: stale, fingerprint: "venue-A")
+        )
+    }
+
+    func testInvalidatePlansMarksStaleFingerprintEvenWhenStillValid() {
+        let store = RoundTripPlan(showID: UUID())
+        store.save(makeTravelPlan(direction: .outbound, fingerprint: "venue-A"))
+        store.save(makeTravelPlan(direction: .return, fingerprint: "venue-A"))
+        XCTAssertEqual(store.outboundPlan?.validity, .valid)
+
+        let didInvalidate = store.invalidatePlans(ifShowFingerprintChangedTo: "venue-B")
+        XCTAssertTrue(didInvalidate)
+        XCTAssertEqual(store.outboundPlan?.validity, .needsRegeneration)
+        XCTAssertEqual(store.returnPlan?.validity, .needsRegeneration)
+        // 失效后也不得回填
+        XCTAssertFalse(
+            TravelPlanFormValidation.shouldRestorePlacesAndTimes(
+                from: store.outboundPlan!,
+                fingerprint: "venue-B"
+            )
+        )
+    }
+
+    func testFormDirectionIsResolvedOnceFromNowNotLiveClock() throws {
+        let show = try Show(
+            name: "方向测试",
+            date: Date(timeIntervalSince1970: 18_000),
+            startTime: Date(timeIntervalSince1970: 18_000),
+            type: .concert
+        )
+        let beforeStart = Date(timeIntervalSince1970: 17_000)
+        let afterStart = Date(timeIntervalSince1970: 19_000)
+
+        // 父视图应在打开时保存这一次解析结果，而不是让 View 随实时时钟重算。
+        let openedDirection = RoundTripPlanDirectionResolver.resolve(show: show, now: beforeStart)
+        XCTAssertEqual(openedDirection, .outbound)
+        XCTAssertEqual(RoundTripPlanDirectionResolver.resolve(show: show, now: afterStart), .return)
+        // 已打开表单持有的方向不随后续时间变化。
+        XCTAssertEqual(openedDirection, .outbound)
+    }
+
+    func testMapKitArriveAtRefinesDepartureFromFirstPassDuration() {
+        let arrive = Date(timeIntervalSince1970: 30_000)
+        let threeHours: TimeInterval = 3 * 3_600
+
+        XCTAssertEqual(
+            MapKitTravelRouteProvider.provisionalDeparture(forArrival: arrive),
+            arrive.addingTimeInterval(-MapKitTravelRouteProvider.provisionalLeadTime)
+        )
+        XCTAssertEqual(
+            MapKitTravelRouteProvider.refinedDeparture(forArrival: arrive, duration: threeHours),
+            arrive.addingTimeInterval(-threeHours)
+        )
+
+        let transitArriveRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.arriveAt(arrive), calculation: .estimatedTime, to: transitArriveRequest)
+        XCTAssertEqual(transitArriveRequest.arrivalDate, arrive)
+
+        let depart = Date(timeIntervalSince1970: 20_000)
+        let departRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.departAt(depart), calculation: .route, to: departRequest)
+        XCTAssertEqual(departRequest.departureDate, depart)
     }
 
     private func makeTravelPlan(
