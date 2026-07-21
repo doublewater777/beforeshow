@@ -2,7 +2,7 @@ import Foundation
 
 /// 围绕单场现场的工具状态汇总。
 ///
-/// 首页（当前现场）和现场详情页都需要展示「歌单猜想 / 去程计划 / 现场准备 /
+/// 首页（当前现场）和现场详情页都需要展示「歌单猜想 / 去程计划 /
 /// 现场碎片」的状态文案。这里把计数与状态文案计算收敛到一处，
 /// 避免两个页面各算一遍、文案漂移。
 ///
@@ -14,17 +14,13 @@ struct ShowToolSummary {
     let candidateSongCount: Int
     let hasOutboundPlan: Bool
 
-    let checkedPreparationCount: Int
-    let preparationTotal: Int
-
     let showFragmentsCount: Int
 
     init(
         show: Show,
         candidateGroups: [CandidateSongGroup],
         candidateSongs: [CandidateSong],
-        roundTripPlans: [RoundTripPlan],
-        preparationPlans: [ShowPreparationPlan]
+        roundTripPlans: [RoundTripPlan]
     ) {
         self.show = show
 
@@ -35,20 +31,12 @@ struct ShowToolSummary {
         let plan = roundTripPlans.first { $0.showID == show.id }
         self.hasOutboundPlan = plan?.hasOutboundPlan == true
 
-        let preparationPlan = preparationPlans.first { $0.showID == show.id }
-        let suggestions = ShowPreparationGuide().sections(for: show).flatMap(\.suggestions)
-        self.preparationTotal = max(suggestions.count, 1)
-        self.checkedPreparationCount = preparationPlan.map { plan in
-            suggestions.filter { plan.isChecked($0.text) }.count
-        } ?? 0
-
         self.showFragmentsCount = show.fragments.count
     }
 
     // MARK: - Derived Flags
 
     var hasCandidateSongs: Bool { candidateSongCount > 0 }
-    var hasCheckedAllPreparation: Bool { checkedPreparationCount >= preparationTotal }
     var hasFragments: Bool { showFragmentsCount > 0 }
 
     // MARK: - Status Copy
@@ -59,10 +47,6 @@ struct ShowToolSummary {
 
     var roundTripStatus: String {
         hasOutboundPlan ? "已保存" : "缺信息"
-    }
-
-    var preparationStatus: String {
-        hasCheckedAllPreparation ? "已确认" : "\(checkedPreparationCount)/\(preparationTotal) 已确认"
     }
 
     var fragmentsStatus: String {

@@ -158,11 +158,6 @@ struct LocalAppDataDeletionService {
             context.delete(roundTripPlan)
         }
 
-        let preparationPlans = try context.fetch(FetchDescriptor<ShowPreparationPlan>())
-        for preparationPlan in preparationPlans {
-            context.delete(preparationPlan)
-        }
-
         let candidateSongGroups = try context.fetch(FetchDescriptor<CandidateSongGroup>())
         for candidateSongGroup in candidateSongGroups {
             context.delete(candidateSongGroup)

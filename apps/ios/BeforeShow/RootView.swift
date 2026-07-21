@@ -163,7 +163,6 @@ private struct CurrentShowContentView: View {
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var roundTripPlans: [RoundTripPlan]
-    @Query private var preparationPlans: [ShowPreparationPlan]
 
     private let session = CurrentShowSession()
 
@@ -185,14 +184,12 @@ private struct CurrentShowContentView: View {
         case candidateSongs
         /// 方向在打开时固定写入 associated value，避免父视图重绘时重新用 `Date()` 推导。
         case roundTrip(RoundTripDirection)
-        case preparation
         case fragments
 
         var id: String {
             switch self {
             case .candidateSongs: return "candidateSongs"
             case .roundTrip: return "roundTrip"
-            case .preparation: return "preparation"
             case .fragments: return "fragments"
             }
         }
@@ -203,8 +200,7 @@ private struct CurrentShowContentView: View {
             for: show,
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans,
-            preparationPlans: preparationPlans
+            roundTripPlans: roundTripPlans
         )
     }
 
@@ -246,11 +242,6 @@ private struct CurrentShowContentView: View {
                         .presentationDetents([.medium, .large])
                         .presentationCornerRadius(24)
                         .presentationBackground(BSColor.Stage.surfaceRaised)
-                case .preparation:
-                    NavigationStack {
-                        ShowPreparationView(show: show)
-                            .toolbarBackground(.hidden, for: .navigationBar)
-                    }
                 case .fragments:
                     NavigationStack {
                         ShowFragmentListView(show: show)
@@ -282,7 +273,6 @@ private struct CurrentShowContentView: View {
         switch kind {
         case .setlist: activeToolSheet = .candidateSongs
         case .route: activeToolSheet = .roundTrip(RoundTripPlanDirectionResolver.resolve(show: show))
-        case .prepare: activeToolSheet = .preparation
         case .fragment: activeToolSheet = .fragments
         }
     }
@@ -318,9 +308,8 @@ private struct CurrentShowContentView: View {
                         summary: summary,
                         candidateSongs: homeCandidateSongs,
                         roundTripPlan: roundTripPlan,
-                        preparationPlan: preparationPlans.first { $0.showID == show.id },
                         onOpen: { kind in
-                            // Empty 猜一份 → generate; filled 右上角 / 查看全部 → browse sheet.
+                            // Empty 猜一份 -> generate; filled 右上角 / 查看全部 -> browse sheet.
                             if kind == .setlist, !summary.hasCandidateSongs {
                                 openTool(.setlist, setlist: .generate)
                             } else {

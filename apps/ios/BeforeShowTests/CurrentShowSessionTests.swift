@@ -31,7 +31,6 @@ final class CurrentShowSessionTests: XCTestCase {
             candidateGroups: [group],
             candidateSongs: [song],
             roundTripPlans: [],
-            preparationPlans: [],
             now: now
         )
 
@@ -52,7 +51,6 @@ final class CurrentShowSessionTests: XCTestCase {
             candidateGroups: [],
             candidateSongs: [],
             roundTripPlans: [],
-            preparationPlans: [],
             now: now
         )
 
@@ -101,7 +99,6 @@ final class CurrentShowSessionTests: XCTestCase {
             candidateGroups: [],
             candidateSongs: [],
             roundTripPlans: [plan],
-            preparationPlans: [],
             now: now
         )
 

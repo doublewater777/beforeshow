@@ -379,7 +379,6 @@ struct ShowDetailView: View {
     @Query private var candidateGroups: [CandidateSongGroup]
     @Query private var candidateSongs: [CandidateSong]
     @Query private var roundTripPlans: [RoundTripPlan]
-    @Query private var preparationPlans: [ShowPreparationPlan]
     let show: Show
 
     @State private var isEditing = false
@@ -399,8 +398,7 @@ struct ShowDetailView: View {
             for: show,
             candidateGroups: candidateGroups,
             candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans,
-            preparationPlans: preparationPlans
+            roundTripPlans: roundTripPlans
         )
     }
 
@@ -729,9 +727,6 @@ struct ShowDetailView: View {
                 travelSheetDirection = RoundTripPlanDirectionResolver.resolve(show: show)
             } label: {
                 CurrentFeatureRow(iconName: "tram.fill", title: "怎么去", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
-            }
-            NavigationLink { ShowPreparationView(show: show) } label: {
-                CurrentFeatureRow(iconName: "sparkles", title: "现场准备", subtitle: summary.preparationStatus, accent: BSColor.Accent.prepare)
             }
             NavigationLink { ShowFragmentListView(show: show) } label: {
                 CurrentFeatureRow(iconName: "sparkles.rectangle.stack", title: "现场碎片", subtitle: summary.fragmentsStatus, accent: BSColor.Accent.fragment)

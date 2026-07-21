@@ -2,15 +2,19 @@
 
 > **Audience:** 低智能 / 执行型 coding agent  
 > **状态：** 主路径已实现（`RootView` 主行动互斥 + 结束边界按类型时长估算）。  
-> **Simulator:** iPhone 17 · **规范:** 仓库根 `Agents.md`
+> **Simulator:** iPhone 17 · **规范:** 仓库根 `Agents.md`  
+> **构图真源：** **Poster Atlas only**（`DESIGN.md` + ADR 0022 + `prototypes/home-poster-atlas.html`）。  
+> 下文描述的是**当前已实现 / 迁移中的原生信息架构**（曾称 Native Continuity），**不是**可并列的第二套 Home 目标。新工作向 Atlas 靠拢；不要再维护 Experience Contract / Continuity 作为可选构图。
 
 ---
 
 ## 0. 背景
 
-首页（`CurrentShowHomeView` / `CurrentShowContentView` in `RootView.swift`）主视觉已是：
+首页（`CurrentShowHomeView` / `CurrentShowContentView` in `RootView.swift`）当前实现大致是：
 
 海报 3:4 → 倒计时 → Tips（有则显示）→ `···` 工具目录
+
+（Atlas 目标：直立 freestanding 海报 + 下方大倒计时 + 单条「今天可以做」+ 文字级次要入口；无三卡工具宫格、无永久悬浮 Tab 作为构图目标。）
 
 **用户问题：**
 

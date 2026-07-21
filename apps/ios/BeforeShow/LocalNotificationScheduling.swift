@@ -2,6 +2,66 @@ import Foundation
 import SwiftData
 import UserNotifications
 
+// MARK: - Preparation Guide (read-only suggestion text fed into notification bodies)
+
+struct ShowPreparationSection: Equatable, Identifiable {
+    let id: UUID
+    let title: String
+    let suggestions: [ShowPreparationSuggestion]
+
+    init(id: UUID = UUID(), title: String, suggestions: [ShowPreparationSuggestion]) {
+        self.id = id
+        self.title = title
+        self.suggestions = suggestions
+    }
+}
+
+struct ShowPreparationSuggestion: Equatable, Identifiable {
+    let id: UUID
+    let text: String
+
+    init(id: UUID = UUID(), text: String) {
+        self.id = id
+        self.text = text
+    }
+}
+
+struct ShowPreparationGuide {
+    func sections(for show: Show) -> [ShowPreparationSection] {
+        var comfort = [
+            ShowPreparationSuggestion(text: "按当天温度留一件好收纳的外套，排队和散场时会更从容。"),
+            ShowPreparationSuggestion(text: "提前确认场馆对水杯、雨具和大件包的规则，少带难处理的东西。")
+        ]
+
+        if show.type == .musicFestival {
+            comfort.append(
+                ShowPreparationSuggestion(text: "音乐节停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。")
+            )
+        }
+
+        return [
+            ShowPreparationSection(
+                title: "天气和体感",
+                suggestions: comfort
+            ),
+            ShowPreparationSection(
+                title: "现场礼仪",
+                suggestions: [
+                    ShowPreparationSuggestion(text: "拍摄时留意身后视线，想记录也别挡住别人看向舞台。"),
+                    ShowPreparationSuggestion(text: "散场人多时慢一点，先和同行的人约好汇合点。")
+                ]
+            ),
+            ShowPreparationSection(
+                title: "注意事项",
+                suggestions: [
+                    ShowPreparationSuggestion(text: "把入场凭证、身份证件和必要电量提前确认好，到了门口就不用慌。"),
+                    ShowPreparationSuggestion(text: "如果散场后人多，提前和同行的人约好集合点。")
+                ]
+            )
+        ]
+    }
+}
+
 enum NotificationAuthorizationState: String, Codable, Equatable {
     case notDetermined
     case denied
@@ -36,6 +96,9 @@ struct NotificationPermissionPolicy {
 
 enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
     case fourteenDaysBefore
+    case sevenDaysBefore
+    case threeDaysBefore
+    case twoDaysBefore
     case oneDayBefore
     case showDay
 }
@@ -155,6 +218,9 @@ struct LocalNotificationScheduler {
     ) -> [(milestone: ShowNotificationMilestone, fireDate: Date)] {
         [
             (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20)),
+            (.sevenDaysBefore, dayRelativeToShow(timeState, offset: -7, hour: 20)),
+            (.threeDaysBefore, dayRelativeToShow(timeState, offset: -3, hour: 20)),
+            (.twoDaysBefore, dayRelativeToShow(timeState, offset: -2, hour: 20)),
             (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20)),
             (.showDay, showDayReminderDate(for: timeState))
         ].compactMap { milestone, fireDate in
@@ -193,10 +259,16 @@ struct LocalNotificationScheduler {
         switch milestone {
         case .fourteenDaysBefore:
             return "\(showName) 还有两周，可以先听听可能的曲目"
+        case .sevenDaysBefore:
+            return "\(showName) 还有 7 天，提前确认场馆对水杯、雨具和大件包的规则。顺便看看怎么去"
+        case .threeDaysBefore:
+            return "\(showName) 还有 3 天，把入场凭证、身份证件和必要电量提前确认好"
+        case .twoDaysBefore:
+            return "\(showName) 后天开场，按当天温度留一件好收纳的外套，排队散场更从容"
         case .oneDayBefore:
-            return "\(showName) 明天见，确认一下怎么去"
+            return "\(showName) 明天见，拍摄时留意身后视线，散场先和同行的人约好汇合点"
         case .showDay:
-            return "\(showName) 快开场了，看出门时间和准备"
+            return "\(showName) 快开场了，凭证电量再确认一遍，出门别慌"
         }
     }
 
@@ -204,8 +276,14 @@ struct LocalNotificationScheduler {
         switch milestone {
         case .fourteenDaysBefore:
             return "开场之前，先进入状态"
+        case .sevenDaysBefore:
+            return "该想想带什么了"
+        case .threeDaysBefore:
+            return "票证装备确认"
+        case .twoDaysBefore:
+            return "出门前清单"
         case .oneDayBefore:
-            return "明天见"
+            return "明天见，最后看一眼"
         case .showDay:
             return "快开场了"
         }
@@ -263,8 +341,8 @@ extension ShowNotificationMilestone {
     var deepLinkDestination: NotificationDeepLink.Destination {
         switch self {
         case .fourteenDaysBefore: return .candidateSongs
-        case .oneDayBefore: return .outboundPlan
-        case .showDay: return .home
+        case .sevenDaysBefore, .oneDayBefore: return .outboundPlan
+        case .threeDaysBefore, .twoDaysBefore, .showDay: return .home
         }
     }
 }

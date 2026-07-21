@@ -154,7 +154,6 @@ final class ShowFragmentTests: XCTestCase {
         _ = fragment.attachAudioReference(relativePath: "FragmentAudio/local-audio.m4a")
         let selection = CurrentShowSelection(selectedShowID: show.id)
         let roundTripPlan = RoundTripPlan(showID: show.id)
-        let preparationPlan = ShowPreparationPlan(showID: show.id, notes: "带耳塞")
         let candidateGroup = try CandidateSongGroup(showID: show.id, uncertaintyNote: "仅供参考")
         let candidateSong = try CandidateSong(
             groupID: candidateGroup.id,
@@ -178,7 +177,6 @@ final class ShowFragmentTests: XCTestCase {
         container.mainContext.insert(fragment)
         container.mainContext.insert(selection)
         container.mainContext.insert(roundTripPlan)
-        container.mainContext.insert(preparationPlan)
         container.mainContext.insert(candidateGroup)
         container.mainContext.insert(candidateSong)
         container.mainContext.insert(artistInterest)
@@ -191,7 +189,6 @@ final class ShowFragmentTests: XCTestCase {
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<ShowFragment>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<CurrentShowSelection>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<RoundTripPlan>()).isEmpty)
-        XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<ShowPreparationPlan>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<CandidateSongGroup>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<CandidateSong>()).isEmpty)
         XCTAssertTrue(try container.mainContext.fetch(FetchDescriptor<ArtistInterestItem>()).isEmpty)
@@ -207,7 +204,6 @@ final class ShowFragmentTests: XCTestCase {
             NotificationSchedulingState.self,
             ShowNotificationScheduleRecord.self,
             RoundTripPlan.self,
-            ShowPreparationPlan.self,
             CandidateSongGroup.self,
             CandidateSong.self,
             ArtistInterestItem.self,
