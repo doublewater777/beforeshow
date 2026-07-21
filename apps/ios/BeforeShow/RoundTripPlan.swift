@@ -336,13 +336,7 @@ struct MapKitTravelRouteProvider: TravelRouteProviding {
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin.coordinate))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: destination.coordinate))
         request.transportType = transportType
-
-        if calculation == .estimatedTime {
-            switch timing {
-            case .departAt(let date): request.departureDate = date
-            case .arriveAt(let date): request.arrivalDate = date
-            }
-        }
+        Self.applyTiming(timing, calculation: calculation, to: request)
 
         let directions = MKDirections(request: request)
         switch calculation {
@@ -361,6 +355,25 @@ struct MapKitTravelRouteProvider: TravelRouteProviding {
                 distanceMeters: Int(response.distance.rounded()),
                 steps: []
             )
+        }
+    }
+
+    /// 把目标时间写入 MapKit 请求。公交用 arrival/departure；驾车/步行/骑行用 departureDate 承载交通时段（不支持按到达时刻反算时，用目标时刻前 1 小时作为交通窗口种子）。
+    static func applyTiming(
+        _ timing: TravelRouteTiming,
+        calculation: MapKitRouteCalculation,
+        to request: MKDirections.Request
+    ) {
+        switch timing {
+        case .departAt(let date):
+            request.departureDate = date
+        case .arriveAt(let date):
+            if calculation == .estimatedTime {
+                request.arrivalDate = date
+            } else {
+                // MapKit route ETA is traffic-sensitive via departureDate, not arrivalDate.
+                request.departureDate = date.addingTimeInterval(-3_600)
+            }
         }
     }
 }

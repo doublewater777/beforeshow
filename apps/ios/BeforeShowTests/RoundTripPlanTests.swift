@@ -1,3 +1,4 @@
+import MapKit
 import XCTest
 @testable import BeforeShow
 
@@ -77,6 +78,47 @@ final class RoundTripPlanTests: XCTestCase {
         let copy = HomeFeatureCopySource.copy(for: .route, phase: .ended)
         XCTAssertEqual(copy.note, "填好目的地和离开时间")
         XCTAssertEqual(copy.cta, "备好返程")
+    }
+
+    func testInvalidPlanDoesNotFullyRestorePlacesAndTimes() {
+        var invalid = makeTravelPlan(direction: .outbound)
+        invalid.validity = .needsRegeneration
+        let valid = makeTravelPlan(direction: .outbound)
+
+        XCTAssertFalse(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: invalid))
+        XCTAssertTrue(TravelPlanFormValidation.shouldRestorePlacesAndTimes(from: valid))
+    }
+
+    func testFormDirectionIsResolvedOnceFromNowNotLiveClock() throws {
+        let show = try Show(
+            name: "方向测试",
+            date: Date(timeIntervalSince1970: 18_000),
+            startTime: Date(timeIntervalSince1970: 18_000),
+            type: .concert
+        )
+        let beforeStart = Date(timeIntervalSince1970: 17_000)
+        let afterStart = Date(timeIntervalSince1970: 19_000)
+
+        XCTAssertEqual(RoundTripPlanDirectionResolver.resolve(show: show, now: beforeStart), .outbound)
+        XCTAssertEqual(RoundTripPlanDirectionResolver.resolve(show: show, now: afterStart), .return)
+    }
+
+    func testMapKitAppliesDepartAtToAllModesAndSeedsRouteArriveAt() {
+        let depart = Date(timeIntervalSince1970: 20_000)
+        let arrive = Date(timeIntervalSince1970: 30_000)
+
+        let departRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.departAt(depart), calculation: .route, to: departRequest)
+        XCTAssertEqual(departRequest.departureDate, depart)
+
+        let transitArriveRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.arriveAt(arrive), calculation: .estimatedTime, to: transitArriveRequest)
+        XCTAssertEqual(transitArriveRequest.arrivalDate, arrive)
+
+        let drivingArriveRequest = MKDirections.Request()
+        MapKitTravelRouteProvider.applyTiming(.arriveAt(arrive), calculation: .route, to: drivingArriveRequest)
+        XCTAssertEqual(drivingArriveRequest.departureDate, arrive.addingTimeInterval(-3_600))
+        XCTAssertNil(drivingArriveRequest.arrivalDate)
     }
 
     private func makeTravelPlan(
