@@ -288,9 +288,12 @@ final class Show {
         guard !trimmedName.isEmpty else {
             throw ShowValidationError.emptyName
         }
+        guard let startTime = draft.startTime else {
+            throw ShowValidationError.missingStartTime
+        }
         guard hasValidEndTime(
             date: draft.date,
-            startTime: draft.startTime,
+            startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime
         ) else {
@@ -300,7 +303,7 @@ final class Show {
         return PreparedShowDraft(
             name: trimmedName,
             date: draft.date,
-            startTime: draft.startTime,
+            startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime,
             city: trimmedOptional(draft.city),

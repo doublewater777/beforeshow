@@ -17,7 +17,7 @@ enum ShowDraftValidationError: Error, Equatable {
 struct ShowDraft: Equatable {
     var name: String
     var date: Date
-    var startTime: Date
+    var startTime: Date?
     var endDate: Date?
     var endTime: Date?
     var city: String
@@ -33,7 +33,7 @@ struct ShowDraft: Equatable {
     init(
         name: String = "",
         date: Date = Date(),
-        startTime: Date = Date(),
+        startTime: Date? = nil,
         endDate: Date? = nil,
         endTime: Date? = nil,
         city: String = "",
@@ -101,7 +101,8 @@ struct ShowDraft: Equatable {
     }
 
     func hasValidEndTime(calendar: Calendar = .current) -> Bool {
-        Show.hasValidEndTime(
+        guard let startTime else { return false }
+        return Show.hasValidEndTime(
             date: date,
             startTime: startTime,
             endDate: endDate,
@@ -121,10 +122,6 @@ struct ShowScreenshotRecognitionService {
             .filter { !$0.isEmpty }
             .filter { !containsSensitiveTicketField($0) }
 
-        guard let date = firstDate(in: lines) else {
-            return nil
-        }
-
         let combinedText = lines.joined(separator: "\n")
         let name = value(afterAnyPrefix: [
             "演出名称",
@@ -136,10 +133,8 @@ struct ShowScreenshotRecognitionService {
             "EVENT"
         ], in: lines) ?? inferredName(from: lines)
 
-        var draft = ShowDraft(name: name, date: date, source: .screenshotOCR)
-        draft.startTime = firstTime(on: date, in: lines) ?? date
-        draft.city = value(afterAnyPrefix: ["城市"], in: lines) ?? inferredCity(from: lines)
-        draft.venueName = value(afterAnyPrefix: [
+        let city = value(afterAnyPrefix: ["城市"], in: lines) ?? inferredCity(from: lines)
+        let venueName = value(afterAnyPrefix: [
             "演出场馆",
             "演出地点",
             "场馆",
@@ -148,7 +143,7 @@ struct ShowScreenshotRecognitionService {
             "Venue",
             "VENUE"
         ], in: lines) ?? inferredVenue(from: lines)
-        draft.artist = value(afterAnyPrefix: [
+        let artist = value(afterAnyPrefix: [
             "演出艺人",
             "艺人",
             "阵容",
@@ -157,16 +152,22 @@ struct ShowScreenshotRecognitionService {
             "ARTIST",
             "ARTISTS"
         ], in: lines) ?? ""
-        draft.seatSection = value(afterAnyPrefix: [
-            "座位",
-            "座席",
-            "区域",
-            "票档",
-            "票种",
-            "看台",
-            "Seat",
-            "SEAT"
-        ], in: lines) ?? ""
+        let recognizedDate = firstDate(in: lines)
+        guard recognizedDate != nil
+                || !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        let date = recognizedDate ?? calendar.startOfDay(for: Date())
+        var draft = ShowDraft(name: name, date: date, source: .screenshotOCR)
+        draft.startTime = recognizedDate.flatMap { firstTime(on: $0, in: lines) }
+        draft.city = city
+        draft.venueName = venueName
+        draft.artist = artist
+        draft.seatSection = ""
         draft.type = inferredType(from: combinedText)
         return draft
     }
@@ -670,7 +671,7 @@ struct ShowLinkDraftParser {
         )
 
         if let time = query["time"] {
-            draft.startTime = parseTime(time, on: date) ?? date
+            draft.startTime = parseTime(time, on: date)
         }
         if let endDate = query["endDate"] {
             draft.endDate = parseDate(endDate)

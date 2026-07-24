@@ -87,7 +87,9 @@ struct MyShowsListView: View {
             }
             .bsToastOverlay(toast, bottomPadding: 28)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet()
+                AddShowCoordinatorSheet {
+                    presentToast(.success, message: "已放入当前现场")
+                }
             }
         }
     }
@@ -444,7 +446,7 @@ struct ShowDetailView: View {
                 draft: ShowDraft(show: show),
                 saveTitle: "保存"
             ) { draft in
-                apply(draft)
+                try await apply(draft)
             }
         }
         .sheet(item: $travelSheetDirection) { direction in
@@ -503,9 +505,13 @@ struct ShowDetailView: View {
     }
 
     private func deleteShow() {
+        let coverImageURL = show.coverImageURL
         do {
             try LocalAppDataDeletionService(audioStorage: .applicationSupport()).deleteShow(show, in: modelContext)
             try modelContext.save()
+            if let coverImageURL {
+                ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+            }
             showsDeleteConfirmation = false
             dismiss()
         } catch {
@@ -835,7 +841,8 @@ struct ShowDetailView: View {
         }
     }
 
-    private func apply(_ draft: ShowDraft) {
+    @MainActor
+    private func apply(_ draft: ShowDraft) async throws {
         do {
             try show.apply(draft)
             if show.type == .musicFestival {
@@ -846,9 +853,10 @@ struct ShowDetailView: View {
                     in: modelContext
                 )
             }
-            try? modelContext.save()
+            try modelContext.save()
         } catch {
-            // Invalid draft is rejected; editor only enables ready drafts.
+            modelContext.rollback()
+            throw error
         }
     }
 }

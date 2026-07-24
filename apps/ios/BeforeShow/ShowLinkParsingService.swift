@@ -73,9 +73,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         )
 
         if let startTime = draft.startTime, !startTime.isEmpty {
-            showDraft.startTime = parseTime(startTime, on: date) ?? date
+            showDraft.startTime = parseTime(startTime, on: date)
         } else {
-            showDraft.startTime = date
+            showDraft.startTime = nil
         }
         if let endDate = draft.endDate, !endDate.isEmpty {
             showDraft.endDate = parseDate(endDate)

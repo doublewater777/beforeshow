@@ -28,6 +28,7 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 - The active implementation cycle `.builder/cycles/2026-06-23-home-visual-redesign/` tests whether a theatrical, two-entry home surface improves current-show clarity without hiding the broader tool loop.
 - The active implementation cycle `.builder/cycles/2026-07-19-global-transit-eta/` tests whether a globally available transit ETA with an Apple Maps handoff is enough for users to save a useful trip plan without in-app transfer details.
 - The active verification cycle `.builder/cycles/2026-07-20-setlist-reliability-verification/` tests whether generated setlist guesses remain trustworthy across streaming, cancellation, festival lineup changes, and editing.
+- The parallel reliability cycle `.builder/cycles/2026-07-23-add-show-flow-reliability/` verifies that adding the first real show produces valid countdown data, one current focus, and working notification follow-through before the Pro save limit is tested.
 
 ## Open Questions
 

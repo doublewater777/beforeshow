@@ -54,6 +54,9 @@ enum BSColor {
         static let candidate = Color(red: 1.0, green: 0.48, blue: 0.72)  // pink
         static let prepare = Color(red: 0.34, green: 0.84, blue: 0.56)   // mint
         static let fragment = Color(red: 1.0, green: 0.42, blue: 0.42)   // coral
+        static let info = travel
+        static let violet = video
+        static let danger = fragment
     }
 
     /// Home V3 palette from the 2026-07 feature-cards design: warm tungsten gold

@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var hasFinishedSplash = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isShowingFirstShowAdd = false
+    @State private var addShowToast: BSToastPayload?
 
     var body: some View {
         ZStack {
@@ -32,19 +33,37 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
+        .bsToastOverlay(addShowToast, bottomPadding: 28)
         .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
             hasCompletedOnboarding = true
         }) {
-            AddShowCoordinatorSheet()
+            AddShowCoordinatorSheet {
+                presentAddShowSuccess()
+            }
         }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
+            if ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") {
+                hasCompletedOnboarding = true
+                isShowingFirstShowAdd = true
+            }
         }
         #endif
     }
 
     @Query(sort: \Show.date) private var shows: [Show]
+
+    private func presentAddShowSuccess() {
+        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        addShowToast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if addShowToast == payload {
+                addShowToast = nil
+            }
+        }
+    }
 
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
@@ -120,6 +139,7 @@ private struct CurrentShowHomeView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
+    @State private var toast: BSToastPayload?
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -141,9 +161,23 @@ private struct CurrentShowHomeView: View {
                     })
                 }
             }
+            .bsToastOverlay(toast, bottomPadding: 28)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet()
+                AddShowCoordinatorSheet {
+                    presentAddShowSuccess()
+                }
+            }
+        }
+    }
+
+    private func presentAddShowSuccess() {
+        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload {
+                toast = nil
             }
         }
     }
