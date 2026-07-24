@@ -497,10 +497,16 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    /// 设计稿 event-date 行：日期时间 · 约 X 分钟 / 小时（音乐节跨天已有「每日 HH:mm」，不追加时长）。
+    /// 设计稿 event-date 行：日期时间 · 约 X 分钟 / 小时（跨天「每日 HH:mm」已含区间，不追加时长）。
     private func dateLine(timeState: CurrentShowTimeState) -> String {
         let base = formatter.dateText(for: show)
-        guard show.type != .musicFestival, let start = timeState.effectiveStartTime else {
+        let isMultiDayWithoutEndClock: Bool = {
+            guard let endDay = timeState.effectiveEndDate else { return false }
+            let startDay = Calendar.current.startOfDay(for: timeState.effectiveDate)
+            let endStart = Calendar.current.startOfDay(for: endDay)
+            return endStart > startDay && timeState.effectiveEndTime == nil
+        }()
+        guard !isMultiDayWithoutEndClock, let start = timeState.effectiveStartTime else {
             return base
         }
         if let end = timeState.effectiveEndTime, end > start {
@@ -517,7 +523,7 @@ private struct CurrentShowContentView: View {
             }
             return "\(base) · \(duration)"
         }
-        return "\(base) · 约 \(CurrentShowTimeState.defaultDurationHours(for: show.type)) 小时"
+        return "\(base) · 约 \(CurrentShowTimeState.defaultDurationHours) 小时"
     }
 
     private var locationText: String {
@@ -804,7 +810,6 @@ private enum DebugSampleShowSeeder {
                 venueName: "南京奥体中心体育场",
                 artist: "周杰伦",
                 coverImageURL: "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp",
-                type: .concert,
                 source: .link
             ),
             ShowDraft(
@@ -814,7 +819,6 @@ private enum DebugSampleShowSeeder {
                 city: "湖州",
                 venueName: "吴乐湾音乐广场",
                 artist: "刘雨昕, 姚琛, 二手玫瑰, DOUDOU, 椿乐队, 裁缝铺, 麻园诗人, 梅卡德尔, 石岩, 声音碎片, 声音玩具",
-                type: .musicFestival,
                 source: .link
             )
         ]

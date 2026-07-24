@@ -952,7 +952,8 @@ private struct ShowDraftFormFields: View {
         self.includesSeatSection = includesSeatSection
         self.onCoverImported = onCoverImported
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
-        _hasEndTime = State(initialValue: initialDraft.endTime != nil)
+        // End section covers both end clock and multi-day end date.
+        _hasEndTime = State(initialValue: initialDraft.endTime != nil || initialDraft.endDate != nil)
         _endDate = State(initialValue: initialEndDate)
         _endTime = State(initialValue: initialDraft.endTime ?? fallbackEnd)
     }
@@ -986,11 +987,6 @@ private struct ShowDraftFormFields: View {
                     text: $draft.name,
                     isRequired: true
                 )
-
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                    AddShowFieldLabel(title: "类型", isRequired: false)
-                    AddShowTypePicker(selection: $draft.type)
-                }
 
                 AddShowLabeledTextField(
                     title: "艺人 / 阵容",
@@ -1082,10 +1078,8 @@ private struct ShowDraftFormFields: View {
         }
         .onChange(of: startTime) { _, _ in
             draft.startTime = mergedStartTime()
-            if draft.type == .musicFestival {
-                syncEndTimeToDraft(isEnabled: hasEndTime)
-            } else if !hasEndTime {
-                syncEndTimeToDraft(isEnabled: false)
+            if hasEndTime {
+                syncEndTimeToDraft(isEnabled: true)
             }
         }
         .onChange(of: endTime) { _, _ in
@@ -1094,9 +1088,10 @@ private struct ShowDraftFormFields: View {
             }
         }
         .onChange(of: endDate) { _, _ in
-            if draft.type == .musicFestival {
-                syncEndTimeToDraft(isEnabled: hasEndTime)
-            } else if hasEndTime {
+            if hasEndTime {
+                if endDate < draft.date {
+                    endDate = draft.date
+                }
                 syncEndTimeToDraft(isEnabled: true)
             }
         }
@@ -1104,24 +1099,11 @@ private struct ShowDraftFormFields: View {
             if draft.startTime != nil {
                 draft.startTime = mergedStartTime()
             }
-            if draft.type == .musicFestival,
-               endDate < draft.date {
-                endDate = draft.date
-            }
-            if draft.type == .musicFestival {
-                syncEndTimeToDraft(isEnabled: hasEndTime)
-            } else if hasEndTime {
+            if hasEndTime {
+                if endDate < draft.date {
+                    endDate = draft.date
+                }
                 syncEndTimeToDraft(isEnabled: true)
-            }
-        }
-        .onChange(of: draft.type) { _, _ in
-            if draft.type == .musicFestival {
-                endDate = draft.endDate ?? max(endDate, draft.date)
-                draft.endDate = endDate
-                draft.endTime = hasEndTime ? mergedTime(on: endDate, time: endTime) : nil
-            } else if !hasEndTime {
-                draft.endDate = nil
-                draft.endTime = nil
             }
         }
         .onChange(of: selectedCoverItem) { _, newItem in
@@ -1137,14 +1119,16 @@ private struct ShowDraftFormFields: View {
     }
 
     private func syncEndTimeToDraft(isEnabled: Bool) {
-        if draft.type == .musicFestival {
-            draft.endDate = max(endDate, draft.date)
-            draft.endTime = isEnabled ? mergedTime(on: draft.endDate ?? endDate, time: endTime) : nil
+        guard isEnabled else {
+            draft.endDate = nil
+            draft.endTime = nil
             return
         }
 
-        draft.endDate = isEnabled ? endDate : nil
-        draft.endTime = isEnabled ? mergedTime(on: endDate, time: endTime) : nil
+        let resolvedEndDay = max(endDate, draft.date)
+        endDate = resolvedEndDay
+        draft.endDate = resolvedEndDay
+        draft.endTime = mergedTime(on: resolvedEndDay, time: endTime)
     }
 
     private func mergedTime(on date: Date, time: Date) -> Date {
@@ -1318,36 +1302,18 @@ private struct AddShowScheduleFields: View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             LazyVGrid(columns: columns, alignment: .leading, spacing: BSSpacing.md) {
                 AddShowDatePickerField(
-                    title: draft.type == .musicFestival ? "开始日期" : "开场日期",
+                    title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date
                 )
 
-                if draft.type == .musicFestival {
-                    AddShowDatePickerField(
-                        title: "结束日期",
-                        selection: $endDate,
-                        displayedComponents: .date
-                    )
-                } else {
-                    AddShowStartTimeField(
-                        title: "开场时间",
-                        startTime: $startTime,
-                        isConfirmed: isStartTimeConfirmed,
-                        onConfirm: onConfirmStartTime
-                    )
-                }
+                AddShowStartTimeField(
+                    title: "开场时间",
+                    startTime: $startTime,
+                    isConfirmed: isStartTimeConfirmed,
+                    onConfirm: onConfirmStartTime
+                )
             }
-
-            AddShowStartTimeField(
-                title: "每日开场时间",
-                startTime: $startTime,
-                isConfirmed: isStartTimeConfirmed,
-                onConfirm: onConfirmStartTime
-            )
-            .opacity(draft.type == .musicFestival ? 1 : 0)
-            .frame(height: draft.type == .musicFestival ? nil : 0)
-            .accessibilityHidden(draft.type != .musicFestival)
 
             AddShowEndTimeField(
                 hasEndTime: $hasEndTime,
@@ -1355,8 +1321,8 @@ private struct AddShowScheduleFields: View {
                 endTime: $endTime
             )
         }
-        .frame(maxWidth: .infinity, minHeight: 258, alignment: .top)
-        .animation(.easeInOut(duration: 0.18), value: draft.type)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: 0.18), value: hasEndTime)
     }
 }
 
@@ -1434,7 +1400,7 @@ private struct AddShowEndTimeField: View {
                     )
 
                     VStack(alignment: .leading, spacing: 6) {
-                        AddShowFieldLabel(title: "结束", isRequired: false)
+                        AddShowFieldLabel(title: "结束时间", isRequired: false)
                         DatePicker("", selection: $endTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .tint(BSColor.Accent.violet)
@@ -1444,7 +1410,7 @@ private struct AddShowEndTimeField: View {
                     .frame(maxWidth: .infinity)
                 }
             } else {
-                Text("未填写时，状态判断会按开场当天晚间兜底")
+                Text("可选。跨天或跨午夜时打开，结束日期可以和开场日不同。")
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.textTertiary)
                     .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -1508,37 +1474,6 @@ private struct AddShowCoverImportField: View {
             }
             .buttonStyle(.plain)
             .disabled(isImporting)
-        }
-    }
-}
-
-private struct AddShowTypePicker: View {
-    @Binding var selection: ShowType
-
-    var body: some View {
-        HStack(spacing: BSSpacing.sm) {
-            ForEach(ShowType.allCases, id: \.self) { type in
-                Button {
-                    selection = type
-                } label: {
-                    Text(type.displayName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(selection == type ? BSColor.textPrimary : BSColor.textTertiary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .frame(maxWidth: .infinity)
-                        .frame(minHeight: BSLayout.minTouchTarget)
-                        .background(selection == type ? Color.white.opacity(0.11) : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(selection == type ? Color.white.opacity(0.20) : BSColor.borderProminent, lineWidth: 1)
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 12))
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selection == type ? .isSelected : [])
-            }
         }
     }
 }

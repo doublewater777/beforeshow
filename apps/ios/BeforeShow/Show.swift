@@ -1,22 +1,6 @@
 import Foundation
 import SwiftData
 
-enum ShowType: String, CaseIterable, Codable, Equatable {
-    case concert
-    case livehouse
-    case musicFestival
-}
-
-extension ShowType {
-    var displayName: String {
-        switch self {
-        case .concert: return "演唱会"
-        case .livehouse: return "Livehouse"
-        case .musicFestival: return "音乐节"
-        }
-    }
-}
-
 enum ShowChangeStatus: String, CaseIterable, Codable, Equatable {
     case scheduled
     case postponed
@@ -47,7 +31,11 @@ struct ShowDisplayFormatter {
             effectiveStartTime: startClock
         )
 
-        if show.type == .musicFestival, let endDay {
+        // Multi-day range without an explicit end clock: show day span + daily start.
+        // (Not tied to event category — any show can span days.)
+        if let endDay,
+           calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay),
+           endClock == nil {
             let range = dayRangeText(from: startDay, to: endDay)
             return "\(range) · 每日 \(timeText(startClock))"
         }
@@ -57,7 +45,8 @@ struct ShowDisplayFormatter {
 
         if let endClock {
             text += " - \(shortDateTimeText(endClock, includeDateWhenSameDayAs: startDay))"
-        } else if let endDay {
+        } else if let endDay,
+                  calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay) {
             text += " - \(shortDateText(endDay))"
         }
 
@@ -129,16 +118,7 @@ final class Show {
     var updatedAt: Date
     var postponedDate: Date?
 
-    private var typeRawValue: String
     private var changeStatusRawValue: String
-
-    var type: ShowType {
-        get { ShowType(rawValue: typeRawValue) ?? .concert }
-        set {
-            typeRawValue = newValue.rawValue
-            touch()
-        }
-    }
 
     var changeStatus: ShowChangeStatus {
         get { ShowChangeStatus(rawValue: changeStatusRawValue) ?? .scheduled }
@@ -174,7 +154,6 @@ final class Show {
         seatSection: String? = nil,
         coverImageURL: String? = nil,
         artistAvatarURLs: [String] = [],
-        type: ShowType,
         changeStatus: ShowChangeStatus = .scheduled,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
@@ -205,7 +184,6 @@ final class Show {
         self.seatSection = seatSection
         self.coverImageURL = coverImageURL
         self.artistAvatarURLStorage = artistAvatarURLs
-        self.typeRawValue = type.rawValue
         self.changeStatusRawValue = changeStatus.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -247,7 +225,6 @@ final class Show {
         seatSection = prepared.seatSection
         coverImageURL = prepared.coverImageURL
         artistAvatarURLs = prepared.artistAvatarURLs
-        type = prepared.type
         touch()
     }
 
@@ -281,8 +258,7 @@ final class Show {
             artist: trimmedOptional(draft.artist),
             seatSection: trimmedOptional(draft.seatSection),
             coverImageURL: trimmedOptional(draft.coverImageURL),
-            artistAvatarURLs: draft.artistAvatarURLs,
-            type: draft.type
+            artistAvatarURLs: draft.artistAvatarURLs
         )
     }
 
@@ -357,5 +333,4 @@ struct PreparedShowDraft: Equatable {
     let seatSection: String?
     let coverImageURL: String?
     let artistAvatarURLs: [String]
-    let type: ShowType
 }

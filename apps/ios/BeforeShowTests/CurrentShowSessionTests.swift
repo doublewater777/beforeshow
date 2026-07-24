@@ -61,8 +61,7 @@ final class CurrentShowSessionTests: XCTestCase {
         try Show(
             name: name,
             date: makeDate(year: 2026, month: 6, day: day),
-            startTime: makeDate(year: 2026, month: 6, day: day, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 6, day: day, hour: 20)
         )
     }
 

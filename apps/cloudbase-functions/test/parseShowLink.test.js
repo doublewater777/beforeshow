@@ -178,7 +178,6 @@ describe("Damai mtop parser", () => {
     assert.equal(draft.city, "杭州");
     assert.equal(draft.venueName, "杭州奥体中心网球中心");
     assert.equal(draft.artist, "喻言");
-    assert.equal(draft.type, "concert");
     assert.equal(draft.date, "2026-08-22");
     assert.equal(draft.startTime, "19:00");
     assert.equal(draft.priceRange, "380-1580");
@@ -284,7 +283,6 @@ describe("ShowStart parser", () => {
     assert.equal(draft.city, "杭州");
     assert.equal(draft.venueName, "酒球会");
     assert.equal(draft.artist, "硬鸡乐队, 开膛RIPPER");
-    assert.equal(draft.type, "musicFestival");
     assert.equal(draft.date, "2026-06-27");
     assert.equal(draft.startTime, "19:00");
     assert.equal(draft.priceRange, "99 - 888");
@@ -318,7 +316,6 @@ describe("ShowStart parser", () => {
     });
 
     assert.equal(draft.name, "康士坦的变化球「犬的视线」 2026巡演 杭州站");
-    assert.equal(draft.type, "livehouse");
     assert.equal(draft.artist, "康士坦的变化球");
     assert.deepEqual(draft.artistAvatarURLs, ["https://example.com/kst.jpg"]);
   });

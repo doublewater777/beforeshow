@@ -27,7 +27,6 @@ struct ShowDraft: Equatable {
     var seatSection: String
     var coverImageURL: String
     var artistAvatarURLs: [String]
-    var type: ShowType
     var source: ShowDraftSource
 
     init(
@@ -43,7 +42,6 @@ struct ShowDraft: Equatable {
         seatSection: String = "",
         coverImageURL: String = "",
         artistAvatarURLs: [String] = [],
-        type: ShowType = .concert,
         source: ShowDraftSource = .manual
     ) {
         self.name = name
@@ -58,7 +56,6 @@ struct ShowDraft: Equatable {
         self.seatSection = seatSection
         self.coverImageURL = coverImageURL
         self.artistAvatarURLs = artistAvatarURLs
-        self.type = type
         self.source = source
     }
 
@@ -76,7 +73,6 @@ struct ShowDraft: Equatable {
             seatSection: show.seatSection ?? "",
             coverImageURL: show.coverImageURL ?? "",
             artistAvatarURLs: show.artistAvatarURLs,
-            type: show.type,
             source: .manual
         )
     }
@@ -95,8 +91,7 @@ struct ShowDraft: Equatable {
             artist: prepared.artist,
             seatSection: prepared.seatSection,
             coverImageURL: prepared.coverImageURL,
-            artistAvatarURLs: prepared.artistAvatarURLs,
-            type: prepared.type
+            artistAvatarURLs: prepared.artistAvatarURLs
         )
     }
 
@@ -168,7 +163,6 @@ struct ShowScreenshotRecognitionService {
         draft.venueName = venueName
         draft.artist = artist
         draft.seatSection = ""
-        draft.type = inferredType(from: combinedText)
         return draft
     }
 
@@ -395,18 +389,6 @@ struct ShowScreenshotRecognitionService {
         }
 
         return ""
-    }
-
-    private func inferredType(from text: String) -> ShowType {
-        if text.localizedCaseInsensitiveContains("Livehouse") || text.localizedCaseInsensitiveContains("live house") {
-            return .livehouse
-        }
-
-        if text.contains("音乐节") || text.localizedCaseInsensitiveContains("festival") {
-            return .musicFestival
-        }
-
-        return .concert
     }
 
     private func cleanedFieldValue(_ value: String) -> String {
@@ -666,7 +648,6 @@ struct ShowLinkDraftParser {
             city: query["city"] ?? "",
             venueName: query["venue"] ?? "",
             artist: query["artist"] ?? "",
-            type: type(from: query["type"]),
             source: .link
         )
 
@@ -703,10 +684,5 @@ struct ShowLinkDraftParser {
         let parts = string.split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2 else { return nil }
         return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: date)
-    }
-
-    private func type(from rawValue: String?) -> ShowType {
-        guard let rawValue else { return .concert }
-        return ShowType(rawValue: rawValue) ?? .concert
     }
 }

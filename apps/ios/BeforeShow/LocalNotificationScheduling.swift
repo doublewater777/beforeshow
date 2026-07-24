@@ -33,9 +33,9 @@ struct ShowPreparationGuide {
             ShowPreparationSuggestion(text: "提前确认场馆对水杯、雨具和大件包的规则，少带难处理的东西。")
         ]
 
-        if show.type == .musicFestival {
+        if isMultiDay(show) {
             comfort.append(
-                ShowPreparationSuggestion(text: "音乐节停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。")
+                ShowPreparationSuggestion(text: "跨天停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。")
             )
         }
 
@@ -59,6 +59,11 @@ struct ShowPreparationGuide {
                 ]
             )
         ]
+    }
+
+    private func isMultiDay(_ show: Show, calendar: Calendar = .current) -> Bool {
+        guard let endDate = show.endDate else { return false }
+        return calendar.startOfDay(for: endDate) > calendar.startOfDay(for: show.date)
     }
 }
 

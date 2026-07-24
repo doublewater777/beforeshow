@@ -68,7 +68,6 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             artist: draft.artist,
             coverImageURL: draft.coverImageURL ?? "",
             artistAvatarURLs: draft.artistAvatarURLs ?? [],
-            type: ShowType(rawValue: draft.type) ?? .concert,
             source: .link
         )
 
@@ -136,6 +135,5 @@ struct LinkParsedDraft: Decodable {
     let coverImageURL: String?
     let artistAvatarURLs: [String]?
     let priceRange: String
-    let type: String
     let source: String
 }

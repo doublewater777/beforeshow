@@ -42,8 +42,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let show = try Show(
             name: "夏夜演唱会",
             date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
         )
 
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
@@ -63,8 +62,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let show = try Show(
             name: "有开场时间的现场",
             date: makeDate(year: 2026, month: 6, day: 20),
-            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20),
-            type: .livehouse
+            startTime: makeDate(year: 2026, month: 6, day: 20, hour: 20)
         )
 
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
@@ -82,8 +80,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let show = try Show(
             name: "延期保留开场时间的现场",
             date: makeDate(year: 2026, month: 6, day: 10),
-            startTime: makeDate(year: 2026, month: 6, day: 10, hour: 19),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 6, day: 10, hour: 19)
         )
         show.markPostponed(newDate: makeDate(year: 2026, month: 6, day: 25, hour: 0))
 
@@ -104,16 +101,14 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let canceled = try Show(
             name: "取消现场",
             date: makeDate(year: 2026, month: 6, day: 25),
-            startTime: Date(),
-            type: .concert
+            startTime: Date()
         )
         canceled.markCanceled()
 
         let postponedWithoutNewDate = try Show(
             name: "未定延期现场",
             date: makeDate(year: 2026, month: 6, day: 25),
-            startTime: Date(),
-            type: .concert
+            startTime: Date()
         )
         postponedWithoutNewDate.markPostponed(newDate: nil)
 
@@ -138,8 +133,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let newShow = try Show(
             name: "新的当前现场",
             date: makeDate(year: 2026, month: 6, day: 25),
-            startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19),
-            type: .musicFestival
+            startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19)
         )
 
         let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
@@ -188,8 +182,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let show = try Show(
             name: "深链现场",
             date: makeDate(year: 2026, month: 7, day: 20),
-            startTime: makeDate(year: 2026, month: 7, day: 20, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 20, hour: 20)
         )
 
         let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
@@ -230,7 +223,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             year: 2026, month: 6, day: 25, hour: 20
         ).date!
         
-        let show = try Show(name: "跨时区通知现场", date: showDateUTC, startTime: Date(), type: .concert)
+        let show = try Show(name: "跨时区通知现场", date: showDateUTC, startTime: Date())
         
         // Scenario A: UTC Calendar
         var utcCalendar = Calendar(identifier: .gregorian)

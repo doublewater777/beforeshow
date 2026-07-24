@@ -26,7 +26,6 @@ describe("parseShowLink entry", () => {
 
     assert.equal(result.ok, true);
     assert.equal(result.draft.source, "damai");
-    assert.equal(result.draft.type, "concert");
     assert.equal(result.auth.accountless, true);
   });
 

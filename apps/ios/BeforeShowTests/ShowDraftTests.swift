@@ -17,7 +17,6 @@ final class ShowDraftTests: XCTestCase {
             date: date,
             startTime: makeDate(year: 2026, month: 7, day: 3, hour: 19, minute: 30),
             venueName: "识别场馆",
-            type: .concert,
             source: .screenshotOCR
         )
 
@@ -30,7 +29,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(show.name, "用户改好的现场")
         XCTAssertEqual(show.venueName, "用户确认的场馆")
         XCTAssertEqual(show.artist, "用户确认的艺人")
-        XCTAssertEqual(show.type, .concert)
     }
 
     func testDraftPassesEndDateAndEndTimeIntoShow() throws {
@@ -40,7 +38,6 @@ final class ShowDraftTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 7, day: 8, hour: 23),
             endDate: makeDate(year: 2026, month: 7, day: 9),
             endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1),
-            type: .livehouse,
             source: .manual
         )
 
@@ -64,7 +61,6 @@ final class ShowDraftTests: XCTestCase {
             name: "默认结束时间现场",
             date: date,
             startTime: startTime,
-            type: .concert,
             source: .manual
         )
 
@@ -80,8 +76,7 @@ final class ShowDraftTests: XCTestCase {
             date: makeDate(year: 2026, month: 7, day: 8),
             startTime: makeDate(year: 2026, month: 7, day: 8, hour: 23),
             endDate: makeDate(year: 2026, month: 7, day: 9),
-            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1),
-            type: .livehouse
+            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1)
         )
 
         let draft = ShowDraft(show: show)
@@ -112,7 +107,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.venueName, "春浪草地")
         XCTAssertEqual(draft.artist, "落日飞车 / deca joins")
         XCTAssertTrue(draft.seatSection.isEmpty)
-        XCTAssertEqual(draft.type, .musicFestival)
         XCTAssertFalse(draft.name.contains("SECRET"))
     }
 
@@ -161,7 +155,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.startTime, makeDate(year: 2026, month: 7, day: 4, hour: 19))
         XCTAssertEqual(draft.city, "北京市")
         XCTAssertTrue(draft.venueName.contains("华熙生物") || draft.venueName.contains("华黑生物"))
-        XCTAssertEqual(draft.type, .concert)
     }
 
     func testDamaiPosterOCRExtractsSelectedTourStopInsteadOfOtherDates() throws {
@@ -187,7 +180,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.startTime, makeDate(year: 2026, month: 9, day: 12, hour: 19, minute: 30))
         XCTAssertEqual(draft.city, "杭州市")
         XCTAssertTrue(draft.venueName.contains("金沙湖大剧院"))
-        XCTAssertEqual(draft.type, .concert)
     }
 
     func testShowstartDetailOCRIgnoresPhoneStatusTimeAndExtractsLivehouseInfo() throws {
@@ -216,7 +208,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.startTime, makeDate(year: 2026, month: 6, day: 16, hour: 20))
         XCTAssertEqual(draft.city, "杭州市")
         XCTAssertTrue(draft.venueName.contains("酒球会"))
-        XCTAssertEqual(draft.type, .concert)
     }
 
     func testDamaiDetailOCRPrefersCurrentPerformanceDateOverTourDateList() throws {
@@ -283,7 +274,6 @@ final class ShowDraftTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 7, day: 3, hour: 20),
             city: "成都",
             venueName: "小酒馆",
-            type: .livehouse,
             source: .link
         )
         let parser = ShowLinkDraftParser(service: MockShowLinkParsingService(result: expectedDraft))
@@ -296,7 +286,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.startTime, makeDate(year: 2026, month: 7, day: 3, hour: 20))
         XCTAssertEqual(draft.city, "成都")
         XCTAssertEqual(draft.venueName, "小酒馆")
-        XCTAssertEqual(draft.type, .livehouse)
     }
 
     func testLinkParserPropagatesUnsupportedSourceError() async {
@@ -344,13 +333,10 @@ final class ShowDraftTests: XCTestCase {
             venueName: "酒球会",
             artist: "硬鸡乐队, 开膛RIPPER",
             coverImageURL: "https://example.com/showstart-cover.jpg",
-            type: .musicFestival,
             source: .link
         )
 
         let show = try draft.makeShow()
-
-        XCTAssertEqual(show.type, .musicFestival)
         XCTAssertEqual(show.endDate, makeDate(year: 2026, month: 6, day: 27))
         XCTAssertNil(show.endTime)
     }
@@ -372,7 +358,6 @@ final class ShowDraftTests: XCTestCase {
                 "coverImageURL": "https://example.com/show-cover.jpg",
                 "artistAvatarURLs": ["https://example.com/artist-a.jpg", "https://example.com/artist-b.jpg"],
                 "priceRange": "200-400",
-                "type": "livehouse",
                 "source": "showstart"
             }
         }
@@ -405,7 +390,6 @@ final class ShowDraftTests: XCTestCase {
             "https://example.com/artist-a.jpg",
             "https://example.com/artist-b.jpg"
         ])
-        XCTAssertEqual(draft.type, .livehouse)
         XCTAssertEqual(draft.source, .link)
     }
 
@@ -426,7 +410,6 @@ final class ShowDraftTests: XCTestCase {
                 "coverImageURL": null,
                 "artistAvatarURLs": [],
                 "priceRange": "",
-                "type": "concert",
                 "source": "damai"
             }
         }
@@ -453,7 +436,6 @@ final class ShowDraftTests: XCTestCase {
         let draft = ShowDraft(
             name: "缺少时间的现场",
             date: makeDate(year: 2026, month: 7, day: 15),
-            type: .concert,
             source: .link
         )
 
@@ -464,8 +446,7 @@ final class ShowDraftTests: XCTestCase {
         let show = try Show(
             name: "旧名字",
             date: makeDate(year: 2026, month: 7, day: 1),
-            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)
         )
         show.markPostponed(newDate: nil)
 
@@ -477,7 +458,6 @@ final class ShowDraftTests: XCTestCase {
             venueName: "   ",
             artist: "艺人",
             coverImageURL: "https://example.com/c.jpg",
-            type: .livehouse,
             source: .manual
         )
 
@@ -490,7 +470,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNil(show.venueName)
         XCTAssertEqual(show.artist, "艺人")
         XCTAssertEqual(show.coverImageURL, "https://example.com/c.jpg")
-        XCTAssertEqual(show.type, .livehouse)
         // Edit must not clear 现场变更
         XCTAssertEqual(show.changeStatus, .postponed)
 
@@ -498,22 +477,19 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(created.name, show.name)
         XCTAssertEqual(created.city, show.city)
         XCTAssertNil(created.venueName)
-        XCTAssertEqual(created.type, show.type)
     }
 
     func testApplyDraftRejectsEmptyNameAndInvalidEndTime() throws {
         let show = try Show(
             name: "有效",
             date: makeDate(year: 2026, month: 7, day: 1),
-            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)
         )
 
         var emptyName = ShowDraft(
             name: "   ",
             date: makeDate(year: 2026, month: 7, day: 1),
-            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)
         )
         XCTAssertThrowsError(try show.apply(emptyName)) { error in
             XCTAssertEqual(error as? ShowValidationError, .emptyName)
@@ -524,8 +500,7 @@ final class ShowDraftTests: XCTestCase {
             date: makeDate(year: 2026, month: 7, day: 2),
             startTime: makeDate(year: 2026, month: 7, day: 2, hour: 20),
             endDate: makeDate(year: 2026, month: 7, day: 1),
-            endTime: makeDate(year: 2026, month: 7, day: 1, hour: 22),
-            type: .concert
+            endTime: makeDate(year: 2026, month: 7, day: 1, hour: 22)
         )
         XCTAssertThrowsError(try show.apply(invalidEnd)) { error in
             XCTAssertEqual(error as? ShowValidationError, .invalidEndTime)

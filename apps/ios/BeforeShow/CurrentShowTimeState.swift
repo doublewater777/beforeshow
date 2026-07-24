@@ -20,7 +20,7 @@ struct CurrentShowTimeState: Equatable {
     let effectiveEndDate: Date?
     let effectiveStartTime: Date?
     let effectiveEndTime: Date?
-    /// Resolved show-end instant (explicit end clock > end date > type duration).
+    /// Resolved show-end instant (explicit end clock > end date > default duration).
     /// Drives home live/ended transitions and the 本场时长 display.
     let endBoundary: Date?
     let hasKnownEffectiveDate: Bool
@@ -196,15 +196,9 @@ struct CurrentShowTimeState: Equatable {
         return merged
     }
 
-    /// Hours after start used when the show has no explicit end time.
+    /// Hours after start used when the show has no explicit end time or end date.
     /// Users rarely know real end times; this is an automatic estimate only.
-    static func defaultDurationHours(for type: ShowType) -> Int {
-        switch type {
-        case .concert: return 4
-        case .livehouse: return 3
-        case .musicFestival: return 10
-        }
-    }
+    static let defaultDurationHours = 4
 
     private static func effectiveEndBoundary(
         for show: Show,
@@ -218,16 +212,16 @@ struct CurrentShowTimeState: Equatable {
             return effectiveEndTime
         }
 
-        // Multi-day festivals: last day ends at next midnight.
+        // Multi-day / explicit end day without clock: last day ends at next midnight.
         if let effectiveEndDate {
             return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: effectiveEndDate))
         }
 
-        // Default: start + type duration (no user-filled end time).
+        // Default: start + fixed duration (no user-filled end).
         let start = effectiveStartTime(for: show, calendar: calendar)
         return calendar.date(
             byAdding: .hour,
-            value: defaultDurationHours(for: show.type),
+            value: defaultDurationHours,
             to: start
         )
     }

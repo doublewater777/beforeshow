@@ -101,7 +101,6 @@ export function parseDamaiDetail(data) {
   const venueAddr = venue.venueAddr ?? "";
 
   const { date, startTime } = parseShowTime(item.showTime ?? "");
-  const type = mapDamaiType(guide.guideCat ?? "");
   const artist = artists.map((a) => a.name).join(", ") || "";
 
   return {
@@ -115,9 +114,7 @@ export function parseDamaiDetail(data) {
     coverImageURL,
     artistAvatarURLs,
     priceRange: price.range ?? "",
-    type,
-    source: "damai",
-    rawType: guide.guideCat ?? ""
+    source: "damai"
   };
 }
 
@@ -174,18 +171,4 @@ function parseShowTime(showTime) {
   }
 
   return { date: "", startTime: "" };
-}
-
-function mapDamaiType(guideCat) {
-  const lower = guideCat.toLowerCase();
-
-  if (lower.includes("音乐节")) {
-    return "musicFestival";
-  }
-
-  if (lower.includes("livehouse")) {
-    return "livehouse";
-  }
-
-  return "concert";
 }

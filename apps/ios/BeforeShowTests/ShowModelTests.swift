@@ -12,8 +12,7 @@ final class ShowModelTests: XCTestCase {
             date: date,
             startTime: startTime,
             coverImageURL: "https://example.com/cover.jpg",
-            artistAvatarURLs: ["https://example.com/artist.jpg"],
-            type: .concert
+            artistAvatarURLs: ["https://example.com/artist.jpg"]
         )
 
         let container = try ModelContainer(
@@ -27,21 +26,14 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(shows.count, 1)
         XCTAssertEqual(shows[0].name, "落日飞车 北京站")
         XCTAssertEqual(shows[0].date, date)
-        XCTAssertEqual(shows[0].type, .concert)
         XCTAssertEqual(shows[0].startTime, startTime)
         XCTAssertNil(shows[0].venueName)
         XCTAssertEqual(shows[0].coverImageURL, "https://example.com/cover.jpg")
         XCTAssertEqual(shows[0].artistAvatarURLs, ["https://example.com/artist.jpg"])
     }
 
-    func testOnlyConfirmedV21ShowTypesAreAccepted() {
-        XCTAssertEqual(ShowType.allCases, [.concert, .livehouse, .musicFestival])
-        XCTAssertNil(ShowType(rawValue: "theater"))
-        XCTAssertNil(ShowType(rawValue: "sports"))
-    }
-
     func testPostponedAndCanceledAreRepresentedWithoutGenericAbnormalStates() throws {
-        let show = try Show(name: "延期测试现场", date: Date(), startTime: Date(), type: .livehouse)
+        let show = try Show(name: "延期测试现场", date: Date(), startTime: Date())
 
         show.markPostponed(newDate: nil)
         XCTAssertEqual(show.changeStatus, .postponed)
@@ -73,8 +65,7 @@ final class ShowModelTests: XCTestCase {
             date: startDate,
             startTime: startTime,
             endDate: endDate,
-            endTime: endTime,
-            type: .livehouse
+            endTime: endTime
         )
 
         container.mainContext.insert(show)
@@ -91,8 +82,7 @@ final class ShowModelTests: XCTestCase {
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: .current),
             startTime: makeDate(year: 2026, month: 7, day: 8, hour: 20, minute: 0, calendar: .current),
             endDate: makeDate(year: 2026, month: 7, day: 7, hour: 0, minute: 0, calendar: .current),
-            endTime: makeDate(year: 2026, month: 7, day: 7, hour: 22, minute: 0, calendar: .current),
-            type: .concert
+            endTime: makeDate(year: 2026, month: 7, day: 7, hour: 22, minute: 0, calendar: .current)
         )) { error in
             XCTAssertEqual(error as? ShowValidationError, .invalidEndTime)
         }
@@ -107,8 +97,7 @@ final class ShowModelTests: XCTestCase {
         let show = try Show(
             name: "延期但保留开场时间的现场",
             date: originalDate,
-            startTime: originalStartTime,
-            type: .concert
+            startTime: originalStartTime
         )
 
         show.markPostponed(newDate: postponedDate)
@@ -137,8 +126,7 @@ final class ShowModelTests: XCTestCase {
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
             startTime: makeDate(year: 2026, month: 7, day: 8, hour: 23, minute: 0, calendar: calendar),
             endDate: makeDate(year: 2026, month: 7, day: 9, hour: 0, minute: 0, calendar: calendar),
-            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1, minute: 0, calendar: calendar),
-            type: .livehouse
+            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1, minute: 0, calendar: calendar)
         )
 
         let beforeStart = CurrentShowTimeState(
@@ -180,12 +168,11 @@ final class ShowModelTests: XCTestCase {
         let show = try Show(
             name: "未填结束时间的现场",
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
-            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 30, calendar: calendar),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 30, calendar: calendar)
         )
 
         XCTAssertNil(show.endTime)
-        XCTAssertEqual(CurrentShowTimeState.defaultDurationHours(for: .concert), 4)
+        XCTAssertEqual(CurrentShowTimeState.defaultDurationHours, 4)
 
         let beforeFallbackEnd = CurrentShowTimeState(
             show: show,
@@ -204,15 +191,14 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
-    func testFestivalDateRangeStaysTodayUntilRangeEnds() throws {
+    func testMultiDayRangeStaysTodayUntilRangeEnds() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let show = try Show(
             name: "绿洲音乐节",
             date: makeDate(year: 2026, month: 8, day: 15, hour: 0, minute: 0, calendar: calendar),
             startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: calendar),
-            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: calendar),
-            type: .musicFestival
+            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: calendar)
         )
 
         let middleDay = CurrentShowTimeState(
@@ -231,32 +217,29 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(afterRange.kind, .postShow)
     }
 
-    func testShowDisplayFormatterFormatsCrossDayAndFestivalRanges() throws {
+    func testShowDisplayFormatterFormatsCrossDayAndMultiDayRanges() throws {
         let crossDay = try Show(
             name: "深夜发光 Livehouse",
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: .current),
             startTime: makeDate(year: 2026, month: 7, day: 8, hour: 23, minute: 0, calendar: .current),
             endDate: makeDate(year: 2026, month: 7, day: 9, hour: 0, minute: 0, calendar: .current),
-            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1, minute: 0, calendar: .current),
-            type: .livehouse
+            endTime: makeDate(year: 2026, month: 7, day: 9, hour: 1, minute: 0, calendar: .current)
         )
-        let festival = try Show(
+        let multiDay = try Show(
             name: "绿洲音乐节",
             date: makeDate(year: 2026, month: 8, day: 15, hour: 0, minute: 0, calendar: .current),
             startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: .current),
-            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: .current),
-            type: .musicFestival
+            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: .current)
         )
         let noEndTime = try Show(
             name: "普通演唱会",
             date: makeDate(year: 2026, month: 9, day: 12, hour: 0, minute: 0, calendar: .current),
-            startTime: makeDate(year: 2026, month: 9, day: 12, hour: 19, minute: 30, calendar: .current),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 9, day: 12, hour: 19, minute: 30, calendar: .current)
         )
         let formatter = ShowDisplayFormatter()
 
         XCTAssertEqual(formatter.dateText(for: crossDay), "2026年7月8日 23:00 - 7月9日 01:00")
-        XCTAssertEqual(formatter.dateText(for: festival), "2026年8月15日-17日 · 每日 13:00")
+        XCTAssertEqual(formatter.dateText(for: multiDay), "2026年8月15日-17日 · 每日 13:00")
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 
@@ -274,8 +257,7 @@ final class ShowModelTests: XCTestCase {
         let show = try Show(
             name: "今晚现场",
             date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
-            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 20, minute: 0, calendar: calendar),
-            type: .concert
+            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 20, minute: 0, calendar: calendar)
         )
         let state = CurrentShowTimeState(
             show: show,

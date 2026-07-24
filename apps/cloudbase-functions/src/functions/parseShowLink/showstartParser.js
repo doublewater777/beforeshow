@@ -175,7 +175,6 @@ export function parseShowStartDetail(result) {
   const venueAddr = site.address ?? "";
 
   const { date, startTime } = parseShowTime(result.showTime ?? "");
-  const type = mapShowStartType(result.activityTag ?? "", activityName, sessionUserInfos);
   const artist = extractArtists(sessionUserInfos);
   const artistAvatarURLs = extractArtistAvatarURLs(sessionUserInfos);
 
@@ -192,9 +191,7 @@ export function parseShowStartDetail(result) {
     coverImageURL: result.avatar ?? result.album?.[0] ?? "",
     artistAvatarURLs,
     priceRange: price,
-    type,
-    source: "showstart",
-    rawType: result.activityTag ?? ""
+    source: "showstart"
   };
 }
 
@@ -222,30 +219,6 @@ function parseShowTime(showTime) {
   }
 
   return { date: "", startTime: "" };
-}
-
-function mapShowStartType(activityTag, activityName, sessionUserInfos) {
-  const combined = `${activityTag} ${activityName}`.toLowerCase();
-
-  if (combined.includes("音乐节")) {
-    return "musicFestival";
-  }
-
-  // Multi-session events or events with many artists are typically festivals
-  if (sessionUserInfos.length > 1) {
-    return "musicFestival";
-  }
-
-  const firstSessionArtists = sessionUserInfos[0]?.userInfos ?? [];
-  if (firstSessionArtists.length > 5) {
-    return "musicFestival";
-  }
-
-  if (combined.includes("livehouse") || combined.includes("live house")) {
-    return "livehouse";
-  }
-
-  return "livehouse";
 }
 
 function extractArtists(sessionUserInfos) {

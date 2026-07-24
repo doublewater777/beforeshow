@@ -68,7 +68,7 @@ struct MyShowsListView: View {
                         BSEmptyPanel(
                         iconName: "music.note.list",
                         title: "我的现场为空",
-                        message: "把要去和去过的现场都放进来。添加第一场现场后，这里会按时间保存所有演唱会、音乐节和 Livehouse。",
+                        message: "把要去和去过的现场都放进来。添加第一场后，这里会按时间保存你的所有现场。",
                         buttonTitle: "添加现场",
                         buttonIconName: "plus"
                     ) {
@@ -312,11 +312,6 @@ private struct ShowRowView: View {
             }
 
             Spacer(minLength: BSSpacing.sm)
-
-            Text(show.type.displayName)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundColor(BSColor.textTertiary)
-                .lineLimit(1)
         }
         .padding(12)
         .frame(minHeight: BSLayout.minTouchTarget)
@@ -379,7 +374,7 @@ private struct CurrentShowListHeroCard: View {
                     .font(BSFont.headline)
                     .foregroundColor(BSColor.textPrimary)
                     .lineLimit(2)
-                Text("\(show.venueName ?? show.city ?? show.type.displayName) · \(formatter.countdownText(for: show))")
+                Text("\(show.venueName ?? show.city ?? "现场") · \(formatter.countdownText(for: show))")
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.textSecondary)
                     .lineLimit(1)
@@ -600,7 +595,7 @@ struct ShowDetailView: View {
             }
 
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text("\(formatter.statusText(for: show)) · \(show.type.displayName)")
+                Text(formatter.statusText(for: show))
                     .font(BSFont.tag)
                     .foregroundColor(BSColor.textSecondary)
                     .padding(.horizontal, 12)
