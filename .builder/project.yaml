@@ -11,4 +11,6 @@ links:
   home_visual_redesign_cycle: .builder/cycles/2026-06-23-home-visual-redesign/
   remove_setlist_guess_cycle: .builder/cycles/2026-07-23-remove-setlist-guess/
   remove_memory_and_travel_cycle: .builder/cycles/2026-07-23-remove-memory-and-travel/
+  global_transit_eta_cycle: .builder/cycles/2026-07-19-global-transit-eta/
+  setlist_reliability_verification_cycle: .builder/cycles/2026-07-20-setlist-reliability-verification/
   add_show_flow_reliability_cycle: .builder/cycles/2026-07-23-add-show-flow-reliability/
