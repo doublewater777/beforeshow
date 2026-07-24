@@ -21,16 +21,9 @@ struct BeforeShowApp: App {
         }
         .modelContainer(for: [
             Show.self,
-            ShowFragment.self,
-            ShowFragmentGalleryMediaReference.self,
-            ShowFragmentAudioReference.self,
             CurrentShowSelection.self,
             NotificationSchedulingState.self,
-            ShowNotificationScheduleRecord.self,
-            RoundTripPlan.self,
-            CandidateSongGroup.self,
-            CandidateSong.self,
-            ArtistInterestItem.self
+            ShowNotificationScheduleRecord.self
         ])
     }
 }

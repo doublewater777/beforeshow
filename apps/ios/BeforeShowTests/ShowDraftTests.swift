@@ -15,6 +15,7 @@ final class ShowDraftTests: XCTestCase {
         var draft = ShowDraft(
             name: "识别出来的名字",
             date: date,
+            startTime: makeDate(year: 2026, month: 7, day: 3, hour: 19, minute: 30),
             venueName: "识别场馆",
             type: .concert,
             source: .screenshotOCR
@@ -110,9 +111,28 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.city, "上海")
         XCTAssertEqual(draft.venueName, "春浪草地")
         XCTAssertEqual(draft.artist, "落日飞车 / deca joins")
-        XCTAssertEqual(draft.seatSection, "A区")
+        XCTAssertTrue(draft.seatSection.isEmpty)
         XCTAssertEqual(draft.type, .musicFestival)
         XCTAssertFalse(draft.name.contains("SECRET"))
+    }
+
+    func testScreenshotOCRKeepsUsefulPartialFieldsWhenDateIsMissing() throws {
+        let text = """
+        演出名称：夏夜 Livehouse
+        场馆：MAO Livehouse
+        城市：上海
+        座位：A区
+        """
+
+        let draft = try XCTUnwrap(
+            ShowScreenshotRecognitionService(calendar: calendar).draft(fromRecognizedText: text)
+        )
+
+        XCTAssertEqual(draft.name, "夏夜 Livehouse")
+        XCTAssertEqual(draft.city, "上海")
+        XCTAssertEqual(draft.venueName, "MAO Livehouse")
+        XCTAssertNil(draft.startTime)
+        XCTAssertTrue(draft.seatSection.isEmpty)
     }
 
     func testScreenshotRecognitionFailureCanFallBackToManualDraft() {
@@ -290,6 +310,21 @@ final class ShowDraftTests: XCTestCase {
         }
     }
 
+    func testLinkFailurePresentationDistinguishesUnsupportedAndNetworkErrors() {
+        let unsupported = AddShowLinkFailurePresentation.resolve(
+            ShowLinkParsingError.unsupportedSource
+        )
+        let network = AddShowLinkFailurePresentation.resolve(
+            ShowLinkParsingError.networkFailure
+        )
+
+        XCTAssertEqual(unsupported.title, "这个链接暂不支持")
+        XCTAssertTrue(unsupported.message.contains("大麦"))
+        XCTAssertEqual(network.title, "网络连接失败")
+        XCTAssertTrue(network.message.contains("重试"))
+        XCTAssertNotEqual(network, unsupported)
+    }
+
     func testLocalLinkParserOnlySupportsDamaiAndShowstart() throws {
         let parser = ShowLinkDraftParser(calendar: calendar)
 
@@ -372,6 +407,57 @@ final class ShowDraftTests: XCTestCase {
         ])
         XCTAssertEqual(draft.type, .livehouse)
         XCTAssertEqual(draft.source, .link)
+    }
+
+    func testRemoteShowLinkParsingServiceKeepsMissingStartTimeUnconfirmed() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "待确认时间的现场",
+                "city": "上海",
+                "date": "2026-07-15",
+                "startTime": null,
+                "endDate": null,
+                "endTime": null,
+                "venueName": "测试场馆",
+                "venueAddr": "测试地址",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "type": "concert",
+                "source": "damai"
+            }
+        }
+        """
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: calendar
+        )
+
+        let draft = try await service.parse(link: "https://detail.damai.cn/item.htm?id=123")
+
+        XCTAssertNil(draft.startTime)
+        XCTAssertThrowsError(try draft.makeShow())
+    }
+
+    func testDraftWithoutStartTimeCannotCreateShow() {
+        let draft = ShowDraft(
+            name: "缺少时间的现场",
+            date: makeDate(year: 2026, month: 7, day: 15),
+            type: .concert,
+            source: .link
+        )
+
+        XCTAssertThrowsError(try draft.makeShow())
     }
 
     func testApplyDraftIsSingleEditSeamMatchingMakeShowNormalization() throws {

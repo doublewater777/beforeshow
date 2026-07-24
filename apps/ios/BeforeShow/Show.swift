@@ -29,34 +29,6 @@ enum ShowValidationError: Error, Equatable {
     case invalidEndTime
 }
 
-enum ShowDepartureDestinationQuality: Equatable {
-    case precise
-    case approximate
-    case weak
-    case missing
-}
-
-struct ShowDepartureDestination: Equatable {
-    let text: String
-    let quality: ShowDepartureDestinationQuality
-    let venueName: String?
-    let city: String?
-    let address: String?
-
-    var guidance: String? {
-        switch quality {
-        case .precise:
-            return nil
-        case .approximate:
-            return "只有场馆名时路线可能不准，建议补全街道地址。"
-        case .weak:
-            return "到场地址太简略，请填写具体街道门牌，或去编辑现场补场馆地址。"
-        case .missing:
-            return "这场现场还没有场馆信息，请先去编辑现场或手动填写到场地址。"
-        }
-    }
-}
-
 struct ShowDisplayFormatter {
     private let calendar: Calendar
 
@@ -156,9 +128,6 @@ final class Show {
     var createdAt: Date
     var updatedAt: Date
     var postponedDate: Date?
-
-    @Relationship(deleteRule: .cascade, inverse: \ShowFragment.show)
-    var fragments: [ShowFragment] = []
 
     private var typeRawValue: String
     private var changeStatusRawValue: String
@@ -262,7 +231,7 @@ final class Show {
     /// Single draft → 现场 mutation seam (create uses `ShowDraft.makeShow`, edit uses this).
     ///
     /// Deletion test: removing this method re-scatters trim/validate/field mapping across
-    /// home edit, detail edit, 去程 venue edit, and debug seeder. Does not touch
+    /// home edit, detail edit, and debug seeder. Does not touch
     /// `changeStatus` / `postponedDate` — those stay on mark* paths.
     func apply(_ draft: ShowDraft) throws {
         let prepared = try Self.prepared(from: draft)
@@ -288,9 +257,12 @@ final class Show {
         guard !trimmedName.isEmpty else {
             throw ShowValidationError.emptyName
         }
+        guard let startTime = draft.startTime else {
+            throw ShowValidationError.missingStartTime
+        }
         guard hasValidEndTime(
             date: draft.date,
-            startTime: draft.startTime,
+            startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime
         ) else {
@@ -300,7 +272,7 @@ final class Show {
         return PreparedShowDraft(
             name: trimmedName,
             date: draft.date,
-            startTime: draft.startTime,
+            startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime,
             city: trimmedOptional(draft.city),
@@ -314,94 +286,14 @@ final class Show {
         )
     }
 
-    var departureDestination: ShowDepartureDestination {
-        Self.departureDestination(venueName: venueName, venueAddress: venueAddress, city: city)
-    }
-
-    func updateVenueAddressFromDepartureInput(_ value: String) {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        venueAddress = trimmed
-        touch()
-    }
-
     private func touch() {
         updatedAt = Date()
-    }
-
-    static func departureDestination(
-        venueName: String?,
-        venueAddress: String?,
-        city: String?
-    ) -> ShowDepartureDestination {
-        let venue = trimmedOptional(venueName)
-        let address = trimmedOptional(venueAddress)
-        let city = trimmedOptional(city)
-
-        if let address {
-            return ShowDepartureDestination(
-                text: composedAddress(address: address, city: city),
-                quality: .precise,
-                venueName: venue,
-                city: city,
-                address: address
-            )
-        }
-
-        if let venue, let city {
-            return ShowDepartureDestination(
-                text: "\(city) \(venue)",
-                quality: .approximate,
-                venueName: venue,
-                city: city,
-                address: nil
-            )
-        }
-
-        if let venue {
-            return ShowDepartureDestination(
-                text: venue,
-                quality: .weak,
-                venueName: venue,
-                city: city,
-                address: nil
-            )
-        }
-
-        if let city {
-            return ShowDepartureDestination(
-                text: city,
-                quality: .weak,
-                venueName: nil,
-                city: city,
-                address: nil
-            )
-        }
-
-        return ShowDepartureDestination(
-            text: "",
-            quality: .missing,
-            venueName: nil,
-            city: nil,
-            address: nil
-        )
-    }
-
-    private static func composedAddress(address: String, city: String?) -> String {
-        if let city, !address.contains(city) {
-            return "\(city) \(address)"
-        }
-        return address
     }
 
     private static func trimmedOptional(_ value: String?) -> String? {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func trimmedOptional(_ value: String) -> String? {
-        trimmedOptional(Optional(value))
     }
 
     static func hasValidEndTime(

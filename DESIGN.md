@@ -1,6 +1,6 @@
 # BeforeShow Design System
 
-> Status: V3 direction contract. The `mrnv1rxl-beforeshow-home-feature-cards.html` visual language is the global design-system source of truth. Home and 「怎么去」 migrate in the current work; other production screens migrate incrementally. This document supersedes `docs/INDIE_APP_DESIGN_SYSTEM.md` and the earlier V2 palette below, which remain migration history only.
+> Status: current countdown-focused design contract. Retired song, travel, and memory surfaces are not part of the design system.
 
 ## 1. Atmosphere & Identity
 
@@ -219,7 +219,7 @@ All spacing derives from 4pt.
 ### `ShowTip`
 
 - **Structure:** one lightweight, time-aware suggestion tied to the current show lifecycle.
-- **Variants:** candidate songs, outbound plan, preparation, fragment.
+- **Variants:** preparation and current-show information.
 - **States:** default, pressed, loading, completed.
 - **Accessibility:** explains why the suggestion is relevant now without presenting it as a required task.
 - **Motion:** appears after the countdown settles; no looping decoration.
@@ -234,7 +234,7 @@ All spacing derives from 4pt.
 ### `FeatureCard`
 
 - **Structure:** badge/title/note header, optional action, content preview, flat tonal surface, hairline border, restrained top tint.
-- **Variants:** neutral, route, preparation, fragment, recommended, dimmed.
+- **Variants:** neutral, preparation, recommended, dimmed.
 - **States:** empty, loading, filled, stale, error, pressed.
 
 ### `StageBottomSheet`
@@ -251,12 +251,6 @@ All spacing derives from 4pt.
 
 - **Structure:** three equal columns with caption label and tabular H3 value, followed by a hairline divider.
 - **Variants:** outbound, return, custom.
-
-### `TravelTimeline`
-
-- **Structure:** time column, marker/line column, place/detail/tag content column.
-- **Variants:** MapKit up to six nodes, custom two nodes.
-- **States:** loading reveal, filled, stale, Reduce Motion static.
 
 ### `InlineStatus`
 
@@ -336,7 +330,7 @@ The onboarding does not ask a first-time user to prepare material before they un
 ### Activation copy
 
 - Countdown accessibility phrase: the real day difference between today and the showcase start date.
-- Tip: `先从歌单猜想找到熟悉感`
+- Tip: `离开场又近了一天`
 - Primary: `添加我的现场`
 
 ### Must not include
@@ -365,8 +359,8 @@ The home is not a dashboard of equal cards. It is a living stage for one current
 
 1. **Current show hero:** an atmospheric showcase or user-provided 3:4 cover occupies the upper half. Name, date, and place sit inside its scrim.
 2. **Countdown bridge:** the number visually crosses from the cover into the content area, tying emotion to time.
-3. **One timely Tip:** only the most relevant suggestion is promoted. At twelve days, candidate songs are appropriate; at one day, preparation replaces them.
-4. **Preparation rail:** songs, route, and fragments are visible as quiet destinations with state, not equal promotional cards.
+3. **One timely Tip:** only a relevant current-show suggestion may be promoted.
+4. **No tool rail:** retired song, travel, and memory features do not appear as destinations.
 5. **Primary ownership action:** empty/sample home uses “添加我的现场”; a real current show uses contextual actions and a quiet switcher.
 6. **No permanent onboarding chrome:** demonstration progress and replay controls disappear for returning users.
 

@@ -187,7 +187,7 @@ struct HomeCountdownCard: View {
                 Text("谢幕了 · 回味还在")
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("记下的碎片都留在这一场")
+                Text("这场的余温还留在这里")
                     .font(.system(size: 12, weight: .regular))
                     .foregroundColor(BSColor.Stage.muted)
             }

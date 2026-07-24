@@ -48,12 +48,11 @@ enum BSColor {
 
     /// Functional accent tints for feature icons.
     enum Accent {
-        static let music = Color(red: 1.0, green: 0.70, blue: 0.28)      // amber
-        static let travel = Color(red: 0.49, green: 0.81, blue: 1.0)     // cyan
-        static let video = Color(red: 0.70, green: 0.53, blue: 1.0)      // purple
-        static let candidate = Color(red: 1.0, green: 0.48, blue: 0.72)  // pink
+        static let warm = Color(red: 1.0, green: 0.70, blue: 0.28)       // amber
+        static let info = Color(red: 0.49, green: 0.81, blue: 1.0)       // cyan
+        static let violet = Color(red: 0.70, green: 0.53, blue: 1.0)     // purple
         static let prepare = Color(red: 0.34, green: 0.84, blue: 0.56)   // mint
-        static let fragment = Color(red: 1.0, green: 0.42, blue: 0.42)   // coral
+        static let danger = Color(red: 1.0, green: 0.42, blue: 0.42)    // coral
     }
 
     /// Home V3 palette from the 2026-07 feature-cards design: warm tungsten gold
@@ -75,19 +74,14 @@ enum BSColor {
         /// Hairline on dark (white 9%).
         static let border = Color.white.opacity(0.09)
 
-        /// Warm tungsten gold — home primary accent + 歌单 card tone (#E8C78E).
+        /// Warm tungsten gold — home primary accent (#E8C78E).
         static let accent = Color(red: 0.910, green: 0.780, blue: 0.557)
-        /// 去程 card tone (#527FC9).
-        static let route = Color(red: 0.322, green: 0.498, blue: 0.788)
+        /// Cool blue stage-light tone (#527FC9).
+        static let glowBlue = Color(red: 0.322, green: 0.498, blue: 0.788)
         /// 出门清单 card tone (#7B678F).
         static let prepare = Color(red: 0.482, green: 0.404, blue: 0.561)
-        /// 现场碎片 card tone (#D6A36F).
-        static let fragment = Color(red: 0.839, green: 0.639, blue: 0.435)
-
         /// Badge text: card tone pre-mixed toward white (design color-mix).
-        static let routeBadge = Color(red: 0.471, green: 0.608, blue: 0.835)
         static let prepareBadge = Color(red: 0.627, green: 0.573, blue: 0.682)
-        static let fragmentBadge = Color(red: 0.875, green: 0.718, blue: 0.561)
 
         /// Live pulse red (#FF6B75), live status title (#FFD0D3).
         static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
@@ -97,25 +91,6 @@ enum BSColor {
         static let danger = Color(red: 0.851, green: 0.537, blue: 0.569)
     }
 
-    enum Home {
-        static let background = Stage.background
-        static let surface = Stage.surface
-        static let surfaceRaised = Stage.surfaceRaised
-        static let foreground = Stage.foreground
-        static let muted = Stage.muted
-        static let dim = Stage.dim
-        static let border = Stage.border
-        static let accent = Stage.accent
-        static let route = Stage.route
-        static let prepare = Stage.prepare
-        static let fragment = Stage.fragment
-        static let routeBadge = Stage.routeBadge
-        static let prepareBadge = Stage.prepareBadge
-        static let fragmentBadge = Stage.fragmentBadge
-        static let live = Stage.live
-        static let liveTitle = Stage.liveTitle
-        static let success = Stage.success
-    }
 }
 
 // MARK: - Typography
@@ -643,8 +618,8 @@ enum BSToastTone: Equatable {
     var tint: Color {
         switch self {
         case .success: return BSColor.Accent.prepare
-        case .failure: return BSColor.Accent.fragment
-        case .neutral: return BSColor.Accent.music
+        case .failure: return BSColor.Accent.danger
+        case .neutral: return BSColor.Accent.warm
         }
     }
 }
@@ -986,8 +961,8 @@ struct BSProLimitSheet: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    BSColor.Accent.video.opacity(0.20),
-                                    BSColor.Accent.music.opacity(0.20)
+                                    BSColor.Accent.violet.opacity(0.20),
+                                    BSColor.Accent.warm.opacity(0.20)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -1035,9 +1010,9 @@ struct BSDangerConfirmationSheet: View {
             VStack(spacing: BSSpacing.md) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.fragment)
+                    .foregroundColor(BSColor.Accent.danger)
                     .frame(width: 58, height: 58)
-                    .background(BSColor.Accent.fragment.opacity(0.12))
+                    .background(BSColor.Accent.danger.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
 
                 VStack(spacing: BSSpacing.xs) {
@@ -1058,287 +1033,16 @@ struct BSDangerConfirmationSheet: View {
                     .buttonStyle(BSSecondaryButtonStyle())
                 Button(destructiveTitle, action: onConfirm)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.fragment)
+                    .foregroundColor(BSColor.Accent.danger)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 13)
-                    .background(BSColor.Accent.fragment.opacity(0.12))
+                    .background(BSColor.Accent.danger.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
                     .overlay(
                         RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.fragment.opacity(0.30), lineWidth: 1)
+                            .stroke(BSColor.Accent.danger.opacity(0.30), lineWidth: 1)
                     )
             }
         }
-    }
-}
-
-struct FeatureCard<Content: View>: View {
-    var tone: Color = BSColor.Stage.route
-    var toneOpacity: Double = 0.12
-    var borderOpacity: Double = 0.24
-    var isRecommended = false
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        content
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(EdgeInsets(top: 18, leading: 18, bottom: 16, trailing: 18))
-            .background {
-                RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                    .fill(BSColor.Stage.surface)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                            .fill(tone.opacity(0.05))
-                    }
-                    .overlay {
-                        LinearGradient(
-                            colors: [tone.opacity(toneOpacity), .clear],
-                            startPoint: .top,
-                            endPoint: UnitPoint(x: 0.5, y: 0.40)
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous))
-                    }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                    .stroke(
-                        isRecommended ? BSColor.Stage.accent.opacity(0.34) : tone.opacity(borderOpacity),
-                        lineWidth: 1
-                    )
-            }
-            .shadow(color: .black.opacity(0.34), radius: 18, y: 7)
-    }
-}
-
-struct StageBottomSheet<Content: View>: View {
-    let title: String
-    let onClose: (() -> Void)?
-    let content: Content
-
-    init(
-        title: String,
-        onClose: (() -> Void)? = nil,
-        @ViewBuilder content: () -> Content
-    ) {
-        self.title = title
-        self.onClose = onClose
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.roomy) {
-            Capsule()
-                .fill(BSColor.Stage.dim.opacity(0.8))
-                .frame(width: 36, height: 5)
-                .frame(maxWidth: .infinity)
-            HStack {
-                Text(title)
-                    .font(BSFont.V3.title2)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Spacer()
-                if let onClose {
-                    Button("关闭", action: onClose)
-                        .font(BSFont.V3.small)
-                        .foregroundStyle(BSColor.Stage.muted)
-                }
-            }
-            content
-        }
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.top, BSSpacing.compact)
-        .padding(.bottom, BSSpacing.lg)
-        .background(BSColor.Stage.surfaceRaised)
-        .clipShape(UnevenRoundedRectangle(topLeadingRadius: BSRadius.sheet, topTrailingRadius: BSRadius.sheet))
-    }
-}
-
-struct StageSubmitButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(BSFont.V3.body.weight(.semibold))
-            .foregroundStyle(BSColor.Stage.background)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .background(
-                BSColor.Stage.accent.opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.34)
-            )
-            .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: BSMotion.micro), value: configuration.isPressed)
-    }
-}
-
-struct IconModeSelector<Option: Hashable>: View {
-    let options: [Option]
-    @Binding var selection: Option
-    let symbol: (Option) -> String
-    let label: (Option) -> String
-
-    var body: some View {
-        HStack(spacing: BSSpacing.sm) {
-            ForEach(options, id: \.self) { option in
-                Button {
-                    selection = option
-                } label: {
-                    Image(systemName: symbol(option))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(selection == option ? BSColor.Stage.background : BSColor.Stage.muted)
-                        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-                        .background(selection == option ? BSColor.Stage.accent : BSColor.Stage.surfaceRaised)
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous)
-                                .stroke(selection == option ? BSColor.Stage.accent : BSColor.Stage.border, lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(label(option))
-                .accessibilityAddTraits(selection == option ? .isSelected : [])
-            }
-        }
-    }
-}
-
-struct MetricSummary: Identifiable, Equatable {
-    let id: String
-    let label: String
-    let value: String
-
-    init(label: String, value: String) {
-        self.id = label
-        self.label = label
-        self.value = value
-    }
-}
-
-struct MetricSummaryGrid: View {
-    let metrics: [MetricSummary]
-
-    var body: some View {
-        HStack(alignment: .top, spacing: BSSpacing.compact) {
-            ForEach(metrics) { metric in
-                VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    Text(metric.label)
-                        .font(BSFont.V3.caption)
-                        .foregroundStyle(BSColor.Stage.dim)
-                    Text(metric.value)
-                        .font(BSFont.V3.title3)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.75)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(.bottom, BSSpacing.compact)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(BSColor.Stage.border)
-                .frame(height: 1)
-        }
-    }
-}
-
-struct TimelineDisplayItem: Identifiable, Equatable {
-    let id: UUID
-    let title: String
-    let detail: String?
-    let time: String?
-
-    init(id: UUID = UUID(), title: String, detail: String? = nil, time: String? = nil) {
-        self.id = id
-        self.title = title
-        self.detail = detail
-        self.time = time
-    }
-}
-
-struct TravelTimeline: View {
-    let items: [TimelineDisplayItem]
-    var interstitialText: String? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                HStack(alignment: .top, spacing: BSSpacing.compact) {
-                    VStack(spacing: 0) {
-                        Circle()
-                            .fill(index == 0 || index == items.count - 1 ? BSColor.Stage.accent : BSColor.Stage.route)
-                            .frame(width: 8, height: 8)
-                        if index < items.count - 1 {
-                            Rectangle()
-                                .fill(BSColor.Stage.border)
-                                .frame(width: 1, height: 22)
-                        }
-                    }
-                    .padding(.top, 5)
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        HStack {
-                            Text(item.title)
-                                .font(BSFont.V3.small.weight(.medium))
-                                .foregroundStyle(BSColor.Stage.foreground)
-                            Spacer(minLength: BSSpacing.sm)
-                            if let time = item.time {
-                                Text(time)
-                                    .font(BSFont.V3.caption.monospacedDigit())
-                                    .foregroundStyle(BSColor.Stage.muted)
-                            }
-                        }
-                        if let detail = item.detail, !detail.isEmpty {
-                            Text(detail)
-                                .font(BSFont.V3.caption)
-                                .foregroundStyle(BSColor.Stage.dim)
-                                .lineLimit(2)
-                        }
-                    }
-                    .padding(.bottom, index < items.count - 1 ? BSSpacing.sm : 0)
-                }
-                if index == 0, let interstitialText {
-                    Text(interstitialText)
-                        .font(BSFont.V3.small)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.leading, BSSpacing.roomy)
-                        .padding(.vertical, BSSpacing.sm)
-                }
-            }
-        }
-    }
-}
-
-enum InlineStatusTone {
-    case neutral
-    case success
-    case error
-}
-
-struct InlineStatus: View {
-    let text: String
-    var tone: InlineStatusTone = .neutral
-
-    private var color: Color {
-        switch tone {
-        case .neutral: return BSColor.Stage.muted
-        case .success: return BSColor.Stage.success
-        case .error: return BSColor.Stage.danger
-        }
-    }
-
-    var body: some View {
-        HStack(alignment: .top, spacing: BSSpacing.sm) {
-            Image(systemName: tone == .error ? "exclamationmark.circle.fill" : "info.circle.fill")
-            Text(text)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .font(BSFont.V3.small)
-        .foregroundStyle(color)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(BSSpacing.compact)
-        .background(color.opacity(0.10))
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
     }
 }

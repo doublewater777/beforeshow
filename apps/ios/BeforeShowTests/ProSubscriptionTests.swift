@@ -53,7 +53,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
-    func testProGateAllowsOneFreeShowAndFirstGenerationOnly() {
+    func testProGateAllowsOneFreeShow() {
         let gate = ProFeatureGate()
         let proEntitlement = ProEntitlementState.active(
             productID: ProSubscriptionCatalog.yearlyProductID,
@@ -63,46 +63,15 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(gate.canAddShow(savedShowCount: 0, entitlement: .free))
         XCTAssertFalse(gate.canAddShow(savedShowCount: 1, entitlement: .free))
         XCTAssertTrue(gate.canAddShow(savedShowCount: 10, entitlement: proEntitlement))
-
-        XCTAssertTrue(gate.canGenerate(
-            feature: .candidateSongs,
-            hasUsedFreeAllowance: false,
-            entitlement: .free
-        ))
-        XCTAssertFalse(gate.canGenerate(
-            feature: .candidateSongs,
-            hasUsedFreeAllowance: true,
-            entitlement: .free
-        ))
-        XCTAssertTrue(gate.canGenerate(
-            feature: .candidateSongs,
-            hasUsedFreeAllowance: true,
-            entitlement: proEntitlement
-        ))
-    }
-
-    func testFreeGenerationAllowanceIsTrackedPerFeature() {
-        let gate = ProFeatureGate()
-        let usage = ProUsageSnapshot(
-            savedShowCount: 1,
-            usedFreeGenerationFeatures: [.candidateSongs, .outboundTripDraft]
-        )
-
-        XCTAssertFalse(gate.canGenerate(feature: .candidateSongs, usage: usage, entitlement: .free))
-        XCTAssertFalse(gate.canGenerate(feature: .outboundTripDraft, usage: usage, entitlement: .free))
-        XCTAssertTrue(gate.canGenerate(feature: .returnTripDraft, usage: usage, entitlement: .free))
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
         XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版可保存 1 场现场")
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
 
-        XCTAssertEqual(ProLimitReason.candidateSongsRegeneration.title, "重复生成需要 Pro")
-        XCTAssertTrue(ProLimitReason.candidateSongsRegeneration.message.contains("歌单猜想"))
-        XCTAssertTrue(ProLimitReason.roundTripRegeneration.message.contains("去程计划"))
     }
 
-    func testEntitlementAndFreeUsageCanBePersistedForAppGates() {
+    func testEntitlementCanBePersistedForAppGates() {
         let active = ProEntitlementState.active(
             productID: ProSubscriptionCatalog.yearlyProductID,
             expirationDate: Date(timeIntervalSince1970: 1_800_000_000)
@@ -111,15 +80,6 @@ final class ProSubscriptionTests: XCTestCase {
 
         XCTAssertEqual(ProEntitlementStorage.decode(encodedEntitlement), active)
         XCTAssertEqual(ProEntitlementStorage.decode("not-json"), .free)
-
-        let used = ProUsageStorage.markUsed(.candidateSongs, in: "")
-        XCTAssertEqual(ProUsageStorage.decodeUsedFreeGenerationFeatures(used), [.candidateSongs])
-
-        let usedTwice = ProUsageStorage.markUsed(.returnTripDraft, in: used)
-        XCTAssertEqual(
-            ProUsageStorage.decodeUsedFreeGenerationFeatures(usedTwice),
-            [.candidateSongs, .returnTripDraft]
-        )
     }
 
     func testExpiredProKeepsExistingLocalDataAndManualEditsAvailable() {
@@ -132,9 +92,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(expired.isProActive)
         XCTAssertTrue(gate.canAccessExistingLocalData(entitlement: expired))
         XCTAssertTrue(gate.canEditManualContent(entitlement: expired))
-        XCTAssertTrue(gate.canAddShowFragment(entitlement: expired))
         XCTAssertFalse(gate.canAddShow(savedShowCount: 1, entitlement: expired))
-        XCTAssertFalse(gate.canGenerate(feature: .candidateSongs, hasUsedFreeAllowance: true, entitlement: expired))
     }
 
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
@@ -157,9 +115,7 @@ final class ProSubscriptionTests: XCTestCase {
             .joined(separator: " ")
 
         XCTAssertTrue(copy.contains("设备端 OCR"))
-        XCTAssertTrue(copy.contains("相册引用"))
-        XCTAssertTrue(copy.contains("App 内创建的语音片段"))
-        XCTAssertTrue(copy.contains("用户主动触发"))
+        XCTAssertTrue(copy.contains("设备本地"))
         XCTAssertTrue(copy.contains("不会删除系统相册中的原始图片或视频"))
     }
 
@@ -190,7 +146,7 @@ final class ProSubscriptionTests: XCTestCase {
         let plan = LocalDataClearancePolicy.defaultPlan
 
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("SwiftData") }))
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("App 内录音") }))
+        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("临时缓存") }))
         XCTAssertTrue(plan.preservesSystemData.contains(where: { $0.contains("系统相册中的原始图片和视频") }))
     }
 

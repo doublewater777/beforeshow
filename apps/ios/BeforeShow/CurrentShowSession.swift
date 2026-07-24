@@ -1,16 +1,15 @@
 import Foundation
 
-/// Read model for one 现场 under 当前现场 policy: selection result, phase, tool summary.
+/// Read model for one 现场 under 当前现场 policy: selection result and phase.
 struct CurrentShowSnapshot {
     let show: Show
     let phase: CurrentShowTimeState
-    let summary: ShowToolSummary
 }
 
 /// Deep module for 当前现场 assembly.
 ///
-/// Callers get show + phase + summary (and selection) through one interface instead of
-/// re-wiring `CurrentShowSelector` + `CurrentShowTimeState` + `ShowToolSummary` at each site.
+/// Callers get show + phase (and selection) through one interface instead of
+/// re-wiring `CurrentShowSelector` + `CurrentShowTimeState` at each site.
 ///
 /// Deletion test: without this session, home / detail / list re-scatter selection,
 /// phase clocks, and tool summary with inconsistent calendar/retention. The kernels
@@ -48,7 +47,7 @@ struct CurrentShowSession {
         selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)?.id == show.id
     }
 
-    // MARK: - Phase / summary
+    // MARK: - Phase
 
     func phase(for show: Show, now: Date = Date()) -> CurrentShowTimeState {
         CurrentShowTimeState(
@@ -59,37 +58,14 @@ struct CurrentShowSession {
         )
     }
 
-    func summary(
-        for show: Show,
-        candidateGroups: [CandidateSongGroup],
-        candidateSongs: [CandidateSong],
-        roundTripPlans: [RoundTripPlan]
-    ) -> ShowToolSummary {
-        ShowToolSummary(
-            show: show,
-            candidateGroups: candidateGroups,
-            candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans
-        )
-    }
-
-    /// phase + summary for a known 现场 (detail, content home).
+    /// Phase for a known 现场 (detail, content home).
     func snapshot(
         for show: Show,
-        candidateGroups: [CandidateSongGroup],
-        candidateSongs: [CandidateSong],
-        roundTripPlans: [RoundTripPlan],
         now: Date = Date()
     ) -> CurrentShowSnapshot {
         CurrentShowSnapshot(
             show: show,
-            phase: phase(for: show, now: now),
-            summary: summary(
-                for: show,
-                candidateGroups: candidateGroups,
-                candidateSongs: candidateSongs,
-                roundTripPlans: roundTripPlans
-            )
+            phase: phase(for: show, now: now)
         )
     }
 
@@ -97,9 +73,6 @@ struct CurrentShowSession {
     func resolve(
         shows: [Show],
         manualSelection: CurrentShowSelection? = nil,
-        candidateGroups: [CandidateSongGroup],
-        candidateSongs: [CandidateSong],
-        roundTripPlans: [RoundTripPlan],
         now: Date = Date()
     ) -> CurrentShowSnapshot? {
         guard let show = selectCurrentShow(
@@ -111,9 +84,6 @@ struct CurrentShowSession {
         }
         return snapshot(
             for: show,
-            candidateGroups: candidateGroups,
-            candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans,
             now: now
         )
     }

@@ -287,41 +287,6 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(state.title, "今天开场")
     }
 
-    func testDepartureDestinationPrefersVenueAddressOverVenueName() {
-        let destination = Show.departureDestination(
-            venueName: "MAO Livehouse",
-            venueAddress: "杭州市上城区中山南路77号",
-            city: "杭州"
-        )
-
-        XCTAssertEqual(destination.quality, .precise)
-        XCTAssertEqual(destination.text, "杭州市上城区中山南路77号")
-        XCTAssertNil(destination.guidance)
-    }
-
-    func testDepartureDestinationFallsBackToCityAndVenueName() {
-        let destination = Show.departureDestination(
-            venueName: "MAO Livehouse",
-            venueAddress: nil,
-            city: "杭州"
-        )
-
-        XCTAssertEqual(destination.quality, .approximate)
-        XCTAssertEqual(destination.text, "杭州 MAO Livehouse")
-        XCTAssertNotNil(destination.guidance)
-    }
-
-    func testDepartureDestinationReportsMissingVenueInformation() {
-        let destination = Show.departureDestination(
-            venueName: nil,
-            venueAddress: nil,
-            city: nil
-        )
-
-        XCTAssertEqual(destination.quality, .missing)
-        XCTAssertEqual(destination.text, "")
-    }
-
     private func makeDate(
         year: Int,
         month: Int,

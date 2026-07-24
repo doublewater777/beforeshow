@@ -59,3 +59,33 @@ Cycle: `.builder/cycles/2026-07-20-setlist-reliability-verification/`
 Decision: implementation and simulator verification complete; user validation pending.
 
 Reason: generation now requires an explicit contract-valid final response, cancellation preserves the prior catalog, and festival lineup edits remain local until confirmation; responsiveness and real-user trust still require release observation.
+
+## 2026-07-23
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-23-remove-setlist-guess/`
+
+Decision: remove the setlist-guess feature before launch.
+
+Reason: the product owner chose to narrow BeforeShow around the current-show countdown; the speculative setlist workflow, data model, notifications, and Pro packaging no longer support that focus.
+
+## 2026-07-23 · Memory and travel retirement
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-23-remove-memory-and-travel/`
+
+Decision: remove memory fragments and travel planning before launch.
+
+Reason: the product owner chose a single current-show countdown wedge; local journaling, route planning, media permissions, and AI trip generation create a broader product than intended.
+
+## 2026-07-23 · Add Show Reliability
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-23-add-show-flow-reliability/`
+
+Decision: implementation and simulator verification complete; user validation pending.
+
+Reason: required time data, notification activation, duplicate-save protection, actionable recovery, and local cover cleanup now share tested invariants; release-user observation is still needed for the permission and completion handoff.

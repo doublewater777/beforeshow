@@ -25,27 +25,23 @@ enum SettingsInformation {
 enum PrivacyLocalDataCopy {
     static let points = [
         "票务截图只用于设备端 OCR，截图不会为了识别上传。",
-        "相册里的图片和视频以系统相册引用保存，原文件仍由系统相册管理。",
-        "App 内创建的语音片段保存在 BeforeShow 本地沙盒。",
-        "歌单猜想和往返草稿只在用户主动触发时发起 AI 请求。"
+        "现场与偏好设置保存在设备本地。"
     ]
 
-    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 创建和保存的本地数据，包括现场、设置、生成结果和 App 内录音；不会删除系统相册中的原始图片或视频。"
+    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 保存的现场、偏好设置和临时缓存；不会删除系统相册中的原始图片或视频。"
 }
 
 enum ProMembershipCopy {
-    static let summary = "Pro 锁的是重复 AI 生成与保存额度，不锁本地已有内容。"
+    static let summary = "Pro 提供更高的现场保存额度，不锁本地已有内容。"
 
-    /// 以 `ProFeatureGate` 实际接线的 feature 为准：保存额度（canAddShow）与歌单猜想重复生成（canGenerate）。
+    /// 以 `ProFeatureGate` 实际接线的现场保存额度为准。
     static let unlockedPoints = [
-        "无限添加现场（免费版限 1 场）",
-        "重复生成歌单猜想（免费版每类体验一次）"
+        "无限添加现场（免费版限 1 场）"
     ]
 
-    /// `ProFeatureGate` 中始终放行的能力：已有现场、碎片添加、手动编辑。
+    /// `ProFeatureGate` 中始终放行的能力：已有现场、手动编辑。
     static let freePoints = [
         "查看与编辑已有现场",
-        "添加现场碎片",
         "手动编辑所有内容"
     ]
 }
@@ -121,12 +117,11 @@ struct LocalDataClearancePlan: Equatable {
 enum LocalDataClearancePolicy {
     static let defaultPlan = LocalDataClearancePlan(
         deletesAppOwnedData: [
-            "SwiftData 中的现场、歌单猜想、去程计划和偏好设置",
-            "BeforeShow 沙盒中的 App 内录音与临时缓存"
+            "SwiftData 中的现场和偏好设置",
+            "BeforeShow 沙盒中的临时缓存"
         ],
         preservesSystemData: [
-            "系统相册中的原始图片和视频",
-            "Apple Music、网易云音乐、QQ 音乐或 Spotify 中的内容"
+            "系统相册中的原始图片和视频"
         ]
     )
 }

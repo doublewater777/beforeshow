@@ -1,12 +1,50 @@
 import SwiftData
 import SwiftUI
 
+@MainActor
+private func updateCurrentShowFocusModels(
+    showID: UUID?,
+    selections: [CurrentShowSelection],
+    notificationStates: [NotificationSchedulingState],
+    in modelContext: ModelContext
+) {
+    if let selection = selections.first {
+        if let showID {
+            selection.select(showID: showID)
+        } else {
+            selection.clearManualSelection()
+        }
+    } else if let showID {
+        modelContext.insert(CurrentShowSelection(selectedShowID: showID))
+    }
+
+    updateNotificationFocusModel(
+        showID: showID,
+        notificationStates: notificationStates,
+        in: modelContext
+    )
+}
+
+@MainActor
+private func updateNotificationFocusModel(
+    showID: UUID?,
+    notificationStates: [NotificationSchedulingState],
+    in modelContext: ModelContext
+) {
+    if let notificationState = notificationStates.first {
+        notificationState.focus(showID: showID)
+    } else if showID != nil {
+        modelContext.insert(NotificationSchedulingState(focusedShowID: showID))
+    }
+}
+
 // MARK: - My Shows List View
 
 struct MyShowsListView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     @State private var detailTarget: Show?
@@ -87,7 +125,9 @@ struct MyShowsListView: View {
             }
             .bsToastOverlay(toast, bottomPadding: 28)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet()
+                AddShowCoordinatorSheet {
+                    presentToast(.success, message: "已放入当前现场")
+                }
             }
         }
     }
@@ -113,7 +153,7 @@ struct MyShowsListView: View {
                         }
                         .buttonStyle(.plain)
                         .contextMenu {
-                            if !isCurrent {
+                            if !isCurrent && show.changeStatus != .canceled {
                                 Button {
                                     selectCurrent(show)
                                 } label: {
@@ -127,7 +167,7 @@ struct MyShowsListView: View {
                             }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            if !isCurrent {
+                            if !isCurrent && show.changeStatus != .canceled {
                                 Button {
                                     selectCurrent(show)
                                 } label: {
@@ -187,13 +227,34 @@ struct MyShowsListView: View {
     }
 
     private func selectCurrent(_ show: Show) {
-        let selection = selections.first ?? CurrentShowSelection()
-        if selections.isEmpty {
-            modelContext.insert(selection)
+        guard show.changeStatus != .canceled else {
+            presentToast(.neutral, message: "已取消现场不能设为当前")
+            return
         }
-        selection.select(showID: show.id)
-        try? modelContext.save()
-        presentToast(.success, message: "已设为当前现场")
+
+        Task { @MainActor in
+            updateCurrentShowFocusModels(
+                showID: show.id,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+
+            do {
+                try modelContext.save()
+                let didSyncNotifications = await LocalNotificationCenter.shared.applyFocusChange(
+                    to: show,
+                    in: modelContext
+                )
+                presentToast(
+                    didSyncNotifications ? .success : .neutral,
+                    message: didSyncNotifications ? "已设为当前现场" : "已切换现场，通知暂未更新"
+                )
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: "切换失败，请重试")
+            }
+        }
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -356,7 +417,7 @@ private struct PostponeShowSheet: View {
             BSGlassPanel {
                 DatePicker("新日期", selection: $newDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
-                    .tint(BSColor.Accent.video)
+                    .tint(BSColor.Accent.violet)
             }
 
             VStack(spacing: BSSpacing.sm) {
@@ -375,35 +436,31 @@ struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
-    @Query private var candidateGroups: [CandidateSongGroup]
-    @Query private var candidateSongs: [CandidateSong]
-    @Query private var roundTripPlans: [RoundTripPlan]
     let show: Show
 
     @State private var isEditing = false
-    /// 打开时固定方向；nil 表示 sheet 关闭。
-    @State private var travelSheetDirection: RoundTripDirection?
     @State private var showsPostponeDialog = false
     @State private var showsCancelConfirmation = false
     @State private var showsDeleteConfirmation = false
-    @State private var showsDangerZone = false
     @State private var newPostponedDate = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
 
     private var snapshot: CurrentShowSnapshot {
-        session.snapshot(
-            for: show,
-            candidateGroups: candidateGroups,
-            candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans
-        )
+        session.snapshot(for: show)
     }
 
     private var timeState: CurrentShowTimeState { snapshot.phase }
-    private var summary: ShowToolSummary { snapshot.summary }
+
+    private var editorSubtitle: String {
+        if show.changeStatus == .postponed {
+            return "这里编辑原定信息；延期日期请在“现场状态”中更新。"
+        }
+        return "修改后会立即更新这个现场。"
+    }
 
     private var isCurrentShow: Bool {
         session.isCurrent(show, among: shows, manualSelection: selections.first)
@@ -418,15 +475,8 @@ struct ShowDetailView: View {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     detailHero
                     managementRow
-                    toolList
-
-                    Text("艺人、时间和场馆变化请直接编辑现场信息；现场变更只记录延期和取消。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    dangerZone
+                    statusSection
+                    deleteSection
                 }
                 .padding(.horizontal, BSSpacing.md)
                 .padding(.bottom, BSSpacing.xl)
@@ -441,31 +491,31 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isEditing) {
             ShowDraftEditorView(
                 title: "编辑现场",
+                subtitle: editorSubtitle,
                 draft: ShowDraft(show: show),
                 saveTitle: "保存"
             ) { draft in
-                apply(draft)
+                try await apply(draft)
             }
-        }
-        .sheet(item: $travelSheetDirection) { direction in
-            RoundTripPlanView(show: show, direction: direction)
-                .presentationDragIndicator(.hidden)
-                .presentationDetents([.medium, .large])
-                .presentationCornerRadius(BSRadius.sheet)
-                .presentationBackground(BSColor.Stage.surfaceRaised)
         }
         .sheet(isPresented: $showsPostponeDialog) {
             PostponeShowSheet(
                 newDate: $newPostponedDate,
                 onUndated: {
                     showsPostponeDialog = false
-                    show.markPostponed(newDate: nil)
-                    try? modelContext.save()
+                    Task { @MainActor in
+                        await updateStatus(message: "已记录延期，日期待定") {
+                            show.markPostponed(newDate: nil)
+                        }
+                    }
                 },
                 onDated: {
                     showsPostponeDialog = false
-                    show.markPostponed(newDate: newPostponedDate)
-                    try? modelContext.save()
+                    Task { @MainActor in
+                        await updateStatus(message: "延期日期已更新") {
+                            show.markPostponed(newDate: newPostponedDate)
+                        }
+                    }
                 },
                 onCancel: {
                     showsPostponeDialog = false
@@ -479,8 +529,11 @@ struct ShowDetailView: View {
                 destructiveTitle: "确认取消",
                 onConfirm: {
                     showsCancelConfirmation = false
-                    show.markCanceled()
-                    try? modelContext.save()
+                    Task { @MainActor in
+                        await updateStatus(message: "已记录取消") {
+                            show.markCanceled()
+                        }
+                    }
                 },
                 onCancel: {
                     showsCancelConfirmation = false
@@ -490,26 +543,17 @@ struct ShowDetailView: View {
         .sheet(isPresented: $showsDeleteConfirmation) {
             BSDangerConfirmationSheet(
                 title: "删除现场",
-                message: "删除后，这场现场的碎片、歌单猜想、怎么去和准备事项也会一起删除；相册里的原图不会被删。删除后无法恢复。",
+                message: "删除后，这场现场将无法恢复。",
                 destructiveTitle: "删除",
                 onConfirm: {
-                    deleteShow()
+                    Task { @MainActor in
+                        await deleteShow()
+                    }
                 },
                 onCancel: {
                     showsDeleteConfirmation = false
                 }
             )
-        }
-    }
-
-    private func deleteShow() {
-        do {
-            try LocalAppDataDeletionService(audioStorage: .applicationSupport()).deleteShow(show, in: modelContext)
-            try modelContext.save()
-            showsDeleteConfirmation = false
-            dismiss()
-        } catch {
-            showsDeleteConfirmation = false
         }
     }
 
@@ -540,7 +584,7 @@ struct ShowDetailView: View {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 15, weight: .bold))
                             .foregroundColor(BSColor.textPrimary)
-                            .frame(width: 40, height: 40)
+                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                             .background(.black.opacity(0.32))
                             .clipShape(Circle())
                             .overlay(Circle().stroke(BSColor.borderProminent, lineWidth: 1))
@@ -641,7 +685,7 @@ struct ShowDetailView: View {
                 value: "\(timeState.countdownNumber)\(timeState.countdownUnit)"
             )
         case .ended:
-            return HeroCountdownContent(eyebrow: nil, value: "记忆已收好", dim: true)
+            return HeroCountdownContent(eyebrow: nil, value: "已结束", dim: true)
         case .canceled:
             return HeroCountdownContent(eyebrow: nil, value: "记录仍保留", dim: true)
         case .postponed:
@@ -677,7 +721,22 @@ struct ShowDetailView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("编辑现场信息")
 
-            if isCurrentShow {
+            if show.changeStatus == .canceled {
+                Label("已取消", systemImage: "xmark.circle.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Accent.danger)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .fill(BSColor.Accent.danger.opacity(0.10))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.Accent.danger.opacity(0.28), lineWidth: 1)
+                    )
+                    .accessibilityLabel("现场已取消，不能设为当前")
+            } else if isCurrentShow {
                 Label("当前现场", systemImage: "checkmark.seal.fill")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(BSColor.Accent.prepare)
@@ -712,73 +771,125 @@ struct ShowDetailView: View {
         }
     }
 
-    private var toolList: some View {
+    private var statusSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            BSSectionHeader(title: "工具")
-            NavigationLink {
-                CandidateSongsView(
-                    show: show,
-                    launch: summary.hasCandidateSongs ? .browse : .generate
-                )
-            } label: {
-                CurrentFeatureRow(iconName: "mic.fill", title: "歌单猜想", subtitle: summary.candidateSongsStatus, accent: BSColor.Accent.candidate)
-            }
-            Button {
-                travelSheetDirection = RoundTripPlanDirectionResolver.resolve(show: show)
-            } label: {
-                CurrentFeatureRow(iconName: "tram.fill", title: "怎么去", subtitle: summary.roundTripStatus, accent: BSColor.Accent.travel)
-            }
-            NavigationLink { ShowFragmentListView(show: show) } label: {
-                CurrentFeatureRow(iconName: "sparkles.rectangle.stack", title: "现场碎片", subtitle: summary.fragmentsStatus, accent: BSColor.Accent.fragment)
-            }
-        }
-        .buttonStyle(.plain)
-    }
+            BSSectionHeader(title: "现场状态")
+            BSGlassPanel {
+                VStack(alignment: .leading, spacing: BSSpacing.md) {
+                    HStack(alignment: .top, spacing: BSSpacing.sm) {
+                        Image(systemName: statusIconName)
+                            .foregroundColor(statusTint)
+                            .frame(width: 24, height: 24)
+                        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                            Text(statusTitle)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(BSColor.textPrimary)
+                            Text(statusDescription)
+                                .font(BSFont.caption)
+                                .foregroundColor(BSColor.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
 
-    /// 现场变更与危险操作：延期 / 取消 / 删除（及恢复）。默认折叠，靠后放置。
-    private var dangerZone: some View {
-        DisclosureGroup(isExpanded: $showsDangerZone) {
-            VStack(spacing: BSSpacing.xs) {
-                if show.changeStatus != .scheduled {
-                    changeActionRow(
-                        title: "恢复原定日期",
-                        systemImage: "arrow.uturn.backward",
-                        isDestructive: false
-                    ) {
-                        show.markScheduled()
-                        try? modelContext.save()
+                    VStack(spacing: BSSpacing.xs) {
+                        if show.changeStatus != .scheduled {
+                            changeActionRow(
+                                title: restoreActionTitle,
+                                systemImage: "arrow.uturn.backward",
+                                isDestructive: false
+                            ) {
+                                Task { @MainActor in
+                                    await updateStatus(message: restoreSuccessMessage) {
+                                        show.markScheduled()
+                                    }
+                                }
+                            }
+                        }
+
+                        if show.changeStatus != .canceled {
+                            changeActionRow(
+                                title: show.changeStatus == .postponed ? "更新延期信息" : "记录延期",
+                                systemImage: "calendar.badge.clock",
+                                isDestructive: false
+                            ) {
+                                newPostponedDate = show.postponedDate ?? show.date
+                                showsPostponeDialog = true
+                            }
+
+                            changeActionRow(
+                                title: "记录取消",
+                                systemImage: "xmark.circle",
+                                isDestructive: true
+                            ) {
+                                showsCancelConfirmation = true
+                            }
+                        }
                     }
                 }
-                changeActionRow(
-                    title: "记录延期",
-                    systemImage: "calendar.badge.clock",
-                    isDestructive: false
-                ) {
-                    newPostponedDate = show.postponedDate ?? show.date
-                    showsPostponeDialog = true
-                }
-                changeActionRow(
-                    title: "记录取消",
-                    systemImage: "xmark.circle",
-                    isDestructive: true
-                ) {
-                    showsCancelConfirmation = true
-                }
-                changeActionRow(
-                    title: "删除现场",
-                    systemImage: "trash",
-                    isDestructive: true
-                ) {
-                    showsDeleteConfirmation = true
-                }
             }
-            .padding(.top, BSSpacing.sm)
-        } label: {
-            Label(showsDangerZone ? "收起现场变更" : "现场变更", systemImage: "exclamationmark.triangle")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
         }
-        .tint(BSColor.textTertiary)
+    }
+
+    private var deleteSection: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            BSSectionHeader(title: "更多")
+            changeActionRow(
+                title: "删除现场",
+                systemImage: "trash",
+                isDestructive: true
+            ) {
+                showsDeleteConfirmation = true
+            }
+        }
+    }
+
+    private var statusTitle: String {
+        switch show.changeStatus {
+        case .scheduled:
+            return "正常进行"
+        case .postponed:
+            return show.postponedDate == nil ? "已延期，日期待定" : "已延期"
+        case .canceled:
+            return "已取消"
+        }
+    }
+
+    private var statusDescription: String {
+        switch show.changeStatus {
+        case .scheduled:
+            return "艺人、日期、时间和场馆变化请使用“编辑信息”。"
+        case .postponed:
+            if show.postponedDate != nil {
+                return "当前按新日期显示和提醒；原定日期仍保留在记录中。"
+            }
+            return "倒计时和通知已暂停，确定新日期后可以随时补充。"
+        case .canceled:
+            return "记录仍保留，但不会参与当前现场选择或发送提醒。"
+        }
+    }
+
+    private var statusIconName: String {
+        switch show.changeStatus {
+        case .scheduled: return "checkmark.circle.fill"
+        case .postponed: return "calendar.badge.clock"
+        case .canceled: return "xmark.circle.fill"
+        }
+    }
+
+    private var statusTint: Color {
+        switch show.changeStatus {
+        case .scheduled: return BSColor.Accent.prepare
+        case .postponed: return BSColor.Accent.warm
+        case .canceled: return BSColor.Accent.danger
+        }
+    }
+
+    private var restoreActionTitle: String {
+        show.changeStatus == .canceled ? "撤销取消" : "取消延期，恢复原定日期"
+    }
+
+    private var restoreSuccessMessage: String {
+        show.changeStatus == .canceled ? "已撤销取消" : "已恢复原定日期"
     }
 
     private func changeActionRow(
@@ -787,7 +898,7 @@ struct ShowDetailView: View {
         isDestructive: Bool,
         action: @escaping () -> Void
     ) -> some View {
-        let tint: Color = isDestructive ? BSColor.Accent.fragment : BSColor.textSecondary
+        let tint: Color = isDestructive ? BSColor.Accent.danger : BSColor.textSecondary
         return Button(action: action) {
             HStack(spacing: BSSpacing.sm) {
                 Image(systemName: systemImage)
@@ -815,13 +926,33 @@ struct ShowDetailView: View {
     }
 
     private func selectCurrent() {
-        let selection = selections.first ?? CurrentShowSelection()
-        if selections.isEmpty {
-            modelContext.insert(selection)
+        guard show.changeStatus != .canceled else {
+            presentToast(.neutral, message: "已取消现场不能设为当前")
+            return
         }
-        selection.select(showID: show.id)
-        try? modelContext.save()
-        presentToast(.success, message: "已设为当前现场")
+
+        Task { @MainActor in
+            updateCurrentShowFocusModels(
+                showID: show.id,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+            do {
+                try modelContext.save()
+                let didSyncNotifications = await LocalNotificationCenter.shared.applyFocusChange(
+                    to: show,
+                    in: modelContext
+                )
+                presentToast(
+                    didSyncNotifications ? .success : .neutral,
+                    message: didSyncNotifications ? "已设为当前现场" : "已切换现场，通知暂未更新"
+                )
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: "切换失败，请重试")
+            }
+        }
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -835,20 +966,110 @@ struct ShowDetailView: View {
         }
     }
 
-    private func apply(_ draft: ShowDraft) {
+    @MainActor
+    private func apply(_ draft: ShowDraft) async throws {
         do {
             try show.apply(draft)
-            if show.type == .musicFestival {
-                let existing = (try? modelContext.fetch(FetchDescriptor<ArtistInterestItem>()))?
-                    .filter { $0.showID == show.id } ?? []
-                _ = try CandidateSongsSession(show: show).seedFestivalInterestsIfNeeded(
-                    existing: existing,
-                    in: modelContext
-                )
-            }
-            try? modelContext.save()
+            try modelContext.save()
         } catch {
-            // Invalid draft is rejected; editor only enables ready drafts.
+            modelContext.rollback()
+            throw error
         }
+
+        let didSyncNotifications = await syncNotificationsToCurrentShow()
+        presentToast(
+            didSyncNotifications ? .success : .neutral,
+            message: didSyncNotifications ? "现场信息已更新" : "信息已保存，通知暂未更新"
+        )
+    }
+
+    @MainActor
+    private func updateStatus(
+        message: String,
+        mutation: () -> Void
+    ) async {
+        mutation()
+        if show.changeStatus == .canceled,
+           selections.first?.selectedShowID == show.id {
+            selections.first?.clearManualSelection()
+        }
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: "状态没有保存，请重试")
+            return
+        }
+
+        let didSyncNotifications = await syncNotificationsToCurrentShow()
+        presentToast(
+            didSyncNotifications ? .success : .neutral,
+            message: didSyncNotifications ? message : "\(message)，通知暂未更新"
+        )
+    }
+
+    @MainActor
+    private func deleteShow() async {
+        let coverImageURL = show.coverImageURL
+        if selections.first?.selectedShowID == show.id {
+            selections.first?.clearManualSelection()
+        }
+
+        let remainingShows = shows.filter { $0.id != show.id }
+        modelContext.delete(show)
+        let nextCurrentShow = session.selectCurrentShow(
+            from: remainingShows,
+            manualSelection: selections.first
+        )
+        updateNotificationFocusModel(
+            showID: nextCurrentShow?.id,
+            notificationStates: notificationStates,
+            in: modelContext
+        )
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            showsDeleteConfirmation = false
+            presentToast(.failure, message: "删除失败，请重试")
+            return
+        }
+
+        if let coverImageURL {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+        }
+        _ = await LocalNotificationCenter.shared.applyFocusChange(
+            to: nextCurrentShow,
+            in: modelContext
+        )
+        showsDeleteConfirmation = false
+        dismiss()
+    }
+
+    @MainActor
+    private func syncNotificationsToCurrentShow() async -> Bool {
+        let currentShow = session.selectCurrentShow(
+            from: shows,
+            manualSelection: selections.first
+        )
+        updateNotificationFocusModel(
+            showID: currentShow?.id,
+            notificationStates: notificationStates,
+            in: modelContext
+        )
+
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            return false
+        }
+
+        return await LocalNotificationCenter.shared.applyFocusChange(
+            to: currentShow,
+            in: modelContext
+        )
     }
 }

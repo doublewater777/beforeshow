@@ -17,7 +17,7 @@ struct SettingsView: View {
                             title: "Pro 会员",
                             subtitle: "重复生成与无限保存现场",
                             value: nil,
-                            tint: BSColor.Accent.music,
+                            tint: BSColor.Accent.warm,
                             titleUsesGradient: true
                         )
                     }
@@ -32,7 +32,7 @@ struct SettingsView: View {
                     NavigationLink {
                         PrivacyLocalDataView()
                     } label: {
-                        SettingsRowContent(iconName: "lock.fill", title: SettingsEntry.privacyAndLocalData.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.travel)
+                        SettingsRowContent(iconName: "lock.fill", title: SettingsEntry.privacyAndLocalData.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.info)
                     }
                     .buttonStyle(.plain)
 
@@ -41,7 +41,7 @@ struct SettingsView: View {
                     NavigationLink {
                         FeedbackView()
                     } label: {
-                        SettingsRowContent(iconName: "bubble.left.and.bubble.right.fill", title: SettingsEntry.feedback.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.video)
+                        SettingsRowContent(iconName: "bubble.left.and.bubble.right.fill", title: SettingsEntry.feedback.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.violet)
                     }
                     .buttonStyle(.plain)
                 }
@@ -198,8 +198,8 @@ private struct SettingsProMembershipCard<Content: View>: View {
             .background(
                 LinearGradient(
                     colors: [
-                        BSColor.Accent.video.opacity(0.12),
-                        BSColor.Accent.music.opacity(0.08)
+                        BSColor.Accent.violet.opacity(0.12),
+                        BSColor.Accent.warm.opacity(0.08)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -456,11 +456,11 @@ struct ProMembershipView: View {
     private var statusText: String {
         switch entitlement {
         case .active:
-            return "Pro 已启用，可以继续添加现场和重复生成。"
+            return "Pro 已启用，可以继续添加现场。"
         case .expired:
             return "Pro 已过期，已有本地内容仍可查看和编辑。"
         case .free:
-            return "当前为免费版：可保存 1 场现场，并首次生成歌单猜想。"
+            return "当前为免费版：可保存 1 场现场。"
         }
     }
 
@@ -613,7 +613,7 @@ private struct PrivacyLocalDataView: View {
         .sheet(isPresented: $showsClearConfirmation) {
             BSDangerConfirmationSheet(
                 title: "清除本地数据",
-                message: "这会删除所有现场、碎片、计划和本地设置，且无法恢复。",
+                message: "这会删除所有现场和本地设置，且无法恢复。",
                 destructiveTitle: "清除",
                 onConfirm: {
                     showsClearConfirmation = false
@@ -630,11 +630,12 @@ private struct PrivacyLocalDataView: View {
         isClearing = true
         Task { @MainActor in
             do {
-                let service = LocalAppDataDeletionService(
-                    audioStorage: .applicationSupport()
-                )
-                try service.clearLocalAppData(in: modelContext)
-                try modelContext.save()
+                let context = modelContext
+                try context.delete(model: Show.self)
+                try context.delete(model: CurrentShowSelection.self)
+                try context.delete(model: NotificationSchedulingState.self)
+                try context.delete(model: ShowNotificationScheduleRecord.self)
+                try context.save()
                 clearResult = try await clearer.clearAppOwnedLocalData()
             } catch {
                 clearResult = nil
@@ -670,7 +671,7 @@ private struct FeedbackView: View {
                         .bsInputField()
 
                     Toggle("附上 App 版本与系统版本", isOn: $includesDiagnostics)
-                        .tint(BSColor.Accent.video)
+                        .tint(BSColor.Accent.violet)
                         .foregroundColor(BSColor.textSecondary)
                         .font(BSFont.caption)
 

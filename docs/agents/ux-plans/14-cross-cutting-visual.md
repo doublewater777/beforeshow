@@ -48,7 +48,6 @@ rg -n "presentationDetents|BSDrawerSheet|\\.sheet\\(" apps/ios/BeforeShow --glob
 | `DesignSystem.BSDrawerSheet` | surface + presentationBackground |
 | 其他 `BSDrawerSheet` 调用方 | 自动受益 |
 | Pro / 危险确认 sheet | 随 BSDrawerSheet |
-| 碎片/音频抽屉等 | 读代码：若黑底无舞台，改 surface |
 
 **行卡片**在 surface 上：用 `BSColor.surfaceElevated` + `borderProminent`（工具目录已规划则对齐）。
 

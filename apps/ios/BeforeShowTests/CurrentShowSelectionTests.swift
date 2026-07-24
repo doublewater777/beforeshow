@@ -52,7 +52,7 @@ final class CurrentShowSelectionTests: XCTestCase {
         XCTAssertEqual(selected?.id, recentlyEndedShow.id)
     }
 
-    func testExpiredEndedShowIsFallbackWhenNoOtherShowIsCurrent() throws {
+    func testExpiredEndedShowIsNotCurrentWhenNoRelevantShowExists() throws {
         let expiredPastShow = try makeShow(name: "过了停留期的现场", day: 10)
 
         let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
@@ -60,7 +60,22 @@ final class CurrentShowSelectionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(selected?.id, expiredPastShow.id)
+        XCTAssertNil(selected)
+    }
+
+    func testCanceledManualSelectionFallsBackToNearestRelevantShow() throws {
+        let canceledShow = try makeShow(name: "已取消现场", day: 16)
+        canceledShow.markCanceled()
+        let futureShow = try makeShow(name: "仍可准备的现场", day: 20)
+        let manualSelection = CurrentShowSelection(selectedShowID: canceledShow.id)
+
+        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
+            from: [canceledShow, futureShow],
+            manualSelection: manualSelection,
+            now: now
+        )
+
+        XCTAssertEqual(selected?.id, futureShow.id)
     }
 
     func testManualSelectionIsPersistedAndRespected() throws {

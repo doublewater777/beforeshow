@@ -4,6 +4,58 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+struct AddShowLinkFailurePresentation: Equatable {
+    let title: String
+    let message: String
+
+    static func resolve(_ error: Error) -> Self {
+        if let parserError = error as? ShowLinkDraftParser.ParseError {
+            switch parserError {
+            case .unsupportedSource:
+                return Self(
+                    title: "这个链接暂不支持",
+                    message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+                )
+            case .missingDate:
+                return Self(
+                    title: "还缺少现场信息",
+                    message: "没有解析到有效日期，请在下方补充后再保存。"
+                )
+            }
+        }
+
+        guard let parsingError = error as? ShowLinkParsingError else {
+            return Self(
+                title: "链接解析失败",
+                message: "暂时没能读出完整信息。你可以重试，或继续在下方手动填写。"
+            )
+        }
+
+        switch parsingError {
+        case .unsupportedSource:
+            return Self(
+                title: "这个链接暂不支持",
+                message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+            )
+        case .networkFailure:
+            return Self(
+                title: "网络连接失败",
+                message: "请检查网络后重试，已经填写的内容会保留。"
+            )
+        case .invalidResponse:
+            return Self(
+                title: "还缺少现场信息",
+                message: "没有解析到有效日期，请在下方补充后再保存。"
+            )
+        case .parseFailed:
+            return Self(
+                title: "链接解析失败",
+                message: "暂时没能读出完整信息。你可以重试，或继续在下方手动填写。"
+            )
+        }
+    }
+}
+
 enum AddShowSheet: Identifiable {
     case manual
     case screenshot
@@ -21,6 +73,7 @@ enum AddShowSheet: Identifiable {
 struct AddShowCoordinatorSheet: View {
     /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
     var allowsBrowseSkip: Bool = false
+    var onShowAdded: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSheet: AddShowSheet?
@@ -30,6 +83,10 @@ struct AddShowCoordinatorSheet: View {
             if let selectedSheet {
                 AddShowFlowView(
                     sheet: selectedSheet,
+                    onSaved: {
+                        dismiss()
+                        onShowAdded()
+                    },
                     onBack: {
                         withAnimation(.easeInOut(duration: 0.22)) {
                             self.selectedSheet = nil
@@ -51,6 +108,14 @@ struct AddShowCoordinatorSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        #if DEBUG
+        .task {
+            guard ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") else {
+                return
+            }
+            selectedSheet = .manual
+        }
+        #endif
     }
 }
 
@@ -131,7 +196,7 @@ private struct AddShowEntryView: View {
                             title: "链接解析",
                             subtitle: "粘贴大麦或秀动的链接，自动提取现场信息。",
                             iconName: "link",
-                            tint: BSColor.Accent.travel
+                            tint: BSColor.Accent.info
                         ) {
                             onSelect(.link)
                         }
@@ -140,7 +205,7 @@ private struct AddShowEntryView: View {
                             title: "截图识别",
                             subtitle: "选择票务截图，设备端识别名称、时间、场馆，不上传。",
                             iconName: "camera.fill",
-                            tint: BSColor.Accent.video
+                            tint: BSColor.Accent.violet
                         ) {
                             onSelect(.screenshot)
                         }
@@ -177,29 +242,45 @@ struct AddShowFlowView: View {
 
     let sheet: AddShowSheet
     let linkParser: ShowLinkDraftParser
+    private let onSaved: (() -> Void)?
     private let onBack: (() -> Void)?
 
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
-    @State private var screenshotText = ""
     @State private var linkText = ""
     @State private var message: String?
+    @State private var linkFailure: AddShowLinkFailurePresentation?
     @State private var isRecognizingScreenshot = false
     @State private var isParsingLink = false
+    @State private var isSaving = false
+    @State private var hasImportedDraft = false
     @State private var showsManualFallback = false
     @State private var showsProMembership = false
     @State private var showsProSaveLimit = false
     @State private var toast: BSToastPayload?
+    @State private var temporaryCoverURLs: Set<String> = []
+    @State private var didSave = false
 
     init(
         sheet: AddShowSheet,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
+        onSaved: (() -> Void)? = nil,
         onBack: (() -> Void)? = nil
     ) {
         self.sheet = sheet
         self.linkParser = linkParser
+        self.onSaved = onSaved
         self.onBack = onBack
-        _draft = State(initialValue: ShowDraft(source: sheet.draftSource))
+        var initialDraft = ShowDraft(source: sheet.draftSource)
+        if sheet == .manual {
+            initialDraft.startTime = Calendar.current.date(
+                bySettingHour: 19,
+                minute: 30,
+                second: 0,
+                of: initialDraft.date
+            )
+        }
+        _draft = State(initialValue: initialDraft)
     }
 
     static func defaultLinkParser() -> ShowLinkDraftParser {
@@ -223,24 +304,29 @@ struct AddShowFlowView: View {
                     methodContent
 
                     if shouldShowDraftFields {
-                        ShowDraftFormFields(draft: $draft)
+                        ShowDraftFormFields(
+                            draft: $draft,
+                            onCoverImported: registerImportedCover
+                        )
 
                         VStack(spacing: BSSpacing.sm) {
                             Button {
-                                save()
+                                Task {
+                                    await save()
+                                }
                             } label: {
                                 Text(sheet.saveButtonTitle)
                                     .frame(maxWidth: .infinity)
                             }
                             .buttonStyle(AddShowPrimaryButtonStyle())
-                            .disabled(!draft.isReadyToSave)
+                            .disabled(!draft.isReadyToSave || isSaving)
 
                             if sheet == .manual {
                                 Text("可添加后再补充封面图和更多信息")
                                     .font(.system(size: 12, weight: .medium))
                                     .foregroundColor(BSColor.textTertiary.opacity(0.65))
                                     .frame(maxWidth: .infinity)
-                            } else if hasRecognizedDraft {
+                            } else if hasImportedDraft {
                                 Button {
                                     showsManualFallback = true
                                 } label: {
@@ -270,6 +356,10 @@ struct AddShowFlowView: View {
             Task {
                 await recognizeScreenshot(from: newItem)
             }
+        }
+        .onDisappear {
+            guard !didSave else { return }
+            cleanupTemporaryCovers()
         }
         .sheet(isPresented: $showsProMembership) {
             ProMembershipSheetView()
@@ -327,11 +417,11 @@ struct AddShowFlowView: View {
             .buttonStyle(AddShowPrimaryButtonStyle())
             .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
-            if showsManualFallback && sheet == .link && !hasRecognizedDraft {
+            if let linkFailure {
                 BSEmptyPanel(
                     iconName: "exclamationmark.triangle",
-                    title: "链接解析失败",
-                    message: "这个链接暂不支持。可以继续在下方手动填写。",
+                    title: linkFailure.title,
+                    message: linkFailure.message,
                     buttonTitle: "手动填写",
                     buttonIconName: "square.and.pencil"
                 ) {
@@ -358,7 +448,7 @@ struct AddShowFlowView: View {
                             .frame(width: 64, height: 64)
                         Image(systemName: isRecognizing ? "text.viewfinder" : "camera.fill")
                             .font(.system(size: 26, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.video)
+                            .foregroundColor(BSColor.Accent.violet)
                     }
 
                     if isRecognizing {
@@ -402,11 +492,11 @@ struct AddShowFlowView: View {
                 )
             }
 
-            if showsManualFallback && sheet == .screenshot && !hasRecognizedDraft {
+            if showsManualFallback && sheet == .screenshot && !hasImportedDraft {
                 BSEmptyPanel(
                     iconName: "text.viewfinder",
                     title: "截图识别失败",
-                    message: "没有识别到可用的现场日期。可以粘贴截图文字，或直接手动填写。",
+                    message: "没有识别到可用的现场信息。可以继续在下方手动填写。",
                     buttonTitle: "手动填写",
                     buttonIconName: "square.and.pencil"
                 ) {
@@ -423,37 +513,16 @@ struct AddShowFlowView: View {
     }
 
     private var shouldShowDraftFields: Bool {
-        sheet == .manual || showsManualFallback || hasRecognizedDraft
-    }
-
-    private var hasRecognizedDraft: Bool {
-        !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        sheet == .manual || showsManualFallback || hasImportedDraft
     }
 
     private func closeOrBack() {
         dismissKeyboard()
+        cleanupTemporaryCovers()
         if let onBack {
             onBack()
         } else {
             dismiss()
-        }
-    }
-
-    private func recognizeScreenshot() {
-        if let recognizedDraft = ShowScreenshotRecognitionService().draft(fromRecognizedText: screenshotText) {
-            draft = recognizedDraft
-            showsManualFallback = false
-            message = nil
-            presentToast(.success, message: "识别完成")
-        } else {
-            draft.source = .manual
-            showsManualFallback = true
-            message = "没有识别到可用的现场日期，请改用手动填写。"
-            presentToast(.failure, message: "识别失败")
         }
     }
 
@@ -476,13 +545,17 @@ struct AddShowFlowView: View {
             }
 
             draft = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
+            hasImportedDraft = true
             showsManualFallback = false
-            message = nil
+            message = draft.startTime == nil
+                ? "已识别部分信息，请确认日期并补充开场时间。"
+                : nil
             presentToast(.success, message: "识别完成")
         } catch {
             draft.source = .manual
+            hasImportedDraft = false
             showsManualFallback = true
-            message = "没有识别到可用的现场日期，请改用手动填写。"
+            message = "没有识别到可用的现场信息，请改用手动填写。"
             presentToast(.failure, message: "识别失败")
         }
     }
@@ -497,25 +570,36 @@ struct AddShowFlowView: View {
 
         do {
             draft = try await linkParser.draft(from: linkText)
+            hasImportedDraft = true
             showsManualFallback = false
-            message = nil
+            linkFailure = nil
+            message = draft.startTime == nil
+                ? "链接里没有明确开场时间，请确认后再添加。"
+                : nil
             presentToast(.success, message: "解析完成")
         } catch {
             draft.source = .manual
+            hasImportedDraft = false
             showsManualFallback = true
+            linkFailure = AddShowLinkFailurePresentation.resolve(error)
             message = nil
             presentToast(.failure, message: "解析失败")
         }
     }
 
-    private func save() {
+    @MainActor
+    private func save() async {
+        guard !isSaving else { return }
+        isSaving = true
         dismissKeyboard()
+
         do {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             guard ProFeatureGate().canAddShow(savedShowCount: shows.count, entitlement: entitlement) else {
                 message = "免费版可以保存 1 场现场。开通 Pro 后可以继续添加。"
                 showsProSaveLimit = true
                 presentToast(.neutral, message: "保存上限")
+                isSaving = false
                 return
             }
 
@@ -529,36 +613,87 @@ struct AddShowFlowView: View {
             }
             selection.select(showID: show.id)
 
-            if let notificationState = notificationStates.first {
-                notificationState.focus(showID: show.id)
+            let notificationState = notificationStates.first
+                ?? NotificationSchedulingState(focusedShowID: show.id)
+            if notificationStates.isEmpty {
+                modelContext.insert(notificationState)
             } else {
-                modelContext.insert(NotificationSchedulingState(focusedShowID: show.id))
-            }
-
-            // 音乐节：把「艺人 / 阵容」拆成艺人关注项，歌单勾选直接用这份名单。
-            if show.type == .musicFestival {
-                _ = try CandidateSongsSession(show: show).seedFestivalInterestsIfNeeded(
-                    existing: [],
-                    in: modelContext
-                )
+                notificationState.focus(showID: show.id)
             }
 
             try modelContext.save()
-            presentToast(.success, message: "已放入当前现场")
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
+
+            await activateNotifications(for: show, state: notificationState)
+            didSave = true
+            finalizeTemporaryCovers(keeping: draft.coverImageURL)
+
+            if let onSaved {
+                onSaved()
+            } else {
                 dismiss()
             }
         } catch ShowValidationError.invalidEndTime {
             message = "结束时间需要晚于开始时间。"
             presentToast(.failure, message: "时间范围无效")
+            isSaving = false
+        } catch ShowValidationError.missingStartTime {
+            message = "请确认开场时间。"
+            presentToast(.failure, message: "还缺开场时间")
+            isSaving = false
         } catch ShowValidationError.emptyName {
             message = "请填写现场名称。"
             presentToast(.failure, message: "保存失败")
+            isSaving = false
         } catch {
+            modelContext.rollback()
             message = "请填写必填信息。"
             presentToast(.failure, message: "保存失败")
+            isSaving = false
         }
+    }
+
+    @MainActor
+    private func activateNotifications(
+        for show: Show,
+        state: NotificationSchedulingState
+    ) async {
+        let center = LocalNotificationCenter.shared
+        let authorizationState = await center.authorizationState()
+        let shouldRequest = NotificationPermissionPolicy().shouldRequestPermission(
+            hasAddedShow: true,
+            authorizationState: authorizationState,
+            hasRequestedPermissionAfterFirstShow: state.hasRequestedPermissionAfterFirstShow
+        )
+
+        if shouldRequest {
+            _ = await center.requestAuthorization()
+            state.recordPermissionRequest()
+            try? modelContext.save()
+        }
+
+        await center.applyFocusChange(to: show, in: modelContext)
+    }
+
+    private func registerImportedCover(previous: String, new: String) {
+        if temporaryCoverURLs.contains(previous) {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: previous)
+            temporaryCoverURLs.remove(previous)
+        }
+        temporaryCoverURLs.insert(new)
+    }
+
+    private func cleanupTemporaryCovers() {
+        for urlString in temporaryCoverURLs {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
+        }
+        temporaryCoverURLs.removeAll()
+    }
+
+    private func finalizeTemporaryCovers(keeping keptURL: String) {
+        for urlString in temporaryCoverURLs where urlString != keptURL {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
+        }
+        temporaryCoverURLs.removeAll()
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -591,7 +726,7 @@ private func dismissKeyboard() {
     )
 }
 
-private enum ShowCoverLocalImageStore {
+enum ShowCoverLocalImageStore {
     static func directory() throws -> URL {
         let baseURL = try FileManager.default.url(
             for: .applicationSupportDirectory,
@@ -603,15 +738,53 @@ private enum ShowCoverLocalImageStore {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         return directory
     }
+
+    static func removeManagedLocalImage(at urlString: String) {
+        guard let url = URL(string: urlString),
+              url.isFileURL,
+              let managedDirectory = try? directory().standardizedFileURL,
+              url.standardizedFileURL.deletingLastPathComponent() == managedDirectory else {
+            return
+        }
+        try? FileManager.default.removeItem(at: url)
+    }
 }
 
 struct ShowDraftEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let title: String
-    @State var draft: ShowDraft
+    let subtitle: String
     let saveTitle: String
-    let onSave: (ShowDraft) -> Void
+    let onSave: @MainActor (ShowDraft) async throws -> Void
+    private let initialDraft: ShowDraft
+    private let originalCoverURL: String
+
+    @State private var draft: ShowDraft
     @State private var message: String?
+    @State private var isSaving = false
+    @State private var showsDiscardConfirmation = false
+    @State private var temporaryCoverURLs: Set<String> = []
+    @State private var didSave = false
+
+    init(
+        title: String,
+        subtitle: String = "修改后会立即更新这个现场。",
+        draft: ShowDraft,
+        saveTitle: String,
+        onSave: @escaping @MainActor (ShowDraft) async throws -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        _draft = State(initialValue: draft)
+        self.saveTitle = saveTitle
+        self.onSave = onSave
+        initialDraft = draft
+        originalCoverURL = draft.coverImageURL
+    }
+
+    private var hasUnsavedChanges: Bool {
+        draft != initialDraft
+    }
 
     var body: some View {
         ZStack {
@@ -622,34 +795,40 @@ struct ShowDraftEditorView: View {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     AddShowFlowHeader(
                         title: title,
-                        subtitle: "修改后会立即更新这个现场。",
+                        subtitle: subtitle,
                         backTitle: "取消",
                         onBack: {
-                            dismiss()
+                            requestDismiss()
                         }
                     )
 
-                    ShowDraftFormFields(draft: $draft, includesSeatSection: true)
+                    ShowDraftFormFields(
+                        draft: $draft,
+                        includesSeatSection: true,
+                        onCoverImported: registerImportedCover
+                    )
 
                     Button {
-                        guard draft.hasValidEndTime() else {
-                            message = "结束时间需要晚于开始时间。"
-                            return
+                        Task { @MainActor in
+                            await save()
                         }
-                        dismissKeyboard()
-                        onSave(draft)
-                        dismiss()
                     } label: {
-                        Text(saveTitle)
-                            .frame(maxWidth: .infinity)
+                        HStack(spacing: BSSpacing.sm) {
+                            if isSaving {
+                                ProgressView()
+                                    .tint(.black)
+                            }
+                            Text(isSaving ? "正在保存" : saveTitle)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(AddShowPrimaryButtonStyle())
-                    .disabled(!draft.isReadyToSave)
+                    .disabled(!draft.isReadyToSave || isSaving)
 
                     if let message {
                         Text(message)
                             .font(BSFont.caption)
-                            .foregroundColor(BSColor.Accent.fragment)
+                            .foregroundColor(BSColor.Accent.danger)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -661,30 +840,136 @@ struct ShowDraftEditorView: View {
         }
         .preferredColorScheme(.dark)
         .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
+            Button("继续编辑", role: .cancel) {}
+            Button("放弃修改", role: .destructive) {
+                cleanupTemporaryCovers()
+                dismiss()
+            }
+        } message: {
+            Text("尚未保存的现场信息会丢失。")
+        }
+        .onDisappear {
+            guard !didSave else { return }
+            cleanupTemporaryCovers()
+        }
+    }
+
+    private func requestDismiss() {
+        dismissKeyboard()
+        if hasUnsavedChanges {
+            showsDiscardConfirmation = true
+        } else {
+            cleanupTemporaryCovers()
+            dismiss()
+        }
+    }
+
+    @MainActor
+    private func save() async {
+        guard !isSaving else { return }
+        guard draft.hasValidEndTime() else {
+            message = "结束时间需要晚于开始时间，请检查下方时间范围。"
+            return
+        }
+
+        isSaving = true
+        message = nil
+        dismissKeyboard()
+
+        do {
+            try await onSave(draft)
+            finalizeCoverEdit()
+            didSave = true
+            dismiss()
+        } catch {
+            message = "没有保存成功，请重试。你的修改仍保留在这里。"
+            isSaving = false
+        }
+    }
+
+    private func registerImportedCover(previous: String, new: String) {
+        if temporaryCoverURLs.contains(previous) {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: previous)
+            temporaryCoverURLs.remove(previous)
+        }
+        temporaryCoverURLs.insert(new)
+    }
+
+    private func cleanupTemporaryCovers() {
+        for urlString in temporaryCoverURLs {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
+        }
+        temporaryCoverURLs.removeAll()
+    }
+
+    private func finalizeCoverEdit() {
+        for urlString in temporaryCoverURLs where urlString != draft.coverImageURL {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
+        }
+        if originalCoverURL != draft.coverImageURL {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: originalCoverURL)
+        }
+        temporaryCoverURLs.removeAll()
     }
 }
 
 private struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
     let includesSeatSection: Bool
-    @State private var startTime = Date()
-    @State private var hasEndTime = false
-    @State private var endDate = Date()
-    @State private var endTime = Date()
+    let onCoverImported: (String, String) -> Void
+    @State private var startTime: Date
+    @State private var hasEndTime: Bool
+    @State private var endDate: Date
+    @State private var endTime: Date
     @State private var selectedCoverItem: PhotosPickerItem?
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
+    @State private var showsCoverLinkField = false
 
-    init(draft: Binding<ShowDraft>, includesSeatSection: Bool = false) {
+    init(
+        draft: Binding<ShowDraft>,
+        includesSeatSection: Bool = false,
+        onCoverImported: @escaping (String, String) -> Void = { _, _ in }
+    ) {
+        let initialDraft = draft.wrappedValue
+        let fallbackStart = Calendar.current.date(
+            bySettingHour: 19,
+            minute: 30,
+            second: 0,
+            of: initialDraft.date
+        ) ?? initialDraft.date
+        let initialEndDate = initialDraft.endDate ?? initialDraft.date
+        let fallbackEnd = Calendar.current.date(
+            bySettingHour: 23,
+            minute: 55,
+            second: 0,
+            of: initialEndDate
+        ) ?? initialEndDate
+
         self._draft = draft
         self.includesSeatSection = includesSeatSection
+        self.onCoverImported = onCoverImported
+        _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
+        _hasEndTime = State(initialValue: initialDraft.endTime != nil)
+        _endDate = State(initialValue: initialEndDate)
+        _endTime = State(initialValue: initialDraft.endTime ?? fallbackEnd)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AddShowFieldGroup(title: "封面") {
-                    ShowCoverImageView(urlString: draft.coverImageURL, aspectRatio: 16.0 / 10.0, contentMode: .fill)
+                AddShowFieldGroup(title: "当前封面") {
+                    ShowCoverImageView(
+                        urlString: draft.coverImageURL,
+                        aspectRatio: 16.0 / 10.0,
+                        contentMode: .fill,
+                        enforcesAspectRatio: false
+                    )
+                    .frame(height: includesSeatSection ? 160 : 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipped()
                 }
             }
 
@@ -694,7 +979,7 @@ private struct ShowDraftFormFields: View {
                 }
             }
 
-            AddShowFieldGroup(title: "确认现场") {
+            AddShowFieldGroup(title: "基本信息") {
                 AddShowLabeledTextField(
                     title: "现场名称",
                     placeholder: "例：五月天上海演唱会",
@@ -707,52 +992,10 @@ private struct ShowDraftFormFields: View {
                     AddShowTypePicker(selection: $draft.type)
                 }
 
-                AddShowScheduleFields(
-                    draft: $draft,
-                    startTime: $startTime,
-                    hasEndTime: $hasEndTime,
-                    endDate: $endDate,
-                    endTime: $endTime
-                )
-
-                AddShowLabeledTextField(
-                    title: "场馆",
-                    placeholder: "上海体育场",
-                    text: $draft.venueName
-                )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，查路线时会用到",
-                    text: $draft.venueAddress,
-                    city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
-                )
-
-                AddShowLabeledTextField(
-                    title: "城市",
-                    placeholder: "上海",
-                    text: $draft.city
-                )
-
                 AddShowLabeledTextField(
                     title: "艺人 / 阵容",
                     placeholder: "五月天",
                     text: $draft.artist
-                )
-
-                AddShowLabeledTextField(
-                    title: "封面图链接",
-                    placeholder: "https://...",
-                    text: $draft.coverImageURL,
-                    keyboardType: .URL
-                )
-
-                AddShowCoverImportField(
-                    selectedItem: $selectedCoverItem,
-                    isImporting: isImportingCover,
-                    message: coverImportMessage
                 )
 
                 if includesSeatSection {
@@ -763,8 +1006,77 @@ private struct ShowDraftFormFields: View {
                     )
                 }
             }
+
+            AddShowFieldGroup(title: "日期与时间") {
+                AddShowScheduleFields(
+                    draft: $draft,
+                    startTime: $startTime,
+                    isStartTimeConfirmed: draft.startTime != nil,
+                    onConfirmStartTime: {
+                        draft.startTime = mergedStartTime()
+                    },
+                    hasEndTime: $hasEndTime,
+                    endDate: $endDate,
+                    endTime: $endTime
+                )
+
+                if draft.startTime != nil && !draft.hasValidEndTime() {
+                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Accent.danger)
+                        .accessibilityLabel("时间范围无效，结束时间需要晚于开始时间")
+                }
+            }
+
+            AddShowFieldGroup(title: "地点") {
+                AddShowLabeledTextField(
+                    title: "城市",
+                    placeholder: "上海",
+                    text: $draft.city
+                )
+
+                AddShowLabeledTextField(
+                    title: "场馆",
+                    placeholder: "上海体育场",
+                    text: $draft.venueName
+                )
+
+                BSAddressSuggestionField(
+                    label: "场馆地址",
+                    placeholder: "街道门牌，方便到场",
+                    text: $draft.venueAddress,
+                    city: draft.city,
+                    seedKeyword: draft.venueName,
+                    helperText: "下面有小地图，点一下就能选准地址。"
+                )
+            }
+
+            AddShowFieldGroup(title: "更换封面") {
+                AddShowCoverImportField(
+                    selectedItem: $selectedCoverItem,
+                    isImporting: isImportingCover,
+                    message: coverImportMessage
+                )
+
+                DisclosureGroup(isExpanded: $showsCoverLinkField) {
+                    AddShowLabeledTextField(
+                        title: "图片链接",
+                        placeholder: "https://...",
+                        text: $draft.coverImageURL,
+                        keyboardType: .URL
+                    )
+                    .padding(.top, BSSpacing.sm)
+                } label: {
+                    Label(
+                        showsCoverLinkField ? "收起图片链接" : "使用图片链接",
+                        systemImage: "link"
+                    )
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                }
+                .tint(BSColor.textTertiary)
+            }
         }
-        .onAppear(perform: syncFromDraft)
         .onChange(of: hasEndTime) { _, newValue in
             syncEndTimeToDraft(isEnabled: newValue)
         }
@@ -789,7 +1101,9 @@ private struct ShowDraftFormFields: View {
             }
         }
         .onChange(of: draft.date) { _, _ in
-            draft.startTime = mergedStartTime()
+            if draft.startTime != nil {
+                draft.startTime = mergedStartTime()
+            }
             if draft.type == .musicFestival,
                endDate < draft.date {
                 endDate = draft.date
@@ -818,27 +1132,6 @@ private struct ShowDraftFormFields: View {
         }
     }
 
-    private func syncFromDraft() {
-        startTime = draft.startTime
-        draft.startTime = mergedStartTime()
-        if let draftEndDate = draft.endDate {
-            endDate = draftEndDate
-        } else {
-            endDate = draft.date
-        }
-        if let draftEndTime = draft.endTime {
-            hasEndTime = true
-            endTime = draftEndTime
-        } else {
-            endTime = fallbackEndTimePickerValue()
-            draft.endTime = nil
-        }
-        if draft.type == .musicFestival {
-            draft.endDate = endDate
-            draft.endTime = hasEndTime ? mergedTime(on: endDate, time: endTime) : nil
-        }
-    }
-
     private func mergedStartTime() -> Date {
         mergedTime(on: draft.date, time: startTime)
     }
@@ -861,14 +1154,6 @@ private struct ShowDraftFormFields: View {
         return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
     }
 
-    private func defaultStartTime() -> Date {
-        Calendar.current.date(bySettingHour: 19, minute: 30, second: 0, of: draft.date) ?? draft.date
-    }
-
-    private func fallbackEndTimePickerValue() -> Date {
-        Calendar.current.date(bySettingHour: 23, minute: 55, second: 0, of: draft.date) ?? draft.date
-    }
-
     @MainActor
     private func importCover(from item: PhotosPickerItem) async {
         isImportingCover = true
@@ -889,7 +1174,9 @@ private struct ShowDraftFormFields: View {
             let directory = try ShowCoverLocalImageStore.directory()
             let fileURL = directory.appendingPathComponent("\(UUID().uuidString).jpg")
             try jpegData.write(to: fileURL, options: [.atomic])
+            let previousURL = draft.coverImageURL
             draft.coverImageURL = fileURL.absoluteString
+            onCoverImported(previousURL, draft.coverImageURL)
             coverImportMessage = "已使用本地封面图"
         } catch {
             coverImportMessage = "封面图导入失败"
@@ -905,15 +1192,17 @@ private struct AddShowFlowHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Button {
-                onBack()
-            } label: {
+            Button(action: onBack) {
                 Text(backTitle)
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.textTertiary)
             }
             .buttonStyle(.plain)
-            .padding(.bottom, BSSpacing.md)
+            .frame(minWidth: 72, minHeight: BSLayout.minTouchTarget)
+            .background(Color.white.opacity(0.06))
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .padding(.bottom, BSSpacing.sm)
 
             Text(title)
                 .font(.system(size: 32, weight: .bold))
@@ -1014,6 +1303,8 @@ private struct AddShowLabeledTextField: View {
 private struct AddShowScheduleFields: View {
     @Binding var draft: ShowDraft
     @Binding var startTime: Date
+    let isStartTimeConfirmed: Bool
+    let onConfirmStartTime: () -> Void
     @Binding var hasEndTime: Bool
     @Binding var endDate: Date
     @Binding var endTime: Date
@@ -1041,14 +1332,18 @@ private struct AddShowScheduleFields: View {
                 } else {
                     AddShowStartTimeField(
                         title: "开场时间",
-                        startTime: $startTime
+                        startTime: $startTime,
+                        isConfirmed: isStartTimeConfirmed,
+                        onConfirm: onConfirmStartTime
                     )
                 }
             }
 
             AddShowStartTimeField(
                 title: "每日开场时间",
-                startTime: $startTime
+                startTime: $startTime,
+                isConfirmed: isStartTimeConfirmed,
+                onConfirm: onConfirmStartTime
             )
             .opacity(draft.type == .musicFestival ? 1 : 0)
             .frame(height: draft.type == .musicFestival ? nil : 0)
@@ -1076,7 +1371,7 @@ private struct AddShowDatePickerField: View {
             AddShowFieldLabel(title: title, isRequired: isRequired)
             DatePicker("", selection: $selection, displayedComponents: displayedComponents)
                 .labelsHidden()
-                .tint(BSColor.Accent.video)
+                .tint(BSColor.Accent.violet)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .addShowInputChrome()
         }
@@ -1087,19 +1382,28 @@ private struct AddShowDatePickerField: View {
 private struct AddShowStartTimeField: View {
     let title: String
     @Binding var startTime: Date
+    let isConfirmed: Bool
+    let onConfirm: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             AddShowFieldLabel(title: title, isRequired: true)
             DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
                 .labelsHidden()
-                .tint(BSColor.Accent.video)
+                .tint(BSColor.Accent.violet)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .addShowInputChrome()
             Text("用于开场前提醒；可先填大概时间。")
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
+            if !isConfirmed {
+                Button("确认使用这个时间", action: onConfirm)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
         }
         .frame(maxWidth: .infinity)
     }
@@ -1117,7 +1421,7 @@ private struct AddShowEndTimeField: View {
                 Spacer(minLength: 0)
                 Toggle("结束时间", isOn: $hasEndTime)
                     .labelsHidden()
-                    .tint(BSColor.Accent.video)
+                    .tint(BSColor.Accent.violet)
                     .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
             }
 
@@ -1133,7 +1437,7 @@ private struct AddShowEndTimeField: View {
                         AddShowFieldLabel(title: "结束", isRequired: false)
                         DatePicker("", selection: $endTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .tint(BSColor.Accent.video)
+                            .tint(BSColor.Accent.violet)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .addShowInputChrome()
                     }
@@ -1169,14 +1473,14 @@ private struct AddShowCoverImportField: View {
                 HStack(spacing: BSSpacing.sm) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(BSColor.Accent.video.opacity(0.16))
+                            .fill(BSColor.Accent.violet.opacity(0.16))
                         if isImporting {
                             ProgressView()
-                                .tint(BSColor.Accent.video)
+                                .tint(BSColor.Accent.violet)
                         } else {
                             Image(systemName: "photo.on.rectangle.angled")
                                 .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(BSColor.Accent.video)
+                                .foregroundColor(BSColor.Accent.violet)
                         }
                     }
                     .frame(width: 42, height: 42)

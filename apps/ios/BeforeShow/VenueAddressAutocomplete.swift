@@ -210,7 +210,7 @@ struct BSAddressSuggestionField: View {
                         Text(seedLookupTitle)
                             .font(BSFont.caption)
                     }
-                    .foregroundColor(BSColor.Accent.travel)
+                    .foregroundColor(BSColor.Accent.info)
                 }
                 .buttonStyle(.plain)
             }
@@ -367,7 +367,7 @@ private struct BSInlineAddressMap: View {
                     Map(position: $cameraPosition, interactionModes: [.pan, .zoom]) {
                         if let pinCoordinate {
                             Marker("选中位置", coordinate: pinCoordinate)
-                                .tint(BSColor.Accent.travel)
+                                .tint(BSColor.Accent.info)
                         }
                     }
                     .mapStyle(.standard(elevation: .flat))
