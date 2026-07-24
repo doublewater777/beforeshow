@@ -89,32 +89,23 @@ Created with these fields:
   - No free trial in V2.1
 - Free allowance:
   - Save 1 `现场`.
-  - Use the first-experience package once per feature: candidate songs, outbound trip draft, and return trip draft.
-  - Deleting a show does not reset the free AI allowance.
 - Pro unlocks:
   - Unlimited saved `现场`.
-  - Repeated candidate song generation.
-  - Repeated outbound and return draft generation.
 - Expired Pro behavior:
-  - Existing local data, saved shows, show fragments, and manual edits remain accessible.
-  - Users can keep adding show fragments and manually editing saved local content.
-  - The app only limits new over-free saved shows and Pro-only generation.
+  - Existing saved shows and manual edits remain accessible.
+  - The app only limits new over-free saved shows.
 - Copy guardrail: do not mention ads, ad removal, VIP community, account sync, or unlimited AI.
 
 ## Privacy And Data Review Notes
 
 - Ticket screenshots: users choose screenshots themselves; V2.1 uses on-device OCR through iOS APIs and does not upload screenshots for recognition.
 - OCR fields: extraction is limited to show-related fields such as show name, date/time, city, venue, artists/lineup, and seat/area. The app should not recognize or store order numbers, QR codes, barcodes, ID numbers, phone numbers, buyer names, or payment information.
-- Gallery media: show fragments reference photos and videos in the system gallery. BeforeShow does not copy gallery originals into app storage, and clearing app data does not delete those originals.
-- App-created audio: voice fragments recorded inside BeforeShow are app-owned sandbox data and are removed when the related app data is cleared.
-- AI requests: candidate songs and trip drafts are user-triggered. Requests send only the fields needed for that generation path; the backend does not store long-term user show data.
-- Feedback: feedback sends only the message/category and optional diagnostics selected by the user. It must not automatically attach show content, screenshots, gallery media, voice fragments, or generated results.
-- Local-first stance: saved shows, preferences, fragments metadata, and app-created audio are local app data in V2.1; there is no BeforeShow account or cloud sync.
+- Feedback: feedback sends only the message/category and optional diagnostics selected by the user. It must not automatically attach show content or screenshots.
+- Local-first stance: saved shows and preferences are local app data in V2.1; there is no BeforeShow account or cloud sync.
 
 ## Content Rights And Feature Boundaries
 
-- Lyrics: BeforeShow does not display lyrics in candidate songs, home surfaces, screenshots, or marketing copy.
-- Candidate songs: the app stores song title and artist only; it does not create platform playlists or claim an official setlist.
+- Lyrics: BeforeShow does not display lyrics in home surfaces, screenshots, or marketing copy.
 - Ticketing: BeforeShow is not a ticket wallet, ticket trading product, ticket validator, or venue entry tool.
 
 ## Human Submission Checklist
@@ -133,31 +124,23 @@ Run this on a fresh install before submitting the first external TestFlight buil
 
 - [ ] Fresh launch starts without requiring an account and without asking for ticket screenshots.
 - [ ] Add one `现场` manually; save succeeds and the new show becomes the current show.
-- [ ] Open `歌单猜想`; generate once; rows show 曲目档位 + 曲目短因 (not all「较可能」with empty sides); edit/heart/share work locally.
-- [ ] Open `往返计划`; fill direction info, generate one outbound draft, edit and save it locally.
-- [ ] Generate one return draft or save an undecided return note; repeated outbound/return generation as a free user opens Pro.
 - [ ] Open `现场准备`; check and uncheck items, save a reminder time, save private notes, then leave and re-enter to confirm persistence.
-- [ ] Open `现场碎片`; save text and optional gallery references or app-created audio locally, then re-enter to confirm persistence.
 - [ ] Try adding a second `现场` as a free user; saving is blocked with the free limit message.
 - [ ] Open `设置 > Pro会员`; monthly and yearly products load with App Store/TestFlight prices for `com.doublewaterapps.beforeshow.pro.monthly` and `com.doublewaterapps.beforeshow.pro.yearly`.
 - [ ] Buy monthly Pro in the sandbox sheet; the Pro page shows active status.
 - [ ] After purchase, add a second `现场`; save succeeds.
-- [ ] After purchase, regenerate `歌单猜想`; confirmation required; hand-added and 最想看 preserved; tiers/hints present after generate.
 - [ ] Delete and reinstall, then use `恢复购买`; Pro entitlement restores from StoreKit.
 - [ ] Verify privacy and copyright boundaries: no lyrics, no uploaded ticket screenshot flow, no self-hosted media playback, and no BeforeShow account/sync prompt.
 - [ ] Repeat the free-limit path once with App Store sandbox/TestFlight products, not only the local `.storekit` file.
-- [ ] Verify App UI uses `现场`, `歌单猜想`, 去程/出门方案, `Pro会员`（Store 元数据若仍写「候选曲目」可另排期，见 ADR 0015）。
+- [ ] Verify App UI uses `现场` and `Pro会员`, with no song, travel, or memory-fragment surfaces.
 
 ## Current External Blockers
 
-- [x] Deploy the CloudBase `generate` HTTP function. On 2026-06-16, `POST https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate` returned `ok: true` with `response.type = candidateSongs`.
 - [x] Keep `parseShowLink` deployed. On 2026-06-16, the deployed `/parseShowLink` endpoint accepted the iOS-style JSON body with `appInstanceId` and `appSignature`.
-- [x] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so both `generate` and `parseShowLink` are staged under `.cloudbase/functions`.
-- [x] After deployment, repeat the `/generate` smoke test with a non-private test show and confirm it returns `ok: true` with `response.type = candidateSongs`.
-- [x] On 2026-06-16, repeat the `/generate` smoke test for `roundTripDraft`; the live endpoint returned `ok: true`, `response.type = roundTripDraft`, and valid evidence.
+- [x] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so `parseShowLink` is staged.
 - [x] Upload App Store review screenshots for subscription IDs `6780727285` and `6780727360`; `asc validate subscriptions` now confirms both review screenshot IDs.
 - [ ] Resolve remaining first-release subscription state; current `asc validate subscriptions` warnings are missing optional promotional images, app build count `0`, and app availability comparison unavailable.
-- [ ] Run the real TestFlight/manual loop on device after the build is uploaded: free first show, one candidate generation, Pro gate on second show/regeneration, purchase/restore, and post-purchase unlock.
+- [ ] Run the real TestFlight/manual loop on device after the build is uploaded: free first show, Pro gate on second show, purchase/restore, and post-purchase unlock.
 
 ### 2026-06-16 ASC Readiness Snapshot
 

@@ -1,4 +1,3 @@
-import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -13,32 +12,19 @@ final class CurrentShowSessionTests: XCTestCase {
         now = makeDate(year: 2026, month: 6, day: 15, hour: 12)
     }
 
-    func testResolveJoinsSelectionPhaseAndSummary() throws {
+    func testResolveJoinsSelectionAndPhase() throws {
         let tomorrow = try makeShow(name: "明天的现场", day: 16)
         let later = try makeShow(name: "更远的现场", day: 22)
-        let group = try CandidateSongGroup(showID: tomorrow.id, uncertaintyNote: "仅供参考")
-        let song = try CandidateSong(
-            groupID: group.id,
-            songName: "歌",
-            artist: "艺人",
-            order: 0
-        )
 
         let session = CurrentShowSession(calendar: calendar)
         let snapshot = session.resolve(
             shows: [later, tomorrow],
             manualSelection: nil,
-            candidateGroups: [group],
-            candidateSongs: [song],
-            roundTripPlans: [],
             now: now
         )
 
         XCTAssertEqual(snapshot?.show.id, tomorrow.id)
         XCTAssertEqual(snapshot?.phase.kind, .before)
-        XCTAssertTrue(snapshot?.summary.hasCandidateSongs == true)
-        XCTAssertEqual(snapshot?.summary.candidateSongCount, 1)
-        XCTAssertFalse(snapshot?.summary.hasOutboundPlan == true)
     }
 
     func testSnapshotDoesNotRequireShowToBeCurrent() throws {
@@ -48,9 +34,6 @@ final class CurrentShowSessionTests: XCTestCase {
 
         let snapshot = session.snapshot(
             for: b,
-            candidateGroups: [],
-            candidateSongs: [],
-            roundTripPlans: [],
             now: now
         )
 
@@ -72,38 +55,6 @@ final class CurrentShowSessionTests: XCTestCase {
             now: now
         )
         XCTAssertEqual(selected?.id, manual.id)
-    }
-
-    func testSavedOutboundPlanSurfacesInSnapshotSummary() throws {
-        let show = try makeShow(name: "有去程", day: 16)
-        let plan = RoundTripPlan(showID: show.id)
-        plan.save(
-            TravelPlan(
-                direction: .outbound,
-                mode: .transit,
-                origin: TravelPlace(name: "家", address: "家", latitude: 30, longitude: 120),
-                destination: TravelPlace(name: "场馆", address: "场馆", latitude: 31, longitude: 121),
-                leaveAt: Date(timeIntervalSince1970: 1_000),
-                arriveAt: Date(timeIntervalSince1970: 2_000),
-                durationMinutes: 17,
-                distanceMeters: 4_000,
-                summary: "地铁到场",
-                timeline: [],
-                showFingerprint: "v1"
-            )
-        )
-        let session = CurrentShowSession(calendar: calendar)
-
-        let snapshot = session.snapshot(
-            for: show,
-            candidateGroups: [],
-            candidateSongs: [],
-            roundTripPlans: [plan],
-            now: now
-        )
-
-        XCTAssertTrue(plan.hasOutboundPlan)
-        XCTAssertTrue(snapshot.summary.hasOutboundPlan)
     }
 
     private func makeShow(name: String, day: Int) throws -> Show {

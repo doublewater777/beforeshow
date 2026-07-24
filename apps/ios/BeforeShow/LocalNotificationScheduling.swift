@@ -204,11 +204,10 @@ struct LocalNotificationScheduler {
         to newCurrentShow: Show?,
         now: Date = Date()
     ) -> NotificationReschedulePlan {
-        let futureRecordsToCancel = existingRecords.filter { $0.fireDate > now }
         let requests = newCurrentShow.map { futureRequests(for: $0, now: now) } ?? []
 
         return NotificationReschedulePlan(
-            recordsToCancel: futureRecordsToCancel,
+            recordsToCancel: existingRecords,
             requestsToSchedule: requests
         )
     }
@@ -218,9 +217,6 @@ struct LocalNotificationScheduler {
     ) -> [(milestone: ShowNotificationMilestone, fireDate: Date)] {
         [
             (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20)),
-            (.sevenDaysBefore, dayRelativeToShow(timeState, offset: -7, hour: 20)),
-            (.threeDaysBefore, dayRelativeToShow(timeState, offset: -3, hour: 20)),
-            (.twoDaysBefore, dayRelativeToShow(timeState, offset: -2, hour: 20)),
             (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20)),
             (.showDay, showDayReminderDate(for: timeState))
         ].compactMap { milestone, fireDate in
@@ -258,9 +254,9 @@ struct LocalNotificationScheduler {
     private func notificationBody(for milestone: ShowNotificationMilestone, showName: String) -> String {
         switch milestone {
         case .fourteenDaysBefore:
-            return "\(showName) 还有两周，可以先听听可能的曲目"
+            return "\(showName) 还有两周，期待已经开始了"
         case .sevenDaysBefore:
-            return "\(showName) 还有 7 天，提前确认场馆对水杯、雨具和大件包的规则。顺便看看怎么去"
+            return "\(showName) 还有 7 天，提前确认场馆对水杯、雨具和大件包的规则"
         case .threeDaysBefore:
             return "\(showName) 还有 3 天，把入场凭证、身份证件和必要电量提前确认好"
         case .twoDaysBefore:
@@ -298,11 +294,9 @@ enum NotificationUserInfoKey {
 }
 
 /// Payload carried in each notification's `userInfo`. Tapping a notification sets
-/// the show as current and opens the destination tool (or home).
+/// the show as current and opens home.
 struct NotificationDeepLink: Equatable, Sendable {
     enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
-        case candidateSongs
-        case outboundPlan
         case home
     }
 
@@ -340,9 +334,9 @@ struct NotificationDeepLink: Equatable, Sendable {
 extension ShowNotificationMilestone {
     var deepLinkDestination: NotificationDeepLink.Destination {
         switch self {
-        case .fourteenDaysBefore: return .candidateSongs
-        case .sevenDaysBefore, .oneDayBefore: return .outboundPlan
-        case .threeDaysBefore, .twoDaysBefore, .showDay: return .home
+        case .fourteenDaysBefore: return .home
+        case .sevenDaysBefore, .threeDaysBefore, .twoDaysBefore, .oneDayBefore, .showDay:
+            return .home
         }
     }
 }
@@ -407,9 +401,11 @@ final class LocalNotificationCenter {
 
     /// Cancel everything tied to the previous focus and schedule the new current show.
     /// Missed milestones are never backfilled; only future fire dates are scheduled.
-    func applyFocusChange(to show: Show?, in context: ModelContext, now: Date = Date()) async {
+    @discardableResult
+    func applyFocusChange(to show: Show?, in context: ModelContext, now: Date = Date()) async -> Bool {
         let existingRecords = (try? context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())) ?? []
         let plan = scheduler.planFocusChange(from: existingRecords, to: show, now: now)
+        var didScheduleEveryRequest = true
 
         let identifiersToCancel = plan.recordsToCancel.map(\.requestIdentifier)
         if !identifiersToCancel.isEmpty {
@@ -429,11 +425,21 @@ final class LocalNotificationCenter {
             do {
                 try await center.add(request.makeNotificationRequest())
             } catch {
+                didScheduleEveryRequest = false
                 context.delete(record)
             }
         }
 
-        try? context.save()
+        do {
+            try context.save()
+            return didScheduleEveryRequest
+        } catch {
+            center.removePendingNotificationRequests(
+                withIdentifiers: plan.requestsToSchedule.map(\.requestIdentifier)
+            )
+            context.rollback()
+            return false
+        }
     }
 
     #if DEBUG

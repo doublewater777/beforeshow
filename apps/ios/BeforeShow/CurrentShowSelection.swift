@@ -78,11 +78,7 @@ struct CurrentShowSelector {
             }
             .map { show, _ in show }
 
-        if let selectedShow = automaticallySelectableShows.first {
-            return selectedShow
-        }
-
-        return mostRecentEndedShow(from: shows, now: now)
+        return automaticallySelectableShows.first
     }
 
     func isAutomaticallySelectable(_ show: Show, now: Date = Date()) -> Bool {
@@ -93,21 +89,6 @@ struct CurrentShowSelector {
             retentionDays: postShowRetentionDays
         )
         .isAutomaticallySelectable
-    }
-
-    private func mostRecentEndedShow(from shows: [Show], now: Date) -> Show? {
-        return shows
-            .filter { show in
-                CurrentShowTimeState(
-                    show: show,
-                    calendar: calendar,
-                    now: now,
-                    retentionDays: postShowRetentionDays
-                )
-                .isEndedFallbackCandidate
-            }
-            .sorted { $0.effectiveDate > $1.effectiveDate }
-            .first
     }
 
     private func automaticSelectionRank(for state: CurrentShowTimeState) -> Int {

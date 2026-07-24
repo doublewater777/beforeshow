@@ -27,8 +27,7 @@ enum ProSubscriptionCatalog {
             displayName: "BeforeShow Pro 月度",
             priceText: "¥12/月",
             benefitCopy: [
-                "无限添加现场",
-                "重复生成歌单猜想"
+                "无限添加现场"
             ]
         ),
         ProSubscriptionProduct(
@@ -37,8 +36,7 @@ enum ProSubscriptionCatalog {
             displayName: "BeforeShow Pro 年度",
             priceText: "¥68/年",
             benefitCopy: [
-                "无限添加现场",
-                "重复生成歌单猜想"
+                "无限添加现场"
             ]
         )
     ]
@@ -294,63 +292,13 @@ extension ProSubscriptionPlan {
 }
 #endif
 
-enum ProFeature: String, CaseIterable, Equatable, Hashable {
-    case savedShows
-    case candidateSongs
-    case outboundTripDraft
-    case returnTripDraft
-}
-
-enum ProUsageStorage {
-    static let usedFreeGenerationFeaturesKey = "usedFreeGenerationFeatures"
-
-    static func encodeUsedFreeGenerationFeatures(_ features: Set<ProFeature>) -> String {
-        features
-            .map(\.rawValue)
-            .sorted()
-            .joined(separator: ",")
-    }
-
-    static func decodeUsedFreeGenerationFeatures(_ rawValue: String) -> Set<ProFeature> {
-        Set(
-            rawValue
-                .split(separator: ",")
-                .compactMap { ProFeature(rawValue: String($0)) }
-        )
-    }
-
-    static func markUsed(_ feature: ProFeature, in rawValue: String) -> String {
-        var features = decodeUsedFreeGenerationFeatures(rawValue)
-        features.insert(feature)
-        return encodeUsedFreeGenerationFeatures(features)
-    }
-}
-
-struct ProUsageSnapshot: Equatable {
-    var savedShowCount: Int
-    var usedFreeGenerationFeatures: Set<ProFeature>
-
-    init(savedShowCount: Int, usedFreeGenerationFeatures: Set<ProFeature> = []) {
-        self.savedShowCount = savedShowCount
-        self.usedFreeGenerationFeatures = usedFreeGenerationFeatures
-    }
-
-    func hasUsedFreeAllowance(for feature: ProFeature) -> Bool {
-        usedFreeGenerationFeatures.contains(feature)
-    }
-}
-
 enum ProLimitReason: Equatable {
     case saveLimit
-    case candidateSongsRegeneration
-    case roundTripRegeneration
 
     var title: String {
         switch self {
         case .saveLimit:
             return "免费版可保存 1 场现场"
-        case .candidateSongsRegeneration, .roundTripRegeneration:
-            return "重复生成需要 Pro"
         }
     }
 
@@ -358,10 +306,6 @@ enum ProLimitReason: Equatable {
         switch self {
         case .saveLimit:
             return "开通 Pro 后可以无限保存现场。"
-        case .candidateSongsRegeneration:
-            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成歌单猜想。"
-        case .roundTripRegeneration:
-            return "免费版每类 AI 内容可体验一次。开通 Pro 后可以重复生成去程计划。"
         }
     }
 }
@@ -375,31 +319,6 @@ struct ProFeatureGate {
 
     func canAddShow(savedShowCount: Int, entitlement: ProEntitlementState) -> Bool {
         entitlement.isProActive || savedShowCount < freeSavedShowLimit
-    }
-
-    func canAddShow(usage: ProUsageSnapshot, entitlement: ProEntitlementState) -> Bool {
-        canAddShow(savedShowCount: usage.savedShowCount, entitlement: entitlement)
-    }
-
-    func canGenerate(feature: ProFeature, hasUsedFreeAllowance: Bool, entitlement: ProEntitlementState) -> Bool {
-        switch feature {
-        case .candidateSongs, .outboundTripDraft, .returnTripDraft:
-            return entitlement.isProActive || !hasUsedFreeAllowance
-        case .savedShows:
-            return entitlement.isProActive
-        }
-    }
-
-    func canGenerate(feature: ProFeature, usage: ProUsageSnapshot, entitlement: ProEntitlementState) -> Bool {
-        canGenerate(
-            feature: feature,
-            hasUsedFreeAllowance: usage.hasUsedFreeAllowance(for: feature),
-            entitlement: entitlement
-        )
-    }
-
-    func canAddShowFragment(entitlement: ProEntitlementState) -> Bool {
-        true
     }
 
     func canAccessExistingLocalData(entitlement: ProEntitlementState) -> Bool {

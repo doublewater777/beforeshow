@@ -51,11 +51,9 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             now: now
         )
 
-        // now = June 15 10:00; show = June 20 20:00. 14d (June 6) and 7d (June 13) are past.
-        XCTAssertEqual(requests.map(\.milestone), [.threeDaysBefore, .twoDaysBefore, .oneDayBefore, .showDay])
+        // now = June 15 10:00; show = June 20 20:00. T-14 is past.
+        XCTAssertEqual(requests.map(\.milestone), [.oneDayBefore, .showDay])
         XCTAssertEqual(requests.map(\.fireDate), [
-            makeDate(year: 2026, month: 6, day: 17, hour: 20),
-            makeDate(year: 2026, month: 6, day: 18, hour: 20),
             makeDate(year: 2026, month: 6, day: 19, hour: 20),
             makeDate(year: 2026, month: 6, day: 20, hour: 17)
         ])
@@ -94,12 +92,9 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             now: makeDate(year: 2026, month: 6, day: 1)
         )
 
-        XCTAssertEqual(requests.map(\.milestone), [.fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .twoDaysBefore, .oneDayBefore, .showDay])
+        XCTAssertEqual(requests.map(\.milestone), [.fourteenDaysBefore, .oneDayBefore, .showDay])
         XCTAssertEqual(requests.map(\.fireDate), [
             makeDate(year: 2026, month: 6, day: 11, hour: 20),
-            makeDate(year: 2026, month: 6, day: 18, hour: 20),
-            makeDate(year: 2026, month: 6, day: 22, hour: 20),
-            makeDate(year: 2026, month: 6, day: 23, hour: 20),
             makeDate(year: 2026, month: 6, day: 24, hour: 20),
             makeDate(year: 2026, month: 6, day: 25, hour: 16)
         ])
@@ -153,11 +148,11 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(plan.recordsToCancel.map(\.id), [oldRecord.id])
+        XCTAssertEqual(Set(plan.recordsToCancel.map(\.id)), Set([oldRecord.id, expiredOldRecord.id]))
         XCTAssertEqual(Set(plan.requestsToSchedule.map(\.showID)), [newShow.id])
         XCTAssertEqual(
             plan.requestsToSchedule.map(\.milestone),
-            [.sevenDaysBefore, .threeDaysBefore, .twoDaysBefore, .oneDayBefore, .showDay]
+            [.oneDayBefore, .showDay]
         )
     }
 
@@ -204,28 +199,19 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
         let fourteen = requests.first { $0.milestone == .fourteenDaysBefore }!
         XCTAssertEqual(fourteen.userInfo["showID"] as? String, show.id.uuidString)
-        XCTAssertEqual(fourteen.userInfo["destination"] as? String, "candidateSongs")
-
-        let seven = requests.first { $0.milestone == .sevenDaysBefore }!
-        XCTAssertEqual(seven.userInfo["destination"] as? String, "outboundPlan")
-
-        let three = requests.first { $0.milestone == .threeDaysBefore }!
-        XCTAssertEqual(three.userInfo["destination"] as? String, "home")
-
-        let two = requests.first { $0.milestone == .twoDaysBefore }!
-        XCTAssertEqual(two.userInfo["destination"] as? String, "home")
+        XCTAssertEqual(fourteen.userInfo["destination"] as? String, "home")
 
         let oneDay = requests.first { $0.milestone == .oneDayBefore }!
-        XCTAssertEqual(oneDay.userInfo["destination"] as? String, "outboundPlan")
+        XCTAssertEqual(oneDay.userInfo["destination"] as? String, "home")
 
         let showDay = requests.first { $0.milestone == .showDay }!
         XCTAssertEqual(showDay.userInfo["destination"] as? String, "home")
 
         XCTAssertEqual(
             NotificationDeepLink(userInfo: fourteen.userInfo),
-            NotificationDeepLink(showID: show.id, destination: .candidateSongs)
+            NotificationDeepLink(showID: show.id, destination: .home)
         )
-        XCTAssertEqual(NotificationDeepLink(userInfo: oneDay.userInfo)?.destination, .outboundPlan)
+        XCTAssertEqual(NotificationDeepLink(userInfo: oneDay.userInfo)?.destination, .home)
         XCTAssertEqual(NotificationDeepLink(userInfo: showDay.userInfo)?.destination, .home)
     }
 

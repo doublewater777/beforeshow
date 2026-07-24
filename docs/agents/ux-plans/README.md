@@ -14,20 +14,14 @@
 
 | 顺序 | 文件 | 优先级 | 依赖 |
 |------|------|--------|------|
-| 1 | `01-home-current-show.md` | P0 | 可先做；与 05 有衔接点 |
-| 2 | `05-departure-plan.md` | P0/P1 | 当天提醒卡依赖已保存出门方案 |
-| 3 | `08-add-show.md` | P0/P1 | 主转化 |
-| 4 | `12-notifications.md` | P1 | 最好在 01 稳定后 |
-| 5 | `03-candidate-songs.md` | P1 | |
-| 6 | `09-my-shows.md` | P1 | |
-| 7 | `10-show-detail.md` | P1 | |
-| 8 | `06-show-preparation.md` | P2 | |
-| 9 | `07-show-fragments.md` | P2 | |
-| 10 | `11-onboarding-splash.md` | P2 | |
-| 11 | `13-settings-pro.md` | P2 | |
-| 12 | `14-cross-cutting-visual.md` | P2 | 可最后统一视觉 |
+| 1 | `08-add-show.md` | P0/P1 | 主转化 |
+| 2 | `09-my-shows.md` | P1 | |
+| 3 | `06-show-preparation.md` | P2 | |
+| 4 | `11-onboarding-splash.md` | P2 | |
+| 5 | `14-cross-cutting-visual.md` | P2 | 可最后统一视觉 |
 
 > **已移除：** `02-tonight-first-listen.md`（「今晚先听」产品与代码均已删除，勿再实现）。
+> **已移除：** 歌单猜想、来去计划、现场碎片相关计划，勿再实现。
 
 ## 全局约束（所有 plan 默认继承）
 

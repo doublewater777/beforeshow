@@ -15,29 +15,6 @@ const shows = [
     date: "2026-09-24T19:30:00+08:00",
     accent: "#84BFFF",
     song: "晴天",
-    traffic: {
-      alert: "建议提前 90 分钟出发，南京奥体中心体育场周边道路将实行临时交通管制。",
-      go: {
-        metro: "地铁 2 号线 → 奥体东站，或地铁 10 号线 → 奥体中心站，步行约 5-10 分钟。",
-        taxi: "由于交通管制，建议打车至奥体东门附近，提前叫车以防溢价。",
-        walk: "从地铁/轻轨口出站后步行约 600 米，约 8 分钟。",
-        entry: "建议走东门（C/D 入口），排队通常比南门短 15–20 分钟。",
-      },
-      back: {
-        metro: "散场高峰期地铁候车约 25 分钟，建议步行至江东中路再行乘车。",
-        taxi: "散场后溢价约 2x，建议步行到 800 米外的奥体东门商业区再叫车。",
-        walk: "步行至最近地铁站约 10 分钟，可边走边回味演出。",
-        tip: "散场后先在场馆附近商区等 15–20 分钟，人潮散去后交通会顺畅很多。",
-      },
-    },
-    songs: [
-      { id: "s1", title: "晴天",       weight: 98, status: "很可能会唱" },
-      { id: "s2", title: "七里香",     weight: 95, status: "重点预测" },
-      { id: "s3", title: "青花瓷",     weight: 90, status: "已经听过" },
-      { id: "s4", title: "稻香",       weight: 88, status: "重点预测" },
-      { id: "s5", title: "夜曲",       weight: 82, status: "待判断" },
-      { id: "s6", title: "搁浅",       weight: 75, status: "待判断" },
-    ],
   },
 ];
 
@@ -51,49 +28,20 @@ const useFlowSteps = [
     desc: "如果你有不止一场演出，开场前会帮你聚焦当前最想期待的那一场。",
   },
   {
-    title: "两周慢慢预习",
-    desc: "每天一首歌，一点点靠近灯光亮起的瞬间。",
-  },
-  {
-    title: "当天只留必要工具",
-    desc: "歌单参考、场馆提示、音乐节装备、离场攻略，都在你需要的时候出现。",
-  },
-  {
-    title: "演后，把这场收起来",
-    desc: "留下一句话、几张照片、一张情绪卡片，把余音保存下来。",
+    title: "每天看见倒数",
+    desc: "离开场越来越近时，打开就知道还要等多久。",
   },
 ];
 
 const audienceItems = [
   "适合已经买票、正在等开场的人",
   "适合演唱会、Livehouse、音乐节",
-  "适合想提前熟悉歌单和现场氛围的人",
+  "适合想把下一场放在心上的人",
 ];
-
-// ── Helpers ────────────────────────────────────────────
-function defaultSongsFor(showId) {
-  return shows.find((s) => s.id === showId)?.songs || [];
-}
-
-function buildSongsMap(saved) {
-  // Merge saved per-show customizations over defaults
-  const map = {};
-  for (const show of shows) {
-    map[show.id] = saved?.[show.id] && Array.isArray(saved[show.id])
-      ? saved[show.id]
-      : [...show.songs];
-  }
-  return map;
-}
-
-function currentSongs() {
-  return state.songs[state.activeShowId] || [];
-}
 
 // ── State ────────────────────────────────────────────
 const state = {
   activeShowId: "jay",
-  songs: buildSongsMap(readJson("songs", null)),
   formErrors: {},
   submitting: false,
   submitted: false,
@@ -102,17 +50,6 @@ const state = {
 };
 
 // ── Storage helpers ──────────────────────────────────
-function readJson(key, fallback) {
-  try {
-    const raw = localStorage.getItem(`beforeshow.${key}.v2`);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch { return fallback; }
-}
-
-function writeJson(key, value) {
-  localStorage.setItem(`beforeshow.${key}.v2`, JSON.stringify(value));
-}
-
 function getSessionId() {
   const existing = localStorage.getItem(STORAGE_SESSION);
   if (existing) return existing;
@@ -314,15 +251,12 @@ function renderExperience() {
           演出越接近开始，<br>越值得期待。
         </h2>
         <p class="section-desc">
-          倒数、预测歌单，
-          帮你在开场前一点点沉浸进那场演出；
-          出行方案让你到了当天也能从容不迫。
+          把下一场放进来，
+          每次打开都能看见离灯光亮起还有多久。
         </p>
 
-        <div class="feature-modules" aria-label="BeforeShow 三个模块">
+        <div class="feature-modules" aria-label="BeforeShow 核心体验">
           ${renderFeatureModule("01", "倒数提醒", "把五月天上海演唱会放进来，每天知道离开场还有多久。", renderCountdownDemo())}
-          ${renderFeatureModule("02", "AI 预测歌单", "预测可能会唱的曲目，并导入网易云音乐或 QQ 音乐提前听。", renderSetlistDemo())}
-          ${renderFeatureModule("03", "出行方案", "提前看好去程、入场口和散场交通，演出当天从容不迫。", renderTrafficDemo())}
         </div>
       </div>
     </section>
@@ -441,150 +375,6 @@ function renderConcertCountdownRight(show) {
   `;
 }
 
-function renderSetlistDemo() {
-  const show = selectedShow();
-  const songs = currentSongs();
-  return `
-    <div class="setlist-card">
-      <div class="setlist-header">
-        <span class="setlist-ai-badge">✦ AI 预测</span>
-        <span class="setlist-title">${esc(show.artist)} · 可能会唱这些歌</span>
-      </div>
-      <div class="setlist-body" role="list" aria-label="歌单列表">
-        ${songs.map((song, i) => `
-          <div class="song-row ${song.status === "移除" ? "muted" : ""}" role="listitem">
-            <span class="song-num">${String(i + 1).padStart(2, "0")}</span>
-            <div class="song-info">
-              <p class="song-name">${esc(song.title)}</p>
-              <p class="song-meta">${esc(song.status)} · ${song.weight}% 概率</p>
-            </div>
-            <div class="song-weight-bar" aria-hidden="true">
-              <div class="song-weight-fill" style="width:${song.weight}%"></div>
-            </div>
-            <div class="song-actions-row" aria-label="${esc(song.title)} 操作">
-              <button class="song-action-btn ${song.status === "很可能会唱" ? "active" : ""}" data-song-action="likely" data-song-id="${song.id}">会唱</button>
-              <button class="song-action-btn ${song.status === "重点预测" ? "active" : ""}" data-song-action="priority" data-song-id="${song.id}">重点</button>
-              <button class="song-action-btn ${song.status === "已经听过" ? "active" : ""}" data-song-action="heard" data-song-id="${song.id}">听过</button>
-              <button class="song-action-btn ${song.status === "移除" ? "active" : ""}" data-song-action="remove" data-song-id="${song.id}">移除</button>
-            </div>
-          </div>
-        `).join("")}
-      </div>
-      <div class="setlist-imports" aria-label="导入预测歌单">
-        <button class="music-import-btn music-import-netease" data-import-platform="netease">导入网易云音乐</button>
-        <button class="music-import-btn music-import-qq" data-import-platform="qq">导入 QQ 音乐</button>
-      </div>
-    </div>
-  `;
-}
-
-// ── Traffic Demo ──────────────────────────────────────
-function renderTrafficDemo() {
-  const show = selectedShow();
-  const t = show.traffic;
-
-  if (!t) return `<p style="color:var(--text-faint); padding:40px 0;">暂无交通数据。</p>`;
-
-  const goCard = `
-    <div class="traffic-card traffic-card-go">
-      <div class="traffic-card-head">
-        <span class="traffic-card-icon">🚀</span>
-        <div>
-          <p class="traffic-card-label">去程</p>
-          <p class="traffic-card-subtitle">${esc(show.venue)}</p>
-        </div>
-      </div>
-      <div class="traffic-rows">
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-metro">🚇</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">地铁</p>
-            <p class="traffic-row-text">${esc(t.go.metro)}</p>
-          </div>
-        </div>
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-taxi">🚕</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">打车</p>
-            <p class="traffic-row-text">${esc(t.go.taxi)}</p>
-          </div>
-        </div>
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-walk">🚶</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">步行</p>
-            <p class="traffic-row-text">${esc(t.go.walk)}</p>
-          </div>
-        </div>
-        <div class="traffic-row traffic-row-entry">
-          <span class="traffic-row-icon">🚪</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">入场口</p>
-            <p class="traffic-row-text">${esc(t.go.entry)}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const backCard = `
-    <div class="traffic-card traffic-card-back">
-      <div class="traffic-card-head">
-        <span class="traffic-card-icon">🌙</span>
-        <div>
-          <p class="traffic-card-label">回程</p>
-          <p class="traffic-card-subtitle">散场之后</p>
-        </div>
-      </div>
-      <div class="traffic-rows">
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-metro">🚇</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">地铁</p>
-            <p class="traffic-row-text">${esc(t.back.metro)}</p>
-          </div>
-        </div>
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-taxi">🚕</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">打车</p>
-            <p class="traffic-row-text">${esc(t.back.taxi)}</p>
-          </div>
-        </div>
-        <div class="traffic-row">
-          <span class="traffic-row-icon traffic-walk">🚶</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">步行</p>
-            <p class="traffic-row-text">${esc(t.back.walk)}</p>
-          </div>
-        </div>
-        <div class="traffic-row traffic-row-tip">
-          <span class="traffic-row-icon">💡</span>
-          <div class="traffic-row-body">
-            <p class="traffic-row-label">散场建议</p>
-            <p class="traffic-row-text">${esc(t.back.tip)}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-
-  return `
-    <div class="traffic-demo">
-      <div class="traffic-alert" role="note">
-        <span class="traffic-alert-icon">⏰</span>
-        <span>${esc(t.alert)}</span>
-      </div>
-      <div class="traffic-grid">
-        ${goCard}
-        ${backCard}
-      </div>
-      <p class="traffic-footnote">先知道怎么走，开场那天就少一点临时慌张。</p>
-    </div>
-  `;
-}
-
-
 // ── Join / Waitlist ───────────────────────────────────
 function renderJoin() {
   return `
@@ -677,24 +467,6 @@ function setToast(msg) {
   }, 2800);
 }
 
-function handleSongAction(songId, action) {
-  const labels = { likely: "很可能会唱", priority: "重点预测", heard: "已经听过", remove: "移除" };
-  const showId = state.activeShowId;
-  const list = [...(state.songs[showId] || [])];
-  state.songs[showId] = list.map((s) =>
-    s.id === songId
-      ? { ...s, status: labels[action] || s.status, weight: Math.min(99, s.weight + 3) }
-      : s,
-  );
-  if (action === "priority") {
-    const target = state.songs[showId].find((s) => s.id === songId);
-    state.songs[showId] = [target, ...state.songs[showId].filter((s) => s.id !== songId)];
-  }
-  writeJson("songs", state.songs);
-  track("song_action", { songId, action, showId });
-  setToast("预测歌单已更新。");
-}
-
 function saveLeadLocally(lead) {
   try {
     const raw = localStorage.getItem(STORAGE_LEADS);
@@ -779,20 +551,6 @@ document.addEventListener("click", (e) => {
     return;
   }
 
-  const importPlatform = btn?.getAttribute("data-import-platform");
-  if (importPlatform) {
-    const platformName = importPlatform === "netease" ? "网易云音乐" : "QQ 音乐";
-    track("setlist_import_click", { platform: importPlatform, showId: state.activeShowId });
-    setToast(`内测开放后，可将 AI 预测歌单导入${platformName}。`);
-    return;
-  }
-
-  // Song action
-  const songAction = btn?.getAttribute("data-song-action");
-  if (songAction) {
-    handleSongAction(btn.getAttribute("data-song-id"), songAction);
-    return;
-  }
 });
 
 document.addEventListener("submit", (e) => {

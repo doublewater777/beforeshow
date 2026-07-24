@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var hasFinishedSplash = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isShowingFirstShowAdd = false
+    @State private var addShowToast: BSToastPayload?
 
     var body: some View {
         ZStack {
@@ -32,19 +33,37 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
+        .bsToastOverlay(addShowToast, bottomPadding: 28)
         .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
             hasCompletedOnboarding = true
         }) {
-            AddShowCoordinatorSheet()
+            AddShowCoordinatorSheet {
+                presentAddShowSuccess()
+            }
         }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
+            if ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") {
+                hasCompletedOnboarding = true
+                isShowingFirstShowAdd = true
+            }
         }
         #endif
     }
 
     @Query(sort: \Show.date) private var shows: [Show]
+
+    private func presentAddShowSuccess() {
+        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        addShowToast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if addShowToast == payload {
+                addShowToast = nil
+            }
+        }
+    }
 
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
@@ -120,6 +139,7 @@ private struct CurrentShowHomeView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
+    @State private var toast: BSToastPayload?
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -141,9 +161,23 @@ private struct CurrentShowHomeView: View {
                     })
                 }
             }
+            .bsToastOverlay(toast, bottomPadding: 28)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet()
+                AddShowCoordinatorSheet {
+                    presentAddShowSuccess()
+                }
+            }
+        }
+    }
+
+    private func presentAddShowSuccess() {
+        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload {
+                toast = nil
             }
         }
     }
@@ -153,21 +187,12 @@ private struct CurrentShowHomeView: View {
 
 /// 首页 V3（2026-07 功能卡设计稿）：
 /// 全幅 3:4 海报 + 三态秒级倒计时卡 + 阶段推荐 chips + 四张功能卡（内嵌真实预览）。
-/// 布局与色板令牌见 HomeCountdownCard / HomeFeatureCards / BSColor.Stage。
+/// 布局与色板令牌见 HomeCountdownCard / BSColor.Stage。
 private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
 
-    @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Query private var candidateGroups: [CandidateSongGroup]
-    @Query private var candidateSongs: [CandidateSong]
-    @Query private var roundTripPlans: [RoundTripPlan]
-
-    private let session = CurrentShowSession()
-
-    @State private var activeToolSheet: ToolSheet?
-    @State private var setlistLaunch: SetlistSheetLaunch = .browse
 
     /// 内容左右边距（设计稿 --space-5 = 20pt；海报全幅不受此约束）。
     private let homeInset: CGFloat = 20
@@ -180,43 +205,6 @@ private struct CurrentShowContentView: View {
         return window?.safeAreaInsets.top ?? 59
     }
 
-    enum ToolSheet: Identifiable {
-        case candidateSongs
-        /// 方向在打开时固定写入 associated value，避免父视图重绘时重新用 `Date()` 推导。
-        case roundTrip(RoundTripDirection)
-        case fragments
-
-        var id: String {
-            switch self {
-            case .candidateSongs: return "candidateSongs"
-            case .roundTrip: return "roundTrip"
-            case .fragments: return "fragments"
-            }
-        }
-    }
-
-    private var snapshot: CurrentShowSnapshot {
-        session.snapshot(
-            for: show,
-            candidateGroups: candidateGroups,
-            candidateSongs: candidateSongs,
-            roundTripPlans: roundTripPlans
-        )
-    }
-
-    private var summary: ShowToolSummary { snapshot.summary }
-
-    private var roundTripPlan: RoundTripPlan? {
-        roundTripPlans.first { $0.showID == show.id }
-    }
-
-    private var homeCandidateSongs: [CandidateSong] {
-        let groupIDs = Set(candidateGroups.filter { $0.showID == show.id }.map(\.id))
-        return candidateSongs
-            .filter { groupIDs.contains($0.groupID) }
-            .sorted { $0.order < $1.order }
-    }
-
     var body: some View {
         GeometryReader { geometry in
             TimelineView(.everyMinute) { context in
@@ -226,61 +214,12 @@ private struct CurrentShowContentView: View {
         // 让 GeometryReader 铺到状态栏下，才能读到真实 topInset，
         // 并把海报顶边 stretch 垫进状态栏。
         .ignoresSafeArea(edges: .top)
-        .sheet(item: $activeToolSheet, onDismiss: {
-            setlistLaunch = .browse
-        }) { tool in
-            Group {
-                switch tool {
-                case .candidateSongs:
-                    // Detents live in CandidateSongsView: medium when empty, large when filled.
-                    CandidateSongsView(show: show, launch: setlistLaunch)
-                        .presentationDragIndicator(.hidden)
-                        .presentationCornerRadius(24)
-                case .roundTrip(let direction):
-                    RoundTripPlanView(show: show, direction: direction)
-                        .presentationDragIndicator(.hidden)
-                        .presentationDetents([.medium, .large])
-                        .presentationCornerRadius(24)
-                        .presentationBackground(BSColor.Stage.surfaceRaised)
-                case .fragments:
-                    NavigationStack {
-                        ShowFragmentListView(show: show)
-                            .toolbarBackground(.hidden, for: .navigationBar)
-                    }
-                }
-            }
-            .preferredColorScheme(.dark)
-        }
-        .task { seedRouteScreenshotScenarioIfNeeded() }
-        .task { await openRouteFormForScreenshotIfNeeded() }
-    }
-
-    /// DEBUG 截图钩子：自动展开「怎么去」表单（配合 BS_ROUTE_SCREENSHOT_SCENARIO 控制方向）。
-    @MainActor
-    private func openRouteFormForScreenshotIfNeeded() async {
-        #if DEBUG
-        guard ProcessInfo.processInfo.environment["BS_ROUTE_FORM_SCREENSHOT"] == "1" else { return }
-        try? await Task.sleep(nanoseconds: 600_000_000)
-        guard !Task.isCancelled else { return }
-        activeToolSheet = .roundTrip(RoundTripPlanDirectionResolver.resolve(show: show))
-        #endif
-    }
-
-    private func openTool(_ kind: HomeFeatureKind, setlist: SetlistSheetLaunch = .browse) {
-        if kind == .setlist {
-            setlistLaunch = setlist
-        }
-        switch kind {
-        case .setlist: activeToolSheet = .candidateSongs
-        case .route: activeToolSheet = .roundTrip(RoundTripPlanDirectionResolver.resolve(show: show))
-        case .fragment: activeToolSheet = .fragments
-        }
     }
 
     @ViewBuilder
     private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
         let timeState = CurrentShowTimeState(show: show, now: now)
-        let phase = routeScreenshotPhase ?? HomeShowPhase(timeState: timeState, now: now)
+        let phase = HomeShowPhase(timeState: timeState, now: now)
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕，
         // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶（内容列居中回落到真实视口）。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
@@ -288,57 +227,24 @@ private struct CurrentShowContentView: View {
         // 改用窗口安全区，保证状态栏垫条高度正确。
         let topInset = max(geometry.safeAreaInsets.top, Self.windowTopSafeAreaInset)
 
-        ScrollViewReader { proxy in
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
-                    heroStage(
-                        phase: phase,
-                        timeState: timeState,
-                        width: viewportWidth,
-                        topInset: topInset
-                    )
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
+                heroStage(
+                    phase: phase,
+                    timeState: timeState,
+                    width: viewportWidth,
+                    topInset: topInset
+                )
 
-                    HomeCountdownCard(show: show)
-                        .padding(.horizontal, homeInset)
-                        .padding(.top, -22)
-
-                    HomeFeatureCardsSection(
-                        show: show,
-                        phase: phase,
-                        summary: summary,
-                        candidateSongs: homeCandidateSongs,
-                        roundTripPlan: roundTripPlan,
-                        onOpen: { kind in
-                            // Empty 猜一份 -> generate; filled 右上角 / 查看全部 -> browse sheet.
-                            if kind == .setlist, !summary.hasCandidateSongs {
-                                openTool(.setlist, setlist: .generate)
-                            } else {
-                                openTool(kind)
-                            }
-                        },
-                        onOpenMap: openDepartureMapForCurrentPlan
-                    )
+                HomeCountdownCard(show: show)
                     .padding(.horizontal, homeInset)
-                    .padding(.top, 18)
-                }
-                .padding(.bottom, BSLayout.tabBarContentInset + 28)
-                .frame(width: viewportWidth)
-                .frame(width: geometry.size.width, alignment: .center)
-                .frame(minHeight: geometry.size.height, alignment: .top)
+                    .padding(.top, -22)
             }
-            .task { await scrollToRouteCardForScreenshotIfNeeded(proxy: proxy) }
+            .padding(.bottom, BSLayout.tabBarContentInset + 28)
+            .frame(width: viewportWidth)
+            .frame(width: geometry.size.width, alignment: .center)
+            .frame(minHeight: geometry.size.height, alignment: .top)
         }
-    }
-
-    /// DEBUG 截图钩子：把首页滚动到「怎么去」卡。
-    @MainActor
-    private func scrollToRouteCardForScreenshotIfNeeded(proxy: ScrollViewProxy) async {
-        #if DEBUG
-        guard ProcessInfo.processInfo.environment["BS_ROUTE_SCROLL_SCREENSHOT"] == "1" else { return }
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        guard !Task.isCancelled else { return }
-        proxy.scrollTo("homeCard-route", anchor: .top)
-        #endif
     }
 
     // MARK: Hero（全幅 3:4 海报 + 顶边 stretch 进状态栏 + kicker + scrim 元信息）
@@ -481,7 +387,7 @@ private struct CurrentShowContentView: View {
         return ZStack {
             Ellipse()
                 .fill(RadialGradient(
-                    colors: [BSColor.Stage.route.opacity(0.30), .clear],
+                    colors: [BSColor.Stage.glowBlue.opacity(0.30), .clear],
                     center: .center,
                     startRadius: 0,
                     endRadius: width * 0.26
@@ -612,84 +518,6 @@ private struct CurrentShowContentView: View {
             return "\(base) · \(duration)"
         }
         return "\(base) · 约 \(CurrentShowTimeState.defaultDurationHours(for: show.type)) 小时"
-    }
-
-    @MainActor
-    private func openDepartureMapForCurrentPlan(direction: RoundTripDirection) {
-        guard let plan = roundTripPlan else { return }
-        let travel = plan.plan(for: direction)
-        if let url = travel?.navigationURL {
-            UIApplication.shared.open(url)
-        }
-    }
-
-    private var routeScreenshotPhase: HomeShowPhase? {
-        #if DEBUG
-        switch ProcessInfo.processInfo.environment["BS_ROUTE_SCREENSHOT_SCENARIO"] {
-        case "outbound": return .pre
-        case "return", "custom": return .ended
-        default: return nil
-        }
-        #else
-        return nil
-        #endif
-    }
-
-    @MainActor
-    private func seedRouteScreenshotScenarioIfNeeded() {
-        #if DEBUG
-        guard let scenario = ProcessInfo.processInfo.environment["BS_ROUTE_SCREENSHOT_SCENARIO"] else { return }
-        if scenario == "empty" {
-            roundTripPlan?.outboundPlan = nil
-            roundTripPlan?.returnPlan = nil
-            try? modelContext.save()
-            return
-        }
-        let direction: RoundTripDirection = scenario == "outbound" ? .outbound : .return
-        let origin = TravelPlace(name: direction == .outbound ? "我的位置" : "吴乐湾音乐广场", address: "湖州市吴兴区吴乐湾", latitude: 30.867, longitude: 120.105)
-        let destination = TravelPlace(name: direction == .outbound ? "吴乐湾音乐广场" : "杭州东站", address: direction == .outbound ? "湖州市吴兴区吴乐湾" : "杭州市上城区全福桥路", latitude: 30.292, longitude: 120.212)
-        let leaveAt = Date().addingTimeInterval(direction == .outbound ? 1_800 : 900)
-        let arriveAt = leaveAt.addingTimeInterval(3_300)
-        let travel: TravelPlan
-        if scenario == "custom" {
-            travel = TravelPlan.custom(
-                direction: .return,
-                origin: origin,
-                destination: destination,
-                leaveAt: leaveAt,
-                arriveAt: arriveAt,
-                summary: "散场后乘主办方接驳车到杭州东站",
-                showFingerprint: DeparturePlanSession(show: show).showFingerprint
-            )
-        } else {
-            let mode: TravelMode = direction == .outbound ? .driving : .transit
-            let middleNodes: [TravelTimelineNode] = mode == .transit
-                ? [
-                    TravelTimelineNode(kind: .transfer, title: "步行至湖州站"),
-                    TravelTimelineNode(kind: .transfer, title: "乘高铁到杭州东站"),
-                ]
-                : []
-            travel = TravelPlan(
-                direction: direction,
-                mode: mode,
-                origin: origin,
-                destination: destination,
-                leaveAt: leaveAt,
-                arriveAt: arriveAt,
-                durationMinutes: 55,
-                distanceMeters: 62_000,
-                summary: "从\(origin.name)\(mode.displayName)到\(destination.name)，约 55 分钟",
-                timeline: [TravelTimelineNode(kind: .origin, title: "从\(origin.name)出发", date: leaveAt)]
-                    + middleNodes
-                    + [TravelTimelineNode(kind: .destination, title: "抵达\(destination.name)", date: arriveAt)],
-                showFingerprint: DeparturePlanSession(show: show).showFingerprint
-            )
-        }
-        let store = roundTripPlan ?? RoundTripPlan(showID: show.id)
-        if roundTripPlan == nil { modelContext.insert(store) }
-        store.save(travel)
-        try? modelContext.save()
-        #endif
     }
 
     private var locationText: String {
@@ -982,6 +810,7 @@ private enum DebugSampleShowSeeder {
             ShowDraft(
                 name: "绿洲音乐节2.0·湖州吴兴站",
                 date: date(2026, 6, 27),
+                startTime: time(2026, 6, 27, 14, 0),
                 city: "湖州",
                 venueName: "吴乐湾音乐广场",
                 artist: "刘雨昕, 姚琛, 二手玫瑰, DOUDOU, 椿乐队, 裁缝铺, 麻园诗人, 梅卡德尔, 石岩, 声音碎片, 声音玩具",

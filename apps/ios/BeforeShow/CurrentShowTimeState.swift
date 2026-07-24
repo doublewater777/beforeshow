@@ -112,10 +112,6 @@ struct CurrentShowTimeState: Equatable {
         }
     }
 
-    var isEndedFallbackCandidate: Bool {
-        hasKnownEffectiveDate && kind != .canceled && dayDistance < 0
-    }
-
     var canScheduleNotifications: Bool {
         hasKnownEffectiveDate && kind != .canceled
     }
@@ -307,7 +303,7 @@ struct CurrentShowTimeState: Equatable {
             let elapsedDays = max(0, calendar.dateComponents([.day], from: endBoundary ?? now, to: now).day ?? 0)
             return ("散场后停留期", "\(elapsedDays)", "天前", helper)
         case .ended:
-            return ("已结束", "-", "已结束", "记忆会留在这里")
+            return ("已结束", "-", "已结束", "这场已结束")
         }
     }
 

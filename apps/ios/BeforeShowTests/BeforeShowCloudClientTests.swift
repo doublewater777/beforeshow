@@ -13,10 +13,6 @@ final class BeforeShowCloudClientTests: XCTestCase {
         XCTAssertEqual(client.credentials.appSignature, "beforeshow-app-signature-v1")
         XCTAssertFalse(client.credentials.appInstanceId.isEmpty)
         XCTAssertEqual(
-            client.url(path: "generate").absoluteString,
-            "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/generate"
-        )
-        XCTAssertEqual(
             client.url(path: "/parseShowLink").absoluteString,
             "https://beforeshow-d2g0gv0zz4cc249dc-1312569550.ap-shanghai.app.tcloudbase.com/parseShowLink"
         )
@@ -37,11 +33,11 @@ final class BeforeShowCloudClientTests: XCTestCase {
             let hello: String
         }
 
-        let data = try await client.postJSON(path: "generate", body: Body(hello: "world"))
+        let data = try await client.postJSON(path: "parseShowLink", body: Body(hello: "world"))
         XCTAssertEqual(String(data: data, encoding: .utf8), #"{"ok":true}"#)
 
         let request = try await session.lastRequest()
-        XCTAssertEqual(request?.url?.absoluteString, "https://example.com/generate")
+        XCTAssertEqual(request?.url?.absoluteString, "https://example.com/parseShowLink")
         XCTAssertEqual(request?.httpMethod, "POST")
         XCTAssertEqual(request?.value(forHTTPHeaderField: "Content-Type"), "application/json")
     }
@@ -58,7 +54,7 @@ final class BeforeShowCloudClientTests: XCTestCase {
         }
 
         do {
-            _ = try await client.postJSON(path: "generate", body: Body(hello: "x"))
+            _ = try await client.postJSON(path: "parseShowLink", body: Body(hello: "x"))
             XCTFail("expected networkFailure")
         } catch let error as BeforeShowCloudClientError {
             XCTAssertEqual(error, .networkFailure)
