@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BeforeShow · 编辑现场优化原型</title>
+<style>
+  :root {
+    /* Stage palette — 与 home-v4.html / BSColor.Stage 一致 */
+    --bg: #05070D;
+    --surface: #0D111B;
+    --surface-raised: #151A27;
+    --fg: #F2F3F7;
+    --muted: #9399AA;
+    --dim: #646B7D;
+    --accent: #E8C78E;
+    --violet: #B287FF;
+    --mint: #50D1AA;
+    --danger: #FF6B75;
+    --border: rgba(255, 255, 255, 0.09);
+    --field-bg: rgba(242, 243, 247, 0.045);
+    --field-border: rgba(255, 255, 255, 0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0A0C12;
+    color: var(--fg);
+    font-family: -apple-system, "PingFang SC", "SF Pro Text", sans-serif;
+    padding: 48px 32px;
+    min-height: 100vh;
+  }
+
+  header { max-width: 1760px; margin: 0 auto 36px; }
+  header h1 { font-size: 22px; font-weight: 600; letter-spacing: 0.5px; }
+  header p { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  .stage-row {
+    display: flex;
+    gap: 36px;
+    justify-content: center;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .frame-col { display: flex; flex-direction: column; gap: 14px; }
+  .frame-label {
+    text-align: center;
+    font-size: 12px;
+    color: var(--muted);
+    letter-spacing: 1px;
+  }
+  .frame-label b { color: var(--fg); font-weight: 600; }
+
+  /* ── iPhone frame: 390 × 844 ─────────────────────────── */
+  .phone {
+    width: 390px;
+    height: 844px;
+    border-radius: 48px;
+    background: var(--bg);
+    overflow: hidden;
+    position: relative;
+    box-shadow: 0 0 0 10px #1a1c22, 0 0 0 12px #33363f, 0 30px 80px rgba(0,0,0,0.6);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .statusbar {
+    height: 54px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    font-size: 15px;
+    font-weight: 600;
+    flex: none;
+    z-index: 10;
+  }
+  .statusbar .island {
+    position: absolute;
+    top: 12px; left: 50%;
+    transform: translateX(-50%);
+    width: 122px; height: 36px;
+    background: #000;
+    border-radius: 20px;
+  }
+
+  /* ── sheet chrome ────────────────────────────────────── */
+  .grabber {
+    flex: none;
+    padding: 8px 0 4px;
+    display: flex;
+    justify-content: center;
+  }
+  .grabber::before {
+    content: "";
+    width: 36px; height: 5px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.22);
+  }
+
+  .sheet-nav {
+    flex: none;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+  }
+  .sheet-nav .back {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .sheet-nav .ttl {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .sheet-nav .spacer { width: 34px; }
+
+  /* ── scroll area (simulated) ─────────────────────────── */
+  .scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+  }
+  .scroll-inner {
+    padding: 4px 20px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .scroll.scrolled .scroll-inner { margin-top: var(--offset, -200px); }
+
+  /* ── summary header: context never lost ──────────────── */
+  .summary {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 14px;
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+  .summary .thumb {
+    width: 45px; height: 60px;   /* 海报真实比例 3:4 */
+    border-radius: 10px;
+    background: url("poster-crop.png") center 30% / cover no-repeat #0D111B;
+    flex: none;
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+  .summary .who { min-width: 0; flex: 1; }
+  .summary .who .nm {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .summary .who .sb {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .summary .pill {
+    flex: none;
+    align-self: flex-start;
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(232,199,142,0.10);
+    border: 1px solid rgba(232,199,142,0.30);
+    color: var(--accent);
+  }
+  .summary .pill.violet {
+    background: rgba(178,135,255,0.10);
+    border-color: rgba(178,135,255,0.32);
+    color: #D6C2FF;
+  }
+  .summary .pill .d { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+  /* ── postponed banner ────────────────────────────────── */
+  .banner {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 18px;
+    background: linear-gradient(120deg, rgba(178,135,255,0.12), rgba(232,199,142,0.07));
+    border: 1px solid rgba(178,135,255,0.28);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #CDBDEA;
+  }
+  .banner .ico { flex: none; font-size: 16px; color: var(--violet); }
+  .banner b { color: var(--fg); font-weight: 600; }
+  .banner .link { color: var(--accent); font-weight: 600; }
+
+  /* ── section cards ───────────────────────────────────── */
+  .card {
+    border-radius: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card-h {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+  .card-h .ci {
+    width: 26px; height: 26px;
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px;
+    background: rgba(232,199,142,0.12);
+    color: var(--accent);
+  }
+  .card-h .ci.violet { background: rgba(178,135,255,0.13); color: var(--violet); }
+  .card-h .ci.mint   { background: rgba(80,209,170,0.13);  color: var(--mint); }
+  .card-h .hint { margin-left: auto; font-size: 11px; color: var(--dim); font-weight: 400; }
+  .card-h .spill {
+    margin-left: auto;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10.5px; font-weight: 600;
+  }
+  .card-h .spill.violet { background: rgba(178,135,255,0.12); border: 1px solid rgba(178,135,255,0.30); color: #D6C2FF; }
+  .card-h .spill.mint { background: rgba(80,209,170,0.12); border: 1px solid rgba(80,209,170,0.30); color: var(--mint); }
+  .card-h .spill.danger { background: rgba(255,107,117,0.10); border: 1px solid rgba(255,107,117,0.28); color: #FFB9BE; }
+
+  /* fields */
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field .lb {
+    font-size: 12px;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 5px;
+  }
+  .field .lb .req {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+  .field .in {
+    border-radius: 13px;
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--fg);
+  }
+  .field .in.placeholder { color: var(--dim); }
+  .field .in.focus {
+    border-color: rgba(232,199,142,0.45);
+    box-shadow: 0 0 0 3px rgba(232,199,142,0.10);
+  }
+  .field .err {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px;
+    color: var(--danger);
+  }
+
+  /* date / time tiles */
+  .tiles { display: flex; gap: 12px; }
+  .tile {
+    flex: 1;
+    border-radius: 16px;
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    padding: 12px 14px;
+  }
+  .tile .t { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+  .tile .v { font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tile .v small { font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 5px; }
+  .tile.invalid { border-color: rgba(255,107,117,0.45); }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 2px 0;
+  }
+  .switch-row .tx { font-size: 13.5px; }
+  .switch-row .tx small { display: block; margin-top: 3px; font-size: 11px; color: var(--dim); }
+  .sw {
+    width: 46px; height: 28px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #C8A25E, var(--accent));
+    position: relative;
+    flex: none;
+  }
+  .sw::after {
+    content: "";
+    position: absolute;
+    top: 2px; right: 2px;
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  }
+  .sw.off { background: rgba(255,255,255,0.14); }
+  .sw.off::after { right: 20px; }
+
+  /* address suggestion + mini map */
+  .suggest {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: 13px;
+    background: rgba(80,209,170,0.07);
+    border: 1px solid rgba(80,209,170,0.22);
+    font-size: 12.5px;
+    color: #BFE8D9;
+  }
+  .suggest .pin { color: var(--mint); }
+  .minimap {
+    height: 96px;
+    border-radius: 14px;
+    border: 1px solid var(--field-border);
+    background:
+      radial-gradient(circle at 62% 42%, rgba(80,209,170,0.18), transparent 34%),
+      repeating-linear-gradient(0deg, transparent 0 22px, rgba(255,255,255,0.045) 22px 23px),
+      repeating-linear-gradient(90deg, transparent 0 30px, rgba(255,255,255,0.045) 30px 31px),
+      linear-gradient(135deg, #0C1220, #0A0E18);
+    position: relative;
+    overflow: hidden;
+  }
+  .minimap .road {
+    position: absolute;
+    left: -10%; top: 52%;
+    width: 120%; height: 7px;
+    background: rgba(255,255,255,0.07);
+    transform: rotate(-8deg);
+    border-radius: 4px;
+  }
+  .minimap .pin {
+    position: absolute;
+    left: 62%; top: 34%;
+    transform: translate(-50%, -100%);
+    font-size: 20px;
+    color: var(--mint);
+    text-shadow: 0 0 12px rgba(80,209,170,0.6);
+  }
+  .minimap .tag {
+    position: absolute;
+    left: 10px; bottom: 8px;
+    font-size: 10.5px;
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: rgba(5,7,13,0.6);
+    border: 1px solid rgba(255,255,255,0.10);
+  }
+
+  /* cover card — 3:4 poster on a blurred backdrop */
+  .cover-prev {
+    height: 218px;
+    border-radius: 14px;
+    background: url("poster-crop.png") center 30% / cover no-repeat #0D111B;
+    border: 1px solid rgba(255,255,255,0.10);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .cover-prev::before {          /* blurred + dimmed backdrop */
+    content: "";
+    position: absolute; inset: 0;
+    backdrop-filter: blur(20px) brightness(0.5);
+    -webkit-backdrop-filter: blur(20px) brightness(0.5);
+    background: rgba(5,7,13,0.30);
+  }
+  .cover-prev .poster {          /* true 3:4 poster, never cropped */
+    position: relative;
+    width: 142px; height: 190px;
+    border-radius: 10px;
+    background: url("poster-crop.png") center 30% / cover no-repeat;
+    border: 1px solid rgba(255,255,255,0.16);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.55);
+  }
+  .cover-prev .badge {
+    position: absolute;
+    left: 10px; top: 10px;
+    z-index: 2;
+    font-size: 10.5px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: rgba(5,7,13,0.55);
+    border: 1px solid rgba(255,255,255,0.14);
+    color: var(--muted);
+    backdrop-filter: blur(8px);
+  }
+  .cover-actions { display: flex; gap: 12px; }
+  .cover-actions .ca {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 12px 0;
+    border-radius: 13px;
+    background: var(--field-bg);
+    border: 1px solid var(--field-border);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--fg);
+  }
+  .cover-actions .ca span { color: var(--accent); }
+
+  /* status management row */
+  .mgmt { display: flex; gap: 12px; }
+  .mgmt .mg {
+    flex: 1;
+    padding: 13px 0;
+    border-radius: 13px;
+    text-align: center;
+    font-size: 13.5px;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .mgmt .mg.postpone { color: #D6C2FF; border-color: rgba(178,135,255,0.32); background: rgba(178,135,255,0.08); }
+  .mgmt .mg.cancel { color: #FFB9BE; border-color: rgba(255,107,117,0.30); background: rgba(255,107,117,0.07); }
+  .del-row {
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--dim);
+    padding-top: 2px;
+  }
+  .del-row b { color: rgba(255,107,117,0.75); font-weight: 500; }
+
+  /* ── ⑤ 现场状态卡（收进编辑现场底部） ─────────── */
+  .scard .sdesc {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .scard .restore {
+    display: flex; align-items: center; gap: 8px;
+    padding: 11px 14px;
+    border-radius: 13px;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 13px; font-weight: 500;
+    color: rgba(255,255,255,0.78);
+  }
+  .scard .restore .ric { color: var(--muted); }
+
+  /* ── sticky save bar ─────────────────────────────────── */
+  .savebar {
+    flex: none;
+    padding: 10px 20px 26px;
+    background: linear-gradient(to top, rgba(5,7,13,0.98) 78%, rgba(5,7,13,0));
+    border-top: 1px solid rgba(255,255,255,0.07);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+  }
+  .dirty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-bottom: 9px;
+  }
+  .dirty .d {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(232,199,142,0.7);
+  }
+  .save-btn {
+    height: 50px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #241A08;
+    background: linear-gradient(120deg, #D9B271, var(--accent) 55%, #F2DCA9);
+    box-shadow: 0 10px 26px rgba(232,199,142,0.22);
+  }
+  .save-btn.disabled {
+    background: rgba(255,255,255,0.08);
+    color: var(--dim);
+    box-shadow: none;
+  }
+
+  /* toast */
+  .toast {
+    position: absolute;
+    left: 50%;
+    bottom: 108px;
+    transform: translateX(-50%);
+    padding: 10px 18px;
+    border-radius: 999px;
+    background: rgba(21,26,39,0.92);
+    border: 1px solid rgba(80,209,170,0.35);
+    color: #CFF0E3;
+    font-size: 13px;
+    display: flex; align-items: center; gap: 8px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    z-index: 30;
+    white-space: nowrap;
+  }
+  .toast .ok { color: var(--mint); }
+
+  /* ── notes column ────────────────────────────────────── */
+  .notes {
+    width: 310px;
+    flex: none;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .notes h3 { color: var(--fg); font-size: 14px; margin-bottom: 14px; font-weight: 600; }
+  .notes li { margin-bottom: 12px; list-style: none; padding-left: 18px; position: relative; }
+  .notes li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
+  .notes b { color: var(--fg); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>编辑现场 · 优化原型 V1</h1>
+  <p>五帧：默认编辑 → 日期时间校验 → 延期现场 → 地点与封面 → 现场状态并入编辑 · 与首页 V4 同一 Stage 色板与卡片语言</p>
+</header>
+
+<div class="stage-row">
+
+  <!-- ── ① 默认编辑态 ─────────────────────────── -->
+  <div class="frame-col">
+    <div class="phone">
+      <div class="statusbar">
+        <span>10:24</span>
+        <div class="island"></div>
+      </div>
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <span class="back">取消</span>
+        <span class="ttl">编辑现场</span>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="scroll">
+        <div class="scroll-inner">
+
+          <div class="summary">
+            <div class="thumb"></div>
+            <div class="who">
+              <div class="nm">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+              <div class="sb">原定 9月24日 19:30 · 南京奥体中心体育场</div>
+            </div>
+            <div class="pill"><span class="d"></span>即将开场</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci">✎</span>基本信息</div>
+            <div class="field">
+              <div class="lb">现场名称<span class="req"></span></div>
+              <div class="in focus">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+            </div>
+            <div class="field">
+              <div class="lb">艺人 / 阵容</div>
+              <div class="in">周杰伦</div>
+            </div>
+            <div class="field">
+              <div class="lb">座位或区域</div>
+              <div class="in">内场 A2 区 12 排</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci violet">◷</span>日期与时间<span class="hint">开场必填 · 散场可选</span></div>
+            <div class="tiles">
+              <div class="tile">
+                <div class="t">开场日期</div>
+                <div class="v">9月24日<small>周四</small></div>
+              </div>
+              <div class="tile">
+                <div class="t">开场时间</div>
+                <div class="v">19:30</div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="tx">记录散场时间<small>用于散场后状态与 Tips 切换</small></div>
+              <div class="sw"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="savebar">
+        <div class="dirty"><span class="d"></span>有未保存的修改</div>
+        <div class="save-btn">保存</div>
+      </div>
+    </div>
+    <div class="frame-label"><b>默认</b> · 摘要常驻 + 未保存指示</div>
+  </div>
+
+  <!-- ── ② 日期时间校验态 ─────────────────────── -->
+  <div class="frame-col">
+    <div class="phone">
+      <div class="statusbar">
+        <span>10:25</span>
+        <div class="island"></div>
+      </div>
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <span class="back">取消</span>
+        <span class="ttl">编辑现场</span>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="scroll scrolled" style="--offset:-284px">
+        <div class="scroll-inner">
+
+          <div class="summary">
+            <div class="thumb"></div>
+            <div class="who">
+              <div class="nm">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+              <div class="sb">原定 9月24日 19:30 · 南京奥体中心体育场</div>
+            </div>
+            <div class="pill"><span class="d"></span>即将开场</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci violet">◷</span>日期与时间<span class="hint">开场必填 · 散场可选</span></div>
+            <div class="tiles">
+              <div class="tile">
+                <div class="t">开场日期</div>
+                <div class="v">9月24日<small>周四</small></div>
+              </div>
+              <div class="tile">
+                <div class="t">开场时间</div>
+                <div class="v">19:30</div>
+              </div>
+            </div>
+            <div class="switch-row">
+              <div class="tx">记录散场时间<small>用于散场后状态与 Tips 切换</small></div>
+              <div class="sw"></div>
+            </div>
+            <div class="tiles">
+              <div class="tile">
+                <div class="t">散场日期</div>
+                <div class="v">9月24日<small>同日</small></div>
+              </div>
+              <div class="tile invalid">
+                <div class="t">散场时间</div>
+                <div class="v">18:55</div>
+              </div>
+            </div>
+            <div class="field">
+              <div class="err">⊗ 散场时间需要晚于开场时间</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci mint">◎</span>地点</div>
+            <div class="field">
+              <div class="lb">城市</div>
+              <div class="in">南京</div>
+            </div>
+            <div class="field">
+              <div class="lb">场馆</div>
+              <div class="in">南京奥体中心体育场</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="savebar">
+        <div class="dirty">时间范围无效，修正后才能保存</div>
+        <div class="save-btn disabled">保存</div>
+      </div>
+    </div>
+    <div class="frame-label"><b>校验</b> · 错误前置 + 禁用说明</div>
+  </div>
+
+  <!-- ── ③ 延期现场编辑态 ─────────────────────── -->
+  <div class="frame-col">
+    <div class="phone">
+      <div class="statusbar">
+        <span>10:26</span>
+        <div class="island"></div>
+      </div>
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <span class="back">取消</span>
+        <span class="ttl">编辑现场</span>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="scroll">
+        <div class="scroll-inner">
+
+          <div class="summary">
+            <div class="thumb"></div>
+            <div class="who">
+              <div class="nm">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+              <div class="sb">原定 9月24日 19:30 · 倒计时已暂停</div>
+            </div>
+            <div class="pill violet"><span class="d"></span>已延期</div>
+          </div>
+
+          <div class="banner">
+            <span class="ico">❖</span>
+            <div>
+              <b>这场已延期，新日期待定。</b><br>
+              这里编辑的是原定信息；延期日期在下方「现场状态」中更新。
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci">✎</span>基本信息</div>
+            <div class="field">
+              <div class="lb">现场名称<span class="req"></span></div>
+              <div class="in">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+            </div>
+            <div class="field">
+              <div class="lb">艺人 / 阵容</div>
+              <div class="in">周杰伦</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci violet">◷</span>日期与时间</div>
+            <div class="tiles">
+              <div class="tile">
+                <div class="t">原定开场日期</div>
+                <div class="v">9月24日<small>周四</small></div>
+              </div>
+              <div class="tile">
+                <div class="t">原定开场时间</div>
+                <div class="v">19:30</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="savebar">
+        <div class="dirty"><span class="d"></span>有未保存的修改</div>
+        <div class="save-btn">保存</div>
+      </div>
+    </div>
+    <div class="frame-label"><b>延期</b> · 横幅说清「原定 vs 延期」</div>
+  </div>
+
+  <!-- ── ④ 地点与封面态 ───────────────────────── -->
+  <div class="frame-col">
+    <div class="phone">
+      <div class="statusbar">
+        <span>10:27</span>
+        <div class="island"></div>
+      </div>
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <span class="back">取消</span>
+        <span class="ttl">编辑现场</span>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="scroll scrolled" style="--offset:-430px">
+        <div class="scroll-inner">
+
+          <div class="summary">
+            <div class="thumb"></div>
+            <div class="who">
+              <div class="nm">周杰伦嘉年华世界巡回演唱会 · 南京站</div>
+              <div class="sb">原定 9月24日 19:30 · 南京奥体中心体育场</div>
+            </div>
+            <div class="pill"><span class="d"></span>即将开场</div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci mint">◎</span>地点</div>
+            <div class="field">
+              <div class="lb">城市</div>
+              <div class="in">南京</div>
+            </div>
+            <div class="field">
+              <div class="lb">场馆</div>
+              <div class="in">南京奥体中心体育场</div>
+            </div>
+            <div class="field">
+              <div class="lb">场馆地址</div>
+              <div class="in">建邺区江东中路 222 号</div>
+            </div>
+            <div class="suggest"><span class="pin">◈</span>点地图可微调定位，入场 Tips 会用这个地址</div>
+            <div class="minimap">
+              <div class="road"></div>
+              <div class="pin">●</div>
+              <div class="tag">南京奥体中心体育场</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-h"><span class="ci">▦</span>封面</div>
+            <div class="cover-prev"><div class="poster"></div><span class="badge">当前封面</span></div>
+            <div class="cover-actions">
+              <div class="ca"><span>⬆</span>从相册更换</div>
+              <div class="ca"><span>⛓</span>使用图片链接</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="toast"><span class="ok">✓</span>已保存，首页已更新</div>
+
+      <div class="savebar">
+        <div class="dirty">所有修改已保存</div>
+        <div class="save-btn">保存</div>
+      </div>
+    </div>
+    <div class="frame-label"><b>地点封面</b> · 小地图 + 保存成功反馈</div>
+  </div>
+
+  <!-- ── ⑤ 统一：现场状态收进编辑现场（滚到底部） ── -->
+  <div class="frame-col">
+    <div class="phone">
+      <div class="statusbar">
+        <span>10:29</span>
+        <div class="island"></div>
+      </div>
+      <div class="grabber"></div>
+      <div class="sheet-nav">
+        <span class="back">取消</span>
+        <span class="ttl">编辑现场</span>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="scroll scrolled" style="--offset:-250px">
+        <div class="scroll-inner">
+
+          <div class="card">
+            <div class="card-h"><span class="ci">▦</span>封面</div>
+            <div class="cover-prev"><div class="poster"></div><span class="badge">当前封面</span></div>
+            <div class="cover-actions">
+              <div class="ca"><span>⬆</span>从相册更换</div>
+              <div class="ca"><span>⛓</span>使用图片链接</div>
+            </div>
+          </div>
+
+          <div class="card scard">
+            <div class="card-h"><span class="ci violet">◷</span>现场状态<span class="spill violet">已延期，日期待定</span></div>
+            <div class="sdesc">倒计时和通知已暂停，确定新日期后可以随时补充。原定信息仍保留在记录中。</div>
+            <div class="restore"><span class="ric">↩</span>取消延期，恢复原定日期</div>
+            <div class="mgmt">
+              <div class="mg postpone">更新延期信息</div>
+              <div class="mg cancel">记录取消</div>
+            </div>
+          </div>
+
+          <div class="del-row"><b>删除现场</b></div>
+
+        </div>
+      </div>
+
+      <div class="savebar">
+        <div class="dirty"><span class="d"></span>有未保存的修改</div>
+        <div class="save-btn">保存</div>
+      </div>
+    </div>
+    <div class="frame-label"><b>统一</b> · 状态管理收进编辑现场</div>
+  </div>
+
+  <!-- ── notes ──────────────────────────────── -->
+  <div class="notes">
+    <h3>这版改了什么</h3>
+    <ul>
+      <li><b>顶部摘要常驻</b>：现状编辑页滚两步就忘了在改哪一场。V1 加 58pt 封面缩略 + 名称 + 原定日期 + 状态胶囊的摘要卡，滚动时提供上下文锚点。</li>
+      <li><b>保存栏固定在底部</b>：现状「保存」按钮埋在表单最底，长表单要滚到底才能存。V1 改为吸底毛玻璃保存栏，任何滚动位置都能保存。</li>
+      <li><b>未保存状态显形</b>：保存栏上方有金点提示「有未保存的修改」，与现有 hasUnsavedChanges / 放弃修改确认逻辑对齐，用户不再靠猜。</li>
+      <li><b>分组卡片化</b>：现状 FieldGroup 是纯文字标题 + 平铺输入框。V1 每组收进圆角卡片并配金色/紫色/薄荷绿图标，层级扫一眼就分清。</li>
+      <li><b>日期时间瓷贴</b>：开场日期 / 开场时间并排两张瓷贴，「记录散场时间」收成开关，展开后再给散场日期 + 时间瓷贴；多日场（音乐节）的结束日期不再突兀。</li>
+      <li><b>校验前置</b>：散场早于开场时，错误文案就地标红 + 散场瓷贴描红边，保存按钮变灰并在保存栏说明原因——不再等点保存才报错。</li>
+      <li><b>延期横幅</b>：延期现场的提示原本是标题下一行小灰字。V1 升级为紫金渐变横幅，说清「这里改的是原定信息，延期日期在下方现场状态卡更新」，日期瓷贴标注「原定」。</li>
+      <li><b>封面卡合并 + 3:4 海报</b>：现状「当前封面」和「更换封面」是两个分离分组，且预览用 16:10 把 3:4 海报拦腰裁掉。V1 合成一张封面卡：模糊底 + 居中 3:4 海报（不裁切）+ 相册 / 链接两个入口；摘要缩略图同为 3:4。</li>
+      <li><b>现场状态并入编辑现场</b>：延期 / 取消 / 恢复 / 删除原本散在详情页底部的「现场状态」分组，和信息编辑是两个入口。V1 把状态管理收进编辑 sheet 底部的「现场状态」卡：状态胶囊 + 说明 + 「恢复」整行中性按钮 + 「延期 / 取消」并排紫金 / 珊瑚双色按钮，「删除现场」为卡外文字入口。状态操作立即生效（沿用 mark* 语义与 toast 反馈），详情页只留 hero 上的状态展示。</li>
+      <li><b>保存成功反馈</b>：toast「已保存，首页已更新」呼应首页海报与倒计时的即时刷新。</li>
+      <li><b>不变的</b>：Stage 色板、字段集合、必填规则、endDate/endTime 数据模型、放弃修改确认弹窗全部沿用现有实现。</li>
+    </ul>
+  </div>
+
+</div>
+
+</body>
+</html>

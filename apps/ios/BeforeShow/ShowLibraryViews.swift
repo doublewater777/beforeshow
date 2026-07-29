@@ -607,7 +607,7 @@ private struct CurrentShowListHeroCard: View {
     }
 }
 
-private struct PostponeShowSheet: View {
+struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
     let onDated: () -> Void
@@ -653,10 +653,6 @@ struct ShowDetailView: View {
     let show: Show
 
     @State private var isEditing = false
-    @State private var showsPostponeDialog = false
-    @State private var showsCancelConfirmation = false
-    @State private var showsDeleteConfirmation = false
-    @State private var newPostponedDate = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -687,7 +683,6 @@ struct ShowDetailView: View {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     detailHero
                     managementRow
-                    statusSection
                 }
                 .padding(.horizontal, BSSpacing.md)
                 .padding(.bottom, BSSpacing.xl)
@@ -706,67 +701,11 @@ struct ShowDetailView: View {
                 draft: ShowDraft(show: show),
                 saveTitle: "保存",
                 statusPillText: formatter.statusText(for: show),
-                isPostponed: show.changeStatus == .postponed
+                isPostponed: show.changeStatus == .postponed,
+                statusEditing: statusEditingContext
             ) { draft in
                 try await apply(draft)
             }
-        }
-        .sheet(isPresented: $showsPostponeDialog) {
-            PostponeShowSheet(
-                newDate: $newPostponedDate,
-                onUndated: {
-                    showsPostponeDialog = false
-                    Task { @MainActor in
-                        await updateStatus(message: "已记录延期，日期待定") {
-                            show.markPostponed(newDate: nil)
-                        }
-                    }
-                },
-                onDated: {
-                    showsPostponeDialog = false
-                    Task { @MainActor in
-                        await updateStatus(message: "延期日期已更新") {
-                            show.markPostponed(newDate: newPostponedDate)
-                        }
-                    }
-                },
-                onCancel: {
-                    showsPostponeDialog = false
-                }
-            )
-        }
-        .sheet(isPresented: $showsCancelConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "记录取消",
-                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
-                destructiveTitle: "确认取消",
-                onConfirm: {
-                    showsCancelConfirmation = false
-                    Task { @MainActor in
-                        await updateStatus(message: "已记录取消") {
-                            show.markCanceled()
-                        }
-                    }
-                },
-                onCancel: {
-                    showsCancelConfirmation = false
-                }
-            )
-        }
-        .sheet(isPresented: $showsDeleteConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "删除现场",
-                message: "删除后，这场现场将无法恢复。",
-                destructiveTitle: "删除",
-                onConfirm: {
-                    Task { @MainActor in
-                        await deleteShow()
-                    }
-                },
-                onCancel: {
-                    showsDeleteConfirmation = false
-                }
-            )
         }
     }
 
@@ -984,131 +923,40 @@ struct ShowDetailView: View {
         }
     }
 
-    /// 现场状态卡：与编辑现场同一卡片语言（图标 chip + 标题 + 状态胶囊）。
-    /// 「恢复」整行中性按钮，「延期 / 取消」并排双色按钮，「删除现场」降为卡外文字入口。
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 9) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(statusTint.opacity(0.13))
-                        Image(systemName: statusIconName)
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(statusTint)
-                    }
-                    .frame(width: 26, height: 26)
-
-                    Text("现场状态")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-
-                    Spacer(minLength: 0)
-
-                    Text(statusTitle)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundColor(statusTint)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(statusTint.opacity(0.12))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(statusTint.opacity(0.30), lineWidth: 1)
-                        )
+    /// 现场状态管理已并入编辑现场 sheet（状态卡 + 立即生效的操作）。
+    /// 详情页只保留 hero 上的状态展示，这里注入编辑器所需的上下文。
+    private var statusEditingContext: ShowStatusEditingContext {
+        ShowStatusEditingContext(
+            changeStatus: show.changeStatus,
+            postponedDate: show.postponedDate,
+            title: statusTitle,
+            description: statusDescription,
+            restoreTitle: restoreActionTitle,
+            onRestore: {
+                await updateStatus(message: restoreSuccessMessage) {
+                    show.markScheduled()
                 }
-
-                Text(statusDescription)
-                    .font(.system(size: 12.5))
-                    .foregroundColor(BSColor.textTertiary)
-                    .lineSpacing(3)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VStack(spacing: 10) {
-                    if show.changeStatus != .scheduled {
-                        changeActionRow(
-                            title: restoreActionTitle,
-                            systemImage: "arrow.uturn.backward",
-                            isDestructive: false
-                        ) {
-                            Task { @MainActor in
-                                await updateStatus(message: restoreSuccessMessage) {
-                                    show.markScheduled()
-                                }
-                            }
-                        }
-                    }
-
-                    if show.changeStatus != .canceled {
-                        HStack(spacing: 12) {
-                            statusActionButton(
-                                title: show.changeStatus == .postponed ? "更新延期信息" : "记录延期",
-                                systemImage: "calendar.badge.clock",
-                                tint: Color(red: 0.84, green: 0.76, blue: 1.0)
-                            ) {
-                                newPostponedDate = show.postponedDate ?? show.date
-                                showsPostponeDialog = true
-                            }
-
-                            statusActionButton(
-                                title: "记录取消",
-                                systemImage: "xmark.circle",
-                                tint: BSColor.Accent.danger
-                            ) {
-                                showsCancelConfirmation = true
-                            }
-                        }
+            },
+            onPostpone: { newDate in
+                if let newDate {
+                    return await updateStatus(message: "延期日期已更新") {
+                        show.markPostponed(newDate: newDate)
                     }
                 }
+                return await updateStatus(message: "已记录延期，日期待定") {
+                    show.markPostponed(newDate: nil)
+                }
+            },
+            onCancel: {
+                await updateStatus(message: "已记录取消") {
+                    show.markCanceled()
+                }
+            },
+            onDelete: {
+                isEditing = false
+                await deleteShow()
             }
-            .padding(16)
-            .background(BSColor.Stage.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 20))
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(BSColor.Stage.border, lineWidth: 1)
-            )
-
-            Button {
-                showsDeleteConfirmation = true
-            } label: {
-                Text("删除现场")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(BSColor.Accent.danger.opacity(0.75))
-                    .frame(maxWidth: .infinity)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("删除现场")
-        }
-    }
-
-    private func statusActionButton(
-        title: String,
-        systemImage: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 13.5, weight: .semibold))
-            }
-            .foregroundColor(tint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(tint.opacity(0.08))
-            .clipShape(RoundedRectangle(cornerRadius: 13))
-            .overlay(
-                RoundedRectangle(cornerRadius: 13)
-                    .stroke(tint.opacity(0.30), lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
+        )
     }
 
     private var statusTitle: String {
@@ -1125,7 +973,7 @@ struct ShowDetailView: View {
     private var statusDescription: String {
         switch show.changeStatus {
         case .scheduled:
-            return "艺人、日期、时间和场馆变化请使用“编辑信息”。"
+            return "艺人、日期、时间和场馆变化请使用上方字段直接编辑。"
         case .postponed:
             if show.postponedDate != nil {
                 return "当前按新日期显示和提醒；原定日期仍保留在记录中。"
@@ -1136,61 +984,12 @@ struct ShowDetailView: View {
         }
     }
 
-    private var statusIconName: String {
-        switch show.changeStatus {
-        case .scheduled: return "checkmark.circle.fill"
-        case .postponed: return "calendar.badge.clock"
-        case .canceled: return "xmark.circle.fill"
-        }
-    }
-
-    private var statusTint: Color {
-        switch show.changeStatus {
-        case .scheduled: return BSColor.Accent.prepare
-        case .postponed: return BSColor.Accent.warm
-        case .canceled: return BSColor.Accent.danger
-        }
-    }
-
     private var restoreActionTitle: String {
         show.changeStatus == .canceled ? "撤销取消" : "取消延期，恢复原定日期"
     }
 
     private var restoreSuccessMessage: String {
         show.changeStatus == .canceled ? "已撤销取消" : "已恢复原定日期"
-    }
-
-    private func changeActionRow(
-        title: String,
-        systemImage: String,
-        isDestructive: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        let tint: Color = isDestructive ? BSColor.Accent.danger : BSColor.textSecondary
-        return Button(action: action) {
-            HStack(spacing: BSSpacing.sm) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 22, alignment: .center)
-                Text(title)
-                    .font(.system(size: 14, weight: .medium))
-                Spacer()
-            }
-            .foregroundColor(tint)
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .fill(Color.white.opacity(0.045))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(BSColor.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
     }
 
     private func selectCurrent() {
@@ -1251,11 +1050,13 @@ struct ShowDetailView: View {
         )
     }
 
+    /// 应用状态变更并返回用于反馈的文案（编辑器状态卡用它弹自己的 toast）。
     @MainActor
+    @discardableResult
     private func updateStatus(
         message: String,
         mutation: () -> Void
-    ) async {
+    ) async -> String {
         mutation()
         if show.changeStatus == .canceled,
            selections.first?.selectedShowID == show.id {
@@ -1267,14 +1068,16 @@ struct ShowDetailView: View {
         } catch {
             modelContext.rollback()
             presentToast(.failure, message: "状态没有保存，请重试")
-            return
+            return "状态没有保存，请重试"
         }
 
         let didSyncNotifications = await syncNotificationsToCurrentShow()
+        let presentedMessage = didSyncNotifications ? message : "\(message)，通知暂未更新"
         presentToast(
             didSyncNotifications ? .success : .neutral,
-            message: didSyncNotifications ? message : "\(message)，通知暂未更新"
+            message: presentedMessage
         )
+        return presentedMessage
     }
 
     @MainActor
@@ -1300,7 +1103,6 @@ struct ShowDetailView: View {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            showsDeleteConfirmation = false
             presentToast(.failure, message: "删除失败，请重试")
             return
         }
@@ -1312,7 +1114,6 @@ struct ShowDetailView: View {
             to: nextCurrentShow,
             in: modelContext
         )
-        showsDeleteConfirmation = false
         dismiss()
     }
 

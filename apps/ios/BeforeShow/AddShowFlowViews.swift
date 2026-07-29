@@ -292,62 +292,41 @@ struct AddShowFlowView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    AddShowFlowHeader(
-                        title: sheet.navigationTitle,
-                        subtitle: sheet.introText,
-                        backTitle: onBack == nil ? "取消" : "返回",
-                        onBack: closeOrBack
-                    )
-
-                    methodContent
-
-                    if shouldShowDraftFields {
-                        ShowDraftFormFields(
-                            draft: $draft,
-                            onCoverImported: registerImportedCover
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        AddShowFlowHeader(
+                            title: sheet.navigationTitle,
+                            subtitle: sheet.introText,
+                            backTitle: onBack == nil ? "取消" : "返回",
+                            onBack: closeOrBack
                         )
 
-                        VStack(spacing: BSSpacing.sm) {
-                            Button {
-                                Task {
-                                    await save()
-                                }
-                            } label: {
-                                Text(sheet.saveButtonTitle)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(AddShowPrimaryButtonStyle())
-                            .disabled(!draft.isReadyToSave || isSaving)
+                        methodContent
 
-                            if sheet == .manual {
-                                Text("可添加后再补充封面图和更多信息")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundColor(BSColor.textTertiary.opacity(0.65))
-                                    .frame(maxWidth: .infinity)
-                            } else if hasImportedDraft {
-                                Button {
-                                    showsManualFallback = true
-                                } label: {
-                                    Text("手动修改")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(AddShowSecondaryButtonStyle())
-                            }
+                        if shouldShowDraftFields {
+                            ShowDraftFormFields(
+                                draft: $draft,
+                                usesCardLayout: true,
+                                onCoverImported: registerImportedCover
+                            )
+                        }
+
+                        if let message {
+                            AddShowNoteCard(text: message, iconName: "info.circle")
                         }
                     }
-
-                    if let message {
-                        AddShowNoteCard(text: message, iconName: "info.circle")
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 24)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 36)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+
+                if shouldShowDraftFields {
+                    addSaveBar
+                }
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
         .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
@@ -514,6 +493,83 @@ struct AddShowFlowView: View {
 
     private var shouldShowDraftFields: Bool {
         sheet == .manual || showsManualFallback || hasImportedDraft
+    }
+
+    // MARK: - 吸底保存栏：始终可见，状态行说明缺什么
+
+    private var addSaveBar: some View {
+        VStack(spacing: 10) {
+            Text(saveBarStatus.text)
+                .font(.system(size: 12))
+                .foregroundColor(saveBarStatus.tint)
+                .frame(maxWidth: .infinity)
+
+            Button {
+                Task {
+                    await save()
+                }
+            } label: {
+                HStack(spacing: BSSpacing.sm) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                    }
+                    Text(isSaving ? "正在保存" : sheet.saveButtonTitle)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditShowSaveButtonStyle())
+            .disabled(!draft.isReadyToSave || isSaving)
+            .accessibilityLabel(isSaving ? "正在保存" : sheet.saveButtonTitle)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Rectangle().fill(Color.black.opacity(0.28)))
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BSColor.Stage.border)
+                .frame(height: 1)
+        }
+    }
+
+    private struct SaveBarStatus {
+        let text: String
+        let tint: Color
+    }
+
+    /// 按优先级说明距离可保存还差什么（名称 → 开场时间 → 时间范围）。
+    private var saveBarStatus: SaveBarStatus {
+        if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
+        }
+        if draft.startTime == nil {
+            return SaveBarStatus(
+                text: "还差开场时间 · 用于开场前提醒，可先填大概时间",
+                tint: BSColor.Stage.muted
+            )
+        }
+        if !draft.hasValidEndTime() {
+            return SaveBarStatus(
+                text: "时间范围无效，结束时间需要晚于开始时间",
+                tint: BSColor.Accent.danger
+            )
+        }
+        if sheet == .manual {
+            return SaveBarStatus(
+                text: "可以保存了 · 封面和更多信息可添加后再补充",
+                tint: BSColor.Stage.dim
+            )
+        }
+        return SaveBarStatus(
+            text: "请核对识别出的信息，确认后保存",
+            tint: BSColor.Stage.dim
+        )
     }
 
     private func closeOrBack() {
@@ -750,11 +806,32 @@ enum ShowCoverLocalImageStore {
     }
 }
 
+/// 编辑现场 sheet 内的现场状态管理上下文：状态展示 + 立即生效的状态操作。
+/// 由详情页注入；为 nil 时编辑器不渲染现场状态卡（例如仅编辑草稿的场景）。
+/// 状态操作不走「保存」按钮，沿用详情页语义立即生效，闭包返回用于 toast 的文案。
+struct ShowStatusEditingContext {
+    let changeStatus: ShowChangeStatus
+    let postponedDate: Date?
+    let title: String
+    let description: String
+    let restoreTitle: String
+    let onRestore: @MainActor () async -> String
+    let onPostpone: @MainActor (Date?) async -> String
+    let onCancel: @MainActor () async -> String
+    let onDelete: @MainActor () async -> Void
+}
+
 struct ShowDraftEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let title: String
     let subtitle: String
     let saveTitle: String
+    /// 摘要卡右上角的状态胶囊文案（如「即将开场」「已延期」），nil 则不显示。
+    var statusPillText: String? = nil
+    /// 延期现场：摘要卡下方追加紫金横幅，说明这里编辑的是原定信息。
+    var isPostponed: Bool = false
+    /// 现场状态管理（延期 / 取消 / 恢复 / 删除），nil 时不渲染现场状态卡。
+    var statusEditing: ShowStatusEditingContext? = nil
     let onSave: @MainActor (ShowDraft) async throws -> Void
     private let initialDraft: ShowDraft
     private let originalCoverURL: String
@@ -765,18 +842,30 @@ struct ShowDraftEditorView: View {
     @State private var showsDiscardConfirmation = false
     @State private var temporaryCoverURLs: Set<String> = []
     @State private var didSave = false
+    @State private var postponeDate = Date()
+    @State private var showsPostponeSheet = false
+    @State private var showsCancelConfirm = false
+    @State private var showsDeleteConfirm = false
+    @State private var isApplyingStatus = false
+    @State private var statusToast: BSToastPayload?
 
     init(
         title: String,
         subtitle: String = "修改后会立即更新这个现场。",
         draft: ShowDraft,
         saveTitle: String,
+        statusPillText: String? = nil,
+        isPostponed: Bool = false,
+        statusEditing: ShowStatusEditingContext? = nil,
         onSave: @escaping @MainActor (ShowDraft) async throws -> Void
     ) {
         self.title = title
         self.subtitle = subtitle
         _draft = State(initialValue: draft)
         self.saveTitle = saveTitle
+        self.statusPillText = statusPillText
+        self.isPostponed = isPostponed
+        self.statusEditing = statusEditing
         self.onSave = onSave
         initialDraft = draft
         originalCoverURL = draft.coverImageURL
@@ -786,61 +875,107 @@ struct ShowDraftEditorView: View {
         draft != initialDraft
     }
 
+    private var isEndTimeRangeValid: Bool {
+        draft.startTime == nil || draft.hasValidEndTime()
+    }
+
     var body: some View {
         ZStack {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    AddShowFlowHeader(
-                        title: title,
-                        subtitle: subtitle,
-                        backTitle: "取消",
-                        onBack: {
-                            requestDismiss()
-                        }
-                    )
+            VStack(spacing: 0) {
+                editorNavBar
 
-                    ShowDraftFormFields(
-                        draft: $draft,
-                        includesSeatSection: true,
-                        onCoverImported: registerImportedCover
-                    )
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.md) {
+                        editorSummaryCard
+                        if isPostponed {
+                            postponedBanner
+                        }
 
-                    Button {
-                        Task { @MainActor in
-                            await save()
+                        ShowDraftFormFields(
+                            draft: $draft,
+                            includesSeatSection: true,
+                            usesCardLayout: true,
+                            onCoverImported: registerImportedCover
+                        )
+
+                        if let statusEditing {
+                            statusCard(statusEditing)
+                            deleteShowEntry
                         }
-                    } label: {
-                        HStack(spacing: BSSpacing.sm) {
-                            if isSaving {
-                                ProgressView()
-                                    .tint(.black)
-                            }
-                            Text(isSaving ? "正在保存" : saveTitle)
-                        }
-                        .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(AddShowPrimaryButtonStyle())
-                    .disabled(!draft.isReadyToSave || isSaving)
-
-                    if let message {
-                        Text(message)
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.Accent.danger)
-                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 36)
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+
+                saveBar
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
         }
         .preferredColorScheme(.dark)
         .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
-        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving || isApplyingStatus)
+        .onChange(of: draft) { _, _ in
+            message = nil
+        }
+        .sheet(isPresented: $showsPostponeSheet) {
+            PostponeShowSheet(
+                newDate: $postponeDate,
+                onUndated: {
+                    showsPostponeSheet = false
+                    Task { @MainActor in
+                        await applyStatusAction { await statusEditing?.onPostpone(nil) }
+                    }
+                },
+                onDated: {
+                    showsPostponeSheet = false
+                    let newDate = postponeDate
+                    Task { @MainActor in
+                        await applyStatusAction { await statusEditing?.onPostpone(newDate) }
+                    }
+                },
+                onCancel: {
+                    showsPostponeSheet = false
+                }
+            )
+        }
+        .sheet(isPresented: $showsCancelConfirm) {
+            BSDangerConfirmationSheet(
+                title: "记录取消",
+                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
+                destructiveTitle: "确认取消",
+                onConfirm: {
+                    showsCancelConfirm = false
+                    Task { @MainActor in
+                        await applyStatusAction { await statusEditing?.onCancel() }
+                    }
+                },
+                onCancel: {
+                    showsCancelConfirm = false
+                }
+            )
+        }
+        .sheet(isPresented: $showsDeleteConfirm) {
+            BSDangerConfirmationSheet(
+                title: "删除现场",
+                message: "删除后，这场现场将无法恢复。",
+                destructiveTitle: "删除",
+                onConfirm: {
+                    showsDeleteConfirm = false
+                    Task { @MainActor in
+                        await statusEditing?.onDelete()
+                    }
+                },
+                onCancel: {
+                    showsDeleteConfirm = false
+                }
+            )
+        }
+        .bsToastOverlay(statusToast, bottomPadding: 96)
         .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
             Button("继续编辑", role: .cancel) {}
             Button("放弃修改", role: .destructive) {
@@ -853,6 +988,396 @@ struct ShowDraftEditorView: View {
         .onDisappear {
             guard !didSave else { return }
             cleanupTemporaryCovers()
+        }
+    }
+
+    // MARK: - 顶部导航
+
+    private var editorNavBar: some View {
+        ZStack {
+            Text(title)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+
+            HStack {
+                Button {
+                    requestDismiss()
+                } label: {
+                    Text("取消")
+                        .font(BSFont.body)
+                        .foregroundColor(BSColor.textSecondary)
+                        .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消编辑")
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - 摘要卡：滚动时始终知道在编辑哪一场
+
+    private var editorSummaryCard: some View {
+        HStack(spacing: 14) {
+            ShowCoverImageView(
+                urlString: draft.coverImageURL,
+                aspectRatio: 3.0 / 4.0,
+                contentMode: .fill,
+                cornerRadius: 10
+            )
+            .frame(width: 45, height: 60)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名现场" : draft.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+                    .lineLimit(2)
+
+                Text(summaryDateText)
+                    .font(.system(size: 12))
+                    .foregroundColor(BSColor.textTertiary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+
+            if let statusPillText {
+                editorStatusPill(text: statusPillText)
+            }
+        }
+        .padding(14)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+    }
+
+    private var summaryDateText: String {
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        dateFormatter.dateFormat = "M月d日"
+        var text = (isPostponed ? "原定 " : "") + dateFormatter.string(from: draft.date)
+        if let startTime = draft.startTime {
+            let timeFormatter = DateFormatter()
+            timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+            timeFormatter.dateFormat = "HH:mm"
+            text += " " + timeFormatter.string(from: startTime)
+        }
+        let venue = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !venue.isEmpty {
+            text += " · \(venue)"
+        }
+        return text
+    }
+
+    private func editorStatusPill(text: String) -> some View {
+        let tint = isPostponed
+            ? Color(red: 0.84, green: 0.76, blue: 1.0)
+            : BSColor.Stage.accent
+        return HStack(spacing: 5) {
+            Circle()
+                .fill(tint)
+                .frame(width: 5, height: 5)
+            Text(text)
+        }
+        .font(.system(size: 11, weight: .semibold))
+        .foregroundColor(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(tint.opacity(0.10))
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .stroke(tint.opacity(0.32), lineWidth: 1)
+        )
+    }
+
+    // MARK: - 延期横幅
+
+    private var postponedBanner: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(BSColor.Accent.violet)
+
+            Text("这场已延期。这里编辑的是原定信息；延期日期在下方「现场状态」中更新。")
+                .font(.system(size: 12.5))
+                .foregroundColor(Color(red: 0.80, green: 0.74, blue: 0.92))
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(
+            LinearGradient(
+                colors: [
+                    BSColor.Accent.violet.opacity(0.12),
+                    BSColor.Stage.accent.opacity(0.07)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(BSColor.Accent.violet.opacity(0.28), lineWidth: 1)
+        )
+    }
+
+    // MARK: - 现场状态卡（并入编辑现场，操作立即生效）
+
+    private func statusTint(for status: ShowChangeStatus) -> Color {
+        switch status {
+        case .scheduled: return BSColor.Accent.prepare
+        case .postponed: return Color(red: 0.84, green: 0.76, blue: 1.0)
+        case .canceled: return BSColor.Accent.danger
+        }
+    }
+
+    private func statusIconName(for status: ShowChangeStatus) -> String {
+        switch status {
+        case .scheduled: return "checkmark.circle.fill"
+        case .postponed: return "calendar.badge.clock"
+        case .canceled: return "xmark.circle.fill"
+        }
+    }
+
+    private func statusCard(_ context: ShowStatusEditingContext) -> some View {
+        let tint = statusTint(for: context.changeStatus)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(tint.opacity(0.13))
+                    Image(systemName: statusIconName(for: context.changeStatus))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+                .frame(width: 26, height: 26)
+
+                Text("现场状态")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+
+                Spacer(minLength: 0)
+
+                Text(context.title)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundColor(tint)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(tint.opacity(0.12))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(tint.opacity(0.30), lineWidth: 1)
+                    )
+            }
+
+            Text(context.description)
+                .font(.system(size: 12.5))
+                .foregroundColor(BSColor.textTertiary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(spacing: 10) {
+                if context.changeStatus != .scheduled {
+                    Button {
+                        Task { @MainActor in
+                            await applyStatusAction { await statusEditing?.onRestore() }
+                        }
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "arrow.uturn.backward")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(BSColor.textTertiary)
+                            Text(context.restoreTitle)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(BSColor.textSecondary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 11)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.white.opacity(0.045))
+                        .clipShape(RoundedRectangle(cornerRadius: 13))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 13)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isApplyingStatus)
+                    .accessibilityLabel(context.restoreTitle)
+                }
+
+                if context.changeStatus != .canceled {
+                    HStack(spacing: 12) {
+                        statusActionButton(
+                            title: context.changeStatus == .postponed ? "更新延期信息" : "记录延期",
+                            systemImage: "calendar.badge.clock",
+                            tint: Color(red: 0.84, green: 0.76, blue: 1.0)
+                        ) {
+                            postponeDate = context.postponedDate ?? draft.date
+                            showsPostponeSheet = true
+                        }
+
+                        statusActionButton(
+                            title: "记录取消",
+                            systemImage: "xmark.circle",
+                            tint: BSColor.Accent.danger
+                        ) {
+                            showsCancelConfirm = true
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+    }
+
+    private func statusActionButton(
+        title: String,
+        systemImage: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 13, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 13.5, weight: .semibold))
+            }
+            .foregroundColor(tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(tint.opacity(0.08))
+            .clipShape(RoundedRectangle(cornerRadius: 13))
+            .overlay(
+                RoundedRectangle(cornerRadius: 13)
+                    .stroke(tint.opacity(0.30), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isApplyingStatus)
+        .accessibilityLabel(title)
+    }
+
+    private var deleteShowEntry: some View {
+        Button {
+            showsDeleteConfirm = true
+        } label: {
+            Text("删除现场")
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(BSColor.Accent.danger.opacity(0.75))
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: BSLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isApplyingStatus)
+        .accessibilityLabel("删除现场")
+    }
+
+    @MainActor
+    private func applyStatusAction(
+        _ action: @MainActor () async -> String?
+    ) async {
+        guard !isApplyingStatus else { return }
+        isApplyingStatus = true
+        let message = await action()
+        isApplyingStatus = false
+        if let message {
+            presentStatusToast(.success, message: message)
+        }
+    }
+
+    private func presentStatusToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        statusToast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if statusToast == payload {
+                statusToast = nil
+            }
+        }
+    }
+
+    // MARK: - 吸底保存栏
+
+    private var saveBar: some View {
+        VStack(spacing: 10) {
+            saveBarStatus
+                .font(.system(size: 12))
+                .frame(maxWidth: .infinity)
+
+            Button {
+                Task { @MainActor in
+                    await save()
+                }
+            } label: {
+                HStack(spacing: BSSpacing.sm) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                    }
+                    Text(isSaving ? "正在保存" : saveTitle)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditShowSaveButtonStyle())
+            .disabled(!draft.isReadyToSave || isSaving)
+            .accessibilityLabel(isSaving ? "正在保存" : saveTitle)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Rectangle().fill(Color.black.opacity(0.28)))
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BSColor.Stage.border)
+                .frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private var saveBarStatus: some View {
+        if let message {
+            Text(message)
+                .foregroundColor(BSColor.Accent.danger)
+        } else if !isEndTimeRangeValid {
+            Text("时间范围无效，修正后才能保存")
+                .foregroundColor(BSColor.Stage.muted)
+        } else if hasUnsavedChanges {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(BSColor.Stage.accent)
+                    .frame(width: 6, height: 6)
+                    .shadow(color: BSColor.Stage.accent.opacity(0.7), radius: 4)
+                Text("有未保存的修改")
+                    .foregroundColor(BSColor.Stage.muted)
+            }
+        } else {
+            Text("所有修改已保存")
+                .foregroundColor(BSColor.Stage.dim)
         }
     }
 
@@ -918,6 +1443,9 @@ struct ShowDraftEditorView: View {
 private struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
     let includesSeatSection: Bool
+    /// true 时按编辑现场的卡片布局渲染（基本信息 / 日期时间 / 地点 / 封面四张卡）；
+    /// false 保持添加现场流程的平铺分组不变。
+    let usesCardLayout: Bool
     let onCoverImported: (String, String) -> Void
     @State private var startTime: Date
     @State private var hasEndTime: Bool
@@ -931,6 +1459,7 @@ private struct ShowDraftFormFields: View {
     init(
         draft: Binding<ShowDraft>,
         includesSeatSection: Bool = false,
+        usesCardLayout: Bool = false,
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
@@ -950,6 +1479,7 @@ private struct ShowDraftFormFields: View {
 
         self._draft = draft
         self.includesSeatSection = includesSeatSection
+        self.usesCardLayout = usesCardLayout
         self.onCoverImported = onCoverImported
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
@@ -959,18 +1489,171 @@ private struct ShowDraftFormFields: View {
     }
 
     var body: some View {
+        Group {
+            if usesCardLayout {
+                cardLayout
+            } else {
+                legacyLayout
+            }
+        }
+        .onChange(of: hasEndTime) { _, newValue in
+            syncEndTimeToDraft(isEnabled: newValue)
+        }
+        .onChange(of: startTime) { _, _ in
+            draft.startTime = mergedStartTime()
+            if hasEndTime {
+                syncEndTimeToDraft(isEnabled: true)
+            }
+        }
+        .onChange(of: endTime) { _, _ in
+            if hasEndTime {
+                syncEndTimeToDraft(isEnabled: true)
+            }
+        }
+        .onChange(of: endDate) { _, _ in
+            if hasEndTime {
+                if endDate < draft.date {
+                    endDate = draft.date
+                }
+                syncEndTimeToDraft(isEnabled: true)
+            }
+        }
+        .onChange(of: draft.date) { _, _ in
+            if draft.startTime != nil {
+                draft.startTime = mergedStartTime()
+            }
+            if hasEndTime {
+                if endDate < draft.date {
+                    endDate = draft.date
+                }
+                syncEndTimeToDraft(isEnabled: true)
+            }
+        }
+        .onChange(of: selectedCoverItem) { _, newItem in
+            guard let newItem else { return }
+            Task {
+                await importCover(from: newItem)
+            }
+        }
+    }
+
+    /// 编辑现场：四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
+    private var cardLayout: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            EditShowFormCard(title: "基本信息", icon: "square.and.pencil", tint: BSColor.Stage.accent) {
+                AddShowLabeledTextField(
+                    title: "现场名称",
+                    placeholder: "例：五月天上海演唱会",
+                    text: $draft.name,
+                    isRequired: true
+                )
+
+                AddShowLabeledTextField(
+                    title: "艺人 / 阵容",
+                    placeholder: "五月天",
+                    text: $draft.artist
+                )
+
+                if includesSeatSection {
+                    AddShowLabeledTextField(
+                        title: "座位或区域",
+                        placeholder: "看台 / 内场 / 排号",
+                        text: $draft.seatSection
+                    )
+                }
+
+                if !draft.artistAvatarURLs.isEmpty {
+                    ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)
+                }
+            }
+
+            EditShowFormCard(
+                title: "日期与时间",
+                icon: "clock",
+                tint: BSColor.Accent.violet,
+                hint: "开场必填 · 散场可选"
+            ) {
+                AddShowScheduleFields(
+                    draft: $draft,
+                    startTime: $startTime,
+                    isStartTimeConfirmed: draft.startTime != nil,
+                    onConfirmStartTime: {
+                        draft.startTime = mergedStartTime()
+                    },
+                    hasEndTime: $hasEndTime,
+                    endDate: $endDate,
+                    endTime: $endTime
+                )
+
+                if draft.startTime != nil && !draft.hasValidEndTime() {
+                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Accent.danger)
+                        .accessibilityLabel("时间范围无效，结束时间需要晚于开始时间")
+                }
+            }
+
+            EditShowFormCard(title: "地点", icon: "mappin.and.ellipse", tint: BSColor.Accent.prepare) {
+                AddShowLabeledTextField(
+                    title: "城市",
+                    placeholder: "上海",
+                    text: $draft.city
+                )
+
+                AddShowLabeledTextField(
+                    title: "场馆",
+                    placeholder: "上海体育场",
+                    text: $draft.venueName
+                )
+
+                BSAddressSuggestionField(
+                    label: "场馆地址",
+                    placeholder: "街道门牌，方便到场",
+                    text: $draft.venueAddress,
+                    city: draft.city,
+                    seedKeyword: draft.venueName,
+                    helperText: "下面有小地图，点一下就能选准地址。"
+                )
+            }
+
+            EditShowFormCard(title: "封面", icon: "photo", tint: BSColor.Stage.accent) {
+                if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    ShowDraftCoverPreview(urlString: draft.coverImageURL)
+                }
+
+                AddShowCoverImportField(
+                    selectedItem: $selectedCoverItem,
+                    isImporting: isImportingCover,
+                    message: coverImportMessage
+                )
+
+                DisclosureGroup(isExpanded: $showsCoverLinkField) {
+                    AddShowLabeledTextField(
+                        title: "图片链接",
+                        placeholder: "https://...",
+                        text: $draft.coverImageURL,
+                        keyboardType: .URL
+                    )
+                    .padding(.top, BSSpacing.sm)
+                } label: {
+                    Label(
+                        showsCoverLinkField ? "收起图片链接" : "使用图片链接",
+                        systemImage: "link"
+                    )
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                }
+                .tint(BSColor.textTertiary)
+            }
+        }
+    }
+
+    /// 添加现场流程：保持原有平铺分组，仅把封面预览换成不裁切的 3:4 海报预览。
+    private var legacyLayout: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 AddShowFieldGroup(title: "当前封面") {
-                    ShowCoverImageView(
-                        urlString: draft.coverImageURL,
-                        aspectRatio: 16.0 / 10.0,
-                        contentMode: .fill,
-                        enforcesAspectRatio: false
-                    )
-                    .frame(height: includesSeatSection ? 160 : 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .clipped()
+                    ShowDraftCoverPreview(urlString: draft.coverImageURL)
                 }
             }
 
@@ -1071,45 +1754,6 @@ private struct ShowDraftFormFields: View {
                     .foregroundColor(BSColor.textTertiary)
                 }
                 .tint(BSColor.textTertiary)
-            }
-        }
-        .onChange(of: hasEndTime) { _, newValue in
-            syncEndTimeToDraft(isEnabled: newValue)
-        }
-        .onChange(of: startTime) { _, _ in
-            draft.startTime = mergedStartTime()
-            if hasEndTime {
-                syncEndTimeToDraft(isEnabled: true)
-            }
-        }
-        .onChange(of: endTime) { _, _ in
-            if hasEndTime {
-                syncEndTimeToDraft(isEnabled: true)
-            }
-        }
-        .onChange(of: endDate) { _, _ in
-            if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
-                }
-                syncEndTimeToDraft(isEnabled: true)
-            }
-        }
-        .onChange(of: draft.date) { _, _ in
-            if draft.startTime != nil {
-                draft.startTime = mergedStartTime()
-            }
-            if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
-                }
-                syncEndTimeToDraft(isEnabled: true)
-            }
-        }
-        .onChange(of: selectedCoverItem) { _, newItem in
-            guard let newItem else { return }
-            Task {
-                await importCover(from: newItem)
             }
         }
     }
@@ -1556,6 +2200,141 @@ private struct AddShowNoteCard: View {
             RoundedRectangle(cornerRadius: BSRadius.lg)
                 .stroke(BSColor.borderProminent, lineWidth: 1)
         )
+    }
+}
+
+/// 编辑现场的分组卡片：图标 chip + 标题 + 可选提示，Stage 色板。
+/// 与首页 V4 功能卡、详情页现场状态卡保持同一卡片语言。
+private struct EditShowFormCard<Content: View>: View {
+    let title: String
+    let icon: String
+    let tint: Color
+    var hint: String? = nil
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 9) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(tint.opacity(0.13))
+                    Image(systemName: icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+                .frame(width: 26, height: 26)
+
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+
+                Spacer(minLength: 0)
+
+                if let hint {
+                    Text(hint)
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.dim)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                content
+            }
+        }
+        .padding(16)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+    }
+}
+
+/// 封面预览：模糊海报底 + 居中 3:4 海报，不裁切海报画面。
+private struct ShowDraftCoverPreview: View {
+    let urlString: String
+
+    var body: some View {
+        ZStack {
+            ShowCoverImageView(
+                urlString: urlString,
+                aspectRatio: 16.0 / 9.0,
+                contentMode: .fill,
+                enforcesAspectRatio: false,
+                cornerRadius: 14
+            )
+            .blur(radius: 20)
+            .overlay(Color.black.opacity(0.42))
+
+            ShowCoverImageView(
+                urlString: urlString,
+                aspectRatio: 3.0 / 4.0,
+                contentMode: .fit,
+                cornerRadius: 10
+            )
+            .frame(height: 186)
+            .shadow(color: .black.opacity(0.55), radius: 14, x: 0, y: 8)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 216)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+        .overlay(alignment: .topLeading) {
+            Text("当前封面")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(BSColor.textSecondary)
+                .padding(.horizontal, 9)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.45))
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(Color.white.opacity(0.14), lineWidth: 1)
+                )
+                .padding(10)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// 编辑现场吸底保存按钮：钨金渐变主按钮；禁用时降为灰底，由保存栏说明原因。
+private struct EditShowSaveButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundColor(
+                isEnabled
+                    ? Color(red: 0.15, green: 0.11, blue: 0.04)
+                    : BSColor.Stage.dim
+            )
+            .padding(.vertical, 15)
+            .background(background(isPressed: configuration.isPressed))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .opacity(configuration.isPressed ? 0.9 : 1)
+    }
+
+    @ViewBuilder
+    private func background(isPressed: Bool) -> some View {
+        if isEnabled {
+            LinearGradient(
+                colors: [
+                    Color(red: 0.82, green: 0.67, blue: 0.42),
+                    Color(red: 0.91, green: 0.78, blue: 0.56),
+                    Color(red: 0.95, green: 0.86, blue: 0.66)
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .opacity(isPressed ? 0.85 : 1)
+        } else {
+            Color.white.opacity(0.08)
+        }
     }
 }
 
