@@ -164,20 +164,17 @@ struct MyShowsListView: View {
                         let isCurrent = show.id == selectedShowID
                         // Row tap opens detail via onTapGesture (not NavigationLink),
                         // so the inline "设为当前" button can receive its own taps.
+                        // VoiceOver 通过可激活的整行按钮 + 「设为当前」自定义动作操作，
+                        // 见 accessibleShowRow。
                         let setCurrentAction: (() -> Void)? =
                             allowsInlineSetCurrent && !isCurrent && show.changeStatus != .canceled
                             ? { selectCurrent(show) }
                             : nil
-                        ShowRowView(
+                        accessibleShowRow(
                             show: show,
                             isCurrent: isCurrent,
-                            formatter: formatter,
                             setCurrentAction: setCurrentAction
                         )
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            detailTarget = show
-                        }
                         .contextMenu {
                             if !isCurrent && show.changeStatus != .canceled {
                                 Button {
@@ -216,6 +213,50 @@ struct MyShowsListView: View {
             return show.changeStatus == .scheduled
                 && (state.kind == .before || state.kind == .today)
         }
+    }
+
+    /// 列表行：视觉保持原样；对 VoiceOver 暴露为可激活的整行按钮（双击查看详情），
+    /// 「设为当前」内联按钮合并进行元素后，以自定义动作补回，保证行始终可操作。
+    @ViewBuilder
+    private func accessibleShowRow(
+        show: Show,
+        isCurrent: Bool,
+        setCurrentAction: (() -> Void)?
+    ) -> some View {
+        let row = ShowRowView(
+            show: show,
+            isCurrent: isCurrent,
+            formatter: formatter,
+            setCurrentAction: setCurrentAction
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            detailTarget = show
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(showRowAccessibilityLabel(for: show, isCurrent: isCurrent))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Text("双击查看详情"))
+
+        if let setCurrentAction {
+            row.accessibilityAction(named: Text("设为当前")) {
+                setCurrentAction()
+            }
+        } else {
+            row
+        }
+    }
+
+    private func showRowAccessibilityLabel(for show: Show, isCurrent: Bool) -> Text {
+        var parts = [show.name, formatter.dateText(for: show)]
+        if let venueName = show.venueName, !venueName.isEmpty {
+            parts.append(venueName)
+        }
+        parts.append(formatter.statusText(for: show))
+        if isCurrent {
+            parts.append("当前现场")
+        }
+        return Text(parts.joined(separator: "，"))
     }
 
     private var endedShows: [Show] {
@@ -1050,13 +1091,13 @@ struct ShowDetailView: View {
         )
     }
 
-    /// 应用状态变更并返回用于反馈的文案（编辑器状态卡用它弹自己的 toast）。
+    /// 应用状态变更并返回反馈的语气与文案（编辑器状态卡用它弹自己的 toast）。
     @MainActor
     @discardableResult
     private func updateStatus(
         message: String,
         mutation: () -> Void
-    ) async -> String {
+    ) async -> ShowStatusActionResult {
         mutation()
         if show.changeStatus == .canceled,
            selections.first?.selectedShowID == show.id {
@@ -1068,7 +1109,7 @@ struct ShowDetailView: View {
         } catch {
             modelContext.rollback()
             presentToast(.failure, message: "状态没有保存，请重试")
-            return "状态没有保存，请重试"
+            return ShowStatusActionResult(tone: .failure, message: "状态没有保存，请重试")
         }
 
         let didSyncNotifications = await syncNotificationsToCurrentShow()
@@ -1077,7 +1118,10 @@ struct ShowDetailView: View {
             didSyncNotifications ? .success : .neutral,
             message: presentedMessage
         )
-        return presentedMessage
+        return ShowStatusActionResult(
+            tone: didSyncNotifications ? .success : .neutral,
+            message: presentedMessage
+        )
     }
 
     @MainActor
