@@ -207,6 +207,11 @@ struct CurrentShowTimeState: Equatable {
         effectiveEndDate: Date?,
         effectiveEndTime: Date?
     ) -> Date? {
+        // 用户手动确认的散场时刻优先级最高 —— 实际结束时间无法预测。
+        if let endedAt = show.endedAt {
+            return endedAt
+        }
+
         // Optional end clock (e.g. from parse) wins when present — not a user-required field.
         if let effectiveEndTime {
             return effectiveEndTime

@@ -117,6 +117,9 @@ final class Show {
     var createdAt: Date
     var updatedAt: Date
     var postponedDate: Date?
+    /// 用户手动确认的散场时刻。实际结束时间无法预测,
+    /// 一旦由用户标记,它就是结束边界的唯一真相来源(高于解析 / 估算)。
+    var endedAt: Date?
 
     private var changeStatusRawValue: String
 
@@ -187,6 +190,7 @@ final class Show {
         self.changeStatusRawValue = changeStatus.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.endedAt = nil
     }
 
     func markPostponed(newDate: Date?) {
@@ -203,6 +207,17 @@ final class Show {
     func markScheduled() {
         postponedDate = nil
         changeStatus = .scheduled
+        touch()
+    }
+
+    /// 用户确认散场:结束时刻无法预测,以用户标记为准,可撤销。
+    func markEnded(at date: Date = Date()) {
+        endedAt = date
+        touch()
+    }
+
+    func clearEnded() {
+        endedAt = nil
         touch()
     }
 

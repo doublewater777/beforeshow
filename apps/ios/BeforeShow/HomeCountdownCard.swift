@@ -319,6 +319,13 @@ struct HomeTipCard: View {
     let phase: HomeShowPhase
     let timeState: CurrentShowTimeState
     var onAddNextShow: () -> Void = {}
+    var onEndShow: () -> Void = {}
+
+    /// Tip 卡底部的安静出口:停留期去添加下一场,live 时确认散场。
+    private enum QuietAction {
+        case addNextShow
+        case endShow
+    }
 
     private struct Content {
         let badge: String
@@ -326,7 +333,7 @@ struct HomeTipCard: View {
         let text: String
         let tone: Tone
         var showsLineup = false
-        var quietAction: String? = nil
+        var quiet: (text: String, action: QuietAction)? = nil
     }
 
     private enum Tone {
@@ -395,7 +402,8 @@ struct HomeTipCard: View {
                 badge: "正在现场",
                 title: "享受这一晚",
                 text: "散场后人多,提前想好从哪个出口离开。",
-                tone: .gray
+                tone: .gray,
+                quiet: show.endedAt == nil ? ("散场了 → 结束这场现场", .endShow) : nil
             )
         case .ended:
             guard timeState.kind == .postShow else { return nil }
@@ -404,7 +412,7 @@ struct HomeTipCard: View {
                 title: "余温还留在这里",
                 text: "这场的资料还会保留。想好下一场去哪了吗?",
                 tone: .gray,
-                quietAction: "添加下一场现场 →"
+                quiet: ("添加下一场现场 →", .addNextShow)
             )
         case .inactive:
             guard timeState.kind == .postponed else { return nil }
@@ -459,9 +467,14 @@ struct HomeTipCard: View {
                     .padding(.top, 10)
                 }
 
-                if let quiet = content.quietAction {
-                    Button(action: onAddNextShow) {
-                        Text(quiet)
+                if let quiet = content.quiet {
+                    Button {
+                        switch quiet.action {
+                        case .addNextShow: onAddNextShow()
+                        case .endShow: onEndShow()
+                        }
+                    } label: {
+                        Text(quiet.text)
                             .font(.system(size: 12.5, weight: .medium))
                             .foregroundColor(BSColor.Stage.foreground)
                             .frame(minHeight: BSLayout.minTouchTarget)

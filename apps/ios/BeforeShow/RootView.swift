@@ -133,6 +133,7 @@ private struct OnboardingPlaceholderView: View {
 private struct CurrentShowHomeView: View {
     var onOpenMyShows: () -> Void = {}
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
@@ -160,7 +161,9 @@ private struct CurrentShowHomeView: View {
                         show: show,
                         formatter: formatter,
                         onAddNextShow: { isShowingAddShowCoordinator = true },
-                        onOpenMyShows: onOpenMyShows
+                        onOpenMyShows: onOpenMyShows,
+                        onEndShow: { markEnded(show) },
+                        onUndoEndShow: { undoEnded(show) }
                     )
                 } else {
                     CurrentShowEmptyStateView(
@@ -174,7 +177,7 @@ private struct CurrentShowHomeView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
-                    presentAddShowSuccess()
+                    presentToast(.success, message: "已放入当前现场")
                 }
             }
             #if DEBUG
@@ -190,8 +193,31 @@ private struct CurrentShowHomeView: View {
         }
     }
 
-    private func presentAddShowSuccess() {
-        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+    /// 散场时刻由用户确认(无法预测):标记后首页立刻进入散场后停留期,可撤销。
+    private func markEnded(_ show: Show) {
+        show.markEnded()
+        do {
+            try modelContext.save()
+            presentToast(.success, message: "落幕了,这场还会再停留几天")
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: "状态没有保存,请重试")
+        }
+    }
+
+    private func undoEnded(_ show: Show) {
+        show.clearEnded()
+        do {
+            try modelContext.save()
+            presentToast(.neutral, message: "已撤销结束标记")
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: "状态没有保存,请重试")
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_200_000_000)
@@ -205,11 +231,26 @@ private struct CurrentShowHomeView: View {
 // MARK: - Home Overflow Menu
 
 /// V4:封面右上角的安静溢出键(44pt),取代旧顶栏条带。设置与我的现场入口收在这里。
+/// 散场由用户确认:live 时提供「结束这场现场」,已手动结束时提供「撤销结束标记」。
 private struct HomeOverflowMenu: View {
     var onOpenMyShows: () -> Void
+    var onEndShow: (() -> Void)? = nil
+    var onUndoEndShow: (() -> Void)? = nil
 
     var body: some View {
         Menu {
+            if let onEndShow {
+                Button(action: onEndShow) {
+                    Label("结束这场现场", systemImage: "moon.stars")
+                }
+            }
+
+            if let onUndoEndShow {
+                Button(action: onUndoEndShow) {
+                    Label("撤销结束标记", systemImage: "arrow.uturn.backward")
+                }
+            }
+
             NavigationLink {
                 SettingsView()
             } label: {
@@ -283,6 +324,8 @@ private struct CurrentShowContentView: View {
     let formatter: ShowDisplayFormatter
     var onAddNextShow: () -> Void
     var onOpenMyShows: () -> Void
+    var onEndShow: () -> Void = {}
+    var onUndoEndShow: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -320,7 +363,8 @@ private struct CurrentShowContentView: View {
                     show: show,
                     phase: phase,
                     timeState: timeState,
-                    onAddNextShow: onAddNextShow
+                    onAddNextShow: onAddNextShow,
+                    onEndShow: onEndShow
                 )
                 .padding(.horizontal, contentInset)
                 .padding(.top, 16)
@@ -354,7 +398,11 @@ private struct CurrentShowContentView: View {
             .accessibilityLabel("现场封面,\(show.name),点按进入详情")
             .accessibilityAddTraits(.isButton)
 
-            HomeOverflowMenu(onOpenMyShows: onOpenMyShows)
+            HomeOverflowMenu(
+                onOpenMyShows: onOpenMyShows,
+                onEndShow: phase == .live && show.endedAt == nil ? onEndShow : nil,
+                onUndoEndShow: show.endedAt != nil ? onUndoEndShow : nil
+            )
                 .padding(12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }

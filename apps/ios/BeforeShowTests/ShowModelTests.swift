@@ -191,6 +191,48 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
+    func testManualEndOverridesEstimatedBoundary() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        // 19:30 开场、无结束时间 → 估算边界 23:30;用户 22:10 确认散场。
+        let show = try Show(
+            name: "手动确认散场的现场",
+            date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 30, calendar: calendar)
+        )
+
+        let manualEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 10, calendar: calendar)
+        show.markEnded(at: manualEnd)
+
+        // 手动结束之前仍是 live。
+        let beforeManualEnd = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 5, calendar: calendar)
+        )
+        XCTAssertEqual(beforeManualEnd.kind, .today)
+        XCTAssertEqual(beforeManualEnd.countdownText, "正在现场")
+
+        // 手动结束之后立刻进入停留期,边界是用户确认的 22:10 而非估算的 23:30。
+        let afterManualEnd = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(afterManualEnd.kind, .postShow)
+        XCTAssertEqual(afterManualEnd.endBoundary, manualEnd)
+        XCTAssertTrue(afterManualEnd.helperText.contains("22:10"))
+
+        // 撤销后回到估算边界。
+        show.clearEnded()
+        let afterUndo = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(afterUndo.kind, .today)
+    }
+
     func testMultiDayRangeStaysTodayUntilRangeEnds() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
