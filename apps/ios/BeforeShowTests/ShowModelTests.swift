@@ -191,30 +191,98 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
-    func testMultiDayRangeStaysTodayUntilRangeEnds() throws {
+    func testMultiDayDailyCycleEndsEachDayAndRestartsNextDay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        // 8/15–17，每日 13:00–22:00（共用 endTime）
         let show = try Show(
             name: "绿洲音乐节",
             date: makeDate(year: 2026, month: 8, day: 15, hour: 0, minute: 0, calendar: calendar),
             startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 15, hour: 22, minute: 0, calendar: calendar)
+        )
+
+        XCTAssertTrue(CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar))
+
+        let middleMorning = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 8, day: 16, hour: 10, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(middleMorning.kind, .today)
+        XCTAssertEqual(middleMorning.countdownText, "还有 3 小时")
+        XCTAssertEqual(
+            middleMorning.effectiveStartTime,
+            makeDate(year: 2026, month: 8, day: 16, hour: 13, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(
+            middleMorning.endBoundary,
+            makeDate(year: 2026, month: 8, day: 16, hour: 22, minute: 0, calendar: calendar)
+        )
+
+        let middleLive = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 8, day: 16, hour: 15, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(middleLive.kind, .today)
+        XCTAssertEqual(middleLive.countdownText, "正在现场")
+        XCTAssertEqual(
+            HomeShowPhase(
+                timeState: middleLive,
+                now: makeDate(year: 2026, month: 8, day: 16, hour: 15, minute: 0, calendar: calendar)
+            ),
+            .live
+        )
+
+        let middleNight = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 8, day: 16, hour: 23, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(middleNight.kind, .dayEnded)
+        XCTAssertEqual(middleNight.countdownText, "今日已落幕")
+        XCTAssertEqual(middleNight.helperText, "明天 13:00 再开")
+        XCTAssertEqual(middleNight.title, "今日已落幕")
+        XCTAssertTrue(middleNight.isAutomaticallySelectable)
+        XCTAssertEqual(
+            HomeShowPhase(timeState: middleNight).kickerText(city: "上海", timeState: middleNight),
+            "今日已落幕"
+        )
+
+        let lastLive = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 8, day: 17, hour: 14, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(lastLive.kind, .today)
+        XCTAssertEqual(lastLive.countdownText, "正在现场")
+
+        let afterLast = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 8, day: 17, hour: 23, minute: 0, calendar: calendar)
+        )
+        XCTAssertEqual(afterLast.kind, .postShow)
+        XCTAssertTrue(afterLast.helperText.contains("8月17日 22:00 结束"))
+
+        let noEndClock = try Show(
+            name: "三日音乐节",
+            date: makeDate(year: 2026, month: 8, day: 15, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: calendar),
             endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: calendar)
         )
-
-        let middleDay = CurrentShowTimeState(
-            show: show,
+        let day1AfterDefaultEnd = CurrentShowTimeState(
+            show: noEndClock,
             calendar: calendar,
-            now: makeDate(year: 2026, month: 8, day: 16, hour: 12, minute: 0, calendar: calendar)
+            now: makeDate(year: 2026, month: 8, day: 15, hour: 18, minute: 0, calendar: calendar)
         )
-        XCTAssertEqual(middleDay.kind, .today)
-        XCTAssertEqual(middleDay.countdownText, "正在现场")
-
-        let afterRange = CurrentShowTimeState(
-            show: show,
-            calendar: calendar,
-            now: makeDate(year: 2026, month: 8, day: 18, hour: 1, minute: 0, calendar: calendar)
+        XCTAssertEqual(day1AfterDefaultEnd.kind, .dayEnded)
+        XCTAssertEqual(
+            day1AfterDefaultEnd.endBoundary,
+            makeDate(year: 2026, month: 8, day: 15, hour: 17, minute: 0, calendar: calendar)
         )
-        XCTAssertEqual(afterRange.kind, .postShow)
     }
 
     func testShowDisplayFormatterFormatsCrossDayAndMultiDayRanges() throws {
@@ -231,6 +299,13 @@ final class ShowModelTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: .current),
             endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: .current)
         )
+        let multiDayWithEnd = try Show(
+            name: "绿洲音乐节晚场",
+            date: makeDate(year: 2026, month: 8, day: 15, hour: 0, minute: 0, calendar: .current),
+            startTime: makeDate(year: 2026, month: 8, day: 15, hour: 13, minute: 0, calendar: .current),
+            endDate: makeDate(year: 2026, month: 8, day: 17, hour: 0, minute: 0, calendar: .current),
+            endTime: makeDate(year: 2026, month: 8, day: 15, hour: 22, minute: 0, calendar: .current)
+        )
         let noEndTime = try Show(
             name: "普通演唱会",
             date: makeDate(year: 2026, month: 9, day: 12, hour: 0, minute: 0, calendar: .current),
@@ -240,6 +315,7 @@ final class ShowModelTests: XCTestCase {
 
         XCTAssertEqual(formatter.dateText(for: crossDay), "2026年7月8日 23:00 - 7月9日 01:00")
         XCTAssertEqual(formatter.dateText(for: multiDay), "2026年8月15日-17日 · 每日 13:00")
+        XCTAssertEqual(formatter.dateText(for: multiDayWithEnd), "2026年8月15日-17日 · 每日 13:00-22:00")
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 

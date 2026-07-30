@@ -93,7 +93,7 @@ struct CurrentShowSelector {
 
     private func automaticSelectionRank(for state: CurrentShowTimeState) -> Int {
         switch state.kind {
-        case .today:
+        case .today, .dayEnded:
             return 0
         case .postShow:
             return 1

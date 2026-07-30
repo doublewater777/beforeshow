@@ -31,12 +31,13 @@ struct ShowDisplayFormatter {
             effectiveStartTime: startClock
         )
 
-        // Multi-day range without an explicit end clock: show day span + daily start.
-        // (Not tied to event category — any show can span days.)
-        if let endDay,
-           calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay),
-           endClock == nil {
+        // 多日每日循环：共用 startTime / endTime 钟点，展示「日期区间 · 每日 HH:mm[-HH:mm]」。
+        if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
+           let endDay {
             let range = dayRangeText(from: startDay, to: endDay)
+            if let endTime = show.endTime {
+                return "\(range) · 每日 \(timeText(startClock))-\(timeText(endTime))"
+            }
             return "\(range) · 每日 \(timeText(startClock))"
         }
 

@@ -43,7 +43,8 @@ enum HomeShowPhase: Equatable {
             } else {
                 self = .pre
             }
-        case .postShow, .ended:
+        case .dayEnded, .postShow, .ended:
+            // dayEnded 视觉同 ended，文案由调用方用 timeState.title / kind 区分「今日已落幕」。
             self = .ended
         case .canceled, .postponed:
             self = .inactive
@@ -51,7 +52,11 @@ enum HomeShowPhase: Equatable {
     }
 
     /// Hero kicker 文案;inactive 由调用方回退到 timeState.title(已取消 / 时间待定)。
-    func kickerText(city: String?) -> String {
+    /// 多日中间日落幕请传 `timeState`，优先显示「今日已落幕」。
+    func kickerText(city: String?, timeState: CurrentShowTimeState? = nil) -> String {
+        if timeState?.kind == .dayEnded {
+            return "今日已落幕"
+        }
         let trimmed = city?.trimmingCharacters(in: .whitespacesAndNewlines)
         let stop = trimmed.flatMap { $0.isEmpty ? nil : $0 }
         switch self {
@@ -191,14 +196,30 @@ struct HomeCountdownLockup: View {
     // MARK: ended:冷静收束
 
     private func endedStatus(timeState: CurrentShowTimeState) -> some View {
-        let isPostShow = timeState.kind == .postShow
+        let title: String
+        let helper: String
+        let emphasize: Bool
+        switch timeState.kind {
+        case .dayEnded:
+            title = "今日已落幕"
+            helper = timeState.helperText
+            emphasize = true
+        case .postShow:
+            title = "已落幕"
+            helper = timeState.helperText
+            emphasize = true
+        default:
+            title = "已结束"
+            helper = "这场已落幕 · 首页等待下一场现场"
+            emphasize = false
+        }
         return VStack(alignment: .leading, spacing: 0) {
-            Text(isPostShow ? "已落幕" : "已结束")
+            Text(title)
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
-                .foregroundColor(isPostShow ? BSColor.Stage.foreground : BSColor.Stage.dim)
+                .foregroundColor(emphasize ? BSColor.Stage.foreground : BSColor.Stage.dim)
 
-            Text(isPostShow ? timeState.helperText : "这场已落幕 · 首页等待下一场现场")
+            Text(helper)
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -238,7 +259,12 @@ struct HomeCountdownLockup: View {
             }
             return "距离灯亮"
         case .live: return "演出进行中"
-        case .ended: return timeState.kind == .postShow ? "谢幕了 · 回味还在" : "这场已经结束"
+        case .ended:
+            switch timeState.kind {
+            case .dayEnded: return "今天这一场结束了"
+            case .postShow: return "谢幕了 · 回味还在"
+            default: return "这场已经结束"
+            }
         case .inactive: return timeState.kind == .canceled ? "这场取消了" : "倒计时暂停"
         }
     }
@@ -249,7 +275,7 @@ struct HomeCountdownLockup: View {
             if timeState.isDatedPostponement { return "RESCHEDULED" }
             return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
         case .live: return "ON STAGE"
-        case .ended: return "ENDED"
+        case .ended: return timeState.kind == .dayEnded ? "TODAY" : "ENDED"
         case .inactive: return timeState.kind == .canceled ? "CANCELED" : "TBD"
         }
     }
@@ -398,6 +424,14 @@ struct HomeTipCard: View {
                 tone: .gray
             )
         case .ended:
+            if timeState.kind == .dayEnded {
+                return Content(
+                    badge: "今日已落幕",
+                    title: "今天先到这里",
+                    text: timeState.helperText,
+                    tone: .gray
+                )
+            }
             guard timeState.kind == .postShow else { return nil }
             return Content(
                 badge: "散场之后",
