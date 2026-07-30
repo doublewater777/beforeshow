@@ -326,7 +326,7 @@ struct ProMembershipView: View {
     }
 
     var body: some View {
-        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场，重复生成准备内容") {
+        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场，重复生成准备内容", bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 Text(statusText)
                     .font(BSFont.body)
@@ -548,7 +548,7 @@ private struct PrivacyLocalDataView: View {
     private let clearer = LocalDataClearer()
 
     var body: some View {
-        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容") {
+        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容", bottomPadding: BSLayout.tabBarContentInset) {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 BSSectionHeader(title: "隐私说明")
                 ForEach(PrivacyLocalDataCopy.points, id: \.self) { point in
@@ -655,7 +655,7 @@ private struct FeedbackView: View {
     private let submitter = LocalFeedbackSubmitter()
 
     var body: some View {
-        BSStageScaffold(title: "意见反馈", subtitle: "告诉我哪里不顺手，或哪里值得保留") {
+        BSStageScaffold(title: "意见反馈", subtitle: "告诉我哪里不顺手，或哪里值得保留", bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
                     Picker("类型", selection: $category) {
@@ -715,7 +715,7 @@ private struct FeedbackView: View {
 
 private struct AboutBeforeShowView: View {
     var body: some View {
-        BSStageScaffold(title: "关于开场前", subtitle: nil) {
+        BSStageScaffold(title: "关于开场前", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 VStack(spacing: BSSpacing.md) {
                     Text("开场前")

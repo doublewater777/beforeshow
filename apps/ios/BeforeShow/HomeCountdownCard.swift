@@ -1,5 +1,26 @@
 import SwiftUI
 
+// MARK: - Lineup Parser
+
+/// 音乐节阵容解析:艺人字段按 ASCII 逗号 / 中文全角逗号 / 顿号 / 斜杠拆分;
+/// 拆出 ≥ 3 个名字才视为音乐节阵容(只读展示,不做交互)。
+enum HomeLineupParser {
+    static let separators = CharacterSet(charactersIn: ",，、/")
+
+    static func names(from artist: String?) -> [String] {
+        guard let artist else { return [] }
+        return artist
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    static func lineup(from artist: String?) -> [String] {
+        let parsed = names(from: artist)
+        return parsed.count >= 3 ? parsed : []
+    }
+}
+
 // MARK: - Home Show Phase
 // 首页三态(设计稿 pre / live / ended)从 CurrentShowTimeState 推导:
 // - pre: 开场前(含当天未到开场时间)
@@ -332,12 +353,7 @@ struct HomeTipCard: View {
 
     /// 艺人字段里名字 ≥ 3 个时视为音乐节阵容(只读展示,不做交互)。
     private var lineup: [String] {
-        guard let artist = show.artist else { return [] }
-        let names = artist
-            .components(separatedBy: CharacterSet(charactersIn: ",,,、/"))
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return names.count >= 3 ? names : []
+        HomeLineupParser.lineup(from: show.artist)
     }
 
     private var content: Content? {
