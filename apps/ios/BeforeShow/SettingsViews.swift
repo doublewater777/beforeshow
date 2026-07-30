@@ -5,74 +5,74 @@ import UIKit
 // MARK: - Settings View
 
 struct SettingsView: View {
+    /// 不再自带 NavigationStack:设置已迁入首页溢出菜单,
+    /// 始终由外层(首页 / 我的现场)的导航栈 push,避免嵌套导航容器。
     var body: some View {
-        NavigationStack {
-            BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+            NavigationLink {
+                ProMembershipView()
+            } label: {
+                SettingsProMembershipCard {
+                    SettingsRowContent(
+                        iconName: "crown.fill",
+                        title: "Pro 会员",
+                        subtitle: "重复生成与无限保存现场",
+                        value: nil,
+                        tint: BSColor.Accent.warm,
+                        titleUsesGradient: true
+                    )
+                }
+            }
+            .buttonStyle(.plain)
+
+            SettingsGroup(title: "隐私与支持") {
+                NotificationSettingsRow()
+
+                Divider().overlay(BSColor.border)
+
                 NavigationLink {
-                    ProMembershipView()
+                    PrivacyLocalDataView()
                 } label: {
-                    SettingsProMembershipCard {
-                        SettingsRowContent(
-                            iconName: "crown.fill",
-                            title: "Pro 会员",
-                            subtitle: "重复生成与无限保存现场",
-                            value: nil,
-                            tint: BSColor.Accent.warm,
-                            titleUsesGradient: true
-                        )
-                    }
+                    SettingsRowContent(iconName: "lock.fill", title: SettingsEntry.privacyAndLocalData.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.info)
                 }
                 .buttonStyle(.plain)
 
-                SettingsGroup(title: "隐私与支持") {
-                    NotificationSettingsRow()
+                Divider().overlay(BSColor.border)
 
-                    Divider().overlay(BSColor.border)
-
-                    NavigationLink {
-                        PrivacyLocalDataView()
-                    } label: {
-                        SettingsRowContent(iconName: "lock.fill", title: SettingsEntry.privacyAndLocalData.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.info)
-                    }
-                    .buttonStyle(.plain)
-
-                    Divider().overlay(BSColor.border)
-
-                    NavigationLink {
-                        FeedbackView()
-                    } label: {
-                        SettingsRowContent(iconName: "bubble.left.and.bubble.right.fill", title: SettingsEntry.feedback.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.violet)
-                    }
-                    .buttonStyle(.plain)
+                NavigationLink {
+                    FeedbackView()
+                } label: {
+                    SettingsRowContent(iconName: "bubble.left.and.bubble.right.fill", title: SettingsEntry.feedback.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.violet)
                 }
-
-                SettingsGroup(title: "关于") {
-                    NavigationLink {
-                        AboutBeforeShowView()
-                    } label: {
-                        SettingsRowContent(iconName: "info.circle.fill", title: SettingsEntry.about.rawValue, subtitle: nil, value: "v2.1", tint: BSColor.textSecondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Text("开场之前，先进入状态")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .frame(maxWidth: .infinity)
-
-                #if DEBUG
-                SettingsGroup(title: "调试") {
-                    ProEntitlementDebugPicker()
-
-                    Divider().overlay(BSColor.border)
-
-                    DebugPrintPendingNotificationsRow()
-                }
-                #endif
+                .buttonStyle(.plain)
             }
-            .navigationTitle("")
-            .navigationBarTitleDisplayMode(.inline)
+
+            SettingsGroup(title: "关于") {
+                NavigationLink {
+                    AboutBeforeShowView()
+                } label: {
+                    SettingsRowContent(iconName: "info.circle.fill", title: SettingsEntry.about.rawValue, subtitle: nil, value: "v2.1", tint: BSColor.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            Text("开场之前，先进入状态")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .frame(maxWidth: .infinity)
+
+            #if DEBUG
+            SettingsGroup(title: "调试") {
+                ProEntitlementDebugPicker()
+
+                Divider().overlay(BSColor.border)
+
+                DebugPrintPendingNotificationsRow()
+            }
+            #endif
         }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -326,7 +326,7 @@ struct ProMembershipView: View {
     }
 
     var body: some View {
-        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场，重复生成准备内容") {
+        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场，重复生成准备内容", bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 Text(statusText)
                     .font(BSFont.body)
@@ -548,7 +548,7 @@ private struct PrivacyLocalDataView: View {
     private let clearer = LocalDataClearer()
 
     var body: some View {
-        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容") {
+        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容", bottomPadding: BSLayout.tabBarContentInset) {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 BSSectionHeader(title: "隐私说明")
                 ForEach(PrivacyLocalDataCopy.points, id: \.self) { point in
@@ -655,7 +655,7 @@ private struct FeedbackView: View {
     private let submitter = LocalFeedbackSubmitter()
 
     var body: some View {
-        BSStageScaffold(title: "意见反馈", subtitle: "告诉我哪里不顺手，或哪里值得保留") {
+        BSStageScaffold(title: "意见反馈", subtitle: "告诉我哪里不顺手，或哪里值得保留", bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
                     Picker("类型", selection: $category) {
@@ -715,7 +715,7 @@ private struct FeedbackView: View {
 
 private struct AboutBeforeShowView: View {
     var body: some View {
-        BSStageScaffold(title: "关于开场前", subtitle: nil) {
+        BSStageScaffold(title: "关于开场前", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 VStack(spacing: BSSpacing.md) {
                     Text("开场前")

@@ -33,7 +33,7 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
-        .bsToastOverlay(addShowToast, bottomPadding: 28)
+        .bsToastOverlay(addShowToast, bottomPadding: 90)
         .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
             hasCompletedOnboarding = true
         }) {
@@ -65,27 +65,22 @@ struct RootView: View {
         }
     }
 
+    /// V4:系统 TabView 换成浮动玻璃 Tab,内容可滚动到 Tab 上方透出,而不是被贴边条带切断。
+    /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
-        TabView(selection: $selectedTab) {
-            CurrentShowHomeView()
-                .tabItem {
-                    Label(BeforeShowTab.current.rawValue, systemImage: BeforeShowTab.current.iconName)
-                }
-                .tag(BeforeShowTab.current)
+        ZStack(alignment: .bottom) {
+            CurrentShowHomeView(onOpenMyShows: { selectedTab = .myShows })
+                .opacity(selectedTab == .current ? 1 : 0)
+                .allowsHitTesting(selectedTab == .current)
+                .accessibilityHidden(selectedTab != .current)
 
             MyShowsListView()
-                .tabItem {
-                    Label(BeforeShowTab.myShows.rawValue, systemImage: BeforeShowTab.myShows.iconName)
-                }
-                .tag(BeforeShowTab.myShows)
+                .opacity(selectedTab == .myShows ? 1 : 0)
+                .allowsHitTesting(selectedTab == .myShows)
+                .accessibilityHidden(selectedTab != .myShows)
 
-            SettingsView()
-                .tabItem {
-                    Label(BeforeShowTab.settings.rawValue, systemImage: BeforeShowTab.settings.iconName)
-                }
-                .tag(BeforeShowTab.settings)
+            HomeFloatingTabBar(selectedTab: $selectedTab)
         }
-        .tint(.white)
     }
 }
 
@@ -136,10 +131,15 @@ private struct OnboardingPlaceholderView: View {
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
+    var onOpenMyShows: () -> Void = {}
+
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
+    #if DEBUG
+    @State private var isShowingSettings = false
+    #endif
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -150,24 +150,43 @@ private struct CurrentShowHomeView: View {
 
     var body: some View {
         NavigationStack {
+            // AmbientBackground 的理想宽度可能超过屏幕（见 homeContent 的 UIScreen 封顶注释），
+            // 这里一并封顶，避免内容被顶出屏幕。
             ZStack {
                 CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
 
                 if let show = currentShow {
-                    CurrentShowContentView(show: show, formatter: formatter)
+                    CurrentShowContentView(
+                        show: show,
+                        formatter: formatter,
+                        onAddNextShow: { isShowingAddShowCoordinator = true },
+                        onOpenMyShows: onOpenMyShows
+                    )
                 } else {
-                    CurrentShowEmptyStateView(onAddShow: {
-                        isShowingAddShowCoordinator = true
-                    })
+                    CurrentShowEmptyStateView(
+                        onAddShow: { isShowingAddShowCoordinator = true },
+                        onOpenMyShows: onOpenMyShows
+                    )
                 }
             }
-            .bsToastOverlay(toast, bottomPadding: 28)
+            .frame(maxWidth: UIScreen.main.bounds.width)
+            .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentAddShowSuccess()
                 }
             }
+            #if DEBUG
+            .navigationDestination(isPresented: $isShowingSettings) {
+                SettingsView()
+            }
+            .task {
+                if ProcessInfo.processInfo.arguments.contains("--open-settings") {
+                    isShowingSettings = true
+                }
+            }
+            #endif
         }
     }
 
@@ -183,27 +202,92 @@ private struct CurrentShowHomeView: View {
     }
 }
 
+// MARK: - Home Overflow Menu
+
+/// V4:封面右上角的安静溢出键(44pt),取代旧顶栏条带。设置与我的现场入口收在这里。
+private struct HomeOverflowMenu: View {
+    var onOpenMyShows: () -> Void
+
+    var body: some View {
+        Menu {
+            NavigationLink {
+                SettingsView()
+            } label: {
+                Label("设置", systemImage: "gearshape")
+            }
+
+            Button(action: onOpenMyShows) {
+                Label("我的现场", systemImage: "music.note.list")
+            }
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground.opacity(0.85))
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.14), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .accessibilityLabel("更多选项")
+    }
+}
+
+// MARK: - Floating Tab Bar
+
+/// V4:浮动玻璃 Tab。玻璃态透出下方内容;各页用 tabBarContentInset 预留滚动空间。
+private struct HomeFloatingTabBar: View {
+    @Binding var selectedTab: BeforeShowTab
+
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(BeforeShowTab.allCases) { tab in
+                Button {
+                    selectedTab = tab
+                } label: {
+                    Label(tab.rawValue, systemImage: tab.iconName)
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 9)
+                        .background(
+                            Capsule().fill(
+                                selectedTab == tab ? BSColor.Stage.accent.opacity(0.14) : .clear
+                            )
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(tab.rawValue)
+                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
+            }
+        }
+        .padding(5)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay(Capsule().fill(BSColor.Stage.surface.opacity(0.52)))
+        }
+        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
+        .shadow(color: .black.opacity(0.45), radius: 17, y: 7)
+        .padding(.bottom, 22)
+    }
+}
+
 // MARK: - Current Show Content
 
-/// 首页 V3（2026-07 功能卡设计稿）：
-/// 全幅 3:4 海报 + 三态秒级倒计时卡 + 阶段推荐 chips + 四张功能卡（内嵌真实预览）。
-/// 布局与色板令牌见 HomeCountdownCard / BSColor.Stage。
+/// 首页 V4(2026-07 全状态原型落地,design-exploration/home-v4-all-states.html):
+/// 居中 3:4 封面 + 封面边缘漫光氛围;封面之后 20pt 停顿的扁倒计时 lockup;
+/// 每个生命周期一张 Tip 卡;已结束 / 已取消给「添加下一场」动作区。
+/// 倒计时与 Tip 组件见 HomeCountdownCard.swift(HomeCountdownLockup / HomeTipCard)。
 private struct CurrentShowContentView: View {
     let show: Show
     let formatter: ShowDisplayFormatter
+    var onAddNextShow: () -> Void
+    var onOpenMyShows: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// 内容左右边距（设计稿 --space-5 = 20pt；海报全幅不受此约束）。
-    private let homeInset: CGFloat = 20
-
-    /// 状态栏 / 灵动岛高度；GeometryReader 在 ignoresSafeArea 后可能读到 0。
-    private static var windowTopSafeAreaInset: CGFloat {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let window = scenes.flatMap(\.windows).first(where: \.isKeyWindow)
-            ?? scenes.first?.windows.first
-        return window?.safeAreaInsets.top ?? 59
-    }
+    /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
+    private let contentInset: CGFloat = 20
 
     var body: some View {
         GeometryReader { geometry in
@@ -211,179 +295,164 @@ private struct CurrentShowContentView: View {
                 homeContent(geometry: geometry, now: context.date)
             }
         }
-        // 让 GeometryReader 铺到状态栏下，才能读到真实 topInset，
-        // 并把海报顶边 stretch 垫进状态栏。
-        .ignoresSafeArea(edges: .top)
     }
 
     @ViewBuilder
     private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
         let timeState = CurrentShowTimeState(show: show, now: now)
         let phase = HomeShowPhase(timeState: timeState, now: now)
-        // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕，
-        // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶（内容列居中回落到真实视口）。
+        // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
+        // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶(内容列居中回落到真实视口)。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
-        // GeometryReader 在 ignoresSafeArea 后 safeAreaInsets 可能为 0，
-        // 改用窗口安全区，保证状态栏垫条高度正确。
-        let topInset = max(geometry.safeAreaInsets.top, Self.windowTopSafeAreaInset)
+        // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
+        let coverWidth = min(352, viewportWidth - 40)
 
         ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: 0) {
-                heroStage(
+                heroStage(phase: phase, timeState: timeState, coverWidth: coverWidth)
+                    .padding(.top, 8)
+
+                HomeCountdownLockup(show: show)
+                    .padding(.horizontal, 21)
+                    .padding(.top, 20)
+
+                HomeTipCard(
+                    show: show,
                     phase: phase,
                     timeState: timeState,
-                    width: viewportWidth,
-                    topInset: topInset
+                    onAddNextShow: onAddNextShow
                 )
+                .padding(.horizontal, contentInset)
+                .padding(.top, 16)
 
-                HomeCountdownCard(show: show)
-                    .padding(.horizontal, homeInset)
-                    .padding(.top, -22)
+                actionZone(timeState: timeState)
+                    .padding(.horizontal, contentInset)
+                    .padding(.top, 28)
             }
-            .padding(.bottom, BSLayout.tabBarContentInset + 28)
+            .padding(.bottom, BSLayout.tabBarContentInset)
             .frame(width: viewportWidth)
             .frame(width: geometry.size.width, alignment: .center)
             .frame(minHeight: geometry.size.height, alignment: .top)
         }
     }
 
-    // MARK: Hero（全幅 3:4 海报 + 顶边 stretch 进状态栏 + kicker + scrim 元信息）
+    // MARK: Hero(居中 3:4 封面 + scrim 元信息 + 右上角安静溢出键)
 
     private func heroStage(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
-        width: CGFloat,
-        topInset: CGFloat
+        coverWidth: CGFloat
     ) -> some View {
-        NavigationLink {
-            ShowDetailView(show: show)
-        } label: {
-            heroVisual(phase: phase, timeState: timeState, width: width, topInset: topInset)
+        let coverHeight = coverWidth * 4.0 / 3.0
+        return ZStack {
+            NavigationLink {
+                ShowDetailView(show: show)
+            } label: {
+                heroVisual(phase: phase, timeState: timeState, width: coverWidth, height: coverHeight)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("现场封面,\(show.name),点按进入详情")
+            .accessibilityAddTraits(.isButton)
+
+            HomeOverflowMenu(onOpenMyShows: onOpenMyShows)
+                .padding(12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
-        .accessibilityAddTraits(.isButton)
+        .frame(width: coverWidth, height: coverHeight)
     }
 
     private func heroVisual(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
         width: CGFloat,
-        topInset: CGFloat
+        height: CGFloat
     ) -> some View {
-        let height = width * 4.0 / 3.0
-        // 顶边条带略伸进海报，被清晰层盖住，避免 blur 在接缝处发糊边。
-        let bleedOverlap: CGFloat = 18
-        let bleedHeight = max(0, topInset) + bleedOverlap
-
-        return ZStack(alignment: .top) {
-            if bleedHeight > 0 {
-                heroTopBleed(
-                    phase: phase,
-                    width: width,
-                    posterHeight: height,
-                    bleedHeight: bleedHeight
-                )
-            }
-
-            posterArtwork(phase: phase, width: width, height: height)
-                .overlay { heroScrim }
-                .overlay { heroGlow(phase: phase, width: width, height: height) }
-                .overlay(alignment: .bottomLeading) {
-                    heroMeta(phase: phase, timeState: timeState)
-                        .padding(.horizontal, homeInset)
-                        .padding(.bottom, 30)
-                }
-                .offset(y: max(0, topInset))
-        }
-        .frame(width: width, height: height + max(0, topInset), alignment: .top)
-        .clipped()
-    }
-
-    /// 封面顶边向上渗出的光晕：重模糊 + 低不透明度 + 向上很快消散。
-    /// 不是垫满状态栏的色段，更像封面边缘漫出来的一圈气。
-    private func heroTopBleed(
-        phase: HomeShowPhase,
-        width: CGFloat,
-        posterHeight: CGFloat,
-        bleedHeight: CGFloat
-    ) -> some View {
-        // 取稍宽顶边 → 大幅模糊后只剩色温；竖直略拉高，像光从封面缝里溢出来。
-        let sourceStrip = min(max(bleedHeight * 0.7, 36), 56)
-        let stretch = (bleedHeight + 36) / sourceStrip
-
-        return Color.clear
-            .frame(width: width, height: bleedHeight)
-            .background(alignment: .bottom) {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    alignment: .center,
-                    enforcesAspectRatio: false,
-                    cornerRadius: 0
-                )
-                .frame(width: width, height: posterHeight)
-                .frame(width: width, height: sourceStrip, alignment: .top)
-                .scaleEffect(x: 1.12, y: stretch, anchor: .bottom)
-                .saturation(phase == .ended ? 0.5 : 0.9)
-                .brightness(phase == .ended ? -0.02 : 0.04)
-                .blur(radius: 36)
-                .opacity(phase == .ended ? 0.28 : 0.4)
-            }
-            .mask(
-                // 只在贴海报的下半段有存在感，上半（状态栏顶）几乎透明，不「塞满」。
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.00),
-                        .init(color: .white.opacity(0.12), location: 0.35),
-                        .init(color: .white.opacity(0.45), location: 0.62),
-                        .init(color: .white.opacity(0.85), location: 0.88),
-                        .init(color: .white, location: 1.00),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .clipped()
-            .allowsHitTesting(false)
-    }
-
-    private func posterArtwork(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
         ShowCoverImageView(
             urlString: show.coverImageURL,
             aspectRatio: 3.0 / 4.0,
             contentMode: .fill,
             alignment: .center,
             enforcesAspectRatio: false,
-            cornerRadius: 0
+            cornerRadius: 26
         )
         .frame(width: width, height: height)
-        .saturation(phase == .ended ? 0.72 : 1.0)
-        .brightness(phase == .ended ? -0.05 : 0)
-        .clipped()
+        .saturation(phase == .inactive ? 0.35 : (phase == .ended ? 0.72 : 1.0))
+        .brightness(phase == .inactive ? -0.18 : (phase == .ended ? -0.05 : 0))
+        .overlay {
+            heroScrim
+                .clipShape(RoundedRectangle(cornerRadius: 26))
+        }
+        .overlay {
+            heroGlow(phase: phase, width: width, height: height)
+                .clipShape(RoundedRectangle(cornerRadius: 26))
+        }
+        .overlay(alignment: .bottomLeading) {
+            heroMeta(phase: phase, timeState: timeState)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 18)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 26)
+                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.55), radius: 30, y: 15)
     }
 
-    /// 设计稿 hero-scrim：顶部更轻，与状态栏 stretch 条带衔接；底部 98% 收进内容区。
+    // MARK: 收束态动作区(已结束 / 已取消:一主一静)
+
+    @ViewBuilder
+    private func actionZone(timeState: CurrentShowTimeState) -> some View {
+        if timeState.kind == .ended || timeState.kind == .canceled {
+            VStack(spacing: 10) {
+                Button(action: onAddNextShow) {
+                    Text("添加下一场现场")
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundColor(Color(red: 0.039, green: 0.047, blue: 0.071))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 15)
+                        .background(BSColor.Stage.foreground)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+
+                Button(action: onOpenMyShows) {
+                    Text("看看我的现场")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(BSColor.Stage.muted)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// V4 hero-scrim:顶部更轻,底部 97% 收进封面下缘,让元信息可读。
     private var heroScrim: some View {
         LinearGradient(
             stops: [
-                .init(color: BSColor.Stage.background.opacity(0.14), location: 0.00),
-                .init(color: BSColor.Stage.background.opacity(0.10), location: 0.22),
-                .init(color: BSColor.Stage.background.opacity(0.24), location: 0.48),
-                .init(color: BSColor.Stage.background.opacity(0.55), location: 0.68),
-                .init(color: BSColor.Stage.background.opacity(0.92), location: 0.88),
-                .init(color: BSColor.Stage.background, location: 1.00),
+                .init(color: BSColor.Stage.background.opacity(0.18), location: 0.00),
+                .init(color: BSColor.Stage.background.opacity(0.06), location: 0.26),
+                .init(color: BSColor.Stage.background.opacity(0.10), location: 0.46),
+                .init(color: BSColor.Stage.background.opacity(0.44), location: 0.66),
+                .init(color: BSColor.Stage.background.opacity(0.86), location: 0.88),
+                .init(color: BSColor.Stage.background.opacity(0.97), location: 1.00),
             ],
             startPoint: .top,
             endPoint: .bottom
         )
     }
 
-    /// 设计稿 hero-glow：蓝 / 紫两束舞台侧光，screen 混合；live 全开，ended 收半。
-    /// （顶部暖金椭圆已去掉，避免海报上方出现明显光斑。）
+    /// hero-glow:蓝 / 紫两束舞台侧光,screen 混合;live 全开,ended 收半,inactive 几近熄灭。
     private func heroGlow(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
-        let opacity: Double = phase == .ended ? 0.45 : (phase == .live ? 1.0 : 0.92)
+        let opacity: Double
+        switch phase {
+        case .live: opacity = 1.0
+        case .pre: opacity = 0.92
+        case .ended: opacity = 0.45
+        case .inactive: opacity = 0.18
+        }
         return ZStack {
             Ellipse()
                 .fill(RadialGradient(
@@ -421,8 +490,8 @@ private struct CurrentShowContentView: View {
                 .padding(.bottom, 8)
 
             Text(show.name)
-                .font(.system(size: 28, weight: .semibold))
-                .tracking(-0.8)
+                .font(.system(size: 26, weight: .semibold))
+                .tracking(-0.6)
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(2)
                 .minimumScaleFactor(0.82)
@@ -497,7 +566,7 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    /// 设计稿 event-date 行：日期时间 · 约 X 分钟 / 小时（跨天「每日 HH:mm」已含区间，不追加时长）。
+    /// 设计稿 event-date 行:日期时间 · 约 X 分钟 / 小时(跨天「每日 HH:mm」已含区间,不追加时长)。
     private func dateLine(timeState: CurrentShowTimeState) -> String {
         let base = formatter.dateText(for: show)
         let isMultiDayWithoutEndClock: Bool = {
@@ -553,6 +622,7 @@ private struct CurrentShowContentView: View {
 
 private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
+    var onOpenMyShows: () -> Void = {}
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -594,44 +664,11 @@ private struct CurrentShowEmptyStateView: View {
             Spacer()
         }
         .padding(.horizontal, BSSpacing.xl)
-    }
-}
-
-// MARK: - Countdown View
-
-private extension CurrentShowTimeState {
-    @MainActor
-    @ViewBuilder
-    func countdownView() -> some View {
-        switch kind {
-        case .today:
-            Text("就是今天")
-                .font(.system(size: 40, weight: .light))
-                .tracking(1)
-                .bsGradientText()
-        case .ended:
-            Text("已结束")
-                .font(.system(size: 34, weight: .light))
-                .foregroundColor(BSColor.textTertiary)
-        case .canceled:
-            Text("已取消")
-                .font(.system(size: 34, weight: .light))
-                .foregroundColor(BSColor.textTertiary)
-        case .postponed:
-            Text("待定")
-                .font(.system(size: 44, weight: .light))
-                .bsGradientText()
-        default:
-            HStack(alignment: .lastTextBaseline, spacing: BSSpacing.sm) {
-                Text(countdownNumber)
-                    .font(BSFont.display)
-                    .bsGradientText()
-                    .minimumScaleFactor(0.6)
-
-                Text(countdownUnit)
-                    .font(BSFont.title)
-                    .foregroundColor(BSColor.textSecondary)
-            }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .topTrailing) {
+            HomeOverflowMenu(onOpenMyShows: onOpenMyShows)
+                .padding(.trailing, 20)
+                .padding(.top, 8)
         }
     }
 }

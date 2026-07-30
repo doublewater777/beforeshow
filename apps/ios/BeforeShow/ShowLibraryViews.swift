@@ -63,23 +63,21 @@ struct MyShowsListView: View {
                     .ignoresSafeArea()
 
                 if shows.isEmpty {
-                    VStack {
-                        Spacer()
-                        BSEmptyPanel(
-                        iconName: "music.note.list",
-                        title: "我的现场为空",
-                        message: "把要去和去过的现场都放进来。添加第一场后，这里会按时间保存你的所有现场。",
-                        buttonTitle: "添加现场",
-                        buttonIconName: "plus"
-                    ) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("我的现场")
+                            .font(.system(size: 32, weight: .bold))
+                            .foregroundColor(BSColor.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, BSSpacing.md)
+                            .padding(.top, BSSpacing.lg)
+
+                        MyShowsEmptyView {
                             isShowingAddShowCoordinator = true
                         }
-                        Spacer()
                     }
-                    .padding(.horizontal, BSSpacing.lg)
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                             HStack {
                                 Text("我的现场")
                                     .font(.system(size: 32, weight: .bold))
@@ -101,11 +99,25 @@ struct MyShowsListView: View {
                                 .accessibilityLabel("添加现场")
                             }
 
-                            showGroup(title: "即将开始", shows: upcomingShows)
-                            showGroup(title: "已结束", shows: endedShows)
-                            showGroup(title: "变更", shows: changedShows)
+                            if let currentShow = shows.first(where: { $0.id == selectedShowID }) {
+                                Button {
+                                    detailTarget = currentShow
+                                } label: {
+                                    CurrentShowListHeroCard(
+                                        show: currentShow,
+                                        formatter: formatter,
+                                        session: session
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("\(currentShow.name)，当前现场，查看详情")
+                            }
 
-                            Text("左滑或长按可切换当前现场")
+                            showGroup(title: "即将开始", shows: upcomingShows, allowsInlineSetCurrent: true)
+                            showGroup(title: "已结束", shows: endedShows, dimmed: true)
+                            showGroup(title: "变更", shows: changedShows, allowsInlineSetCurrent: true)
+
+                            Text("点「设为当前」或左滑可切换当前现场")
                                 .font(BSFont.caption)
                                 .foregroundColor(BSColor.textTertiary)
                                 .frame(maxWidth: .infinity)
@@ -123,7 +135,7 @@ struct MyShowsListView: View {
             .navigationDestination(item: $detailTarget) { show in
                 ShowDetailView(show: show)
             }
-            .bsToastOverlay(toast, bottomPadding: 28)
+            .bsToastOverlay(toast, bottomPadding: 90)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentToast(.success, message: "已放入当前现场")
@@ -133,25 +145,36 @@ struct MyShowsListView: View {
     }
 
     @ViewBuilder
-    private func showGroup(title: String, shows: [Show]) -> some View {
+    private func showGroup(
+        title: String,
+        shows: [Show],
+        dimmed: Bool = false,
+        allowsInlineSetCurrent: Bool = false
+    ) -> some View {
         if !shows.isEmpty {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                BSSectionHeader(title: title)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    BSSectionHeader(title: title)
+                    Text("\(shows.count)")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary.opacity(0.7))
+                }
                 VStack(spacing: BSSpacing.sm) {
                     ForEach(shows) { show in
                         let isCurrent = show.id == selectedShowID
-                        // Avoid nesting a tappable control inside NavigationLink:
-                        // row opens detail; set-current is swipe / context only.
-                        NavigationLink {
-                            ShowDetailView(show: show)
-                        } label: {
-                            ShowRowView(
-                                show: show,
-                                isCurrent: isCurrent,
-                                formatter: formatter
-                            )
-                        }
-                        .buttonStyle(.plain)
+                        // Row tap opens detail via onTapGesture (not NavigationLink),
+                        // so the inline "设为当前" button can receive its own taps.
+                        // VoiceOver 通过可激活的整行按钮 + 「设为当前」自定义动作操作，
+                        // 见 accessibleShowRow。
+                        let setCurrentAction: (() -> Void)? =
+                            allowsInlineSetCurrent && !isCurrent && show.changeStatus != .canceled
+                            ? { selectCurrent(show) }
+                            : nil
+                        accessibleShowRow(
+                            show: show,
+                            isCurrent: isCurrent,
+                            setCurrentAction: setCurrentAction
+                        )
                         .contextMenu {
                             if !isCurrent && show.changeStatus != .canceled {
                                 Button {
@@ -176,6 +199,7 @@ struct MyShowsListView: View {
                                 .tint(.blue)
                             }
                         }
+                        .opacity(dimmed ? 0.55 : 1)
                     }
                 }
             }
@@ -189,6 +213,50 @@ struct MyShowsListView: View {
             return show.changeStatus == .scheduled
                 && (state.kind == .before || state.kind == .today)
         }
+    }
+
+    /// 列表行：视觉保持原样；对 VoiceOver 暴露为可激活的整行按钮（双击查看详情），
+    /// 「设为当前」内联按钮合并进行元素后，以自定义动作补回，保证行始终可操作。
+    @ViewBuilder
+    private func accessibleShowRow(
+        show: Show,
+        isCurrent: Bool,
+        setCurrentAction: (() -> Void)?
+    ) -> some View {
+        let row = ShowRowView(
+            show: show,
+            isCurrent: isCurrent,
+            formatter: formatter,
+            setCurrentAction: setCurrentAction
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            detailTarget = show
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(showRowAccessibilityLabel(for: show, isCurrent: isCurrent))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(Text("双击查看详情"))
+
+        if let setCurrentAction {
+            row.accessibilityAction(named: Text("设为当前")) {
+                setCurrentAction()
+            }
+        } else {
+            row
+        }
+    }
+
+    private func showRowAccessibilityLabel(for show: Show, isCurrent: Bool) -> Text {
+        var parts = [show.name, formatter.dateText(for: show)]
+        if let venueName = show.venueName, !venueName.isEmpty {
+            parts.append(venueName)
+        }
+        parts.append(formatter.statusText(for: show))
+        if isCurrent {
+            parts.append("当前现场")
+        }
+        return Text(parts.joined(separator: "，"))
     }
 
     private var endedShows: [Show] {
@@ -269,15 +337,73 @@ struct MyShowsListView: View {
     }
 }
 
+/// 「我的现场」专用空态：图标瓷贴 + 品牌渐变主 CTA，
+/// 比通用 BSEmptyPanel 更轻、行动指向更强。
+private struct MyShowsEmptyView: View {
+    let onAddShow: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer()
+
+            VStack(spacing: BSSpacing.md) {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(BSColor.brandGradientSoft)
+                    .frame(width: 76, height: 76)
+                    .background(BSColor.surfaceElevated)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(BSColor.border, lineWidth: 1)
+                    )
+                    .accessibilityHidden(true)
+
+                VStack(spacing: BSSpacing.sm) {
+                    Text("我的现场为空")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundColor(BSColor.textPrimary)
+                    Text("把要去和去过的现场都放进来。添加第一场后，这里会按时间保存你的所有现场。")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textTertiary)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(4)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button(action: onAddShow) {
+                    Label("添加现场", systemImage: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(Color(red: 0.043, green: 0.043, blue: 0.067))
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 14)
+                        .background(Capsule().fill(BSColor.brandGradient))
+                }
+                .buttonStyle(.plain)
+                .padding(.top, BSSpacing.sm)
+                .accessibilityLabel("添加现场")
+            }
+            .padding(.horizontal, 36)
+
+            Spacer()
+        }
+        .padding(.bottom, 72)
+    }
+}
+
 private struct ShowRowView: View {
     let show: Show
     let isCurrent: Bool
     let formatter: ShowDisplayFormatter
+    /// Non-nil on rows where 「设为当前」 should appear inline (upcoming / postponed,
+    /// never the current or canceled row). Row tap itself opens detail.
+    var setCurrentAction: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 1, contentMode: .fill)
-                .frame(width: 58, height: 58)
+            // Covers are 3:4 posters — show the full poster instead of a square crop.
+            ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 9)
+                .frame(width: 46, height: 61)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -298,10 +424,7 @@ private struct ShowRowView: View {
                     }
                 }
 
-                Text(subtitleText)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .lineLimit(1)
+                subtitleRow
 
                 if let venueName = show.venueName {
                     Text(venueName)
@@ -312,6 +435,25 @@ private struct ShowRowView: View {
             }
 
             Spacer(minLength: BSSpacing.sm)
+
+            if let setCurrentAction {
+                Button(action: setCurrentAction) {
+                    Text("设为当前")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Capsule().fill(BSColor.Stage.accent.opacity(0.10)))
+                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("设为当前现场")
+            } else {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(BSColor.textTertiary.opacity(0.7))
+                    .accessibilityHidden(true)
+            }
         }
         .padding(12)
         .frame(minHeight: BSLayout.minTouchTarget)
@@ -326,11 +468,36 @@ private struct ShowRowView: View {
                     lineWidth: isCurrent ? 1.5 : 1
                 )
         )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(isCurrent ? "\(show.name)，当前现场" : show.name)
+        .accessibilityElement(children: .contain)
     }
 
-    /// 变更组用 subtitle 明确区分取消/延期；其余组保持「日期 · 状态」。
+    /// 变更组用状态点 + 着色 subtitle 区分取消/延期；其余组保持「日期 · 状态」。
+    private var subtitleRow: some View {
+        HStack(spacing: 5) {
+            if show.changeStatus != .scheduled {
+                Circle()
+                    .fill(show.changeStatus == .canceled ? BSColor.Accent.danger : BSColor.Accent.warm)
+                    .frame(width: 6, height: 6)
+                    .accessibilityHidden(true)
+            }
+            Text(subtitleText)
+                .font(BSFont.caption)
+                .foregroundColor(subtitleColor)
+                .lineLimit(1)
+        }
+    }
+
+    private var subtitleColor: Color {
+        switch show.changeStatus {
+        case .canceled:
+            return BSColor.Accent.danger
+        case .postponed:
+            return BSColor.Accent.warm
+        case .scheduled:
+            return BSColor.textTertiary
+        }
+    }
+
     private var subtitleText: String {
         switch show.changeStatus {
         case .canceled:
@@ -346,51 +513,142 @@ private struct ShowRowView: View {
     }
 }
 
+/// 当前现场 Hero 卡：封面为 3:4 竖版海报 —— 左侧完整展示海报，
+/// 背景用同图放大模糊填充，不做横向裁剪。
 private struct CurrentShowListHeroCard: View {
     let show: Show
     let formatter: ShowDisplayFormatter
+    let session: CurrentShowSession
+
+    private var phase: CurrentShowTimeState {
+        session.phase(for: show, now: Date())
+    }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
+        ZStack {
             ShowCoverImageView(
                 urlString: show.coverImageURL,
-                aspectRatio: 16.0 / 10.0,
+                aspectRatio: 1,
                 contentMode: .fill,
-                alignment: .top,
                 enforcesAspectRatio: false,
-                cornerRadius: BSRadius.lg
+                cornerRadius: 0
             )
-            .frame(maxWidth: .infinity)
-            .aspectRatio(16.0 / 10.0, contentMode: .fit)
+            .scaleEffect(1.15)
+            .blur(radius: 30)
+            .overlay(Color.black.opacity(0.45))
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.38), .black.opacity(0.92)],
-                startPoint: .top,
-                endPoint: .bottom
+                colors: [Color.black.opacity(0.55), Color.black.opacity(0.25)],
+                startPoint: .leading,
+                endPoint: .trailing
             )
 
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text(show.name)
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.textPrimary)
-                    .lineLimit(2)
-                Text("\(show.venueName ?? show.city ?? "现场") · \(formatter.countdownText(for: show))")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-                    .lineLimit(1)
+            HStack(alignment: .center, spacing: 14) {
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    cornerRadius: BSRadius.md
+                )
+                .frame(width: 100)
+                .shadow(color: .black.opacity(0.55), radius: 13, x: 0, y: 10)
+
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "music.note.house")
+                            .font(.system(size: 9, weight: .bold))
+                        Text("当前现场")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(Color(red: 0.043, green: 0.043, blue: 0.067))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(BSColor.brandGradient))
+
+                    Text(show.name)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(BSColor.textPrimary)
+                        .lineLimit(2)
+
+                    Text(metaText)
+                        .font(.system(size: 12))
+                        .foregroundColor(BSColor.textSecondary)
+                        .lineLimit(1)
+
+                    countdownRow
+                }
+
+                Spacer(minLength: 0)
             }
             .padding(BSSpacing.md)
         }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+        .frame(height: 176)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
         .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.lg)
-                .stroke(BSColor.brandGradient, lineWidth: 2)
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.brandGradient, lineWidth: 1.5)
         )
         .shadow(color: .black.opacity(0.36), radius: 22, x: 0, y: 14)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var metaText: String {
+        let place = show.venueName ?? show.city ?? "现场"
+        return "\(place) · \(formatter.dateText(for: show))"
+    }
+
+    private var countdownRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: BSSpacing.sm) {
+            if let eyebrow = countdownContent.eyebrow {
+                Text(eyebrow)
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.textTertiary)
+            }
+            Group {
+                if countdownContent.dim {
+                    Text(countdownContent.value)
+                        .foregroundColor(BSColor.textTertiary)
+                } else {
+                    Text(countdownContent.value)
+                        .bsGradientText()
+                }
+            }
+            .font(.system(size: 22, weight: .light))
+        }
+        .padding(.top, BSSpacing.xs)
+    }
+
+    private struct HeroCountdown {
+        let eyebrow: String?
+        let value: String
+        var dim: Bool = false
+    }
+
+    private var countdownContent: HeroCountdown {
+        switch phase.kind {
+        case .before:
+            return HeroCountdown(
+                eyebrow: "距离开场",
+                value: "\(phase.countdownNumber)\(phase.countdownUnit)"
+            )
+        case .today:
+            return HeroCountdown(eyebrow: nil, value: "就是今天")
+        case .postShow:
+            return HeroCountdown(
+                eyebrow: nil,
+                value: "\(phase.countdownNumber)\(phase.countdownUnit)"
+            )
+        case .ended:
+            return HeroCountdown(eyebrow: nil, value: "已结束", dim: true)
+        case .canceled:
+            return HeroCountdown(eyebrow: nil, value: "记录仍保留", dim: true)
+        case .postponed:
+            return HeroCountdown(eyebrow: nil, value: "倒计时已暂停", dim: true)
+        }
     }
 }
 
-private struct PostponeShowSheet: View {
+struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
     let onDated: () -> Void
@@ -436,10 +694,6 @@ struct ShowDetailView: View {
     let show: Show
 
     @State private var isEditing = false
-    @State private var showsPostponeDialog = false
-    @State private var showsCancelConfirmation = false
-    @State private var showsDeleteConfirmation = false
-    @State private var newPostponedDate = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -470,15 +724,13 @@ struct ShowDetailView: View {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     detailHero
                     managementRow
-                    statusSection
-                    deleteSection
                 }
                 .padding(.horizontal, BSSpacing.md)
-                .padding(.bottom, BSSpacing.xl)
+                .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollIndicators(.hidden)
         }
-        .bsToastOverlay(toast, bottomPadding: 28)
+        .bsToastOverlay(toast, bottomPadding: 90)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -488,67 +740,13 @@ struct ShowDetailView: View {
                 title: "编辑现场",
                 subtitle: editorSubtitle,
                 draft: ShowDraft(show: show),
-                saveTitle: "保存"
+                saveTitle: "保存",
+                statusPillText: formatter.statusText(for: show),
+                isPostponed: show.changeStatus == .postponed,
+                statusEditing: statusEditingContext
             ) { draft in
                 try await apply(draft)
             }
-        }
-        .sheet(isPresented: $showsPostponeDialog) {
-            PostponeShowSheet(
-                newDate: $newPostponedDate,
-                onUndated: {
-                    showsPostponeDialog = false
-                    Task { @MainActor in
-                        await updateStatus(message: "已记录延期，日期待定") {
-                            show.markPostponed(newDate: nil)
-                        }
-                    }
-                },
-                onDated: {
-                    showsPostponeDialog = false
-                    Task { @MainActor in
-                        await updateStatus(message: "延期日期已更新") {
-                            show.markPostponed(newDate: newPostponedDate)
-                        }
-                    }
-                },
-                onCancel: {
-                    showsPostponeDialog = false
-                }
-            )
-        }
-        .sheet(isPresented: $showsCancelConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "记录取消",
-                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
-                destructiveTitle: "确认取消",
-                onConfirm: {
-                    showsCancelConfirmation = false
-                    Task { @MainActor in
-                        await updateStatus(message: "已记录取消") {
-                            show.markCanceled()
-                        }
-                    }
-                },
-                onCancel: {
-                    showsCancelConfirmation = false
-                }
-            )
-        }
-        .sheet(isPresented: $showsDeleteConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "删除现场",
-                message: "删除后，这场现场将无法恢复。",
-                destructiveTitle: "删除",
-                onConfirm: {
-                    Task { @MainActor in
-                        await deleteShow()
-                    }
-                },
-                onCancel: {
-                    showsDeleteConfirmation = false
-                }
-            )
         }
     }
 
@@ -766,76 +964,40 @@ struct ShowDetailView: View {
         }
     }
 
-    private var statusSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            BSSectionHeader(title: "现场状态")
-            BSGlassPanel {
-                VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    HStack(alignment: .top, spacing: BSSpacing.sm) {
-                        Image(systemName: statusIconName)
-                            .foregroundColor(statusTint)
-                            .frame(width: 24, height: 24)
-                        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                            Text(statusTitle)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(BSColor.textPrimary)
-                            Text(statusDescription)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textTertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-
-                    VStack(spacing: BSSpacing.xs) {
-                        if show.changeStatus != .scheduled {
-                            changeActionRow(
-                                title: restoreActionTitle,
-                                systemImage: "arrow.uturn.backward",
-                                isDestructive: false
-                            ) {
-                                Task { @MainActor in
-                                    await updateStatus(message: restoreSuccessMessage) {
-                                        show.markScheduled()
-                                    }
-                                }
-                            }
-                        }
-
-                        if show.changeStatus != .canceled {
-                            changeActionRow(
-                                title: show.changeStatus == .postponed ? "更新延期信息" : "记录延期",
-                                systemImage: "calendar.badge.clock",
-                                isDestructive: false
-                            ) {
-                                newPostponedDate = show.postponedDate ?? show.date
-                                showsPostponeDialog = true
-                            }
-
-                            changeActionRow(
-                                title: "记录取消",
-                                systemImage: "xmark.circle",
-                                isDestructive: true
-                            ) {
-                                showsCancelConfirmation = true
-                            }
-                        }
+    /// 现场状态管理已并入编辑现场 sheet（状态卡 + 立即生效的操作）。
+    /// 详情页只保留 hero 上的状态展示，这里注入编辑器所需的上下文。
+    private var statusEditingContext: ShowStatusEditingContext {
+        ShowStatusEditingContext(
+            changeStatus: show.changeStatus,
+            postponedDate: show.postponedDate,
+            title: statusTitle,
+            description: statusDescription,
+            restoreTitle: restoreActionTitle,
+            onRestore: {
+                await updateStatus(message: restoreSuccessMessage) {
+                    show.markScheduled()
+                }
+            },
+            onPostpone: { newDate in
+                if let newDate {
+                    return await updateStatus(message: "延期日期已更新") {
+                        show.markPostponed(newDate: newDate)
                     }
                 }
+                return await updateStatus(message: "已记录延期，日期待定") {
+                    show.markPostponed(newDate: nil)
+                }
+            },
+            onCancel: {
+                await updateStatus(message: "已记录取消") {
+                    show.markCanceled()
+                }
+            },
+            onDelete: {
+                isEditing = false
+                await deleteShow()
             }
-        }
-    }
-
-    private var deleteSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            BSSectionHeader(title: "更多")
-            changeActionRow(
-                title: "删除现场",
-                systemImage: "trash",
-                isDestructive: true
-            ) {
-                showsDeleteConfirmation = true
-            }
-        }
+        )
     }
 
     private var statusTitle: String {
@@ -852,7 +1014,7 @@ struct ShowDetailView: View {
     private var statusDescription: String {
         switch show.changeStatus {
         case .scheduled:
-            return "艺人、日期、时间和场馆变化请使用“编辑信息”。"
+            return "艺人、日期、时间和场馆变化请使用上方字段直接编辑。"
         case .postponed:
             if show.postponedDate != nil {
                 return "当前按新日期显示和提醒；原定日期仍保留在记录中。"
@@ -863,61 +1025,12 @@ struct ShowDetailView: View {
         }
     }
 
-    private var statusIconName: String {
-        switch show.changeStatus {
-        case .scheduled: return "checkmark.circle.fill"
-        case .postponed: return "calendar.badge.clock"
-        case .canceled: return "xmark.circle.fill"
-        }
-    }
-
-    private var statusTint: Color {
-        switch show.changeStatus {
-        case .scheduled: return BSColor.Accent.prepare
-        case .postponed: return BSColor.Accent.warm
-        case .canceled: return BSColor.Accent.danger
-        }
-    }
-
     private var restoreActionTitle: String {
         show.changeStatus == .canceled ? "撤销取消" : "取消延期，恢复原定日期"
     }
 
     private var restoreSuccessMessage: String {
         show.changeStatus == .canceled ? "已撤销取消" : "已恢复原定日期"
-    }
-
-    private func changeActionRow(
-        title: String,
-        systemImage: String,
-        isDestructive: Bool,
-        action: @escaping () -> Void
-    ) -> some View {
-        let tint: Color = isDestructive ? BSColor.Accent.danger : BSColor.textSecondary
-        return Button(action: action) {
-            HStack(spacing: BSSpacing.sm) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 14, weight: .semibold))
-                    .frame(width: 22, alignment: .center)
-                Text(title)
-                    .font(.system(size: 14, weight: .medium))
-                Spacer()
-            }
-            .foregroundColor(tint)
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .fill(Color.white.opacity(0.045))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.md)
-                    .stroke(BSColor.border, lineWidth: 1)
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(title)
     }
 
     private func selectCurrent() {
@@ -978,11 +1091,13 @@ struct ShowDetailView: View {
         )
     }
 
+    /// 应用状态变更并返回反馈的语气与文案（编辑器状态卡用它弹自己的 toast）。
     @MainActor
+    @discardableResult
     private func updateStatus(
         message: String,
         mutation: () -> Void
-    ) async {
+    ) async -> ShowStatusActionResult {
         mutation()
         if show.changeStatus == .canceled,
            selections.first?.selectedShowID == show.id {
@@ -994,13 +1109,18 @@ struct ShowDetailView: View {
         } catch {
             modelContext.rollback()
             presentToast(.failure, message: "状态没有保存，请重试")
-            return
+            return ShowStatusActionResult(tone: .failure, message: "状态没有保存，请重试")
         }
 
         let didSyncNotifications = await syncNotificationsToCurrentShow()
+        let presentedMessage = didSyncNotifications ? message : "\(message)，通知暂未更新"
         presentToast(
             didSyncNotifications ? .success : .neutral,
-            message: didSyncNotifications ? message : "\(message)，通知暂未更新"
+            message: presentedMessage
+        )
+        return ShowStatusActionResult(
+            tone: didSyncNotifications ? .success : .neutral,
+            message: presentedMessage
         )
     }
 
@@ -1027,7 +1147,6 @@ struct ShowDetailView: View {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            showsDeleteConfirmation = false
             presentToast(.failure, message: "删除失败，请重试")
             return
         }
@@ -1039,7 +1158,6 @@ struct ShowDetailView: View {
             to: nextCurrentShow,
             in: modelContext
         )
-        showsDeleteConfirmation = false
         dismiss()
     }
 
