@@ -3,6 +3,7 @@ import Foundation
 // MARK: - Widget Timeline Planner
 // 纯逻辑:滚动 12h 窗口、窗口内边界、边界优先去重。
 // app tests 与 widget provider 共用,避免 .atEnd + 远期边界冻结数天。
+// Live Activity 的窗口计算在 LiveActivityPlanner,不在这里。
 
 enum WidgetTimelinePlanner {
     static let refreshWindow: TimeInterval = 12 * 3_600
@@ -34,6 +35,7 @@ enum WidgetTimelinePlanner {
         dates.append(windowEnd)
 
         let sorted = dates.sorted()
+        let nowRef = now.timeIntervalSinceReferenceDate
         var kept: [Date] = []
         for date in sorted {
             let isBoundary = boundaryRefs.contains(date.timeIntervalSinceReferenceDate)
@@ -43,9 +45,14 @@ enum WidgetTimelinePlanner {
                     continue
                 }
                 if delta <= 60 {
+                    // 边界优先于小时 entry(替换它);但当前时刻 entry 永远保留——
+                    // WidgetKit 约定首条 = 当前状态,边界紧随其后共存即可
                     let lastIsBoundary = boundaryRefs.contains(last.timeIntervalSinceReferenceDate)
-                    if isBoundary && !lastIsBoundary {
+                    let lastIsNow = last.timeIntervalSinceReferenceDate == nowRef
+                    if isBoundary && !lastIsBoundary && !lastIsNow {
                         kept.removeLast()
+                        kept.append(date)
+                    } else if isBoundary && lastIsNow {
                         kept.append(date)
                     }
                     continue
@@ -54,13 +61,5 @@ enum WidgetTimelinePlanner {
             kept.append(date)
         }
         return (kept, windowEnd)
-    }
-
-    /// Live Activity 最早启动时刻:保证 activityEnd - start ≤ 8h。
-    static func liveActivityEarliestStart(
-        activityEnd: Date,
-        maxActiveDuration: TimeInterval = 8 * 3_600
-    ) -> Date {
-        activityEnd.addingTimeInterval(-maxActiveDuration)
     }
 }

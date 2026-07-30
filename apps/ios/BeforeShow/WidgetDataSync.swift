@@ -3,25 +3,58 @@ import Foundation
 import WidgetKit
 
 // MARK: - Widget Data Sync
-// 「当前现场」变化时的单一出口:写 App Group 快照 → 刷新 widget timeline →
+// 「当前现场」变化时的单一出口:内容变化才写 App Group 快照 + reload widget →
 // 对齐 Live Activity 生命周期。RootView 在 shows/selections 变化与回到前台时调用。
+//
+// Live Activity 产品口径(无 push,评审定稿):
+// - 活跃窗口 = 预计谢幕前最多 8h(平台活跃上限),窗口内打开过 app 才会启动;
+//   iOS 26+ 额外在窗口起点 schedule,不依赖窗口内打开
+// - 谢幕时不承诺准点结束:staleDate 标记过期,下一次 app 运行时 end;
+//   UI 为中性文案,越过谢幕也不会显示「LIVE」
 
 enum WidgetDataSync {
     static let widgetKind = "BeforeShowCountdownWidget"
 
+    /// generation 在 MainActor(SwiftUI 调用方所在隔离域)预分配,
+    /// 保证多次连续 sync 的版本顺序 = 调用顺序;actor 只认最大版本。
+    @MainActor private static var syncGeneration: UInt64 = 0
+
+    @MainActor
     static func sync(shows: [Show], manualSelection: CurrentShowSelection?, now: Date = Date()) {
+        syncGeneration &+= 1
+        let generation = syncGeneration
+
         let session = CurrentShowSession()
         let show = session.selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)
         let snapshot = show.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
+
         let previous = WidgetSnapshotStore.read()
-        WidgetSnapshotStore.write(snapshot)
-        if previous != snapshot {
+        if contentChanged(from: previous, to: snapshot) {
+            WidgetSnapshotStore.write(snapshot)
             WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
         }
 
         // Show 是 SwiftData @Model(非 Sendable),跨并发边界只传值类型快照
         Task {
-            await ShowLiveActivityController.shared.sync(snapshot: snapshot, now: now)
+            await ShowLiveActivityController.shared.sync(
+                snapshot: snapshot,
+                now: now,
+                generation: generation
+            )
+        }
+    }
+
+    private static func contentChanged(
+        from previous: WidgetShowSnapshot?,
+        to snapshot: WidgetShowSnapshot?
+    ) -> Bool {
+        switch (previous, snapshot) {
+        case (nil, nil):
+            return false
+        case (nil, .some), (.some, nil):
+            return true
+        case let (a?, b?):
+            return !a.isContentEqual(to: b)
         }
     }
 }
@@ -42,133 +75,159 @@ extension WidgetShowSnapshot {
 
 // MARK: - Live Activity Controller
 
-/// 生命周期:在「预计谢幕前最多 8 小时」窗口内启动/保持(平台活跃上限 8h),
-/// 越过预计谢幕结束。可编辑字段走 ContentState,同一 show 延期/改场馆可 update。
-/// actor 串行化 request/update/end,避免并发 sync 竞态。
+/// 决策全部在 Shared/LiveActivityPlanner(纯逻辑,可单测);
+/// actor 只负责把动作翻译成 ActivityKit 调用并串行化。
 actor ShowLiveActivityController {
     static let shared = ShowLiveActivityController()
 
-    /// ActivityKit:活跃最长 8 小时(之后最多再在锁屏保留 4 小时,但已从灵动岛移除)。
-    static let maxActiveDuration: TimeInterval = 8 * 3_600
+    private init() {}
 
-    /// 单调版本号:丢弃过期的并发 sync。
-    private var syncGeneration: UInt64 = 0
+    /// 已进入 actor 的最大 generation;小于它的 sync 全部丢弃。
+    private var latestGeneration: UInt64 = 0
 
-    func sync(snapshot: WidgetShowSnapshot?, now: Date) async {
-        syncGeneration &+= 1
-        let generation = syncGeneration
+    func sync(snapshot: WidgetShowSnapshot?, now: Date, generation: UInt64) async {
+        latestGeneration = max(latestGeneration, generation)
+        guard generation == latestGeneration else { return }
 
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
-            await endAll()
-            return
-        }
+        let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
+        let existing: [LiveActivityExisting] = activitiesEnabled
+            ? Activity<ShowLiveActivityAttributes>.activities.map {
+                LiveActivityExisting(
+                    showID: $0.attributes.showID,
+                    isPending: isPending($0),
+                    state: $0.content.state
+                )
+            }
+            : []
 
-        guard let snapshot,
-              snapshot.timing.changeStatus != .canceled else {
-            await endAll()
-            return
-        }
-
-        let state = CurrentShowTimeState(timing: snapshot.timing, now: now)
-        guard let start = state.effectiveStartTime else {
-            await endAll()
-            return
-        }
-        let activityEnd = state.endBoundary ?? start.addingTimeInterval(
-            TimeInterval(CurrentShowTimeState.defaultDurationHours) * 3_600
+        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格)
+        let desired = LiveActivityPlanner.desiredState(
+            snapshot: snapshot,
+            now: now,
+            coverFilename: nil
         )
-
-        guard now < activityEnd else {
-            await endAll()
-            return
+        var coverFilename: String?
+        if desired != nil, let source = snapshot?.coverImageURL {
+            await WidgetCoverCache.refresh(for: source)
+            guard generation == latestGeneration else { return }
+            coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
         }
 
-        let earliestStart = WidgetTimelinePlanner.liveActivityEarliestStart(
-            activityEnd: activityEnd,
-            maxActiveDuration: Self.maxActiveDuration
-        )
-        let inWindow = now >= earliestStart
-        let showID = snapshot.showID.uuidString
-
-        // 窗口外:结束已有活动(含本场旧数据)。iOS 26+ 可 schedule;更早系统需窗口内打开 app。
-        if !inWindow {
-            await endAll()
-            guard generation == syncGeneration else { return }
+        let action: LiveActivityAction
+        if activitiesEnabled {
+            let canSchedule: Bool
             if #available(iOS 26.0, *) {
-                // fall through to schedule
+                canSchedule = true
             } else {
-                return
+                canSchedule = false
             }
+            action = LiveActivityPlanner.action(
+                snapshot: snapshot,
+                now: now,
+                existing: existing,
+                coverFilename: coverFilename,
+                canSchedule: canSchedule
+            )
+        } else {
+            action = .endAll
         }
 
-        await WidgetCoverCache.refresh(for: snapshot.coverImageURL)
-        guard generation == syncGeneration else { return }
+        guard generation == latestGeneration else { return }
+        await perform(action, showID: snapshot?.showID.uuidString)
+    }
 
-        let coverFilename = snapshot.coverImageURL.flatMap { WidgetCoverCache.freshCoverFilename(for: $0) }
-        let phase: ShowLiveActivityPhase = now >= start ? .live : .countdown
-        let contentState = ShowLiveActivityAttributes.ContentState(
-            phase: phase,
-            showName: snapshot.name,
-            city: snapshot.city,
-            venueName: snapshot.venueName,
-            startDate: start,
-            endDate: state.endBoundary,
-            coverImageFilename: coverFilename
-        )
-        // 倒计时阶段 stale 在开场;live 阶段 stale 在谢幕
-        let staleDate = now >= start ? activityEnd : start
-        let content = ActivityContent(state: contentState, staleDate: staleDate)
-        let attributes = ShowLiveActivityAttributes(showID: showID)
+    private func perform(_ action: LiveActivityAction, showID: String?) async {
+        switch action {
+        case .none:
+            // pending 保留;只清理非目标/重复
+            await endActivities(matching: { $0.attributes.showID != showID })
+            await endDuplicates(keepingShowID: showID)
 
-        // 清理非目标与重复
-        let matching = Activity<ShowLiveActivityAttributes>.activities.filter {
-            $0.attributes.showID == showID
-        }
-        for activity in Activity<ShowLiveActivityAttributes>.activities where activity.attributes.showID != showID {
-            await activity.end(nil, dismissalPolicy: .immediate)
-        }
-        if matching.count > 1 {
-            for activity in matching.dropFirst() {
-                await activity.end(nil, dismissalPolicy: .immediate)
+        case .update(let state):
+            await endActivities(matching: { $0.attributes.showID != showID })
+            await endDuplicates(keepingShowID: showID)
+            let target = Activity<ShowLiveActivityAttributes>.activities
+                .first(where: { $0.attributes.showID == showID })
+            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            if let target {
+                await target.update(content)
+            } else {
+                request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
             }
+
+        case .request(let state):
+            await endAll()
+            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
+
+        case .schedule(let state, let start):
+            await endAll()
+            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            if #available(iOS 26.0, *) {
+                do {
+                    let alert = AlertConfiguration(
+                        title: "开场前",
+                        body: LocalizedStringResource(stringLiteral: "\(state.showName) 倒计时已开始"),
+                        sound: .default
+                    )
+                    _ = try Activity<ShowLiveActivityAttributes>.request(
+                        attributes: ShowLiveActivityAttributes(showID: showID ?? ""),
+                        content: content,
+                        pushType: nil,
+                        style: .standard,
+                        alertConfiguration: alert,
+                        start: start
+                    )
+                } catch {
+                    #if DEBUG
+                    print("[ShowLiveActivity] schedule failed: \(error)")
+                    #endif
+                }
+            }
+
+        case .endAll:
+            await endAll()
         }
-        guard generation == syncGeneration else { return }
+    }
 
-        if inWindow, let existing = matching.first {
-            await existing.update(content)
-            return
-        }
-
-        // 窗口外已 endAll,matching 应为空;窗口内无 existing 则 request
-        guard generation == syncGeneration else { return }
-
+    private func request(
+        attributes: ShowLiveActivityAttributes,
+        content: ActivityContent<ShowLiveActivityAttributes.ContentState>
+    ) {
         do {
-            if inWindow {
-                _ = try Activity.request(
-                    attributes: attributes,
-                    content: content,
-                    pushType: nil
-                )
-            } else if #available(iOS 26.0, *) {
-                // 在活跃窗口起点 schedule,无需用户在窗口内再打开 app
-                let alert = AlertConfiguration(
-                    title: "开场前",
-                    body: LocalizedStringResource(stringLiteral: "\(snapshot.name) 倒计时已开始"),
-                    sound: .default
-                )
-                _ = try Activity.request(
-                    attributes: attributes,
-                    content: content,
-                    pushType: nil,
-                    style: .standard,
-                    alertConfiguration: alert,
-                    start: earliestStart
-                )
-            }
+            _ = try Activity<ShowLiveActivityAttributes>.request(
+                attributes: attributes,
+                content: content,
+                pushType: nil
+            )
         } catch {
             #if DEBUG
             print("[ShowLiveActivity] request failed: \(error)")
             #endif
+        }
+    }
+
+    private func isPending(_ activity: Activity<ShowLiveActivityAttributes>) -> Bool {
+        if #available(iOS 26.0, *) {
+            return activity.activityState == .pending
+        }
+        return false
+    }
+
+    private func endActivities(
+        matching predicate: (Activity<ShowLiveActivityAttributes>) -> Bool
+    ) async {
+        for activity in Activity<ShowLiveActivityAttributes>.activities where predicate(activity) {
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
+    /// 同一 showID 只保留第一个,清掉历史并发残留的重复活动。
+    private func endDuplicates(keepingShowID showID: String?) async {
+        let matching = Activity<ShowLiveActivityAttributes>.activities
+            .filter { $0.attributes.showID == showID }
+        for activity in matching.dropFirst() {
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
 

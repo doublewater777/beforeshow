@@ -4,31 +4,34 @@ import WidgetKit
 
 // MARK: - Show Live Activity
 // 设计稿:docs/design/widget/BeforeShow Widgets.html
-// 生命周期由 app 侧 ShowLiveActivityController 管理:
-// 预计谢幕前最多 8h 启动(平台活跃上限),越过预计谢幕结束。
-// 展示字段在 ContentState;phase 以 start/end 日期为准,减少对 update 的依赖。
-// 纯展示,无快捷操作(已定稿)。计时用 Text(timerInterval:) / style: .timer 原生跳动。
+// 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
+//
+// 关键约束(评审定稿):无 push 时 ContentState 只在 app 运行时更新,
+// 不能依赖任何「到点自动切换」——所以 UI 是中性设计:
+// - 文案跨开场/谢幕零点恒成立(「19:30 开场」「预计 22:00 谢幕」)
+// - 计时 Text(startDate, style: .timer) 系统自驱,倒数后自动正数
+// - 进度 ProgressView(timerInterval:) 系统自驱,开场前为 0、谢幕时满
+// - 无 LIVE 徽标/红点:越过谢幕也不会残留「LIVE」误导
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
             LiveActivityBannerView(state: context.state)
         } dynamicIsland: { context in
-            let phase = LiveActivityPhaseResolver.phase(for: context.state)
-            return DynamicIsland {
+            DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
-                        phaseDot(phase: phase)
-                        Text(phase == .live ? "LIVE" : "开场前")
+                        accentDot
+                        Text("开场前")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(phase == .live ? WidgetTheme.liveTitle : WidgetTheme.accent)
+                            .foregroundStyle(WidgetTheme.accent)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.startDate, style: .timer)
                         .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(phase == .live ? WidgetTheme.liveTitle : WidgetTheme.accent)
+                        .foregroundStyle(WidgetTheme.accent)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -37,7 +40,7 @@ struct ShowLiveActivity: Widget {
                                 .font(.system(size: 13, weight: .semibold))
                                 .foregroundStyle(WidgetTheme.foreground)
                                 .lineLimit(1)
-                            Text(bottomLine(state: context.state, phase: phase))
+                            Text(bottomLine(state: context.state))
                                 .font(.system(size: 11))
                                 .foregroundStyle(WidgetTheme.dim)
                                 .lineLimit(1)
@@ -47,29 +50,29 @@ struct ShowLiveActivity: Widget {
                     .padding(.top, 2)
                 }
             } compactLeading: {
-                phaseDot(phase: phase)
+                accentDot
             } compactTrailing: {
                 Text(context.state.startDate, style: .timer)
                     .font(.system(size: 12, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.foreground)
             } minimal: {
-                phaseDot(phase: phase)
+                accentDot
             }
         }
     }
 
-    private func phaseDot(phase: ShowLiveActivityPhase) -> some View {
+    private var accentDot: some View {
         Circle()
-            .fill(phase == .live ? WidgetTheme.live : WidgetTheme.accent)
+            .fill(WidgetTheme.accent)
             .frame(width: 7, height: 7)
     }
 
-    private func bottomLine(state: ShowLiveActivityAttributes.ContentState, phase: ShowLiveActivityPhase) -> String {
+    private func bottomLine(state: ShowLiveActivityAttributes.ContentState) -> String {
         let venue = state.venueName.flatMap { $0.isEmpty ? nil : $0 }
         let city = state.city.flatMap { $0.isEmpty ? nil : $0 }
         let place = [city, venue].compactMap { $0 }.joined(separator: " · ")
-        if phase == .live, let end = state.endDate {
+        if let end = state.endDate {
             let components = Calendar.current.dateComponents([.hour, .minute], from: end)
             let endText = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
             return place.isEmpty ? "预计 \(endText) 谢幕" : "\(place) · 预计 \(endText) 谢幕"
@@ -78,26 +81,10 @@ struct ShowLiveActivity: Widget {
     }
 }
 
-// MARK: - Phase from dates
-// ContentState.phase 只在 app update 时刷新;UI 以 startDate 为准,避免过期 phase 误导。
-
-enum LiveActivityPhaseResolver {
-    static func phase(for state: ShowLiveActivityAttributes.ContentState, now: Date = .now) -> ShowLiveActivityPhase {
-        if now >= state.startDate {
-            return .live
-        }
-        return .countdown
-    }
-}
-
 // MARK: - 锁屏 banner
 
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
-
-    private var phase: ShowLiveActivityPhase {
-        LiveActivityPhaseResolver.phase(for: state)
-    }
 
     private var coverImage: UIImage? {
         guard let filename = state.coverImageFilename,
@@ -117,16 +104,10 @@ private struct LiveActivityBannerView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(1)
-                    HStack(spacing: 5) {
-                        if phase == .live {
-                            Circle()
-                                .fill(WidgetTheme.live)
-                                .frame(width: 6, height: 6)
-                        }
-                        Text(phase == .live ? "LIVE · 开场中" : "即将灯亮")
-                            .font(.system(size: 11))
-                            .foregroundStyle(phase == .live ? WidgetTheme.liveTitle : WidgetTheme.accent)
-                    }
+                    Text("\(clockText(state.startDate)) 开场")
+                        .font(.system(size: 11))
+                        .foregroundStyle(WidgetTheme.accent)
+                        .monospacedDigit()
                 }
 
                 Spacer(minLength: 0)
@@ -134,14 +115,14 @@ private struct LiveActivityBannerView: View {
                 Text(state.startDate, style: .timer)
                     .font(.system(size: 20, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(phase == .live ? WidgetTheme.liveTitle : WidgetTheme.accent)
+                    .foregroundStyle(WidgetTheme.accent)
             }
 
-            // 进度条不依赖 phase update:有 endDate 就画,ProgressView 自驱;开场前进度为 0。
+            // 进度条系统自驱:开场前为 0、live 推进、谢幕时满,全程无需 update
             if let end = state.endDate, end > state.startDate {
                 VStack(spacing: 4) {
                     ProgressView(timerInterval: state.startDate...end)
-                        .tint(phase == .live ? WidgetTheme.live : WidgetTheme.accent)
+                        .tint(WidgetTheme.accent)
                     HStack {
                         Text("\(clockText(state.startDate)) 开场")
                         Spacer(minLength: 0)
@@ -151,7 +132,6 @@ private struct LiveActivityBannerView: View {
                     .foregroundStyle(WidgetTheme.dim)
                     .monospacedDigit()
                 }
-                .opacity(phase == .live ? 1 : 0.55)
             }
         }
         .padding(.horizontal, 14)
