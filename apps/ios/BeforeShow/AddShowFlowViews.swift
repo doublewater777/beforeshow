@@ -291,6 +291,8 @@ struct AddShowFlowView: View {
     @State private var importRevision = 0
     /// 每次发起解析 / 识别 +1；返回时若 revision 已过期则丢弃结果，避免旧请求覆盖新请求。
     @State private var importRequestRevision = 0
+    /// 当前进行中的解析 / OCR 任务；关闭页面时取消，避免后台继续写回。
+    @State private var importTask: Task<Void, Never>?
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
 
@@ -379,11 +381,13 @@ struct AddShowFlowView: View {
         .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
         .onChange(of: selectedScreenshotItem) { _, newItem in
             guard let newItem else { return }
-            Task {
+            beginImportTask {
                 await recognizeScreenshot(from: newItem)
             }
         }
         .onDisappear {
+            // 页面离开时作废进行中的导入，避免任务在 dismiss 后继续写状态 / 弹 toast
+            abandonInFlightImport()
             guard !didSave else { return }
             cleanupTemporaryCovers()
         }
@@ -524,7 +528,7 @@ struct AddShowFlowView: View {
 
                 Button {
                     dismissKeyboard()
-                    Task {
+                    beginImportTask {
                         await parseLink()
                     }
                 } label: {
@@ -766,12 +770,38 @@ struct AddShowFlowView: View {
 
     private func closeOrBack() {
         dismissKeyboard()
+        // 允许导入中返回/取消；先作废任务，再关页面
+        abandonInFlightImport()
         cleanupTemporaryCovers()
         if let onBack {
             onBack()
         } else {
             dismiss()
         }
+    }
+
+    /// 启动解析 / OCR 任务；替换上一轮未完成的导入。
+    private func beginImportTask(_ work: @escaping @MainActor () async -> Void) {
+        importTask?.cancel()
+        importTask = Task { @MainActor in
+            await work()
+        }
+    }
+
+    /// 作废进行中的链接解析 / OCR：revision 失效 + 取消 Task + 清 UI 标志。
+    /// 关闭页面或返回时调用，防止任务在 sheet 消失后继续写状态。
+    private func abandonInFlightImport() {
+        importRequestRevision += 1
+        importTask?.cancel()
+        importTask = nil
+        isParsingLink = false
+        isRecognizingScreenshot = false
+        ocrActiveStep = 0
+    }
+
+    /// 当前导入请求是否仍有效（未被新请求或页面关闭作废）。
+    private func isActiveImportRequest(_ requestRevision: Int) -> Bool {
+        requestRevision == importRequestRevision && !Task.isCancelled
     }
 
     @MainActor
@@ -805,7 +835,7 @@ struct AddShowFlowView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
-                guard requestRevision == importRequestRevision else { return }
+                guard isActiveImportRequest(requestRevision) else { return }
                 // 与 catch 分支一致：读取失败统一清除导入状态，
                 // 不保留上一次识别成功的标题 / 横幅 / 标记
                 draft.source = .manual
@@ -817,12 +847,12 @@ struct AddShowFlowView: View {
             }
 
             let recognized = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
-            guard requestRevision == importRequestRevision else { return }
+            guard isActiveImportRequest(requestRevision) else { return }
             stepTask.cancel()
             // 第四步「生成可编辑草稿」短暂停留，完成状态可见后再切到确认表单
             ocrActiveStep = 4
             try? await Task.sleep(nanoseconds: 450_000_000)
-            guard requestRevision == importRequestRevision else { return }
+            guard isActiveImportRequest(requestRevision) else { return }
 
             draft = recognized
             hasImportedDraft = true
@@ -838,8 +868,11 @@ struct AddShowFlowView: View {
                 message = nil
             }
             presentToast(.success, message: "识别完成")
+        } catch is CancellationError {
+            // 页面关闭或新请求取消：不写失败态
+            return
         } catch {
-            guard requestRevision == importRequestRevision else { return }
+            guard isActiveImportRequest(requestRevision) else { return }
             draft.source = .manual
             hasImportedDraft = false
             showsManualFallback = true
@@ -865,7 +898,7 @@ struct AddShowFlowView: View {
 
         do {
             let parsed = try await linkParser.draft(from: requestedLink)
-            guard requestRevision == importRequestRevision else { return }
+            guard isActiveImportRequest(requestRevision) else { return }
             draft = parsed
             hasImportedDraft = true
             showsManualFallback = false
@@ -876,8 +909,10 @@ struct AddShowFlowView: View {
                 ? "链接里没有明确开场时间，请确认后再添加。"
                 : nil
             presentToast(.success, message: "解析完成")
+        } catch is CancellationError {
+            return
         } catch {
-            guard requestRevision == importRequestRevision else { return }
+            guard isActiveImportRequest(requestRevision) else { return }
             draft.source = .manual
             hasImportedDraft = false
             showsManualFallback = true
