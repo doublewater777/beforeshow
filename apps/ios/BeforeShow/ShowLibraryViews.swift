@@ -77,7 +77,7 @@ struct MyShowsListView: View {
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                             HStack {
                                 Text("我的现场")
                                     .font(.system(size: 32, weight: .bold))
@@ -685,7 +685,7 @@ struct ShowDetailView: View {
                     managementRow
                 }
                 .padding(.horizontal, BSSpacing.md)
-                .padding(.bottom, BSSpacing.xl)
+                .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollIndicators(.hidden)
         }
