@@ -68,7 +68,7 @@ struct HomeCountdownLockup: View {
     private func lockup(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
-                Text(label(for: phase, timeState: timeState))
+                Text(label(for: phase, timeState: timeState, now: now))
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
                 Spacer(minLength: 0)
@@ -208,11 +208,11 @@ struct HomeCountdownLockup: View {
 
     // MARK: 文案与样式
 
-    private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> String {
+    private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> String {
         switch phase {
         case .pre:
             if timeState.isDatedPostponement { return "距离灯亮(新日期)" }
-            if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: Date()), total < 3_600 {
+            if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now), total < 3_600 {
                 return "快开场了"
             }
             return "距离灯亮"

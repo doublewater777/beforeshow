@@ -33,7 +33,7 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
-        .bsToastOverlay(addShowToast, bottomPadding: 28)
+        .bsToastOverlay(addShowToast, bottomPadding: 90)
         .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
             hasCompletedOnboarding = true
         }) {
@@ -66,14 +66,18 @@ struct RootView: View {
     }
 
     /// V4:系统 TabView 换成浮动玻璃 Tab,内容可滚动到 Tab 上方透出,而不是被贴边条带切断。
+    /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
         ZStack(alignment: .bottom) {
-            switch selectedTab {
-            case .current:
-                CurrentShowHomeView(onOpenMyShows: { selectedTab = .myShows })
-            case .myShows:
-                MyShowsListView()
-            }
+            CurrentShowHomeView(onOpenMyShows: { selectedTab = .myShows })
+                .opacity(selectedTab == .current ? 1 : 0)
+                .allowsHitTesting(selectedTab == .current)
+                .accessibilityHidden(selectedTab != .current)
+
+            MyShowsListView()
+                .opacity(selectedTab == .myShows ? 1 : 0)
+                .allowsHitTesting(selectedTab == .myShows)
+                .accessibilityHidden(selectedTab != .myShows)
 
             HomeFloatingTabBar(selectedTab: $selectedTab)
         }

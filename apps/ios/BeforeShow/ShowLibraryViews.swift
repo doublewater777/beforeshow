@@ -135,7 +135,7 @@ struct MyShowsListView: View {
             .navigationDestination(item: $detailTarget) { show in
                 ShowDetailView(show: show)
             }
-            .bsToastOverlay(toast, bottomPadding: 28)
+            .bsToastOverlay(toast, bottomPadding: 90)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentToast(.success, message: "已放入当前现场")
@@ -689,7 +689,7 @@ struct ShowDetailView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .bsToastOverlay(toast, bottomPadding: 28)
+        .bsToastOverlay(toast, bottomPadding: 90)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
