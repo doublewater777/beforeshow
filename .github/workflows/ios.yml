@@ -23,8 +23,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select latest Xcode
-        run: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+      # 固定与本地开发一致的 Xcode 26（iOS 26 SDK），
+      # 不使用 runner 上版本不确定的 /Applications/Xcode.app 软链接。
+      - name: Select Xcode 26
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: "26"
 
       - name: Build
         run: xcodebuild -scheme BeforeShow -destination 'generic/platform=iOS Simulator' build

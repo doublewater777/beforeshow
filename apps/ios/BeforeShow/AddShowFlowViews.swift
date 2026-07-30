@@ -287,6 +287,10 @@ struct AddShowFlowView: View {
     @State private var temporaryCoverURLs: Set<String> = []
     @State private var didSave = false
     @State private var ocrActiveStep = 0
+    /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
+    @State private var importRevision = 0
+    /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
+    @State private var fallbackDateConfirmed = false
 
     init(
         sheet: AddShowSheet,
@@ -339,8 +343,14 @@ struct AddShowFlowView: View {
                                 usesCardLayout: true,
                                 recognizedHighlight: hasImportedDraft,
                                 coverEmptyPlaceholder: true,
+                                requiresDateConfirmation: needsDateConfirmation,
+                                onConfirmFallbackDate: {
+                                    fallbackDateConfirmed = true
+                                },
                                 onCoverImported: registerImportedCover
                             )
+                            // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
+                            .id(importRevision)
                         }
 
                         if let message {
@@ -439,6 +449,13 @@ struct AddShowFlowView: View {
         draft.recognizedFields.count
     }
 
+    /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
+    private var needsDateConfirmation: Bool {
+        hasImportedDraft
+            && !draft.recognizedFields.contains(.date)
+            && !fallbackDateConfirmed
+    }
+
     @ViewBuilder
     private var methodContent: some View {
         switch sheet {
@@ -465,6 +482,9 @@ struct AddShowFlowView: View {
                     minHeight: 96,
                     keyboardType: .URL
                 )
+                // 解析期间锁定输入，避免返回结果与当前输入不一致
+                .disabled(isParsingLink)
+                .opacity(isParsingLink ? 0.55 : 1)
 
                 if let detectedLinkSource {
                     HStack(spacing: 8) {
@@ -603,7 +623,7 @@ struct AddShowFlowView: View {
             }
 
             AddShowNoteCard(
-                text: "识别只提取名称、时间、场馆，不读取座位、价格、订单号；截图不离开这台设备。",
+                text: "识别只提取名称、时间、场馆，不提取或保存座位、价格、订单号；截图不离开这台设备。",
                 iconName: "lock.shield"
             )
 
@@ -646,7 +666,7 @@ struct AddShowFlowView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
-            .disabled(!draft.isReadyToSave || isSaving)
+            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation)
             .accessibilityLabel(isSaving ? "正在保存" : sheet.saveButtonTitle)
         }
         .padding(.horizontal, 20)
@@ -686,10 +706,16 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（名称 → 开场时间 → 时间范围）。
+    /// 按优先级说明距离可保存还差什么（名称 → 日期确认 → 开场时间 → 时间范围）。
     private var saveBarStatus: SaveBarStatus {
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
+        }
+        if needsDateConfirmation {
+            return SaveBarStatus(
+                text: "还差确认开场日期 · 截图没读到日期，已先填今天",
+                tint: BSColor.Stage.muted
+            )
         }
         if draft.startTime == nil {
             return SaveBarStatus(
@@ -751,7 +777,10 @@ struct AddShowFlowView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
+                // 与 catch 分支一致：读取失败统一清除导入状态，
+                // 不保留上一次识别成功的标题 / 横幅 / 标记
                 draft.source = .manual
+                hasImportedDraft = false
                 showsManualFallback = true
                 message = "没有读到这张截图，请改用手动填写。"
                 presentToast(.failure, message: "读取失败")
@@ -767,6 +796,8 @@ struct AddShowFlowView: View {
             draft = recognized
             hasImportedDraft = true
             showsManualFallback = false
+            importRevision += 1
+            fallbackDateConfirmed = false
             if !recognized.recognizedFields.contains(.date) {
                 // OCR 日期回退为当天不算识别成功，必须引导用户确认
                 message = "截图里没有识别到日期，已先填今天，请改成实际开场日期。"
@@ -798,6 +829,8 @@ struct AddShowFlowView: View {
             hasImportedDraft = true
             showsManualFallback = false
             linkFailure = nil
+            importRevision += 1
+            fallbackDateConfirmed = false
             message = draft.startTime == nil
                 ? "链接里没有明确开场时间，请确认后再添加。"
                 : nil
@@ -815,6 +848,8 @@ struct AddShowFlowView: View {
     @MainActor
     private func save() async {
         guard !isSaving else { return }
+        // OCR 回退日期未确认时不允许保存，与保存栏状态文案一致
+        guard !needsDateConfirmation else { return }
         isSaving = true
         dismissKeyboard()
 
@@ -1626,6 +1661,10 @@ private struct ShowDraftFormFields: View {
     let recognizedHighlight: Bool
     /// 添加现场：无封面时显示虚线引导占位，封面卡标注「可选 · 保存后也能加」。
     let coverEmptyPlaceholder: Bool
+    /// OCR 未识别日期（回退为今天）且未确认：日期瓷贴金色「待确认」并显示确认按钮；
+    /// 由父视图持有确认状态并纳入保存资格。
+    let requiresDateConfirmation: Bool
+    let onConfirmFallbackDate: () -> Void
     let onCoverImported: (String, String) -> Void
     @State private var startTime: Date
     @State private var hasEndTime: Bool
@@ -1635,8 +1674,6 @@ private struct ShowDraftFormFields: View {
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
     @State private var showsCoverLinkField = false
-    /// 进入表单时的日期：OCR 未识别日期时用于判断用户是否已手动改过（改过则撤下「待确认」）。
-    private let initialDraftDate: Date
 
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
     private var nameRecognized: Bool {
@@ -1657,12 +1694,6 @@ private struct ShowDraftFormFields: View {
     private var startTimeRecognized: Bool {
         recognizedHighlight && draft.recognizedFields.contains(.startTime)
     }
-    /// OCR 没识别到日期（回退为今天）且用户还没动过日期：金色「待确认」。
-    private var dateNeedsConfirmation: Bool {
-        recognizedHighlight
-            && !draft.recognizedFields.contains(.date)
-            && draft.date == initialDraftDate
-    }
 
     init(
         draft: Binding<ShowDraft>,
@@ -1670,6 +1701,8 @@ private struct ShowDraftFormFields: View {
         usesCardLayout: Bool = false,
         recognizedHighlight: Bool = false,
         coverEmptyPlaceholder: Bool = false,
+        requiresDateConfirmation: Bool = false,
+        onConfirmFallbackDate: @escaping () -> Void = {},
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
@@ -1692,13 +1725,14 @@ private struct ShowDraftFormFields: View {
         self.usesCardLayout = usesCardLayout
         self.recognizedHighlight = recognizedHighlight
         self.coverEmptyPlaceholder = coverEmptyPlaceholder
+        self.requiresDateConfirmation = requiresDateConfirmation
+        self.onConfirmFallbackDate = onConfirmFallbackDate
         self.onCoverImported = onCoverImported
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
         _hasEndTime = State(initialValue: initialDraft.endTime != nil || initialDraft.endDate != nil)
         _endDate = State(initialValue: initialEndDate)
         _endTime = State(initialValue: initialDraft.endTime ?? fallbackEnd)
-        initialDraftDate = initialDraft.date
     }
 
     var body: some View {
@@ -1799,8 +1833,9 @@ private struct ShowDraftFormFields: View {
                     endDate: $endDate,
                     endTime: $endTime,
                     dateRecognized: dateRecognized,
-                    dateNeeded: dateNeedsConfirmation,
-                    startTimeRecognized: startTimeRecognized
+                    dateNeeded: requiresDateConfirmation,
+                    startTimeRecognized: startTimeRecognized,
+                    onConfirmFallbackDate: onConfirmFallbackDate
                 )
 
                 if draft.startTime != nil && !draft.hasValidEndTime() {
@@ -2227,10 +2262,12 @@ private struct AddShowScheduleFields: View {
     @Binding var endTime: Date
     /// 识别导入：开场日期标「已识别」薄荷绿描边。
     var dateRecognized: Bool = false
-    /// 识别导入但日期是回退值（OCR 没读到日期）：金色「待确认」。
+    /// 识别导入但日期是回退值（OCR 没读到日期）：金色「待确认」+ 确认按钮。
     var dateNeeded: Bool = false
     /// 识别导入且开场时间已确认：标「已识别」；未确认时金色「待确认」。
     var startTimeRecognized: Bool = false
+    /// 日期回退值的确认回调：点确认按钮或手动改日期都会触发。
+    var onConfirmFallbackDate: () -> Void = {}
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -2245,7 +2282,8 @@ private struct AddShowScheduleFields: View {
                     selection: $draft.date,
                     displayedComponents: .date,
                     isRecognized: dateRecognized,
-                    isNeeded: dateNeeded
+                    isNeeded: dateNeeded,
+                    onConfirmNeeded: onConfirmFallbackDate
                 )
 
                 AddShowStartTimeField(
@@ -2275,6 +2313,8 @@ private struct AddShowDatePickerField: View {
     var isRequired = true
     var isRecognized = false
     var isNeeded = false
+    /// isNeeded 时的确认回调：点按钮或手动改动选择器都算确认。
+    var onConfirmNeeded: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -2299,6 +2339,19 @@ private struct AddShowDatePickerField: View {
                             .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
                     }
                 }
+                .onChange(of: selection) { _, _ in
+                    // 手动改动日期即视为确认（含「改走再改回今天」之外的常规选择）
+                    if isNeeded {
+                        onConfirmNeeded?()
+                    }
+                }
+            if isNeeded, let onConfirmNeeded {
+                Button("确认使用这个日期", action: onConfirmNeeded)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
         }
         .frame(maxWidth: .infinity)
     }
