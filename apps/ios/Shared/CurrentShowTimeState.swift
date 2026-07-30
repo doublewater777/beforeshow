@@ -10,6 +10,7 @@ enum CurrentShowTimeKind: Equatable {
 }
 
 /// Phase / clocks / countdown for a 现场. Presentation layout lives in views, not here.
+/// 输入是 `ShowTimingFields` 纯值，app（SwiftData Show）与 widget extension（快照）共用。
 struct CurrentShowTimeState: Equatable {
     static let defaultRetentionDays = 3
 
@@ -31,27 +32,27 @@ struct CurrentShowTimeState: Equatable {
     let helperText: String
 
     init(
-        show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar = .current,
         now: Date = Date(),
         retentionDays: Int = Self.defaultRetentionDays
     ) {
         self.retentionDays = retentionDays
-        self.hasKnownEffectiveDate = !(show.changeStatus == .postponed && show.postponedDate == nil)
-        self.isDatedPostponement = show.changeStatus == .postponed && show.postponedDate != nil
-        self.effectiveDate = show.effectiveDate
+        self.hasKnownEffectiveDate = !(timing.changeStatus == .postponed && timing.postponedDate == nil)
+        self.isDatedPostponement = timing.changeStatus == .postponed && timing.postponedDate != nil
+        self.effectiveDate = timing.effectiveDate
         self.effectiveEndDate = hasKnownEffectiveDate
-            ? Self.effectiveEndDate(for: show, calendar: calendar)
+            ? Self.effectiveEndDate(timing: timing, calendar: calendar)
             : nil
         self.effectiveStartTime = hasKnownEffectiveDate
-            ? Self.effectiveStartTime(for: show, calendar: calendar)
+            ? Self.effectiveStartTime(timing: timing, calendar: calendar)
             : nil
         self.effectiveEndTime = hasKnownEffectiveDate
             ? Self.effectiveEndTime(
-                for: show,
+                timing: timing,
                 calendar: calendar,
-                effectiveDate: show.effectiveDate,
-                effectiveStartTime: Self.effectiveStartTime(for: show, calendar: calendar)
+                effectiveDate: timing.effectiveDate,
+                effectiveStartTime: Self.effectiveStartTime(timing: timing, calendar: calendar)
             )
             : nil
 
@@ -62,7 +63,7 @@ struct CurrentShowTimeState: Equatable {
 
         let endBoundary = hasKnownEffectiveDate
             ? Self.effectiveEndBoundary(
-                for: show,
+                timing: timing,
                 calendar: calendar,
                 effectiveDate: effectiveDate,
                 effectiveEndDate: effectiveEndDate,
@@ -72,7 +73,7 @@ struct CurrentShowTimeState: Equatable {
         self.endBoundary = endBoundary
 
         let resolvedKind: CurrentShowTimeKind
-        if show.changeStatus == .canceled {
+        if timing.changeStatus == .canceled {
             resolvedKind = .canceled
         } else if !hasKnownEffectiveDate {
             resolvedKind = .postponed
@@ -152,41 +153,41 @@ struct CurrentShowTimeState: Equatable {
         }
     }
 
-    static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
-        guard let merged = merge(time: show.startTime, into: show.effectiveDate, calendar: calendar) else {
-            return show.startTime
+    static func effectiveStartTime(timing: ShowTimingFields, calendar: Calendar) -> Date {
+        guard let merged = merge(time: timing.startTime, into: timing.effectiveDate, calendar: calendar) else {
+            return timing.startTime
         }
         return merged
     }
 
-    static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {
-        guard let endDate = show.endDate else {
+    static func effectiveEndDate(timing: ShowTimingFields, calendar: Calendar) -> Date? {
+        guard let endDate = timing.endDate else {
             return nil
         }
-        guard let postponedDate = show.postponedDate else {
+        guard let postponedDate = timing.postponedDate else {
             return endDate
         }
 
-        let originalStartDay = calendar.startOfDay(for: show.date)
+        let originalStartDay = calendar.startOfDay(for: timing.date)
         let originalEndDay = calendar.startOfDay(for: endDate)
         let dayOffset = calendar.dateComponents([.day], from: originalStartDay, to: originalEndDay).day ?? 0
         return calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: postponedDate)) ?? endDate
     }
 
     static func effectiveEndTime(
-        for show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar,
         effectiveDate: Date,
         effectiveStartTime: Date?
     ) -> Date? {
-        guard let endTime = show.endTime else {
+        guard let endTime = timing.endTime else {
             return nil
         }
 
-        let endDay = effectiveEndDate(for: show, calendar: calendar) ?? effectiveDate
+        let endDay = effectiveEndDate(timing: timing, calendar: calendar) ?? effectiveDate
         var merged = merge(time: endTime, into: endDay, calendar: calendar)
 
-        if show.endDate == nil,
+        if timing.endDate == nil,
            let startTime = effectiveStartTime,
            let candidate = merged,
            candidate <= startTime {
@@ -201,7 +202,7 @@ struct CurrentShowTimeState: Equatable {
     static let defaultDurationHours = 4
 
     private static func effectiveEndBoundary(
-        for show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar,
         effectiveDate: Date,
         effectiveEndDate: Date?,
@@ -218,7 +219,7 @@ struct CurrentShowTimeState: Equatable {
         }
 
         // Default: start + fixed duration (no user-filled end).
-        let start = effectiveStartTime(for: show, calendar: calendar)
+        let start = effectiveStartTime(timing: timing, calendar: calendar)
         return calendar.date(
             byAdding: .hour,
             value: defaultDurationHours,
