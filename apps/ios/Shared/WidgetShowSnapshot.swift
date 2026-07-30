@@ -32,11 +32,16 @@ enum WidgetSnapshotStore {
     /// 旧版固定封面路径(仅用于清理);新缓存按 URL 哈希命名,见 WidgetCoverCache。
     static let legacyCoverCacheFilename = "current-show-cover.jpg"
 
+    #if DEBUG
     /// 测试注入:指向临时目录,避免单测读写开发机真实 App Group 快照。
+    /// 只在 DEBUG 存在,生产 target 不暴露全局可变状态。
     nonisolated(unsafe) static var overrideContainerURL: URL?
+    #endif
 
     static var containerURL: URL? {
+        #if DEBUG
         if let overrideContainerURL { return overrideContainerURL }
+        #endif
         return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
     }
 

@@ -32,6 +32,7 @@ struct ShowLiveActivity: Widget {
                         .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.accent)
+                        .accessibilityLabel("开场计时")
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -116,6 +117,7 @@ private struct LiveActivityBannerView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.accent)
+                    .accessibilityLabel("开场计时")
             }
 
             // 进度条系统自驱:开场前为 0、live 推进、谢幕时满,全程无需 update

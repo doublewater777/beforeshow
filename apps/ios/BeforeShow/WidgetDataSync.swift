@@ -133,35 +133,45 @@ actor ShowLiveActivityController {
         }
 
         guard generation == latestGeneration else { return }
-        await perform(action, showID: snapshot?.showID.uuidString)
+        await perform(action, showID: snapshot?.showID.uuidString, generation: generation)
     }
 
-    private func perform(_ action: LiveActivityAction, showID: String?) async {
+    /// actor 在每个 await 上允许重入:任何副作用(尤其 request/schedule)前
+    /// 都必须重新确认自己还是最新 generation,否则旧动作会后至覆盖新状态。
+    private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
+        func isCurrent() -> Bool { generation == latestGeneration }
+
         switch action {
         case .none:
             // pending 保留;只清理非目标/重复
             await endActivities(matching: { $0.attributes.showID != showID })
+            guard isCurrent() else { return }
             await endDuplicates(keepingShowID: showID)
 
         case .update(let state):
             await endActivities(matching: { $0.attributes.showID != showID })
+            guard isCurrent() else { return }
             await endDuplicates(keepingShowID: showID)
+            guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
             let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
             if let target {
                 await target.update(content)
             } else {
+                guard isCurrent() else { return }
                 request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
             }
 
         case .request(let state):
             await endAll()
+            guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
             await endAll()
+            guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
             if #available(iOS 26.0, *) {
                 do {

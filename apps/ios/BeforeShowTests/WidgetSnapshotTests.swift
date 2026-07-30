@@ -166,7 +166,7 @@ final class WidgetSnapshotTests: XCTestCase {
             return XCTFail("expected start/end")
         }
 
-        let earliest = LiveActivityPlanner.earliestStart(activityEnd: end)
+        let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
         // 默认 4h 演出 → 最早约开场前 4h,不是 12h
         XCTAssertEqual(earliest.timeIntervalSince(start), -4 * 3_600, accuracy: 1)
         XCTAssertEqual(end.timeIntervalSince(earliest), 8 * 3_600, accuracy: 1)
@@ -430,5 +430,43 @@ final class WidgetSnapshotTests: XCTestCase {
             ),
             .endAll
         )
+    }
+
+    /// 跨天/超 8h 现场:活跃窗口起点钳到开场时刻,绝不排到开场之后。
+    func testLiveActivityEarliestStartClampsToShowStartForLongShows() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let start = now.addingTimeInterval(20 * 86_400)
+        // 3 天音乐节:endBoundary 远超 start + 8h
+        let end = start.addingTimeInterval(3 * 86_400)
+
+        let earliest = LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: end)
+        XCTAssertEqual(earliest, start, "超 8h 现场的窗口起点必须钳到开场,不能按 end-8h 排到开场之后")
+
+        // 常规 4h 演出不受影响
+        let normalEnd = start.addingTimeInterval(4 * 3_600)
+        XCTAssertEqual(
+            LiveActivityPlanner.earliestStart(activityStart: start, activityEnd: normalEnd),
+            start.addingTimeInterval(-4 * 3_600)
+        )
+    }
+
+    /// 超出 schedule 视野(7 天)不安排 pending:不占系统配额,等临近后的前台同步。
+    func testPlannerDoesNotScheduleBeyondHorizon() {
+        let now = Date()
+        // 30 天后开场:窗口起点(开场前 4h)也远超 7 天视野
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(30 * 86_400))
+        let action = LiveActivityPlanner.action(
+            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+        )
+        XCTAssertEqual(action, .none)
+
+        // 3 天后开场:窗口起点 = 开场前 4h,在 7 天视野内 → schedule
+        let near = makePlannerSnapshot(start: now.addingTimeInterval(3 * 86_400))
+        let nearAction = LiveActivityPlanner.action(
+            snapshot: near, now: now, existing: [], coverFilename: nil, canSchedule: true
+        )
+        guard case .schedule = nearAction else {
+            return XCTFail("expected schedule within horizon, got \(nearAction)")
+        }
     }
 }
