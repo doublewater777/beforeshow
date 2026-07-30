@@ -18,8 +18,8 @@ enum WidgetSnapshotStore {
     static let appGroupID = "group.com.doublewaterapps.beforeshow"
 
     private static let snapshotFilename = "current-show.json"
-    /// 封面缓存:provider 下载后写这里,视图直接读本地文件。
-    static let coverCacheFilename = "current-show-cover.jpg"
+    /// 旧版固定封面路径(仅用于清理);新缓存按 URL 哈希命名,见 WidgetCoverCache。
+    static let legacyCoverCacheFilename = "current-show-cover.jpg"
 
     static var containerURL: URL? {
         FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
@@ -29,25 +29,39 @@ enum WidgetSnapshotStore {
         containerURL?.appendingPathComponent(snapshotFilename, isDirectory: false)
     }
 
-    static var coverCacheURL: URL? {
-        containerURL?.appendingPathComponent(coverCacheFilename, isDirectory: false)
-    }
-
     static func read() -> WidgetShowSnapshot? {
         guard let url = snapshotURL,
               let data = try? Data(contentsOf: url) else {
             return nil
         }
-        return try? JSONDecoder().decode(WidgetShowSnapshot.self, from: data)
+        do {
+            return try JSONDecoder().decode(WidgetShowSnapshot.self, from: data)
+        } catch {
+            #if DEBUG
+            print("[WidgetSnapshotStore] decode failed: \(error)")
+            #endif
+            return nil
+        }
     }
 
     static func write(_ snapshot: WidgetShowSnapshot?) {
-        guard let url = snapshotURL else { return }
+        guard let url = snapshotURL else {
+            #if DEBUG
+            print("[WidgetSnapshotStore] missing App Group container")
+            #endif
+            return
+        }
         guard let snapshot else {
             try? FileManager.default.removeItem(at: url)
             return
         }
-        guard let data = try? JSONEncoder().encode(snapshot) else { return }
-        try? data.write(to: url, options: .atomic)
+        do {
+            let data = try JSONEncoder().encode(snapshot)
+            try data.write(to: url, options: .atomic)
+        } catch {
+            #if DEBUG
+            print("[WidgetSnapshotStore] write failed: \(error)")
+            #endif
+        }
     }
 }
