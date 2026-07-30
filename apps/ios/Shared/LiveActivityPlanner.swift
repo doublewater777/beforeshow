@@ -32,6 +32,10 @@ enum LiveActivityPlanner {
     /// 平台活跃上限:8h(之后最多再在锁屏保留 4h,但已从灵动岛移除)
     static let maxActiveDuration: TimeInterval = 8 * 3_600
 
+    /// schedule 视野:pending 也占系统 Live Activity 配额,
+    /// 不为几个月后的现场长期占位;更远等下一次前台同步再安排。
+    static let scheduleHorizon: TimeInterval = 7 * 86_400
+
     /// 由快照推导目标内容态;nil = 不应有活动(无现场/已取消/无确定开场/已过谢幕)
     static func desiredState(
         snapshot: WidgetShowSnapshot?,
@@ -65,9 +69,11 @@ enum LiveActivityPlanner {
         )
     }
 
-    /// 活跃窗口起点:保证 activityEnd - start ≤ maxActiveDuration
-    static func earliestStart(activityEnd: Date) -> Date {
-        activityEnd.addingTimeInterval(-maxActiveDuration)
+    /// 活跃窗口起点:保证活跃时长 ≤ maxActiveDuration;
+    /// 跨天/超 8h 现场则钳到开场时刻——「开场前」活动绝不能排到开场之后,
+    /// 接受这类现场的活动在谢幕前被系统结束。
+    static func earliestStart(activityStart: Date, activityEnd: Date) -> Date {
+        min(activityStart, activityEnd.addingTimeInterval(-maxActiveDuration))
     }
 
     static func action(
@@ -84,7 +90,8 @@ enum LiveActivityPlanner {
 
         let showID = snapshot.showID.uuidString
         let matching = existing.filter { $0.showID == showID }
-        let inWindow = now >= earliestStart(activityEnd: desired.activityEnd)
+        let earliest = earliestStart(activityStart: desired.state.startDate, activityEnd: desired.activityEnd)
+        let inWindow = now >= earliest
 
         if inWindow {
             return matching.isEmpty ? .request(desired.state) : .update(desired.state)
@@ -95,7 +102,11 @@ enum LiveActivityPlanner {
             if matching.contains(where: { $0.isPending && $0.state == desired.state }) {
                 return .none
             }
-            return .schedule(desired.state, start: earliestStart(activityEnd: desired.activityEnd))
+            // 超出视野不 schedule:pending 也占配额,等临近后的前台同步再安排
+            if earliest.timeIntervalSince(now) > scheduleHorizon {
+                return .none
+            }
+            return .schedule(desired.state, start: earliest)
         }
 
         return .endAll

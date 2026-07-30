@@ -76,16 +76,12 @@ enum WidgetCoverCache {
         }
 
         do {
-            let (data, response) = try await URLSession.shared.data(from: remoteURL)
+            // 流式落盘而非读进内存:超大响应不会撑爆 extension 内存,
+            // 下采样前再按文件大小拦截
+            let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
             guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                 #if DEBUG
                 print("[WidgetCoverCache] non-200 for \(trimmed)")
-                #endif
-                return
-            }
-            guard data.count <= maxDownloadBytes else {
-                #if DEBUG
-                print("[WidgetCoverCache] payload too large: \(data.count) bytes")
                 #endif
                 return
             }
@@ -95,6 +91,14 @@ enum WidgetCoverCache {
                 #endif
                 return
             }
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
+            guard fileSize > 0, fileSize <= maxDownloadBytes else {
+                #if DEBUG
+                print("[WidgetCoverCache] payload too large: \(fileSize) bytes")
+                #endif
+                return
+            }
+            let data = try Data(contentsOf: tempURL)
             guard let jpeg = downsampledJPEG(from: data, maxPixel: maxPixelDimension),
                   let liveActivityJPEG = downsampledJPEG(from: data, maxPixel: liveActivityMaxPixelDimension) else {
                 #if DEBUG
