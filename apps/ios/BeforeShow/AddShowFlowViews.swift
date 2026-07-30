@@ -241,7 +241,7 @@ private struct AddShowEntryView: View {
                             Image(systemName: "lock.shield")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(BSColor.Accent.prepare)
-                            Text("所有信息只存在这台设备上")
+                            Text("截图识别完全在设备端完成；链接解析需要联网处理链接")
                         }
                         .font(.system(size: 11.5))
                         .foregroundColor(BSColor.Stage.dim)
@@ -422,22 +422,21 @@ struct AddShowFlowView: View {
     }
 
     /// 粘贴即识别链接来源，不用等一次失败往返。
+    /// 只匹配官方域名及其子域名，避免查询参数或仿冒域名误报。
     private var detectedLinkSource: String? {
-        let text = linkText.lowercased()
-        if text.contains("damai") { return "大麦" }
-        if text.contains("showstart") { return "秀动" }
+        let text = linkText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+        let candidate = text.contains("://") ? text : "https://" + text
+        guard let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
+        if host == "damai.cn" || host.hasSuffix(".damai.cn") { return "大麦" }
+        if host == "showstart.com" || host.hasSuffix(".showstart.com") { return "秀动" }
         return nil
     }
 
-    /// 识别成功横幅里的信息项计数：名称 / 艺人 / 城市 / 场馆 / 开场日期（必有）/ 开场时间。
+    /// 识别成功横幅里的信息项计数：直接读字段级 provenance，
+    /// 不能用「字段是否有值」推断（OCR 失败时日期会回退为当天）。
     private var importedInfoCount: Int {
-        var count = 1
-        if !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { count += 1 }
-        if !draft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { count += 1 }
-        if !draft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { count += 1 }
-        if !draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { count += 1 }
-        if draft.startTime != nil { count += 1 }
-        return count
+        draft.recognizedFields.count
     }
 
     @ViewBuilder
@@ -759,12 +758,23 @@ struct AddShowFlowView: View {
                 return
             }
 
-            draft = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
+            let recognized = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
+            stepTask.cancel()
+            // 第四步「生成可编辑草稿」短暂停留，完成状态可见后再切到确认表单
+            ocrActiveStep = 4
+            try? await Task.sleep(nanoseconds: 450_000_000)
+
+            draft = recognized
             hasImportedDraft = true
             showsManualFallback = false
-            message = draft.startTime == nil
-                ? "已识别部分信息，请确认日期并补充开场时间。"
-                : nil
+            if !recognized.recognizedFields.contains(.date) {
+                // OCR 日期回退为当天不算识别成功，必须引导用户确认
+                message = "截图里没有识别到日期，已先填今天，请改成实际开场日期。"
+            } else if recognized.startTime == nil {
+                message = "已识别部分信息，请确认日期并补充开场时间。"
+            } else {
+                message = nil
+            }
             presentToast(.success, message: "识别完成")
         } catch {
             draft.source = .manual
@@ -965,18 +975,24 @@ enum ShowCoverLocalImageStore {
     }
 }
 
+/// 状态操作结果：文案 + 提示语气，避免保存失败被显示成绿色成功 toast。
+struct ShowStatusActionResult {
+    let tone: BSToastTone
+    let message: String
+}
+
 /// 编辑现场 sheet 内的现场状态管理上下文：状态展示 + 立即生效的状态操作。
 /// 由详情页注入；为 nil 时编辑器不渲染现场状态卡（例如仅编辑草稿的场景）。
-/// 状态操作不走「保存」按钮，沿用详情页语义立即生效，闭包返回用于 toast 的文案。
+/// 状态操作不走「保存」按钮，沿用详情页语义立即生效，闭包返回 toast 的语气与文案。
 struct ShowStatusEditingContext {
     let changeStatus: ShowChangeStatus
     let postponedDate: Date?
     let title: String
     let description: String
     let restoreTitle: String
-    let onRestore: @MainActor () async -> String
-    let onPostpone: @MainActor (Date?) async -> String
-    let onCancel: @MainActor () async -> String
+    let onRestore: @MainActor () async -> ShowStatusActionResult
+    let onPostpone: @MainActor (Date?) async -> ShowStatusActionResult
+    let onCancel: @MainActor () async -> ShowStatusActionResult
     let onDelete: @MainActor () async -> Void
 }
 
@@ -1453,14 +1469,14 @@ struct ShowDraftEditorView: View {
 
     @MainActor
     private func applyStatusAction(
-        _ action: @MainActor () async -> String?
+        _ action: @MainActor () async -> ShowStatusActionResult?
     ) async {
         guard !isApplyingStatus else { return }
         isApplyingStatus = true
-        let message = await action()
+        let result = await action()
         isApplyingStatus = false
-        if let message {
-            presentStatusToast(.success, message: message)
+        if let result {
+            presentStatusToast(result.tone, message: result.message)
         }
     }
 
@@ -1619,11 +1635,34 @@ private struct ShowDraftFormFields: View {
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
     @State private var showsCoverLinkField = false
-    private let nameRecognized: Bool
-    private let artistRecognized: Bool
-    private let cityRecognized: Bool
-    private let venueRecognized: Bool
-    private let startTimeRecognized: Bool
+    /// 进入表单时的日期：OCR 未识别日期时用于判断用户是否已手动改过（改过则撤下「待确认」）。
+    private let initialDraftDate: Date
+
+    /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
+    private var nameRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.name)
+    }
+    private var artistRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.artist)
+    }
+    private var cityRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.city)
+    }
+    private var venueRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.venueName)
+    }
+    private var dateRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.date)
+    }
+    private var startTimeRecognized: Bool {
+        recognizedHighlight && draft.recognizedFields.contains(.startTime)
+    }
+    /// OCR 没识别到日期（回退为今天）且用户还没动过日期：金色「待确认」。
+    private var dateNeedsConfirmation: Bool {
+        recognizedHighlight
+            && !draft.recognizedFields.contains(.date)
+            && draft.date == initialDraftDate
+    }
 
     init(
         draft: Binding<ShowDraft>,
@@ -1659,15 +1698,7 @@ private struct ShowDraftFormFields: View {
         _hasEndTime = State(initialValue: initialDraft.endTime != nil || initialDraft.endDate != nil)
         _endDate = State(initialValue: initialEndDate)
         _endTime = State(initialValue: initialDraft.endTime ?? fallbackEnd)
-        nameRecognized = recognizedHighlight
-            && !initialDraft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        artistRecognized = recognizedHighlight
-            && !initialDraft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        cityRecognized = recognizedHighlight
-            && !initialDraft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        venueRecognized = recognizedHighlight
-            && !initialDraft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        startTimeRecognized = recognizedHighlight && initialDraft.startTime != nil
+        initialDraftDate = initialDraft.date
     }
 
     var body: some View {
@@ -1767,7 +1798,8 @@ private struct ShowDraftFormFields: View {
                     hasEndTime: $hasEndTime,
                     endDate: $endDate,
                     endTime: $endTime,
-                    dateRecognized: recognizedHighlight,
+                    dateRecognized: dateRecognized,
+                    dateNeeded: dateNeedsConfirmation,
                     startTimeRecognized: startTimeRecognized
                 )
 
@@ -2195,6 +2227,8 @@ private struct AddShowScheduleFields: View {
     @Binding var endTime: Date
     /// 识别导入：开场日期标「已识别」薄荷绿描边。
     var dateRecognized: Bool = false
+    /// 识别导入但日期是回退值（OCR 没读到日期）：金色「待确认」。
+    var dateNeeded: Bool = false
     /// 识别导入且开场时间已确认：标「已识别」；未确认时金色「待确认」。
     var startTimeRecognized: Bool = false
 
@@ -2210,7 +2244,8 @@ private struct AddShowScheduleFields: View {
                     title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date,
-                    isRecognized: dateRecognized
+                    isRecognized: dateRecognized,
+                    isNeeded: dateNeeded
                 )
 
                 AddShowStartTimeField(
@@ -2239,13 +2274,14 @@ private struct AddShowDatePickerField: View {
     let displayedComponents: DatePickerComponents
     var isRequired = true
     var isRecognized = false
+    var isNeeded = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             AddShowFieldLabel(
                 title: title,
                 isRequired: isRequired,
-                mark: isRecognized ? .recognized : nil
+                mark: isNeeded ? .needed : (isRecognized ? .recognized : nil)
             )
             DatePicker("", selection: $selection, displayedComponents: displayedComponents)
                 .labelsHidden()
@@ -2253,7 +2289,12 @@ private struct AddShowDatePickerField: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .addShowInputChrome()
                 .overlay {
-                    if isRecognized {
+                    if isNeeded {
+                        // 日期是回退值：金色描边 + 光晕，引导先确认
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.Stage.accent.opacity(0.50), lineWidth: 1)
+                            .shadow(color: BSColor.Stage.accent.opacity(0.10), radius: 6)
+                    } else if isRecognized {
                         RoundedRectangle(cornerRadius: BSRadius.md)
                             .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
                     }

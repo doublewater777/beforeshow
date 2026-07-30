@@ -10,6 +10,18 @@ enum ShowDraftSource: String, Equatable {
     case link
 }
 
+/// 识别导入（截图 OCR / 链接解析）成功写入的字段集合。
+/// UI 以此标注「已识别」，不能通过字段是否有值推断——
+/// 例如 OCR 失败时日期会回退为当天，有值但不等于识别成功。
+enum ShowDraftField: String, Equatable, Hashable, CaseIterable {
+    case name
+    case date
+    case startTime
+    case city
+    case venueName
+    case artist
+}
+
 enum ShowDraftValidationError: Error, Equatable {
     case emptyName
 }
@@ -28,6 +40,8 @@ struct ShowDraft: Equatable {
     var coverImageURL: String
     var artistAvatarURLs: [String]
     var source: ShowDraftSource
+    /// 识别导入成功写入的字段（仅 screenshotOCR / link 来源有意义，手动与编辑流为空）。
+    var recognizedFields: Set<ShowDraftField>
 
     init(
         name: String = "",
@@ -42,7 +56,8 @@ struct ShowDraft: Equatable {
         seatSection: String = "",
         coverImageURL: String = "",
         artistAvatarURLs: [String] = [],
-        source: ShowDraftSource = .manual
+        source: ShowDraftSource = .manual,
+        recognizedFields: Set<ShowDraftField> = []
     ) {
         self.name = name
         self.date = date
@@ -57,6 +72,7 @@ struct ShowDraft: Equatable {
         self.coverImageURL = coverImageURL
         self.artistAvatarURLs = artistAvatarURLs
         self.source = source
+        self.recognizedFields = recognizedFields
     }
 
     init(show: Show) {
@@ -163,6 +179,29 @@ struct ShowScreenshotRecognitionService {
         draft.venueName = venueName
         draft.artist = artist
         draft.seatSection = ""
+
+        // 字段级 provenance：日期回退为当天时不得计入「已识别」。
+        var recognizedFields = Set<ShowDraftField>()
+        if !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.name)
+        }
+        if recognizedDate != nil {
+            recognizedFields.insert(.date)
+        }
+        if draft.startTime != nil {
+            recognizedFields.insert(.startTime)
+        }
+        if !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.city)
+        }
+        if !venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.venueName)
+        }
+        if !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.artist)
+        }
+        draft.recognizedFields = recognizedFields
+
         return draft
     }
 
@@ -661,11 +700,32 @@ struct ShowLinkDraftParser {
             draft.endTime = parseTime(endTime, on: draft.endDate ?? date)
         }
 
+        // 链接解析：日期必经 missingDate 校验，始终可计入「已识别」。
+        var recognizedFields: Set<ShowDraftField> = [.date]
+        if !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.name)
+        }
+        if draft.startTime != nil {
+            recognizedFields.insert(.startTime)
+        }
+        if !draft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.city)
+        }
+        if !draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.venueName)
+        }
+        if !draft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.artist)
+        }
+        draft.recognizedFields = recognizedFields
+
         return draft
     }
 
+    /// 仅匹配官方域名及其子域名，避免查询参数或 `notdamai.example` 之类误报。
     private func isSupportedHost(_ host: String) -> Bool {
-        ["damai", "showstart"].contains { host.contains($0) }
+        host == "damai.cn" || host.hasSuffix(".damai.cn")
+            || host == "showstart.com" || host.hasSuffix(".showstart.com")
     }
 
     private func parseDate(_ string: String) -> Date? {

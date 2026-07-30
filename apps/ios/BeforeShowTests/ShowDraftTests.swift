@@ -135,6 +135,112 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNil(draft)
     }
 
+    // MARK: - 字段级 provenance（recognizedFields）
+
+    func testScreenshotOCRRecordsRecognizedFieldsIncludingDate() throws {
+        let text = """
+        山海音乐节
+        日期：2026-07-03
+        时间：19:30
+        城市：上海
+        场馆：春浪草地
+        阵容：落日飞车 / deca joins
+        """
+
+        let draft = try XCTUnwrap(
+            ShowScreenshotRecognitionService(calendar: calendar).draft(fromRecognizedText: text)
+        )
+
+        XCTAssertEqual(
+            draft.recognizedFields,
+            [.name, .date, .startTime, .city, .venueName, .artist]
+        )
+    }
+
+    func testScreenshotOCRWithoutDateDoesNotMarkDateRecognized() throws {
+        let text = """
+        演出名称：夏夜 Livehouse
+        场馆：MAO Livehouse
+        城市：上海
+        """
+
+        let draft = try XCTUnwrap(
+            ShowScreenshotRecognitionService(calendar: calendar).draft(fromRecognizedText: text)
+        )
+
+        // 日期回退为今天不算识别成功
+        XCTAssertFalse(draft.recognizedFields.contains(.date))
+        XCTAssertFalse(draft.recognizedFields.contains(.startTime))
+        XCTAssertTrue(draft.recognizedFields.contains(.name))
+        XCTAssertTrue(draft.recognizedFields.contains(.city))
+        XCTAssertTrue(draft.recognizedFields.contains(.venueName))
+    }
+
+    func testLocalLinkParserMarksDateAndPresentFieldsRecognized() throws {
+        let parser = ShowLinkDraftParser(calendar: calendar)
+
+        let draft = try parser.draft(
+            from: "https://detail.damai.cn/item.htm?date=2026-07-15&time=20:00&name=测试现场&city=上海&venue=测试场馆&artist=测试艺人"
+        )
+
+        XCTAssertEqual(
+            draft.recognizedFields,
+            [.name, .date, .startTime, .city, .venueName, .artist]
+        )
+    }
+
+    func testLocalLinkParserRejectsLookalikeHosts() {
+        let parser = ShowLinkDraftParser(calendar: calendar)
+
+        // 域名必须严格匹配官方域及其子域名，仿冒 / 包含式匹配都算不支持
+        XCTAssertThrowsError(try parser.draft(from: "https://notdamai.example.com/item?date=2026-07-15"))
+        XCTAssertThrowsError(try parser.draft(from: "https://damai.cn.evil.example/item?date=2026-07-15"))
+        XCTAssertThrowsError(try parser.draft(from: "https://showstart.com.evil.example/item?date=2026-07-15"))
+    }
+
+    func testRemoteShowLinkParsingServiceMarksProvenanceWithoutStartTime() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "待确认时间的现场",
+                "city": "上海",
+                "date": "2026-07-15",
+                "startTime": null,
+                "endDate": null,
+                "endTime": null,
+                "venueName": "测试场馆",
+                "venueAddr": "测试地址",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "damai"
+            }
+        }
+        """
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: calendar
+        )
+
+        let draft = try await service.parse(link: "https://detail.damai.cn/item.htm?id=123")
+
+        XCTAssertTrue(draft.recognizedFields.contains(.date))
+        XCTAssertFalse(draft.recognizedFields.contains(.startTime))
+        XCTAssertTrue(draft.recognizedFields.contains(.name))
+        XCTAssertTrue(draft.recognizedFields.contains(.city))
+        XCTAssertTrue(draft.recognizedFields.contains(.venueName))
+        XCTAssertTrue(draft.recognizedFields.contains(.artist))
+    }
+
     func testMaoyanPosterOCRExtractsNaturalLayoutShowInfo() throws {
         let text = """
         周震南「LOVE & DESIRE」演唱会

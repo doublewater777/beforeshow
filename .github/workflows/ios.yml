@@ -1,0 +1,33 @@
+name: iOS
+
+on:
+  pull_request:
+    paths:
+      - "apps/ios/**"
+  push:
+    branches: [main]
+    paths:
+      - "apps/ios/**"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: apps/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        run: sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
+
+      - name: Build
+        run: xcodebuild -scheme BeforeShow -destination 'generic/platform=iOS Simulator' build
+
+      - name: Test
+        run: xcodebuild -scheme BeforeShow -destination 'platform=iOS Simulator,name=iPhone 17' test
