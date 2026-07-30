@@ -135,6 +135,7 @@ private struct CurrentShowHomeView: View {
 
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     #if DEBUG
@@ -146,6 +147,15 @@ private struct CurrentShowHomeView: View {
 
     private var currentShow: Show? {
         session.selectCurrentShow(from: shows, manualSelection: selections.first)
+    }
+
+    /// shows 的增删改 + 手动切换现场,都会改变这个指纹,从而触发 widget 同步。
+    private var widgetSyncFingerprint: String {
+        let showsPart = shows
+            .map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }
+            .joined(separator: "|")
+        let selectionPart = selections.first?.selectedShowID?.uuidString ?? "-"
+        return "\(selectionPart)#\(showsPart)"
     }
 
     var body: some View {
@@ -175,6 +185,14 @@ private struct CurrentShowHomeView: View {
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentAddShowSuccess()
+                }
+            }
+            .task(id: widgetSyncFingerprint) {
+                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+            }
+            .onChange(of: scenePhase) {
+                if scenePhase == .active {
+                    WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
                 }
             }
             #if DEBUG
