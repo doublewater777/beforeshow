@@ -28,6 +28,8 @@
 		630D46A29F90B296BE998CDA /* ShowLinkParsingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 637E5E5108E5B501E98D87E2 /* ShowLinkParsingService.swift */; };
 		632162FBDC297B15A3177ABA /* WidgetShowSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 921D23A27473F26969BB142A /* WidgetShowSnapshot.swift */; };
 		689BEC3D340B67A07D1914F1 /* BeforeShowTab.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBAAF5AA9E30BFB8C74BB2FD /* BeforeShowTab.swift */; };
+		6B7842578C77CA426C4DF7B8 /* LiveActivityPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */; };
+		6BA26BDCA5AF6CA2C335AAB3 /* LiveActivityPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */; };
 		70F6EEDA00AF78AFD8A3213D /* HomeShowPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */; };
 		7271D905B1F2AF6141262DE1 /* VenueAddressAutocompleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9FF563A82B32DE497937094 /* VenueAddressAutocompleteTests.swift */; };
 		79018BC2864D314C6A1D2711 /* HomeCountdownCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A30915160ECAEE9BE3BB96F /* HomeCountdownCard.swift */; };
@@ -117,6 +119,7 @@
 		637E5E5108E5B501E98D87E2 /* ShowLinkParsingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowLinkParsingService.swift; sourceTree = "<group>"; };
 		697EFAA942B8BD5B37C63D98 /* BeforeShow.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = BeforeShow.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6B4598A90A4B87490D2AB557 /* CountdownWidgetViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownWidgetViews.swift; sourceTree = "<group>"; };
+		6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlanner.swift; sourceTree = "<group>"; };
 		6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationSchedulingTests.swift; sourceTree = "<group>"; };
 		70EA39AEEA47B90F87C8C06B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		7B46048CB6FE0401F7494316 /* BeforeShowWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BeforeShowWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -231,6 +234,7 @@
 			children = (
 				4B39A4E64872B01B1D5ACD2C /* CurrentShowTimeState.swift */,
 				13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */,
+				6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */,
 				FB322889B3E6C99CC494F371 /* ShowLiveActivityAttributes.swift */,
 				CA3B00DAA4DCAC5C577BB3A9 /* ShowTimingFields.swift */,
 				FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */,
@@ -271,7 +275,7 @@
 			path = BeforeShowWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_5F7E9404-A8DB-4183-B3FC-268627B379E9" /* prototypes */ = {
+		"TEMP_133892E0-E145-40BC-8083-6C0B4511D9DD" /* prototypes */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -409,6 +413,7 @@
 				CF31DDE4B888DB64B67A3516 /* DesignSystem.swift in Sources */,
 				79018BC2864D314C6A1D2711 /* HomeCountdownCard.swift in Sources */,
 				0C8F58FF0811E9E5B48327B6 /* HomeShowPhase.swift in Sources */,
+				6BA26BDCA5AF6CA2C335AAB3 /* LiveActivityPlanner.swift in Sources */,
 				EADE1D7178E75E6D3AEB0604 /* LocalNotificationScheduling.swift in Sources */,
 				B65469936BAFFAAA46A44717 /* ProSubscription.swift in Sources */,
 				F738A9FA230B8101EE2FCAC3 /* RootView.swift in Sources */,
@@ -455,6 +460,7 @@
 				7A9596E946899003C48A41C2 /* CountdownWidgetViews.swift in Sources */,
 				5BB2F65C49A077E5B8BAD207 /* CurrentShowTimeState.swift in Sources */,
 				70F6EEDA00AF78AFD8A3213D /* HomeShowPhase.swift in Sources */,
+				6B7842578C77CA426C4DF7B8 /* LiveActivityPlanner.swift in Sources */,
 				298AA52E59C6A63900222197 /* ShowLiveActivity.swift in Sources */,
 				8245DA7CF2D917097ED185AA /* ShowLiveActivityAttributes.swift in Sources */,
 				CCEC11CAC80F6EF000172B2C /* ShowTimingFields.swift in Sources */,

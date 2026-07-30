@@ -57,6 +57,16 @@ final class WidgetSnapshotTests: XCTestCase {
     }
 
     func testAppGroupStoreWriteReadClear() throws {
+        // 注入临时目录,不动开发机真实 App Group 快照
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-store-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        WidgetSnapshotStore.overrideContainerURL = tempDir
+        defer {
+            WidgetSnapshotStore.overrideContainerURL = nil
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
         let snapshot = WidgetShowSnapshot(
             showID: UUID(),
             name: "测试现场",
@@ -156,7 +166,7 @@ final class WidgetSnapshotTests: XCTestCase {
             return XCTFail("expected start/end")
         }
 
-        let earliest = WidgetTimelinePlanner.liveActivityEarliestStart(activityEnd: end)
+        let earliest = LiveActivityPlanner.earliestStart(activityEnd: end)
         // 默认 4h 演出 → 最早约开场前 4h,不是 12h
         XCTAssertEqual(earliest.timeIntervalSince(start), -4 * 3_600, accuracy: 1)
         XCTAssertEqual(end.timeIntervalSince(earliest), 8 * 3_600, accuracy: 1)
@@ -215,7 +225,6 @@ final class WidgetSnapshotTests: XCTestCase {
     func testLiveActivityContentStateCarriesEditableFields() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let state = ShowLiveActivityAttributes.ContentState(
-            phase: .countdown,
             showName: "夜航西飞",
             city: "上海",
             venueName: "梅奔",
@@ -230,7 +239,6 @@ final class WidgetSnapshotTests: XCTestCase {
 
         // 延期后只换 ContentState,attributes 身份不变
         let postponed = ShowLiveActivityAttributes.ContentState(
-            phase: .countdown,
             showName: "夜航西飞",
             city: "上海",
             venueName: "梅奔",
@@ -264,5 +272,163 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(decoded.city)
         XCTAssertEqual(decoded.venueName, "")
         XCTAssertNil(decoded.coverImageURL)
+    }
+
+    // MARK: - Round-2 review additions
+
+    /// generatedAt 每次同步都变;内容去重必须忽略它,否则 reload 去重失效。
+    func testContentEqualIgnoresGeneratedAt() throws {
+        let show = try makeShow()
+        var a = WidgetShowSnapshot(show: show, generatedAt: Date(timeIntervalSince1970: 1_800_000_000))
+        var b = a
+        b.generatedAt = a.generatedAt.addingTimeInterval(600)
+
+        XCTAssertTrue(a.isContentEqual(to: b))
+        XCTAssertNotEqual(a, b, "generatedAt 仍参与默认 Equatable")
+
+        b.city = "北京"
+        XCTAssertFalse(a.isContentEqual(to: b))
+
+        a.name = "改名"
+        XCTAssertFalse(a.isContentEqual(to: b))
+    }
+
+    /// 开场边界距 now 不足 60s:首条 entry 必须仍是 now,边界共存紧随其后。
+    func testTimelineKeepsNowEntryWhenBoundaryWithinSixtySeconds() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let start = now.addingTimeInterval(30)
+        let plan = WidgetTimelinePlanner.entryDates(
+            now: now,
+            startBoundary: start,
+            endBoundary: nil
+        )
+        XCTAssertEqual(plan.dates.first, now)
+        XCTAssertTrue(plan.dates.contains(start))
+    }
+
+    func testLiveActivityCoverFilenameIsDistinctFromWidgetCover() {
+        let source = "https://cdn.example.com/a.jpg"
+        XCTAssertNotEqual(
+            WidgetCoverCache.filename(for: source),
+            WidgetCoverCache.liveActivityFilename(for: source)
+        )
+        XCTAssertEqual(
+            WidgetCoverCache.liveActivityFilename(for: source),
+            WidgetCoverCache.liveActivityFilename(for: source)
+        )
+    }
+
+    // MARK: LiveActivityPlanner 决策(替代对 ActivityKit 真机行为的不可测断言)
+
+    private func makePlannerSnapshot(
+        start: Date,
+        canceled: Bool = false
+    ) -> WidgetShowSnapshot {
+        let calendar = Calendar.current
+        return WidgetShowSnapshot(
+            showID: UUID(),
+            name: "测试现场",
+            city: "上海",
+            venueName: "场馆",
+            coverImageURL: nil,
+            timing: ShowTimingFields(
+                date: calendar.startOfDay(for: start),
+                startTime: start,
+                endDate: nil,
+                endTime: nil,
+                postponedDate: nil,
+                changeStatus: canceled ? .canceled : .scheduled
+            ),
+            generatedAt: Date()
+        )
+    }
+
+    /// 窗口内、无现有活动 → request;有同场活动 → update。
+    func testPlannerRequestAndUpdateInsideWindow() {
+        let now = Date()
+        // 默认 4h 演出 → 窗口 = 开场前 4h;now+2h 在窗口内
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600))
+        let showID = snapshot.showID.uuidString
+
+        let request = LiveActivityPlanner.action(
+            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+        )
+        guard case .request = request else {
+            return XCTFail("expected request, got \(request)")
+        }
+
+        let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
+        let existing = [LiveActivityExisting(showID: showID, isPending: false, state: desired.state)]
+        let update = LiveActivityPlanner.action(
+            snapshot: snapshot, now: now, existing: existing, coverFilename: nil, canSchedule: true
+        )
+        guard case .update = update else {
+            return XCTFail("expected update, got \(update)")
+        }
+    }
+
+    /// 窗口外:pending 内容未变 → none(保留不重建);endDate 变了 → 重新 schedule。
+    func testPlannerKeepsUnchangedPendingOutsideWindow() {
+        let now = Date()
+        // now+20h 开场,默认 4h 演出 → 窗口起点 = 开场前 4h = now+16h,现在在窗口外
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 3_600))
+        let showID = snapshot.showID.uuidString
+        let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
+
+        let unchanged = LiveActivityPlanner.action(
+            snapshot: snapshot,
+            now: now,
+            existing: [LiveActivityExisting(showID: showID, isPending: true, state: desired.state)],
+            coverFilename: nil,
+            canSchedule: true
+        )
+        XCTAssertEqual(unchanged, .none)
+
+        var changedState = desired.state
+        changedState.endDate = desired.state.endDate?.addingTimeInterval(3_600)
+        let changed = LiveActivityPlanner.action(
+            snapshot: snapshot,
+            now: now,
+            existing: [LiveActivityExisting(showID: showID, isPending: true, state: changedState)],
+            coverFilename: nil,
+            canSchedule: true
+        )
+        guard case .schedule = changed else {
+            return XCTFail("expected schedule on changed pending, got \(changed)")
+        }
+
+        // 无 schedule 能力的系统:窗口外只能结束,等窗口内打开 app
+        let noSchedule = LiveActivityPlanner.action(
+            snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: false
+        )
+        XCTAssertEqual(noSchedule, .endAll)
+    }
+
+    /// 已过谢幕 / 已取消 → endAll。
+    func testPlannerEndsAfterShowAndWhenCanceled() {
+        let now = Date()
+        // 5h 前开场,默认 4h 演出 → 谢幕已过 1h
+        let past = makePlannerSnapshot(start: now.addingTimeInterval(-5 * 3_600))
+        XCTAssertEqual(
+            LiveActivityPlanner.action(
+                snapshot: past, now: now, existing: [], coverFilename: nil, canSchedule: true
+            ),
+            .endAll
+        )
+
+        let canceled = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600), canceled: true)
+        XCTAssertEqual(
+            LiveActivityPlanner.action(
+                snapshot: canceled, now: now, existing: [], coverFilename: nil, canSchedule: true
+            ),
+            .endAll
+        )
+
+        XCTAssertEqual(
+            LiveActivityPlanner.action(
+                snapshot: nil, now: now, existing: [], coverFilename: nil, canSchedule: true
+            ),
+            .endAll
+        )
     }
 }

@@ -12,6 +12,17 @@ struct WidgetShowSnapshot: Codable, Equatable {
     var coverImageURL: String?
     var timing: ShowTimingFields
     var generatedAt: Date
+
+    /// 内容级相等(忽略 generatedAt):generatedAt 每次同步都变,
+    /// 用它去重会让「快照没变就不 reload」失效。
+    func isContentEqual(to other: WidgetShowSnapshot) -> Bool {
+        showID == other.showID
+            && name == other.name
+            && city == other.city
+            && venueName == other.venueName
+            && coverImageURL == other.coverImageURL
+            && timing == other.timing
+    }
 }
 
 enum WidgetSnapshotStore {
@@ -21,8 +32,12 @@ enum WidgetSnapshotStore {
     /// 旧版固定封面路径(仅用于清理);新缓存按 URL 哈希命名,见 WidgetCoverCache。
     static let legacyCoverCacheFilename = "current-show-cover.jpg"
 
+    /// 测试注入:指向临时目录,避免单测读写开发机真实 App Group 快照。
+    nonisolated(unsafe) static var overrideContainerURL: URL?
+
     static var containerURL: URL? {
-        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
+        if let overrideContainerURL { return overrideContainerURL }
+        return FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupID)
     }
 
     static var snapshotURL: URL? {
