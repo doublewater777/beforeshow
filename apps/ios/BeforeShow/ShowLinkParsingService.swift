@@ -83,6 +83,25 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             showDraft.endTime = parseTime(endTime, on: showDraft.endDate ?? date)
         }
 
+        // 字段级 provenance：日期无效时已在上方抛 invalidResponse，始终可计入。
+        var recognizedFields: Set<ShowDraftField> = [.date]
+        if !showDraft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.name)
+        }
+        if showDraft.startTime != nil {
+            recognizedFields.insert(.startTime)
+        }
+        if !showDraft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.city)
+        }
+        if !showDraft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.venueName)
+        }
+        if !showDraft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            recognizedFields.insert(.artist)
+        }
+        showDraft.recognizedFields = recognizedFields
+
         return showDraft
     }
 

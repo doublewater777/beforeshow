@@ -1091,7 +1091,8 @@ struct ShowDetailView: View {
         )
     }
 
-    /// 应用状态变更并返回反馈的语气与文案（编辑器状态卡用它弹自己的 toast）。
+    /// 应用状态变更并只返回反馈（不直接弹 toast）。
+    /// 状态操作发生在编辑 sheet 内，由编辑器 `applyStatusAction` 负责展示，避免详情页与 sheet 各弹一份。
     @MainActor
     @discardableResult
     private func updateStatus(
@@ -1108,16 +1109,11 @@ struct ShowDetailView: View {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            presentToast(.failure, message: "状态没有保存，请重试")
             return ShowStatusActionResult(tone: .failure, message: "状态没有保存，请重试")
         }
 
         let didSyncNotifications = await syncNotificationsToCurrentShow()
         let presentedMessage = didSyncNotifications ? message : "\(message)，通知暂未更新"
-        presentToast(
-            didSyncNotifications ? .success : .neutral,
-            message: presentedMessage
-        )
         return ShowStatusActionResult(
             tone: didSyncNotifications ? .success : .neutral,
             message: presentedMessage

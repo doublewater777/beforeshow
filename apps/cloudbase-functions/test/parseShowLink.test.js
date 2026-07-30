@@ -46,6 +46,44 @@ describe("parseShowLink platform detection", () => {
     );
   });
 
+  it("rejects spoofed Damai host that only contains damai.cn as suffix label", () => {
+    assert.throws(
+      () => detectPlatform("https://damai.cn.evil.example/?id=1054603723374"),
+      (error) => error instanceof UnsupportedPlatformError
+    );
+  });
+
+  it("rejects host that only looks like Damai (notdamai.cn)", () => {
+    assert.throws(
+      () => detectPlatform("https://notdamai.cn/item.htm?id=1054603723374"),
+      (error) => error instanceof UnsupportedPlatformError
+    );
+  });
+
+  it("rejects non-ticket host that only mentions damai.cn in query", () => {
+    assert.throws(
+      () => detectPlatform("https://evil.example/?redirect=damai.cn&id=1054603723374"),
+      (error) => error instanceof UnsupportedPlatformError
+    );
+  });
+
+  it("rejects spoofed ShowStart host", () => {
+    assert.throws(
+      () => detectPlatform("https://showstart.com.evil.example/?activityId=298012"),
+      (error) => error instanceof UnsupportedPlatformError
+    );
+  });
+
+  it("accepts bare Damai host without scheme (matches client chip)", () => {
+    assert.equal(
+      detectPlatform("m.damai.cn/shows/item.html?itemId=1054603723374"),
+      "damai"
+    );
+    const normalized = normalizeUrl("m.damai.cn/shows/item.html?itemId=1054603723374");
+    assert.equal(normalized.platform, "damai");
+    assert.equal(normalized.itemId, "1054603723374");
+  });
+
   it("normalizes Damai mobile URL to canonical PC item ID", () => {
     const normalized = normalizeUrl("https://m.damai.cn/shows/item.html?itemId=1054603723374");
     assert.equal(normalized.platform, "damai");
