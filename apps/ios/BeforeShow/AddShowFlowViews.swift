@@ -1187,7 +1187,9 @@ struct ShowDraftEditorView: View {
                             draft: $draft,
                             includesSeatSection: true,
                             usesCardLayout: true,
-                            onCoverImported: registerImportedCover
+                            onCoverImported: registerImportedCover,
+                            isPostponed: isPostponed,
+                            endTimeSwitchHint: "用于散场后状态与 Tips 切换"
                         )
 
                         if let statusEditing {
@@ -1684,7 +1686,7 @@ struct ShowDraftEditorView: View {
     private func save() async {
         guard !isSaving else { return }
         guard draft.hasValidEndTime() else {
-            message = "结束时间需要晚于开始时间，请检查下方时间范围。"
+            message = "散场时间需要晚于开场时间，请检查下方时间范围。"
             return
         }
 
@@ -1745,6 +1747,10 @@ private struct ShowDraftFormFields: View {
     let requiresDateConfirmation: Bool
     let onConfirmFallbackDate: () -> Void
     let onCoverImported: (String, String) -> Void
+    /// 延期现场（编辑现场传入）：开场日期 / 时间瓷贴标注「原定」。
+    let isPostponed: Bool
+    /// 「记录散场时间」开关的副标题：编辑现场讲用途，添加现场讲何时打开。
+    let endTimeSwitchHint: String
     @State private var startTime: Date
     @State private var hasEndTime: Bool
     @State private var endDate: Date
@@ -1782,7 +1788,9 @@ private struct ShowDraftFormFields: View {
         coverEmptyPlaceholder: Bool = false,
         requiresDateConfirmation: Bool = false,
         onConfirmFallbackDate: @escaping () -> Void = {},
-        onCoverImported: @escaping (String, String) -> Void = { _, _ in }
+        onCoverImported: @escaping (String, String) -> Void = { _, _ in },
+        isPostponed: Bool = false,
+        endTimeSwitchHint: String = "跨天或跨午夜时打开"
     ) {
         let initialDraft = draft.wrappedValue
         let fallbackStart = Calendar.current.date(
@@ -1807,6 +1815,8 @@ private struct ShowDraftFormFields: View {
         self.requiresDateConfirmation = requiresDateConfirmation
         self.onConfirmFallbackDate = onConfirmFallbackDate
         self.onCoverImported = onCoverImported
+        self.isPostponed = isPostponed
+        self.endTimeSwitchHint = endTimeSwitchHint
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
         _hasEndTime = State(initialValue: initialDraft.endTime != nil || initialDraft.endDate != nil)
@@ -1901,7 +1911,7 @@ private struct ShowDraftFormFields: View {
                 tint: BSColor.Accent.violet,
                 hint: "开场必填 · 散场可选"
             ) {
-                AddShowScheduleFields(
+                EditShowScheduleTiles(
                     draft: $draft,
                     startTime: $startTime,
                     isStartTimeConfirmed: draft.startTime != nil,
@@ -1914,15 +1924,10 @@ private struct ShowDraftFormFields: View {
                     dateRecognized: dateRecognized,
                     dateNeeded: requiresDateConfirmation,
                     startTimeRecognized: startTimeRecognized,
-                    onConfirmFallbackDate: onConfirmFallbackDate
+                    onConfirmFallbackDate: onConfirmFallbackDate,
+                    isPostponed: isPostponed,
+                    endTimeSwitchHint: endTimeSwitchHint
                 )
-
-                if draft.startTime != nil && !draft.hasValidEndTime() {
-                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Accent.danger)
-                        .accessibilityLabel("时间范围无效，结束时间需要晚于开始时间")
-                }
             }
 
             EditShowFormCard(title: "地点", icon: "mappin.and.ellipse", tint: BSColor.Accent.prepare) {
@@ -2328,6 +2333,236 @@ private struct AddShowLabeledTextField: View {
                     }
                 }
         }
+    }
+}
+
+/// 卡片布局的日期时间区（edit-show-v1 / add-show-v1 稿子同款）：
+/// 开场日期 / 开场时间两张瓷贴（标签内嵌、大字号等宽数值、星期标注），
+/// 「记录散场时间」收成开关，展开后再给散场日期（同日标注）+ 散场时间瓷贴；
+/// 时间范围无效时散场时间瓷贴红描边 + 错误前置，保存栏配合禁用。
+private struct EditShowScheduleTiles: View {
+    @Binding var draft: ShowDraft
+    @Binding var startTime: Date
+    let isStartTimeConfirmed: Bool
+    let onConfirmStartTime: () -> Void
+    @Binding var hasEndTime: Bool
+    @Binding var endDate: Date
+    @Binding var endTime: Date
+    var dateRecognized: Bool = false
+    var dateNeeded: Bool = false
+    var startTimeRecognized: Bool = false
+    var onConfirmFallbackDate: () -> Void = {}
+    var isPostponed: Bool = false
+    var endTimeSwitchHint: String = "跨天或跨午夜时打开"
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
+
+    private static let weekdayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.dateFormat = "E"
+        return formatter
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private var isEndTimeInvalid: Bool {
+        draft.startTime != nil && !draft.hasValidEndTime()
+    }
+
+    private var endDateAnnotation: String {
+        Calendar.current.isDate(endDate, inSameDayAs: draft.date)
+            ? "同日"
+            : Self.weekdayFormatter.string(from: endDate)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            HStack(spacing: 12) {
+                EditShowPickerTile(
+                    title: isPostponed ? "原定开场日期" : "开场日期",
+                    valueText: Self.dayFormatter.string(from: draft.date),
+                    annotation: Self.weekdayFormatter.string(from: draft.date),
+                    selection: $draft.date,
+                    components: .date,
+                    mark: dateNeeded ? .needed : (dateRecognized ? .recognized : nil),
+                    onUserEdit: dateNeeded ? onConfirmFallbackDate : nil
+                )
+
+                EditShowPickerTile(
+                    title: isPostponed ? "原定开场时间" : "开场时间",
+                    valueText: Self.timeFormatter.string(from: startTime),
+                    selection: $startTime,
+                    components: .hourAndMinute,
+                    mark: isStartTimeConfirmed ? (startTimeRecognized ? .recognized : nil) : .needed
+                )
+            }
+
+            if dateNeeded {
+                Button("确认使用这个日期", action: onConfirmFallbackDate)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
+
+            if !isStartTimeConfirmed {
+                Button("确认使用这个时间", action: onConfirmStartTime)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("记录散场时间")
+                        .font(.system(size: 13.5))
+                        .foregroundColor(BSColor.textPrimary)
+                    Text(endTimeSwitchHint)
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.dim)
+                }
+                Spacer(minLength: 0)
+                Toggle("记录散场时间", isOn: $hasEndTime)
+                    .labelsHidden()
+                    .tint(BSColor.Stage.accent)
+                    .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
+            }
+
+            if hasEndTime {
+                HStack(spacing: 12) {
+                    EditShowPickerTile(
+                        title: "散场日期",
+                        valueText: Self.dayFormatter.string(from: endDate),
+                        annotation: endDateAnnotation,
+                        selection: $endDate,
+                        components: .date
+                    )
+
+                    EditShowPickerTile(
+                        title: "散场时间",
+                        valueText: Self.timeFormatter.string(from: endTime),
+                        selection: $endTime,
+                        components: .hourAndMinute,
+                        isInvalid: isEndTimeInvalid
+                    )
+                }
+            }
+
+            if isEndTimeInvalid {
+                Label("散场时间需要晚于开场时间", systemImage: "xmark.circle.fill")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.danger)
+                    .accessibilityLabel("时间范围无效，散场时间需要晚于开场时间")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+        .animation(.easeInOut(duration: 0.18), value: hasEndTime)
+    }
+}
+
+/// 日期 / 时间瓷贴：标签内嵌顶部，大字号等宽数值 + 小字标注（星期 / 同日）。
+/// 整块可点，透明 DatePicker 覆盖层负责唤起系统选择器。
+private struct EditShowPickerTile: View {
+    let title: String
+    let valueText: String
+    var annotation: String? = nil
+    @Binding var selection: Date
+    let components: DatePickerComponents
+    var isInvalid = false
+    var mark: AddShowFieldLabel.Mark? = nil
+    /// 手动改动选择器时的回调（识别导入的回退日期视为确认）。
+    var onUserEdit: (() -> Void)? = nil
+
+    var body: some View {
+        ZStack {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.dim)
+
+                    Spacer(minLength: 0)
+
+                    if let mark {
+                        switch mark {
+                        case .recognized:
+                            Label("已识别", systemImage: "checkmark")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(BSColor.Accent.prepare)
+                        case .needed:
+                            Text("待确认")
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundColor(BSColor.Stage.accent)
+                        }
+                    }
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(valueText)
+                        .font(.system(size: 17, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundColor(BSColor.textPrimary)
+                    if let annotation {
+                        Text(annotation)
+                            .font(.system(size: 12))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.05))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+            .shadow(color: shadowColor, radius: 6)
+            .accessibilityHidden(true)
+
+            DatePicker("", selection: $selection, displayedComponents: components)
+                .labelsHidden()
+                .datePickerStyle(.compact)
+                .tint(BSColor.Accent.violet)
+                .opacity(0.011)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .accessibilityLabel(title)
+                .onChange(of: selection) { _, _ in
+                    onUserEdit?()
+                }
+        }
+    }
+
+    private var borderColor: Color {
+        if isInvalid {
+            return BSColor.Accent.danger.opacity(0.45)
+        }
+        switch mark {
+        case .needed:
+            return BSColor.Stage.accent.opacity(0.50)
+        case .recognized:
+            return BSColor.Accent.prepare.opacity(0.30)
+        case nil:
+            return BSColor.borderProminent
+        }
+    }
+
+    private var shadowColor: Color {
+        mark == .needed ? BSColor.Stage.accent.opacity(0.10) : .clear
     }
 }
 
