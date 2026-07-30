@@ -1121,11 +1121,14 @@ struct ShowDraftEditorView: View {
     var isPostponed: Bool = false
     /// 现场状态管理（延期 / 取消 / 恢复 / 删除），nil 时不渲染现场状态卡。
     var statusEditing: ShowStatusEditingContext? = nil
+    /// true 时先以只读模式展示表单信息，点按内容或「编辑」后进入可编辑状态。
+    var startsReadOnly: Bool = false
     let onSave: @MainActor (ShowDraft) async throws -> Void
     private let initialDraft: ShowDraft
     private let originalCoverURL: String
 
     @State private var draft: ShowDraft
+    @State private var isEditable: Bool
     @State private var message: String?
     @State private var isSaving = false
     @State private var showsDiscardConfirmation = false
@@ -1146,6 +1149,7 @@ struct ShowDraftEditorView: View {
         statusPillText: String? = nil,
         isPostponed: Bool = false,
         statusEditing: ShowStatusEditingContext? = nil,
+        startsReadOnly: Bool = false,
         onSave: @escaping @MainActor (ShowDraft) async throws -> Void
     ) {
         self.title = title
@@ -1155,6 +1159,8 @@ struct ShowDraftEditorView: View {
         self.statusPillText = statusPillText
         self.isPostponed = isPostponed
         self.statusEditing = statusEditing
+        self.startsReadOnly = startsReadOnly
+        _isEditable = State(initialValue: !startsReadOnly)
         self.onSave = onSave
         initialDraft = draft
         originalCoverURL = draft.coverImageURL
@@ -1200,11 +1206,22 @@ struct ShowDraftEditorView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 6)
                     .padding(.bottom, 24)
+                    .allowsHitTesting(isEditable)
                 }
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
+                .simultaneousGesture(
+                    TapGesture().onEnded {
+                        guard !isEditable else { return }
+                        isEditable = true
+                    }
+                )
 
-                saveBar
+                if isEditable {
+                    saveBar
+                } else {
+                    readOnlyBar
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -1291,19 +1308,47 @@ struct ShowDraftEditorView: View {
                 .foregroundColor(BSColor.textPrimary)
 
             HStack {
-                Button {
-                    requestDismiss()
-                } label: {
-                    Text("取消")
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textSecondary)
-                        .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                        .contentShape(Rectangle())
+                if isEditable {
+                    Button {
+                        requestDismiss()
+                    } label: {
+                        Text("取消")
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.textSecondary)
+                            .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("取消编辑")
+                } else {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Text("返回")
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.textSecondary)
+                            .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("返回")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("取消编辑")
 
                 Spacer(minLength: 0)
+
+                if !isEditable {
+                    Button {
+                        isEditable = true
+                    } label: {
+                        Text("编辑")
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.Stage.accent)
+                            .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .trailing)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("进入编辑")
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -1608,6 +1653,42 @@ struct ShowDraftEditorView: View {
     }
 
     // MARK: - 吸底保存栏
+
+    /// 只读模式：展示表单信息，点击按钮或表单任意位置进入可编辑状态。
+    private var readOnlyBar: some View {
+        VStack(spacing: 10) {
+            Text("点击内容即可编辑")
+                .font(.system(size: 12))
+                .foregroundColor(BSColor.Stage.dim)
+                .frame(maxWidth: .infinity)
+
+            Button {
+                isEditable = true
+            } label: {
+                HStack(spacing: BSSpacing.sm) {
+                    Image(systemName: "square.and.pencil")
+                    Text("编辑")
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditShowSaveButtonStyle())
+            .accessibilityLabel("进入编辑")
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
+        .background(
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Rectangle().fill(Color.black.opacity(0.28)))
+                .ignoresSafeArea(edges: .bottom)
+        )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(BSColor.Stage.border)
+                .frame(height: 1)
+        }
+    }
 
     private var saveBar: some View {
         VStack(spacing: 10) {
@@ -1944,15 +2025,6 @@ private struct ShowDraftFormFields: View {
                     text: $draft.venueName,
                     isRecognized: venueRecognized
                 )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，方便到场",
-                    text: $draft.venueAddress,
-                    city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
-                )
             }
 
             EditShowFormCard(
@@ -2082,15 +2154,6 @@ private struct ShowDraftFormFields: View {
                     title: "场馆",
                     placeholder: "上海体育场",
                     text: $draft.venueName
-                )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，方便到场",
-                    text: $draft.venueAddress,
-                    city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
                 )
             }
 

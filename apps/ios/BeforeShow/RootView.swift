@@ -9,6 +9,8 @@ struct RootView: View {
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isShowingFirstShowAdd = false
     @State private var addShowToast: BSToastPayload?
+    /// 推入详情/编辑页时隐藏浮动 Tab，避免遮住吸底操作栏。
+    @State private var isFloatingTabBarHidden = false
 
     var body: some View {
         ZStack {
@@ -80,7 +82,23 @@ struct RootView: View {
                 .accessibilityHidden(selectedTab != .myShows)
 
             HomeFloatingTabBar(selectedTab: $selectedTab)
+                .opacity(isFloatingTabBarHidden ? 0 : 1)
+                .allowsHitTesting(!isFloatingTabBarHidden)
+                .accessibilityHidden(isFloatingTabBarHidden)
         }
+        .environment(\.hidesFloatingTabBar, $isFloatingTabBarHidden)
+    }
+}
+
+/// 推入全屏详情/编辑页时把它置 true，返回时置 false，RootView 据此隐藏浮动 Tab。
+private struct HidesFloatingTabBarKey: EnvironmentKey {
+    static let defaultValue: Binding<Bool> = .constant(false)
+}
+
+extension EnvironmentValues {
+    var hidesFloatingTabBar: Binding<Bool> {
+        get { self[HidesFloatingTabBarKey.self] }
+        set { self[HidesFloatingTabBarKey.self] = newValue }
     }
 }
 
