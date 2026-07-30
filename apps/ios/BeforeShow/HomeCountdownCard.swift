@@ -74,6 +74,8 @@ enum HomeShowPhase: Equatable {
 /// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
 struct HomeCountdownLockup: View {
     let show: Show
+    /// live 相位在 lockup 内提供「结束这场现场」主动作(散场由用户确认)。
+    var onEndShow: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -162,30 +164,53 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    // MARK: live:脉冲 + 已进行
+    // MARK: live:脉冲 + 已进行 + 结束动作
 
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        HStack(spacing: 14) {
-            HomeLivePulse(reduceMotion: reduceMotion)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                HomeLivePulse(reduceMotion: reduceMotion)
 
-            Text("灯光已亮")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundColor(BSColor.Stage.liveTitle)
+                Text("灯光已亮")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.liveTitle)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            VStack(spacing: 4) {
-                Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
-                    .font(.system(size: 22, weight: .semibold))
-                    .monospacedDigit()
-                    .tracking(-0.3)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("已进行")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+                VStack(spacing: 4) {
+                    Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
+                        .font(.system(size: 22, weight: .semibold))
+                        .monospacedDigit()
+                        .tracking(-0.3)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text("已进行")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(BSColor.Stage.dim)
+                }
+            }
+            .padding(.vertical, 8)
+
+            if let onEndShow, show.endedAt == nil {
+                Button(action: onEndShow) {
+                    Label("散场了,结束这场现场", systemImage: "moon.stars")
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 14)
+                                .fill(BSColor.Stage.live.opacity(0.10))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("结束这场现场,散场后进入停留期")
+                .padding(.top, 6)
             }
         }
-        .padding(.vertical, 8)
     }
 
     // MARK: ended:冷静收束
@@ -319,12 +344,10 @@ struct HomeTipCard: View {
     let phase: HomeShowPhase
     let timeState: CurrentShowTimeState
     var onAddNextShow: () -> Void = {}
-    var onEndShow: () -> Void = {}
 
-    /// Tip 卡底部的安静出口:停留期去添加下一场,live 时确认散场。
+    /// Tip 卡底部的安静出口:停留期去添加下一场。
     private enum QuietAction {
         case addNextShow
-        case endShow
     }
 
     private struct Content {
@@ -402,8 +425,7 @@ struct HomeTipCard: View {
                 badge: "正在现场",
                 title: "享受这一晚",
                 text: "散场后人多,提前想好从哪个出口离开。",
-                tone: .gray,
-                quiet: show.endedAt == nil ? ("散场了 → 结束这场现场", .endShow) : nil
+                tone: .gray
             )
         case .ended:
             guard timeState.kind == .postShow else { return nil }
@@ -471,7 +493,6 @@ struct HomeTipCard: View {
                     Button {
                         switch quiet.action {
                         case .addNextShow: onAddNextShow()
-                        case .endShow: onEndShow()
                         }
                     } label: {
                         Text(quiet.text)

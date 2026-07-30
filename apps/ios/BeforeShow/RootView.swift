@@ -355,7 +355,7 @@ private struct CurrentShowContentView: View {
                 heroStage(phase: phase, timeState: timeState, coverWidth: coverWidth)
                     .padding(.top, 8)
 
-                HomeCountdownLockup(show: show)
+                HomeCountdownLockup(show: show, onEndShow: onEndShow)
                     .padding(.horizontal, 21)
                     .padding(.top, 20)
 
@@ -363,8 +363,7 @@ private struct CurrentShowContentView: View {
                     show: show,
                     phase: phase,
                     timeState: timeState,
-                    onAddNextShow: onAddNextShow,
-                    onEndShow: onEndShow
+                    onAddNextShow: onAddNextShow
                 )
                 .padding(.horizontal, contentInset)
                 .padding(.top, 16)
