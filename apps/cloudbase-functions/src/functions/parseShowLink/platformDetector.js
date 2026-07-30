@@ -6,14 +6,21 @@ export class UnsupportedPlatformError extends Error {
   }
 }
 
+/**
+ * 基于 hostname 严格识别平台，拒绝仿冒域名与查询参数里的关键字误报。
+ * 只认官方域及其子域：damai.cn / *.damai.cn、showstart.com / *.showstart.com。
+ */
 export function detectPlatform(urlString) {
-  const lower = urlString.toLowerCase();
+  const host = hostnameOf(urlString);
+  if (!host) {
+    throw new UnsupportedPlatformError(urlString);
+  }
 
-  if (lower.includes("damai.cn")) {
+  if (host === "damai.cn" || host.endsWith(".damai.cn")) {
     return "damai";
   }
 
-  if (lower.includes("showstart.com")) {
+  if (host === "showstart.com" || host.endsWith(".showstart.com")) {
     return "showstart";
   }
 
@@ -22,7 +29,12 @@ export function detectPlatform(urlString) {
 
 export function normalizeUrl(urlString) {
   const extractedUrl = extractShowUrl(urlString);
-  const url = new URL(extractedUrl);
+  let url;
+  try {
+    url = new URL(extractedUrl);
+  } catch {
+    throw new UnsupportedPlatformError(urlString);
+  }
   const platform = detectPlatform(extractedUrl);
 
   if (platform === "damai") {
@@ -57,10 +69,36 @@ export function normalizeUrl(urlString) {
   throw new UnsupportedPlatformError(urlString);
 }
 
+/**
+ * 从粘贴文本中取出可解析的票务 URL。
+ * 无协议的域名路径会补上 https://，与客户端来源 chip 行为一致。
+ */
 export function extractShowUrl(input) {
   const trimmed = normalizeFullWidthAscii(input).trim();
   const match = trimmed.match(/https?:\/\/[^\s【】"'<>]+/i);
-  return match?.[0] ?? trimmed;
+  const raw = match?.[0] ?? trimmed;
+  return ensureAbsoluteUrl(raw);
+}
+
+function hostnameOf(urlString) {
+  try {
+    return new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+}
+
+function ensureAbsoluteUrl(urlString) {
+  if (!urlString) {
+    return urlString;
+  }
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(urlString)) {
+    return urlString;
+  }
+  if (urlString.startsWith("//")) {
+    return `https:${urlString}`;
+  }
+  return `https://${urlString}`;
 }
 
 function normalizeFullWidthAscii(input) {

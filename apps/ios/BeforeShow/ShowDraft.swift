@@ -592,11 +592,13 @@ struct OnDeviceShowScreenshotRecognizer {
     var parser: ShowScreenshotRecognitionService = ShowScreenshotRecognitionService()
 
     func draft(from image: UIImage) async throws -> ShowDraft {
+        try Task.checkCancellation()
         guard let cgImage = image.cgImage else {
             throw ShowScreenshotImageRecognitionError.missingImageData
         }
 
         let recognizedText = try await recognizedText(from: cgImage)
+        try Task.checkCancellation()
         guard let draft = parser.draft(fromRecognizedText: recognizedText) else {
             throw ShowScreenshotImageRecognitionError.noRecognizedDraft
         }
@@ -604,32 +606,48 @@ struct OnDeviceShowScreenshotRecognizer {
         return draft
     }
 
+    /// Vision `perform` 是阻塞调用；取消时通过 `withTaskCancellationHandler` 调 `request.cancel()`，
+    /// 避免页面关闭后仍长时间占 CPU。
     private func recognizedText(from cgImage: CGImage) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            let request = VNRecognizeTextRequest { request, error in
-                if let error {
-                    continuation.resume(throwing: error)
-                    return
-                }
+        try Task.checkCancellation()
 
-                let observations = request.results as? [VNRecognizedTextObservation] ?? []
-                let lines = observations.compactMap { observation in
-                    observation.topCandidates(1).first?.string
-                }
-                continuation.resume(returning: lines.joined(separator: "\n"))
-            }
-            request.recognitionLevel = .accurate
-            request.usesLanguageCorrection = true
-            request.recognitionLanguages = ["zh-Hans", "en-US"]
+        // VNRecognizeTextRequest 非 Sendable；用 box 在 onCancel / 后台队列间安全持有。
+        let box = VisionTextRequestBox()
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = ["zh-Hans", "en-US"]
+        box.request = request
 
-            let handler = VNImageRequestHandler(cgImage: cgImage)
-            do {
-                try handler.perform([request])
-            } catch {
-                continuation.resume(throwing: error)
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        guard let request = box.request else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        let handler = VNImageRequestHandler(cgImage: cgImage)
+                        try handler.perform([request])
+                        let observations = request.results ?? []
+                        let lines = observations.compactMap { observation in
+                            observation.topCandidates(1).first?.string
+                        }
+                        continuation.resume(returning: lines.joined(separator: "\n"))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
             }
+        } onCancel: {
+            box.request?.cancel()
         }
     }
+}
+
+/// 跨 Sendable 边界持有 Vision 请求，便于取消。
+private final class VisionTextRequestBox: @unchecked Sendable {
+    var request: VNRecognizeTextRequest?
 }
 #endif
 
@@ -653,15 +671,26 @@ struct ShowLinkDraftParser {
     }
 
     func draft(from urlString: String) async throws -> ShowDraft {
+        // 与 UI 来源 chip / 云端 extractShowUrl 一致：无协议先补 https://
+        let link = Self.normalizedLink(urlString)
         if let service {
-            return try await service.parse(link: urlString)
+            return try await service.parse(link: link)
         }
 
-        return try localDraft(from: urlString)
+        return try localDraft(from: link)
     }
 
     func draft(from urlString: String) throws -> ShowDraft {
-        try localDraft(from: urlString)
+        try localDraft(from: Self.normalizedLink(urlString))
+    }
+
+    /// 粘贴无协议域名时补上 https://，避免 UI 已识别但提交 new URL 失败。
+    static func normalizedLink(_ urlString: String) -> String {
+        let trimmed = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        if trimmed.contains("://") { return trimmed }
+        if trimmed.hasPrefix("//") { return "https:" + trimmed }
+        return "https://" + trimmed
     }
 
     private func localDraft(from urlString: String) throws -> ShowDraft {

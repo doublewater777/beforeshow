@@ -198,6 +198,21 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertThrowsError(try parser.draft(from: "https://showstart.com.evil.example/item?date=2026-07-15"))
     }
 
+    func testLinkParserNormalizesBareHostWithoutScheme() throws {
+        // UI 来源 chip 会补 https://；提交解析必须用同一规范化，否则 chip 成功但解析失败
+        XCTAssertEqual(
+            ShowLinkDraftParser.normalizedLink("detail.damai.cn/item.htm?date=2026-07-15&name=测试"),
+            "https://detail.damai.cn/item.htm?date=2026-07-15&name=测试"
+        )
+
+        let parser = ShowLinkDraftParser(calendar: calendar)
+        let draft = try parser.draft(
+            from: "detail.damai.cn/item.htm?date=2026-07-15&time=20:00&name=测试现场&city=上海&venue=测试场馆"
+        )
+        XCTAssertEqual(draft.name, "测试现场")
+        XCTAssertTrue(draft.recognizedFields.contains(.date))
+    }
+
     func testRemoteShowLinkParsingServiceMarksProvenanceWithoutStartTime() async throws {
         let json = """
         {

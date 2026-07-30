@@ -443,11 +443,11 @@ struct AddShowFlowView: View {
 
     /// 粘贴即识别链接来源，不用等一次失败往返。
     /// 只匹配官方域名及其子域名，避免查询参数或仿冒域名误报。
+    /// 与 `ShowLinkDraftParser.normalizedLink` 使用同一套规范化，避免 chip 成功但提交失败。
     private var detectedLinkSource: String? {
-        let text = linkText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
-        let candidate = text.contains("://") ? text : "https://" + text
-        guard let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
+        let candidate = ShowLinkDraftParser.normalizedLink(linkText)
+        guard !candidate.isEmpty,
+              let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
         if host == "damai.cn" || host.hasSuffix(".damai.cn") { return "大麦" }
         if host == "showstart.com" || host.hasSuffix(".showstart.com") { return "秀动" }
         return nil
@@ -706,8 +706,8 @@ struct AddShowFlowView: View {
     }
 
     private func saveProgressSegment(filled: Bool) -> some View {
-        // 日期未确认时不算就绪，避免进度条全绿但保存仍被挡住
-        let ready = draft.isReadyToSave && !needsDateConfirmation
+        // 导入中 / 日期未确认都不算就绪，避免进度条全绿但保存仍被挡住
+        let ready = draft.isReadyToSave && !needsDateConfirmation && !isImportingDraft
         let fill: Color = filled
             ? (ready ? BSColor.Accent.prepare : BSColor.Stage.accent)
             : Color.white.opacity(0.10)
@@ -828,8 +828,8 @@ struct AddShowFlowView: View {
             if requestRevision == importRequestRevision {
                 isRecognizingScreenshot = false
                 ocrActiveStep = 0
+                selectedScreenshotItem = nil
             }
-            selectedScreenshotItem = nil
         }
 
         do {
