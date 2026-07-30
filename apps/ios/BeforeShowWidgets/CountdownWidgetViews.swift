@@ -89,13 +89,16 @@ struct CountdownPresentation {
         let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
         startDate = state.effectiveStartTime
         endBoundary = state.endBoundary
-        remainingSeconds = state.effectiveStartTime
+        let remaining = state.effectiveStartTime
             .map { max(0, Int($0.timeIntervalSince(entry.date))) } ?? 0
+        remainingSeconds = remaining
 
         switch HomeShowPhase(timeState: state, now: entry.date) {
         case .pre:
-            if state.dayDistance >= 1 {
-                hero = .far(days: state.dayDistance)
+            // 与首页一致:按实际剩余秒数分档,不用日历 dayDistance
+            // (23:50→次日 00:10 是 20 分钟,不是「1 天」)
+            if remaining >= 86_400 {
+                hero = .far(days: remaining / 86_400)
             } else if let start = state.effectiveStartTime {
                 hero = .near(start: start)
             } else {

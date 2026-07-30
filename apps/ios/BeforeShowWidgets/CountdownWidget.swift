@@ -30,63 +30,90 @@ struct CountdownEntry: TimelineEntry {
 
 struct CountdownTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> CountdownEntry {
-        CountdownEntry(date: .now, snapshot: WidgetSnapshotStore.read(), coverImagePath: WidgetCoverCache.cachedCoverPath())
+        // 固定示例,不读 App Group,避免组件库预览受用户数据/IO 影响
+        CountdownEntry(
+            date: .now,
+            snapshot: WidgetShowSnapshot(
+                showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                name: "夜航西飞",
+                city: "上海",
+                venueName: "梅赛德斯-奔驰文化中心",
+                coverImageURL: nil,
+                timing: ShowTimingFields(
+                    date: Date().addingTimeInterval(3 * 86_400),
+                    startTime: Date().addingTimeInterval(3 * 86_400),
+                    endDate: nil,
+                    endTime: nil,
+                    postponedDate: nil,
+                    changeStatus: .scheduled
+                ),
+                generatedAt: .now
+            ),
+            coverImagePath: nil
+        )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CountdownEntry) -> Void) {
-        completion(CountdownEntry(date: .now, snapshot: WidgetSnapshotStore.read(), coverImagePath: WidgetCoverCache.cachedCoverPath()))
+        let snapshot = WidgetSnapshotStore.read()
+        let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+        completion(CountdownEntry(date: .now, snapshot: snapshot, coverImagePath: coverPath))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CountdownEntry>) -> Void) {
-        // completion 只被调用一次,装盒跨 Task 传递是安全的(Swift 6 sending 检查)
-        let completionBox = SendableCompletion(completion)
+        // TimelineProvider 仍是 completion 回调 API;用一次性投递盒建立线程安全边界。
+        let delivery = OnceTimelineDelivery(completion)
         Task {
-            let snapshot = WidgetSnapshotStore.read()
-            if let source = snapshot?.coverImageURL {
-                await WidgetCoverCache.refresh(for: source)
-            }
-            let coverPath = WidgetCoverCache.cachedCoverPath()
-
-            let now = Date()
-            var dates: [Date] = [now]
-            // 每小时刷新兜底远场天数变化
-            for hour in 1...11 {
-                if let date = Calendar.current.date(byAdding: .hour, value: hour, to: now) {
-                    dates.append(date)
-                }
-            }
-            // 开场 / 谢幕边界必须各有一个条目,phase 才能准点切换
-            if let timing = snapshot?.timing {
-                let state = CurrentShowTimeState(timing: timing, now: now)
-                if let start = state.effectiveStartTime, start > now { dates.append(start) }
-                if let end = state.endBoundary, end > now { dates.append(end) }
-            }
-
-            let entries = dates
-                .sorted()
-                .reduce(into: [Date]()) { partial, date in
-                    if partial.last.map({ abs($0.timeIntervalSince(date)) > 60 }) ?? true {
-                        partial.append(date)
-                    }
-                }
-                .map { CountdownEntry(date: $0, snapshot: snapshot, coverImagePath: coverPath) }
-
-            completionBox.call(Timeline(entries: entries, policy: .atEnd))
+            let timeline = await Self.buildTimeline()
+            delivery.deliver(timeline)
         }
+    }
+
+    static func buildTimeline(
+        now: Date = Date(),
+        snapshot: WidgetShowSnapshot? = WidgetSnapshotStore.read()
+    ) async -> Timeline<CountdownEntry> {
+        if let source = snapshot?.coverImageURL {
+            await WidgetCoverCache.refresh(for: source)
+        } else {
+            await WidgetCoverCache.refresh(for: nil)
+        }
+        let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+
+        var startBoundary: Date?
+        var endBoundary: Date?
+        if let timing = snapshot?.timing {
+            let state = CurrentShowTimeState(timing: timing, now: now)
+            startBoundary = state.effectiveStartTime
+            endBoundary = state.endBoundary
+        }
+
+        let plan = WidgetTimelinePlanner.entryDates(
+            now: now,
+            startBoundary: startBoundary,
+            endBoundary: endBoundary
+        )
+        let entries = plan.dates.map {
+            CountdownEntry(date: $0, snapshot: snapshot, coverImagePath: coverPath)
+        }
+        return Timeline(entries: entries, policy: .after(plan.windowEnd))
     }
 }
 
-/// TimelineProvider 的 completion 没有标 Sendable,但它恰好只被调用一次——
-/// 装一个 @unchecked Sendable 的盒子过 Swift 6 的 sending 检查。
-private struct SendableCompletion: @unchecked Sendable {
-    private let completion: (Timeline<CountdownEntry>) -> Void
+/// WidgetKit completion 未标 Sendable;锁 + 单次消费避免跨 Task 数据竞争。
+private final class OnceTimelineDelivery: @unchecked Sendable {
+    private let lock = NSLock()
+    private var completion: ((Timeline<CountdownEntry>) -> Void)?
 
     init(_ completion: @escaping (Timeline<CountdownEntry>) -> Void) {
         self.completion = completion
     }
 
-    func call(_ timeline: Timeline<CountdownEntry>) {
-        completion(timeline)
+    func deliver(_ timeline: Timeline<CountdownEntry>) {
+        lock.lock()
+        let handler = completion
+        completion = nil
+        lock.unlock()
+        handler?(timeline)
     }
 }
 
