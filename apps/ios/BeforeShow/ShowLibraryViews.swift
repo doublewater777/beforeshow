@@ -77,7 +77,7 @@ struct MyShowsListView: View {
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                             HStack {
                                 Text("我的现场")
                                     .font(.system(size: 32, weight: .bold))
@@ -135,7 +135,7 @@ struct MyShowsListView: View {
             .navigationDestination(item: $detailTarget) { show in
                 ShowDetailView(show: show)
             }
-            .bsToastOverlay(toast, bottomPadding: 28)
+            .bsToastOverlay(toast, bottomPadding: 90)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentToast(.success, message: "已放入当前现场")
@@ -726,11 +726,11 @@ struct ShowDetailView: View {
                     managementRow
                 }
                 .padding(.horizontal, BSSpacing.md)
-                .padding(.bottom, BSSpacing.xl)
+                .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollIndicators(.hidden)
         }
-        .bsToastOverlay(toast, bottomPadding: 28)
+        .bsToastOverlay(toast, bottomPadding: 90)
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)

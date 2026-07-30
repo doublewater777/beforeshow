@@ -35,3 +35,41 @@ final class ShowPreparationTests: XCTestCase {
         XCTAssertFalse(singleTips.contains(where: { $0.contains("跨天停留") }))
     }
 }
+
+// MARK: - Home Lineup Parser
+
+final class HomeLineupParserTests: XCTestCase {
+    func testASCIICommaSeparatesNames() {
+        XCTAssertEqual(HomeLineupParser.names(from: "艺人 A, 艺人 B, 艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    }
+
+    func testFullwidthCommaSeparatesNames() {
+        XCTAssertEqual(HomeLineupParser.names(from: "艺人 A，艺人 B，艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    }
+
+    func testIdeographicCommaSeparatesNames() {
+        XCTAssertEqual(HomeLineupParser.names(from: "艺人 A、艺人 B、艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    }
+
+    func testSlashSeparatesNames() {
+        XCTAssertEqual(HomeLineupParser.names(from: "艺人 A/艺人 B/艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    }
+
+    func testMixedSeparatorsAndWhitespace() {
+        XCTAssertEqual(
+            HomeLineupParser.names(from: " 艺人 A，艺人 B 、 艺人 C /艺人 D "),
+            ["艺人 A", "艺人 B", "艺人 C", "艺人 D"]
+        )
+    }
+
+    func testLineupRequiresAtLeastThreeNames() {
+        XCTAssertEqual(HomeLineupParser.lineup(from: "艺人 A,艺人 B"), [])
+        XCTAssertEqual(HomeLineupParser.lineup(from: "艺人 A,艺人 B,艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    }
+
+    func testEmptyAndNilArtistProduceNoNames() {
+        XCTAssertEqual(HomeLineupParser.names(from: nil), [])
+        XCTAssertEqual(HomeLineupParser.names(from: ""), [])
+        XCTAssertEqual(HomeLineupParser.names(from: " ,、/ "), [])
+    }
+}

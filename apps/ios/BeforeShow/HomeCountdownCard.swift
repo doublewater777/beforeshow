@@ -1,11 +1,32 @@
 import SwiftUI
 
+// MARK: - Lineup Parser
+
+/// 音乐节阵容解析:艺人字段按 ASCII 逗号 / 中文全角逗号 / 顿号 / 斜杠拆分;
+/// 拆出 ≥ 3 个名字才视为音乐节阵容(只读展示,不做交互)。
+enum HomeLineupParser {
+    static let separators = CharacterSet(charactersIn: ",，、/")
+
+    static func names(from artist: String?) -> [String] {
+        guard let artist else { return [] }
+        return artist
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    static func lineup(from artist: String?) -> [String] {
+        let parsed = names(from: artist)
+        return parsed.count >= 3 ? parsed : []
+    }
+}
+
 // MARK: - Home Show Phase
-// 首页三态（设计稿 pre / live / ended）从 CurrentShowTimeState 推导：
-// - pre: 开场前（含当天未到开场时间）
-// - live: 开场中（越过开场时间，未到谢幕边界）
-// - ended: 谢幕后（停留期与已结束）
-// - inactive: 已取消 / 待定，卡片回退为文本态
+// 首页三态(设计稿 pre / live / ended)从 CurrentShowTimeState 推导:
+// - pre: 开场前(含当天未到开场时间)
+// - live: 开场中(越过开场时间,未到谢幕边界)
+// - ended: 谢幕后(停留期与已结束)
+// - inactive: 已取消 / 待定,首页回退为文本态
 enum HomeShowPhase: Equatable {
     case pre
     case live
@@ -29,7 +50,7 @@ enum HomeShowPhase: Equatable {
         }
     }
 
-    /// Hero kicker 文案；inactive 由调用方回退到 timeState.title（已取消 / 时间待定）。
+    /// Hero kicker 文案;inactive 由调用方回退到 timeState.title(已取消 / 时间待定)。
     func kickerText(city: String?) -> String {
         let trimmed = city?.trimmingCharacters(in: .whitespacesAndNewlines)
         let stop = trimmed.flatMap { $0.isEmpty ? nil : $0 }
@@ -46,12 +67,12 @@ enum HomeShowPhase: Equatable {
     }
 }
 
-// MARK: - Home Countdown Card
+// MARK: - Home Countdown Lockup
 
-/// 压住海报下缘的浮动倒计时卡（设计稿 countdown）：
-/// pre 天/时/分/秒秒级四格；live 脉冲 + 已进行时长；ended 冷静收束 + 本场时长。
-/// TimelineView 每秒按当前时间重算 phase，跨越开场 / 谢幕边界自动切换。
-struct HomeCountdownCard: View {
+/// V4 首页倒计时节拍:封面之后 20pt 停顿的扁 lockup(不再是压住海报的浮动卡片)。
+/// pre 远场超大天数、当天秒级时钟、临近 1 小时金色时钟;
+/// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
+struct HomeCountdownLockup: View {
     let show: Show
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -60,27 +81,30 @@ struct HomeCountdownCard: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let timeState = CurrentShowTimeState(show: show, now: context.date)
             let phase = HomeShowPhase(timeState: timeState, now: context.date)
-            card(phase: phase, timeState: timeState, now: context.date)
+            lockup(phase: phase, timeState: timeState, now: context.date)
         }
     }
 
     @ViewBuilder
-    private func card(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(label(for: phase, timeState: timeState))
-                    .font(.system(size: 12, weight: .medium))
+    private func lockup(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(label(for: phase, timeState: timeState, now: now))
+                    .font(.system(size: 12.5, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
                 Spacer(minLength: 0)
-                Text(badge(for: phase))
-                    .font(.system(size: 11, weight: .semibold))
-                    .tracking(0.7)
-                    .foregroundColor(badgeColor(for: phase))
+                if let badge = badge(for: phase, timeState: timeState) {
+                    Text(badge)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .tracking(1.6)
+                        .foregroundColor(badgeColor(for: phase))
+                }
             }
+            .padding(.bottom, 6)
 
             switch phase {
             case .pre:
-                countdownGrid(timeState: timeState, now: now)
+                preCountdown(timeState: timeState, now: now)
             case .live:
                 liveStatus(timeState: timeState, now: now)
             case .ended:
@@ -89,167 +113,144 @@ struct HomeCountdownCard: View {
                 inactiveStatus(timeState: timeState)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
-        .background(countdownSurface(for: phase))
-        .shadow(color: .black.opacity(0.42), radius: 18, y: 8)
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: pre：四格倒计时
+    // MARK: pre:渐进精度倒计时
+    // 精度随临近程度收束:>1 天只到「天」超大节拍,<24h 秒开始跳,<1h 时钟变金色。
 
-    private func countdownGrid(timeState: CurrentShowTimeState, now: Date) -> some View {
-        let remaining = Self.remainingParts(to: timeState.effectiveStartTime, from: now)
-        return HStack(spacing: 8) {
-            countdownCell(value: remaining.days, unit: "天")
-            countdownCell(value: remaining.hours, unit: "时")
-            countdownCell(value: remaining.minutes, unit: "分")
-            countdownCell(value: remaining.seconds, unit: "秒")
-        }
-    }
-
-    private func countdownCell(value: String, unit: String) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(.system(size: 24, weight: .semibold))
-                .tracking(-0.5)
+    @ViewBuilder
+    private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
+        if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
+            if total >= 86_400 {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .lastTextBaseline, spacing: 10) {
+                        Text("\(total / 86_400)")
+                            .font(.system(size: 84, weight: .thin))
+                            .tracking(-2.5)
+                            .monospacedDigit()
+                            .foregroundStyle(Self.heroNumberGradient)
+                        Text("天")
+                            .font(.system(size: 22, weight: .regular))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    if timeState.isDatedPostponement {
+                        Text("原日期 \(Self.originalDateText(for: show)) · 已按新日期重排提醒")
+                            .font(.system(size: 12.5, weight: .regular))
+                            .foregroundColor(BSColor.Stage.dim)
+                            .padding(.top, 10)
+                    }
+                }
+            } else if total >= 3_600 {
+                Text(Self.clockText(total, forceHours: true))
+                    .font(.system(size: 54, weight: .thin))
+                    .tracking(-1)
+                    .monospacedDigit()
+                    .foregroundColor(BSColor.Stage.foreground)
+            } else {
+                Text(Self.clockText(total, forceHours: false))
+                    .font(.system(size: 54, weight: .thin))
+                    .tracking(-1)
+                    .monospacedDigit()
+                    .foregroundStyle(Self.heroNumberGradient)
+            }
+        } else {
+            Text("--")
+                .font(.system(size: 54, weight: .thin))
                 .monospacedDigit()
-                .foregroundColor(BSColor.Stage.foreground)
-            Text(unit)
-                .font(.system(size: 11, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
         }
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: 64)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(BSColor.Stage.foreground.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .fill(
-                            LinearGradient(
-                                colors: [BSColor.Stage.accent.opacity(0.08), .clear],
-                                startPoint: .top,
-                                endPoint: UnitPoint(x: 0.5, y: 0.7)
-                            )
-                        )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(BSColor.Stage.foreground.opacity(0.06), lineWidth: 1)
-                )
-        )
     }
 
-    // MARK: live：脉冲 + 已进行
+    // MARK: live:脉冲 + 已进行
 
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             HomeLivePulse(reduceMotion: reduceMotion)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("灯光已亮 · 开场中")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.liveTitle)
-                Text("现场进行中，收好票夹与手机电量")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("灯光已亮")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundColor(BSColor.Stage.liveTitle)
 
             Spacer(minLength: 0)
 
             VStack(spacing: 4) {
                 Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold))
                     .monospacedDigit()
+                    .tracking(-0.3)
                     .foregroundColor(BSColor.Stage.foreground)
                 Text("已进行")
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(BSColor.Stage.dim)
             }
         }
-        .padding(.horizontal, 4)
         .padding(.vertical, 8)
     }
 
-    // MARK: ended：冷静收束
+    // MARK: ended:冷静收束
 
     private func endedStatus(timeState: CurrentShowTimeState) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(BSColor.Stage.dim)
-                .frame(width: 10, height: 10)
+        let isPostShow = timeState.kind == .postShow
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(isPostShow ? "已落幕" : "已结束")
+                .font(.system(size: 44, weight: .light))
+                .tracking(1)
+                .foregroundColor(isPostShow ? BSColor.Stage.foreground : BSColor.Stage.dim)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text("谢幕了 · 回味还在")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("这场的余温还留在这里")
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Stage.muted)
-            }
-
-            Spacer(minLength: 0)
-
-            VStack(spacing: 4) {
-                Text(Self.durationText(from: timeState.effectiveStartTime, to: timeState.endBoundary))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .multilineTextAlignment(.trailing)
-                Text("本场时长")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
-            }
+            Text(isPostShow ? timeState.helperText : "这场已落幕 · 首页等待下一场现场")
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(BSColor.Stage.dim)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 8)
     }
 
-    // MARK: inactive：已取消 / 待定
+    // MARK: inactive:已取消 / 时间待定
 
     private func inactiveStatus(timeState: CurrentShowTimeState) -> some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(BSColor.Stage.dim)
-                .frame(width: 10, height: 10)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(timeState.title)
+                .font(.system(size: 44, weight: .light))
+                .tracking(1)
+                .foregroundColor(BSColor.Stage.dim)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(timeState.title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.muted)
-                Text(timeState.helperText)
-                    .font(.system(size: 12, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Spacer(minLength: 0)
+            Text(timeState.kind == .canceled
+                 ? "现场资料保留在我的现场 · 不再收到提醒"
+                 : "新日期公布后会继续倒数 · 现场资料都还在")
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(BSColor.Stage.dim)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
         }
-        .padding(.horizontal, 4)
-        .padding(.vertical, 8)
     }
 
     // MARK: 文案与样式
 
-    private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> String {
+    private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> String {
         switch phase {
-        case .pre: return "距离灯亮还有"
+        case .pre:
+            if timeState.isDatedPostponement { return "距离灯亮(新日期)" }
+            if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now), total < 3_600 {
+                return "快开场了"
+            }
+            return "距离灯亮"
         case .live: return "演出进行中"
-        case .ended: return "今晚场已结束"
-        case .inactive: return timeState.title
+        case .ended: return timeState.kind == .postShow ? "谢幕了 · 回味还在" : "这场已经结束"
+        case .inactive: return timeState.kind == .canceled ? "这场取消了" : "倒计时暂停"
         }
     }
 
-    private func badge(for phase: HomeShowPhase) -> String {
+    private func badge(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> String? {
         switch phase {
-        case .pre: return "COUNTDOWN"
+        case .pre:
+            if timeState.isDatedPostponement { return "RESCHEDULED" }
+            return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
         case .live: return "ON STAGE"
         case .ended: return "ENDED"
-        case .inactive: return "—"
+        case .inactive: return timeState.kind == .canceled ? "CANCELED" : "TBD"
         }
     }
 
@@ -257,62 +258,38 @@ struct HomeCountdownCard: View {
         switch phase {
         case .pre: return BSColor.Stage.accent
         case .live: return BSColor.Stage.liveTitle
-        case .ended, .inactive: return BSColor.Stage.muted
+        case .ended, .inactive: return BSColor.Stage.dim
         }
     }
 
-    private func countdownSurface(for phase: HomeShowPhase) -> some View {
-        let borderColor: Color
-        let tintColor: Color
-        switch phase {
-        case .pre:
-            borderColor = BSColor.Stage.foreground.opacity(0.10)
-            tintColor = BSColor.Stage.foreground.opacity(0.06)
-        case .live:
-            borderColor = BSColor.Stage.live.opacity(0.28)
-            tintColor = BSColor.Stage.live.opacity(0.12)
-        case .ended, .inactive:
-            borderColor = BSColor.Stage.foreground.opacity(0.08)
-            tintColor = BSColor.Stage.foreground.opacity(0.04)
-        }
-
-        return RoundedRectangle(cornerRadius: 18)
-            .fill(.ultraThinMaterial)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(BSColor.Stage.surfaceRaised.opacity(0.88))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .fill(
-                        LinearGradient(
-                            colors: [tintColor, .clear],
-                            startPoint: .top,
-                            endPoint: UnitPoint(x: 0.5, y: 0.55)
-                        )
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 18)
-                    .stroke(borderColor, lineWidth: 1)
-            )
+    /// 倒计时超大数字的钨丝金渐变(#F5EFE2 → accent)。
+    private static var heroNumberGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                Color(red: 0.961, green: 0.937, blue: 0.886),
+                BSColor.Stage.accent
+            ],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 
     // MARK: 时间计算
 
-    private static func remainingParts(to start: Date?, from now: Date) -> (days: String, hours: String, minutes: String, seconds: String) {
-        guard let start else { return ("--", "--", "--", "--") }
-        let total = max(0, Int(start.timeIntervalSince(now)))
-        let days = total / 86_400
-        let hours = (total % 86_400) / 3_600
+    private static func remainingSeconds(to start: Date?, from now: Date) -> Int? {
+        guard let start else { return nil }
+        return max(0, Int(start.timeIntervalSince(now)))
+    }
+
+    private static func clockText(_ total: Int, forceHours: Bool) -> String {
+        let total = max(0, total)
+        let hours = total / 3_600
         let minutes = (total % 3_600) / 60
         let seconds = total % 60
-        return (
-            String(format: "%02d", days),
-            String(format: "%02d", hours),
-            String(format: "%02d", minutes),
-            String(format: "%02d", seconds)
-        )
+        if hours > 0 || forceHours {
+            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        }
+        return String(format: "%02d:%02d", minutes, seconds)
     }
 
     private static func elapsedText(since start: Date?, now: Date) -> String {
@@ -327,24 +304,203 @@ struct HomeCountdownCard: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
-    private static func durationText(from start: Date?, to end: Date?) -> String {
-        guard let start, let end, end > start else { return "—" }
-        let minutes = Int(end.timeIntervalSince(start)) / 60
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours > 0 && rest > 0 {
-            return "\(hours) 小时 \(rest) 分"
+    private static func originalDateText(for show: Show) -> String {
+        let components = Calendar.current.dateComponents([.month, .day], from: show.date)
+        return "\(components.month ?? 0).\(components.day ?? 0)"
+    }
+}
+
+// MARK: - Home Tip Card
+
+/// V4 首页 Tip 卡:每个生命周期只推一张,轻量阅读建议,不是任务清单。
+/// 音乐节(多艺人)在同一张卡里附只读阵容条;停留期给一个安静的「添加下一场」出口。
+struct HomeTipCard: View {
+    let show: Show
+    let phase: HomeShowPhase
+    let timeState: CurrentShowTimeState
+    var onAddNextShow: () -> Void = {}
+
+    private struct Content {
+        let badge: String
+        let title: String
+        let text: String
+        let tone: Tone
+        var showsLineup = false
+        var quietAction: String? = nil
+    }
+
+    private enum Tone {
+        case gold, blue, violet, gray
+
+        var badgeColor: Color {
+            switch self {
+            case .gold: return BSColor.Stage.accent
+            case .blue: return Color(red: 0.604, green: 0.722, blue: 0.910)
+            case .violet: return Color(red: 0.718, green: 0.639, blue: 0.788)
+            case .gray: return BSColor.Stage.muted
+            }
         }
-        if hours > 0 {
-            return "\(hours) 小时"
+
+        var topTint: Color {
+            switch self {
+            case .gold: return BSColor.Stage.accent.opacity(0.07)
+            case .blue: return BSColor.Stage.glowBlue.opacity(0.14)
+            case .violet: return BSColor.Stage.prepare.opacity(0.14)
+            case .gray: return Color.white.opacity(0.035)
+            }
         }
-        return "\(max(1, rest)) 分钟"
+    }
+
+    /// 艺人字段里名字 ≥ 3 个时视为音乐节阵容(只读展示,不做交互)。
+    private var lineup: [String] {
+        HomeLineupParser.lineup(from: show.artist)
+    }
+
+    private var content: Content? {
+        switch phase {
+        case .pre:
+            if timeState.isDatedPostponement {
+                return Content(
+                    badge: "现场变更",
+                    title: "等待被延长了",
+                    text: "新日期的倒计时和提醒已重新排好。",
+                    tone: .violet
+                )
+            }
+            if !lineup.isEmpty {
+                return Content(
+                    badge: "现场准备",
+                    title: "草地、阳光和一整天的音乐",
+                    text: "野餐垫、防晒和充电宝,让这两天从容很多。",
+                    tone: .violet,
+                    showsLineup: true
+                )
+            }
+            if timeState.kind == .today {
+                return Content(
+                    badge: "现场准备",
+                    title: "今晚的事,白天就顺手办了",
+                    text: "出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。",
+                    tone: .blue
+                )
+            }
+            return Content(
+                badge: "进入状态",
+                title: "离开场又近了一天",
+                text: "把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。",
+                tone: .gold
+            )
+        case .live:
+            return Content(
+                badge: "正在现场",
+                title: "享受这一晚",
+                text: "散场后人多,提前想好从哪个出口离开。",
+                tone: .gray
+            )
+        case .ended:
+            guard timeState.kind == .postShow else { return nil }
+            return Content(
+                badge: "散场之后",
+                title: "余温还留在这里",
+                text: "这场的资料还会保留。想好下一场去哪了吗?",
+                tone: .gray,
+                quietAction: "添加下一场现场 →"
+            )
+        case .inactive:
+            guard timeState.kind == .postponed else { return nil }
+            return Content(
+                badge: "现场变更",
+                title: "先把它放在这里",
+                text: "等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。",
+                tone: .gray
+            )
+        }
+    }
+
+    var body: some View {
+        if let content {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(content.badge)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundColor(content.tone.badgeColor)
+                    .padding(.bottom, 8)
+
+                Text(content.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .tracking(-0.1)
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .padding(.bottom, 5)
+
+                Text(content.text)
+                    .font(.system(size: 12.5, weight: .regular))
+                    .lineSpacing(4)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if content.showsLineup {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(lineup, id: \.self) { name in
+                                Text(name)
+                                    .font(.system(size: 12, weight: .regular))
+                                    .foregroundColor(BSColor.Stage.foreground.opacity(0.88))
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        Capsule().fill(Color.white.opacity(0.045))
+                                    )
+                                    .overlay(
+                                        Capsule().stroke(BSColor.Stage.border, lineWidth: 1)
+                                    )
+                            }
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+
+                if let quiet = content.quietAction {
+                    Button(action: onAddNextShow) {
+                        Text(quiet)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .frame(minHeight: BSLayout.minTouchTarget)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 2)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 13)
+            .background(
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(BSColor.Stage.surface)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                LinearGradient(
+                                    colors: [content.tone.topTint, .clear],
+                                    startPoint: .top,
+                                    endPoint: UnitPoint(x: 0.5, y: 0.55)
+                                )
+                            )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .stroke(BSColor.Stage.border, lineWidth: 1)
+            )
+            .accessibilityElement(children: .contain)
+        }
     }
 }
 
 // MARK: - Live Pulse
 
-/// 开场中的呼吸脉冲点（设计稿 pulse-ring）；Reduce Motion 时静止。
+/// 开场中的呼吸脉冲点(设计稿 pulse-ring);Reduce Motion 时静止。
 struct HomeLivePulse: View {
     let reduceMotion: Bool
     @State private var rippling = false
