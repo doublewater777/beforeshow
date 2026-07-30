@@ -806,18 +806,24 @@ enum ShowCoverLocalImageStore {
     }
 }
 
+/// 状态操作结果：文案 + 提示语气，避免保存失败被显示成绿色成功 toast。
+struct ShowStatusActionResult {
+    let tone: BSToastTone
+    let message: String
+}
+
 /// 编辑现场 sheet 内的现场状态管理上下文：状态展示 + 立即生效的状态操作。
 /// 由详情页注入；为 nil 时编辑器不渲染现场状态卡（例如仅编辑草稿的场景）。
-/// 状态操作不走「保存」按钮，沿用详情页语义立即生效，闭包返回用于 toast 的文案。
+/// 状态操作不走「保存」按钮，沿用详情页语义立即生效，闭包返回 toast 的语气与文案。
 struct ShowStatusEditingContext {
     let changeStatus: ShowChangeStatus
     let postponedDate: Date?
     let title: String
     let description: String
     let restoreTitle: String
-    let onRestore: @MainActor () async -> String
-    let onPostpone: @MainActor (Date?) async -> String
-    let onCancel: @MainActor () async -> String
+    let onRestore: @MainActor () async -> ShowStatusActionResult
+    let onPostpone: @MainActor (Date?) async -> ShowStatusActionResult
+    let onCancel: @MainActor () async -> ShowStatusActionResult
     let onDelete: @MainActor () async -> Void
 }
 
@@ -1294,14 +1300,14 @@ struct ShowDraftEditorView: View {
 
     @MainActor
     private func applyStatusAction(
-        _ action: @MainActor () async -> String?
+        _ action: @MainActor () async -> ShowStatusActionResult?
     ) async {
         guard !isApplyingStatus else { return }
         isApplyingStatus = true
-        let message = await action()
+        let result = await action()
         isApplyingStatus = false
-        if let message {
-            presentStatusToast(.success, message: message)
+        if let result {
+            presentStatusToast(result.tone, message: result.message)
         }
     }
 
