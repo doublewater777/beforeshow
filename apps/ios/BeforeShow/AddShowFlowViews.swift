@@ -289,6 +289,8 @@ struct AddShowFlowView: View {
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
     @State private var importRevision = 0
+    /// 每次发起解析 / 识别 +1；返回时若 revision 已过期则丢弃结果，避免旧请求覆盖新请求。
+    @State private var importRequestRevision = 0
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
 
@@ -351,6 +353,10 @@ struct AddShowFlowView: View {
                             )
                             // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
                             .id(importRevision)
+                            // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
+                            .disabled(isImportingDraft)
+                            .opacity(isImportingDraft ? 0.55 : 1)
+                            .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
                         }
 
                         if let message {
@@ -456,6 +462,11 @@ struct AddShowFlowView: View {
             && !fallbackDateConfirmed
     }
 
+    /// 链接解析或截图识别进行中：此时旧草稿不可保存/编辑，避免保存到上一次结果。
+    private var isImportingDraft: Bool {
+        isParsingLink || isRecognizingScreenshot
+    }
+
     @ViewBuilder
     private var methodContent: some View {
         switch sheet {
@@ -536,10 +547,11 @@ struct AddShowFlowView: View {
                 )
             }
 
-            if let linkFailure {
+            if let linkFailure, !isParsingLink {
                 AddShowLinkFailureCard(
                     failure: linkFailure,
                     onRetry: {
+                        guard !isParsingLink else { return }
                         self.linkFailure = nil
                         linkText = ""
                     },
@@ -623,7 +635,7 @@ struct AddShowFlowView: View {
             }
 
             AddShowNoteCard(
-                text: "识别只提取名称、时间、场馆，不提取或保存座位、价格、订单号；截图不离开这台设备。",
+                text: "识别用于生成草稿的是名称、时间、场馆；座位、价格、订单号不会用于生成草稿或保存；截图不离开这台设备。",
                 iconName: "lock.shield"
             )
 
@@ -666,8 +678,12 @@ struct AddShowFlowView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
-            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation)
-            .accessibilityLabel(isSaving ? "正在保存" : sheet.saveButtonTitle)
+            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
+            .accessibilityLabel(
+                isImportingDraft
+                    ? "正在导入，暂不可保存"
+                    : (isSaving ? "正在保存" : sheet.saveButtonTitle)
+            )
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
@@ -686,7 +702,8 @@ struct AddShowFlowView: View {
     }
 
     private func saveProgressSegment(filled: Bool) -> some View {
-        let ready = draft.isReadyToSave
+        // 日期未确认时不算就绪，避免进度条全绿但保存仍被挡住
+        let ready = draft.isReadyToSave && !needsDateConfirmation
         let fill: Color = filled
             ? (ready ? BSColor.Accent.prepare : BSColor.Stage.accent)
             : Color.white.opacity(0.10)
@@ -706,8 +723,14 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（名称 → 日期确认 → 开场时间 → 时间范围）。
+    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
     private var saveBarStatus: SaveBarStatus {
+        if isImportingDraft {
+            return SaveBarStatus(
+                text: isParsingLink ? "正在解析链接…" : "正在识别截图…",
+                tint: BSColor.Stage.muted
+            )
+        }
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
         }
@@ -753,8 +776,11 @@ struct AddShowFlowView: View {
 
     @MainActor
     private func recognizeScreenshot(from item: PhotosPickerItem) async {
+        guard !isRecognizingScreenshot else { return }
         isRecognizingScreenshot = true
         ocrActiveStep = 1
+        importRequestRevision += 1
+        let requestRevision = importRequestRevision
 
         // 分步进度为视觉呈现：OCR 是一次性调用，步骤按节奏推进，
         // 最多停在「整理现场信息」，识别结束后随面板一起消失。
@@ -769,14 +795,17 @@ struct AddShowFlowView: View {
 
         defer {
             stepTask.cancel()
-            isRecognizingScreenshot = false
-            ocrActiveStep = 0
+            if requestRevision == importRequestRevision {
+                isRecognizingScreenshot = false
+                ocrActiveStep = 0
+            }
             selectedScreenshotItem = nil
         }
 
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data) else {
+                guard requestRevision == importRequestRevision else { return }
                 // 与 catch 分支一致：读取失败统一清除导入状态，
                 // 不保留上一次识别成功的标题 / 横幅 / 标记
                 draft.source = .manual
@@ -788,10 +817,12 @@ struct AddShowFlowView: View {
             }
 
             let recognized = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
+            guard requestRevision == importRequestRevision else { return }
             stepTask.cancel()
             // 第四步「生成可编辑草稿」短暂停留，完成状态可见后再切到确认表单
             ocrActiveStep = 4
             try? await Task.sleep(nanoseconds: 450_000_000)
+            guard requestRevision == importRequestRevision else { return }
 
             draft = recognized
             hasImportedDraft = true
@@ -808,6 +839,7 @@ struct AddShowFlowView: View {
             }
             presentToast(.success, message: "识别完成")
         } catch {
+            guard requestRevision == importRequestRevision else { return }
             draft.source = .manual
             hasImportedDraft = false
             showsManualFallback = true
@@ -818,14 +850,23 @@ struct AddShowFlowView: View {
 
     @MainActor
     private func parseLink() async {
+        guard !isParsingLink else { return }
         dismissKeyboard()
+        let requestedLink = linkText
+        linkFailure = nil
         isParsingLink = true
+        importRequestRevision += 1
+        let requestRevision = importRequestRevision
         defer {
-            isParsingLink = false
+            if requestRevision == importRequestRevision {
+                isParsingLink = false
+            }
         }
 
         do {
-            draft = try await linkParser.draft(from: linkText)
+            let parsed = try await linkParser.draft(from: requestedLink)
+            guard requestRevision == importRequestRevision else { return }
+            draft = parsed
             hasImportedDraft = true
             showsManualFallback = false
             linkFailure = nil
@@ -836,6 +877,7 @@ struct AddShowFlowView: View {
                 : nil
             presentToast(.success, message: "解析完成")
         } catch {
+            guard requestRevision == importRequestRevision else { return }
             draft.source = .manual
             hasImportedDraft = false
             showsManualFallback = true
@@ -848,6 +890,8 @@ struct AddShowFlowView: View {
     @MainActor
     private func save() async {
         guard !isSaving else { return }
+        // 重新解析 / 识别期间只允许保存新结果，避免写入上一次草稿
+        guard !isImportingDraft else { return }
         // OCR 回退日期未确认时不允许保存，与保存栏状态文案一致
         guard !needsDateConfirmation else { return }
         isSaving = true

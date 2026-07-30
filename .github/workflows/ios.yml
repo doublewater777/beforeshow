@@ -2,12 +2,16 @@ name: iOS
 
 on:
   pull_request:
+    # edited：改 base / 标题描述时也重跑，避免改 base 后仍显示旧合并快照的绿色
+    types: [opened, synchronize, reopened, ready_for_review, edited]
     paths:
       - "apps/ios/**"
+      - ".github/workflows/ios.yml"
   push:
     branches: [main]
     paths:
       - "apps/ios/**"
+      - ".github/workflows/ios.yml"
   workflow_dispatch:
 
 concurrency:
