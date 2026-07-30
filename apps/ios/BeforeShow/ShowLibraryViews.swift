@@ -211,7 +211,7 @@ struct MyShowsListView: View {
         return sortedShows.filter { show in
             let state = timeState(for: show, now: now)
             return show.changeStatus == .scheduled
-                && (state.kind == .before || state.kind == .today)
+                && (state.kind == .before || state.kind == .today || state.kind == .dayEnded)
         }
     }
 
@@ -633,6 +633,8 @@ private struct CurrentShowListHeroCard: View {
             )
         case .today:
             return HeroCountdown(eyebrow: nil, value: "就是今天")
+        case .dayEnded:
+            return HeroCountdown(eyebrow: nil, value: "今日已落幕", dim: true)
         case .postShow:
             return HeroCountdown(
                 eyebrow: nil,
@@ -872,6 +874,8 @@ struct ShowDetailView: View {
             )
         case .today:
             return HeroCountdownContent(eyebrow: nil, value: "就是今天")
+        case .dayEnded:
+            return HeroCountdownContent(eyebrow: nil, value: "今日已落幕", dim: true)
         case .postShow:
             return HeroCountdownContent(
                 eyebrow: nil,
