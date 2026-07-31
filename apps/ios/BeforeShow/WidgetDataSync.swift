@@ -80,28 +80,56 @@ extension WidgetShowSnapshot {
 actor ShowLiveActivityController {
     static let shared = ShowLiveActivityController()
 
+    private struct PendingSync {
+        let snapshot: WidgetShowSnapshot?
+        let now: Date
+        let generation: UInt64
+    }
+
     private init() {}
 
     /// 已进入 actor 的最大 generation;小于它的 sync 全部丢弃。
     private var latestGeneration: UInt64 = 0
+    /// actor 会在 await 处重入;新请求只覆盖待处理值,不会另起一条 ActivityKit mutation 链。
+    private var pendingSync: PendingSync?
+    private var isProcessing = false
 
     func sync(snapshot: WidgetShowSnapshot?, now: Date, generation: UInt64) async {
         latestGeneration = max(latestGeneration, generation)
         guard generation == latestGeneration else { return }
 
+        pendingSync = PendingSync(snapshot: snapshot, now: now, generation: generation)
+        guard !isProcessing else { return }
+
+        isProcessing = true
+        defer { isProcessing = false }
+
+        // 单一 worker 串行执行 ActivityKit 副作用。actor 重入期间的新 sync 只更新
+        // pendingSync;旧 mutation 完成后再按最新快照纠正,不会出现新旧 end/update 交叉。
+        while let request = pendingSync {
+            pendingSync = nil
+            await process(request)
+        }
+    }
+
+    private func process(_ request: PendingSync) async {
+        guard request.generation == latestGeneration else { return }
+
+        let snapshot = request.snapshot
+        let now = request.now
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
         let existing: [LiveActivityExisting] = activitiesEnabled
             ? Activity<ShowLiveActivityAttributes>.activities.map {
                 LiveActivityExisting(
                     showID: $0.attributes.showID,
-                    isPending: isPending($0),
+                    isPending: Self.isPending($0),
                     state: $0.content.state
                 )
             }
             : []
 
-        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格);
-        // prune 只在 generation 仍有效时执行,避免旧 sync 删掉新场封面。
+        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格)。
+        // 若下载期间来了更新请求,跳过旧请求的 prune / ActivityKit 副作用。
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
@@ -113,7 +141,7 @@ actor ShowLiveActivityController {
             // 避免 extension 下载被掐断后占位图挂到下一次 12h timeline。
             let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             await WidgetCoverCache.refresh(for: source)
-            guard generation == latestGeneration else { return }
+            guard request.generation == latestGeneration else { return }
             coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
             WidgetCoverCache.pruneCovers(except: source)
             let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
@@ -123,7 +151,7 @@ actor ShowLiveActivityController {
                 }
             }
         } else if desired != nil {
-            guard generation == latestGeneration else { return }
+            guard request.generation == latestGeneration else { return }
             WidgetCoverCache.pruneCovers(except: nil)
         }
 
@@ -146,34 +174,51 @@ actor ShowLiveActivityController {
             action = .endAll
         }
 
-        guard generation == latestGeneration else { return }
-        await perform(action, showID: snapshot?.showID.uuidString, generation: generation)
+        guard request.generation == latestGeneration else { return }
+        await perform(
+            action,
+            showID: snapshot?.showID.uuidString,
+            generation: request.generation
+        )
     }
 
-    /// actor 在每个 await 上允许重入:任何副作用(尤其 request/schedule)前
-    /// 都必须重新确认自己还是最新 generation,否则旧动作会后至覆盖新状态。
+    /// mutation 链由 sync 的单一 worker 串行化。generation 检查用于在新请求到达后
+    /// 尽早停止剩余旧动作;已经发出的 ActivityKit 调用完成后,worker 会处理最新请求。
     private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
         func isCurrent() -> Bool { generation == latestGeneration }
 
         switch action {
         case .none:
-            // 无目标内容可对齐:只清非本场,同场重复按数组顺序砍(应少见)
-            await endActivities(matching: { $0.attributes.showID != showID })
+            await endActivities(
+                matching: { $0.attributes.showID != showID },
+                generation: generation
+            )
             guard isCurrent() else { return }
-            await endDuplicates(keepingShowID: showID, preferring: nil)
+            await endDuplicates(
+                keepingShowID: showID,
+                preferring: nil,
+                generation: generation
+            )
 
         case .keep(let state):
-            // 只保留 pending 且 ContentState 完全一致的活动;同场 stale / 其它场全部 end
-            await endActivities(matching: { activity in
-                if activity.attributes.showID != showID { return true }
-                let isKeeper = isPending(activity) && activity.content.state == state
-                return !isKeeper
-            })
+            // 只留一个 pending + 完全一致的 ContentState;同场重复/stale 与其它场全部 end。
+            await keepOnlyPending(
+                showID: showID,
+                state: state,
+                generation: generation
+            )
 
         case .update(let state):
-            await endActivities(matching: { $0.attributes.showID != showID })
+            await endActivities(
+                matching: { $0.attributes.showID != showID },
+                generation: generation
+            )
             guard isCurrent() else { return }
-            await endDuplicates(keepingShowID: showID, preferring: state)
+            await endDuplicates(
+                keepingShowID: showID,
+                preferring: state,
+                generation: generation
+            )
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
@@ -186,13 +231,13 @@ actor ShowLiveActivityController {
             }
 
         case .request(let state):
-            await endAll()
+            await endAll(generation: generation)
             guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
-            await endAll()
+            await endAll(generation: generation)
             guard isCurrent() else { return }
             let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
             if #available(iOS 26.0, *) {
@@ -218,7 +263,7 @@ actor ShowLiveActivityController {
             }
 
         case .endAll:
-            await endAll()
+            await endAll(generation: generation)
         }
     }
 
@@ -239,7 +284,7 @@ actor ShowLiveActivityController {
         }
     }
 
-    private func isPending(_ activity: Activity<ShowLiveActivityAttributes>) -> Bool {
+    private static func isPending(_ activity: Activity<ShowLiveActivityAttributes>) -> Bool {
         if #available(iOS 26.0, *) {
             return activity.activityState == .pending
         }
@@ -247,9 +292,34 @@ actor ShowLiveActivityController {
     }
 
     private func endActivities(
-        matching predicate: (Activity<ShowLiveActivityAttributes>) -> Bool
+        matching predicate: (Activity<ShowLiveActivityAttributes>) -> Bool,
+        generation: UInt64
     ) async {
-        for activity in Activity<ShowLiveActivityAttributes>.activities where predicate(activity) {
+        let activities = Activity<ShowLiveActivityAttributes>.activities
+        for activity in activities where predicate(activity) {
+            guard generation == latestGeneration else { return }
+            await activity.end(nil, dismissalPolicy: .immediate)
+        }
+    }
+
+    /// `.keep` 必须只保留一个正确 pending。两个完全相同的 pending 也要去重,
+    /// 否则它们会在同一时间启动成两条 Live Activity。
+    private func keepOnlyPending(
+        showID: String?,
+        state: ShowLiveActivityAttributes.ContentState,
+        generation: UInt64
+    ) async {
+        let activities = Activity<ShowLiveActivityAttributes>.activities
+        guard let keeper = activities.first(where: {
+            $0.attributes.showID == showID
+                && Self.isPending($0)
+                && $0.content.state == state
+        }) else {
+            return
+        }
+
+        for activity in activities where activity.id != keeper.id {
+            guard generation == latestGeneration else { return }
             await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
@@ -258,30 +328,43 @@ actor ShowLiveActivityController {
     /// 避免 ActivityKit 返回顺序下误删正确 pending、留下旧 start。
     private func endDuplicates(
         keepingShowID showID: String?,
-        preferring preferred: ShowLiveActivityAttributes.ContentState?
+        preferring preferred: ShowLiveActivityAttributes.ContentState?,
+        generation: UInt64
     ) async {
         let matching = Activity<ShowLiveActivityAttributes>.activities
             .filter { $0.attributes.showID == showID }
         guard matching.count > 1 else { return }
 
-        let keeperID: String
-        if let preferred,
-           let preferredMatch = matching.first(where: { !isPending($0) && $0.content.state == preferred })
-            ?? matching.first(where: { isPending($0) && $0.content.state == preferred }) {
-            keeperID = preferredMatch.id
-        } else if let first = matching.first {
-            keeperID = first.id
-        } else {
-            return
+        var keeperID: String?
+        if let preferred {
+            for activity in matching
+            where !Self.isPending(activity) && activity.content.state == preferred {
+                keeperID = activity.id
+                break
+            }
+            if keeperID == nil {
+                for activity in matching
+                where Self.isPending(activity) && activity.content.state == preferred {
+                    keeperID = activity.id
+                    break
+                }
+            }
         }
+        if keeperID == nil {
+            keeperID = matching.first?.id
+        }
+        guard let keeperID else { return }
 
-        await endActivities { activity in
-            activity.attributes.showID == showID && activity.id != keeperID
+        for activity in matching where activity.id != keeperID {
+            guard generation == latestGeneration else { return }
+            await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
 
-    private func endAll() async {
-        for activity in Activity<ShowLiveActivityAttributes>.activities {
+    private func endAll(generation: UInt64) async {
+        let activities = Activity<ShowLiveActivityAttributes>.activities
+        for activity in activities {
+            guard generation == latestGeneration else { return }
             await activity.end(nil, dismissalPolicy: .immediate)
         }
     }
