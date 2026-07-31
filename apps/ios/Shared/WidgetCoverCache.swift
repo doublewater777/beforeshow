@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 // app(为 Live Activity 准备封面)与 widget provider 共用。
 //
 // 并发:refresh 经 actor 串行;旧下载在 await 后若已被更新请求取代则丢弃写盘。
-// 不在 refresh 内 prune——旧下载后至 prune 会删掉新场封面;清理由调用方在
-// 确认当前 source 后显式调用 pruneCovers(except:)。
+// 非空 source 不在 refresh 内 prune——旧下载后至 prune 会删掉新场封面;清理由调用方在
+// 确认当前 source 后显式调用 pruneCovers(except:)。空 source 则作为清空指令处理。
 
 enum WidgetCoverCache {
     /// 中号 widget 展示边长上限(108pt×3≈324px,留余量)。
@@ -65,8 +65,8 @@ enum WidgetCoverCache {
         return cached == source
     }
 
-    /// 下载、下采样(两档)并写入 App Group;来源未变时直接返回。`source` 为空则清理固定旧路径兼容项。
-    /// 不 prune 历史封面——调用方在确认当前场后调用 `pruneCovers(except:)`。
+    /// 下载、下采样(两档)并写入 App Group;来源未变时直接返回。
+    /// `source` 为空表示当前不应有封面,会串行清理全部哈希缓存和旧固定路径。
     static func refresh(for source: String?) async {
         await mutator.refresh(for: source)
     }
@@ -205,7 +205,7 @@ private actor CoverCacheMutator {
         let trimmed = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
             guard ticket == generation else { return }
-            WidgetCoverCache.clearLegacyFixedCover()
+            WidgetCoverCache.pruneCovers(except: nil)
             return
         }
 
