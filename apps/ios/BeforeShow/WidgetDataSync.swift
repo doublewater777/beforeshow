@@ -73,6 +73,53 @@ extension WidgetShowSnapshot {
     }
 }
 
+// MARK: - Live Activity runtime selection
+
+/// ActivityKit 对象不进入测试层;先投影为纯值记录,再决定唯一 keeper。
+struct LiveActivityRuntimeRecord: Equatable {
+    let id: String
+    let showID: String
+    let isPending: Bool
+    let state: ShowLiveActivityAttributes.ContentState
+}
+
+enum LiveActivityRuntimeSelection {
+    /// `.keep` 只允许保留一个完全一致的 pending。找不到时返回 nil,调用方应全部结束。
+    static func pendingKeeperID(
+        in records: [LiveActivityRuntimeRecord],
+        showID: String?,
+        state: ShowLiveActivityAttributes.ContentState
+    ) -> String? {
+        records.first(where: {
+            $0.showID == showID && $0.isPending && $0.state == state
+        })?.id
+    }
+
+    /// 同场去重优先级:目标 active → 目标 pending → ActivityKit 返回的第一条。
+    static func duplicateKeeperID(
+        in records: [LiveActivityRuntimeRecord],
+        showID: String?,
+        preferredState: ShowLiveActivityAttributes.ContentState?
+    ) -> String? {
+        let matching = records.filter { $0.showID == showID }
+        guard !matching.isEmpty else { return nil }
+
+        if let preferredState {
+            if let active = matching.first(where: {
+                !$0.isPending && $0.state == preferredState
+            }) {
+                return active.id
+            }
+            if let pending = matching.first(where: {
+                $0.isPending && $0.state == preferredState
+            }) {
+                return pending.id
+            }
+        }
+        return matching.first?.id
+    }
+}
+
 // MARK: - Live Activity Controller
 
 /// 决策全部在 Shared/LiveActivityPlanner(纯逻辑,可单测);
@@ -118,15 +165,6 @@ actor ShowLiveActivityController {
         let snapshot = request.snapshot
         let now = request.now
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
-        let existing: [LiveActivityExisting] = activitiesEnabled
-            ? Activity<ShowLiveActivityAttributes>.activities.map {
-                LiveActivityExisting(
-                    showID: $0.attributes.showID,
-                    isPending: Self.isPending($0),
-                    state: $0.content.state
-                )
-            }
-            : []
 
         // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格)。
         // 若下载期间来了更新请求,跳过旧请求的 prune / ActivityKit 副作用。
@@ -150,10 +188,24 @@ actor ShowLiveActivityController {
                     WidgetCenter.shared.reloadTimelines(ofKind: WidgetDataSync.widgetKind)
                 }
             }
-        } else if desired != nil {
+        } else {
+            // 无封面，或已无可展示现场(取消/结束/nil)时都清理历史缓存。
             guard request.generation == latestGeneration else { return }
             WidgetCoverCache.pruneCovers(except: nil)
         }
+
+        guard request.generation == latestGeneration else { return }
+
+        // 封面下载可能耗时；必须在所有 await 之后重新读取 ActivityKit，避免用过期列表决策。
+        let existing: [LiveActivityExisting] = activitiesEnabled
+            ? Activity<ShowLiveActivityAttributes>.activities.map {
+                LiveActivityExisting(
+                    showID: $0.attributes.showID,
+                    isPending: Self.isPending($0),
+                    state: $0.content.state
+                )
+            }
+            : []
 
         let action: LiveActivityAction
         if activitiesEnabled {
@@ -291,6 +343,19 @@ actor ShowLiveActivityController {
         return false
     }
 
+    private static func runtimeRecords(
+        from activities: [Activity<ShowLiveActivityAttributes>]
+    ) -> [LiveActivityRuntimeRecord] {
+        activities.map {
+            LiveActivityRuntimeRecord(
+                id: $0.id,
+                showID: $0.attributes.showID,
+                isPending: isPending($0),
+                state: $0.content.state
+            )
+        }
+    }
+
     private func endActivities(
         matching predicate: (Activity<ShowLiveActivityAttributes>) -> Bool,
         generation: UInt64
@@ -303,22 +368,20 @@ actor ShowLiveActivityController {
     }
 
     /// `.keep` 必须只保留一个正确 pending。两个完全相同的 pending 也要去重,
-    /// 否则它们会在同一时间启动成两条 Live Activity。
+    /// 找不到正确 pending 时则全部结束,避免 Activity 状态变化后留下 stale 项。
     private func keepOnlyPending(
         showID: String?,
         state: ShowLiveActivityAttributes.ContentState,
         generation: UInt64
     ) async {
         let activities = Activity<ShowLiveActivityAttributes>.activities
-        guard let keeper = activities.first(where: {
-            $0.attributes.showID == showID
-                && Self.isPending($0)
-                && $0.content.state == state
-        }) else {
-            return
-        }
+        let keeperID = LiveActivityRuntimeSelection.pendingKeeperID(
+            in: Self.runtimeRecords(from: activities),
+            showID: showID,
+            state: state
+        )
 
-        for activity in activities where activity.id != keeper.id {
+        for activity in activities where activity.id != keeperID {
             guard generation == latestGeneration else { return }
             await activity.end(nil, dismissalPolicy: .immediate)
         }
@@ -331,29 +394,17 @@ actor ShowLiveActivityController {
         preferring preferred: ShowLiveActivityAttributes.ContentState?,
         generation: UInt64
     ) async {
-        let matching = Activity<ShowLiveActivityAttributes>.activities
-            .filter { $0.attributes.showID == showID }
+        let activities = Activity<ShowLiveActivityAttributes>.activities
+        let matching = activities.filter { $0.attributes.showID == showID }
         guard matching.count > 1 else { return }
 
-        var keeperID: String?
-        if let preferred {
-            for activity in matching
-            where !Self.isPending(activity) && activity.content.state == preferred {
-                keeperID = activity.id
-                break
-            }
-            if keeperID == nil {
-                for activity in matching
-                where Self.isPending(activity) && activity.content.state == preferred {
-                    keeperID = activity.id
-                    break
-                }
-            }
+        guard let keeperID = LiveActivityRuntimeSelection.duplicateKeeperID(
+            in: Self.runtimeRecords(from: matching),
+            showID: showID,
+            preferredState: preferred
+        ) else {
+            return
         }
-        if keeperID == nil {
-            keeperID = matching.first?.id
-        }
-        guard let keeperID else { return }
 
         for activity in matching where activity.id != keeperID {
             guard generation == latestGeneration else { return }
