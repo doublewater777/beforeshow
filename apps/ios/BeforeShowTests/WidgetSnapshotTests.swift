@@ -469,4 +469,83 @@ final class WidgetSnapshotTests: XCTestCase {
             return XCTFail("expected schedule within horizon, got \(nearAction)")
         }
     }
+
+    // MARK: - Round-4 review: pending start 不可 update / 24h 边界
+
+    /// pending 仍按旧开场时间 schedule,新时间已进入活跃窗口 → 必须 request(end+立即启),
+    /// 不能 .update(改不了 pending 的 start)。
+    func testPlannerRequestsWhenStalePendingEntersActiveWindow() {
+        let now = Date()
+        // 新时间:2h 后开场 → 窗口内(默认 4h 演出 → 开场前 4h 起)
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(2 * 3_600))
+        let showID = snapshot.showID.uuidString
+        let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
+
+        // 旧 pending:原先 20h 后开场,仍挂着旧 startDate
+        var stale = desired.state
+        stale.startDate = now.addingTimeInterval(20 * 3_600)
+        stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
+
+        let action = LiveActivityPlanner.action(
+            snapshot: snapshot,
+            now: now,
+            existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
+            coverFilename: nil,
+            canSchedule: true
+        )
+        guard case .request = action else {
+            return XCTFail("stale pending inside window must request, got \(action)")
+        }
+    }
+
+    /// pending 内容变了且新窗口起点超出 7 天视野 → endAll,不得 .none 保留旧 start。
+    func testPlannerEndsStalePendingMovedBeyondScheduleHorizon() {
+        let now = Date()
+        // 新时间:30 天后 → 超出 scheduleHorizon
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(30 * 86_400))
+        let showID = snapshot.showID.uuidString
+        let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
+
+        // 旧 pending:3 天后开场(仍在系统里占配额)
+        var stale = desired.state
+        stale.startDate = now.addingTimeInterval(3 * 86_400)
+        stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
+
+        let action = LiveActivityPlanner.action(
+            snapshot: snapshot,
+            now: now,
+            existing: [LiveActivityExisting(showID: showID, isPending: true, state: stale)],
+            coverFilename: nil,
+            canSchedule: true
+        )
+        XCTAssertEqual(action, .endAll, "stale pending beyond horizon must end, not keep")
+
+        // 无残留时仍 .none(不占动作)
+        XCTAssertEqual(
+            LiveActivityPlanner.action(
+                snapshot: snapshot, now: now, existing: [], coverFilename: nil, canSchedule: true
+            ),
+            .none
+        )
+    }
+
+    /// start − 24h 落在 12h 刷新窗口内时必须作为 timeline 边界,否则「1 天」会多卡近 1h。
+    func testTimelineIncludesDayCountdownThresholdBoundary() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // 剩余 24h + 1min:小时点 alone 会让「1 天」多挂 ~59min
+        let start = now.addingTimeInterval(86_400 + 60)
+        let threshold = start.addingTimeInterval(-WidgetTimelinePlanner.dayCountdownThreshold)
+
+        let plan = WidgetTimelinePlanner.entryDates(
+            now: now,
+            startBoundary: start,
+            endBoundary: nil
+        )
+        XCTAssertTrue(
+            plan.dates.contains(where: { abs($0.timeIntervalSince(threshold)) < 0.5 }),
+            "expected day-countdown boundary at start-24h"
+        )
+        // 阈值本身在窗口内(约 now+60s)
+        XCTAssertLessThanOrEqual(threshold.timeIntervalSince(now), WidgetTimelinePlanner.refreshWindow)
+    }
 }

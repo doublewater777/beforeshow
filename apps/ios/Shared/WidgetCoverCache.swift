@@ -6,14 +6,21 @@ import UniformTypeIdentifiers
 // 封面按来源 URL 哈希落盘;只有来源匹配才返回路径。
 // 下载后限制体积并下采样到展示尺寸,避免 Live Activity 因图过大启动失败。
 // app(为 Live Activity 准备封面)与 widget provider 共用。
+//
+// 并发:refresh 经 actor 串行;旧下载在 await 后若已被更新请求取代则丢弃写盘。
+// 不在 refresh 内 prune——旧下载后至 prune 会删掉新场封面;清理由调用方在
+// 确认当前 source 后显式调用 pruneCovers(except:)。
 
 enum WidgetCoverCache {
     /// 中号 widget 展示边长上限(108pt×3≈324px,留余量)。
-    private static let maxPixelDimension: CGFloat = 400
+    fileprivate static let maxPixelDimension: CGFloat = 400
     /// Live Activity 封面只有 40×40pt;按 3x 限制到 120px——
     /// Apple 要求 LA 图片不超过展示区域,否则活动可能无法启动。
-    private static let liveActivityMaxPixelDimension: CGFloat = 120
-    private static let maxDownloadBytes = 2 * 1_024 * 1_024
+    fileprivate static let liveActivityMaxPixelDimension: CGFloat = 120
+    fileprivate static let maxDownloadBytes = 2 * 1_024 * 1_024
+
+    /// 串行化写盘 / 下载完成检查,避免 reentrancy 下旧 refresh 覆盖新场。
+    private static let mutator = CoverCacheMutator()
 
     /// 与 `source` 匹配的缓存路径;无封面或来源不一致时返回 nil。
     static func cachedCoverPath(matching source: String?) -> String? {
@@ -59,77 +66,34 @@ enum WidgetCoverCache {
     }
 
     /// 下载、下采样(两档)并写入 App Group;来源未变时直接返回。`source` 为空则清理固定旧路径兼容项。
+    /// 不 prune 历史封面——调用方在确认当前场后调用 `pruneCovers(except:)`。
     static func refresh(for source: String?) async {
-        let trimmed = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        await mutator.refresh(for: source)
+    }
+
+    /// 只保留当前来源的封面文件;由 app 在同步当前现场后调用,避免 refresh 内后至 prune。
+    static func pruneCovers(except currentSource: String?) {
+        let trimmed = currentSource?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
             clearLegacyFixedCover()
             return
         }
-        if freshCoverFilename(for: trimmed) != nil,
-           freshLiveActivityCoverFilename(for: trimmed) != nil { return }
-
-        guard let remoteURL = URL(string: trimmed),
-              let cacheURL = coverFileURL(for: trimmed),
-              let liveActivityURL = coverFileURL(filename: liveActivityFilename(for: trimmed)),
-              let markerURL = markerFileURL(for: trimmed) else {
-            return
-        }
-
-        do {
-            // 流式落盘而非读进内存:超大响应不会撑爆 extension 内存,
-            // 下采样前再按文件大小拦截
-            let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                #if DEBUG
-                print("[WidgetCoverCache] non-200 for \(trimmed)")
-                #endif
-                return
-            }
-            guard let mime = http.mimeType, mime.hasPrefix("image/") else {
-                #if DEBUG
-                print("[WidgetCoverCache] unexpected MIME: \(http.mimeType ?? "nil")")
-                #endif
-                return
-            }
-            let fileSize = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
-            guard fileSize > 0, fileSize <= maxDownloadBytes else {
-                #if DEBUG
-                print("[WidgetCoverCache] payload too large: \(fileSize) bytes")
-                #endif
-                return
-            }
-            let data = try Data(contentsOf: tempURL)
-            guard let jpeg = downsampledJPEG(from: data, maxPixel: maxPixelDimension),
-                  let liveActivityJPEG = downsampledJPEG(from: data, maxPixel: liveActivityMaxPixelDimension) else {
-                #if DEBUG
-                print("[WidgetCoverCache] downsample failed for \(trimmed)")
-                #endif
-                return
-            }
-            try jpeg.write(to: cacheURL, options: .atomic)
-            try liveActivityJPEG.write(to: liveActivityURL, options: .atomic)
-            try trimmed.write(to: markerURL, atomically: true, encoding: .utf8)
-            clearLegacyFixedCover()
-            pruneCoversExcept(currentSource: trimmed)
-        } catch {
-            #if DEBUG
-            print("[WidgetCoverCache] refresh failed: \(error)")
-            #endif
-        }
+        pruneCoversExcept(currentSource: trimmed)
+        clearLegacyFixedCover()
     }
 
     // MARK: - Paths
 
-    private static func coverFileURL(for source: String) -> URL? {
+    fileprivate static func coverFileURL(for source: String) -> URL? {
         coverFileURL(filename: filename(for: source))
     }
 
-    private static func coverFileURL(filename: String) -> URL? {
+    fileprivate static func coverFileURL(filename: String) -> URL? {
         WidgetSnapshotStore.containerURL?
             .appendingPathComponent(filename, isDirectory: false)
     }
 
-    private static func markerFileURL(for source: String) -> URL? {
+    fileprivate static func markerFileURL(for source: String) -> URL? {
         coverFileURL(for: source)?.appendingPathExtension("source")
     }
 
@@ -154,7 +118,7 @@ enum WidgetCoverCache {
     }
 
     /// 清理旧版固定文件名 `current-show-cover.jpg`,避免失配残留。
-    private static func clearLegacyFixedCover() {
+    fileprivate static func clearLegacyFixedCover() {
         guard let base = WidgetSnapshotStore.containerURL else { return }
         let legacy = base.appendingPathComponent(WidgetSnapshotStore.legacyCoverCacheFilename, isDirectory: false)
         let legacyMarker = legacy.appendingPathExtension("source")
@@ -180,7 +144,7 @@ enum WidgetCoverCache {
 
     // MARK: - Image processing
 
-    private static func downsampledJPEG(from data: Data, maxPixel: CGFloat) -> Data? {
+    fileprivate static func downsampledJPEG(from data: Data, maxPixel: CGFloat) -> Data? {
         let options: [CFString: Any] = [
             kCGImageSourceShouldCache: false
         ]
@@ -212,5 +176,89 @@ enum WidgetCoverCache {
         CGImageDestinationAddImage(destination, cgImage, destOptions as CFDictionary)
         guard CGImageDestinationFinalize(destination) else { return nil }
         return mutable as Data
+    }
+}
+
+// MARK: - Serial mutator
+
+/// 单飞 refresh:generation 在 await 前后校验,旧下载完成后不再写盘。
+private actor CoverCacheMutator {
+    private var generation: UInt64 = 0
+
+    func refresh(for source: String?) async {
+        generation &+= 1
+        let ticket = generation
+
+        let trimmed = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty else {
+            guard ticket == generation else { return }
+            WidgetCoverCache.clearLegacyFixedCover()
+            return
+        }
+
+        if WidgetCoverCache.freshCoverFilename(for: trimmed) != nil,
+           WidgetCoverCache.freshLiveActivityCoverFilename(for: trimmed) != nil {
+            return
+        }
+
+        guard let remoteURL = URL(string: trimmed),
+              let cacheURL = WidgetCoverCache.coverFileURL(for: trimmed),
+              let liveActivityURL = WidgetCoverCache.coverFileURL(
+                filename: WidgetCoverCache.liveActivityFilename(for: trimmed)
+              ),
+              let markerURL = WidgetCoverCache.markerFileURL(for: trimmed) else {
+            return
+        }
+
+        do {
+            let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
+            // 新下载期间又来了更新的 refresh → 丢弃本结果,不写不删
+            guard ticket == generation else { return }
+
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                #if DEBUG
+                print("[WidgetCoverCache] non-200 for \(trimmed)")
+                #endif
+                return
+            }
+            guard let mime = http.mimeType, mime.hasPrefix("image/") else {
+                #if DEBUG
+                print("[WidgetCoverCache] unexpected MIME: \(http.mimeType ?? "nil")")
+                #endif
+                return
+            }
+            let fileSize = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
+            guard fileSize > 0, fileSize <= WidgetCoverCache.maxDownloadBytes else {
+                #if DEBUG
+                print("[WidgetCoverCache] payload too large: \(fileSize) bytes")
+                #endif
+                return
+            }
+            let data = try Data(contentsOf: tempURL)
+            guard let jpeg = WidgetCoverCache.downsampledJPEG(
+                from: data,
+                maxPixel: WidgetCoverCache.maxPixelDimension
+            ),
+                  let liveActivityJPEG = WidgetCoverCache.downsampledJPEG(
+                    from: data,
+                    maxPixel: WidgetCoverCache.liveActivityMaxPixelDimension
+                  ) else {
+                #if DEBUG
+                print("[WidgetCoverCache] downsample failed for \(trimmed)")
+                #endif
+                return
+            }
+
+            guard ticket == generation else { return }
+            try jpeg.write(to: cacheURL, options: .atomic)
+            try liveActivityJPEG.write(to: liveActivityURL, options: .atomic)
+            try trimmed.write(to: markerURL, atomically: true, encoding: .utf8)
+            WidgetCoverCache.clearLegacyFixedCover()
+            // 故意不 prune:旧 ticket 后至时若 prune 会删掉新场封面
+        } catch {
+            #if DEBUG
+            print("[WidgetCoverCache] refresh failed: \(error)")
+            #endif
+        }
     }
 }

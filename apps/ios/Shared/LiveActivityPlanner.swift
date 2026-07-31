@@ -6,6 +6,8 @@ import Foundation
 // 规则(评审定稿):
 // - 活跃窗口 = 预计谢幕前最多 8h(平台活跃上限)
 // - 窗口外:iOS 26+ 可 schedule;pending 内容未变时保留,不重复 schedule
+// - pending 的 start 在 request/schedule 时固定,update 无法改启动时刻
+//   → 内容变了必须 end + request/schedule(或超出视野则 end),不能 .update / .none 保留
 // - 无现场 / 已取消 / 已过谢幕:结束全部
 
 /// 现有活动的最小摘要(由 actor 从 ActivityKit 读取后传入)
@@ -18,13 +20,13 @@ struct LiveActivityExisting: Equatable {
 enum LiveActivityAction: Equatable {
     /// 目标与现状一致,无需动作(pending 保留)
     case none
-    /// 窗口内,更新现有活动
+    /// 窗口内,更新现有活动(仅 active;pending 内容变了不能走这条)
     case update(ShowLiveActivityAttributes.ContentState)
-    /// 窗口内,无现有活动 → 立即启动
+    /// 窗口内,无现有活动 / pending 内容已变 → 立即启动(perform 会先 endAll)
     case request(ShowLiveActivityAttributes.ContentState)
-    /// 窗口外(iOS 26+),在活跃窗口起点调度启动
+    /// 窗口外(iOS 26+),在活跃窗口起点调度启动(perform 会先 endAll)
     case schedule(ShowLiveActivityAttributes.ContentState, start: Date)
-    /// 无现场 / 已取消 / 已过谢幕 / 无权限 → 结束全部
+    /// 无现场 / 已取消 / 已过谢幕 / 无权限 / 过期 pending 需清掉 → 结束全部
     case endAll
 }
 
@@ -92,23 +94,36 @@ enum LiveActivityPlanner {
         let matching = existing.filter { $0.showID == showID }
         let earliest = earliestStart(activityStart: desired.state.startDate, activityEnd: desired.activityEnd)
         let inWindow = now >= earliest
+        let pending = matching.filter(\.isPending)
+        let hasStalePending = pending.contains { $0.state != desired.state }
+        let hasUnchangedPending = pending.contains { $0.state == desired.state }
 
         if inWindow {
-            return matching.isEmpty ? .request(desired.state) : .update(desired.state)
+            // pending 的启动时刻在 schedule/request 时已固定,update 改不了 startDate。
+            // 内容变了(改开场时间等)→ end + 立即 request,否则会按旧时间启动。
+            if hasStalePending || matching.isEmpty {
+                return .request(desired.state)
+            }
+            return .update(desired.state)
         }
 
-        // 窗口外:pending 内容未变则保留,不重复 schedule(每次回前台重建会消耗系统配额)
+        // 窗口外
         if canSchedule {
-            if matching.contains(where: { $0.isPending && $0.state == desired.state }) {
+            // 内容未变的 pending:保留,不重复 schedule(每次回前台重建会消耗配额)
+            if hasUnchangedPending {
                 return .none
             }
-            // 超出视野不 schedule:pending 也占配额,等临近后的前台同步再安排
+
+            // 超出视野:不得 .none 保留「旧 start」的 pending;有残留就清掉
             if earliest.timeIntervalSince(now) > scheduleHorizon {
-                return .none
+                return matching.isEmpty ? .none : .endAll
             }
+
+            // 内容变了或尚无 pending → endAll + 按新 earliest schedule
             return .schedule(desired.state, start: earliest)
         }
 
+        // 不能 schedule 的系统:窗口外无法纠正 pending,清掉等下次窗口内打开
         return .endAll
     }
 }

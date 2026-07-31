@@ -100,7 +100,8 @@ actor ShowLiveActivityController {
             }
             : []
 
-        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格)
+        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格);
+        // prune 只在 generation 仍有效时执行,避免旧 sync 删掉新场封面。
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
@@ -111,6 +112,10 @@ actor ShowLiveActivityController {
             await WidgetCoverCache.refresh(for: source)
             guard generation == latestGeneration else { return }
             coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
+            WidgetCoverCache.pruneCovers(except: source)
+        } else if desired != nil {
+            guard generation == latestGeneration else { return }
+            WidgetCoverCache.pruneCovers(except: nil)
         }
 
         let action: LiveActivityAction

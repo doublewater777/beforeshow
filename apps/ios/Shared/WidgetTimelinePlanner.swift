@@ -7,6 +7,9 @@ import Foundation
 
 enum WidgetTimelinePlanner {
     static let refreshWindow: TimeInterval = 12 * 3_600
+    /// 首页 / widget 共用:剩余 ≥ 此值显示「N 天」,低于则切到时:分:秒。
+    /// timeline 必须在 start − 此阈值处插边界,否则会卡在「1 天」近一小时。
+    static let dayCountdownThreshold: TimeInterval = 86_400
 
     /// 生成 timeline 日期点(已排序、已去重)。最后一个始终是窗口终点。
     static func entryDates(
@@ -24,13 +27,19 @@ enum WidgetTimelinePlanner {
         }
 
         var boundaryRefs: Set<TimeInterval> = []
-        if let start = startBoundary, start > now, start <= windowEnd {
-            dates.append(start)
-            boundaryRefs.insert(start.timeIntervalSinceReferenceDate)
+        func appendBoundary(_ date: Date) {
+            guard date > now, date <= windowEnd else { return }
+            dates.append(date)
+            boundaryRefs.insert(date.timeIntervalSinceReferenceDate)
         }
-        if let end = endBoundary, end > now, end <= windowEnd {
-            dates.append(end)
-            boundaryRefs.insert(end.timeIntervalSinceReferenceDate)
+
+        if let start = startBoundary {
+            appendBoundary(start)
+            // 「N 天」→ 时分秒 的切换点:start − 24h
+            appendBoundary(start.addingTimeInterval(-dayCountdownThreshold))
+        }
+        if let end = endBoundary {
+            appendBoundary(end)
         }
         dates.append(windowEnd)
 

@@ -63,21 +63,25 @@ struct CountdownTimelineProvider: TimelineProvider {
         // TimelineProvider 仍是 completion 回调 API;用一次性投递盒建立线程安全边界。
         let delivery = OnceTimelineDelivery(completion)
         Task {
-            let timeline = await Self.buildTimeline()
+            let snapshot = WidgetSnapshotStore.read()
+            // 封面不挡 timeline:先用缓存/占位交出倒计时,下载成功后再 reload。
+            // 慢/挂的图床不得拖死整条 timeline(extension 资源紧、可能被系统掐断)。
+            let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+            let timeline = Self.buildTimeline(now: Date(), snapshot: snapshot, coverImagePath: coverPath)
             delivery.deliver(timeline)
+
+            await Self.refreshCoverInBackground(snapshot: snapshot, deliveredPath: coverPath)
         }
     }
 
+    /// 纯同步:只读 App Group 缓存拼 timeline,不 await 网络。
     static func buildTimeline(
         now: Date = Date(),
-        snapshot: WidgetShowSnapshot? = WidgetSnapshotStore.read()
-    ) async -> Timeline<CountdownEntry> {
-        if let source = snapshot?.coverImageURL {
-            await WidgetCoverCache.refresh(for: source)
-        } else {
-            await WidgetCoverCache.refresh(for: nil)
-        }
-        let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+        snapshot: WidgetShowSnapshot? = WidgetSnapshotStore.read(),
+        coverImagePath: String? = nil
+    ) -> Timeline<CountdownEntry> {
+        let coverPath = coverImagePath
+            ?? WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
 
         var startBoundary: Date?
         var endBoundary: Date?
@@ -97,7 +101,23 @@ struct CountdownTimelineProvider: TimelineProvider {
         }
         return Timeline(entries: entries, policy: .after(plan.windowEnd))
     }
+
+    /// 后台拉封面;成功且路径变化时再 reload,避免把网络放在 getTimeline 关键路径上。
+    private static func refreshCoverInBackground(
+        snapshot: WidgetShowSnapshot?,
+        deliveredPath: String?
+    ) async {
+        let source = snapshot?.coverImageURL
+        await WidgetCoverCache.refresh(for: source)
+        let refreshed = WidgetCoverCache.cachedCoverPath(matching: source)
+        if refreshed != deliveredPath {
+            WidgetCenter.shared.reloadTimelines(ofKind: countdownWidgetKind)
+        }
+    }
 }
+
+/// 与 `CountdownWidget.kind` / app 侧 `WidgetDataSync.widgetKind` 对齐。
+private let countdownWidgetKind = "BeforeShowCountdownWidget"
 
 /// WidgetKit completion 未标 Sendable;锁 + 单次消费避免跨 Task 数据竞争。
 private final class OnceTimelineDelivery: @unchecked Sendable {
@@ -120,7 +140,7 @@ private final class OnceTimelineDelivery: @unchecked Sendable {
 // MARK: - Widget
 
 struct CountdownWidget: Widget {
-    let kind = "BeforeShowCountdownWidget"
+    let kind = countdownWidgetKind
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CountdownTimelineProvider()) { entry in
