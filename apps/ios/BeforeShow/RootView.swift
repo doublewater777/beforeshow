@@ -528,7 +528,7 @@ private struct CurrentShowContentView: View {
     }
 
     private func kickerPill(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
-        let text = phase == .inactive ? timeState.title : phase.kickerText(city: show.city)
+        let text = phase == .inactive ? timeState.title : phase.kickerText(city: show.city, timeState: timeState)
         return HStack(spacing: 8) {
             if phase == .live {
                 HomeLivePulse(reduceMotion: reduceMotion)
@@ -584,16 +584,11 @@ private struct CurrentShowContentView: View {
         }
     }
 
-    /// 设计稿 event-date 行:日期时间 · 约 X 分钟 / 小时(跨天「每日 HH:mm」已含区间,不追加时长)。
+    /// 设计稿 event-date 行:日期时间 · 约 X 分钟 / 小时(多日「每日 HH:mm」已含区间,不追加时长)。
     private func dateLine(timeState: CurrentShowTimeState) -> String {
         let base = formatter.dateText(for: show)
-        let isMultiDayWithoutEndClock: Bool = {
-            guard let endDay = timeState.effectiveEndDate else { return false }
-            let startDay = Calendar.current.startOfDay(for: timeState.effectiveDate)
-            let endStart = Calendar.current.startOfDay(for: endDay)
-            return endStart > startDay && timeState.effectiveEndTime == nil
-        }()
-        guard !isMultiDayWithoutEndClock, let start = timeState.effectiveStartTime else {
+        let isMultiDayDaily = CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: .current)
+        guard !isMultiDayDaily, let start = timeState.effectiveStartTime else {
             return base
         }
         if let end = timeState.effectiveEndTime, end > start {

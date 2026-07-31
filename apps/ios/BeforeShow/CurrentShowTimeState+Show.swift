@@ -25,6 +25,10 @@ extension CurrentShowTimeState {
         self.init(timing: show.timingFields, calendar: calendar, now: now, retentionDays: retentionDays)
     }
 
+    static func isMultiDayDailyCycle(for show: Show, calendar: Calendar) -> Bool {
+        isMultiDayDailyCycle(timing: show.timingFields, calendar: calendar)
+    }
+
     static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
         effectiveStartTime(timing: show.timingFields, calendar: calendar)
     }
@@ -45,5 +49,13 @@ extension CurrentShowTimeState {
             effectiveDate: effectiveDate,
             effectiveStartTime: effectiveStartTime
         )
+    }
+
+    static func dailyStartTime(on day: Date, show: Show, calendar: Calendar) -> Date {
+        dailyStartTime(on: day, timing: show.timingFields, calendar: calendar)
+    }
+
+    static func dailyEndTime(on day: Date, show: Show, calendar: Calendar) -> Date {
+        dailyEndTime(on: day, timing: show.timingFields, calendar: calendar)
     }
 }
