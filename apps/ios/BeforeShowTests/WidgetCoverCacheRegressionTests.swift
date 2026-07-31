@@ -46,6 +46,30 @@ final class WidgetCoverCacheRegressionTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
     }
 
+    func testRefreshWithoutSourceDeletesAllHashedCovers() async throws {
+        let cachedFiles = [
+            "cover-extension.jpg",
+            "cover-extension-la.jpg",
+            "cover-extension.jpg.source",
+        ]
+        let directory = try XCTUnwrap(tempDirectory)
+        for filename in cachedFiles {
+            try Data("cached".utf8).write(to: directory.appendingPathComponent(filename))
+        }
+
+        // Widget provider 的无快照路径只调用 refresh(nil),也必须完成完整清理。
+        await WidgetCoverCache.refresh(for: nil)
+
+        for filename in cachedFiles {
+            XCTAssertFalse(
+                FileManager.default.fileExists(
+                    atPath: directory.appendingPathComponent(filename).path
+                ),
+                "expected \(filename) to be removed"
+            )
+        }
+    }
+
     func testPruneKeepsOnlyCurrentSourceCoverFiles() throws {
         let currentSource = "https://cdn.example.com/current.jpg"
         let previousSource = "https://cdn.example.com/previous.jpg"
