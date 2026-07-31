@@ -97,8 +97,9 @@ struct CountdownPresentation {
         case .pre:
             // 与首页一致:按实际剩余秒数分档,不用日历 dayDistance
             // (23:50→次日 00:10 是 20 分钟,不是「1 天」)
-            if remaining >= 86_400 {
-                hero = .far(days: remaining / 86_400)
+            // 用 `>` 阈值:start−24h 的 timeline entry 上 remaining==86400 必须已是 near
+            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remaining) {
+                hero = .far(days: remaining / Int(WidgetTimelinePlanner.dayCountdownThreshold))
             } else if let start = state.effectiveStartTime {
                 hero = .near(start: start)
             } else {
@@ -129,6 +130,20 @@ struct CountdownPresentation {
             format: "%d月%d日 %02d:%02d",
             components.month ?? 0, components.day ?? 0, components.hour ?? 0, components.minute ?? 0
         )
+    }
+
+    /// 「今晚」仅当日开场;`<24h` 但跨日用「即将」,避免今晚看明天场仍写今晚。
+    var isStartTonight: Bool {
+        guard let startDate else { return false }
+        return Calendar.current.isDateInToday(startDate)
+    }
+
+    var nearKickerText: String {
+        isStartTonight ? "今晚开场" : "即将开场"
+    }
+
+    var nearInlineTextPrefix: String {
+        isStartTonight ? "今晚灯亮" : "即将灯亮"
     }
 }
 
@@ -223,7 +238,7 @@ private struct SmallCountdownView: View {
 
     private var kickerText: String {
         switch presentation.hero {
-        case .near: return "今晚开场"
+        case .near: return presentation.nearKickerText
         case .live: return "演出进行中"
         default: return "距离灯亮还有"
         }
@@ -428,7 +443,7 @@ private struct InlineCountdownView: View {
         case .far(let days):
             Text("\(days) 天后灯亮 · \(presentation.showName)")
         case .near(let start):
-            Text("今晚灯亮 · \(Text(start, style: .timer))")
+            Text("\(presentation.nearInlineTextPrefix) · \(Text(start, style: .timer))")
         case .live(let start):
             Text("开场中 · 已进行 \(Text(start, style: .timer))")
         case .ended:

@@ -7,9 +7,15 @@ import Foundation
 
 enum WidgetTimelinePlanner {
     static let refreshWindow: TimeInterval = 12 * 3_600
-    /// 首页 / widget 共用:剩余 ≥ 此值显示「N 天」,低于则切到时:分:秒。
-    /// timeline 必须在 start − 此阈值处插边界,否则会卡在「1 天」近一小时。
+    /// 首页 / widget 共用:剩余 **大于** 此值显示「N 天」,≤ 则切到时:分:秒。
+    /// 用 `>` 而非 `>=`:timeline 在 start−24h 插入的 entry 上 remaining 恰为 86400,
+    /// 必须已经是 near,否则仍显示「1 天」直到下一小时点。
     static let dayCountdownThreshold: TimeInterval = 86_400
+
+    /// 是否用天数 hero。threshold entry(remaining == 86400) 必须为 false → near。
+    static func isDayCountHero(remainingSeconds: Int) -> Bool {
+        remainingSeconds > Int(dayCountdownThreshold)
+    }
 
     /// 生成 timeline 日期点(已排序、已去重)。最后一个始终是窗口终点。
     static func entryDates(

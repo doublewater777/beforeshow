@@ -109,10 +109,19 @@ actor ShowLiveActivityController {
         )
         var coverFilename: String?
         if desired != nil, let source = snapshot?.coverImageURL {
+            // App 侧下载是可靠路径;成功后若封面从无到有,主动 reload widget,
+            // 避免 extension 下载被掐断后占位图挂到下一次 12h timeline。
+            let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             await WidgetCoverCache.refresh(for: source)
             guard generation == latestGeneration else { return }
             coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
             WidgetCoverCache.pruneCovers(except: source)
+            let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
+            if !hadWidgetCover, hasWidgetCover {
+                await MainActor.run {
+                    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDataSync.widgetKind)
+                }
+            }
         } else if desired != nil {
             guard generation == latestGeneration else { return }
             WidgetCoverCache.pruneCovers(except: nil)
@@ -148,15 +157,23 @@ actor ShowLiveActivityController {
 
         switch action {
         case .none:
-            // pending 保留;只清理非目标/重复
+            // 无目标内容可对齐:只清非本场,同场重复按数组顺序砍(应少见)
             await endActivities(matching: { $0.attributes.showID != showID })
             guard isCurrent() else { return }
-            await endDuplicates(keepingShowID: showID)
+            await endDuplicates(keepingShowID: showID, preferring: nil)
+
+        case .keep(let state):
+            // 只保留 pending 且 ContentState 完全一致的活动;同场 stale / 其它场全部 end
+            await endActivities(matching: { activity in
+                if activity.attributes.showID != showID { return true }
+                let isKeeper = isPending(activity) && activity.content.state == state
+                return !isKeeper
+            })
 
         case .update(let state):
             await endActivities(matching: { $0.attributes.showID != showID })
             guard isCurrent() else { return }
-            await endDuplicates(keepingShowID: showID)
+            await endDuplicates(keepingShowID: showID, preferring: state)
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
@@ -237,12 +254,29 @@ actor ShowLiveActivityController {
         }
     }
 
-    /// 同一 showID 只保留第一个,清掉历史并发残留的重复活动。
-    private func endDuplicates(keepingShowID showID: String?) async {
+    /// 同一 showID 只留一个:优先 ContentState 与目标一致的(active 优于 pending),
+    /// 避免 ActivityKit 返回顺序下误删正确 pending、留下旧 start。
+    private func endDuplicates(
+        keepingShowID showID: String?,
+        preferring preferred: ShowLiveActivityAttributes.ContentState?
+    ) async {
         let matching = Activity<ShowLiveActivityAttributes>.activities
             .filter { $0.attributes.showID == showID }
-        for activity in matching.dropFirst() {
-            await activity.end(nil, dismissalPolicy: .immediate)
+        guard matching.count > 1 else { return }
+
+        let keeperID: String
+        if let preferred,
+           let preferredMatch = matching.first(where: { !isPending($0) && $0.content.state == preferred })
+            ?? matching.first(where: { isPending($0) && $0.content.state == preferred }) {
+            keeperID = preferredMatch.id
+        } else if let first = matching.first {
+            keeperID = first.id
+        } else {
+            return
+        }
+
+        await endActivities { activity in
+            activity.attributes.showID == showID && activity.id != keeperID
         }
     }
 

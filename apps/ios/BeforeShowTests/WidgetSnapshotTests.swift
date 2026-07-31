@@ -382,7 +382,7 @@ final class WidgetSnapshotTests: XCTestCase {
             coverFilename: nil,
             canSchedule: true
         )
-        XCTAssertEqual(unchanged, .none)
+        XCTAssertEqual(unchanged, .keep(desired.state))
 
         var changedState = desired.state
         changedState.endDate = desired.state.endDate?.addingTimeInterval(3_600)
@@ -547,5 +547,39 @@ final class WidgetSnapshotTests: XCTestCase {
         )
         // 阈值本身在窗口内(约 now+60s)
         XCTAssertLessThanOrEqual(threshold.timeIntervalSince(now), WidgetTimelinePlanner.refreshWindow)
+
+        // 该 entry 上 remaining 恰 86400:必须 near,不能仍是 far(days:1)
+        let remainingAtThreshold = Int(start.timeIntervalSince(threshold))
+        XCTAssertEqual(remainingAtThreshold, Int(WidgetTimelinePlanner.dayCountdownThreshold))
+        XCTAssertFalse(
+            WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remainingAtThreshold),
+            "threshold entry must already be near, not far"
+        )
+        XCTAssertTrue(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remainingAtThreshold + 1))
+    }
+
+    /// 正确 pending + 旧 start pending 并存:必须 keep(目标态),不能 .none 把去重交给数组顺序。
+    func testPlannerKeepsDesiredPendingWhenStaleDuplicateExists() {
+        let now = Date()
+        let snapshot = makePlannerSnapshot(start: now.addingTimeInterval(20 * 3_600))
+        let showID = snapshot.showID.uuidString
+        let desired = LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)!
+
+        var stale = desired.state
+        stale.startDate = now.addingTimeInterval(40 * 3_600)
+        stale.endDate = stale.startDate.addingTimeInterval(4 * 3_600)
+
+        // 故意把 stale 放前面:模拟 ActivityKit 返回顺序不利
+        let action = LiveActivityPlanner.action(
+            snapshot: snapshot,
+            now: now,
+            existing: [
+                LiveActivityExisting(showID: showID, isPending: true, state: stale),
+                LiveActivityExisting(showID: showID, isPending: true, state: desired.state),
+            ],
+            coverFilename: nil,
+            canSchedule: true
+        )
+        XCTAssertEqual(action, .keep(desired.state))
     }
 }

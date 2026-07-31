@@ -18,7 +18,10 @@ struct LiveActivityExisting: Equatable {
 }
 
 enum LiveActivityAction: Equatable {
-    /// 目标与现状一致,无需动作(pending 保留)
+    /// 无需新建;携带目标 ContentState 时:只保留「pending 且 state 完全一致」的活动,
+    /// 同 show 的 stale pending / 其它 show 全部结束(解决双 pending 竞态)。
+    case keep(ShowLiveActivityAttributes.ContentState)
+    /// 无任何活动需要保留或创建(无现场残留已清 / 超视野且无匹配)
     case none
     /// 窗口内,更新现有活动(仅 active;pending 内容变了不能走这条)
     case update(ShowLiveActivityAttributes.ContentState)
@@ -109,12 +112,12 @@ enum LiveActivityPlanner {
 
         // 窗口外
         if canSchedule {
-            // 内容未变的 pending:保留,不重复 schedule(每次回前台重建会消耗配额)
+            // 至少有一个内容正确的 pending:keep 会清掉同场 stale 残留,不重复 schedule
             if hasUnchangedPending {
-                return .none
+                return .keep(desired.state)
             }
 
-            // 超出视野:不得 .none 保留「旧 start」的 pending;有残留就清掉
+            // 超出视野:不得保留「旧 start」的 pending;有残留就清掉
             if earliest.timeIntervalSince(now) > scheduleHorizon {
                 return matching.isEmpty ? .none : .endAll
             }
