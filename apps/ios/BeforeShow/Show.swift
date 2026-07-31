@@ -31,7 +31,6 @@ struct ShowDisplayFormatter {
             effectiveStartTime: startClock
         )
 
-        // 多日每日循环：共用 startTime / endTime 钟点，展示「日期区间 · 每日 HH:mm[-HH:mm]」。
         if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
            let endDay {
             let range = dayRangeText(from: startDay, to: endDay)
@@ -108,6 +107,13 @@ final class Show {
     var startTime: Date
     var endDate: Date?
     var endTime: Date?
+
+    /// 用户确认的实际散场时刻。非空时，首页立即进入已落幕并计入足迹。
+    /// 计划结束日期/时间会被暂时覆盖，撤销时从下面两个备份字段恢复。
+    var actualEndAt: Date?
+    private var manualEndOriginalEndDate: Date?
+    private var manualEndOriginalEndTime: Date?
+
     var city: String?
     var venueName: String?
     var venueAddress: String?
@@ -178,6 +184,9 @@ final class Show {
         self.startTime = startTime
         self.endDate = endDate
         self.endTime = endTime
+        self.actualEndAt = nil
+        self.manualEndOriginalEndDate = nil
+        self.manualEndOriginalEndTime = nil
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -207,18 +216,49 @@ final class Show {
         touch()
     }
 
+    /// 将实际散场时间应用到现有计划结束字段，使所有既有状态选择、倒计时与足迹分组立即生效。
+    /// 首次确认时保存原计划；修改散场时间只更新覆盖值，不覆盖原计划备份。
+    func markEnded(at endAt: Date, calendar: Calendar = .current) {
+        if actualEndAt == nil {
+            manualEndOriginalEndDate = endDate
+            manualEndOriginalEndTime = endTime
+        }
+
+        actualEndAt = endAt
+        endDate = calendar.startOfDay(for: endAt)
+        endTime = endAt
+        touch()
+    }
+
+    /// 撤销手动结束并恢复确认前的计划结束日期/时间。
+    func undoManualEnd() {
+        guard actualEndAt != nil else { return }
+        endDate = manualEndOriginalEndDate
+        endTime = manualEndOriginalEndTime
+        actualEndAt = nil
+        manualEndOriginalEndDate = nil
+        manualEndOriginalEndTime = nil
+        touch()
+    }
+
     /// Single draft → 现场 mutation seam (create uses `ShowDraft.makeShow`, edit uses this).
     ///
-    /// Deletion test: removing this method re-scatters trim/validate/field mapping across
-    /// home edit, detail edit, and debug seeder. Does not touch
-    /// `changeStatus` / `postponedDate` — those stay on mark* paths.
+    /// 手动结束期间，编辑器改动的是原计划结束字段；实际散场覆盖保持不变，
+    /// 直到用户在详情页修改散场时间或撤销结束。
     func apply(_ draft: ShowDraft) throws {
         let prepared = try Self.prepared(from: draft)
         name = prepared.name
         date = prepared.date
         startTime = prepared.startTime
-        endDate = prepared.endDate
-        endTime = prepared.endTime
+
+        if actualEndAt == nil {
+            endDate = prepared.endDate
+            endTime = prepared.endTime
+        } else {
+            manualEndOriginalEndDate = prepared.endDate
+            manualEndOriginalEndTime = prepared.endTime
+        }
+
         city = prepared.city
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
@@ -229,7 +269,6 @@ final class Show {
         touch()
     }
 
-    /// Normalize + validate draft fields once for create and edit.
     static func prepared(from draft: ShowDraft) throws -> PreparedShowDraft {
         let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty else {
@@ -320,7 +359,6 @@ final class Show {
     }
 }
 
-/// Normalized draft fields ready to write onto a `Show` (create or edit).
 struct PreparedShowDraft: Equatable {
     let name: String
     let date: Date
