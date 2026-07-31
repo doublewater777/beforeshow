@@ -71,10 +71,12 @@ enum WidgetCoverCache {
         await mutator.refresh(for: source)
     }
 
-    /// 只保留当前来源的封面文件;由 app 在同步当前现场后调用,避免 refresh 内后至 prune。
+    /// 只保留当前来源的封面文件;无来源时清理全部哈希封面。
+    /// 由 app 在同步当前现场后调用,避免 refresh 内后至 prune。
     static func pruneCovers(except currentSource: String?) {
         let trimmed = currentSource?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
+            clearHashedCovers()
             clearLegacyFixedCover()
             return
         }
@@ -124,6 +126,17 @@ enum WidgetCoverCache {
         let legacyMarker = legacy.appendingPathExtension("source")
         try? FileManager.default.removeItem(at: legacy)
         try? FileManager.default.removeItem(at: legacyMarker)
+    }
+
+    /// 无当前封面来源时删除所有哈希缓存及 marker,避免切换到无封面现场后永久残留。
+    private static func clearHashedCovers() {
+        guard let base = WidgetSnapshotStore.containerURL,
+              let files = try? FileManager.default.contentsOfDirectory(atPath: base.path) else {
+            return
+        }
+        for file in files where file.hasPrefix("cover-") {
+            try? FileManager.default.removeItem(at: base.appendingPathComponent(file, isDirectory: false))
+        }
     }
 
     /// 只保留当前来源的封面文件;历史哈希缓存(含对应 marker)随换场清理,避免长期积累。
