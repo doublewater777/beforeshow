@@ -13,7 +13,7 @@ The follow-up scope now includes a bounded later-show summary and a separate man
 - The secondary page searches and filters all real upcoming, ended, postponed, and canceled records and exposes detail, set-current, edit, and confirmed-delete actions.
 - The existing bottom “我的现场” tab was not changed.
 
-Final verification after review hardening: 133 tests passed with 0 failures; the user visually reviewed the feature result and confirmed that it looks good before the final safeguards were added.
+Final verification after review hardening: 135 tests passed with 0 failures; the user visually reviewed the feature result and confirmed that it looks good before the final safeguards were added.
 
 Manual end state is persisted as `endedAt`. Confirming an end immediately switches timing to ended and counts the show in the existing footprint/history model. The detail page supports editing the end date/time or undoing the end.
 
@@ -22,6 +22,6 @@ Review hardening added six safeguards: estimated-ended shows without `endedAt` c
 Verification:
 
 - `git diff --check`: passed.
-- iPhone 17 simulator build and full unit test suite after review fixes: 134 tests, 0 failures.
+- iPhone 17 simulator build and full unit test suite after review fixes: 135 tests, 0 failures.
 - AXe manual QA: live section, end confirmation, historical end-time entry, ended state, poster-to-detail navigation, edit end time, and undo entry all verified.
 - Simulator screenshots saved under `docs/screenshots/2026-07-31-current-show-management-*.png`.

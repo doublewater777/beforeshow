@@ -774,7 +774,8 @@ enum CurrentShowEndPolicy {
         }
         guard phase == .live else { return true }
         guard let finalDay = timeState.effectiveEndDate else { return false }
-        return calendar.isDate(now, inSameDayAs: finalDay)
+        guard let activeStart = timeState.effectiveStartTime else { return false }
+        return calendar.isDate(activeStart, inSameDayAs: finalDay)
     }
 }
 

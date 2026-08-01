@@ -121,6 +121,22 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, phase: finalPhase, now: finalDay, calendar: calendar))
     }
 
+    func testFinalOvernightDailyCycleRemainsLiveAfterMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let endDate = makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar)
+        let dailyEnd = makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        let show = try Show(name: "跨午夜音乐节", date: start, startTime: start, endDate: endDate, endTime: dailyEnd)
+        let finalOvernight = makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: finalOvernight)
+        let phase = HomeShowPhase(timeState: state, now: finalOvernight)
+
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(phase, .live)
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: finalOvernight, calendar: calendar))
+    }
+
     private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {
         DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour, minute: minute).date!
     }

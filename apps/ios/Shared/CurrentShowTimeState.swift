@@ -110,8 +110,11 @@ struct CurrentShowTimeState: Equatable {
                 resolvedStart = Self.dailyStartTime(on: lastDay, timing: timing, calendar: calendar)
                 resolvedEnd = finalEnd
                 resolvedBoundary = finalEnd
-                if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: finalEnd),
-                   now < retentionEnd {
+                if now < finalEnd {
+                    // 最后一场可能跨午夜；日历日期已越过 lastDay，但现场仍在进行。
+                    resolvedKind = .today
+                } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: finalEnd),
+                          now < retentionEnd {
                     resolvedKind = .postShow
                 } else {
                     resolvedKind = .ended
