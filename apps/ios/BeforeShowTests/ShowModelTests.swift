@@ -358,6 +358,33 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 
+    func testMultiDayOvernightSessionsKeepPreviousDayAcrossMidnightAndAnchorConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "跨午夜音乐节",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        let middleMidnight = makeDate(year: 2026, month: 8, day: 9, hour: 0, minute: 30, calendar: calendar)
+        let middleState = CurrentShowTimeState(show: show, calendar: calendar, now: middleMidnight)
+        XCTAssertEqual(middleState.kind, .today)
+        XCTAssertEqual(middleState.effectiveStartTime, makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(middleState.effectiveEndTime, makeDate(year: 2026, month: 8, day: 9, hour: 1, minute: 0, calendar: calendar))
+
+        let confirmedEnd = makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar)
+        XCTAssertEqual(
+            CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: calendar),
+            makeDate(year: 2026, month: 8, day: 10, hour: 22, minute: 0, calendar: calendar)
+        )
+        show.markEnded(at: confirmedEnd)
+        let endedState = CurrentShowTimeState(show: show, calendar: calendar, now: confirmedEnd.addingTimeInterval(60))
+        XCTAssertEqual(endedState.effectiveStartTime, makeDate(year: 2026, month: 8, day: 10, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(endedState.effectiveEndTime, confirmedEnd)
+    }
+
     func testShowCoverFallbackUsesSplashImageWithoutMissingCoverCopy() {
         let presentation = ShowCoverFallbackPresentation(reason: .noCover)
 

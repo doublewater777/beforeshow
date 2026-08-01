@@ -77,11 +77,18 @@ struct CurrentShowTimeState: Equatable {
             resolvedKind = .postponed
         } else if let endedAt = timing.endedAt {
             if multiDayDaily {
-                resolvedStart = Self.dailyStartTime(
-                    on: calendar.startOfDay(for: endedAt),
-                    timing: timing,
-                    calendar: calendar
-                )
+                let endedDay = calendar.startOfDay(for: endedAt)
+                let endedDayStart = Self.dailyStartTime(on: endedDay, timing: timing, calendar: calendar)
+                let candidateSessionDay: Date
+                if endedAt < endedDayStart,
+                   let previousDay = calendar.date(byAdding: .day, value: -1, to: endedDay) {
+                    candidateSessionDay = previousDay
+                } else {
+                    candidateSessionDay = endedDay
+                }
+                let finalDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
+                let sessionDay = min(candidateSessionDay, finalDay)
+                resolvedStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: calendar)
             } else {
                 resolvedStart = Self.effectiveStartTime(timing: timing, calendar: calendar)
             }
@@ -98,47 +105,36 @@ struct CurrentShowTimeState: Equatable {
             }
         } else if multiDayDaily {
             let lastDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
-            let firstStart = Self.dailyStartTime(on: showDay, timing: timing, calendar: calendar)
             let finalEnd = Self.dailyEndTime(on: lastDay, timing: timing, calendar: calendar)
+            // 跨午夜时，凌晨仍属于前一天的场次（例如 22:00–01:00）。
+            let sessionDay: Date = {
+                if today > lastDay { return lastDay }
+                guard today > showDay,
+                      let previousDay = calendar.date(byAdding: .day, value: -1, to: today),
+                      previousDay >= showDay else { return today }
+                let previousStart = Self.dailyStartTime(on: previousDay, timing: timing, calendar: calendar)
+                let previousEnd = Self.dailyEndTime(on: previousDay, timing: timing, calendar: calendar)
+                return now >= previousStart && now < previousEnd ? previousDay : today
+            }()
+            let dayStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: calendar)
+            let dayEnd = Self.dailyEndTime(on: sessionDay, timing: timing, calendar: calendar)
+            resolvedStart = dayStart
+            resolvedEnd = dayEnd
+            resolvedBoundary = dayEnd
 
             if today < showDay {
-                resolvedStart = firstStart
-                resolvedEnd = Self.dailyEndTime(on: showDay, timing: timing, calendar: calendar)
-                resolvedBoundary = finalEnd
                 resolvedKind = .before
-            } else if today > lastDay {
-                resolvedStart = Self.dailyStartTime(on: lastDay, timing: timing, calendar: calendar)
-                resolvedEnd = finalEnd
-                resolvedBoundary = finalEnd
-                if now < finalEnd {
-                    // 最后一场可能跨午夜；日历日期已越过 lastDay，但现场仍在进行。
-                    resolvedKind = .today
-                } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: finalEnd),
-                          now < retentionEnd {
-                    resolvedKind = .postShow
-                } else {
-                    resolvedKind = .ended
-                }
+            } else if now < dayStart {
+                resolvedKind = .today
+            } else if now < dayEnd {
+                resolvedKind = .today
+            } else if sessionDay < lastDay {
+                resolvedKind = .dayEnded
+            } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: dayEnd),
+                      now < retentionEnd {
+                resolvedKind = .postShow
             } else {
-                // 首日…末日（含）：按「当日 startTime / 共用 endTime」循环。
-                let dayStart = Self.dailyStartTime(on: today, timing: timing, calendar: calendar)
-                let dayEnd = Self.dailyEndTime(on: today, timing: timing, calendar: calendar)
-                resolvedStart = dayStart
-                resolvedEnd = dayEnd
-                resolvedBoundary = dayEnd
-
-                if now < dayStart {
-                    resolvedKind = .today
-                } else if now < dayEnd {
-                    resolvedKind = .today
-                } else if today < lastDay {
-                    resolvedKind = .dayEnded
-                } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: dayEnd),
-                          now < retentionEnd {
-                    resolvedKind = .postShow
-                } else {
-                    resolvedKind = .ended
-                }
+                resolvedKind = .ended
             }
         } else {
             let firstStart = Self.effectiveStartTime(timing: timing, calendar: calendar)

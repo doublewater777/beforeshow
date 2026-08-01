@@ -221,7 +221,7 @@ private struct CurrentShowHomeView: View {
     }
 
     private func confirmEnd(_ show: Show, at date: Date) {
-        guard date >= CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+        guard date >= CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
               date <= Date() else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return
@@ -327,7 +327,7 @@ struct CurrentShowManagementSection: View {
         .sheet(isPresented: $isShowingEndConfirmation) {
             CurrentShowEndConfirmationSheet(
                 showName: show.name,
-                showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                showStart: CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
                 suggestedEnd: currentTimeState.endBoundary ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
                 allowsJustEnded: currentPhase == .live,
                 onConfirm: { date in

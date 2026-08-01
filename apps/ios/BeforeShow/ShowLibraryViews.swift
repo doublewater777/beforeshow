@@ -1244,7 +1244,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isEditingConfirmedEnd) {
             ConfirmedEndTimeEditorSheet(
                 showName: show.name,
-                showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                showStart: CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
                 hasConfirmedEnd: show.endedAt != nil,
                 endTime: $confirmedEndDraft,
                 onSave: saveConfirmedEnd,
@@ -1639,7 +1639,7 @@ struct ShowDetailView: View {
     }
 
     private func saveConfirmedEnd() {
-        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
+        let start = CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current)
         guard confirmedEndDraft >= start, confirmedEndDraft <= Date() else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return
