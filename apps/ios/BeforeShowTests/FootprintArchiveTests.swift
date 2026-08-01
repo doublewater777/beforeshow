@@ -103,6 +103,41 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
+    func testHistoricalBackfillRejectsFutureShowsWithoutChangingFocus() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let current = try makeShow("当前现场", year: 2027, artist: "当前艺人", city: "上海", venue: "MAO")
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        context.insert(notificationState)
+        try context.save()
+
+        let future = try makeShow("误填未来现场", year: 2027, artist: "未来艺人", city: "北京", venue: "工体")
+        XCTAssertThrowsError(
+            try AddShowPersistenceCoordinator.persist(
+                future,
+                intent: .historicalBackfill,
+                selections: [selection],
+                notificationStates: [notificationState],
+                in: context
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AddShowPersistenceError,
+                .historicalBackfillRequiresCompletedShow
+            )
+        }
+
+        XCTAssertEqual(selection.selectedShowID, current.id)
+        XCTAssertEqual(notificationState.focusedShowID, current.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
+    }
+
     func testArchiveShareCopyIsSpecificToEveryCategory() throws {
         let first = try makeShow("第一场", year: 2024, artist: "落日飞车、陈绮贞", city: "上海", venue: "MAO")
         let second = try makeShow("第二场", year: 2025, artist: "落日飞车", city: "杭州", venue: "奥体")

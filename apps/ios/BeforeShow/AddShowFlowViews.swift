@@ -126,6 +126,10 @@ enum AddShowIntent: Equatable {
     case historicalBackfill
 }
 
+enum AddShowPersistenceError: Error, Equatable {
+    case historicalBackfillRequiresCompletedShow
+}
+
 @MainActor
 enum AddShowPersistenceCoordinator {
     static func persist(
@@ -135,6 +139,13 @@ enum AddShowPersistenceCoordinator {
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext
     ) throws -> NotificationSchedulingState? {
+        if intent == .historicalBackfill {
+            let timeState = CurrentShowTimeState(show: show)
+            guard timeState.kind == .postShow || timeState.kind == .ended else {
+                throw AddShowPersistenceError.historicalBackfillRequiresCompletedShow
+            }
+        }
+
         modelContext.insert(show)
 
         guard intent == .upcoming else {
@@ -1018,6 +1029,10 @@ struct AddShowFlowView: View {
         } catch ShowValidationError.emptyName {
             message = "请填写现场名称。"
             presentToast(.failure, message: "保存失败")
+            isSaving = false
+        } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
+            message = "补录历史仅支持已经结束的现场。"
+            presentToast(.failure, message: "日期还未结束")
             isSaving = false
         } catch {
             modelContext.rollback()
