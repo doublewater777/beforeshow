@@ -99,3 +99,13 @@ Cycle: `.builder/cycles/2026-07-31-current-show-management/`
 Decision: implementation-ready, user validation pending.
 
 Reason: the product owner supplied a bounded V2.4 current-show management prototype and explicitly excluded future lists, history, statistics, and prototype navigation; the remaining risk is whether phase-driven shortcuts appear at the right moment.
+
+## 2026-08-01 · Footprints Archive
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-08-01-footprints-archive/`
+
+Decision: implementation and simulator verification complete; repeat-user validation pending.
+
+Reason: ended shows now produce a prototype-faithful personal archive with search, filters, rankings, yearly history, existing-flow backfill, and share-card export, but the Current / Footprints split still needs behavioral evidence.

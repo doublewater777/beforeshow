@@ -3,15 +3,15 @@ import XCTest
 @testable import BeforeShow
 
 final class NavigationTests: XCTestCase {
-    func testTabEnumExposesExactlyTwoMainTabs() {
+    func testTabEnumExposesMainProductSurfaces() {
         let tabs = BeforeShowTab.allCases
         XCTAssertEqual(tabs.count, 2)
-        XCTAssertEqual(tabs, [.current, .myShows])
+        XCTAssertEqual(tabs, [.current, .footprints])
     }
 
     func testTabRawValuesAndLabelsUseCorrectDomainLanguage() {
         XCTAssertEqual(BeforeShowTab.current.rawValue, "当前")
-        XCTAssertEqual(BeforeShowTab.myShows.rawValue, "我的现场")
+        XCTAssertEqual(BeforeShowTab.footprints.rawValue, "足迹")
     }
 
     /// 设置不是主导航项；当前现场主海报也不承载溢出菜单。

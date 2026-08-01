@@ -9,6 +9,7 @@ struct RootView: View {
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isShowingFirstShowAdd = false
     @State private var addShowToast: BSToastPayload?
+    @State private var isTabBarHidden = false
 
     var body: some View {
         ZStack {
@@ -44,6 +45,11 @@ struct RootView: View {
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
+            FootprintDebugSeeder.seedIfRequested(in: modelContext)
+            if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
+                hasCompletedOnboarding = true
+                selectedTab = .footprints
+            }
             if ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") {
                 hasCompletedOnboarding = true
                 isShowingFirstShowAdd = true
@@ -74,12 +80,15 @@ struct RootView: View {
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
 
-            MyShowsListView()
-                .opacity(selectedTab == .myShows ? 1 : 0)
-                .allowsHitTesting(selectedTab == .myShows)
-                .accessibilityHidden(selectedTab != .myShows)
+            FootprintsView(onArchiveVisibilityChange: { isTabBarHidden = $0 })
+                .opacity(selectedTab == .footprints ? 1 : 0)
+                .allowsHitTesting(selectedTab == .footprints)
+                .accessibilityHidden(selectedTab != .footprints)
 
-            HomeFloatingTabBar(selectedTab: $selectedTab)
+            if !isTabBarHidden {
+                HomeFloatingTabBar(selectedTab: $selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
     }
 }
@@ -266,8 +275,12 @@ private struct HomeFloatingTabBar: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Label(tab.rawValue, systemImage: tab.iconName)
-                        .font(.system(size: 12.5, weight: .medium))
+                    HStack(spacing: 7) {
+                        Image(systemName: tab.iconName)
+                            .font(.system(size: 14, weight: .medium))
+                        Text(tab.rawValue)
+                            .font(.system(size: 12.5, weight: .medium))
+                    }
                         .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 9)

@@ -1,7 +1,7 @@
 name: beforeshow
 current_stage: business-model
-active_cycle: 2026-07-31-current-show-management
-updated_at: 2026-07-31
+active_cycle: 2026-08-01-footprints-archive
+updated_at: 2026-08-01
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -15,3 +15,4 @@ links:
   setlist_reliability_verification_cycle: .builder/cycles/2026-07-20-setlist-reliability-verification/
   add_show_flow_reliability_cycle: .builder/cycles/2026-07-23-add-show-flow-reliability/
   current_show_management_cycle: .builder/cycles/2026-07-31-current-show-management/
+  footprints_archive_cycle: .builder/cycles/2026-08-01-footprints-archive/
