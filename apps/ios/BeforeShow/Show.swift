@@ -246,8 +246,8 @@ final class Show {
     /// edits preserve a still-valid confirmation and discard only stale values.
     private func discardConfirmedEndBeforeEffectiveStart(calendar: Calendar = .current) {
         guard let endedAt else { return }
-        let effectiveStart = CurrentShowTimeState.effectiveStartTime(for: self, calendar: calendar)
-        if endedAt < effectiveStart {
+        let minimumConfirmableEnd = CurrentShowTimeState.minimumConfirmableEnd(for: self, calendar: calendar)
+        if endedAt < minimumConfirmableEnd {
             self.endedAt = nil
         }
     }

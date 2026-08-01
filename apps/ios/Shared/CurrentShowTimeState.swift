@@ -108,6 +108,7 @@ struct CurrentShowTimeState: Equatable {
             let finalEnd = Self.dailyEndTime(on: lastDay, timing: timing, calendar: calendar)
             // 跨午夜时，凌晨仍属于前一天的场次（例如 22:00–01:00）。
             let sessionDay: Date = {
+                if today < showDay { return showDay }
                 if today > lastDay { return lastDay }
                 guard today > showDay,
                       let previousDay = calendar.date(byAdding: .day, value: -1, to: today),
@@ -120,7 +121,7 @@ struct CurrentShowTimeState: Equatable {
             let dayEnd = Self.dailyEndTime(on: sessionDay, timing: timing, calendar: calendar)
             resolvedStart = dayStart
             resolvedEnd = dayEnd
-            resolvedBoundary = dayEnd
+            resolvedBoundary = today < showDay ? finalEnd : dayEnd
 
             if today < showDay {
                 resolvedKind = .before

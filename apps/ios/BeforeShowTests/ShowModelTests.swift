@@ -385,6 +385,40 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(endedState.effectiveEndTime, confirmedEnd)
     }
 
+    func testFutureMultiDayCycleUsesFirstSessionAndFinalBoundaryBeforeStart() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "未来音乐节",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: makeDate(year: 2026, month: 8, day: 1, hour: 10, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.kind, .before)
+        XCTAssertEqual(state.effectiveStartTime, makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.effectiveEndTime, makeDate(year: 2026, month: 8, day: 9, hour: 1, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.endBoundary, makeDate(year: 2026, month: 8, day: 11, hour: 1, minute: 0, calendar: calendar))
+    }
+
+    func testEditingMultiDayEndDateClearsConfirmedEndBeforeNewFinalSession() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "修改范围现场",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        show.markEnded(at: makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar))
+        var draft = ShowDraft(show: show)
+        draft.endDate = makeDate(year: 2026, month: 8, day: 12, hour: 0, minute: 0, calendar: calendar)
+        try show.apply(draft)
+        XCTAssertNil(show.endedAt)
+    }
+
     func testShowCoverFallbackUsesSplashImageWithoutMissingCoverCopy() {
         let presentation = ShowCoverFallbackPresentation(reason: .noCover)
 
