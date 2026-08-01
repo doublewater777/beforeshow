@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -72,8 +73,34 @@ final class FootprintArchiveTests: XCTestCase {
         ]))
     }
 
-    func testHistoricalBackfillIntentDoesNotBecomeUpcomingSelection() {
-        XCTAssertNotEqual(AddShowIntent.historicalBackfill, AddShowIntent.upcoming)
+    func testHistoricalBackfillPreservesCurrentSelectionAndNotificationFocus() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+        )
+        let context = container.mainContext
+        let future = try makeShow("未来现场", year: 2027, artist: "未来艺人", city: "上海", venue: "MAO")
+        let selection = CurrentShowSelection(selectedShowID: future.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: future.id)
+        context.insert(future)
+        context.insert(selection)
+        context.insert(notificationState)
+        try context.save()
+
+        let historical = try makeShow("补录现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
+        XCTAssertNil(
+            try AddShowPersistenceCoordinator.persist(
+                historical,
+                intent: .historicalBackfill,
+                selections: [selection],
+                notificationStates: [notificationState],
+                in: context
+            )
+        )
+
+        XCTAssertEqual(selection.selectedShowID, future.id)
+        XCTAssertEqual(notificationState.focusedShowID, future.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
     func testArchiveShareCopyIsSpecificToEveryCategory() throws {

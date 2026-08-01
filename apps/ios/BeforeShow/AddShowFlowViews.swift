@@ -126,6 +126,41 @@ enum AddShowIntent: Equatable {
     case historicalBackfill
 }
 
+@MainActor
+enum AddShowPersistenceCoordinator {
+    static func persist(
+        _ show: Show,
+        intent: AddShowIntent,
+        selections: [CurrentShowSelection],
+        notificationStates: [NotificationSchedulingState],
+        in modelContext: ModelContext
+    ) throws -> NotificationSchedulingState? {
+        modelContext.insert(show)
+
+        guard intent == .upcoming else {
+            try modelContext.save()
+            return nil
+        }
+
+        let selection = selections.first ?? CurrentShowSelection()
+        if selections.isEmpty {
+            modelContext.insert(selection)
+        }
+        selection.select(showID: show.id)
+
+        let notificationState = notificationStates.first
+            ?? NotificationSchedulingState(focusedShowID: show.id)
+        if notificationStates.isEmpty {
+            modelContext.insert(notificationState)
+        } else {
+            notificationState.focus(showID: show.id)
+        }
+
+        try modelContext.save()
+        return notificationState
+    }
+}
+
 struct AddShowMenu: View {
     @Binding var addSheet: AddShowSheet?
 
@@ -953,30 +988,13 @@ struct AddShowFlowView: View {
             }
 
             let show = try draft.makeShow()
-            modelContext.insert(show)
-
-            let notificationState: NotificationSchedulingState?
-            if intent == .historicalBackfill {
-                notificationState = nil
-            } else {
-                // New upcoming shows become current and receive notification focus.
-                let selection = selections.first ?? CurrentShowSelection()
-                if selections.isEmpty {
-                    modelContext.insert(selection)
-                }
-                selection.select(showID: show.id)
-
-                let state = notificationStates.first
-                    ?? NotificationSchedulingState(focusedShowID: show.id)
-                if notificationStates.isEmpty {
-                    modelContext.insert(state)
-                } else {
-                    state.focus(showID: show.id)
-                }
-                notificationState = state
-            }
-
-            try modelContext.save()
+            let notificationState = try AddShowPersistenceCoordinator.persist(
+                show,
+                intent: intent,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
 
             if let notificationState {
                 await activateNotifications(for: show, state: notificationState)
