@@ -1,0 +1,174 @@
+import ActivityKit
+import SwiftUI
+import WidgetKit
+
+// MARK: - Show Live Activity
+// 设计稿:docs/design/widget/BeforeShow Widgets.html
+// 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
+//
+// 关键约束(评审定稿):无 push 时 ContentState 只在 app 运行时更新,
+// 不能依赖任何「到点自动切换」——所以 UI 是中性设计:
+// - 文案跨开场/谢幕零点恒成立(「19:30 开场」「预计 22:00 谢幕」)
+// - 计时 Text(startDate, style: .timer) 系统自驱,倒数后自动正数
+// - 进度 ProgressView(timerInterval:) 系统自驱,开场前为 0、谢幕时满
+// - 无 LIVE 徽标/红点:越过谢幕也不会残留「LIVE」误导
+
+struct ShowLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
+            LiveActivityBannerView(state: context.state)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    HStack(spacing: 6) {
+                        accentDot
+                        Text("开场前")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(WidgetTheme.accent)
+                    }
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text(context.state.startDate, style: .timer)
+                        .font(.system(size: 16, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.accent)
+                        .accessibilityLabel("开场计时")
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(context.state.showName)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(WidgetTheme.foreground)
+                                .lineLimit(1)
+                            Text(bottomLine(state: context.state))
+                                .font(.system(size: 11))
+                                .foregroundStyle(WidgetTheme.dim)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.top, 2)
+                }
+            } compactLeading: {
+                accentDot
+            } compactTrailing: {
+                Text(context.state.startDate, style: .timer)
+                    .font(.system(size: 12, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(WidgetTheme.foreground)
+            } minimal: {
+                accentDot
+            }
+        }
+    }
+
+    private var accentDot: some View {
+        Circle()
+            .fill(WidgetTheme.accent)
+            .frame(width: 7, height: 7)
+    }
+
+    private func bottomLine(state: ShowLiveActivityAttributes.ContentState) -> String {
+        let venue = state.venueName.flatMap { $0.isEmpty ? nil : $0 }
+        let city = state.city.flatMap { $0.isEmpty ? nil : $0 }
+        let place = [city, venue].compactMap { $0 }.joined(separator: " · ")
+        if let end = state.endDate {
+            let components = Calendar.current.dateComponents([.hour, .minute], from: end)
+            let endText = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+            return place.isEmpty ? "预计 \(endText) 谢幕" : "\(place) · 预计 \(endText) 谢幕"
+        }
+        return place.isEmpty ? "灯亮之前,先进入状态" : place
+    }
+}
+
+// MARK: - 锁屏 banner
+
+private struct LiveActivityBannerView: View {
+    let state: ShowLiveActivityAttributes.ContentState
+
+    private var coverImage: UIImage? {
+        guard let filename = state.coverImageFilename,
+              let container = WidgetSnapshotStore.containerURL else {
+            return nil
+        }
+        return UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
+    }
+
+    var body: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                coverView
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(titleLine)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(WidgetTheme.foreground)
+                        .lineLimit(1)
+                    Text("\(clockText(state.startDate)) 开场")
+                        .font(.system(size: 11))
+                        .foregroundStyle(WidgetTheme.accent)
+                        .monospacedDigit()
+                }
+
+                Spacer(minLength: 0)
+
+                Text(state.startDate, style: .timer)
+                    .font(.system(size: 20, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(WidgetTheme.accent)
+                    .accessibilityLabel("开场计时")
+            }
+
+            // 进度条系统自驱:开场前为 0、live 推进、谢幕时满,全程无需 update
+            if let end = state.endDate, end > state.startDate {
+                VStack(spacing: 4) {
+                    ProgressView(timerInterval: state.startDate...end)
+                        .tint(WidgetTheme.accent)
+                    HStack {
+                        Text("\(clockText(state.startDate)) 开场")
+                        Spacer(minLength: 0)
+                        Text("预计 \(clockText(end)) 谢幕")
+                    }
+                    .font(.system(size: 9))
+                    .foregroundStyle(WidgetTheme.dim)
+                    .monospacedDigit()
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .activityBackgroundTint(Color.black.opacity(0.72))
+        .activitySystemActionForegroundColor(WidgetTheme.foreground)
+    }
+
+    private var titleLine: String {
+        guard let city = state.city, !city.isEmpty else { return state.showName }
+        return "\(state.showName) · \(city)站"
+    }
+
+    @ViewBuilder
+    private var coverView: some View {
+        if let coverImage {
+            Image(uiImage: coverImage)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else {
+            RoundedRectangle(cornerRadius: 10)
+                .fill(WidgetTheme.surfaceRaised)
+                .frame(width: 40, height: 40)
+                .overlay {
+                    Image(systemName: "ticket")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(WidgetTheme.accent)
+                }
+        }
+    }
+
+    private func clockText(_ date: Date) -> String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+}

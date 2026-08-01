@@ -12,6 +12,7 @@ enum CurrentShowTimeKind: Equatable {
 }
 
 /// Phase / clocks / countdown for a 现场. Presentation layout lives in views, not here.
+/// 输入是 `ShowTimingFields` 纯值，app（SwiftData Show）与 widget extension（快照）共用。
 struct CurrentShowTimeState: Equatable {
     static let defaultRetentionDays = 3
 
@@ -34,18 +35,18 @@ struct CurrentShowTimeState: Equatable {
     let helperText: String
 
     init(
-        show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar = .current,
         now: Date = Date(),
         retentionDays: Int = Self.defaultRetentionDays
     ) {
         self.retentionDays = retentionDays
-        self.hasKnownEffectiveDate = !(show.changeStatus == .postponed && show.postponedDate == nil)
-        self.isDatedPostponement = show.changeStatus == .postponed && show.postponedDate != nil
-        self.effectiveDate = show.effectiveDate
+        self.hasKnownEffectiveDate = !(timing.changeStatus == .postponed && timing.postponedDate == nil)
+        self.isDatedPostponement = timing.changeStatus == .postponed && timing.postponedDate != nil
+        self.effectiveDate = timing.effectiveDate
 
         let resolvedEndDate = hasKnownEffectiveDate
-            ? Self.effectiveEndDate(for: show, calendar: calendar)
+            ? Self.effectiveEndDate(timing: timing, calendar: calendar)
             : nil
         self.effectiveEndDate = resolvedEndDate
 
@@ -55,16 +56,16 @@ struct CurrentShowTimeState: Equatable {
         self.dayDistance = daysToFirst
 
         let multiDayDaily = hasKnownEffectiveDate
-            && Self.isMultiDayDailyCycle(for: show, calendar: calendar)
+            && Self.isMultiDayDailyCycle(timing: timing, calendar: calendar)
 
         let resolvedStart: Date?
         let resolvedEnd: Date?
         let resolvedBoundary: Date?
         let resolvedKind: CurrentShowTimeKind
 
-        if show.changeStatus == .canceled {
+        if timing.changeStatus == .canceled {
             resolvedStart = hasKnownEffectiveDate
-                ? Self.effectiveStartTime(for: show, calendar: calendar)
+                ? Self.effectiveStartTime(timing: timing, calendar: calendar)
                 : nil
             resolvedEnd = nil
             resolvedBoundary = nil
@@ -76,16 +77,16 @@ struct CurrentShowTimeState: Equatable {
             resolvedKind = .postponed
         } else if multiDayDaily {
             let lastDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
-            let firstStart = Self.dailyStartTime(on: showDay, show: show, calendar: calendar)
-            let finalEnd = Self.dailyEndTime(on: lastDay, show: show, calendar: calendar)
+            let firstStart = Self.dailyStartTime(on: showDay, timing: timing, calendar: calendar)
+            let finalEnd = Self.dailyEndTime(on: lastDay, timing: timing, calendar: calendar)
 
             if today < showDay {
                 resolvedStart = firstStart
-                resolvedEnd = Self.dailyEndTime(on: showDay, show: show, calendar: calendar)
+                resolvedEnd = Self.dailyEndTime(on: showDay, timing: timing, calendar: calendar)
                 resolvedBoundary = finalEnd
                 resolvedKind = .before
             } else if today > lastDay {
-                resolvedStart = Self.dailyStartTime(on: lastDay, show: show, calendar: calendar)
+                resolvedStart = Self.dailyStartTime(on: lastDay, timing: timing, calendar: calendar)
                 resolvedEnd = finalEnd
                 resolvedBoundary = finalEnd
                 if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: finalEnd),
@@ -96,8 +97,8 @@ struct CurrentShowTimeState: Equatable {
                 }
             } else {
                 // 首日…末日（含）：按「当日 startTime / 共用 endTime」循环。
-                let dayStart = Self.dailyStartTime(on: today, show: show, calendar: calendar)
-                let dayEnd = Self.dailyEndTime(on: today, show: show, calendar: calendar)
+                let dayStart = Self.dailyStartTime(on: today, timing: timing, calendar: calendar)
+                let dayEnd = Self.dailyEndTime(on: today, timing: timing, calendar: calendar)
                 resolvedStart = dayStart
                 resolvedEnd = dayEnd
                 resolvedBoundary = dayEnd
@@ -116,15 +117,15 @@ struct CurrentShowTimeState: Equatable {
                 }
             }
         } else {
-            let firstStart = Self.effectiveStartTime(for: show, calendar: calendar)
+            let firstStart = Self.effectiveStartTime(timing: timing, calendar: calendar)
             let wholeEnd = Self.effectiveEndTime(
-                for: show,
+                timing: timing,
                 calendar: calendar,
-                effectiveDate: show.effectiveDate,
+                effectiveDate: timing.effectiveDate,
                 effectiveStartTime: firstStart
             )
             let boundary = Self.effectiveEndBoundary(
-                for: show,
+                timing: timing,
                 calendar: calendar,
                 effectiveDate: effectiveDate,
                 effectiveEndDate: resolvedEndDate,
@@ -223,64 +224,64 @@ struct CurrentShowTimeState: Equatable {
 
     /// 多日「每日循环」：有跨日 endDate，且不是一夜连轴（次日凌晨落幕）的单场。
     /// 每日共用同一个 startTime / endTime 钟点。
-    static func isMultiDayDailyCycle(for show: Show, calendar: Calendar) -> Bool {
-        guard let endDate = effectiveEndDate(for: show, calendar: calendar) else {
+    static func isMultiDayDailyCycle(timing: ShowTimingFields, calendar: Calendar) -> Bool {
+        guard let endDate = effectiveEndDate(timing: timing, calendar: calendar) else {
             return false
         }
-        let startDay = calendar.startOfDay(for: show.effectiveDate)
+        let startDay = calendar.startOfDay(for: timing.effectiveDate)
         let endDay = calendar.startOfDay(for: endDate)
         guard endDay > startDay else { return false }
 
         let span = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
         // 跨午夜单场：仅 +1 日，且结束钟点 ≤ 开场钟点（如 23:00–01:00）。
-        if span == 1, let endTime = show.endTime {
-            if minutesOfDay(endTime, calendar: calendar) <= minutesOfDay(show.startTime, calendar: calendar) {
+        if span == 1, let endTime = timing.endTime {
+            if minutesOfDay(endTime, calendar: calendar) <= minutesOfDay(timing.startTime, calendar: calendar) {
                 return false
             }
         }
         return true
     }
 
-    static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
-        guard let merged = merge(time: show.startTime, into: show.effectiveDate, calendar: calendar) else {
-            return show.startTime
+    static func effectiveStartTime(timing: ShowTimingFields, calendar: Calendar) -> Date {
+        guard let merged = merge(time: timing.startTime, into: timing.effectiveDate, calendar: calendar) else {
+            return timing.startTime
         }
         return merged
     }
 
-    static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {
-        guard let endDate = show.endDate else {
+    static func effectiveEndDate(timing: ShowTimingFields, calendar: Calendar) -> Date? {
+        guard let endDate = timing.endDate else {
             return nil
         }
-        guard let postponedDate = show.postponedDate else {
+        guard let postponedDate = timing.postponedDate else {
             return endDate
         }
 
-        let originalStartDay = calendar.startOfDay(for: show.date)
+        let originalStartDay = calendar.startOfDay(for: timing.date)
         let originalEndDay = calendar.startOfDay(for: endDate)
         let dayOffset = calendar.dateComponents([.day], from: originalStartDay, to: originalEndDay).day ?? 0
         return calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: postponedDate)) ?? endDate
     }
 
     static func effectiveEndTime(
-        for show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar,
         effectiveDate: Date,
         effectiveStartTime: Date?
     ) -> Date? {
-        guard let endTime = show.endTime else {
+        guard let endTime = timing.endTime else {
             return nil
         }
 
         // 多日每日循环：endTime 是每日共用钟点，落到传入的 effectiveDate（通常为首日）上。
-        if isMultiDayDailyCycle(for: show, calendar: calendar) {
-            return dailyEndTime(on: calendar.startOfDay(for: effectiveDate), show: show, calendar: calendar)
+        if isMultiDayDailyCycle(timing: timing, calendar: calendar) {
+            return dailyEndTime(on: calendar.startOfDay(for: effectiveDate), timing: timing, calendar: calendar)
         }
 
-        let endDay = Self.effectiveEndDate(for: show, calendar: calendar) ?? effectiveDate
+        let endDay = Self.effectiveEndDate(timing: timing, calendar: calendar) ?? effectiveDate
         var merged = merge(time: endTime, into: endDay, calendar: calendar)
 
-        if show.endDate == nil,
+        if timing.endDate == nil,
            let startTime = effectiveStartTime,
            let candidate = merged,
            candidate <= startTime {
@@ -294,15 +295,15 @@ struct CurrentShowTimeState: Equatable {
     /// Users rarely know real end times; this is an automatic estimate only.
     static let defaultDurationHours = 4
 
-    static func dailyStartTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        merge(time: show.startTime, into: day, calendar: calendar) ?? show.startTime
+    static func dailyStartTime(on day: Date, timing: ShowTimingFields, calendar: Calendar) -> Date {
+        merge(time: timing.startTime, into: day, calendar: calendar) ?? timing.startTime
     }
 
     /// 多日共用 endTime 钟点；无 endTime 时为当日 start + 默认时长。
     /// 若 end 钟点 ≤ start 钟点，则落到次日（与单日跨午夜规则一致）。
-    static func dailyEndTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        let dayStart = dailyStartTime(on: day, show: show, calendar: calendar)
-        if let endTime = show.endTime {
+    static func dailyEndTime(on day: Date, timing: ShowTimingFields, calendar: Calendar) -> Date {
+        let dayStart = dailyStartTime(on: day, timing: timing, calendar: calendar)
+        if let endTime = timing.endTime {
             var merged = merge(time: endTime, into: day, calendar: calendar) ?? endTime
             if merged <= dayStart {
                 merged = calendar.date(byAdding: .day, value: 1, to: merged) ?? merged
@@ -313,7 +314,7 @@ struct CurrentShowTimeState: Equatable {
     }
 
     private static func effectiveEndBoundary(
-        for show: Show,
+        timing: ShowTimingFields,
         calendar: Calendar,
         effectiveDate: Date,
         effectiveEndDate: Date?,
@@ -330,7 +331,7 @@ struct CurrentShowTimeState: Equatable {
         }
 
         // Default: start + fixed duration (no user-filled end).
-        let start = effectiveStartTime(for: show, calendar: calendar)
+        let start = effectiveStartTime(timing: timing, calendar: calendar)
         return calendar.date(
             byAdding: .hour,
             value: defaultDurationHours,

@@ -1,12 +1,6 @@
 import Foundation
 import SwiftData
 
-enum ShowChangeStatus: String, CaseIterable, Codable, Equatable {
-    case scheduled
-    case postponed
-    case canceled
-}
-
 enum ShowValidationError: Error, Equatable {
     case emptyName
     case missingStartTime
