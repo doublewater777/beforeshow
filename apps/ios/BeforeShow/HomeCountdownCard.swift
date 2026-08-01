@@ -69,6 +69,30 @@ struct HomeCountdownLockup: View {
             case .inactive:
                 inactiveStatus(timeState: timeState)
             }
+
+            if let onEndShow,
+               let actionTitle = Self.endActionTitle(
+                   phase: phase,
+                   timeState: timeState,
+                   hasConfirmedEnd: show.endedAt != nil
+               ) {
+                Button(action: onEndShow) {
+                    Text(actionTitle)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BSColor.Stage.live.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("打开散场时间确认")
+                .padding(.top, 12)
+            }
         }
         .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
     }
@@ -145,25 +169,20 @@ struct HomeCountdownLockup: View {
             }
             .padding(.vertical, 8)
 
-            if let onEndShow {
-                Button(action: onEndShow) {
-                    Text("散场了，结束这场现场")
-                        .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.liveTitle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BSColor.Stage.live.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("打开散场时间确认")
-                .padding(.top, 6)
-            }
         }
+    }
+
+    static func endActionTitle(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        hasConfirmedEnd: Bool
+    ) -> String? {
+        guard !hasConfirmedEnd else { return nil }
+        if phase == .live { return "散场了，结束这场现场" }
+        if timeState.kind == .postShow || timeState.kind == .ended {
+            return "补记真实散场时间"
+        }
+        return nil
     }
 
     // MARK: ended:冷静收束

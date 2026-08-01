@@ -384,6 +384,50 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(state.title, "今天开场")
     }
 
+    func testEditingStartIntoFutureClearsStaleConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let originalStart = makeDate(year: 2026, month: 7, day: 8, hour: 20, minute: 0, calendar: calendar)
+        let confirmedEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let show = try Show(name: "改期现场", date: originalStart, startTime: originalStart)
+        show.markEnded(at: confirmedEnd)
+
+        var draft = ShowDraft(show: show)
+        let futureStart = makeDate(year: 2026, month: 7, day: 10, hour: 20, minute: 0, calendar: calendar)
+        draft.date = futureStart
+        draft.startTime = futureStart
+        try show.apply(draft)
+
+        XCTAssertNil(show.endedAt)
+    }
+
+    func testEditingWithoutInvalidatingConfirmedEndPreservesIt() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let confirmedEnd = start.addingTimeInterval(7_200)
+        let show = try Show(name: "保留真实散场", date: start, startTime: start)
+        show.markEnded(at: confirmedEnd)
+
+        var draft = ShowDraft(show: show)
+        draft.name = "只改名称"
+        try show.apply(draft)
+
+        XCTAssertEqual(show.endedAt, confirmedEnd)
+    }
+
+    func testPostponingOrCancelingClearsConfirmedEnd() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "状态变化现场", date: start, startTime: start)
+
+        show.markEnded(at: start.addingTimeInterval(7_200))
+        show.markPostponed(newDate: start.addingTimeInterval(86_400))
+        XCTAssertNil(show.endedAt)
+
+        show.markScheduled()
+        show.markEnded(at: start.addingTimeInterval(7_200))
+        show.markCanceled()
+        XCTAssertNil(show.endedAt)
+    }
+
     private func makeDate(
         year: Int,
         month: Int,

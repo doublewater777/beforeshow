@@ -7,8 +7,12 @@ Build:
 - Drive poster metadata, countdown, live duration, and ended presentation from `CurrentShowTimeState`, while keeping all four quick actions persistently visible with real `Show` data.
 - Persist an optional user-confirmed `endedAt` and make it the authoritative end boundary.
 - Add the three-path end confirmation sheet and detail correction/undo controls.
+- Keep the end action available as a real-time backfill after an estimated boundary, and expose the same first-entry path in detail.
+- Enforce the `endedAt >= effectiveStart` invariant after edits and clear confirmations when a show is postponed or canceled.
 - Keep lightweight shortcuts bounded to existing platform/app capabilities.
 - Add a separate `CurrentShowFollowUpSummary` capped at two real later shows.
+- Recompute later-show filtering from the management section's minute timeline rather than a parent `Date()` snapshot.
+- Keep a production Settings entry in the Current header alongside Add.
 - Add a dedicated secondary management destination with search, status filters, grouped records, and per-show actions; leave the existing “我的现场” tab implementation unchanged.
 - Keep the ambient layer abstract so it supports the inset poster without repeating a second recognizable copy of the cover behind it.
 - Synchronize widgets and notification focus after an end-state change.

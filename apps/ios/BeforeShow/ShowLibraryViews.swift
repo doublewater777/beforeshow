@@ -1155,6 +1155,7 @@ struct PostponeShowSheet: View {
 private struct ConfirmedEndTimeEditorSheet: View {
     let showName: String
     let showStart: Date
+    let hasConfirmedEnd: Bool
     @Binding var endTime: Date
     let onSave: () -> Void
     let onUndo: () -> Void
@@ -1169,7 +1170,7 @@ private struct ConfirmedEndTimeEditorSheet: View {
                     .frame(width: 56, height: 56)
                     .background(BSColor.Stage.accent.opacity(0.10))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                Text("修改散场时间")
+                Text(hasConfirmedEnd ? "修改散场时间" : "补记散场时间")
                     .font(BSFont.headline)
                     .foregroundColor(BSColor.Stage.foreground)
                 Text(showName)
@@ -1199,13 +1200,15 @@ private struct ConfirmedEndTimeEditorSheet: View {
             VStack(spacing: BSSpacing.sm) {
                 Button("保存散场时间", action: onSave)
                     .buttonStyle(BSPrimaryButtonStyle())
-                Button("撤销结束", action: onUndo)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.liveTitle)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(BSColor.Stage.live.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                if hasConfirmedEnd {
+                    Button("撤销结束", action: onUndo)
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(BSColor.Stage.live.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                }
                 Button("取消", action: onCancel)
                     .buttonStyle(BSSecondaryButtonStyle())
             }
@@ -1283,6 +1286,7 @@ struct ShowDetailView: View {
             ConfirmedEndTimeEditorSheet(
                 showName: show.name,
                 showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                hasConfirmedEnd: show.endedAt != nil,
                 endTime: $confirmedEndDraft,
                 onSave: saveConfirmedEnd,
                 onUndo: undoConfirmedEnd,
@@ -1536,6 +1540,30 @@ struct ShowDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("也可以撤销结束")
+            } else if timeState.kind == .postShow || timeState.kind == .ended {
+                Button {
+                    confirmedEndDraft = Date()
+                    isEditingConfirmedEnd = true
+                } label: {
+                    HStack {
+                        Label("补记散场时间", systemImage: "clock.badge.checkmark")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.borderProminent, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("填写真实散场日期和时间")
             }
         }
     }

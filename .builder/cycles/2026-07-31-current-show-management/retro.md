@@ -8,6 +8,8 @@ What worked:
 - Ambient treatment should communicate color and atmosphere without repeating recognizable cover geometry behind the actual poster; otherwise the two layers read as a layout error.
 - A reusable image view's own clipping is not sufficient after an outer fixed frame changes its proposed size; the final hero container must own the definitive clip shape.
 - The phrase “现场管理” was ambiguous between the existing tab, the countdown card, and the new secondary page. The resolved structure is: Current owns a two-row summary, the new destination owns complete management, and the existing tab remains untouched.
+- Time-derived presentation must not remove the only path for entering authoritative user data; estimated completion now transitions the action from “结束” to “补记”.
+- Relative-time filtering belongs inside the same timeline that renders it, and persisted time facts need model-level validation when scheduling fields change.
 
 Follow-up learning:
 

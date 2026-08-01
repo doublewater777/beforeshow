@@ -13,9 +13,12 @@ Success:
 - The page starts with a “当前” heading and add button, followed by the real current show poster, phase metadata, countdown, and persistent ticket, route, reminder, and companion shortcuts.
 - The poster opens the real show detail and has no overflow control.
 - A live show exposes “散场了，结束这场现场”.
+- A show that crossed its estimated end without a confirmed `endedAt` still exposes a first-time curtain-time entry on Current and in detail.
 - “刚刚结束” stores the current time; “早就结束” requires a valid date and time; “还没结束” dismisses without changing the clock.
 - A confirmed show immediately renders as ended and remains available in the existing show library/footprint surface.
 - The detail page can change the confirmed curtain time or undo the end.
+- Editing the start into the future, postponing, or canceling cannot leave an invalid confirmed curtain time behind.
+- Settings remains reachable from the production Current header, and later-show eligibility refreshes while the page stays open.
 - Below the current-show controls, the page shows only the two nearest later shows with poster, name, date, city, and time distance.
 - When more than two later shows exist, “查看我的现场 · N 场” opens a dedicated secondary management page.
 - The secondary page can search, filter, and manage future, ended, postponed, and canceled records without repeating the current-page hero.

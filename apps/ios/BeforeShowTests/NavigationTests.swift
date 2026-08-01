@@ -54,6 +54,52 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(result.map(\.name), ["较近", "较晚"])
     }
 
+    func testCurrentFollowUpsDropShowAfterItsStartTimePasses() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "即将开场",
+            date: now.addingTimeInterval(60),
+            startTime: now.addingTimeInterval(60)
+        )
+
+        XCTAssertEqual(
+            CurrentShowFollowUpPolicy.laterShows(from: [show], excluding: nil, now: now).map(\.id),
+            [show.id]
+        )
+        XCTAssertTrue(
+            CurrentShowFollowUpPolicy.laterShows(
+                from: [show],
+                excluding: nil,
+                now: now.addingTimeInterval(61)
+            ).isEmpty
+        )
+    }
+
+    func testEstimatedEndOffersBackfillUntilRealEndIsConfirmed() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "超时现场", date: start, startTime: start)
+        let afterEstimatedEnd = start.addingTimeInterval(5 * 3_600)
+        let timeState = CurrentShowTimeState(show: show, now: afterEstimatedEnd)
+        let phase = HomeShowPhase(timeState: timeState, now: afterEstimatedEnd)
+
+        XCTAssertEqual(timeState.kind, .postShow)
+        XCTAssertEqual(
+            HomeCountdownLockup.endActionTitle(
+                phase: phase,
+                timeState: timeState,
+                hasConfirmedEnd: false
+            ),
+            "补记真实散场时间"
+        )
+        XCTAssertNil(
+            HomeCountdownLockup.endActionTitle(
+                phase: phase,
+                timeState: timeState,
+                hasConfirmedEnd: true
+            )
+        )
+    }
+
 }
 
 /// Widget / Live Activity 回归测试放在已纳入 Xcode test target 的源文件中。

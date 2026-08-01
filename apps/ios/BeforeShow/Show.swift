@@ -191,17 +191,20 @@ final class Show {
     func markPostponed(newDate: Date?) {
         postponedDate = newDate
         changeStatus = .postponed
+        endedAt = nil
         touch()
     }
 
     func markCanceled() {
         changeStatus = .canceled
+        endedAt = nil
         touch()
     }
 
     func markScheduled() {
         postponedDate = nil
         changeStatus = .scheduled
+        discardConfirmedEndBeforeEffectiveStart()
         touch()
     }
 
@@ -234,7 +237,19 @@ final class Show {
         seatSection = prepared.seatSection
         coverImageURL = prepared.coverImageURL
         artistAvatarURLs = prepared.artistAvatarURLs
+        discardConfirmedEndBeforeEffectiveStart()
         touch()
+    }
+
+    /// A confirmed curtain time must never precede the show's effective start.
+    /// Status changes that mean the show did not happen clear it explicitly;
+    /// edits preserve a still-valid confirmation and discard only stale values.
+    private func discardConfirmedEndBeforeEffectiveStart(calendar: Calendar = .current) {
+        guard let endedAt else { return }
+        let effectiveStart = CurrentShowTimeState.effectiveStartTime(for: self, calendar: calendar)
+        if endedAt < effectiveStart {
+            self.endedAt = nil
+        }
     }
 
     /// Normalize + validate draft fields once for create and edit.

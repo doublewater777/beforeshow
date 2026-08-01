@@ -137,23 +137,13 @@ private struct CurrentShowHomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
-    #if DEBUG
     @State private var isShowingSettings = false
-    #endif
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
 
     private var currentShow: Show? {
         session.selectCurrentShow(from: shows, manualSelection: selections.first)
-    }
-
-    private var followUpShows: [Show] {
-        CurrentShowFollowUpPolicy.laterShows(
-            from: shows,
-            excluding: currentShow?.id,
-            now: Date()
-        )
     }
 
     /// shows 的增删改 + 手动切换现场,都会改变这个指纹,从而触发 widget 同步。
@@ -176,15 +166,17 @@ private struct CurrentShowHomeView: View {
                     CurrentShowManagementSection(
                         show: show,
                         formatter: formatter,
-                        followUpShows: followUpShows,
+                        candidateShows: shows,
                         onAddShow: { isShowingAddShowCoordinator = true },
+                        onOpenSettings: { isShowingSettings = true },
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         }
                     )
                 } else {
                     CurrentShowEmptyStateView(
-                        onAddShow: { isShowingAddShowCoordinator = true }
+                        onAddShow: { isShowingAddShowCoordinator = true },
+                        onOpenSettings: { isShowingSettings = true }
                     )
                 }
             }
@@ -204,10 +196,10 @@ private struct CurrentShowHomeView: View {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
                 }
             }
-            #if DEBUG
             .navigationDestination(isPresented: $isShowingSettings) {
                 SettingsView()
             }
+            #if DEBUG
             .task {
                 if ProcessInfo.processInfo.arguments.contains("--open-settings") {
                     isShowingSettings = true
@@ -309,8 +301,9 @@ private struct HomeFloatingTabBar: View {
 struct CurrentShowManagementSection: View {
     let show: Show
     let formatter: ShowDisplayFormatter
-    let followUpShows: [Show]
+    let candidateShows: [Show]
     var onAddShow: () -> Void
+    var onOpenSettings: () -> Void
     var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -352,6 +345,13 @@ struct CurrentShowManagementSection: View {
     private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
         let timeState = CurrentShowTimeState(show: show, now: now)
         let phase = HomeShowPhase(timeState: timeState, now: now)
+        let followUpShows = CurrentShowFollowUpPolicy.laterShows(
+            from: candidateShows,
+            excluding: show.id,
+            now: now
+        )
+        let canRecordEnd = show.endedAt == nil
+            && (phase == .live || timeState.kind == .postShow || timeState.kind == .ended)
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
         // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶(内容列居中回落到真实视口)。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
@@ -369,7 +369,7 @@ struct CurrentShowManagementSection: View {
 
                 HomeCountdownLockup(
                     show: show,
-                    onEndShow: phase == .live && show.endedAt == nil
+                    onEndShow: canRecordEnd
                         ? { isShowingEndConfirmation = true }
                         : nil
                 )
@@ -383,7 +383,8 @@ struct CurrentShowManagementSection: View {
                 if !followUpShows.isEmpty {
                     CurrentShowFollowUpSummary(
                         shows: followUpShows,
-                        formatter: formatter
+                        formatter: formatter,
+                        now: now
                     )
                     .padding(.horizontal, contentInset)
                     .padding(.top, 25)
@@ -405,18 +406,25 @@ struct CurrentShowManagementSection: View {
 
             Spacer(minLength: 0)
 
-            Button(action: onAddShow) {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(Color.white.opacity(0.07), in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            HStack(spacing: 8) {
+                headerButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                headerButton(icon: "plus", label: "添加现场", action: onAddShow)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("添加现场")
         }
         .frame(maxWidth: .infinity)
+    }
+
+    private func headerButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .background(Color.white.opacity(0.07), in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     // MARK: Hero（整张海报进入详情，不叠加更多按钮）
@@ -743,6 +751,7 @@ enum CurrentShowFollowUpPolicy {
 private struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
+    let now: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -844,7 +853,7 @@ private struct CurrentShowFollowUpSummary: View {
 
     private func distanceText(to show: Show) -> String {
         let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
-        let seconds = max(0, Int(start.timeIntervalSinceNow))
+        let seconds = max(0, Int(start.timeIntervalSince(now)))
         if seconds >= 86_400 { return "\(seconds / 86_400) 天后" }
         if seconds >= 3_600 { return "\(seconds / 3_600) 小时后" }
         return "\(max(1, seconds / 60)) 分钟后"
@@ -1084,6 +1093,7 @@ private struct CurrentShowEndConfirmationSheet: View {
 
 private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
+    let onOpenSettings: () -> Void
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -1132,19 +1142,27 @@ private struct CurrentShowEmptyStateView: View {
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
-                Button(action: onAddShow) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        .background(Color.white.opacity(0.07), in: Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                HStack(spacing: 8) {
+                    emptyHeaderButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                    emptyHeaderButton(icon: "plus", label: "添加现场", action: onAddShow)
                 }
-                .accessibilityLabel("添加现场")
             }
             .padding(.horizontal, 20)
             .padding(.top, 4)
         }
+    }
+
+    private func emptyHeaderButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .background(Color.white.opacity(0.07), in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 
