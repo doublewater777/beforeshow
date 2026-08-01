@@ -9,6 +9,7 @@ struct RootView: View {
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isShowingFirstShowAdd = false
     @State private var addShowToast: BSToastPayload?
+    @State private var isTabBarHidden = false
 
     var body: some View {
         ZStack {
@@ -44,6 +45,11 @@ struct RootView: View {
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
+            FootprintDebugSeeder.seedIfRequested(in: modelContext)
+            if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
+                hasCompletedOnboarding = true
+                selectedTab = .footprints
+            }
             if ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") {
                 hasCompletedOnboarding = true
                 isShowingFirstShowAdd = true
@@ -74,12 +80,15 @@ struct RootView: View {
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
 
-            MyShowsListView()
-                .opacity(selectedTab == .myShows ? 1 : 0)
-                .allowsHitTesting(selectedTab == .myShows)
-                .accessibilityHidden(selectedTab != .myShows)
+            FootprintsView(onArchiveVisibilityChange: { isTabBarHidden = $0 })
+                .opacity(selectedTab == .footprints ? 1 : 0)
+                .allowsHitTesting(selectedTab == .footprints)
+                .accessibilityHidden(selectedTab != .footprints)
 
-            HomeFloatingTabBar(selectedTab: $selectedTab)
+            if !isTabBarHidden {
+                HomeFloatingTabBar(selectedTab: $selectedTab)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
         }
     }
 }
@@ -138,6 +147,7 @@ private struct CurrentShowHomeView: View {
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
+    @State private var isShowingShowLibrary = false
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -169,6 +179,7 @@ private struct CurrentShowHomeView: View {
                         candidateShows: shows,
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
+                        onOpenShowLibrary: { isShowingShowLibrary = true },
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         }
@@ -176,7 +187,8 @@ private struct CurrentShowHomeView: View {
                 } else {
                     CurrentShowEmptyStateView(
                         onAddShow: { isShowingAddShowCoordinator = true },
-                        onOpenSettings: { isShowingSettings = true }
+                        onOpenSettings: { isShowingSettings = true },
+                        onOpenShowLibrary: { isShowingShowLibrary = true }
                     )
                 }
             }
@@ -198,6 +210,9 @@ private struct CurrentShowHomeView: View {
             }
             .navigationDestination(isPresented: $isShowingSettings) {
                 SettingsView()
+            }
+            .navigationDestination(isPresented: $isShowingShowLibrary) {
+                CurrentShowLibraryManagementView()
             }
             #if DEBUG
             .task {
@@ -266,8 +281,12 @@ private struct HomeFloatingTabBar: View {
                 Button {
                     selectedTab = tab
                 } label: {
-                    Label(tab.rawValue, systemImage: tab.iconName)
-                        .font(.system(size: 12.5, weight: .medium))
+                    HStack(spacing: 7) {
+                        Image(systemName: tab.iconName)
+                            .font(.system(size: 14, weight: .medium))
+                        Text(tab.rawValue)
+                            .font(.system(size: 12.5, weight: .medium))
+                    }
                         .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 9)
@@ -304,6 +323,7 @@ struct CurrentShowManagementSection: View {
     let candidateShows: [Show]
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
+    var onOpenShowLibrary: () -> Void
     var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -417,6 +437,7 @@ struct CurrentShowManagementSection: View {
 
             HStack(spacing: 8) {
                 headerButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                headerButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
                 headerButton(icon: "plus", label: "添加现场", action: onAddShow)
             }
         }
@@ -1132,6 +1153,7 @@ private struct CurrentShowEndConfirmationSheet: View {
 private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
     let onOpenSettings: () -> Void
+    let onOpenShowLibrary: () -> Void
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -1182,6 +1204,7 @@ private struct CurrentShowEmptyStateView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     emptyHeaderButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                    emptyHeaderButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
                     emptyHeaderButton(icon: "plus", label: "添加现场", action: onAddShow)
                 }
             }

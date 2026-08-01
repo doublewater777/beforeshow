@@ -38,6 +38,46 @@ private func updateNotificationFocusModel(
     }
 }
 
+@MainActor
+enum ShowDeletionCoordinator {
+    static func delete(
+        _ show: Show,
+        from shows: [Show],
+        selections: [CurrentShowSelection],
+        notificationStates: [NotificationSchedulingState],
+        in modelContext: ModelContext
+    ) async throws {
+        let coverImageURL = show.coverImageURL
+        if selections.first?.selectedShowID == show.id {
+            selections.first?.clearManualSelection()
+        }
+
+        let remainingShows = shows.filter { $0.id != show.id }
+        modelContext.delete(show)
+        let nextCurrentShow = CurrentShowSession().selectCurrentShow(
+            from: remainingShows,
+            manualSelection: selections.first
+        )
+        updateNotificationFocusModel(
+            showID: nextCurrentShow?.id,
+            notificationStates: notificationStates,
+            in: modelContext
+        )
+
+        try modelContext.save()
+
+        if let coverImageURL,
+           !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
+            ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+        }
+        _ = await LocalNotificationCenter.shared.applyFocusChange(
+            to: nextCurrentShow,
+            in: modelContext
+        )
+        WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
+    }
+}
+
 // MARK: - My Shows List View
 
 struct MyShowsListView: View {
@@ -678,7 +718,7 @@ struct CurrentShowLibraryManagementView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
 
     @State private var searchText = ""
-    @State private var filter: CurrentShowLibraryFilter = .upcoming
+    @State private var filter: CurrentShowLibraryFilter = .all
     @State private var actionTarget: Show?
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
@@ -944,19 +984,14 @@ struct CurrentShowLibraryManagementView: View {
     private func delete(_ show: Show) {
         deleteTarget = nil
         Task { @MainActor in
-            let cover = show.coverImageURL
-            if selections.first?.selectedShowID == show.id { selections.first?.clearManualSelection() }
-            let remaining = shows.filter { $0.id != show.id }
-            modelContext.delete(show)
-            let next = session.selectCurrentShow(from: remaining, manualSelection: selections.first)
-            updateNotificationFocusModel(showID: next?.id, notificationStates: notificationStates, in: modelContext)
             do {
-                try modelContext.save()
-                if let cover, !remaining.contains(where: { $0.coverImageURL == cover }) {
-                    ShowCoverLocalImageStore.removeManagedLocalImage(at: cover)
-                }
-                _ = await LocalNotificationCenter.shared.applyFocusChange(to: next, in: modelContext)
-                WidgetDataSync.sync(shows: remaining, manualSelection: selections.first)
+                try await ShowDeletionCoordinator.delete(
+                    show,
+                    from: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext
+                )
                 presentToast(.success, message: "已删除现场")
             } catch {
                 modelContext.rollback()
@@ -1736,39 +1771,19 @@ struct ShowDetailView: View {
 
     @MainActor
     private func deleteShow() async {
-        let coverImageURL = show.coverImageURL
-        if selections.first?.selectedShowID == show.id {
-            selections.first?.clearManualSelection()
-        }
-
-        let remainingShows = shows.filter { $0.id != show.id }
-        modelContext.delete(show)
-        let nextCurrentShow = session.selectCurrentShow(
-            from: remainingShows,
-            manualSelection: selections.first
-        )
-        updateNotificationFocusModel(
-            showID: nextCurrentShow?.id,
-            notificationStates: notificationStates,
-            in: modelContext
-        )
-
         do {
-            try modelContext.save()
+            try await ShowDeletionCoordinator.delete(
+                show,
+                from: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+            dismiss()
         } catch {
             modelContext.rollback()
             presentToast(.failure, message: "删除失败，请重试")
-            return
         }
-
-        if let coverImageURL {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
-        }
-        _ = await LocalNotificationCenter.shared.applyFocusChange(
-            to: nextCurrentShow,
-            in: modelContext
-        )
-        dismiss()
     }
 
     @MainActor

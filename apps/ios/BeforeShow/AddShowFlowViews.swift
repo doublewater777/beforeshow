@@ -71,6 +71,7 @@ enum AddShowSheet: Identifiable {
 }
 
 struct AddShowCoordinatorSheet: View {
+    var intent: AddShowIntent = .upcoming
     /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
     var allowsBrowseSkip: Bool = false
     var onShowAdded: () -> Void = {}
@@ -83,6 +84,7 @@ struct AddShowCoordinatorSheet: View {
             if let selectedSheet {
                 AddShowFlowView(
                     sheet: selectedSheet,
+                    intent: intent,
                     onSaved: {
                         dismiss()
                         onShowAdded()
@@ -116,6 +118,57 @@ struct AddShowCoordinatorSheet: View {
             selectedSheet = .manual
         }
         #endif
+    }
+}
+
+enum AddShowIntent: Equatable {
+    case upcoming
+    case historicalBackfill
+}
+
+enum AddShowPersistenceError: Error, Equatable {
+    case historicalBackfillRequiresCompletedShow
+}
+
+@MainActor
+enum AddShowPersistenceCoordinator {
+    static func persist(
+        _ show: Show,
+        intent: AddShowIntent,
+        selections: [CurrentShowSelection],
+        notificationStates: [NotificationSchedulingState],
+        in modelContext: ModelContext
+    ) throws -> NotificationSchedulingState? {
+        if intent == .historicalBackfill {
+            let timeState = CurrentShowTimeState(show: show)
+            guard timeState.kind == .postShow || timeState.kind == .ended else {
+                throw AddShowPersistenceError.historicalBackfillRequiresCompletedShow
+            }
+        }
+
+        modelContext.insert(show)
+
+        guard intent == .upcoming else {
+            try modelContext.save()
+            return nil
+        }
+
+        let selection = selections.first ?? CurrentShowSelection()
+        if selections.isEmpty {
+            modelContext.insert(selection)
+        }
+        selection.select(showID: show.id)
+
+        let notificationState = notificationStates.first
+            ?? NotificationSchedulingState(focusedShowID: show.id)
+        if notificationStates.isEmpty {
+            modelContext.insert(notificationState)
+        } else {
+            notificationState.focus(showID: show.id)
+        }
+
+        try modelContext.save()
+        return notificationState
     }
 }
 
@@ -267,6 +320,7 @@ struct AddShowFlowView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
 
     let sheet: AddShowSheet
+    let intent: AddShowIntent
     let linkParser: ShowLinkDraftParser
     private let onSaved: (() -> Void)?
     private let onBack: (() -> Void)?
@@ -298,11 +352,13 @@ struct AddShowFlowView: View {
 
     init(
         sheet: AddShowSheet,
+        intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
         onSaved: (() -> Void)? = nil,
         onBack: (() -> Void)? = nil
     ) {
         self.sheet = sheet
+        self.intent = intent
         self.linkParser = linkParser
         self.onSaved = onSaved
         self.onBack = onBack
@@ -943,26 +999,17 @@ struct AddShowFlowView: View {
             }
 
             let show = try draft.makeShow()
-            modelContext.insert(show)
+            let notificationState = try AddShowPersistenceCoordinator.persist(
+                show,
+                intent: intent,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
 
-            // Always become current (not only the first show).
-            let selection = selections.first ?? CurrentShowSelection()
-            if selections.isEmpty {
-                modelContext.insert(selection)
+            if let notificationState {
+                await activateNotifications(for: show, state: notificationState)
             }
-            selection.select(showID: show.id)
-
-            let notificationState = notificationStates.first
-                ?? NotificationSchedulingState(focusedShowID: show.id)
-            if notificationStates.isEmpty {
-                modelContext.insert(notificationState)
-            } else {
-                notificationState.focus(showID: show.id)
-            }
-
-            try modelContext.save()
-
-            await activateNotifications(for: show, state: notificationState)
             didSave = true
             finalizeTemporaryCovers(keeping: draft.coverImageURL)
 
@@ -982,6 +1029,10 @@ struct AddShowFlowView: View {
         } catch ShowValidationError.emptyName {
             message = "请填写现场名称。"
             presentToast(.failure, message: "保存失败")
+            isSaving = false
+        } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
+            message = "补录历史仅支持已经结束的现场。"
+            presentToast(.failure, message: "日期还未结束")
             isSaving = false
         } catch {
             modelContext.rollback()
