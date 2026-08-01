@@ -89,3 +89,13 @@ Cycle: `.builder/cycles/2026-07-23-add-show-flow-reliability/`
 Decision: implementation and simulator verification complete; user validation pending.
 
 Reason: required time data, notification activation, duplicate-save protection, actionable recovery, and local cover cleanup now share tested invariants; release-user observation is still needed for the permission and completion handoff.
+
+## 2026-07-31 · Current Show Management
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-07-31-current-show-management/`
+
+Decision: implementation-ready, user validation pending.
+
+Reason: the product owner supplied a bounded V2.4 current-show management prototype and explicitly excluded future lists, history, statistics, and prototype navigation; the remaining risk is whether phase-driven shortcuts appear at the right moment.

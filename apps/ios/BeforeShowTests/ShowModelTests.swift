@@ -191,6 +191,45 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
+    func testConfirmedEndOverridesEstimatedBoundaryAndCanBeUndone() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "确认散场的现场",
+            date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 30, calendar: calendar)
+        )
+        let confirmedEnd = makeDate(
+            year: 2026,
+            month: 7,
+            day: 8,
+            hour: 22,
+            minute: 10,
+            calendar: calendar
+        )
+
+        show.markEnded(at: confirmedEnd)
+
+        let endedState = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(endedState.kind, .postShow)
+        XCTAssertEqual(endedState.endBoundary, confirmedEnd)
+        XCTAssertEqual(endedState.effectiveEndTime, confirmedEnd)
+
+        show.clearEnded()
+
+        let resumedState = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(resumedState.kind, .today)
+        XCTAssertNil(show.endedAt)
+    }
+
     func testMultiDayDailyCycleEndsEachDayAndRestartsNextDay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

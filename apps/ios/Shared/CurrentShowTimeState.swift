@@ -75,6 +75,27 @@ struct CurrentShowTimeState: Equatable {
             resolvedEnd = nil
             resolvedBoundary = nil
             resolvedKind = .postponed
+        } else if let endedAt = timing.endedAt {
+            if multiDayDaily {
+                resolvedStart = Self.dailyStartTime(
+                    on: calendar.startOfDay(for: endedAt),
+                    timing: timing,
+                    calendar: calendar
+                )
+            } else {
+                resolvedStart = Self.effectiveStartTime(timing: timing, calendar: calendar)
+            }
+            resolvedEnd = endedAt
+            resolvedBoundary = endedAt
+
+            if now < endedAt {
+                resolvedKind = .today
+            } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: endedAt),
+                      now < retentionEnd {
+                resolvedKind = .postShow
+            } else {
+                resolvedKind = .ended
+            }
         } else if multiDayDaily {
             let lastDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
             let firstStart = Self.dailyStartTime(on: showDay, timing: timing, calendar: calendar)

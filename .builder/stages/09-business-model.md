@@ -29,6 +29,7 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 - The active simplification cycle `.builder/cycles/2026-07-23-remove-setlist-guess/` removes setlist guessing after the product owner chose a narrower current-show and countdown focus.
 - The active simplification cycle `.builder/cycles/2026-07-23-remove-memory-and-travel/` removes memory fragments, travel planning, and the remaining generation backend.
 - The parallel reliability cycle `.builder/cycles/2026-07-23-add-show-flow-reliability/` verifies that adding the first real show produces valid countdown data, one current focus, and working notification follow-through before the Pro save limit is tested.
+- The active current-show management cycle `.builder/cycles/2026-07-31-current-show-management/` tests whether one poster-led, phase-driven surface can make adding, opening, preparing for, and explicitly ending the current show understandable without reviving retired standalone tools.
 
 ## Open Questions
 

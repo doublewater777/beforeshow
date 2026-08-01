@@ -9,6 +9,7 @@ extension Show {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
+            endedAt: endedAt,
             postponedDate: postponedDate,
             changeStatus: changeStatus
         )

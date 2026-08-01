@@ -650,6 +650,471 @@ private struct CurrentShowListHeroCard: View {
     }
 }
 
+// MARK: - Current Tab Secondary Show Management
+
+enum CurrentShowLibraryFilter: String, CaseIterable, Identifiable {
+    case upcoming = "即将开始"
+    case ended = "已结束"
+    case all = "全部"
+
+    var id: Self { self }
+}
+
+private struct CurrentShowLibraryDestination: Identifiable, Hashable {
+    let show: Show
+    let startsEditing: Bool
+    var id: String { "\(show.id.uuidString)-\(startsEditing)" }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// 从“当前”页进入的完整管理页。刻意与底部“我的现场”Tab 分离，避免改变其现有结构与状态。
+struct CurrentShowLibraryManagementView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
+
+    @State private var searchText = ""
+    @State private var filter: CurrentShowLibraryFilter = .upcoming
+    @State private var actionTarget: Show?
+    @State private var destination: CurrentShowLibraryDestination?
+    @State private var copyTarget: Show?
+    @State private var deleteTarget: Show?
+    @State private var isShowingAdd = false
+    @State private var toast: BSToastPayload?
+
+    private let formatter = ShowDisplayFormatter()
+    private let session = CurrentShowSession()
+
+    var body: some View {
+        ZStack {
+            CurrentShowStageBackground().ignoresSafeArea()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    header
+                    searchField.padding(.top, 18)
+                    filterBar.padding(.top, 12)
+
+                    if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
+                        Text("没有匹配的现场")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.dim)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 48)
+                    } else {
+                        ForEach(displayedSections) { section in
+                            if !section.shows.isEmpty {
+                                managementSection(section)
+                            }
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 40)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationDestination(item: $destination) { target in
+            ShowDetailView(show: target.show, startsEditing: target.startsEditing)
+        }
+        .sheet(item: $actionTarget) { show in
+            CurrentShowLibraryActionSheet(
+                show: show,
+                canSetCurrent: canSetCurrent(show),
+                onView: { present(show, editing: false) },
+                onSetCurrent: { selectCurrent(show) },
+                onEdit: { present(show, editing: true) },
+                onCopy: { presentCopy(show) },
+                onDelete: { presentDelete(show) },
+                onCancel: { actionTarget = nil }
+            )
+        }
+        .sheet(item: $copyTarget) { show in
+            ShowDraftEditorView(
+                title: "复制为新现场",
+                subtitle: "保留已有信息，修改日期后创建一条新记录。",
+                draft: ShowDraft(show: show),
+                saveTitle: "创建副本"
+            ) { draft in
+                try await createCopy(from: draft)
+            }
+        }
+        .sheet(isPresented: $isShowingAdd) {
+            AddShowCoordinatorSheet {
+                presentToast(.success, message: "已添加现场")
+            }
+        }
+        .alert("删除这场现场？", isPresented: deleteAlertBinding, presenting: deleteTarget) { show in
+            Button("删除记录", role: .destructive) { delete(show) }
+            Button("取消", role: .cancel) { deleteTarget = nil }
+        } message: { show in
+            Text("“\(show.name)”将从本机移除，此操作无法撤销。")
+        }
+        .bsToastOverlay(toast, bottomPadding: 28)
+    }
+
+    private var header: some View {
+        HStack {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 42, height: 42)
+                    .background(Color.white.opacity(0.075), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回")
+
+            Spacer()
+            Text("我的现场")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Spacer()
+
+            Button { isShowingAdd = true } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .frame(width: 42, height: 42)
+                    .background(Color.white.opacity(0.075), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("添加现场")
+        }
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(BSColor.Stage.dim)
+            TextField("搜索艺人、城市或场馆", text: $searchText)
+                .font(.system(size: 13))
+                .foregroundColor(BSColor.Stage.foreground)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+        }
+        .padding(.horizontal, 13)
+        .frame(height: 47)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.09), lineWidth: 1))
+    }
+
+    private var filterBar: some View {
+        HStack(spacing: 4) {
+            ForEach(CurrentShowLibraryFilter.allCases) { item in
+                Button { filter = item } label: {
+                    Text("\(item.rawValue) \(count(for: item))")
+                        .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
+                        .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(filter == item ? Color.white.opacity(0.10) : .clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 11))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    private func managementSection(_ section: LibrarySection) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(section.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.3)
+                    .foregroundColor(BSColor.Stage.muted)
+                Spacer()
+                Text("\(section.shows.count) 场")
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+            ForEach(section.shows) { show in
+                CurrentShowLibraryRow(
+                    show: show,
+                    isCurrent: selectedShowID == show.id,
+                    formatter: formatter,
+                    onOpen: { destination = .init(show: show, startsEditing: false) },
+                    onMore: { actionTarget = show }
+                )
+            }
+        }
+        .padding(.top, 23)
+    }
+
+    private struct LibrarySection: Identifiable {
+        let title: String
+        let shows: [Show]
+        var id: String { title }
+    }
+
+    private var displayedSections: [LibrarySection] {
+        let sections: [LibrarySection]
+        switch filter {
+        case .upcoming:
+            sections = [.init(title: "即将开始", shows: upcomingShows), .init(title: "延期与变更", shows: changedShows)]
+        case .ended:
+            sections = [.init(title: "已结束", shows: endedShows)]
+        case .all:
+            sections = [
+                .init(title: "即将开始", shows: upcomingShows),
+                .init(title: "延期与变更", shows: changedShows),
+                .init(title: "已结束", shows: endedShows)
+            ]
+        }
+        return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
+    }
+
+    private var selectedShowID: UUID? {
+        session.selectCurrentShow(from: shows, manualSelection: selections.first)?.id
+    }
+
+    private var upcomingShows: [Show] {
+        shows.filter { show in
+            guard show.changeStatus == .scheduled else { return false }
+            let kind = session.phase(for: show, now: Date()).kind
+            return kind == .before || kind == .today || kind == .dayEnded
+        }.sorted { $0.effectiveDate < $1.effectiveDate }
+    }
+
+    private var endedShows: [Show] {
+        shows.filter { show in
+            guard show.changeStatus == .scheduled else { return false }
+            let kind = session.phase(for: show, now: Date()).kind
+            return kind == .postShow || kind == .ended
+        }.sorted { $0.effectiveDate > $1.effectiveDate }
+    }
+
+    private var changedShows: [Show] {
+        shows.filter { $0.changeStatus != .scheduled }.sorted { $0.effectiveDate < $1.effectiveDate }
+    }
+
+    private func matchesSearch(_ show: Show) -> Bool {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return true }
+        return [show.name, show.artist, show.city, show.venueName, show.venueAddress]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .localizedCaseInsensitiveContains(query)
+    }
+
+    private func count(for filter: CurrentShowLibraryFilter) -> Int {
+        switch filter {
+        case .upcoming: return upcomingShows.count + changedShows.count
+        case .ended: return endedShows.count
+        case .all: return shows.count
+        }
+    }
+
+    private func canSetCurrent(_ show: Show) -> Bool {
+        show.id != selectedShowID && show.changeStatus != .canceled && !endedShows.contains(where: { $0.id == show.id })
+    }
+
+    private func present(_ show: Show, editing: Bool) {
+        actionTarget = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            destination = .init(show: show, startsEditing: editing)
+        }
+    }
+
+    private func presentCopy(_ show: Show) {
+        actionTarget = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            copyTarget = show
+        }
+    }
+
+    private func presentDelete(_ show: Show) {
+        actionTarget = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            deleteTarget = show
+        }
+    }
+
+    private var deleteAlertBinding: Binding<Bool> {
+        Binding(get: { deleteTarget != nil }, set: { if !$0 { deleteTarget = nil } })
+    }
+
+    private func selectCurrent(_ show: Show) {
+        actionTarget = nil
+        Task { @MainActor in
+            updateCurrentShowFocusModels(showID: show.id, selections: selections, notificationStates: notificationStates, in: modelContext)
+            do {
+                try modelContext.save()
+                _ = await LocalNotificationCenter.shared.applyFocusChange(to: show, in: modelContext)
+                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                presentToast(.success, message: "已设为当前现场")
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: "切换失败，请重试")
+            }
+        }
+    }
+
+    @MainActor
+    private func createCopy(from draft: ShowDraft) async throws {
+        var copiedDraft = draft
+        copiedDraft.coverImageURL = try ShowCoverLocalImageStore.duplicatedURLIfManaged(draft.coverImageURL)
+        let copiedShow = try copiedDraft.makeShow()
+        modelContext.insert(copiedShow)
+        do {
+            try modelContext.save()
+            WidgetDataSync.sync(shows: shows + [copiedShow], manualSelection: selections.first)
+            presentToast(.success, message: "已复制为新现场")
+        } catch {
+            modelContext.rollback()
+            if copiedDraft.coverImageURL != draft.coverImageURL {
+                ShowCoverLocalImageStore.removeManagedLocalImage(at: copiedDraft.coverImageURL)
+            }
+            throw error
+        }
+    }
+
+    private func delete(_ show: Show) {
+        deleteTarget = nil
+        Task { @MainActor in
+            let cover = show.coverImageURL
+            if selections.first?.selectedShowID == show.id { selections.first?.clearManualSelection() }
+            let remaining = shows.filter { $0.id != show.id }
+            modelContext.delete(show)
+            let next = session.selectCurrentShow(from: remaining, manualSelection: selections.first)
+            updateNotificationFocusModel(showID: next?.id, notificationStates: notificationStates, in: modelContext)
+            do {
+                try modelContext.save()
+                if let cover, !remaining.contains(where: { $0.coverImageURL == cover }) {
+                    ShowCoverLocalImageStore.removeManagedLocalImage(at: cover)
+                }
+                _ = await LocalNotificationCenter.shared.applyFocusChange(to: next, in: modelContext)
+                WidgetDataSync.sync(shows: remaining, manualSelection: selections.first)
+                presentToast(.success, message: "已删除现场")
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: "删除失败，请重试")
+            }
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload { toast = nil }
+        }
+    }
+}
+
+private struct CurrentShowLibraryRow: View {
+    let show: Show
+    let isCurrent: Bool
+    let formatter: ShowDisplayFormatter
+    let onOpen: () -> Void
+    let onMore: () -> Void
+
+    var body: some View {
+        HStack(spacing: 11) {
+            Button(action: onOpen) {
+                HStack(spacing: 11) {
+                    ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
+                        .frame(width: 47, height: 63)
+                    VStack(alignment: .leading, spacing: 5) {
+                        HStack(spacing: 5) {
+                            if isCurrent { tag("当前展示", color: BSColor.Stage.glowBlue) }
+                            if show.changeStatus != .scheduled { tag(statusTag, color: BSColor.Accent.warm) }
+                        }
+                        Text(show.name)
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .lineLimit(1)
+                        Text([formatter.dateText(for: show), show.venueName ?? show.city].compactMap { $0 }.joined(separator: " · "))
+                            .font(.system(size: 11.4))
+                            .foregroundColor(BSColor.Stage.muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onMore) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.055), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("管理 \(show.name)")
+        }
+        .padding(11)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 17))
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(Color.white.opacity(0.09), lineWidth: 1))
+    }
+
+    private var statusTag: String { show.changeStatus == .canceled ? "已取消" : "已延期" }
+
+    private func tag(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(size: 9.5, weight: .medium))
+            .foregroundColor(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .overlay(Capsule().stroke(color.opacity(0.35), lineWidth: 1))
+    }
+}
+
+private struct CurrentShowLibraryActionSheet: View {
+    let show: Show
+    let canSetCurrent: Bool
+    let onView: () -> Void
+    let onSetCurrent: () -> Void
+    let onEdit: () -> Void
+    let onCopy: () -> Void
+    let onDelete: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large]) {
+            Text(show.name)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 2) {
+                action("查看详情", icon: "info.circle", action: onView)
+                if canSetCurrent { action("设为当前展示", icon: "music.note.house", action: onSetCurrent) }
+                action("编辑现场", icon: "pencil", action: onEdit)
+                action("复制为新现场", icon: "plus.square.on.square", action: onCopy)
+                action("删除记录", icon: "trash", color: BSColor.Stage.liveTitle, action: onDelete)
+            }
+            Button("取消", action: onCancel).buttonStyle(BSSecondaryButtonStyle())
+        }
+    }
+
+    private func action(_ title: String, icon: String, color: Color = BSColor.Stage.foreground, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: icon)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(color)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .frame(height: 47)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
@@ -687,6 +1152,67 @@ struct PostponeShowSheet: View {
     }
 }
 
+private struct ConfirmedEndTimeEditorSheet: View {
+    let showName: String
+    let showStart: Date
+    @Binding var endTime: Date
+    let onSave: () -> Void
+    let onUndo: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large]) {
+            VStack(spacing: BSSpacing.sm) {
+                Image(systemName: "clock.arrow.circlepath")
+                    .font(.system(size: 26, weight: .medium))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(width: 56, height: 56)
+                    .background(BSColor.Stage.accent.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                Text("修改散场时间")
+                    .font(BSFont.headline)
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text(showName)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .lineLimit(1)
+            }
+
+            BSGlassPanel {
+                VStack(spacing: BSSpacing.sm) {
+                    DatePicker(
+                        "散场日期",
+                        selection: $endTime,
+                        in: showStart...Date(),
+                        displayedComponents: .date
+                    )
+                    DatePicker(
+                        "散场时间",
+                        selection: $endTime,
+                        in: showStart...Date(),
+                        displayedComponents: .hourAndMinute
+                    )
+                }
+                .tint(BSColor.Stage.accent)
+            }
+
+            VStack(spacing: BSSpacing.sm) {
+                Button("保存散场时间", action: onSave)
+                    .buttonStyle(BSPrimaryButtonStyle())
+                Button("撤销结束", action: onUndo)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.liveTitle)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 13)
+                    .background(BSColor.Stage.live.opacity(0.10))
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                Button("取消", action: onCancel)
+                    .buttonStyle(BSSecondaryButtonStyle())
+            }
+        }
+    }
+}
+
 struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -694,8 +1220,11 @@ struct ShowDetailView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
     let show: Show
+    var startsEditing = false
 
     @State private var isEditing = false
+    @State private var isEditingConfirmedEnd = false
+    @State private var confirmedEndDraft = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -748,6 +1277,21 @@ struct ShowDetailView: View {
                 statusEditing: statusEditingContext
             ) { draft in
                 try await apply(draft)
+            }
+        }
+        .sheet(isPresented: $isEditingConfirmedEnd) {
+            ConfirmedEndTimeEditorSheet(
+                showName: show.name,
+                showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                endTime: $confirmedEndDraft,
+                onSave: saveConfirmedEnd,
+                onUndo: undoConfirmedEnd,
+                onCancel: { isEditingConfirmedEnd = false }
+            )
+        }
+        .task {
+            if startsEditing {
+                isEditing = true
             }
         }
     }
@@ -897,76 +1441,111 @@ struct ShowDetailView: View {
     }
 
     private var managementRow: some View {
-        HStack(spacing: BSSpacing.sm) {
-            Button {
-                isEditing = true
-            } label: {
-                Label("编辑信息", systemImage: "square.and.pencil")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.textPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .fill(Color.white.opacity(0.08))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.borderProminent, lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("编辑现场信息")
-
-            if show.changeStatus == .canceled {
-                Label("已取消", systemImage: "xmark.circle.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.danger)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .fill(BSColor.Accent.danger.opacity(0.10))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.danger.opacity(0.28), lineWidth: 1)
-                    )
-                    .accessibilityLabel("现场已取消，不能设为当前")
-            } else if isCurrentShow {
-                Label("当前现场", systemImage: "checkmark.seal.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.prepare)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .fill(BSColor.Accent.prepare.opacity(0.10))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
-                    )
-                    .accessibilityLabel("当前现场")
-            } else {
+        VStack(spacing: BSSpacing.sm) {
+            HStack(spacing: BSSpacing.sm) {
                 Button {
-                    selectCurrent()
+                    isEditing = true
                 } label: {
-                    Label("设为当前现场", systemImage: "star.fill")
+                    Label("编辑信息", systemImage: "square.and.pencil")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(.black)
+                        .foregroundColor(BSColor.textPrimary)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
                         .background(
                             RoundedRectangle(cornerRadius: BSRadius.md)
-                                .fill(BSColor.brandGradient)
+                                .fill(Color.white.opacity(0.08))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .stroke(BSColor.borderProminent, lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("设为当前现场")
+                .accessibilityLabel("编辑现场信息")
+
+                if show.changeStatus == .canceled {
+                    Label("已取消", systemImage: "xmark.circle.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(BSColor.Accent.danger)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .fill(BSColor.Accent.danger.opacity(0.10))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .stroke(BSColor.Accent.danger.opacity(0.28), lineWidth: 1)
+                        )
+                        .accessibilityLabel("现场已取消，不能设为当前")
+                } else if isCurrentShow {
+                    Label("当前现场", systemImage: "checkmark.seal.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(BSColor.Accent.prepare)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .fill(BSColor.Accent.prepare.opacity(0.10))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
+                        )
+                        .accessibilityLabel("当前现场")
+                } else {
+                    Button {
+                        selectCurrent()
+                    } label: {
+                        Label("设为当前现场", systemImage: "star.fill")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(
+                                RoundedRectangle(cornerRadius: BSRadius.md)
+                                    .fill(BSColor.brandGradient)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("设为当前现场")
+                }
+            }
+
+            if let endedAt = show.endedAt {
+                Button {
+                    confirmedEndDraft = endedAt
+                    isEditingConfirmedEnd = true
+                } label: {
+                    HStack {
+                        Label("修改散场时间", systemImage: "clock.arrow.circlepath")
+                        Spacer()
+                        Text(Self.confirmedEndFormatter.string(from: endedAt))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(Color.white.opacity(0.06))
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.borderProminent, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("也可以撤销结束")
             }
         }
     }
+
+    private static let confirmedEndFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter
+    }()
 
     /// 现场状态管理已并入编辑现场 sheet（状态卡 + 立即生效的操作）。
     /// 详情页只保留 hero 上的状态展示，这里注入编辑器所需的上下文。
@@ -1064,6 +1643,45 @@ struct ShowDetailView: View {
                 modelContext.rollback()
                 presentToast(.failure, message: "切换失败，请重试")
             }
+        }
+    }
+
+    private func saveConfirmedEnd() {
+        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
+        guard confirmedEndDraft >= start, confirmedEndDraft <= Date() else {
+            presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
+            return
+        }
+
+        show.markEnded(at: confirmedEndDraft)
+        do {
+            try modelContext.save()
+            isEditingConfirmedEnd = false
+            presentToast(.success, message: "散场时间已更新")
+            syncAfterConfirmedEndChange()
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: "散场时间没有保存，请重试")
+        }
+    }
+
+    private func undoConfirmedEnd() {
+        show.clearEnded()
+        do {
+            try modelContext.save()
+            isEditingConfirmedEnd = false
+            presentToast(.neutral, message: "已撤销结束，继续按现场时间计时")
+            syncAfterConfirmedEndChange()
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, message: "没有撤销成功，请重试")
+        }
+    }
+
+    private func syncAfterConfirmedEndChange() {
+        Task { @MainActor in
+            _ = await syncNotificationsToCurrentShow()
+            WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
         }
     }
 

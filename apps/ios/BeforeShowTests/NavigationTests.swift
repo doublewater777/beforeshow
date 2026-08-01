@@ -14,7 +14,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(BeforeShowTab.myShows.rawValue, "我的现场")
     }
 
-    /// V4 起设置迁入首页封面右上角的溢出菜单,不再是主 Tab。
+    /// 设置不是主导航项；当前现场主海报也不承载溢出菜单。
     func testSettingsIsNotAMainTab() {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
@@ -29,6 +29,31 @@ final class NavigationTests: XCTestCase {
             }
         }
     }
+    func testCurrentShowQuickActionsAreAlwaysVisible() {
+        XCTAssertEqual(
+            CurrentShowQuickAction.visibleActions,
+            [.ticket, .route, .reminder, .companion]
+        )
+    }
+
+    func testCurrentFollowUpsExcludeCurrentPastChangedAndSortAscending() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let current = try Show(name: "当前", date: now, startTime: now)
+        let later = try Show(name: "较晚", date: now.addingTimeInterval(8_000), startTime: now.addingTimeInterval(8_000))
+        let sooner = try Show(name: "较近", date: now.addingTimeInterval(4_000), startTime: now.addingTimeInterval(4_000))
+        let past = try Show(name: "过去", date: now.addingTimeInterval(-4_000), startTime: now.addingTimeInterval(-4_000))
+        let canceled = try Show(name: "取消", date: now.addingTimeInterval(2_000), startTime: now.addingTimeInterval(2_000))
+        canceled.markCanceled()
+
+        let result = CurrentShowFollowUpPolicy.laterShows(
+            from: [later, current, canceled, past, sooner],
+            excluding: current.id,
+            now: now
+        )
+
+        XCTAssertEqual(result.map(\.name), ["较近", "较晚"])
+    }
+
 }
 
 /// Widget / Live Activity 回归测试放在已纳入 Xcode test target 的源文件中。

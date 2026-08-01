@@ -1087,6 +1087,21 @@ enum ShowCoverLocalImageStore {
         }
         try? FileManager.default.removeItem(at: url)
     }
+
+    /// 复制记录时为本地托管封面创建独立文件，避免删除或换图影响另一条现场。
+    static func duplicatedURLIfManaged(_ urlString: String) throws -> String {
+        guard let source = URL(string: urlString), source.isFileURL else { return urlString }
+        let managedDirectory = try directory().standardizedFileURL
+        guard source.standardizedFileURL.deletingLastPathComponent() == managedDirectory else {
+            return urlString
+        }
+        let ext = source.pathExtension.isEmpty ? "jpg" : source.pathExtension
+        let destination = managedDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension(ext)
+        try FileManager.default.copyItem(at: source, to: destination)
+        return destination.absoluteString
+    }
 }
 
 /// 状态操作结果：文案 + 提示语气，避免保存失败被显示成绿色成功 toast。

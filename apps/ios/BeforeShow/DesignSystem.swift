@@ -442,19 +442,8 @@ struct CurrentShowAmbientBackground: View {
             }
             .animation(.easeInOut(duration: 0.7), value: ambientColor)
 
-            // ③ blurred cover echo (adds texture beneath the bloom)
-            ShowCoverImageView(
-                urlString: coverImageURL,
-                aspectRatio: 3.0 / 4.0,
-                contentMode: .fill,
-                alignment: .center,
-                enforcesAspectRatio: false,
-                cornerRadius: 0
-            )
-            .blur(radius: 38)
-            .scaleEffect(1.16)
-            .saturation(0.80)
-            .opacity(0.15)
+            // ③ 只保留从封面提取的抽象漫光。完整封面回声会在卡片边缘形成
+            // 第二套图像轮廓，让内缩的主海报看起来像横向错位。
 
             // ④ vertical contrast scrim (top stop lightened so the bloom reads through)
             LinearGradient(
@@ -940,6 +929,7 @@ struct BSDrawerSheet<Content: View>: View {
         .padding(.bottom, BSSpacing.xl)
         .presentationDetents(Set(detents))
         .presentationDragIndicator(.hidden)
+        .presentationBackground(Color.black)
         .preferredColorScheme(.dark)
         .background(Color.black)
     }
