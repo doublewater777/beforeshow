@@ -314,6 +314,9 @@ struct CurrentShowManagementSection: View {
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
 
+    private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show) }
+    private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
+
     var body: some View {
         GeometryReader { geometry in
             TimelineView(.everyMinute) { context in
@@ -325,6 +328,8 @@ struct CurrentShowManagementSection: View {
             CurrentShowEndConfirmationSheet(
                 showName: show.name,
                 showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                suggestedEnd: currentTimeState.endBoundary ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                allowsJustEnded: currentPhase == .live,
                 onConfirm: { date in
                     isShowingEndConfirmation = false
                     onConfirmEnd(date)
@@ -350,8 +355,12 @@ struct CurrentShowManagementSection: View {
             excluding: show.id,
             now: now
         )
-        let canRecordEnd = show.endedAt == nil
-            && (phase == .live || timeState.kind == .postShow || timeState.kind == .ended)
+        let canRecordEnd = CurrentShowEndPolicy.canRecordEnd(
+            show: show,
+            timeState: timeState,
+            phase: phase,
+            now: now
+        )
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
         // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶(内容列居中回落到真实视口)。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
@@ -748,6 +757,27 @@ enum CurrentShowFollowUpPolicy {
     }
 }
 
+enum CurrentShowEndPolicy {
+    static func canRecordEnd(
+        show: Show,
+        timeState: CurrentShowTimeState,
+        phase: HomeShowPhase,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard show.endedAt == nil else { return false }
+        guard phase == .live || timeState.kind == .postShow || timeState.kind == .ended else {
+            return false
+        }
+        guard CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar) else {
+            return true
+        }
+        guard phase == .live else { return true }
+        guard let finalDay = timeState.effectiveEndDate else { return false }
+        return calendar.isDate(now, inSameDayAs: finalDay)
+    }
+}
+
 private struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
@@ -956,19 +986,24 @@ private struct CurrentShowEndConfirmationSheet: View {
 
     let showName: String
     let showStart: Date
+    let suggestedEnd: Date
+    let allowsJustEnded: Bool
     let onConfirm: (Date) -> Void
     let onCancel: () -> Void
 
     @State private var step: Step = .choice
     @State private var selectedEnd: Date
 
-    init(showName: String, showStart: Date, onConfirm: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
+    init(showName: String, showStart: Date, suggestedEnd: Date, allowsJustEnded: Bool, onConfirm: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
         self.showName = showName
         self.showStart = showStart
+        self.suggestedEnd = suggestedEnd
+        self.allowsJustEnded = allowsJustEnded
         self.onConfirm = onConfirm
         self.onCancel = onCancel
-        let suggested = min(Date(), showStart.addingTimeInterval(3 * 3_600))
+        let suggested = min(Date(), suggestedEnd)
         _selectedEnd = State(initialValue: max(showStart, suggested))
+        _step = State(initialValue: allowsJustEnded ? .choice : .earlier)
     }
 
     var body: some View {
@@ -1003,17 +1038,19 @@ private struct CurrentShowEndConfirmationSheet: View {
             HStack(spacing: 9) {
                 Button("早就结束") { step = .earlier }
                     .buttonStyle(BSSecondaryButtonStyle())
-                Button("刚刚结束") { onConfirm(Date()) }
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.liveTitle)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(BSColor.Stage.live.opacity(0.13))
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Stage.live.opacity(0.34), lineWidth: 1)
-                    )
+                if allowsJustEnded {
+                    Button("刚刚结束") { onConfirm(Date()) }
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(BSColor.Stage.live.opacity(0.13))
+                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .stroke(BSColor.Stage.live.opacity(0.34), lineWidth: 1)
+                        )
+                }
             }
 
             Button("还没结束", action: onCancel)

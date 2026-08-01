@@ -1501,7 +1501,7 @@ struct ShowDetailView: View {
                 .accessibilityHint("也可以撤销结束")
             } else if timeState.kind == .postShow || timeState.kind == .ended {
                 Button {
-                    confirmedEndDraft = Date()
+                    confirmedEndDraft = suggestedConfirmedEnd
                     isEditingConfirmedEnd = true
                 } label: {
                     HStack {
@@ -1533,6 +1533,11 @@ struct ShowDetailView: View {
         formatter.dateFormat = "M月d日 HH:mm"
         return formatter
     }()
+
+    private var suggestedConfirmedEnd: Date {
+        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
+        return min(Date(), timeState.endBoundary ?? start)
+    }
 
     /// 现场状态管理已并入编辑现场 sheet（状态卡 + 立即生效的操作）。
     /// 详情页只保留 hero 上的状态展示，这里注入编辑器所需的上下文。

@@ -17,11 +17,11 @@ Final verification after review hardening: 133 tests passed with 0 failures; the
 
 Manual end state is persisted as `endedAt`. Confirming an end immediately switches timing to ended and counts the show in the existing footprint/history model. The detail page supports editing the end date/time or undoing the end.
 
-Review hardening added four safeguards: estimated-ended shows without `endedAt` can now backfill the real curtain time from Current or detail; Settings has a Release-visible header entry; show edits and status changes clear stale `endedAt` values at the model boundary; and the later-show summary filters against each minute timeline tick so started shows disappear without another model update.
+Review hardening added six safeguards: estimated-ended shows without `endedAt` can now backfill the real curtain time from Current or detail; historical backfill opens at the scheduled/estimated end without a “刚刚结束” shortcut; intermediate days of multi-day daily-cycle shows cannot write a global `endedAt`; Settings has a Release-visible header entry; show edits and status changes clear stale `endedAt` values at the model boundary; and the later-show summary filters against each minute timeline tick so started shows disappear without another model update.
 
 Verification:
 
 - `git diff --check`: passed.
-- iPhone 17 simulator build and full unit test suite after review fixes: 133 tests, 0 failures.
+- iPhone 17 simulator build and full unit test suite after review fixes: 134 tests, 0 failures.
 - AXe manual QA: live section, end confirmation, historical end-time entry, ended state, poster-to-detail navigation, edit end time, and undo entry all verified.
 - Simulator screenshots saved under `docs/screenshots/2026-07-31-current-show-management-*.png`.

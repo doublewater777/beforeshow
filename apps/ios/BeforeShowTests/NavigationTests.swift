@@ -100,6 +100,31 @@ final class NavigationTests: XCTestCase {
         )
     }
 
+    func testMultiDayDailyCycleCannotBeEndedOnAnIntermediateLiveDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let endDate = makeDate(year: 2026, month: 7, day: 10, hour: 0, minute: 0, calendar: calendar)
+        let dailyEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let show = try Show(name: "三日音乐节", date: start, startTime: start, endDate: endDate, endTime: dailyEnd)
+        let middleDay = makeDate(year: 2026, month: 7, day: 9, hour: 20, minute: 0, calendar: calendar)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: middleDay)
+        let phase = HomeShowPhase(timeState: state, now: middleDay)
+
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(phase, .live)
+        XCTAssertFalse(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: middleDay, calendar: calendar))
+
+        let finalDay = makeDate(year: 2026, month: 7, day: 10, hour: 20, minute: 0, calendar: calendar)
+        let finalState = CurrentShowTimeState(show: show, calendar: calendar, now: finalDay)
+        let finalPhase = HomeShowPhase(timeState: finalState, now: finalDay)
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, phase: finalPhase, now: finalDay, calendar: calendar))
+    }
+
+    private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {
+        DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour, minute: minute).date!
+    }
+
 }
 
 /// Widget / Live Activity 回归测试放在已纳入 Xcode test target 的源文件中。

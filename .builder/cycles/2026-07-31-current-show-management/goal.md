@@ -14,7 +14,9 @@ Success:
 - The poster opens the real show detail and has no overflow control.
 - A live show exposes “散场了，结束这场现场”.
 - A show that crossed its estimated end without a confirmed `endedAt` still exposes a first-time curtain-time entry on Current and in detail.
-- “刚刚结束” stores the current time; “早就结束” requires a valid date and time; “还没结束” dismisses without changing the clock.
+- For an eligible final-day live show, “刚刚结束” stores the current time; “早就结束” requires a valid date and time; “还没结束” dismisses without changing the clock.
+- Historical post-show backfill starts from the scheduled or estimated end and never offers a current-time shortcut.
+- Multi-day daily-cycle shows cannot be globally ended on an intermediate day.
 - A confirmed show immediately renders as ended and remains available in the existing show library/footprint surface.
 - The detail page can change the confirmed curtain time or undo the end.
 - Editing the start into the future, postponing, or canceling cannot leave an invalid confirmed curtain time behind.
