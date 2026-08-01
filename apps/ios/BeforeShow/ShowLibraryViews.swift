@@ -681,7 +681,6 @@ struct CurrentShowLibraryManagementView: View {
     @State private var filter: CurrentShowLibraryFilter = .upcoming
     @State private var actionTarget: Show?
     @State private var destination: CurrentShowLibraryDestination?
-    @State private var copyTarget: Show?
     @State private var deleteTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
@@ -730,20 +729,9 @@ struct CurrentShowLibraryManagementView: View {
                 onView: { present(show, editing: false) },
                 onSetCurrent: { selectCurrent(show) },
                 onEdit: { present(show, editing: true) },
-                onCopy: { presentCopy(show) },
                 onDelete: { presentDelete(show) },
                 onCancel: { actionTarget = nil }
             )
-        }
-        .sheet(item: $copyTarget) { show in
-            ShowDraftEditorView(
-                title: "复制为新现场",
-                subtitle: "保留已有信息，修改日期后创建一条新记录。",
-                draft: ShowDraft(show: show),
-                saveTitle: "创建副本"
-            ) { draft in
-                try await createCopy(from: draft)
-            }
         }
         .sheet(isPresented: $isShowingAdd) {
             AddShowCoordinatorSheet {
@@ -925,14 +913,6 @@ struct CurrentShowLibraryManagementView: View {
         }
     }
 
-    private func presentCopy(_ show: Show) {
-        actionTarget = nil
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            copyTarget = show
-        }
-    }
-
     private func presentDelete(_ show: Show) {
         actionTarget = nil
         Task { @MainActor in
@@ -958,25 +938,6 @@ struct CurrentShowLibraryManagementView: View {
                 modelContext.rollback()
                 presentToast(.failure, message: "切换失败，请重试")
             }
-        }
-    }
-
-    @MainActor
-    private func createCopy(from draft: ShowDraft) async throws {
-        var copiedDraft = draft
-        copiedDraft.coverImageURL = try ShowCoverLocalImageStore.duplicatedURLIfManaged(draft.coverImageURL)
-        let copiedShow = try copiedDraft.makeShow()
-        modelContext.insert(copiedShow)
-        do {
-            try modelContext.save()
-            WidgetDataSync.sync(shows: shows + [copiedShow], manualSelection: selections.first)
-            presentToast(.success, message: "已复制为新现场")
-        } catch {
-            modelContext.rollback()
-            if copiedDraft.coverImageURL != draft.coverImageURL {
-                ShowCoverLocalImageStore.removeManagedLocalImage(at: copiedDraft.coverImageURL)
-            }
-            throw error
         }
     }
 
@@ -1080,7 +1041,6 @@ private struct CurrentShowLibraryActionSheet: View {
     let onView: () -> Void
     let onSetCurrent: () -> Void
     let onEdit: () -> Void
-    let onCopy: () -> Void
     let onDelete: () -> Void
     let onCancel: () -> Void
 
@@ -1095,7 +1055,6 @@ private struct CurrentShowLibraryActionSheet: View {
                 action("查看详情", icon: "info.circle", action: onView)
                 if canSetCurrent { action("设为当前展示", icon: "music.note.house", action: onSetCurrent) }
                 action("编辑现场", icon: "pencil", action: onEdit)
-                action("复制为新现场", icon: "plus.square.on.square", action: onCopy)
                 action("删除记录", icon: "trash", color: BSColor.Stage.liveTitle, action: onDelete)
             }
             Button("取消", action: onCancel).buttonStyle(BSSecondaryButtonStyle())

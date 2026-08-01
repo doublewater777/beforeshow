@@ -10,7 +10,7 @@ The follow-up scope now includes a bounded later-show summary and a separate man
 
 - Current shows at most the two nearest later scheduled shows, ordered by real start time, with poster, name, date, city, and relative distance.
 - When more later shows exist, “查看我的现场 · N 场” opens a dedicated secondary page.
-- The secondary page searches and filters all real upcoming, ended, postponed, and canceled records and exposes detail, set-current, edit, copy, and confirmed-delete actions.
+- The secondary page searches and filters all real upcoming, ended, postponed, and canceled records and exposes detail, set-current, edit, and confirmed-delete actions.
 - The existing bottom “我的现场” tab was not changed.
 
 Final verification after review hardening: 133 tests passed with 0 failures; the user visually reviewed the feature result and confirmed that it looks good before the final safeguards were added.
