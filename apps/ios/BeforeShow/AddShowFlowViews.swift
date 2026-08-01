@@ -71,6 +71,7 @@ enum AddShowSheet: Identifiable {
 }
 
 struct AddShowCoordinatorSheet: View {
+    var intent: AddShowIntent = .upcoming
     /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
     var allowsBrowseSkip: Bool = false
     var onShowAdded: () -> Void = {}
@@ -83,6 +84,7 @@ struct AddShowCoordinatorSheet: View {
             if let selectedSheet {
                 AddShowFlowView(
                     sheet: selectedSheet,
+                    intent: intent,
                     onSaved: {
                         dismiss()
                         onShowAdded()
@@ -117,6 +119,11 @@ struct AddShowCoordinatorSheet: View {
         }
         #endif
     }
+}
+
+enum AddShowIntent: Equatable {
+    case upcoming
+    case historicalBackfill
 }
 
 struct AddShowMenu: View {
@@ -267,6 +274,7 @@ struct AddShowFlowView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
 
     let sheet: AddShowSheet
+    let intent: AddShowIntent
     let linkParser: ShowLinkDraftParser
     private let onSaved: (() -> Void)?
     private let onBack: (() -> Void)?
@@ -298,11 +306,13 @@ struct AddShowFlowView: View {
 
     init(
         sheet: AddShowSheet,
+        intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
         onSaved: (() -> Void)? = nil,
         onBack: (() -> Void)? = nil
     ) {
         self.sheet = sheet
+        self.intent = intent
         self.linkParser = linkParser
         self.onSaved = onSaved
         self.onBack = onBack
@@ -945,24 +955,32 @@ struct AddShowFlowView: View {
             let show = try draft.makeShow()
             modelContext.insert(show)
 
-            // Always become current (not only the first show).
-            let selection = selections.first ?? CurrentShowSelection()
-            if selections.isEmpty {
-                modelContext.insert(selection)
-            }
-            selection.select(showID: show.id)
-
-            let notificationState = notificationStates.first
-                ?? NotificationSchedulingState(focusedShowID: show.id)
-            if notificationStates.isEmpty {
-                modelContext.insert(notificationState)
+            let notificationState: NotificationSchedulingState?
+            if intent == .historicalBackfill {
+                notificationState = nil
             } else {
-                notificationState.focus(showID: show.id)
+                // New upcoming shows become current and receive notification focus.
+                let selection = selections.first ?? CurrentShowSelection()
+                if selections.isEmpty {
+                    modelContext.insert(selection)
+                }
+                selection.select(showID: show.id)
+
+                let state = notificationStates.first
+                    ?? NotificationSchedulingState(focusedShowID: show.id)
+                if notificationStates.isEmpty {
+                    modelContext.insert(state)
+                } else {
+                    state.focus(showID: show.id)
+                }
+                notificationState = state
             }
 
             try modelContext.save()
 
-            await activateNotifications(for: show, state: notificationState)
+            if let notificationState {
+                await activateNotifications(for: show, state: notificationState)
+            }
             didSave = true
             finalizeTemporaryCovers(keeping: draft.coverImageURL)
 

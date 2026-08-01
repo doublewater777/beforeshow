@@ -147,6 +147,7 @@ private struct CurrentShowHomeView: View {
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
+    @State private var isShowingShowLibrary = false
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -178,6 +179,7 @@ private struct CurrentShowHomeView: View {
                         candidateShows: shows,
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
+                        onOpenShowLibrary: { isShowingShowLibrary = true },
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         }
@@ -185,7 +187,8 @@ private struct CurrentShowHomeView: View {
                 } else {
                     CurrentShowEmptyStateView(
                         onAddShow: { isShowingAddShowCoordinator = true },
-                        onOpenSettings: { isShowingSettings = true }
+                        onOpenSettings: { isShowingSettings = true },
+                        onOpenShowLibrary: { isShowingShowLibrary = true }
                     )
                 }
             }
@@ -207,6 +210,9 @@ private struct CurrentShowHomeView: View {
             }
             .navigationDestination(isPresented: $isShowingSettings) {
                 SettingsView()
+            }
+            .navigationDestination(isPresented: $isShowingShowLibrary) {
+                CurrentShowLibraryManagementView()
             }
             #if DEBUG
             .task {
@@ -317,6 +323,7 @@ struct CurrentShowManagementSection: View {
     let candidateShows: [Show]
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
+    var onOpenShowLibrary: () -> Void
     var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -430,6 +437,7 @@ struct CurrentShowManagementSection: View {
 
             HStack(spacing: 8) {
                 headerButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                headerButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
                 headerButton(icon: "plus", label: "添加现场", action: onAddShow)
             }
         }
@@ -1145,6 +1153,7 @@ private struct CurrentShowEndConfirmationSheet: View {
 private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
     let onOpenSettings: () -> Void
+    let onOpenShowLibrary: () -> Void
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -1195,6 +1204,7 @@ private struct CurrentShowEmptyStateView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     emptyHeaderButton(icon: "gearshape", label: "设置", action: onOpenSettings)
+                    emptyHeaderButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
                     emptyHeaderButton(icon: "plus", label: "添加现场", action: onAddShow)
                 }
             }

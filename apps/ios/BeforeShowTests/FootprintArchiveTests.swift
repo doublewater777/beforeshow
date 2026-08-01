@@ -42,6 +42,40 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(archive.firstShow?.name, "第一场")
     }
 
+    func testArchiveIncludesACompletedDatedPostponement() throws {
+        let postponed = try makeShow("延期后实际演出", year: 2024, artist: "落日飞车", city: "上海", venue: "MAO")
+        postponed.markPostponed(newDate: date(2025, 7, 1))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [postponed],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.shows.map(\.name), ["延期后实际演出"])
+    }
+
+    func testArtistRankingPreservesSlashNamesAndDeduplicatesWithinOneShow() throws {
+        let show = try makeShow("艺人拆分边界", year: 2024, artist: "AC/DC、A / B、A", city: "上海", venue: "MAO")
+        show.markEnded(at: date(2024, 7, 2))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [show],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(Set(archive.artists), Set([
+            FootprintRankItem(name: "A", count: 1),
+            FootprintRankItem(name: "B", count: 1),
+            FootprintRankItem(name: "AC/DC", count: 1)
+        ]))
+    }
+
+    func testHistoricalBackfillIntentDoesNotBecomeUpcomingSelection() {
+        XCTAssertNotEqual(AddShowIntent.historicalBackfill, AddShowIntent.upcoming)
+    }
+
     func testArchiveShareCopyIsSpecificToEveryCategory() throws {
         let first = try makeShow("第一场", year: 2024, artist: "落日飞车、陈绮贞", city: "上海", venue: "MAO")
         let second = try makeShow("第二场", year: 2025, artist: "落日飞车", city: "杭州", venue: "奥体")

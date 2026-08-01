@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import Photos
 
 enum FootprintCategory: String, CaseIterable, Identifiable {
     case overview = "总览"
@@ -11,7 +12,7 @@ enum FootprintCategory: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-struct FootprintRankItem: Identifiable, Equatable {
+struct FootprintRankItem: Identifiable, Equatable, Hashable {
     let name: String
     let count: Int
     var id: String { name }
@@ -49,6 +50,17 @@ struct FootprintArchiveSnapshot {
         case .venue: return venues
         }
     }
+}
+
+private struct FootprintDetailDestination: Identifiable, Hashable {
+    let show: Show
+    let startsEditing: Bool
+
+    var id: String { "\(show.id.uuidString)-\(startsEditing)" }
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
 @MainActor
@@ -152,6 +164,55 @@ enum FootprintArchiveShareCopy {
     }
 }
 
+enum FootprintPhotoSaveError: LocalizedError {
+    case rendererFailed
+    case authorizationDenied
+    case saveFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .rendererFailed:
+            return "足迹图片生成失败，请重试。"
+        case .authorizationDenied:
+            return "没有照片添加权限，请在系统设置中允许 BeforeShow 添加照片。"
+        case .saveFailed:
+            return "照片保存失败，请重试。"
+        }
+    }
+}
+
+enum FootprintPhotoLibrary {
+    static func save(_ image: UIImage) async throws {
+        let status = await authorizationStatus()
+        guard status == .authorized || status == .limited else {
+            throw FootprintPhotoSaveError.authorizationDenied
+        }
+
+        try await withCheckedThrowingContinuation { continuation in
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.creationRequestForAsset(from: image)
+            }) { success, _ in
+                if success {
+                    continuation.resume()
+                } else {
+                    continuation.resume(throwing: FootprintPhotoSaveError.saveFailed)
+                }
+            }
+        }
+    }
+
+    private static func authorizationStatus() async -> PHAuthorizationStatus {
+        let current = PHPhotoLibrary.authorizationStatus(for: .addOnly)
+        guard current == .notDetermined else { return current }
+
+        return await withCheckedContinuation { continuation in
+            PHPhotoLibrary.requestAuthorization(for: .addOnly) { status in
+                continuation.resume(returning: status)
+            }
+        }
+    }
+}
+
 @MainActor
 enum FootprintArchiveBuilder {
     static func make(
@@ -161,7 +222,7 @@ enum FootprintArchiveBuilder {
     ) -> FootprintArchiveSnapshot {
         let archived = shows
             .filter {
-                guard $0.changeStatus == .scheduled else { return false }
+                guard $0.changeStatus != .canceled else { return false }
                 let kind = CurrentShowTimeState(show: $0, calendar: calendar, now: now).kind
                 return kind == .postShow || kind == .ended
             }
@@ -184,9 +245,16 @@ enum FootprintArchiveBuilder {
 
     private static func splitArtists(_ value: String?) -> [String] {
         guard let value else { return [] }
-        return value
-            .components(separatedBy: CharacterSet(charactersIn: ",，、/"))
+        var seen = Set<String>()
+        let commaParts = value.components(separatedBy: CharacterSet(charactersIn: ",，、"))
+        return commaParts
+            .flatMap { part in
+                // A slash is only a multi-artist separator when it is written as
+                // a spaced delimiter. Names such as AC/DC remain intact.
+                part.components(separatedBy: " / ")
+            }
             .compactMap(normalized)
+            .filter { seen.insert($0).inserted }
     }
 
     private static func normalized(_ value: String?) -> String? {
@@ -210,8 +278,10 @@ struct FootprintsView: View {
     var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @State private var isAddingShow = false
-    @State private var detailTarget: Show?
+    @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
@@ -220,18 +290,28 @@ struct FootprintsView: View {
 
     var body: some View {
         NavigationStack {
-            let archive = FootprintArchiveBuilder.make(shows: shows)
-            ZStack {
-                FootprintBackground()
-                if archive.shows.isEmpty {
-                    FootprintEmptyView { isAddingShow = true }
-                } else {
-                    content(archive)
-                }
+            TimelineView(.periodic(from: Date(), by: 60)) { context in
+                timelineContent(FootprintArchiveBuilder.make(shows: shows, now: context.date))
             }
+        }
+    }
+
+    private func timelineContent(_ archive: FootprintArchiveSnapshot) -> some View {
+        ZStack {
+            FootprintBackground()
+            if archive.shows.isEmpty {
+                FootprintEmptyView { isAddingShow = true }
+            } else {
+                content(archive)
+            }
+        }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(item: $detailTarget) { ShowDetailView(show: $0) }
-            .sheet(isPresented: $isAddingShow) { AddShowCoordinatorSheet {} }
+            .navigationDestination(item: $detailTarget) { target in
+                ShowDetailView(show: target.show, startsEditing: target.startsEditing)
+            }
+            .sheet(isPresented: $isAddingShow) {
+                AddShowCoordinatorSheet(intent: .historicalBackfill) {}
+            }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .search:
@@ -239,7 +319,7 @@ struct FootprintsView: View {
                         activeSheet = nil
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(280))
-                            detailTarget = show
+                            detailTarget = .init(show: show, startsEditing: false)
                         }
                     }
                     .presentationDetents([.large])
@@ -269,7 +349,6 @@ struct FootprintsView: View {
             } message: { _ in
                 Text("删除后将无法恢复，这场现场也会从足迹统计中移除。")
             }
-        }
     }
 
     private func content(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -321,8 +400,8 @@ struct FootprintsView: View {
                     )
 
                     FootprintRowActions(
-                        onView: { actionTarget = nil; detailTarget = show },
-                        onEdit: { actionTarget = nil; detailTarget = show },
+                        onView: { actionTarget = nil; detailTarget = .init(show: show, startsEditing: false) },
+                        onEdit: { actionTarget = nil; detailTarget = .init(show: show, startsEditing: true) },
                         onDelete: { actionTarget = nil; deleteTarget = show }
                     )
                     .position(x: centerX, y: popupTop + popupSize.height / 2)
@@ -621,7 +700,7 @@ struct FootprintsView: View {
             HStack(spacing: 11) {
                 Button {
                     actionTarget = nil
-                    detailTarget = show
+                    detailTarget = .init(show: show, startsEditing: false)
                 } label: {
                 HStack(spacing: 11) {
                     AsyncImage(url: URL(string: show.coverImageURL ?? "")) { phase in
@@ -688,14 +767,21 @@ struct FootprintsView: View {
 
     private func delete(_ show: Show) {
         deleteTarget = nil
-        modelContext.delete(show)
-        do {
-            try modelContext.save()
-            presentToast("已删除足迹记录")
-        } catch {
-            modelContext.rollback()
-            let payload = BSToastPayload(tone: .failure, message: "删除失败，请重试")
-            toast = payload
+        Task { @MainActor in
+            do {
+                try await ShowDeletionCoordinator.delete(
+                    show,
+                    from: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext
+                )
+                presentToast("已删除足迹记录")
+            } catch {
+                modelContext.rollback()
+                let payload = BSToastPayload(tone: .failure, message: "删除失败，请重试")
+                toast = payload
+            }
         }
     }
 }
@@ -712,12 +798,12 @@ private struct FootprintSearchSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var query = ""
-    @State private var filter = "全部"
+    @State private var filter: FootprintSearchFilter = .all
 
-    private var chips: [String] {
-        var values = ["全部"]
-        values += archive.years.prefix(2).map { String($0.year) }
-        values += archive.cities.prefix(2).map(\.name)
+    private var chips: [FootprintSearchFilter] {
+        var values: [FootprintSearchFilter] = [.all]
+        values += archive.years.prefix(2).map { .year($0.year) }
+        values += archive.cities.prefix(2).map { .city($0.name) }
         return values
     }
 
@@ -726,7 +812,15 @@ private struct FootprintSearchSheet: View {
             let searchable = [show.name, show.artist, show.city, show.venueName, String(Calendar.current.component(.year, from: show.effectiveDate))]
                 .compactMap { $0 }.joined(separator: " ")
             let matchesQuery = query.isEmpty || searchable.localizedCaseInsensitiveContains(query)
-            let matchesFilter = filter == "全部" || searchable.localizedCaseInsensitiveContains(filter)
+            let matchesFilter: Bool
+            switch filter {
+            case .all:
+                matchesFilter = true
+            case let .year(year):
+                matchesFilter = Calendar.current.component(.year, from: show.effectiveDate) == year
+            case let .city(city):
+                matchesFilter = show.city?.trimmingCharacters(in: .whitespacesAndNewlines) == city
+            }
             return matchesQuery && matchesFilter
         }
     }
@@ -750,7 +844,7 @@ private struct FootprintSearchSheet: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 7) {
                     ForEach(chips, id: \.self) { chip in
-                        Button(chip) { filter = chip }
+                        Button(chip.label) { filter = chip }
                             .font(.system(size: 11.5, weight: .medium))
                             .foregroundColor(filter == chip ? BSColor.Stage.accent : BSColor.Stage.muted)
                             .padding(.horizontal, 11).padding(.vertical, 7)
@@ -798,6 +892,20 @@ private struct FootprintSearchSheet: View {
     }
 }
 
+private enum FootprintSearchFilter: Hashable {
+    case all
+    case year(Int)
+    case city(String)
+
+    var label: String {
+        switch self {
+        case .all: return "全部"
+        case let .year(year): return String(year)
+        case let .city(city): return city
+        }
+    }
+}
+
 private struct FootprintShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let shareText: String
@@ -805,6 +913,8 @@ private struct FootprintShareSheet: View {
     let onSaved: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isSaving = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -826,8 +936,9 @@ private struct FootprintShareSheet: View {
                     onCopied()
                 }
                 .footprintShareAction(primary: false)
-                Button("保存图片") { saveImage() }
+                Button("保存图片") { Task { await saveImage() } }
                     .footprintShareAction(primary: true)
+                    .disabled(isSaving)
             }
             .padding(.top, 12)
 
@@ -840,14 +951,33 @@ private struct FootprintShareSheet: View {
         .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
+        .alert("无法保存图片", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("好", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "请重试。")
+        }
     }
 
     @MainActor
-    private func saveImage() {
+    private func saveImage() async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
         let renderer = ImageRenderer(content: FootprintSharePreview(archive: archive).frame(width: 1080, height: 1350))
         renderer.scale = 1
-        guard let image = renderer.uiImage else { return }
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        guard let image = renderer.uiImage else {
+            saveError = FootprintPhotoSaveError.rendererFailed.localizedDescription
+            return
+        }
+        do {
+            try await FootprintPhotoLibrary.save(image)
+        } catch {
+            saveError = (error as? LocalizedError)?.errorDescription ?? "照片保存失败，请重试。"
+            return
+        }
         dismiss()
         onSaved()
     }
@@ -894,6 +1024,8 @@ private struct FootprintArchiveShareSheet: View {
     let category: FootprintCategory
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isSaving = false
+    @State private var saveError: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -915,8 +1047,9 @@ private struct FootprintArchiveShareSheet: View {
                     dismiss()
                 }
                 .footprintShareAction(primary: false)
-                Button("保存图片") { saveImage() }
+                Button("保存图片") { Task { await saveImage() } }
                     .footprintShareAction(primary: true)
+                    .disabled(isSaving)
             }
             .padding(.top, 12)
 
@@ -929,17 +1062,36 @@ private struct FootprintArchiveShareSheet: View {
         .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
+        .alert("无法保存图片", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("好", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "请重试。")
+        }
     }
 
     @MainActor
-    private func saveImage() {
+    private func saveImage() async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
         let renderer = ImageRenderer(
             content: FootprintArchiveSharePreview(archive: archive, category: category)
                 .frame(width: 1080, height: 1100)
         )
         renderer.scale = 1
-        guard let image = renderer.uiImage else { return }
-        UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+        guard let image = renderer.uiImage else {
+            saveError = FootprintPhotoSaveError.rendererFailed.localizedDescription
+            return
+        }
+        do {
+            try await FootprintPhotoLibrary.save(image)
+        } catch {
+            saveError = (error as? LocalizedError)?.errorDescription ?? "照片保存失败，请重试。"
+            return
+        }
         dismiss()
     }
 }
