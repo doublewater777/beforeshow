@@ -191,6 +191,45 @@ final class ShowModelTests: XCTestCase {
         XCTAssertTrue(afterFallbackEnd.helperText.contains("23:30"))
     }
 
+    func testConfirmedEndOverridesEstimatedBoundaryAndCanBeUndone() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "确认散场的现场",
+            date: makeDate(year: 2026, month: 7, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 30, calendar: calendar)
+        )
+        let confirmedEnd = makeDate(
+            year: 2026,
+            month: 7,
+            day: 8,
+            hour: 22,
+            minute: 10,
+            calendar: calendar
+        )
+
+        show.markEnded(at: confirmedEnd)
+
+        let endedState = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(endedState.kind, .postShow)
+        XCTAssertEqual(endedState.endBoundary, confirmedEnd)
+        XCTAssertEqual(endedState.effectiveEndTime, confirmedEnd)
+
+        show.clearEnded()
+
+        let resumedState = CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 20, calendar: calendar)
+        )
+        XCTAssertEqual(resumedState.kind, .today)
+        XCTAssertNil(show.endedAt)
+    }
+
     func testMultiDayDailyCycleEndsEachDayAndRestartsNextDay() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -319,6 +358,67 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 
+    func testMultiDayOvernightSessionsKeepPreviousDayAcrossMidnightAndAnchorConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "跨午夜音乐节",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        let middleMidnight = makeDate(year: 2026, month: 8, day: 9, hour: 0, minute: 30, calendar: calendar)
+        let middleState = CurrentShowTimeState(show: show, calendar: calendar, now: middleMidnight)
+        XCTAssertEqual(middleState.kind, .today)
+        XCTAssertEqual(middleState.effectiveStartTime, makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(middleState.effectiveEndTime, makeDate(year: 2026, month: 8, day: 9, hour: 1, minute: 0, calendar: calendar))
+
+        let confirmedEnd = makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar)
+        XCTAssertEqual(
+            CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: calendar),
+            makeDate(year: 2026, month: 8, day: 10, hour: 22, minute: 0, calendar: calendar)
+        )
+        show.markEnded(at: confirmedEnd)
+        let endedState = CurrentShowTimeState(show: show, calendar: calendar, now: confirmedEnd.addingTimeInterval(60))
+        XCTAssertEqual(endedState.effectiveStartTime, makeDate(year: 2026, month: 8, day: 10, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(endedState.effectiveEndTime, confirmedEnd)
+    }
+
+    func testFutureMultiDayCycleUsesFirstSessionAndFinalBoundaryBeforeStart() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "未来音乐节",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: makeDate(year: 2026, month: 8, day: 1, hour: 10, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.kind, .before)
+        XCTAssertEqual(state.effectiveStartTime, makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.effectiveEndTime, makeDate(year: 2026, month: 8, day: 9, hour: 1, minute: 0, calendar: calendar))
+        XCTAssertEqual(state.endBoundary, makeDate(year: 2026, month: 8, day: 11, hour: 1, minute: 0, calendar: calendar))
+    }
+
+    func testEditingMultiDayEndDateClearsConfirmedEndBeforeNewFinalSession() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let show = try Show(
+            name: "修改范围现场",
+            date: makeDate(year: 2026, month: 8, day: 8, hour: 0, minute: 0, calendar: calendar),
+            startTime: makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            endDate: makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar),
+            endTime: makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        )
+        show.markEnded(at: makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar))
+        var draft = ShowDraft(show: show)
+        draft.endDate = makeDate(year: 2026, month: 8, day: 12, hour: 0, minute: 0, calendar: calendar)
+        try show.apply(draft)
+        XCTAssertNil(show.endedAt)
+    }
+
     func testShowCoverFallbackUsesSplashImageWithoutMissingCoverCopy() {
         let presentation = ShowCoverFallbackPresentation(reason: .noCover)
 
@@ -343,6 +443,50 @@ final class ShowModelTests: XCTestCase {
 
         XCTAssertEqual(state.kind, .today)
         XCTAssertEqual(state.title, "今天开场")
+    }
+
+    func testEditingStartIntoFutureClearsStaleConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let originalStart = makeDate(year: 2026, month: 7, day: 8, hour: 20, minute: 0, calendar: calendar)
+        let confirmedEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let show = try Show(name: "改期现场", date: originalStart, startTime: originalStart)
+        show.markEnded(at: confirmedEnd)
+
+        var draft = ShowDraft(show: show)
+        let futureStart = makeDate(year: 2026, month: 7, day: 10, hour: 20, minute: 0, calendar: calendar)
+        draft.date = futureStart
+        draft.startTime = futureStart
+        try show.apply(draft)
+
+        XCTAssertNil(show.endedAt)
+    }
+
+    func testEditingWithoutInvalidatingConfirmedEndPreservesIt() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let confirmedEnd = start.addingTimeInterval(7_200)
+        let show = try Show(name: "保留真实散场", date: start, startTime: start)
+        show.markEnded(at: confirmedEnd)
+
+        var draft = ShowDraft(show: show)
+        draft.name = "只改名称"
+        try show.apply(draft)
+
+        XCTAssertEqual(show.endedAt, confirmedEnd)
+    }
+
+    func testPostponingOrCancelingClearsConfirmedEnd() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "状态变化现场", date: start, startTime: start)
+
+        show.markEnded(at: start.addingTimeInterval(7_200))
+        show.markPostponed(newDate: start.addingTimeInterval(86_400))
+        XCTAssertNil(show.endedAt)
+
+        show.markScheduled()
+        show.markEnded(at: start.addingTimeInterval(7_200))
+        show.markCanceled()
+        XCTAssertNil(show.endedAt)
     }
 
     private func makeDate(

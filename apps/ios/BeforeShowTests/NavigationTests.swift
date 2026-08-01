@@ -14,7 +14,7 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(BeforeShowTab.myShows.rawValue, "我的现场")
     }
 
-    /// V4 起设置迁入首页封面右上角的溢出菜单,不再是主 Tab。
+    /// 设置不是主导航项；当前现场主海报也不承载溢出菜单。
     func testSettingsIsNotAMainTab() {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
@@ -29,6 +29,118 @@ final class NavigationTests: XCTestCase {
             }
         }
     }
+    func testCurrentShowQuickActionsAreAlwaysVisible() {
+        XCTAssertEqual(
+            CurrentShowQuickAction.visibleActions,
+            [.ticket, .route, .reminder, .companion]
+        )
+    }
+
+    func testCurrentFollowUpsExcludeCurrentPastChangedAndSortAscending() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let current = try Show(name: "当前", date: now, startTime: now)
+        let later = try Show(name: "较晚", date: now.addingTimeInterval(8_000), startTime: now.addingTimeInterval(8_000))
+        let sooner = try Show(name: "较近", date: now.addingTimeInterval(4_000), startTime: now.addingTimeInterval(4_000))
+        let past = try Show(name: "过去", date: now.addingTimeInterval(-4_000), startTime: now.addingTimeInterval(-4_000))
+        let canceled = try Show(name: "取消", date: now.addingTimeInterval(2_000), startTime: now.addingTimeInterval(2_000))
+        canceled.markCanceled()
+
+        let result = CurrentShowFollowUpPolicy.laterShows(
+            from: [later, current, canceled, past, sooner],
+            excluding: current.id,
+            now: now
+        )
+
+        XCTAssertEqual(result.map(\.name), ["较近", "较晚"])
+    }
+
+    func testCurrentFollowUpsDropShowAfterItsStartTimePasses() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "即将开场",
+            date: now.addingTimeInterval(60),
+            startTime: now.addingTimeInterval(60)
+        )
+
+        XCTAssertEqual(
+            CurrentShowFollowUpPolicy.laterShows(from: [show], excluding: nil, now: now).map(\.id),
+            [show.id]
+        )
+        XCTAssertTrue(
+            CurrentShowFollowUpPolicy.laterShows(
+                from: [show],
+                excluding: nil,
+                now: now.addingTimeInterval(61)
+            ).isEmpty
+        )
+    }
+
+    func testEstimatedEndOffersBackfillUntilRealEndIsConfirmed() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "超时现场", date: start, startTime: start)
+        let afterEstimatedEnd = start.addingTimeInterval(5 * 3_600)
+        let timeState = CurrentShowTimeState(show: show, now: afterEstimatedEnd)
+        let phase = HomeShowPhase(timeState: timeState, now: afterEstimatedEnd)
+
+        XCTAssertEqual(timeState.kind, .postShow)
+        XCTAssertEqual(
+            HomeCountdownLockup.endActionTitle(
+                phase: phase,
+                timeState: timeState,
+                hasConfirmedEnd: false
+            ),
+            "补记真实散场时间"
+        )
+        XCTAssertNil(
+            HomeCountdownLockup.endActionTitle(
+                phase: phase,
+                timeState: timeState,
+                hasConfirmedEnd: true
+            )
+        )
+    }
+
+    func testMultiDayDailyCycleCannotBeEndedOnAnIntermediateLiveDay() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let endDate = makeDate(year: 2026, month: 7, day: 10, hour: 0, minute: 0, calendar: calendar)
+        let dailyEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let show = try Show(name: "三日音乐节", date: start, startTime: start, endDate: endDate, endTime: dailyEnd)
+        let middleDay = makeDate(year: 2026, month: 7, day: 9, hour: 20, minute: 0, calendar: calendar)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: middleDay)
+        let phase = HomeShowPhase(timeState: state, now: middleDay)
+
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(phase, .live)
+        XCTAssertFalse(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: middleDay, calendar: calendar))
+
+        let finalDay = makeDate(year: 2026, month: 7, day: 10, hour: 20, minute: 0, calendar: calendar)
+        let finalState = CurrentShowTimeState(show: show, calendar: calendar, now: finalDay)
+        let finalPhase = HomeShowPhase(timeState: finalState, now: finalDay)
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, phase: finalPhase, now: finalDay, calendar: calendar))
+    }
+
+    func testFinalOvernightDailyCycleRemainsLiveAfterMidnight() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let endDate = makeDate(year: 2026, month: 8, day: 10, hour: 0, minute: 0, calendar: calendar)
+        let dailyEnd = makeDate(year: 2026, month: 8, day: 8, hour: 1, minute: 0, calendar: calendar)
+        let show = try Show(name: "跨午夜音乐节", date: start, startTime: start, endDate: endDate, endTime: dailyEnd)
+        let finalOvernight = makeDate(year: 2026, month: 8, day: 11, hour: 0, minute: 30, calendar: calendar)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: finalOvernight)
+        let phase = HomeShowPhase(timeState: state, now: finalOvernight)
+
+        XCTAssertEqual(state.kind, .today)
+        XCTAssertEqual(phase, .live)
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: finalOvernight, calendar: calendar))
+    }
+
+    private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {
+        DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour, minute: minute).date!
+    }
+
 }
 
 /// Widget / Live Activity 回归测试放在已纳入 Xcode test target 的源文件中。

@@ -112,6 +112,8 @@ final class Show {
     var createdAt: Date
     var updatedAt: Date
     var postponedDate: Date?
+    /// 用户确认的真实散场时刻。存在时高于录入的结束时间与默认时长估算。
+    var endedAt: Date?
 
     private var changeStatusRawValue: String
 
@@ -150,6 +152,7 @@ final class Show {
         coverImageURL: String? = nil,
         artistAvatarURLs: [String] = [],
         changeStatus: ShowChangeStatus = .scheduled,
+        endedAt: Date? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -180,6 +183,7 @@ final class Show {
         self.coverImageURL = coverImageURL
         self.artistAvatarURLStorage = artistAvatarURLs
         self.changeStatusRawValue = changeStatus.rawValue
+        self.endedAt = endedAt
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -187,17 +191,30 @@ final class Show {
     func markPostponed(newDate: Date?) {
         postponedDate = newDate
         changeStatus = .postponed
+        endedAt = nil
         touch()
     }
 
     func markCanceled() {
         changeStatus = .canceled
+        endedAt = nil
         touch()
     }
 
     func markScheduled() {
         postponedDate = nil
         changeStatus = .scheduled
+        discardConfirmedEndBeforeEffectiveStart()
+        touch()
+    }
+
+    func markEnded(at date: Date = Date()) {
+        endedAt = date
+        touch()
+    }
+
+    func clearEnded() {
+        endedAt = nil
         touch()
     }
 
@@ -220,7 +237,19 @@ final class Show {
         seatSection = prepared.seatSection
         coverImageURL = prepared.coverImageURL
         artistAvatarURLs = prepared.artistAvatarURLs
+        discardConfirmedEndBeforeEffectiveStart()
         touch()
+    }
+
+    /// A confirmed curtain time must never precede the show's effective start.
+    /// Status changes that mean the show did not happen clear it explicitly;
+    /// edits preserve a still-valid confirmation and discard only stale values.
+    private func discardConfirmedEndBeforeEffectiveStart(calendar: Calendar = .current) {
+        guard let endedAt else { return }
+        let minimumConfirmableEnd = CurrentShowTimeState.minimumConfirmableEnd(for: self, calendar: calendar)
+        if endedAt < minimumConfirmableEnd {
+            self.endedAt = nil
+        }
     }
 
     /// Normalize + validate draft fields once for create and edit.

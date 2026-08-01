@@ -9,6 +9,7 @@ extension Show {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
+            endedAt: endedAt,
             postponedDate: postponedDate,
             changeStatus: changeStatus
         )
@@ -31,6 +32,16 @@ extension CurrentShowTimeState {
 
     static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
         effectiveStartTime(timing: show.timingFields, calendar: calendar)
+    }
+
+    /// Earliest user-confirmable end: the final daily session start for a
+    /// multi-day cycle, otherwise the show's effective start.
+    static func minimumConfirmableEnd(for show: Show, calendar: Calendar) -> Date {
+        guard isMultiDayDailyCycle(for: show, calendar: calendar),
+              let finalDay = effectiveEndDate(for: show, calendar: calendar) else {
+            return effectiveStartTime(for: show, calendar: calendar)
+        }
+        return dailyStartTime(on: finalDay, show: show, calendar: calendar)
     }
 
     static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {

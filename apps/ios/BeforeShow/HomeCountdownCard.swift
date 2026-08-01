@@ -30,6 +30,7 @@ enum HomeLineupParser {
 /// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
 struct HomeCountdownLockup: View {
     let show: Show
+    var onEndShow: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -68,8 +69,32 @@ struct HomeCountdownLockup: View {
             case .inactive:
                 inactiveStatus(timeState: timeState)
             }
+
+            if let onEndShow,
+               let actionTitle = Self.endActionTitle(
+                   phase: phase,
+                   timeState: timeState,
+                   hasConfirmedEnd: show.endedAt != nil
+               ) {
+                Button(action: onEndShow) {
+                    Text(actionTitle)
+                        .font(.system(size: 13.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.liveTitle)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(BSColor.Stage.live.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14)
+                                .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("打开散场时间确认")
+                .padding(.top, 12)
+            }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
     }
 
     // MARK: pre:渐进精度倒计时
@@ -118,30 +143,46 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    // MARK: live:脉冲 + 已进行
+    // MARK: live:脉冲 + 已进行 + 散场确认入口
 
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        HStack(spacing: 14) {
-            HomeLivePulse(reduceMotion: reduceMotion)
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                HomeLivePulse(reduceMotion: reduceMotion)
 
-            Text("灯光已亮")
-                .font(.system(size: 19, weight: .semibold))
-                .foregroundColor(BSColor.Stage.liveTitle)
+                Text("灯光已亮")
+                    .font(.system(size: 19, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.liveTitle)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 0)
 
-            VStack(spacing: 4) {
-                Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
-                    .font(.system(size: 22, weight: .semibold))
-                    .monospacedDigit()
-                    .tracking(-0.3)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("已进行")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+                VStack(spacing: 4) {
+                    Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
+                        .font(.system(size: 22, weight: .semibold))
+                        .monospacedDigit()
+                        .tracking(-0.3)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text("已进行")
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(BSColor.Stage.dim)
+                }
             }
+            .padding(.vertical, 8)
+
         }
-        .padding(.vertical, 8)
+    }
+
+    static func endActionTitle(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        hasConfirmedEnd: Bool
+    ) -> String? {
+        guard !hasConfirmedEnd else { return nil }
+        if phase == .live { return "散场了，结束这场现场" }
+        if timeState.kind == .postShow || timeState.kind == .ended {
+            return "补记真实散场时间"
+        }
+        return nil
     }
 
     // MARK: ended:冷静收束
@@ -157,7 +198,11 @@ struct HomeCountdownLockup: View {
             emphasize = true
         case .postShow:
             title = "已落幕"
-            helper = timeState.helperText
+            if let endedAt = show.endedAt {
+                helper = "\(Self.endTimeText(endedAt)) · 已计入足迹"
+            } else {
+                helper = timeState.helperText
+            }
             emphasize = true
         default:
             title = "已结束"
@@ -256,6 +301,13 @@ struct HomeCountdownLockup: View {
     private static func remainingSeconds(to start: Date?, from now: Date) -> Int? {
         guard let start else { return nil }
         return max(0, Int(start.timeIntervalSince(now)))
+    }
+
+    private static func endTimeText(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter.string(from: date)
     }
 
     private static func clockText(_ total: Int, forceHours: Bool) -> String {

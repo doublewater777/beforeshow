@@ -13,6 +13,7 @@ struct ShowTimingFields: Equatable, Codable {
     var startTime: Date
     var endDate: Date?
     var endTime: Date?
+    var endedAt: Date? = nil
     var postponedDate: Date?
     var changeStatus: ShowChangeStatus
 
