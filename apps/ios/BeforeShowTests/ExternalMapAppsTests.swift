@@ -9,7 +9,38 @@ final class ExternalMapAppsTests: XCTestCase {
             city: "南京",
             showName: "周杰伦嘉年华"
         )
-        XCTAssertEqual(query, "建邺区江东中路399号")
+        // District-level address does not contain city name; append city for disambiguation.
+        XCTAssertEqual(query, "建邺区江东中路399号 南京")
+    }
+
+    func testDestinationAppendsCityToStreetOnlyAddress() {
+        let query = MapDestinationQuery.make(
+            venueAddress: "人民路1号",
+            venueName: "某场馆",
+            city: "南京",
+            showName: "某演出"
+        )
+        XCTAssertEqual(query, "人民路1号 南京")
+    }
+
+    func testDestinationDoesNotDuplicateCityInsideAddress() {
+        let query = MapDestinationQuery.make(
+            venueAddress: "南京市人民路1号",
+            venueName: "某场馆",
+            city: "南京",
+            showName: "某演出"
+        )
+        XCTAssertEqual(query, "南京市人民路1号")
+    }
+
+    func testDestinationKeepsAddressWhenCityBlank() {
+        let query = MapDestinationQuery.make(
+            venueAddress: "人民路1号",
+            venueName: "某场馆",
+            city: "  ",
+            showName: "某演出"
+        )
+        XCTAssertEqual(query, "人民路1号")
     }
 
     func testDestinationJoinsVenueAndCityWhenNoAddress() {

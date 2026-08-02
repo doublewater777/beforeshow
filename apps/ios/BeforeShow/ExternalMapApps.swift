@@ -112,10 +112,14 @@ enum MapDestinationQuery {
         showName: String
     ) -> String? {
         let address = trimmed(venueAddress)
+        let cityText = trimmed(city)
+        // Street-only addresses are ambiguous across cities; append city when absent.
+        if let address, let cityText, !address.localizedCaseInsensitiveContains(cityText) {
+            return "\(address) \(cityText)"
+        }
         if let address { return address }
 
         let venue = trimmed(venueName)
-        let cityText = trimmed(city)
         if let venue, let cityText, !venue.localizedCaseInsensitiveContains(cityText) {
             return "\(venue) \(cityText)"
         }
