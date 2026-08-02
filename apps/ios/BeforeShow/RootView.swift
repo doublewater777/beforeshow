@@ -339,9 +339,12 @@ struct CurrentShowManagementSection: View {
     var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
+    @State private var isShowingCompanion = false
+    @State private var companionSaveFailed = false
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -379,6 +382,32 @@ struct CurrentShowManagementSection: View {
                 },
                 onCancel: { isShowingMapChooser = false }
             )
+        }
+        .sheet(isPresented: $isShowingCompanion) {
+            CurrentShowCompanionSheet(
+                show: show,
+                shareText: shareText,
+                sharedHistory: companionHistory,
+                isEnded: currentPhase == .ended,
+                onInvitationSent: { name in
+                    updateCompanion { try $0.markCompanionInvitationSent(name: name) }
+                },
+                onConfirmed: { name in
+                    updateCompanion { try $0.markCompanionConfirmed(name: name) }
+                },
+                onCanceled: {
+                    updateCompanion { try $0.cancelCompanion() }
+                },
+                onRestoreCompanionState: { status, name in
+                    updateCompanion { $0.restoreCompanionState(status: status, name: name) }
+                },
+                onDismiss: { isShowingCompanion = false }
+            )
+        }
+        .alert("同行状态没有保存", isPresented: $companionSaveFailed) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text("请稍后重试。")
         }
     }
 
@@ -532,8 +561,15 @@ struct CurrentShowManagementSection: View {
                     }
                     .buttonStyle(.plain)
                 case .companion:
-                    ShareLink(item: shareText) {
-                        CurrentShowQuickActionTile(action: action)
+                    Button { isShowingCompanion = true } label: {
+                        CurrentShowQuickActionTile(
+                            action: action,
+                            companion: CompanionQuickActionPresentation(
+                                status: show.companionStatus,
+                                companionName: show.companionName,
+                                isEnded: currentPhase == .ended
+                            )
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -545,6 +581,48 @@ struct CurrentShowManagementSection: View {
         guard let query = routeQuery,
               let url = app.openURL(for: query) else { return }
         openURL(url)
+    }
+
+    private var companionHistory: [Show] {
+        CompanionSharedHistory.shows(
+            matching: show,
+            from: candidateShows
+        )
+    }
+
+    @discardableResult
+    private func updateCompanion(_ mutation: (Show) throws -> Void) -> Bool {
+        do {
+            try mutation(show)
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            companionSaveFailed = true
+            return false
+        }
+    }
+}
+
+enum CompanionSharedHistory {
+    /// Aggregate only when a stable non-empty companion name exists.
+    /// Unnamed confirmed companions must not merge across unrelated shows.
+    static func shows(matching show: Show, from candidates: [Show]) -> [Show] {
+        let normalizedName = show.companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let normalizedName, !normalizedName.isEmpty else {
+            if show.companionStatus == .confirmed, show.endedAt != nil {
+                return [show]
+            }
+            return []
+        }
+
+        return candidates
+            .filter { candidate in
+                candidate.companionStatus == .confirmed
+                    && candidate.endedAt != nil
+                    && candidate.companionName?.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedName
+            }
+            .sorted { ($0.endedAt ?? .distantPast) > ($1.endedAt ?? .distantPast) }
     }
 }
 
@@ -682,17 +760,63 @@ enum CurrentShowQuickAction: Hashable {
     static let visibleActions: [Self] = [.route, .companion]
 }
 
+struct CompanionQuickActionPresentation: Equatable {
+    let title: String
+    let accessibilityLabel: String
+    let companionName: String?
+    let showsPendingIndicator: Bool
+    let showsAvatars: Bool
+
+    init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool) {
+        let name = companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedName = name.flatMap { $0.isEmpty ? nil : $0 }
+        self.companionName = normalizedName
+        switch status {
+        case .none:
+            title = "同行"
+            accessibilityLabel = "同行，邀请一位朋友"
+            showsPendingIndicator = false
+            showsAvatars = false
+        case .pending:
+            title = "待确认"
+            accessibilityLabel = normalizedName.map { "同行，等待\($0)确认" } ?? "同行，待确认"
+            showsPendingIndicator = true
+            showsAvatars = false
+        case .confirmed:
+            let displayName = normalizedName ?? "同行者"
+            title = isEnded ? "共同足迹" : "与\(displayName)"
+            accessibilityLabel = isEnded
+                ? (normalizedName.map { "同行，与\($0)的共同足迹" } ?? "同行，共同足迹")
+                : "同行，与\(displayName)已确认"
+            showsPendingIndicator = false
+            showsAvatars = true
+        case .canceled:
+            title = "重新邀请"
+            accessibilityLabel = normalizedName.map { "同行，重新邀请\($0)" } ?? "同行，重新邀请"
+            showsPendingIndicator = false
+            showsAvatars = false
+        }
+    }
+}
+
 private struct CurrentShowQuickActionTile: View {
     let action: CurrentShowQuickAction
+    var companion: CompanionQuickActionPresentation?
 
     var body: some View {
         VStack(spacing: 7) {
-            Image(systemName: action.iconName)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(BSColor.Stage.accent)
-            Text(action.title)
+            if let companion, companion.showsAvatars {
+                CompanionAvatarStack(name: companion.companionName ?? "同行者")
+            } else {
+                Image(systemName: action.iconName)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+            Text(companion?.title ?? action.title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 72)
@@ -702,9 +826,383 @@ private struct CurrentShowQuickActionTile: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.white.opacity(0.09), lineWidth: 1)
         )
+        .overlay(alignment: .topTrailing) {
+            if companion?.showsPendingIndicator == true {
+                Circle()
+                    .fill(BSColor.Stage.accent)
+                    .frame(width: 7, height: 7)
+                    .shadow(color: BSColor.Stage.accent.opacity(0.5), radius: 5)
+                    .padding(11)
+                    .accessibilityHidden(true)
+            }
+        }
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(action.title)
+        .accessibilityLabel(companion?.accessibilityLabel ?? action.title)
+    }
+}
+
+private struct CompanionAvatarStack: View {
+    let name: String
+
+    var body: some View {
+        HStack(spacing: -8) {
+            avatar("我", colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue])
+            avatar(initial, colors: [BSColor.Accent.violet, BSColor.Stage.accent])
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var initial: String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty || trimmed == "共同足迹" ? "友" : String(trimmed.prefix(1))
+    }
+
+    private func avatar(_ text: String, colors: [Color]) -> some View {
+        Text(text)
+            .font(.system(size: 9, weight: .bold))
+            .foregroundColor(BSColor.Stage.background)
+            .frame(width: 25, height: 25)
+            .background(LinearGradient(colors: colors, startPoint: .topLeading, endPoint: .bottomTrailing))
+            .clipShape(Circle())
+            .overlay(Circle().stroke(BSColor.Stage.surface, lineWidth: 2))
+    }
+}
+
+private struct CurrentShowCompanionSheet: View {
+    let show: Show
+    let shareText: String
+    let sharedHistory: [Show]
+    let isEnded: Bool
+    let onInvitationSent: (String?) -> Bool
+    let onConfirmed: (String?) -> Bool
+    let onCanceled: () -> Bool
+    let onRestoreCompanionState: (ShowCompanionStatus, String?) -> Bool
+    let onDismiss: () -> Void
+
+    @State private var companionName: String
+    @State private var isShowingHistory = false
+    @State private var isPresentingShare = false
+    @State private var pendingShareText = ""
+    @State private var preShareSnapshot: (status: ShowCompanionStatus, name: String?)?
+
+    init(
+        show: Show,
+        shareText: String,
+        sharedHistory: [Show],
+        isEnded: Bool,
+        onInvitationSent: @escaping (String?) -> Bool,
+        onConfirmed: @escaping (String?) -> Bool,
+        onCanceled: @escaping () -> Bool,
+        onRestoreCompanionState: @escaping (ShowCompanionStatus, String?) -> Bool,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.show = show
+        self.shareText = shareText
+        self.sharedHistory = sharedHistory
+        self.isEnded = isEnded
+        self.onInvitationSent = onInvitationSent
+        self.onConfirmed = onConfirmed
+        self.onCanceled = onCanceled
+        self.onRestoreCompanionState = onRestoreCompanionState
+        self.onDismiss = onDismiss
+        _companionName = State(initialValue: show.companionName ?? "")
+    }
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large]) {
+            ScrollView {
+                VStack(spacing: BSSpacing.lg) {
+                    switch show.companionStatus {
+                    case .none:
+                        invitationContent(isRetry: false)
+                    case .pending:
+                        pendingContent
+                    case .confirmed:
+                        confirmedContent
+                    case .canceled:
+                        invitationContent(isRetry: true)
+                    }
+
+                    Button("完成", action: onDismiss)
+                        .buttonStyle(BSSecondaryButtonStyle())
+                }
+            }
+            .scrollIndicators(.hidden)
+        }
+        .sheet(isPresented: $isPresentingShare) {
+            CompanionActivityView(items: [pendingShareText], onComplete: handleShareCompletion)
+                .presentationDetents([.large])
+        }
+    }
+
+    private func invitationContent(isRetry: Bool) -> some View {
+        VStack(spacing: BSSpacing.md) {
+            sheetHeader(
+                icon: "person.2",
+                title: isRetry ? "邀请未接受" : "邀请同行",
+                subtitle: isRetry ? "可以重新发送邀请，不影响你的现场记录。" : "邀请一位朋友，一起留下这场现场。"
+            )
+
+            TextField("同行者名字（可选）", text: $companionName)
+                .textInputAutocapitalization(.words)
+                .bsInputField()
+
+            Button {
+                let snapshot = show.companionStateSnapshot()
+                guard onInvitationSent(companionName) else { return }
+                preShareSnapshot = snapshot
+                pendingShareText = shareText
+                isPresentingShare = true
+            } label: {
+                Label(isRetry ? "重新邀请" : "分享邀请", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+        }
+    }
+
+    private var pendingContent: some View {
+        VStack(spacing: BSSpacing.md) {
+            sheetHeader(
+                icon: "hourglass",
+                title: "等待\(displayName)确认",
+                subtitle: "邀请已经发出。对方确认后，这场会出现在你们共同的足迹中。"
+            )
+
+            Button {
+                pendingShareText = shareText
+                isPresentingShare = true
+            } label: {
+                Label("再次发送", systemImage: "paperplane")
+            }
+            .buttonStyle(BSSecondaryButtonStyle())
+
+            Button("标记对方已确认") {
+                onConfirmed(companionName)
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+
+            destructiveButton("取消邀请") { _ = onCanceled() }
+        }
+    }
+
+    @ViewBuilder
+    private var confirmedContent: some View {
+        if isEnded {
+            VStack(spacing: BSSpacing.md) {
+                sheetHeader(
+                    icon: "person.2.fill",
+                    title: "共同足迹",
+                    subtitle: "这场现场已经收进你们共同的记录。"
+                )
+
+                sharedMemoryCard
+
+                Button {
+                    pendingShareText = sharedFootprintShareText
+                    isPresentingShare = true
+                } label: {
+                    Label("分享共同足迹", systemImage: "square.and.arrow.up")
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+            }
+        } else {
+            VStack(spacing: BSSpacing.md) {
+                sheetHeader(
+                    icon: "person.2.fill",
+                    title: "与\(displayName)同行",
+                    subtitle: "这场现场已确认同行。"
+                )
+
+                companionPair
+
+                Text("你们共同看过 \(sharedHistory.count) 场现场")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+
+                if isShowingHistory {
+                    historyList
+                } else {
+                    Button("查看共同足迹") {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isShowingHistory = true
+                        }
+                    }
+                    .buttonStyle(BSPrimaryButtonStyle())
+                }
+
+                destructiveButton("取消同行") { _ = onCanceled() }
+            }
+        }
+    }
+
+    private var companionPair: some View {
+        HStack(spacing: BSSpacing.md) {
+            person(name: "你", initial: "我")
+
+            Rectangle()
+                .fill(LinearGradient(colors: [.clear, BSColor.Stage.accent, .clear], startPoint: .leading, endPoint: .trailing))
+                .frame(maxWidth: 70, maxHeight: 1)
+
+            person(name: displayName, initial: companionInitial)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, BSSpacing.sm)
+    }
+
+    private func person(name: String, initial: String) -> some View {
+        VStack(spacing: 6) {
+            Text(initial)
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(BSColor.Stage.background)
+                .frame(width: 48, height: 48)
+                .background(
+                    LinearGradient(
+                        colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .clipShape(Circle())
+            Text(name)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Text("已确认")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundColor(BSColor.Stage.prepare)
+        }
+    }
+
+    private var sharedMemoryCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("TOGETHER · \(String(format: "%02d", sharedHistory.count))")
+                .font(.system(size: 10, weight: .semibold))
+                .tracking(1.2)
+                .foregroundColor(BSColor.Stage.accent)
+            Text("我们一起看的\n第 \(max(1, sharedHistory.count)) 场现场")
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Text(show.name)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(BSSpacing.lg)
+        .background(
+            LinearGradient(
+                colors: [BSColor.Stage.accent.opacity(0.15), BSColor.Stage.surface],
+                startPoint: .topTrailing,
+                endPoint: .bottomLeading
+            )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(BSColor.Stage.accent.opacity(0.20), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private var historyList: some View {
+        if sharedHistory.isEmpty {
+            Text("散场后，共同足迹会从这里开始。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, BSSpacing.md)
+        } else {
+            VStack(spacing: 8) {
+                ForEach(sharedHistory.prefix(3)) { item in
+                    HStack(spacing: 10) {
+                        Image(systemName: "music.note")
+                            .foregroundColor(BSColor.Stage.accent)
+                        Text(item.name)
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(12)
+                    .background(BSColor.Stage.surface.opacity(0.92))
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+            }
+        }
+    }
+
+    private func sheetHeader(icon: String, title: String, subtitle: String) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 25, weight: .medium))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: 54, height: 54)
+                .background(BSColor.Stage.accent.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 17))
+                .accessibilityHidden(true)
+            Text(title)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Text(subtitle)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .multilineTextAlignment(.center)
+        }
+    }
+
+    private func destructiveButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(role: .destructive, action: action) {
+            Text(title)
+                .font(BSFont.caption)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+        }
+        .foregroundColor(BSColor.Stage.liveTitle)
+    }
+
+    private func handleShareCompletion(completed: Bool) {
+        guard let snapshot = preShareSnapshot else { return }
+        defer { preShareSnapshot = nil }
+        if completed {
+            return
+        }
+        _ = onRestoreCompanionState(snapshot.status, snapshot.name)
+    }
+
+
+    private var displayName: String {
+        let trimmed = companionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "同行者" : trimmed
+    }
+
+    private var companionInitial: String {
+        String(displayName.prefix(1))
+    }
+
+    private var sharedFootprintShareText: String {
+        "我和\(displayName)一起看了 \(show.name)。\n这是我们共同记录的第 \(max(1, sharedHistory.count)) 场现场。"
+    }
+}
+
+private struct CompanionActivityView: UIViewControllerRepresentable {
+    let items: [Any]
+    let onComplete: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onComplete: onComplete)
+    }
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            context.coordinator.onComplete(completed)
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+
+    final class Coordinator {
+        let onComplete: (Bool) -> Void
+        init(onComplete: @escaping (Bool) -> Void) {
+            self.onComplete = onComplete
+        }
     }
 }
 

@@ -7,6 +7,17 @@ enum ShowValidationError: Error, Equatable {
     case invalidEndTime
 }
 
+enum ShowCompanionStatus: String, CaseIterable, Codable {
+    case none
+    case pending
+    case confirmed
+    case canceled
+}
+
+enum ShowCompanionMutationError: Error, Equatable {
+    case invalidTransition(from: ShowCompanionStatus, to: ShowCompanionStatus)
+}
+
 struct ShowDisplayFormatter {
     private let calendar: Calendar
 
@@ -107,7 +118,14 @@ final class Show {
     /// 用户确认的真实散场时刻。存在时高于录入的结束时间与默认时长估算。
     var endedAt: Date?
 
+    private var companionStatusRawValue: String?
+    private(set) var companionName: String?
+
     private var changeStatusRawValue: String
+
+    var companionStatus: ShowCompanionStatus {
+        companionStatusRawValue.flatMap(ShowCompanionStatus.init(rawValue:)) ?? .none
+    }
 
     var changeStatus: ShowChangeStatus {
         get { ShowChangeStatus(rawValue: changeStatusRawValue) ?? .scheduled }
@@ -145,6 +163,8 @@ final class Show {
         artistAvatarURLs: [String] = [],
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
+        companionStatus: ShowCompanionStatus = .none,
+        companionName: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -176,6 +196,8 @@ final class Show {
         self.artistAvatarURLStorage = artistAvatarURLs
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
+        self.companionStatusRawValue = companionStatus.rawValue
+        self.companionName = Self.trimmedOptional(companionName)
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -207,6 +229,50 @@ final class Show {
 
     func clearEnded() {
         endedAt = nil
+        touch()
+    }
+
+    /// Valid transitions: `.none` / `.canceled` → `.pending`.
+    func markCompanionInvitationSent(name: String?) throws {
+        let from = companionStatus
+        guard from == .none || from == .canceled else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .pending)
+        }
+        applyCompanionState(status: .pending, name: name)
+    }
+
+    /// Valid transition: `.pending` → `.confirmed`.
+    func markCompanionConfirmed(name: String?) throws {
+        let from = companionStatus
+        guard from == .pending else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .confirmed)
+        }
+        applyCompanionState(status: .confirmed, name: name)
+    }
+
+    /// Valid transitions: `.pending` / `.confirmed` → `.canceled`.
+    func cancelCompanion() throws {
+        let from = companionStatus
+        guard from == .pending || from == .confirmed else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
+        }
+        companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
+        touch()
+    }
+
+    /// Snapshot used to restore state when the user cancels the system share sheet.
+    func companionStateSnapshot() -> (status: ShowCompanionStatus, name: String?) {
+        (companionStatus, companionName)
+    }
+
+    /// Force-restore a previous companion snapshot after a canceled share presentation.
+    func restoreCompanionState(status: ShowCompanionStatus, name: String?) {
+        applyCompanionState(status: status, name: name)
+    }
+
+    private func applyCompanionState(status: ShowCompanionStatus, name: String?) {
+        companionName = Self.trimmedOptional(name)
+        companionStatusRawValue = status.rawValue
         touch()
     }
 

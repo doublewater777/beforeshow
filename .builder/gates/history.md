@@ -109,3 +109,15 @@ Cycle: `.builder/cycles/2026-08-01-footprints-archive/`
 Decision: implementation and simulator verification complete; repeat-user validation pending.
 
 Reason: ended shows now produce a prototype-faithful personal archive with search, filters, rankings, yearly history, existing-flow backfill, and share-card export, but the Current / Footprints split still needs behavioral evidence.
+
+## 2026-08-02 · Companion Icon States
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-08-02-companion-icon-states/`
+
+Decision: implementation and simulator verification complete; user comprehension validation pending.
+
+Reason: the companion shortcut now preserves invitation, confirmation, cancellation, and shared-footprint states with a system-share handoff, but the local manual-confirmation model still needs real-user evidence before any account or remote-acceptance investment.
+
+- 2026-08-02 companion P1 review fixes: share persistence gating, cancel restore, history identity, lifecycle invariants; 153 tests.
