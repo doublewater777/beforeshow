@@ -57,4 +57,52 @@ final class ArchitectureModuleTests: XCTestCase {
         )
         XCTAssertEqual(result.map(\.name), ["之后"])
     }
+
+    func testImportedDraftWithoutStartTimeStaysUnconfirmed() throws {
+        // Import path must not auto-commit a fallback clock merely because a form appears.
+        var draft = ShowDraft(
+            name: "识别现场",
+            date: Date(timeIntervalSince1970: 2_000_000_000),
+            startTime: nil,
+            source: .screenshotOCR,
+            recognizedFields: [.name]
+        )
+        XCTAssertNil(draft.startTime)
+        XCTAssertFalse(draft.recognizedFields.contains(.startTime))
+        XCTAssertFalse(draft.hasValidEndTime())
+
+        draft.startTime = Calendar.current.date(
+            bySettingHour: 19,
+            minute: 30,
+            second: 0,
+            of: draft.date
+        )
+        XCTAssertNotNil(draft.startTime)
+        XCTAssertTrue(draft.hasValidEndTime())
+    }
+
+    func testDraftKeepsEditableVenueAddressAndSeatSection() throws {
+        var draft = ShowDraft(
+            name: "可编辑地点",
+            date: Date(timeIntervalSince1970: 2_000_000_000),
+            startTime: Date(timeIntervalSince1970: 2_000_000_000),
+            venueAddress: "旧地址",
+            seatSection: "看台 A",
+            source: .manual
+        )
+        draft.venueAddress = "新地址 1 号"
+        draft.seatSection = ""
+        let show = try draft.makeShow()
+        XCTAssertEqual(show.venueAddress, "新地址 1 号")
+        XCTAssertNil(show.seatSection)
+        XCTAssertEqual(
+            MapDestinationQuery.make(
+                venueAddress: show.venueAddress,
+                venueName: show.venueName,
+                city: show.city,
+                showName: show.name
+            ),
+            "新地址 1 号"
+        )
+    }
 }

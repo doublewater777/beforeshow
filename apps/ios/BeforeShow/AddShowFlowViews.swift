@@ -350,6 +350,8 @@ struct AddShowFlowView: View {
     @State private var importRequestRevision = 0
     /// 当前进行中的解析 / OCR 任务；关闭页面时取消，避免后台继续写回。
     @State private var importTask: Task<Void, Never>?
+    /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
+    @State private var fallbackDateConfirmed = false
     init(
         sheet: AddShowSheet,
         intent: AddShowIntent = .upcoming,
@@ -402,6 +404,10 @@ struct AddShowFlowView: View {
                                 draft: $draft,
                                 recognizedHighlight: hasImportedDraft,
                                 coverEmptyPlaceholder: true,
+                                requiresDateConfirmation: needsDateConfirmation,
+                                onConfirmFallbackDate: {
+                                    fallbackDateConfirmed = true
+                                },
                                 onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
                             )
                             // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
@@ -510,21 +516,16 @@ struct AddShowFlowView: View {
         draft.recognizedFields.count
     }
 
+    /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
+    private var needsDateConfirmation: Bool {
+        hasImportedDraft
+            && !draft.recognizedFields.contains(.date)
+            && !fallbackDateConfirmed
+    }
+
     /// 链接解析或截图识别进行中：此时旧草稿不可保存/编辑，避免保存到上一次结果。
     private var isImportingDraft: Bool {
         isParsingLink || isRecognizingScreenshot
-    }
-
-    /// 导入结果按手动填写同等默认：缺开场时间就预填 19:30，用户自己改。
-    private func applyImportDefaults(to draft: inout ShowDraft) {
-        if draft.startTime == nil {
-            draft.startTime = Calendar.current.date(
-                bySettingHour: 19,
-                minute: 30,
-                second: 0,
-                of: draft.date
-            )
-        }
     }
 
     @ViewBuilder
@@ -734,7 +735,7 @@ struct AddShowFlowView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
-            .disabled(!draft.isReadyToSave || isSaving || isImportingDraft)
+            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
             .accessibilityLabel(
                 isImportingDraft
                     ? "正在导入，暂不可保存"
@@ -758,7 +759,7 @@ struct AddShowFlowView: View {
     }
 
     private func saveProgressSegment(filled: Bool) -> some View {
-        let ready = draft.isReadyToSave && !isImportingDraft
+        let ready = draft.isReadyToSave && !needsDateConfirmation && !isImportingDraft
         let fill: Color = filled
             ? (ready ? BSColor.Accent.prepare : BSColor.Stage.accent)
             : Color.white.opacity(0.10)
@@ -778,7 +779,7 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 开场时间 → 时间范围）。
+    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
     private var saveBarStatus: SaveBarStatus {
         if isImportingDraft {
             return SaveBarStatus(
@@ -789,9 +790,15 @@ struct AddShowFlowView: View {
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
         }
+        if needsDateConfirmation {
+            return SaveBarStatus(
+                text: "还差确认开场日期 · 截图没读到日期，已先填今天",
+                tint: BSColor.Stage.muted
+            )
+        }
         if draft.startTime == nil {
             return SaveBarStatus(
-                text: "还差开场时间",
+                text: "还差开场时间 · 用于开场前提醒，可先填大概时间",
                 tint: BSColor.Stage.muted
             )
         }
@@ -893,17 +900,16 @@ struct AddShowFlowView: View {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard isActiveImportRequest(requestRevision) else { return }
 
-            var nextDraft = recognized
-            applyImportDefaults(to: &nextDraft)
-            draft = nextDraft
+            draft = recognized
             hasImportedDraft = true
             showsManualFallback = false
             importRevision += 1
-            // 缺字段已用默认值填好；轻提示即可，不挡保存
+            fallbackDateConfirmed = false
             if !recognized.recognizedFields.contains(.date) {
-                message = "没读到开场日期，已先填今天，可自行修改。"
-            } else if !recognized.recognizedFields.contains(.startTime) {
-                message = "没读到开场时间，已先填 19:30，可自行修改。"
+                // OCR 日期回退为当天不算识别成功，必须引导用户确认
+                message = "截图里没有识别到日期，已先填今天，请改成实际开场日期。"
+            } else if recognized.startTime == nil {
+                message = "已识别部分信息，请确认日期并补充开场时间。"
             } else {
                 message = nil
             }
@@ -937,19 +943,17 @@ struct AddShowFlowView: View {
         }
 
         do {
-            var parsed = try await linkParser.draft(from: requestedLink)
+            let parsed = try await linkParser.draft(from: requestedLink)
             guard isActiveImportRequest(requestRevision) else { return }
-            applyImportDefaults(to: &parsed)
             draft = parsed
             hasImportedDraft = true
             showsManualFallback = false
             linkFailure = nil
             importRevision += 1
-            if !parsed.recognizedFields.contains(.startTime) {
-                message = "链接里没有开场时间，已先填 19:30，可自行修改。"
-            } else {
-                message = nil
-            }
+            fallbackDateConfirmed = false
+            message = draft.startTime == nil
+                ? "链接里没有明确开场时间，请确认后再添加。"
+                : nil
             presentToast(.success, message: "解析完成")
         } catch is CancellationError {
             return
@@ -969,6 +973,8 @@ struct AddShowFlowView: View {
         guard !isSaving else { return }
         // 重新解析 / 识别期间只允许保存新结果，避免写入上一次草稿
         guard !isImportingDraft else { return }
+        // OCR 回退日期未确认时不允许保存，与保存栏状态文案一致
+        guard !needsDateConfirmation else { return }
         isSaving = true
         dismissKeyboard()
 
@@ -1244,6 +1250,7 @@ struct ShowDraftEditorView: View {
 
                         ShowDraftFormFields(
                             draft: $draft,
+                            includesSeatSection: true,
                             onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
                         )
 
@@ -1764,11 +1771,14 @@ struct ShowDraftEditorView: View {
 
 private struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
-    /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边；
-    /// 识别结果直接可改可存，不再二次确认。
+    let includesSeatSection: Bool
+    /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边。
     let recognizedHighlight: Bool
     /// 添加现场：无封面时显示虚线引导占位。
     let coverEmptyPlaceholder: Bool
+    /// OCR 未识别日期（回退为今天）且未确认：日期瓷贴金色「待确认」并显示确认按钮。
+    let requiresDateConfirmation: Bool
+    let onConfirmFallbackDate: () -> Void
     let onCoverImported: (String, String) -> Void
     @State private var startTime: Date
     @State private var hasEndTime: Bool
@@ -1801,8 +1811,11 @@ private struct ShowDraftFormFields: View {
 
     init(
         draft: Binding<ShowDraft>,
+        includesSeatSection: Bool = false,
         recognizedHighlight: Bool = false,
         coverEmptyPlaceholder: Bool = false,
+        requiresDateConfirmation: Bool = false,
+        onConfirmFallbackDate: @escaping () -> Void = {},
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
@@ -1821,9 +1834,13 @@ private struct ShowDraftFormFields: View {
         ) ?? initialEndDate
 
         self._draft = draft
+        self.includesSeatSection = includesSeatSection
         self.recognizedHighlight = recognizedHighlight
         self.coverEmptyPlaceholder = coverEmptyPlaceholder
+        self.requiresDateConfirmation = requiresDateConfirmation
+        self.onConfirmFallbackDate = onConfirmFallbackDate
         self.onCoverImported = onCoverImported
+        // Picker display state may use a fallback clock; draft.startTime stays nil until confirmed.
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
         _hasEndTime = State(initialValue: initialDraft.endTime != nil || initialDraft.endDate != nil)
@@ -1833,17 +1850,14 @@ private struct ShowDraftFormFields: View {
 
     var body: some View {
         formCards
-        .onAppear {
-            // 与手动填写一致：打开表单即写入开场时间，不要求再点确认
-            if draft.startTime == nil {
-                draft.startTime = mergedStartTime()
-            }
-        }
         .onChange(of: hasEndTime) { _, newValue in
             syncEndTimeToDraft(isEnabled: newValue)
         }
         .onChange(of: startTime) { _, _ in
-            draft.startTime = mergedStartTime()
+            // Only write committed start times; unconfirmed picker value stays local.
+            if draft.startTime != nil {
+                draft.startTime = mergedStartTime()
+            }
             if hasEndTime {
                 syncEndTimeToDraft(isEnabled: true)
             }
@@ -1899,6 +1913,14 @@ private struct ShowDraftFormFields: View {
                     isRecognized: artistRecognized
                 )
 
+                if includesSeatSection {
+                    AddShowLabeledTextField(
+                        title: "座位或区域",
+                        placeholder: "看台 / 内场 / 排号",
+                        text: $draft.seatSection
+                    )
+                }
+
                 if !draft.artistAvatarURLs.isEmpty {
                     ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)
                 }
@@ -1912,11 +1934,17 @@ private struct ShowDraftFormFields: View {
                 AddShowScheduleFields(
                     draft: $draft,
                     startTime: $startTime,
+                    isStartTimeConfirmed: draft.startTime != nil,
+                    onConfirmStartTime: {
+                        draft.startTime = mergedStartTime()
+                    },
                     hasEndTime: $hasEndTime,
                     endDate: $endDate,
                     endTime: $endTime,
                     dateRecognized: dateRecognized,
-                    startTimeRecognized: startTimeRecognized
+                    dateNeeded: requiresDateConfirmation,
+                    startTimeRecognized: startTimeRecognized,
+                    onConfirmFallbackDate: onConfirmFallbackDate
                 )
 
                 if draft.startTime != nil && !draft.hasValidEndTime() {
@@ -1940,6 +1968,15 @@ private struct ShowDraftFormFields: View {
                     placeholder: "上海体育场",
                     text: $draft.venueName,
                     isRecognized: venueRecognized
+                )
+
+                BSAddressSuggestionField(
+                    label: "场馆地址",
+                    placeholder: "街道门牌，方便到场",
+                    text: $draft.venueAddress,
+                    city: draft.city,
+                    seedKeyword: draft.venueName,
+                    helperText: "下面有小地图，点一下就能选准地址。"
                 )
             }
 
@@ -2134,13 +2171,19 @@ private struct AddShowLabeledTextField: View {
 private struct AddShowScheduleFields: View {
     @Binding var draft: ShowDraft
     @Binding var startTime: Date
+    let isStartTimeConfirmed: Bool
+    let onConfirmStartTime: () -> Void
     @Binding var hasEndTime: Bool
     @Binding var endDate: Date
     @Binding var endTime: Date
     /// 识别导入：开场日期标「已识别」薄荷绿描边。
     var dateRecognized: Bool = false
+    /// 识别导入但日期是回退值（OCR 没读到日期）：金色「待确认」+ 确认按钮。
+    var dateNeeded: Bool = false
     /// 识别导入：开场时间标「已识别」。
     var startTimeRecognized: Bool = false
+    /// 日期回退值的确认回调：点确认按钮或手动改日期都会触发。
+    var onConfirmFallbackDate: () -> Void = {}
 
     /// 两列瓷贴中间固定间距，不被中文长日期挤没。
     private static let columnSpacing: CGFloat = 14
@@ -2152,12 +2195,16 @@ private struct AddShowScheduleFields: View {
                     title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date,
-                    isRecognized: dateRecognized
+                    isRecognized: dateRecognized,
+                    isNeeded: dateNeeded,
+                    onConfirmNeeded: onConfirmFallbackDate
                 )
 
                 AddShowStartTimeField(
                     title: "开场时间",
                     startTime: $startTime,
+                    isConfirmed: isStartTimeConfirmed,
+                    onConfirm: onConfirmStartTime,
                     isRecognized: startTimeRecognized
                 )
             }
@@ -2209,9 +2256,15 @@ private struct AddShowDatePickerField: View {
     let displayedComponents: DatePickerComponents
     var isRequired = true
     var isRecognized = false
+    var isNeeded = false
+    /// isNeeded 时的确认回调：点按钮或手动改动选择器都算确认。
+    var onConfirmNeeded: (() -> Void)? = nil
 
     private var borderColor: Color? {
-        isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
+        if isNeeded {
+            return BSColor.Stage.accent.opacity(0.50)
+        }
+        return isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
     }
 
     var body: some View {
@@ -2219,13 +2272,25 @@ private struct AddShowDatePickerField: View {
             AddShowFieldLabel(
                 title: title,
                 isRequired: isRequired,
-                mark: isRecognized ? .recognized : nil
+                mark: isNeeded ? .needed : (isRecognized ? .recognized : nil)
             )
             AddShowConstrainedDatePicker(
                 selection: $selection,
                 displayedComponents: displayedComponents,
                 borderColor: borderColor
             )
+            .onChange(of: selection) { _, _ in
+                if isNeeded {
+                    onConfirmNeeded?()
+                }
+            }
+            if isNeeded, let onConfirmNeeded {
+                Button("确认使用这个日期", action: onConfirmNeeded)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
@@ -2234,10 +2299,15 @@ private struct AddShowDatePickerField: View {
 private struct AddShowStartTimeField: View {
     let title: String
     @Binding var startTime: Date
+    let isConfirmed: Bool
+    let onConfirm: () -> Void
     var isRecognized = false
 
     private var borderColor: Color? {
-        isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
+        if !isConfirmed {
+            return BSColor.Stage.accent.opacity(0.50)
+        }
+        return isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
     }
 
     var body: some View {
@@ -2245,13 +2315,24 @@ private struct AddShowStartTimeField: View {
             AddShowFieldLabel(
                 title: title,
                 isRequired: true,
-                mark: isRecognized ? .recognized : nil
+                mark: isConfirmed ? (isRecognized ? .recognized : nil) : .needed
             )
             AddShowConstrainedDatePicker(
                 selection: $startTime,
                 displayedComponents: .hourAndMinute,
                 borderColor: borderColor
             )
+            Text(isConfirmed ? "用于开场前提醒；之后随时能改。" : "用于开场前提醒；可先填大概时间。")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            if !isConfirmed {
+                Button("确认使用这个时间", action: onConfirm)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Accent.violet)
+                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .accessibilityHint("确认后才可以保存现场")
+            }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
@@ -2397,6 +2478,8 @@ private struct AddShowFieldLabel: View {
     enum Mark {
         /// 识别导入成功：薄荷绿「✓ 已识别」
         case recognized
+        /// 缺确认：金色「待确认」
+        case needed
     }
 
     let title: String
@@ -2416,10 +2499,17 @@ private struct AddShowFieldLabel: View {
 
             Spacer(minLength: 0)
 
-            if mark == .recognized {
+            switch mark {
+            case .recognized:
                 Label("已识别", systemImage: "checkmark")
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundColor(BSColor.Accent.prepare)
+            case .needed:
+                Label("待确认", systemImage: "exclamationmark")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(BSColor.Stage.accent)
+            case nil:
+                EmptyView()
             }
         }
     }

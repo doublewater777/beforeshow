@@ -87,7 +87,7 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
         case .baidu:
             var components = URLComponents(string: "baidumap://map/direction")
             components?.queryItems = [
-                URLQueryItem(name: "destination", value: "name:\(query)"),
+                URLQueryItem(name: "destination", value: query),
                 URLQueryItem(name: "mode", value: "driving"),
                 URLQueryItem(name: "src", value: "ios.com.doublewaterapps.beforeshow"),
             ]

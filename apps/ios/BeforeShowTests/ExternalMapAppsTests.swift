@@ -74,10 +74,16 @@ final class ExternalMapAppsTests: XCTestCase {
         let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: "鸟巢"))
         XCTAssertEqual(url.scheme, "baidumap")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, "name:鸟巢")
+        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, "鸟巢")
         XCTAssertEqual(items.first(where: { $0.name == "mode" })?.value, "driving")
     }
 
+
+    func testBaiduNativePreservesSpacesAndNonASCII() throws {
+        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: "梅赛德斯-奔驰文化中心"))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, "梅赛德斯-奔驰文化中心")
+    }
     func testGoogleNativeUsesDrivingDirections() throws {
         let url = try XCTUnwrap(ExternalMapApp.google.nativeURL(for: "Tokyo Dome"))
         XCTAssertEqual(url.scheme, "comgooglemaps")
