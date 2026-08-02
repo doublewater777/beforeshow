@@ -259,10 +259,9 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             throw Self.mapError(error)
         }
 
-        // Reject resurrecting a canceled invitation.
-        if let statusRaw = record[CompanionSessionRecord.status] as? String,
-           statusRaw == CompanionCloudStatus.canceled.rawValue {
-            // Compensating leave so accept does not leave residual shared access.
+        // Validate root payload BEFORE mutating status. If invalid after container.accept,
+        // attempt compensating leave so residual access is not retained silently.
+        func leaveShareOrThrowCleanupPending() async throws {
             do {
                 _ = try await modifyRecords(
                     in: sharedDB,
@@ -272,22 +271,32 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             } catch {
                 let mapped = Self.mapError(error)
                 if mapped != .sessionNotFound {
-                    // Keep residual-access risk visible as retryable cleanup failure.
                     throw CompanionSharingError.statusSyncPending
                 }
             }
+        }
+
+        // Reject resurrecting a canceled invitation.
+        if let statusRaw = record[CompanionSessionRecord.status] as? String,
+           statusRaw == CompanionCloudStatus.canceled.rawValue {
+            try await leaveShareOrThrowCleanupPending()
             throw CompanionSharingError.permissionDenied
         }
 
-        // One-companion invariant: if another participant display name is already accepted,
-        // refuse to overwrite with a different participant.
+        // Validate required fields before writing acceptance.
+        do {
+            _ = try Self.snapshot(from: record, shareLocator: shareLocator)
+        } catch {
+            try await leaveShareOrThrowCleanupPending()
+            throw CompanionSharingError.invalidPayload
+        }
+
+        // One-companion invariant: if session already accepted, refuse a second accept path.
         if let existingStatus = record[CompanionSessionRecord.status] as? String,
-           existingStatus == CompanionCloudStatus.accepted.rawValue,
-           let existingParticipant = record[CompanionSessionRecord.participantDisplayName] as? String,
-           let incoming = participantDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !incoming.isEmpty,
-           existingParticipant != incoming {
-            throw CompanionSharingError.permissionDenied
+           existingStatus == CompanionCloudStatus.accepted.rawValue {
+            // Already accepted — return current snapshot without rewriting, but only if
+            // share membership later confirms this device is the accepted participant.
+            return try Self.snapshot(from: record, shareLocator: shareLocator)
         }
 
         if let participantDisplayName, !participantDisplayName.isEmpty {
@@ -304,11 +313,6 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             return try Self.snapshot(from: saved, shareLocator: shareLocator)
         } catch {
             // Share is accepted in CloudKit, but session status is not durable yet.
-            // Do not publish a false local "confirmed" — surface a retryable sync error.
-            let mapped = Self.mapError(error)
-            if mapped == .networkFailure || mapped == .conflict || mapped == .permissionDenied {
-                throw CompanionSharingError.statusSyncPending
-            }
             throw CompanionSharingError.statusSyncPending
         }
     }

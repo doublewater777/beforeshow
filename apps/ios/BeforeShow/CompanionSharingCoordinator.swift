@@ -14,8 +14,9 @@ final class CompanionSharingCoordinator {
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
-    /// Share metadata that arrived before the model container was ready.
+    /// Share metadata waiting for successful acceptance/apply.
     private var pendingShareMetadata: [CKShare.Metadata] = []
+    private var isFlushingAcceptedShares = false
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
@@ -29,7 +30,6 @@ final class CompanionSharingCoordinator {
 
     // MARK: Invite (owner)
 
-    /// Creates CloudKit session + share, updates local show to pending, returns share data for UI.
     func prepareInvitation(
         for show: Show,
         preferredParticipantName: String?,
@@ -39,16 +39,16 @@ final class CompanionSharingCoordinator {
         let snapshotBefore = show.companionStateSnapshot()
         let cloudBefore = show.companionCloudLinkageSnapshot()
 
+        // Non-mutating validation outside the rollback scope.
+        if show.companionStatus == .canceled, show.companionShareLocator != nil {
+            throw CompanionSharingError.conflict
+        }
+
         do {
-            // Do not create a replacement invite while an old share still needs revocation.
-            if show.companionStatus == .canceled, show.companionShareLocator != nil {
-                throw CompanionSharingError.conflict
-            }
             switch show.companionStatus {
             case .none, .canceled:
                 try show.markCompanionInvitationSent(name: preferredParticipantName)
             case .pending:
-                // Keep local pending while (re)creating a CloudKit share.
                 show.applyCompanionState(status: .pending, name: preferredParticipantName)
             case .confirmed:
                 throw ShowCompanionMutationError.invalidTransition(from: .confirmed, to: .pending)
@@ -77,6 +77,7 @@ final class CompanionSharingCoordinator {
             show.restoreCompanionCloudLinkage(cloudBefore)
             try? modelContext.save()
             lastErrorMessage = Self.userMessage(for: error)
+            lastErrorKind = error as? CompanionSharingError
             throw error
         }
     }
@@ -85,12 +86,7 @@ final class CompanionSharingCoordinator {
         guard let shareLocator = show.companionShareLocator else {
             throw CompanionSharingError.sessionNotFound
         }
-        do {
-            return try await service.loadShareSystemFields(shareLocator: shareLocator)
-        } catch {
-            // Preserve the original error class so UI does not recreate on network/auth failures.
-            throw error
-        }
+        return try await service.loadShareSystemFields(shareLocator: shareLocator)
     }
 
     // MARK: Accept (participant)
@@ -114,19 +110,21 @@ final class CompanionSharingCoordinator {
             if let sharing = error as? CompanionSharingError {
                 lastErrorKind = sharing
             } else {
-                // Local persistence / unexpected failures after remote accept should retry.
                 lastErrorKind = .statusSyncPending
             }
         }
     }
 
-    /// Queue or process share metadata depending on whether dependencies are ready.
     func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
         pendingShareMetadata.append(metadata)
     }
 
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
+        guard !isFlushingAcceptedShares else { return }
         guard !pendingShareMetadata.isEmpty else { return }
+        isFlushingAcceptedShares = true
+        defer { isFlushingAcceptedShares = false }
+
         let batch = pendingShareMetadata
         pendingShareMetadata.removeAll()
         var retryable: [CKShare.Metadata] = []
@@ -137,10 +135,9 @@ final class CompanionSharingCoordinator {
                 participantDisplayName: nil,
                 in: modelContext
             )
-            // Requeue typed retryable failures (network / conflict / status sync).
             if let kind = lastErrorKind {
                 switch kind {
-                case .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed:
+                case .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed, .invalidPayload:
                     retryable.append(metadata)
                 default:
                     break
@@ -150,7 +147,6 @@ final class CompanionSharingCoordinator {
         pendingShareMetadata.append(contentsOf: retryable)
     }
 
-    /// True when acceptance metadata is still waiting for a successful apply.
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
 
     // MARK: Cancel / sync
@@ -164,21 +160,31 @@ final class CompanionSharingCoordinator {
                     shareLocator: show.companionShareLocator,
                     isOwner: isOwner
                 )
-                // Prefer model cancel transition when status still pending/confirmed.
                 if show.companionStatus == .pending || show.companionStatus == .confirmed {
                     try show.cancelCompanion()
                 } else {
                     show.applyCompanionSession(session, isOwner: isOwner)
                 }
-                show.clearCompanionCloudLinkage()
+                // Keep share locator if remote cancel returned one (revocation incomplete).
+                if let retained = session.shareLocator, isOwner {
+                    show.companionShareRecordName = retained.recordName
+                    show.companionShareZoneName = retained.zoneName
+                    show.companionShareOwnerName = retained.ownerName
+                    show.companionCloudRecordName = session.sessionLocator.recordName
+                    show.companionCloudZoneName = session.sessionLocator.zoneName
+                    show.companionCloudOwnerName = session.sessionLocator.ownerName
+                    show.companionIsOwner = true
+                } else {
+                    show.clearCompanionCloudLinkage()
+                }
             } catch CompanionSharingError.sessionNotFound {
                 if show.companionStatus == .pending || show.companionStatus == .confirmed {
                     try show.cancelCompanion()
                 }
                 show.clearCompanionCloudLinkage()
             } catch {
-                // Do not claim remote cancel succeeded offline / on network errors.
                 lastErrorMessage = Self.userMessage(for: error)
+                lastErrorKind = error as? CompanionSharingError
                 throw error
             }
         } else {
@@ -191,9 +197,17 @@ final class CompanionSharingCoordinator {
     func refreshCompanion(for show: Show, in modelContext: ModelContext) async {
         guard let sessionLocator = show.companionSessionLocator else { return }
         do {
+            if show.companionIsOwner == true, let shareLocator = show.companionShareLocator {
+                await reconcileOwnerShareMembership(
+                    show: show,
+                    shareLocator: shareLocator,
+                    in: modelContext
+                )
+            }
+
             let session = try await service.fetchSession(sessionLocator: sessionLocator)
             let isOwnerRole = show.companionIsOwner ?? (session.show.showID == show.id.uuidString)
-            // If owner observes canceled root but still has a share locator, finish revocation first.
+
             if session.status == .canceled,
                isOwnerRole,
                let shareLocator = show.companionShareLocator ?? session.shareLocator {
@@ -209,12 +223,12 @@ final class CompanionSharingCoordinator {
                     show.clearCompanionCloudLinkage()
                     try modelContext.save()
                     lastErrorMessage = nil
+                    lastErrorKind = nil
                     return
                 } catch {
                     if show.companionStatus == .pending || show.companionStatus == .confirmed {
                         try? show.cancelCompanion()
                     }
-                    // Keep share locator for retry.
                     show.companionCloudRecordName = sessionLocator.recordName
                     show.companionCloudZoneName = sessionLocator.zoneName
                     show.companionCloudOwnerName = sessionLocator.ownerName
@@ -224,11 +238,11 @@ final class CompanionSharingCoordinator {
                     show.companionIsOwner = true
                     try modelContext.save()
                     lastErrorMessage = Self.userMessage(for: error)
+                    lastErrorKind = error as? CompanionSharingError
                     return
                 }
             }
 
-            // Participant: canceled root with retained share locator means leave is incomplete.
             if session.status == .canceled,
                isOwnerRole == false,
                let shareLocator = show.companionShareLocator ?? session.shareLocator {
@@ -242,7 +256,6 @@ final class CompanionSharingCoordinator {
                     if show.companionStatus == .pending || show.companionStatus == .confirmed {
                         try? show.cancelCompanion()
                     }
-                    // Keep share locator to retry leave.
                     show.companionCloudRecordName = sessionLocator.recordName
                     show.companionCloudZoneName = sessionLocator.zoneName
                     show.companionCloudOwnerName = sessionLocator.ownerName
@@ -252,6 +265,7 @@ final class CompanionSharingCoordinator {
                     show.companionIsOwner = false
                     try modelContext.save()
                     lastErrorMessage = Self.userMessage(for: error)
+                    lastErrorKind = error as? CompanionSharingError
                     return
                 }
             }
@@ -265,25 +279,24 @@ final class CompanionSharingCoordinator {
             }
             try modelContext.save()
             lastErrorMessage = nil
+            lastErrorKind = nil
         } catch let error as CompanionSharingError
             where error == .sessionNotFound
                 || (error == .permissionDenied && show.companionIsOwner == false) {
-            // Linked session disappeared / access revoked for participant.
             if show.companionStatus == .pending || show.companionStatus == .confirmed {
                 try? show.cancelCompanion()
             }
             show.clearCompanionCloudLinkage()
             try? modelContext.save()
             lastErrorMessage = nil
+            lastErrorKind = nil
         } catch {
-            // Keep last known local state on network / permission failures.
-            // Do not rollback the shared main context — that would discard unrelated edits.
             lastErrorMessage = Self.userMessage(for: error)
+            lastErrorKind = error as? CompanionSharingError
         }
     }
 
     func refreshAllLinkedShows(in modelContext: ModelContext) async {
-        // Opportunistic retry for acceptance inbox when the app refreshes linked sessions.
         await flushPendingAcceptedShares(in: modelContext)
         let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
@@ -292,7 +305,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    /// Reconcile local state after system UICloudSharingController events.
     func handleShareControllerDidSave(
         share: CKShare?,
         for show: Show,
@@ -306,17 +318,10 @@ final class CompanionSharingCoordinator {
         show.companionShareZoneName = share.recordID.zoneID.zoneName
         show.companionShareOwnerName = share.recordID.zoneID.ownerName
 
-        // One-companion model: only treat "no accepted non-owner" as removal when we were
-        // already confirmed. A normal pending invite save has zero accepted participants.
         let nonOwnerParticipants = share.participants.filter { $0.role != .owner }
         let acceptedParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .accepted }
         let pendingParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .pending }
         let unknownParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .unknown }
-        let removedParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .removed }
-        _ = removedParticipants
-
-        // Only infer removal when every non-owner is explicitly removed, or none remain.
-        // `.unknown` is indeterminate and must not destroy a confirmed relationship.
         let allNonOwnersRemoved = !nonOwnerParticipants.isEmpty
             && nonOwnerParticipants.allSatisfy { $0.acceptanceStatus == .removed }
         let noNonOwners = nonOwnerParticipants.isEmpty
@@ -331,14 +336,13 @@ final class CompanionSharingCoordinator {
                 return
             }
         } else if acceptedParticipants.count > 1 {
-            // Domain assumes a single companion; surface an error for now.
             lastErrorMessage = "同行邀请目前只支持一位同伴"
+            lastErrorKind = .permissionDenied
             try? modelContext.save()
             return
         }
 
         try? modelContext.save()
-        // Preserve membership error if refresh would clear it.
         let membershipError = lastErrorMessage
         await refreshCompanion(for: show, in: modelContext)
         if let membershipError, lastErrorMessage == nil {
@@ -350,7 +354,6 @@ final class CompanionSharingCoordinator {
         for show: Show,
         in modelContext: ModelContext
     ) async {
-        // System UI already revoked the share; mirror locally.
         if show.companionStatus == .pending || show.companionStatus == .confirmed {
             try? show.cancelCompanion()
         }
@@ -360,6 +363,7 @@ final class CompanionSharingCoordinator {
 
     func handleShareControllerFailure(_ error: Error) {
         lastErrorMessage = Self.userMessage(for: error)
+        lastErrorKind = error as? CompanionSharingError
     }
 
     func consumePendingAcceptMessage() -> String? {
@@ -376,6 +380,27 @@ final class CompanionSharingCoordinator {
 
     // MARK: Private
 
+    private func reconcileOwnerShareMembership(
+        show: Show,
+        shareLocator: CompanionRecordLocator,
+        in modelContext: ModelContext
+    ) async {
+        do {
+            let data = try await service.loadShareSystemFields(shareLocator: shareLocator)
+            let share = try CloudKitCompanionSharingService.unarchiveShare(from: data)
+            let accepted = share.participants.filter {
+                $0.role != .owner && $0.acceptanceStatus == .accepted
+            }
+            if accepted.count > 1 {
+                lastErrorMessage = "检测到多个已接受的同行者，请在系统共享面板中移除多余成员"
+                lastErrorKind = .permissionDenied
+                try? modelContext.save()
+            }
+        } catch {
+            // Membership load failure is non-fatal for root refresh.
+        }
+    }
+
     private func applyAcceptedSession(
         _ session: CompanionSessionSnapshot,
         in modelContext: ModelContext
@@ -391,14 +416,12 @@ final class CompanionSharingCoordinator {
             return
         }
 
-        // Prefer matching an upcoming local show with the same stable showID when available.
         if let byID = shows.first(where: { $0.id.uuidString == session.show.showID }) {
             byID.applyCompanionSession(session, isOwner: false)
             try modelContext.save()
             return
         }
 
-        // Prefer a high-confidence unique match: same name + day + location when available.
         let calendar = Calendar.current
         let location = session.show.showLocation
         let parts = location?.split(separator: "·").map {
@@ -427,11 +450,8 @@ final class CompanionSharingCoordinator {
                     return false
                 }
             }
-            // Require start-time agreement within 1 minute when both sides have times.
             let delta = abs(candidate.startTime.timeIntervalSince(session.show.showStartTime))
-            if delta > 60 {
-                return false
-            }
+            if delta > 60 { return false }
             return true
         }
 
@@ -441,7 +461,6 @@ final class CompanionSharingCoordinator {
             return
         }
 
-        // Ambiguous or missing: create a dedicated show from the shared snapshot.
         let show = try Show(
             name: session.show.showName,
             date: session.show.showDate,
@@ -526,6 +545,9 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
     var companionCoordinator: CompanionSharingCoordinator?
     var modelContainer: ModelContainer?
 
+    /// Metadata that arrived before coordinator/container wiring (cold launch).
+    private var earlyShareMetadata: [CKShare.Metadata] = []
+
     func application(
         _ application: UIApplication,
         configurationForConnecting connectingSceneSession: UISceneSession,
@@ -539,7 +561,6 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         return configuration
     }
 
-    // Fallback for non-scene paths / older system delivery.
     func application(
         _ application: UIApplication,
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
@@ -547,16 +568,11 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         deliverAcceptedShare(cloudKitShareMetadata)
     }
 
-    /// Metadata that arrived before coordinator/container wiring (cold launch).
-    private var earlyShareMetadata: [CKShare.Metadata] = []
-
     func deliverAcceptedShare(_ metadata: CKShare.Metadata) {
         guard let coordinator = companionCoordinator else {
-            // Dependencies not ready — queue on the app delegate itself.
             earlyShareMetadata.append(metadata)
             return
         }
-        // Always enter the coordinator inbox so retries are centralized.
         Task { @MainActor in
             coordinator.enqueueAcceptedShare(metadata)
             if let container = modelContainer {
@@ -566,7 +582,6 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 
-    /// Called when RootView/task wires dependencies so cold-launch metadata is drained.
     func noteDependenciesReady() {
         let queued = earlyShareMetadata
         earlyShareMetadata.removeAll()
@@ -589,7 +604,6 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
-        // UIScene.ConnectionOptions exposes a single optional metadata value on this SDK.
         if let metadata = connectionOptions.cloudKitShareMetadata {
             deliver(metadata)
         }

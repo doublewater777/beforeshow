@@ -5,6 +5,7 @@ import UserNotifications
 @main
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     @State private var companionCoordinator = CompanionSharingCoordinator()
 
     private let modelContainer: ModelContainer = {
@@ -57,6 +58,17 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active else { return }
+                    Task {
+                        await companionCoordinator.flushPendingAcceptedShares(
+                            in: modelContainer.mainContext
+                        )
+                        await companionCoordinator.refreshAllLinkedShows(
+                            in: modelContainer.mainContext
+                        )
+                    }
                 }
         }
         .modelContainer(modelContainer)
