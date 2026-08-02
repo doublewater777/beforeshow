@@ -18,6 +18,49 @@ enum CompanionCloudStatus: String, Codable, Equatable, Sendable, CaseIterable {
     }
 }
 
+/// Full CloudKit record identity (name + zone + owner).
+/// Sharing requires a custom private zone; default-zone records cannot be shared.
+struct CompanionRecordLocator: Equatable, Sendable, Codable {
+    static let companionZoneName = "CompanionSessions"
+
+    var recordName: String
+    var zoneName: String
+    var ownerName: String
+
+    init(
+        recordName: String,
+        zoneName: String = CompanionRecordLocator.companionZoneName,
+        ownerName: String = CKCurrentUserDefaultName
+    ) {
+        self.recordName = recordName
+        self.zoneName = zoneName
+        self.ownerName = ownerName
+    }
+
+    init(recordID: CKRecord.ID) {
+        self.recordName = recordID.recordName
+        self.zoneName = recordID.zoneID.zoneName
+        self.ownerName = recordID.zoneID.ownerName
+    }
+
+    var zoneID: CKRecordZone.ID {
+        CKRecordZone.ID(zoneName: zoneName, ownerName: ownerName)
+    }
+
+    var recordID: CKRecord.ID {
+        CKRecord.ID(recordName: recordName, zoneID: zoneID)
+    }
+
+    /// Shared-database zone IDs use the share owner's identity, not the current user token.
+    func sharedDatabaseLocator(ownerName sharedOwnerName: String) -> CompanionRecordLocator {
+        CompanionRecordLocator(
+            recordName: recordName,
+            zoneName: zoneName,
+            ownerName: sharedOwnerName
+        )
+    }
+}
+
 struct CompanionShowSnapshot: Equatable, Sendable {
     var showID: String
     var showName: String
@@ -26,8 +69,8 @@ struct CompanionShowSnapshot: Equatable, Sendable {
 }
 
 struct CompanionSessionSnapshot: Equatable, Sendable {
-    var recordName: String
-    var shareRecordName: String?
+    var sessionLocator: CompanionRecordLocator
+    var shareLocator: CompanionRecordLocator?
     var show: CompanionShowSnapshot
     var ownerDisplayName: String?
     var participantDisplayName: String?
@@ -35,6 +78,10 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     var createdAt: Date
     var acceptedAt: Date?
     var canceledAt: Date?
+
+    /// Convenience for tests / call sites that only need the record name.
+    var recordName: String { sessionLocator.recordName }
+    var shareRecordName: String? { shareLocator?.recordName }
 
     /// Name the local device should show for the other person.
     func companionDisplayName(isOwner: Bool) -> String? {
@@ -59,6 +106,9 @@ enum CompanionSharingError: Error, Equatable, Sendable {
     case sessionNotFound
     case invalidPayload
     case permissionDenied
+    case conflict
+    /// Share was accepted but session status could not be synchronized yet.
+    case statusSyncPending
 }
 
 // MARK: - Service protocol
@@ -70,16 +120,20 @@ protocol CompanionSharingService: Sendable {
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare
 
-    func loadShareSystemFields(shareRecordName: String) async throws -> Data
+    func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data
 
     func acceptShare(
         metadata: CKShare.Metadata,
         participantDisplayName: String?
     ) async throws -> CompanionSessionSnapshot
 
-    func cancelSession(recordName: String) async throws -> CompanionSessionSnapshot
+    func cancelSession(
+        sessionLocator: CompanionRecordLocator,
+        shareLocator: CompanionRecordLocator?,
+        isOwner: Bool
+    ) async throws -> CompanionSessionSnapshot
 
-    func fetchSession(recordName: String) async throws -> CompanionSessionSnapshot
+    func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot
 }
 
 // MARK: - CloudKit field keys
@@ -120,8 +174,13 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare {
         try await ensureAccountAvailable()
+        let zone = try await ensureCompanionZone()
 
-        let session = CKRecord(recordType: CompanionSessionRecord.recordType)
+        let sessionID = CKRecord.ID(
+            recordName: "session-\(UUID().uuidString)",
+            zoneID: zone.zoneID
+        )
+        let session = CKRecord(recordType: CompanionSessionRecord.recordType, recordID: sessionID)
         let now = Date()
         session[CompanionSessionRecord.showID] = show.showID as CKRecordValue
         session[CompanionSessionRecord.showName] = show.showName as CKRecordValue
@@ -151,7 +210,10 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             throw CompanionSharingError.sharePreparationFailed
         }
 
-        let snapshot = try Self.snapshot(from: savedSession, shareRecordName: savedShare.recordID.recordName)
+        let snapshot = try Self.snapshot(
+            from: savedSession,
+            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID)
+        )
         let fields = try NSKeyedArchiver.archivedData(
             withRootObject: savedShare,
             requiringSecureCoding: true
@@ -159,10 +221,9 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
     }
 
-    func loadShareSystemFields(shareRecordName: String) async throws -> Data {
+    func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data {
         try await ensureAccountAvailable()
-        let recordID = CKRecord.ID(recordName: shareRecordName)
-        let record = try await privateDB.record(for: recordID)
+        let record = try await privateDB.record(for: shareLocator.recordID)
         guard let share = record as? CKShare else {
             throw CompanionSharingError.sessionNotFound
         }
@@ -178,22 +239,27 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         do {
             try await container.accept(metadata)
         } catch {
-            throw CompanionSharingError.acceptFailed
+            // Accepting an already-accepted share is fine; other failures block.
+            let ck = error as? CKError
+            if ck?.code != .alreadyShared {
+                throw CompanionSharingError.acceptFailed
+            }
         }
 
         let rootID = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
+        let shareLocator = CompanionRecordLocator(recordID: metadata.share.recordID)
 
-        // Shared records live in the shared database zone of the owner.
         let record: CKRecord
         do {
             record = try await sharedDB.record(for: rootID)
         } catch {
-            // Fallback: some accept paths surface the record via private DB after accept.
-            do {
-                record = try await privateDB.record(for: rootID)
-            } catch {
-                throw CompanionSharingError.sessionNotFound
-            }
+            throw Self.mapError(error)
+        }
+
+        // Reject resurrecting a canceled invitation.
+        if let statusRaw = record[CompanionSessionRecord.status] as? String,
+           statusRaw == CompanionCloudStatus.canceled.rawValue {
+            throw CompanionSharingError.permissionDenied
         }
 
         if let participantDisplayName, !participantDisplayName.isEmpty {
@@ -201,43 +267,37 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         }
         record[CompanionSessionRecord.status] = CompanionCloudStatus.accepted.rawValue as CKRecordValue
         record[CompanionSessionRecord.acceptedAt] = Date() as CKRecordValue
+        // Clear a previous cancel marker if present so timestamps stay consistent.
+        record[CompanionSessionRecord.canceledAt] = nil
 
-        let saved: CKRecord
         do {
             let results = try await modifyRecords(in: sharedDB, saving: [record])
-            saved = results.first ?? record
+            let saved = results.first ?? record
+            return try Self.snapshot(from: saved, shareLocator: shareLocator)
         } catch {
-            // Participant may only have read permission; still treat accept as confirmed locally.
-            // Owner will see participant join via share participants even if status write fails.
-            return try Self.snapshot(
-                from: record,
-                shareRecordName: metadata.share.recordID.recordName,
-                forcedStatus: .accepted
-            )
+            // Share is accepted in CloudKit, but session status is not durable yet.
+            // Do not publish a false local "confirmed" — surface a retryable sync error.
+            throw CompanionSharingError.statusSyncPending
         }
-
-        return try Self.snapshot(
-            from: saved,
-            shareRecordName: metadata.share.recordID.recordName
-        )
     }
 
-    func cancelSession(recordName: String) async throws -> CompanionSessionSnapshot {
+    func cancelSession(
+        sessionLocator: CompanionRecordLocator,
+        shareLocator: CompanionRecordLocator?,
+        isOwner: Bool
+    ) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
 
-        let recordID = CKRecord.ID(recordName: recordName)
-        let (record, database) = try await fetchSessionRecord(recordID: recordID)
-        record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
-        record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
-        let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
-        return try Self.snapshot(from: saved, shareRecordName: nil)
+        if isOwner {
+            return try await cancelAsOwner(sessionLocator: sessionLocator, shareLocator: shareLocator)
+        }
+        return try await cancelAsParticipant(sessionLocator: sessionLocator, shareLocator: shareLocator)
     }
 
-    func fetchSession(recordName: String) async throws -> CompanionSessionSnapshot {
+    func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
-        let recordID = CKRecord.ID(recordName: recordName)
-        let (record, _) = try await fetchSessionRecord(recordID: recordID)
-        return try Self.snapshot(from: record, shareRecordName: nil)
+        let (record, _) = try await fetchSessionRecord(locator: sessionLocator)
+        return try Self.snapshot(from: record, shareLocator: nil)
     }
 
     // MARK: Helpers
@@ -249,29 +309,172 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         }
     }
 
-    private func fetchSessionRecord(
-        recordID: CKRecord.ID
-    ) async throws -> (CKRecord, CKDatabase) {
+    private func ensureCompanionZone() async throws -> CKRecordZone {
+        let zoneID = CKRecordZone.ID(
+            zoneName: CompanionRecordLocator.companionZoneName,
+            ownerName: CKCurrentUserDefaultName
+        )
+        let zone = CKRecordZone(zoneID: zoneID)
         do {
-            let record = try await privateDB.record(for: recordID)
+            let result = try await privateDB.modifyRecordZones(saving: [zone], deleting: [])
+            if let saved = result.saveResults[zoneID] {
+                switch saved {
+                case .success(let zone):
+                    return zone
+                case .failure(let error):
+                    // Zone already exists is fine — re-fetch.
+                    if (error as? CKError)?.code == .serverRecordChanged
+                        || (error as? CKError)?.code == .zoneNotFound
+                        || (error as? CKError)?.code == .partialFailure {
+                        break
+                    }
+                    // "already exists" surfaces as various codes; fall through to fetch.
+                    break
+                }
+            }
+        } catch {
+            // Fall through to fetch — create races are common on first invite.
+        }
+
+        do {
+            let zones = try await privateDB.recordZones(for: [zoneID])
+            if let existing = try zones[zoneID]?.get() {
+                return existing
+            }
+        } catch {
+            throw Self.mapError(error)
+        }
+
+        // Last resort: return the in-memory zone definition for save attempts.
+        return zone
+    }
+
+    private func cancelAsOwner(
+        sessionLocator: CompanionRecordLocator,
+        shareLocator: CompanionRecordLocator?
+    ) async throws -> CompanionSessionSnapshot {
+        let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
+
+        // Mark canceled first so late acceptors can reject.
+        record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
+        record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
+        record[CompanionSessionRecord.acceptedAt] = nil
+        let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
+
+        // Revoke the share so old invitation URLs stop granting access.
+        if let shareLocator {
+            do {
+                let shareRecord = try await privateDB.record(for: shareLocator.recordID)
+                if let share = shareRecord as? CKShare {
+                    _ = try await modifyRecords(
+                        in: privateDB,
+                        saving: [],
+                        deleting: [share.recordID]
+                    )
+                }
+            } catch {
+                let mapped = Self.mapError(error)
+                if mapped != .sessionNotFound {
+                    throw mapped
+                }
+            }
+        }
+
+        return try Self.snapshot(from: saved, shareLocator: nil)
+    }
+
+    private func cancelAsParticipant(
+        sessionLocator: CompanionRecordLocator,
+        shareLocator: CompanionRecordLocator?
+    ) async throws -> CompanionSessionSnapshot {
+        // Best-effort: leave the share if we still have the share record.
+        if let shareLocator {
+            do {
+                let shareRecord = try await sharedDB.record(for: shareLocator.recordID)
+                if let share = shareRecord as? CKShare {
+                    // Removing the share record from the participant removes their access.
+                    _ = try await modifyRecords(
+                        in: sharedDB,
+                        saving: [],
+                        deleting: [share.recordID]
+                    )
+                }
+            } catch {
+                let mapped = Self.mapError(error)
+                if mapped != .sessionNotFound {
+                    // Still try to mark session canceled when possible.
+                    if mapped == .networkFailure || mapped == .permissionDenied {
+                        throw mapped
+                    }
+                }
+            }
+        }
+
+        // If the participant can still write the root, mark canceled for owner refresh.
+        do {
+            let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
+            record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
+            record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
+            let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
+            return try Self.snapshot(from: saved, shareLocator: nil)
+        } catch {
+            // Participant may already have lost access after leaving the share.
+            // Return a synthetic canceled snapshot so local cache can clear.
+            if Self.mapError(error) == .sessionNotFound {
+                return CompanionSessionSnapshot(
+                    sessionLocator: sessionLocator,
+                    shareLocator: nil,
+                    show: CompanionShowSnapshot(
+                        showID: "",
+                        showName: "",
+                        showDate: Date(),
+                        showLocation: nil
+                    ),
+                    ownerDisplayName: nil,
+                    participantDisplayName: nil,
+                    status: .canceled,
+                    createdAt: Date(),
+                    acceptedAt: nil,
+                    canceledAt: Date()
+                )
+            }
+            throw Self.mapError(error)
+        }
+    }
+
+    private func fetchSessionRecord(
+        locator: CompanionRecordLocator
+    ) async throws -> (CKRecord, CKDatabase) {
+        // Prefer private DB for owner records; shared DB for participant records.
+        do {
+            let record = try await privateDB.record(for: locator.recordID)
             return (record, privateDB)
         } catch {
-            do {
-                let record = try await sharedDB.record(for: recordID)
-                return (record, sharedDB)
-            } catch {
-                throw CompanionSharingError.sessionNotFound
-            }
+            let mapped = Self.mapError(error)
+            // Only fall back across databases for a true missing-item miss.
+            guard mapped == .sessionNotFound else { throw mapped }
+        }
+
+        do {
+            let record = try await sharedDB.record(for: locator.recordID)
+            return (record, sharedDB)
+        } catch {
+            throw Self.mapError(error)
         }
     }
 
     private func modifyRecords(
         in database: CKDatabase,
-        saving records: [CKRecord]
+        saving records: [CKRecord],
+        deleting recordIDs: [CKRecord.ID] = []
     ) async throws -> [CKRecord] {
         try await withCheckedThrowingContinuation { continuation in
-            let operation = CKModifyRecordsOperation(recordsToSave: records, recordIDsToDelete: nil)
-            operation.savePolicy = .changedKeys
+            let operation = CKModifyRecordsOperation(
+                recordsToSave: records.isEmpty ? nil : records,
+                recordIDsToDelete: recordIDs.isEmpty ? nil : recordIDs
+            )
+            // Enforce change-tag conflicts so concurrent accept/cancel cannot last-writer-win.
+            operation.savePolicy = .ifServerRecordUnchanged
             operation.qualityOfService = .userInitiated
 
             var saved: [CKRecord] = []
@@ -293,6 +496,9 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     }
 
     private static func mapError(_ error: Error) -> CompanionSharingError {
+        if let sharing = error as? CompanionSharingError {
+            return sharing
+        }
         let ck = error as? CKError
         switch ck?.code {
         case .notAuthenticated, .managedAccountRestricted:
@@ -303,32 +509,48 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             return .permissionDenied
         case .unknownItem:
             return .sessionNotFound
+        case .serverRecordChanged, .batchRequestFailed:
+            return .conflict
         default:
+            // partialFailure may wrap unknownItem or network errors.
+            if let partial = ck?.partialErrorsByItemID?.values {
+                let mapped = partial.map(mapError)
+                if mapped.contains(.networkFailure) { return .networkFailure }
+                if mapped.contains(.permissionDenied) { return .permissionDenied }
+                if mapped.contains(.conflict) { return .conflict }
+                if mapped.allSatisfy({ $0 == .sessionNotFound }) { return .sessionNotFound }
+            }
             return .sharePreparationFailed
         }
     }
 
     static func snapshot(
         from record: CKRecord,
-        shareRecordName: String?,
+        shareLocator: CompanionRecordLocator?,
         forcedStatus: CompanionCloudStatus? = nil
     ) throws -> CompanionSessionSnapshot {
         guard
             let showID = record[CompanionSessionRecord.showID] as? String,
-            let showName = record[CompanionSessionRecord.showName] as? String
+            let showName = record[CompanionSessionRecord.showName] as? String,
+            let showDate = record[CompanionSessionRecord.showDate] as? Date,
+            let createdAt = record[CompanionSessionRecord.createdAt] as? Date
         else {
             throw CompanionSharingError.invalidPayload
         }
 
-        let showDate = (record[CompanionSessionRecord.showDate] as? Date) ?? Date()
-        let statusRaw = record[CompanionSessionRecord.status] as? String
-        let status = forcedStatus
-            ?? statusRaw.flatMap(CompanionCloudStatus.init(rawValue:))
-            ?? .pending
+        let status: CompanionCloudStatus
+        if let forcedStatus {
+            status = forcedStatus
+        } else if let statusRaw = record[CompanionSessionRecord.status] as? String,
+                  let parsed = CompanionCloudStatus(rawValue: statusRaw) {
+            status = parsed
+        } else {
+            throw CompanionSharingError.invalidPayload
+        }
 
         return CompanionSessionSnapshot(
-            recordName: record.recordID.recordName,
-            shareRecordName: shareRecordName,
+            sessionLocator: CompanionRecordLocator(recordID: record.recordID),
+            shareLocator: shareLocator,
             show: CompanionShowSnapshot(
                 showID: showID,
                 showName: showName,
@@ -338,7 +560,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             ownerDisplayName: record[CompanionSessionRecord.ownerDisplayName] as? String,
             participantDisplayName: record[CompanionSessionRecord.participantDisplayName] as? String,
             status: status,
-            createdAt: (record[CompanionSessionRecord.createdAt] as? Date) ?? Date(),
+            createdAt: createdAt,
             acceptedAt: record[CompanionSessionRecord.acceptedAt] as? Date,
             canceledAt: record[CompanionSessionRecord.canceledAt] as? Date
         )
@@ -381,9 +603,13 @@ extension Show {
         isOwner: Bool,
         preferredName: String? = nil
     ) {
-        companionCloudRecordName = snapshot.recordName
-        if let shareName = snapshot.shareRecordName {
-            companionShareRecordName = shareName
+        companionCloudRecordName = snapshot.sessionLocator.recordName
+        companionCloudZoneName = snapshot.sessionLocator.zoneName
+        companionCloudOwnerName = snapshot.sessionLocator.ownerName
+        if let shareLocator = snapshot.shareLocator {
+            companionShareRecordName = shareLocator.recordName
+            companionShareZoneName = shareLocator.zoneName
+            companionShareOwnerName = shareLocator.ownerName
         }
         companionIsOwner = isOwner
 
@@ -403,7 +629,33 @@ extension Show {
 
     func clearCompanionCloudLinkage() {
         companionCloudRecordName = nil
+        companionCloudZoneName = nil
+        companionCloudOwnerName = nil
         companionShareRecordName = nil
+        companionShareZoneName = nil
+        companionShareOwnerName = nil
         companionIsOwner = nil
+    }
+
+    var companionSessionLocator: CompanionRecordLocator? {
+        guard let recordName = companionCloudRecordName else { return nil }
+        return CompanionRecordLocator(
+            recordName: recordName,
+            zoneName: companionCloudZoneName ?? CompanionRecordLocator.companionZoneName,
+            ownerName: companionCloudOwnerName ?? CKCurrentUserDefaultName
+        )
+    }
+
+    var companionShareLocator: CompanionRecordLocator? {
+        guard let recordName = companionShareRecordName else { return nil }
+        return CompanionRecordLocator(
+            recordName: recordName,
+            zoneName: companionShareZoneName
+                ?? companionCloudZoneName
+                ?? CompanionRecordLocator.companionZoneName,
+            ownerName: companionShareOwnerName
+                ?? companionCloudOwnerName
+                ?? CKCurrentUserDefaultName
+        )
     }
 }

@@ -13,6 +13,9 @@ final class CompanionSharingCoordinator {
     private(set) var pendingAcceptMessage: String?
     private(set) var lastErrorMessage: String?
 
+    /// Share metadata that arrived before the model container was ready.
+    private var pendingShareMetadata: [CKShare.Metadata] = []
+
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
         container: CKContainer = CKContainer(
@@ -33,18 +36,14 @@ final class CompanionSharingCoordinator {
         in modelContext: ModelContext
     ) async throws -> CompanionPreparedShare {
         let snapshotBefore = show.companionStateSnapshot()
-        let cloudBefore = (
-            record: show.companionCloudRecordName,
-            share: show.companionShareRecordName,
-            isOwner: show.companionIsOwner
-        )
+        let cloudBefore = show.companionCloudLinkageSnapshot()
 
         do {
             switch show.companionStatus {
             case .none, .canceled:
                 try show.markCompanionInvitationSent(name: preferredParticipantName)
             case .pending:
-                // Allow recreating a CloudKit share when re-sending from pending.
+                // Keep local pending while (re)creating a CloudKit share.
                 show.applyCompanionState(status: .pending, name: preferredParticipantName)
             case .confirmed:
                 throw ShowCompanionMutationError.invalidTransition(from: .confirmed, to: .pending)
@@ -70,9 +69,7 @@ final class CompanionSharingCoordinator {
             return prepared
         } catch {
             show.restoreCompanionState(status: snapshotBefore.status, name: snapshotBefore.name)
-            show.companionCloudRecordName = cloudBefore.record
-            show.companionShareRecordName = cloudBefore.share
-            show.companionIsOwner = cloudBefore.isOwner
+            show.restoreCompanionCloudLinkage(cloudBefore)
             try? modelContext.save()
             lastErrorMessage = Self.userMessage(for: error)
             throw error
@@ -80,10 +77,15 @@ final class CompanionSharingCoordinator {
     }
 
     func shareSystemFieldsForResend(show: Show) async throws -> Data {
-        guard let shareRecordName = show.companionShareRecordName else {
+        guard let shareLocator = show.companionShareLocator else {
             throw CompanionSharingError.sessionNotFound
         }
-        return try await service.loadShareSystemFields(shareRecordName: shareRecordName)
+        do {
+            return try await service.loadShareSystemFields(shareLocator: shareLocator)
+        } catch {
+            // Preserve the original error class so UI does not recreate on network/auth failures.
+            throw error
+        }
     }
 
     // MARK: Accept (participant)
@@ -106,36 +108,74 @@ final class CompanionSharingCoordinator {
         }
     }
 
+    /// Queue or process share metadata depending on whether dependencies are ready.
+    func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
+        pendingShareMetadata.append(metadata)
+    }
+
+    func flushPendingAcceptedShares(in modelContext: ModelContext) async {
+        guard !pendingShareMetadata.isEmpty else { return }
+        let batch = pendingShareMetadata
+        pendingShareMetadata.removeAll()
+        for metadata in batch {
+            await handleAcceptedShare(
+                metadata: metadata,
+                participantDisplayName: nil,
+                in: modelContext
+            )
+        }
+    }
+
     // MARK: Cancel / sync
 
     func cancelCompanion(for show: Show, in modelContext: ModelContext) async throws {
-        if let recordName = show.companionCloudRecordName {
+        let isOwner = show.companionIsOwner ?? true
+        if let sessionLocator = show.companionSessionLocator {
             do {
-                let session = try await service.cancelSession(recordName: recordName)
-                show.applyCompanionSession(session, isOwner: show.companionIsOwner ?? true)
+                let session = try await service.cancelSession(
+                    sessionLocator: sessionLocator,
+                    shareLocator: show.companionShareLocator,
+                    isOwner: isOwner
+                )
+                // Prefer model cancel transition when status still pending/confirmed.
+                if show.companionStatus == .pending || show.companionStatus == .confirmed {
+                    try show.cancelCompanion()
+                } else {
+                    show.applyCompanionSession(session, isOwner: isOwner)
+                }
+                show.clearCompanionCloudLinkage()
             } catch CompanionSharingError.sessionNotFound {
-                try show.cancelCompanion()
+                if show.companionStatus == .pending || show.companionStatus == .confirmed {
+                    try show.cancelCompanion()
+                }
+                show.clearCompanionCloudLinkage()
             } catch {
-                // Still cancel locally so the user is not stuck; next sync may reconcile.
-                try show.cancelCompanion()
+                // Do not claim remote cancel succeeded offline / on network errors.
                 lastErrorMessage = Self.userMessage(for: error)
+                throw error
             }
         } else {
             try show.cancelCompanion()
+            show.clearCompanionCloudLinkage()
         }
         try modelContext.save()
     }
 
     func refreshCompanion(for show: Show, in modelContext: ModelContext) async {
-        guard let recordName = show.companionCloudRecordName else { return }
+        guard let sessionLocator = show.companionSessionLocator else { return }
         do {
-            let session = try await service.fetchSession(recordName: recordName)
+            let session = try await service.fetchSession(sessionLocator: sessionLocator)
             let isOwner = show.companionIsOwner ?? (session.show.showID == show.id.uuidString)
             show.applyCompanionSession(session, isOwner: isOwner)
+            if session.status == .canceled {
+                show.clearCompanionCloudLinkage()
+            }
             try modelContext.save()
             lastErrorMessage = nil
         } catch {
+            // Keep last known local state on network / permission failures.
             lastErrorMessage = Self.userMessage(for: error)
+            modelContext.rollback()
         }
     }
 
@@ -145,6 +185,39 @@ final class CompanionSharingCoordinator {
         for show in shows where show.companionCloudRecordName != nil {
             await refreshCompanion(for: show, in: modelContext)
         }
+    }
+
+    /// Reconcile local state after system UICloudSharingController events.
+    func handleShareControllerDidSave(
+        share: CKShare?,
+        for show: Show,
+        in modelContext: ModelContext
+    ) async {
+        guard let share else {
+            await refreshCompanion(for: show, in: modelContext)
+            return
+        }
+        show.companionShareRecordName = share.recordID.recordName
+        show.companionShareZoneName = share.recordID.zoneID.zoneName
+        show.companionShareOwnerName = share.recordID.zoneID.ownerName
+        try? modelContext.save()
+        await refreshCompanion(for: show, in: modelContext)
+    }
+
+    func handleShareControllerDidStopSharing(
+        for show: Show,
+        in modelContext: ModelContext
+    ) async {
+        // System UI already revoked the share; mirror locally.
+        if show.companionStatus == .pending || show.companionStatus == .confirmed {
+            try? show.cancelCompanion()
+        }
+        show.clearCompanionCloudLinkage()
+        try? modelContext.save()
+    }
+
+    func handleShareControllerFailure(_ error: Error) {
+        lastErrorMessage = Self.userMessage(for: error)
     }
 
     func consumePendingAcceptMessage() -> String? {
@@ -168,24 +241,37 @@ final class CompanionSharingCoordinator {
         let descriptor = FetchDescriptor<Show>()
         let shows = try modelContext.fetch(descriptor)
 
-        if let existing = shows.first(where: { $0.companionCloudRecordName == session.recordName }) {
+        if let existing = shows.first(where: {
+            $0.companionCloudRecordName == session.sessionLocator.recordName
+        }) {
             existing.applyCompanionSession(session, isOwner: false)
             try modelContext.save()
             return
         }
 
+        // Prefer matching an upcoming local show with the same stable showID when available.
+        if let byID = shows.first(where: { $0.id.uuidString == session.show.showID }) {
+            byID.applyCompanionSession(session, isOwner: false)
+            try modelContext.save()
+            return
+        }
+
         // Prefer matching an upcoming local show with the same name + day when possible.
+        // Only auto-link when the match is unambiguous.
         let calendar = Calendar.current
-        if let match = shows.first(where: { candidate in
+        let candidates = shows.filter { candidate in
             candidate.name == session.show.showName
                 && calendar.isDate(candidate.effectiveDate, inSameDayAs: session.show.showDate)
                 && candidate.companionStatus == .none
-        }) {
+        }
+
+        if candidates.count == 1, let match = candidates.first {
             match.applyCompanionSession(session, isOwner: false)
             try modelContext.save()
             return
         }
 
+        // Ambiguous or missing: create a dedicated show from the shared snapshot.
         let location = session.show.showLocation
         let parts = location?.split(separator: "·").map {
             $0.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -222,6 +308,10 @@ final class CompanionSharingCoordinator {
                 return "邀请内容无效"
             case .permissionDenied:
                 return "没有权限更新同行状态"
+            case .conflict:
+                return "同行状态已变更，请刷新后重试"
+            case .statusSyncPending:
+                return "已接受邀请，但状态同步失败，请稍后刷新"
             }
         }
         if error is ShowCompanionMutationError {
@@ -231,7 +321,43 @@ final class CompanionSharingCoordinator {
     }
 }
 
-// MARK: - App delegate bridge for CloudKit share acceptance
+// MARK: - Cloud linkage snapshot helpers
+
+extension Show {
+    struct CompanionCloudLinkageSnapshot: Equatable {
+        var record: String?
+        var zone: String?
+        var owner: String?
+        var share: String?
+        var shareZone: String?
+        var shareOwner: String?
+        var isOwner: Bool?
+    }
+
+    func companionCloudLinkageSnapshot() -> CompanionCloudLinkageSnapshot {
+        CompanionCloudLinkageSnapshot(
+            record: companionCloudRecordName,
+            zone: companionCloudZoneName,
+            owner: companionCloudOwnerName,
+            share: companionShareRecordName,
+            shareZone: companionShareZoneName,
+            shareOwner: companionShareOwnerName,
+            isOwner: companionIsOwner
+        )
+    }
+
+    func restoreCompanionCloudLinkage(_ snapshot: CompanionCloudLinkageSnapshot) {
+        companionCloudRecordName = snapshot.record
+        companionCloudZoneName = snapshot.zone
+        companionCloudOwnerName = snapshot.owner
+        companionShareRecordName = snapshot.share
+        companionShareZoneName = snapshot.shareZone
+        companionShareOwnerName = snapshot.shareOwner
+        companionIsOwner = snapshot.isOwner
+    }
+}
+
+// MARK: - App / scene delegate bridge for CloudKit share acceptance
 
 final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
     var companionCoordinator: CompanionSharingCoordinator?
@@ -239,19 +365,70 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
 
     func application(
         _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        let configuration = UISceneConfiguration(
+            name: "Default Configuration",
+            sessionRole: connectingSceneSession.role
+        )
+        configuration.delegateClass = BeforeShowSceneDelegate.self
+        return configuration
+    }
+
+    // Fallback for non-scene paths / older system delivery.
+    func application(
+        _ application: UIApplication,
         userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
     ) {
-        guard let coordinator = companionCoordinator,
-              let container = modelContainer else {
+        deliverAcceptedShare(cloudKitShareMetadata)
+    }
+
+    func deliverAcceptedShare(_ metadata: CKShare.Metadata) {
+        guard let coordinator = companionCoordinator else {
+            // Coordinator not ready yet — SceneDelegate should re-deliver after wiring.
             return
         }
-        let context = ModelContext(container)
-        Task { @MainActor in
-            await coordinator.handleAcceptedShare(
-                metadata: cloudKitShareMetadata,
-                participantDisplayName: nil,
-                in: context
-            )
+        if let container = modelContainer {
+            let context = ModelContext(container)
+            Task { @MainActor in
+                await coordinator.handleAcceptedShare(
+                    metadata: metadata,
+                    participantDisplayName: nil,
+                    in: context
+                )
+            }
+        } else {
+            Task { @MainActor in
+                coordinator.enqueueAcceptedShare(metadata)
+            }
         }
+    }
+}
+
+final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        // UIScene.ConnectionOptions exposes a single optional metadata value on this SDK.
+        if let metadata = connectionOptions.cloudKitShareMetadata {
+            deliver(metadata)
+        }
+    }
+
+    func windowScene(
+        _ windowScene: UIWindowScene,
+        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
+    ) {
+        deliver(cloudKitShareMetadata)
+    }
+
+    private func deliver(_ metadata: CKShare.Metadata) {
+        guard let appDelegate = UIApplication.shared.delegate as? BeforeShowAppDelegate else {
+            return
+        }
+        appDelegate.deliverAcceptedShare(metadata)
     }
 }

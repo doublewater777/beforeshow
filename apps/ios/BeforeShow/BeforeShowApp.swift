@@ -33,6 +33,8 @@ struct BeforeShowApp: App {
         ])
         #endif
         UNUserNotificationCenter.current().delegate = BeforeShowNotificationDelegate.shared
+        // Wire CloudKit share acceptance dependencies before any scene callback can race.
+        // RootView.onAppear is too late for cold-launch invitation acceptance.
     }
 
     var body: some Scene {
@@ -44,6 +46,12 @@ struct BeforeShowApp: App {
                     appDelegate.modelContainer = modelContainer
                 }
                 .task {
+                    // Ensure delegate wiring even if onAppear ordering is delayed.
+                    appDelegate.companionCoordinator = companionCoordinator
+                    appDelegate.modelContainer = modelContainer
+                    await companionCoordinator.flushPendingAcceptedShares(
+                        in: modelContainer.mainContext
+                    )
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )

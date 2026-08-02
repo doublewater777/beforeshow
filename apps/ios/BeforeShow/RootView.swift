@@ -909,7 +909,14 @@ private struct CurrentShowCompanionSheet: View {
             CloudSharingPresenter(
                 shareData: item.data,
                 containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
-                onFinished: { cloudShareData = nil }
+                show: show,
+                coordinator: coordinator,
+                onFinished: {
+                    cloudShareData = nil
+                    if let error = coordinator.consumeLastErrorMessage() {
+                        errorMessage = error
+                    }
+                }
             )
         }
         .alert(
@@ -1201,9 +1208,11 @@ private struct CurrentShowCompanionSheet: View {
         do {
             let data = try await coordinator.shareSystemFieldsForResend(show: show)
             cloudShareData = IdentifiableShareData(data: data)
-        } catch {
-            // Share missing — create a fresh invitation.
+        } catch let error as CompanionSharingError where error == .sessionNotFound {
+            // Only recreate when CloudKit positively reports the share is gone.
             await sendInvitation(isRetry: true)
+        } catch {
+            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
 
