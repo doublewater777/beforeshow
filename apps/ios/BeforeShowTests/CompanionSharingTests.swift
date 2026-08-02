@@ -488,6 +488,37 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.city, "上海")
         XCTAssertEqual(show.companionStatus, .pending)
     }
+
+    @MainActor
+    func testRefreshAllLinkedShowsRecoversAcceptedSharedSessionAfterLocalReset() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = CompanionSharingCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        service.sessions["remote-session"] = makeSession(
+            recordName: "remote-session",
+            shareName: "remote-share",
+            status: .accepted,
+            owner: "Alex",
+            participant: "林嘉",
+            showID: "owner-show",
+            showName: "恢复现场",
+            showDate: now,
+            createdAt: now,
+            acceptedAt: now
+        )
+
+        await coordinator.refreshAllLinkedShows(in: context)
+
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(shows.count, 1)
+        XCTAssertEqual(shows.first?.name, "恢复现场")
+        XCTAssertEqual(shows.first?.companionStatus, .confirmed)
+        XCTAssertEqual(shows.first?.companionCloudRecordName, "remote-session")
+    }
 }
 
 // MARK: - Helpers
@@ -619,5 +650,9 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
             throw CompanionSharingError.sessionNotFound
         }
         return session
+    }
+
+    func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
+        sessions.values.filter { $0.status == .accepted || $0.status == .pending }
     }
 }

@@ -408,6 +408,8 @@ struct CurrentShowManagementSection: View {
             await companionCoordinator.refreshCompanion(for: show, in: modelContext)
             if let accepted = companionCoordinator.consumePendingAcceptMessage() {
                 companionErrorMessage = accepted
+            } else if let error = companionCoordinator.consumeLastErrorMessage() {
+                companionErrorMessage = error
             }
         }
     }

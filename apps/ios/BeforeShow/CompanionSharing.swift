@@ -135,6 +135,9 @@ protocol CompanionSharingService: Sendable {
     ) async throws -> CompanionSessionSnapshot
 
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot
+
+    /// Discover already-accepted shared companion sessions for startup recovery.
+    func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot]
 }
 
 // MARK: - CloudKit field keys
@@ -239,18 +242,25 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     ) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
 
+        let shareLocator = CompanionRecordLocator(recordID: metadata.share.recordID)
+        let acceptedShare: CKShare
         do {
-            try await container.accept(metadata)
+            acceptedShare = try await container.accept(metadata)
         } catch {
             // Accepting an already-accepted share is fine; map other failures precisely.
             let ck = error as? CKError
             if ck?.code != .alreadyShared {
                 throw Self.mapError(error, fallback: .acceptFailed)
             }
+            guard
+                let existingShare = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare
+            else {
+                throw Self.mapError(error, fallback: .acceptFailed)
+            }
+            acceptedShare = existingShare
         }
 
         let rootID = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
-        let shareLocator = CompanionRecordLocator(recordID: metadata.share.recordID)
 
         let record: CKRecord
         do {
@@ -287,15 +297,30 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         do {
             _ = try Self.snapshot(from: record, shareLocator: shareLocator)
         } catch {
+            // Successful compensating leave makes this terminal for the accept job.
             try await leaveShareOrThrowCleanupPending()
             throw CompanionSharingError.invalidPayload
         }
 
-        // One-companion invariant: if session already accepted, refuse a second accept path.
+        // One-companion invariant: reject a second accepted participant, while allowing
+        // the same participant to reopen an already accepted invitation.
+        let currentUserRecordID = try? await container.userRecordID()
+        let acceptedOthers = acceptedShare.participants.filter { participant in
+            guard participant.role != .owner,
+                  participant.acceptanceStatus == .accepted else {
+                return false
+            }
+            guard let currentUserRecordID else { return true }
+            return participant.userIdentity.userRecordID != currentUserRecordID
+        }
+        if !acceptedOthers.isEmpty {
+            try await leaveShareOrThrowCleanupPending()
+            throw CompanionSharingError.permissionDenied
+        }
+
+        // A root already accepted by this participant is idempotent.
         if let existingStatus = record[CompanionSessionRecord.status] as? String,
            existingStatus == CompanionCloudStatus.accepted.rawValue {
-            // Already accepted — return current snapshot without rewriting, but only if
-            // share membership later confirms this device is the accepted participant.
             return try Self.snapshot(from: record, shareLocator: shareLocator)
         }
 
@@ -334,6 +359,34 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         try await ensureAccountAvailable()
         let (record, _) = try await fetchSessionRecord(locator: sessionLocator)
         return try Self.snapshot(from: record, shareLocator: nil)
+    }
+
+    func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
+        try await ensureAccountAvailable()
+        // Query all CompanionSession records visible in the shared database.
+        let query = CKQuery(
+            recordType: CompanionSessionRecord.recordType,
+            predicate: NSPredicate(value: true)
+        )
+        do {
+            let (matchResults, _) = try await sharedDB.records(
+                matching: query,
+                inZoneWith: nil,
+                desiredKeys: nil,
+                resultsLimit: 50
+            )
+            var sessions: [CompanionSessionSnapshot] = []
+            for (_, result) in matchResults {
+                guard case .success(let record) = result else { continue }
+                guard let snapshot = try? Self.snapshot(from: record, shareLocator: nil) else { continue }
+                if snapshot.status == .accepted || snapshot.status == .pending {
+                    sessions.append(snapshot)
+                }
+            }
+            return sessions
+        } catch {
+            throw Self.mapError(error)
+        }
     }
 
     // MARK: Helpers
