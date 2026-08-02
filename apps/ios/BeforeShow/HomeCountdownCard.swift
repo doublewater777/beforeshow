@@ -25,7 +25,7 @@ enum HomeLineupParser {
 
 // MARK: - Home Countdown Lockup
 
-/// V4 首页倒计时节拍:封面之后 20pt 停顿的扁 lockup(不再是压住海报的浮动卡片)。
+/// V4 首页倒计时卡片:封面之后的深色卡片。
 /// pre 远场超大天数、当天秒级时钟、临近 1 小时金色时钟;
 /// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
 struct HomeCountdownLockup: View {
@@ -45,17 +45,17 @@ struct HomeCountdownLockup: View {
     @ViewBuilder
     private func lockup(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(label(for: phase, timeState: timeState, now: now))
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
-                Spacer(minLength: 0)
                 if let badge = badge(for: phase, timeState: timeState) {
-                    Text(badge)
+                    Text("· \(badge)")
                         .font(.system(size: 10.5, weight: .semibold))
                         .tracking(1.6)
                         .foregroundColor(badgeColor(for: phase))
                 }
+                Spacer(minLength: 0)
             }
             .padding(.bottom, 6)
 
@@ -94,6 +94,28 @@ struct HomeCountdownLockup: View {
                 .padding(.top, 12)
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(BSColor.Stage.surface)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .fill(
+                            LinearGradient(
+                                colors: [BSColor.Stage.accent.opacity(0.07), .clear],
+                                startPoint: .top,
+                                endPoint: UnitPoint(x: 0.5, y: 0.55)
+                            )
+                        )
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
         .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
     }
 
@@ -107,10 +129,12 @@ struct HomeCountdownLockup: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: 10) {
                         Text("\(total / 86_400)")
-                            .font(.system(size: 84, weight: .thin))
+                            .font(.system(size: 72, weight: .thin))
                             .tracking(-2.5)
                             .monospacedDigit()
                             .foregroundStyle(Self.heroNumberGradient)
+                            // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
+                            .padding(.vertical, -9)
                         Text("天")
                             .font(.system(size: 22, weight: .regular))
                             .foregroundColor(BSColor.Stage.muted)

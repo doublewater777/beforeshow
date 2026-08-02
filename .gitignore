@@ -17,6 +17,7 @@ apps/ios/screenshots
 apps/ios/BeforeShow/prototypes
 .omo
 # Agent / process screenshot dumps (curate finals only under docs/screenshots/)
+docs
 docs/screenshots/**/route-v3/
 docs/screenshots/**/*-verification/
 docs/screenshots/**/*verification*/
@@ -24,3 +25,7 @@ docs/screenshots/**/*-after-open-attempt*
 docs/screenshots/**/*-debug*
 docs/screenshots/**/debug-*
 .scratch
+.vscode
+apps/ios/prototypes
+.claude
+.builder

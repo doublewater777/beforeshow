@@ -654,28 +654,49 @@ struct CurrentShowManagementSection: View {
         }
     }
 
-    /// 设计稿 event-date 行:日期时间 · 约 X 分钟 / 小时(多日「每日 HH:mm」已含区间,不追加时长)。
+    /// 海报 event-date 行:「yyyy.MM.dd 周X HH:mm」,填了结束时间再补「预计演出 X 小时 Y 分」;
+    /// 没填结束时间不估值、不显示时长。多日每日循环展示「yyyy.MM.dd-MM.dd · 每日 HH:mm[-HH:mm]」。
     private func dateLine(timeState: CurrentShowTimeState) -> String {
-        let base = formatter.dateText(for: show)
-        let isMultiDayDaily = CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: .current)
-        guard !isMultiDayDaily, let start = timeState.effectiveStartTime else {
+        let calendar = Calendar.current
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        dayFormatter.dateFormat = "yyyy.MM.dd E"
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        timeFormatter.dateFormat = "HH:mm"
+
+        if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
+           let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
+            var daily = timeFormatter.string(from: show.startTime)
+            if let endTime = show.endTime {
+                daily += "-\(timeFormatter.string(from: endTime))"
+            }
+            let year = calendar.component(.year, from: show.effectiveDate)
+            return "\(year).\(Self.monthDayText(show.effectiveDate, calendar: calendar))-\(Self.monthDayText(endDay, calendar: calendar)) · 每日 \(daily)"
+        }
+
+        let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
+        guard let start = timeState.effectiveStartTime,
+              let end = timeState.effectiveEndTime, end > start else {
             return base
         }
-        if let end = timeState.effectiveEndTime, end > start {
-            let minutes = Int(end.timeIntervalSince(start)) / 60
-            let hours = minutes / 60
-            let rest = minutes % 60
-            let duration: String
-            if hours > 0 && rest > 0 {
-                duration = "约 \(hours) 小时 \(rest) 分"
-            } else if hours > 0 {
-                duration = "约 \(hours) 小时"
-            } else {
-                duration = "约 \(max(1, rest)) 分钟"
-            }
-            return "\(base) · \(duration)"
+        let minutes = Int(end.timeIntervalSince(start)) / 60
+        let hours = minutes / 60
+        let rest = minutes % 60
+        let duration: String
+        if hours > 0 && rest > 0 {
+            duration = "\(hours) 小时 \(rest) 分"
+        } else if hours > 0 {
+            duration = "\(hours) 小时"
+        } else {
+            duration = "\(max(1, rest)) 分钟"
         }
-        return "\(base) · 约 \(CurrentShowTimeState.defaultDurationHours) 小时"
+        return "\(base) · 预计演出 \(duration)"
+    }
+
+    private static func monthDayText(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.month, .day], from: date)
+        return String(format: "%02d.%02d", components.month ?? 0, components.day ?? 0)
     }
 
     private var locationText: String {
