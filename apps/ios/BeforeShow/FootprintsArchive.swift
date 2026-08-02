@@ -906,11 +906,36 @@ private enum FootprintSearchFilter: Hashable {
     }
 }
 
-private struct FootprintShareSheet: View {
-    let archive: FootprintArchiveSnapshot
+/// One share-image export path for both the overview card and archive cards.
+/// Sheets only supply content + size; rendering + photo-library I/O live here.
+enum FootprintShareImageExport {
+    @MainActor
+    static func save<Content: View>(
+        _ content: Content,
+        size: CGSize
+    ) async throws {
+        let renderer = ImageRenderer(
+            content: content.frame(width: size.width, height: size.height)
+        )
+        renderer.scale = 1
+        guard let image = renderer.uiImage else {
+            throw FootprintPhotoSaveError.rendererFailed
+        }
+        try await FootprintPhotoLibrary.save(image)
+    }
+}
+
+/// Shared chrome for footprint share sheets: preview, copy, save, cancel.
+private struct FootprintShareActionSheet<Preview: View>: View {
+    let title: String
+    let subtitle: String
+    let previewHeight: CGFloat
     let shareText: String
-    let onCopied: () -> Void
-    let onSaved: () -> Void
+    let exportSize: CGSize
+    @ViewBuilder let preview: () -> Preview
+    @ViewBuilder let exportContent: () -> Preview
+    var onCopied: (() -> Void)? = nil
+    var onSaved: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSaving = false
@@ -919,21 +944,21 @@ private struct FootprintShareSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Capsule().fill(Color.white.opacity(0.18)).frame(width: 38, height: 4).frame(maxWidth: .infinity).padding(.bottom, 18)
-            Text("分享我的足迹").font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text("默认隐藏具体日期和详细行程，只分享你选择的档案信息。")
+            Text(title).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(subtitle)
                 .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
 
-            FootprintSharePreview(archive: archive)
-                .frame(height: 330)
-                .clipShape(RoundedRectangle(cornerRadius: 22))
-                .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.10)))
+            preview()
+                .frame(height: previewHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10)))
                 .padding(.top, 15)
 
             HStack(spacing: 8) {
                 Button("复制文案") {
                     UIPasteboard.general.string = shareText
                     dismiss()
-                    onCopied()
+                    onCopied?()
                 }
                 .footprintShareAction(primary: false)
                 Button("保存图片") { Task { await saveImage() } }
@@ -966,20 +991,35 @@ private struct FootprintShareSheet: View {
         guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
-        let renderer = ImageRenderer(content: FootprintSharePreview(archive: archive).frame(width: 1080, height: 1350))
-        renderer.scale = 1
-        guard let image = renderer.uiImage else {
-            saveError = FootprintPhotoSaveError.rendererFailed.localizedDescription
-            return
-        }
         do {
-            try await FootprintPhotoLibrary.save(image)
+            try await FootprintShareImageExport.save(exportContent(), size: exportSize)
         } catch {
             saveError = (error as? LocalizedError)?.errorDescription ?? "照片保存失败，请重试。"
             return
         }
         dismiss()
-        onSaved()
+        onSaved?()
+    }
+}
+
+private struct FootprintShareSheet: View {
+    let archive: FootprintArchiveSnapshot
+    let shareText: String
+    let onCopied: () -> Void
+    let onSaved: () -> Void
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: "分享我的足迹",
+            subtitle: "默认隐藏具体日期和详细行程，只分享你选择的档案信息。",
+            previewHeight: 330,
+            shareText: shareText,
+            exportSize: CGSize(width: 1080, height: 1350),
+            preview: { FootprintSharePreview(archive: archive) },
+            exportContent: { FootprintSharePreview(archive: archive) },
+            onCopied: onCopied,
+            onSaved: onSaved
+        )
     }
 }
 
@@ -1023,76 +1063,16 @@ private struct FootprintArchiveShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory
 
-    @Environment(\.dismiss) private var dismiss
-    @State private var isSaving = false
-    @State private var saveError: String?
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.18)).frame(width: 38, height: 4).frame(maxWidth: .infinity).padding(.bottom, 18)
-            Text(FootprintArchiveShareCopy.title(for: category))
-                .font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(FootprintArchiveShareCopy.subtitle(for: category))
-                .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
-
-            FootprintArchiveSharePreview(archive: archive, category: category)
-                .frame(height: 368)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10)))
-                .padding(.top, 15)
-
-            HStack(spacing: 8) {
-                Button("复制文案") {
-                    UIPasteboard.general.string = FootprintArchiveShareCopy.text(for: category, archive: archive)
-                    dismiss()
-                }
-                .footprintShareAction(primary: false)
-                Button("保存图片") { Task { await saveImage() } }
-                    .footprintShareAction(primary: true)
-                    .disabled(isSaving)
-            }
-            .padding(.top, 12)
-
-            Button("取消") { dismiss() }
-                .font(BSFont.caption).foregroundColor(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity).frame(height: 45)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-                .padding(.top, 12)
-        }
-        .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
-        .alert("无法保存图片", isPresented: Binding(
-            get: { saveError != nil },
-            set: { if !$0 { saveError = nil } }
-        )) {
-            Button("好", role: .cancel) { saveError = nil }
-        } message: {
-            Text(saveError ?? "请重试。")
-        }
-    }
-
-    @MainActor
-    private func saveImage() async {
-        guard !isSaving else { return }
-        isSaving = true
-        defer { isSaving = false }
-        let renderer = ImageRenderer(
-            content: FootprintArchiveSharePreview(archive: archive, category: category)
-                .frame(width: 1080, height: 1100)
+        FootprintShareActionSheet(
+            title: FootprintArchiveShareCopy.title(for: category),
+            subtitle: FootprintArchiveShareCopy.subtitle(for: category),
+            previewHeight: 368,
+            shareText: FootprintArchiveShareCopy.text(for: category, archive: archive),
+            exportSize: CGSize(width: 1080, height: 1100),
+            preview: { FootprintArchiveSharePreview(archive: archive, category: category) },
+            exportContent: { FootprintArchiveSharePreview(archive: archive, category: category) }
         )
-        renderer.scale = 1
-        guard let image = renderer.uiImage else {
-            saveError = FootprintPhotoSaveError.rendererFailed.localizedDescription
-            return
-        }
-        do {
-            try await FootprintPhotoLibrary.save(image)
-        } catch {
-            saveError = (error as? LocalizedError)?.errorDescription ?? "照片保存失败，请重试。"
-            return
-        }
-        dismiss()
     }
 }
 

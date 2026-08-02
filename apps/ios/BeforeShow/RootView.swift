@@ -38,7 +38,9 @@ struct RootView: View {
         .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
             hasCompletedOnboarding = true
         }) {
-            AddShowCoordinatorSheet {
+            AddShowCoordinatorSheet(
+                initialSheet: Self.debugOpenAddShowManual ? .manual : nil
+            ) {
                 presentAddShowSuccess()
             }
         }
@@ -50,7 +52,7 @@ struct RootView: View {
                 hasCompletedOnboarding = true
                 selectedTab = .footprints
             }
-            if ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") {
+            if Self.debugOpenAddShowManual {
                 hasCompletedOnboarding = true
                 isShowingFirstShowAdd = true
             }
@@ -59,6 +61,16 @@ struct RootView: View {
     }
 
     @Query(sort: \Show.date) private var shows: [Show]
+
+    /// DEBUG launch arg for UI tests: open first-show sheet already on 手动填写.
+    /// Scoped to that sheet only — 足迹补录 / 其它添加入口仍走三选一。
+    private static var debugOpenAddShowManual: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.arguments.contains("--open-add-show-manual")
+        #else
+        false
+        #endif
+    }
 
     private func presentAddShowSuccess() {
         let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
@@ -329,12 +341,12 @@ struct CurrentShowManagementSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.openURL) private var openURL
     @State private var isShowingEndConfirmation = false
-    @State private var isShowingTicket = false
+    @State private var isShowingMapChooser = false
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
 
-    private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show) }
+    private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
     private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
 
     var body: some View {
@@ -357,19 +369,23 @@ struct CurrentShowManagementSection: View {
                 onCancel: { isShowingEndConfirmation = false }
             )
         }
-        .sheet(isPresented: $isShowingTicket) {
-            CurrentShowTicketSheet(
-                showName: show.name,
-                seatSection: show.seatSection,
-                onDismiss: { isShowingTicket = false }
+        .sheet(isPresented: $isShowingMapChooser) {
+            CurrentShowMapChooserSheet(
+                destinationQuery: routeQuery,
+                destinationLabel: mapDestinationLabel,
+                onSelect: { app in
+                    openMapApp(app)
+                    isShowingMapChooser = false
+                },
+                onCancel: { isShowingMapChooser = false }
             )
         }
     }
 
     @ViewBuilder
     private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
-        let timeState = CurrentShowTimeState(show: show, now: now)
-        let phase = HomeShowPhase(timeState: timeState, now: now)
+        let snapshot = HomeHeroSnapshot(show: show, now: now)
+        let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
             from: candidateShows,
             excluding: show.id,
@@ -378,7 +394,6 @@ struct CurrentShowManagementSection: View {
         let canRecordEnd = CurrentShowEndPolicy.canRecordEnd(
             show: show,
             timeState: timeState,
-            phase: phase,
             now: now
         )
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
@@ -393,7 +408,12 @@ struct CurrentShowManagementSection: View {
                     .padding(.horizontal, contentInset)
                     .padding(.top, 4)
 
-                heroStage(phase: phase, timeState: timeState, coverWidth: coverWidth)
+                HomeHeroStage(
+                    show: show,
+                    snapshot: snapshot,
+                    coverWidth: coverWidth,
+                    reduceMotion: reduceMotion
+                )
                     .padding(.top, 18)
 
                 HomeCountdownLockup(
@@ -457,248 +477,6 @@ struct CurrentShowManagementSection: View {
         .accessibilityLabel(label)
     }
 
-    // MARK: Hero（整张海报进入详情，不叠加更多按钮）
-
-    private func heroStage(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        coverWidth: CGFloat
-    ) -> some View {
-        let coverHeight = coverWidth * 4.0 / 3.0
-        return NavigationLink {
-            ShowDetailView(show: show)
-        } label: {
-            heroVisual(phase: phase, timeState: timeState, width: coverWidth, height: coverHeight)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
-        .accessibilityAddTraits(.isButton)
-        .frame(width: coverWidth, height: coverHeight)
-    }
-
-    private func heroVisual(
-        phase: HomeShowPhase,
-        timeState: CurrentShowTimeState,
-        width: CGFloat,
-        height: CGFloat
-    ) -> some View {
-        ShowCoverImageView(
-            urlString: show.coverImageURL,
-            aspectRatio: 3.0 / 4.0,
-            contentMode: .fill,
-            alignment: .center,
-            enforcesAspectRatio: false,
-            cornerRadius: 26
-        )
-        .frame(width: width, height: height)
-        .saturation(phase == .inactive ? 0.35 : (phase == .ended ? 0.72 : 1.0))
-        .brightness(phase == .inactive ? -0.18 : (phase == .ended ? -0.05 : 0))
-        .overlay {
-            heroScrim
-                .clipShape(RoundedRectangle(cornerRadius: 26))
-        }
-        .overlay {
-            heroGlow(phase: phase, width: width, height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 26))
-        }
-        .overlay(alignment: .bottomLeading) {
-            heroMeta(phase: phase, timeState: timeState)
-                .padding(.horizontal, 20)
-                .padding(.bottom, 18)
-        }
-        // ShowCoverImageView 先按自身比例布局；外层改成固定 3:4 尺寸后必须再次裁切，
-        // 否则图片会越过 352pt 卡片边界，让海报看起来横向错位。
-        .clipShape(RoundedRectangle(cornerRadius: 26))
-        .overlay(
-            RoundedRectangle(cornerRadius: 26)
-                .stroke(Color.white.opacity(0.07), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.55), radius: 30, y: 15)
-    }
-
-    /// V4 hero-scrim:顶部更轻,底部 97% 收进封面下缘,让元信息可读。
-    private var heroScrim: some View {
-        LinearGradient(
-            stops: [
-                .init(color: BSColor.Stage.background.opacity(0.18), location: 0.00),
-                .init(color: BSColor.Stage.background.opacity(0.06), location: 0.26),
-                .init(color: BSColor.Stage.background.opacity(0.10), location: 0.46),
-                .init(color: BSColor.Stage.background.opacity(0.44), location: 0.66),
-                .init(color: BSColor.Stage.background.opacity(0.86), location: 0.88),
-                .init(color: BSColor.Stage.background.opacity(0.97), location: 1.00),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    /// hero-glow:蓝 / 紫两束舞台侧光,screen 混合;live 全开,ended 收半,inactive 几近熄灭。
-    private func heroGlow(phase: HomeShowPhase, width: CGFloat, height: CGFloat) -> some View {
-        let opacity: Double
-        switch phase {
-        case .live: opacity = 1.0
-        case .pre: opacity = 0.92
-        case .ended: opacity = 0.45
-        case .inactive: opacity = 0.18
-        }
-        return ZStack {
-            Ellipse()
-                .fill(RadialGradient(
-                    colors: [BSColor.Stage.glowBlue.opacity(0.30), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: width * 0.26
-                ))
-                .frame(width: width * 0.52, height: height * 0.34)
-                .position(x: width * 0.16, y: height * 0.70)
-
-            Ellipse()
-                .fill(RadialGradient(
-                    colors: [BSColor.Stage.prepare.opacity(0.28), .clear],
-                    center: .center,
-                    startRadius: 0,
-                    endRadius: width * 0.23
-                ))
-                .frame(width: width * 0.46, height: height * 0.28)
-                .position(x: width * 0.88, y: height * 0.62)
-        }
-        .blendMode(.screen)
-        .opacity(opacity)
-        .allowsHitTesting(false)
-    }
-
-    private func heroMeta(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            kickerPill(phase: phase, timeState: timeState)
-                .padding(.bottom, 10)
-
-            Text(dateLine(timeState: timeState))
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(BSColor.Stage.foreground.opacity(0.78))
-                .padding(.bottom, 8)
-
-            Text(show.name)
-                .font(.system(size: 26, weight: .semibold))
-                .tracking(-0.6)
-                .foregroundColor(BSColor.Stage.foreground)
-                .lineLimit(2)
-                .minimumScaleFactor(0.82)
-                .fixedSize(horizontal: false, vertical: true)
-                .shadow(color: .black.opacity(0.55), radius: 14, y: 4)
-
-            if !locationText.isEmpty {
-                Text(locationText)
-                    .font(.system(size: 13, weight: .regular))
-                    .foregroundColor(BSColor.Stage.foreground.opacity(0.72))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.top, 10)
-            }
-        }
-    }
-
-    private func kickerPill(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> some View {
-        let text = phase == .inactive ? timeState.title : phase.kickerText(city: show.city, timeState: timeState)
-        return HStack(spacing: 8) {
-            if phase == .live {
-                HomeLivePulse(reduceMotion: reduceMotion)
-            } else {
-                Circle()
-                    .fill(kickerDotColor(for: phase))
-                    .frame(width: 6, height: 6)
-            }
-            Text(text)
-                .font(.system(size: 11, weight: .semibold))
-                .tracking(0.9)
-        }
-        .foregroundColor(kickerTextColor(for: phase))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(Capsule().fill(kickerTint(for: phase)))
-        )
-        .overlay(Capsule().stroke(kickerBorderColor(for: phase), lineWidth: 1))
-    }
-
-    private func kickerDotColor(for phase: HomeShowPhase) -> Color {
-        switch phase {
-        case .pre: return BSColor.Stage.accent
-        case .live: return BSColor.Stage.live
-        case .ended, .inactive: return BSColor.Stage.dim
-        }
-    }
-
-    private func kickerTextColor(for phase: HomeShowPhase) -> Color {
-        switch phase {
-        case .pre: return BSColor.Stage.accent
-        case .live: return BSColor.Stage.liveTitle
-        case .ended, .inactive: return BSColor.Stage.foreground.opacity(0.72)
-        }
-    }
-
-    private func kickerTint(for phase: HomeShowPhase) -> Color {
-        switch phase {
-        case .pre: return BSColor.Stage.background.opacity(0.38)
-        case .live: return Color(red: 0.31, green: 0.09, blue: 0.13).opacity(0.42)
-        case .ended, .inactive: return BSColor.Stage.background.opacity(0.45)
-        }
-    }
-
-    private func kickerBorderColor(for phase: HomeShowPhase) -> Color {
-        switch phase {
-        case .pre: return BSColor.Stage.accent.opacity(0.28)
-        case .live: return BSColor.Stage.live.opacity(0.42)
-        case .ended, .inactive: return Color.white.opacity(0.14)
-        }
-    }
-
-    /// 海报 event-date 行:「yyyy.MM.dd 周X HH:mm」,填了结束时间再补「预计演出 X 小时 Y 分」;
-    /// 没填结束时间不估值、不显示时长。多日每日循环展示「yyyy.MM.dd-MM.dd · 每日 HH:mm[-HH:mm]」。
-    private func dateLine(timeState: CurrentShowTimeState) -> String {
-        let calendar = Calendar.current
-        let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "zh_Hans_CN")
-        dayFormatter.dateFormat = "yyyy.MM.dd E"
-        let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
-        timeFormatter.dateFormat = "HH:mm"
-
-        if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
-           let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
-            var daily = timeFormatter.string(from: show.startTime)
-            if let endTime = show.endTime {
-                daily += "-\(timeFormatter.string(from: endTime))"
-            }
-            let year = calendar.component(.year, from: show.effectiveDate)
-            return "\(year).\(Self.monthDayText(show.effectiveDate, calendar: calendar))-\(Self.monthDayText(endDay, calendar: calendar)) · 每日 \(daily)"
-        }
-
-        let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
-        guard let start = timeState.effectiveStartTime,
-              let end = timeState.effectiveEndTime, end > start else {
-            return base
-        }
-        let minutes = Int(end.timeIntervalSince(start)) / 60
-        let hours = minutes / 60
-        let rest = minutes % 60
-        let duration: String
-        if hours > 0 && rest > 0 {
-            duration = "\(hours) 小时 \(rest) 分"
-        } else if hours > 0 {
-            duration = "\(hours) 小时"
-        } else {
-            duration = "\(max(1, rest)) 分钟"
-        }
-        return "\(base) · 预计演出 \(duration)"
-    }
-
-    private static func monthDayText(_ date: Date, calendar: Calendar) -> String {
-        let components = calendar.dateComponents([.month, .day], from: date)
-        return String(format: "%02d.%02d", components.month ?? 0, components.day ?? 0)
-    }
-
     private var locationText: String {
         let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
         let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -722,10 +500,21 @@ struct CurrentShowManagementSection: View {
     }
 
     private var routeQuery: String? {
-        let values = [show.venueAddress, show.venueName, show.city, show.name]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        return values.isEmpty ? nil : values.joined(separator: " ")
+        MapDestinationQuery.make(
+            venueAddress: show.venueAddress,
+            venueName: show.venueName,
+            city: show.city,
+            showName: show.name
+        )
+    }
+
+    /// 弹窗副标题：优先场馆名，其次城市 / 演出名。
+    private var mapDestinationLabel: String {
+        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let venue, !venue.isEmpty { return venue }
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let city, !city.isEmpty { return city }
+        return show.name
     }
 
     private var shareText: String {
@@ -737,18 +526,8 @@ struct CurrentShowManagementSection: View {
         HStack(spacing: 9) {
             ForEach(actions, id: \.self) { action in
                 switch action {
-                case .ticket:
-                    Button { isShowingTicket = true } label: {
-                        CurrentShowQuickActionTile(action: action)
-                    }
-                    .buttonStyle(.plain)
                 case .route:
-                    Button { openRoute() } label: {
-                        CurrentShowQuickActionTile(action: action)
-                    }
-                    .buttonStyle(.plain)
-                case .reminder:
-                    Button { openNotificationSettings() } label: {
+                    Button { isShowingMapChooser = true } label: {
                         CurrentShowQuickActionTile(action: action)
                     }
                     .buttonStyle(.plain)
@@ -762,62 +541,10 @@ struct CurrentShowManagementSection: View {
         }
     }
 
-    private func openRoute() {
-        guard let routeQuery else { return }
-        var components = URLComponents(string: "https://maps.apple.com/")
-        components?.queryItems = [URLQueryItem(name: "q", value: routeQuery)]
-        if let url = components?.url {
-            openURL(url)
-        }
-    }
-
-    private func openNotificationSettings() {
-        guard let url = URL(string: UIApplication.openNotificationSettingsURLString) else { return }
+    private func openMapApp(_ app: ExternalMapApp) {
+        guard let query = routeQuery,
+              let url = app.openURL(for: query) else { return }
         openURL(url)
-    }
-}
-
-enum CurrentShowFollowUpPolicy {
-    static func laterShows(
-        from shows: [Show],
-        excluding currentShowID: UUID?,
-        now: Date,
-        calendar: Calendar = .current
-    ) -> [Show] {
-        shows
-            .filter { show in
-                guard show.id != currentShowID,
-                      show.changeStatus == .scheduled,
-                      show.endedAt == nil else { return false }
-                let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
-                return start > now
-            }
-            .sorted {
-                CurrentShowTimeState.effectiveStartTime(for: $0, calendar: calendar)
-                    < CurrentShowTimeState.effectiveStartTime(for: $1, calendar: calendar)
-            }
-    }
-}
-
-enum CurrentShowEndPolicy {
-    static func canRecordEnd(
-        show: Show,
-        timeState: CurrentShowTimeState,
-        phase: HomeShowPhase,
-        now: Date,
-        calendar: Calendar = .current
-    ) -> Bool {
-        guard show.endedAt == nil else { return false }
-        guard phase == .live || timeState.kind == .postShow || timeState.kind == .ended else {
-            return false
-        }
-        guard CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar) else {
-            return true
-        }
-        guard phase == .live else { return true }
-        guard let finalDay = timeState.effectiveEndDate else { return false }
-        guard let activeStart = timeState.effectiveStartTime else { return false }
-        return calendar.isDate(activeStart, inSameDayAs: finalDay)
     }
 }
 
@@ -934,31 +661,25 @@ private struct CurrentShowFollowUpSummary: View {
 }
 
 enum CurrentShowQuickAction: Hashable {
-    case ticket
     case route
-    case reminder
     case companion
 
     var title: String {
         switch self {
-        case .ticket: return "票夹"
         case .route: return "路线"
-        case .reminder: return "提醒"
         case .companion: return "同行"
         }
     }
 
     var iconName: String {
         switch self {
-        case .ticket: return "ticket"
         case .route: return "map"
-        case .reminder: return "bell"
         case .companion: return "person.2"
         }
     }
 
     /// 当前现场的管理入口保持稳定，避免用户因演出阶段变化而找不到功能。
-    static let visibleActions: [Self] = [.ticket, .route, .reminder, .companion]
+    static let visibleActions: [Self] = [.route, .companion]
 }
 
 private struct CurrentShowQuickActionTile: View {
@@ -987,189 +708,105 @@ private struct CurrentShowQuickActionTile: View {
     }
 }
 
-private struct CurrentShowTicketSheet: View {
-    let showName: String
-    let seatSection: String?
-    let onDismiss: () -> Void
-
-    var body: some View {
-        BSDrawerSheet(detent: .height(300)) {
-            Image(systemName: "ticket")
-                .font(.system(size: 26, weight: .medium))
-                .foregroundColor(BSColor.Stage.accent)
-                .frame(width: 56, height: 56)
-                .background(BSColor.Stage.accent.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-
-            VStack(spacing: 7) {
-                Text("票夹")
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(showName)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                if let seatSection, !seatSection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(seatSection)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .padding(.top, 5)
-                }
-            }
-
-            Button("完成", action: onDismiss)
-                .buttonStyle(BSPrimaryButtonStyle())
-        }
-    }
-}
-
-private struct CurrentShowEndConfirmationSheet: View {
-    private enum Step { case choice, earlier }
-
-    let showName: String
-    let showStart: Date
-    let suggestedEnd: Date
-    let allowsJustEnded: Bool
-    let onConfirm: (Date) -> Void
+private struct CurrentShowMapChooserSheet: View {
+    let destinationQuery: String?
+    let destinationLabel: String
+    let onSelect: (ExternalMapApp) -> Void
     let onCancel: () -> Void
 
-    @State private var step: Step = .choice
-    @State private var selectedEnd: Date
+    /// 仅展示本机已安装的地图；在 `onAppear` 用 `canOpenURL` 刷新。
+    @State private var installedApps: [ExternalMapApp] = ExternalMapApp.installed
 
-    init(showName: String, showStart: Date, suggestedEnd: Date, allowsJustEnded: Bool, onConfirm: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
-        self.showName = showName
-        self.showStart = showStart
-        self.suggestedEnd = suggestedEnd
-        self.allowsJustEnded = allowsJustEnded
-        self.onConfirm = onConfirm
-        self.onCancel = onCancel
-        let suggested = min(Date(), suggestedEnd)
-        _selectedEnd = State(initialValue: max(showStart, suggested))
-        _step = State(initialValue: allowsJustEnded ? .choice : .earlier)
+    private var hasDestination: Bool {
+        guard let destinationQuery else { return false }
+        return !destinationQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var sheetHeight: CGFloat {
+        if !hasDestination { return 280 }
+        if installedApps.isEmpty { return 300 }
+        // 标题区 + 行高 + 取消 + 内边距
+        return 200 + CGFloat(installedApps.count) * 62 + 56
     }
 
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
-            if step == .choice {
-                choice
-            } else {
-                earlierTime
-            }
-        }
-        .interactiveDismissDisabled(false)
-    }
-
-    private var choice: some View {
-        VStack(spacing: BSSpacing.lg) {
-            VStack(spacing: BSSpacing.sm) {
-                Image(systemName: "moon.stars")
-                    .font(.system(size: 27, weight: .medium))
-                    .foregroundColor(BSColor.Stage.liveTitle)
-                    .frame(width: 56, height: 56)
-                    .background(BSColor.Stage.live.opacity(0.11))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                Text("确认已经散场？")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("记录散场时间，并计入现场记录。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-            }
-
-            HStack(spacing: 9) {
-                Button("早就结束") { step = .earlier }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                if allowsJustEnded {
-                    Button("刚刚结束") { onConfirm(Date()) }
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.liveTitle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(BSColor.Stage.live.opacity(0.13))
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.md)
-                                .stroke(BSColor.Stage.live.opacity(0.34), lineWidth: 1)
-                        )
-                }
-            }
-
-            Button("还没结束", action: onCancel)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
-                .frame(minHeight: BSLayout.minTouchTarget)
-        }
-    }
-
-    private var earlierTime: some View {
-        VStack(spacing: BSSpacing.lg) {
-            VStack(spacing: BSSpacing.sm) {
-                Image(systemName: "clock")
-                    .font(.system(size: 27, weight: .medium))
+        BSDrawerSheet(detent: .height(sheetHeight)) {
+            VStack(spacing: BSSpacing.md) {
+                Image(systemName: "map")
+                    .font(.system(size: 26, weight: .medium))
                     .foregroundColor(BSColor.Stage.accent)
                     .frame(width: 56, height: 56)
                     .background(BSColor.Stage.accent.opacity(0.10))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
 
-                Text("补记散场时间")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(showName)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
-
-            BSGlassPanel {
-                VStack(spacing: BSSpacing.sm) {
-                    DatePicker(
-                        "散场日期",
-                        selection: $selectedEnd,
-                        in: showStart...Date(),
-                        displayedComponents: .date
-                    )
-                    DatePicker(
-                        "散场时间",
-                        selection: $selectedEnd,
-                        in: showStart...Date(),
-                        displayedComponents: .hourAndMinute
-                    )
+                VStack(spacing: 7) {
+                    Text("在地图中打开")
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text(hasDestination ? destinationLabel : "还没有可打开的位置")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
                 }
-                .tint(BSColor.Stage.accent)
             }
 
-            HStack {
-                Text("现场时长")
+            if hasDestination {
+                if installedApps.isEmpty {
+                    Text("没有检测到可用的地图 App。")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    VStack(spacing: 9) {
+                        ForEach(installedApps) { app in
+                            Button {
+                                onSelect(app)
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: app.iconName)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(BSColor.Stage.accent)
+                                        .frame(width: 28)
+                                    Text(app.title)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(BSColor.Stage.foreground)
+                                    Spacer(minLength: 8)
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(BSColor.Stage.dim)
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 14)
+                                .background(BSColor.Stage.surface.opacity(0.92))
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(app.title)
+                        }
+                    }
+                }
+            } else {
+                Text("补充场馆或地址后，就能跳到地图 App。")
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.muted)
-                Spacer()
-                Text(durationText)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
             }
 
-            HStack(spacing: 9) {
-                Button("返回") { step = .choice }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                Button("确认这个时间") { onConfirm(selectedEnd) }
-                    .buttonStyle(BSPrimaryButtonStyle())
-            }
+            Button("取消", action: onCancel)
+                .buttonStyle(BSSecondaryButtonStyle())
+        }
+        .onAppear {
+            installedApps = ExternalMapApp.installed
         }
     }
-
-    private var durationText: String {
-        let minutes = max(0, Int(selectedEnd.timeIntervalSince(showStart) / 60))
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours == 0 { return "\(rest) 分" }
-        if rest == 0 { return "\(hours) 小时" }
-        return "\(hours) 小时 \(rest) 分"
-    }
 }
-
-// MARK: - Empty State
 
 private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
@@ -1246,128 +883,6 @@ private struct CurrentShowEmptyStateView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
-}
-
-// MARK: - Splash
-
-private struct SplashView: View {
-    let onFinish: () -> Void
-
-    @State private var backgroundOpacity = 0.0
-    @State private var titleOpacity = 0.0
-    @State private var englishNameOpacity = 0.0
-    @State private var sloganOpacity = 0.0
-    @State private var wholeOpacity = 1.0
-    @State private var canAccelerate = false
-    @State private var didFinish = false
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            GeometryReader { geometry in
-                Image("splash_bg")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: geometry.size.width, height: geometry.size.height)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-                    .opacity(backgroundOpacity)
-                    .accessibilityHidden(true)
-            }
-            .ignoresSafeArea()
-
-            VStack(spacing: 16) {
-                Spacer()
-
-                Text("开场前")
-                    .font(.system(size: 52, weight: .light))
-                    .tracking(6)
-                    .foregroundStyle(brandGradient)
-                    .opacity(titleOpacity)
-                    .accessibilityAddTraits(.isHeader)
-
-                Text("BeforeShow")
-                    .font(.system(size: 16, weight: .light))
-                    .tracking(8)
-                    .foregroundStyle(brandGradient.opacity(0.7))
-                    .opacity(englishNameOpacity)
-
-                Text("灯亮之前，先进入状态")
-                    .font(.system(size: 14, weight: .light))
-                    .tracking(3)
-                    .foregroundStyle(.white.opacity(0.6))
-                    .opacity(sloganOpacity)
-                    .padding(.top, 34)
-
-                Spacer()
-                    .frame(height: 142)
-            }
-            .padding(.horizontal, 28)
-        }
-        .opacity(wholeOpacity)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            guard canAccelerate else { return }
-            finish()
-        }
-        .onAppear(perform: startAnimation)
-        .accessibilityElement(children: .combine)
-    }
-
-    private func startAnimation() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeOut(duration: 0.8)) {
-                backgroundOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.8))
-            withAnimation(.easeInOut(duration: 0.4)) {
-                titleOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeInOut(duration: 0.4)) {
-                englishNameOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeInOut(duration: 0.4)) {
-                sloganOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.2))
-            canAccelerate = true
-
-            try? await Task.sleep(for: .seconds(0.4))
-            finish()
-        }
-    }
-
-    private func finish() {
-        guard !didFinish else { return }
-        didFinish = true
-        withAnimation(.easeInOut(duration: 0.32)) {
-            wholeOpacity = 0
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.32))
-            onFinish()
-        }
-    }
-}
-
-private var brandGradient: LinearGradient {
-    LinearGradient(
-        colors: [
-            Color(red: 0.49, green: 0.81, blue: 1.0),
-            Color(red: 0.70, green: 0.53, blue: 1.0),
-            Color(red: 1.0, green: 0.70, blue: 0.28)
-        ],
-        startPoint: .leading,
-        endPoint: .trailing
-    )
 }
 
 // MARK: - Debug Sample Seeder

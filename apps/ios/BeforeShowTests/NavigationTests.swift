@@ -32,7 +32,7 @@ final class NavigationTests: XCTestCase {
     func testCurrentShowQuickActionsAreAlwaysVisible() {
         XCTAssertEqual(
             CurrentShowQuickAction.visibleActions,
-            [.ticket, .route, .reminder, .companion]
+            [.route, .companion]
         )
     }
 
@@ -113,12 +113,13 @@ final class NavigationTests: XCTestCase {
 
         XCTAssertEqual(state.kind, .today)
         XCTAssertEqual(phase, .live)
-        XCTAssertFalse(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: middleDay, calendar: calendar))
+        XCTAssertFalse(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, now: middleDay, calendar: calendar))
 
         let finalDay = makeDate(year: 2026, month: 7, day: 10, hour: 20, minute: 0, calendar: calendar)
         let finalState = CurrentShowTimeState(show: show, calendar: calendar, now: finalDay)
         let finalPhase = HomeShowPhase(timeState: finalState, now: finalDay)
-        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, phase: finalPhase, now: finalDay, calendar: calendar))
+        XCTAssertEqual(finalPhase, .live)
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, now: finalDay, calendar: calendar))
     }
 
     func testFinalOvernightDailyCycleRemainsLiveAfterMidnight() throws {
@@ -134,7 +135,7 @@ final class NavigationTests: XCTestCase {
 
         XCTAssertEqual(state.kind, .today)
         XCTAssertEqual(phase, .live)
-        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, phase: phase, now: finalOvernight, calendar: calendar))
+        XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, now: finalOvernight, calendar: calendar))
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {
