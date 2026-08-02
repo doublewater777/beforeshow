@@ -20,7 +20,7 @@ enum CompanionCloudStatus: String, Codable, Equatable, Sendable, CaseIterable {
 
 /// Full CloudKit record identity (name + zone + owner).
 /// Sharing requires a custom private zone; default-zone records cannot be shared.
-struct CompanionRecordLocator: Equatable, Sendable, Codable {
+struct CompanionRecordLocator: Equatable, Sendable, Codable, Hashable {
     static let companionZoneName = "CompanionSessions"
 
     var recordName: String
@@ -112,6 +112,17 @@ enum CompanionSharingError: Error, Equatable, Sendable {
     case statusSyncPending
 }
 
+enum CompanionMembershipState: Equatable, Sendable {
+    case healthy
+    case removed
+    case warning(String)
+
+    var warning: String? {
+        if case .warning(let message) = self { return message }
+        return nil
+    }
+}
+
 // MARK: - Service protocol
 
 protocol CompanionSharingService: Sendable {
@@ -138,6 +149,11 @@ protocol CompanionSharingService: Sendable {
 
     /// Discover already-accepted shared companion sessions for startup recovery.
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot]
+
+    /// Reconcile the owner-side share so at most one non-owner remains accepted.
+    func reconcileOwnerMembership(
+        shareLocator: CompanionRecordLocator
+    ) async throws -> CompanionMembershipState
 }
 
 // MARK: - CloudKit field keys
@@ -372,9 +388,17 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             recordType: CompanionSessionRecord.recordType,
             predicate: NSPredicate(value: true)
         )
+        let zones: [CKRecordZone]
         do {
-            var sessions: [CompanionSessionSnapshot] = []
-            for zone in try await sharedDB.allRecordZones() {
+            zones = try await sharedDB.allRecordZones()
+        } catch {
+            throw Self.mapError(error)
+        }
+
+        var sessionsByLocator: [CompanionRecordLocator: CompanionSessionSnapshot] = [:]
+        var firstZoneError: CompanionSharingError?
+        for zone in zones {
+            do {
                 var cursor: CKQueryOperation.Cursor?
                 repeat {
                     let page: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
@@ -399,13 +423,64 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                             shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) }
                         ) else { continue }
                         if snapshot.status == .accepted || snapshot.status == .pending {
-                            sessions.append(snapshot)
+                            sessionsByLocator[snapshot.sessionLocator] = snapshot
                         }
                     }
                     cursor = page.queryCursor
                 } while cursor != nil
+            } catch {
+                // A stale or unavailable shared zone must not hide sessions from other zones.
+                firstZoneError = firstZoneError ?? Self.mapError(error)
             }
-            return sessions
+        }
+
+        if !sessionsByLocator.isEmpty || firstZoneError == nil {
+            return Array(sessionsByLocator.values)
+        }
+        throw firstZoneError!
+    }
+
+    func reconcileOwnerMembership(
+        shareLocator: CompanionRecordLocator
+    ) async throws -> CompanionMembershipState {
+        try await ensureAccountAvailable()
+
+        do {
+            guard let share = try await privateDB.record(for: shareLocator.recordID) as? CKShare else {
+                throw CompanionSharingError.sessionNotFound
+            }
+
+            let nonOwners = share.participants.filter { $0.role != .owner }
+            let accepted = nonOwners.filter { $0.acceptanceStatus == .accepted }
+            let pending = nonOwners.filter { $0.acceptanceStatus == .pending }
+            let unknown = nonOwners.filter { $0.acceptanceStatus == .unknown }
+
+            if accepted.count > 1 {
+                // Participant ordering is not a stable contract. Keep the lexically first
+                // accepted participant so repeated reconciliation is deterministic, and
+                // remove every other accepted member from the owner-controlled share.
+                let keep = accepted.min { $0.participantID < $1.participantID }
+                let extras = accepted.filter { $0.participantID != keep?.participantID }
+                for participant in extras {
+                    share.removeParticipant(participant)
+                }
+                _ = try await modifyRecords(in: privateDB, saving: [share])
+                return .warning("检测到多个已接受的同行者，已移除多余成员")
+            }
+
+            if accepted.count == 1, !pending.isEmpty {
+                return .warning("已有同行者确认，仍有未确认的邀请成员")
+            }
+            if accepted.isEmpty, pending.isEmpty, unknown.isEmpty {
+                return .removed
+            }
+            if accepted.isEmpty, !pending.isEmpty {
+                return .warning("同行邀请尚未有成员确认")
+            }
+            if !unknown.isEmpty {
+                return .warning("同行成员状态暂时无法确认，请稍后重试")
+            }
+            return .healthy
         } catch {
             throw Self.mapError(error)
         }
@@ -506,6 +581,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     ) async throws -> CompanionSessionSnapshot {
         // Write canceled status first so the owner can observe it before access is removed.
         var canceledSnapshot: CompanionSessionSnapshot?
+        var statusWriteError: CompanionSharingError?
         do {
             let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
             record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
@@ -514,12 +590,12 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             canceledSnapshot = try Self.snapshot(from: saved, shareLocator: nil)
         } catch {
             let mapped = Self.mapError(error)
-            if mapped == .networkFailure || mapped == .permissionDenied || mapped == .conflict {
-                throw mapped
-            }
-            // Continue to leave the share even if status write is already unavailable.
+            statusWriteError = mapped
+            // Continue to leave the share even when the shared root is read-only to the
+            // participant. Leaving the share is the authoritative access-removal action.
         }
 
+        var shareLeaveSucceeded = false
         if let shareLocator {
             do {
                 let shareRecord = try await sharedDB.record(for: shareLocator.recordID)
@@ -530,10 +606,13 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                         deleting: [shareLocator.recordID]
                     )
                 }
+                shareLeaveSucceeded = true
             } catch {
                 let mapped = Self.mapError(error)
                 // Already gone is success; anything else means access may still exist.
-                if mapped != .sessionNotFound {
+                if mapped == .sessionNotFound {
+                    shareLeaveSucceeded = true
+                } else {
                     throw mapped
                 }
             }
@@ -541,6 +620,10 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
 
         if let canceledSnapshot {
             return canceledSnapshot
+        }
+
+        if !shareLeaveSucceeded, let statusWriteError {
+            throw statusWriteError
         }
 
         // Access already gone and status could not be read — local cancel is still terminal.

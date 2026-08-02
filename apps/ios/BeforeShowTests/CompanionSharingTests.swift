@@ -570,6 +570,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     var loadShareError: CompanionSharingError?
     var cancelError: CompanionSharingError?
     var fetchError: CompanionSharingError?
+    var ownerMembershipState: CompanionMembershipState = .healthy
     var sessions: [String: CompanionSessionSnapshot] = [:]
     var revokedShareNames: [String] = []
     private(set) var prepareCallCount = 0
@@ -654,5 +655,12 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
 
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
         sessions.values.filter { $0.status == .accepted || $0.status == .pending }
+    }
+
+    func reconcileOwnerMembership(
+        shareLocator: CompanionRecordLocator
+    ) async throws -> CompanionMembershipState {
+        _ = shareLocator
+        return ownerMembershipState
     }
 }

@@ -146,7 +146,12 @@ final class CurrentShowSelectionTests: XCTestCase {
             year: 2026, month: 6, day: 15, hour: 20
         ).date!
         
-        let show = try Show(name: "跨时区现场", date: showDateUTC, startTime: Date())
+        let show = try Show(
+            name: "跨时区现场",
+            date: showDateUTC,
+            startTime: showDateUTC,
+            endDate: showDateUTC
+        )
         
         // Evaluate at June 19, 2026 at 01:00 UTC.
         let evaluationDate = DateComponents(

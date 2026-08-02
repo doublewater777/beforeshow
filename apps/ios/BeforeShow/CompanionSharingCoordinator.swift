@@ -139,28 +139,37 @@ final class CompanionSharingCoordinator {
         isFlushingAcceptedShares = true
         defer { isFlushingAcceptedShares = false }
 
-        let batch = pendingShareMetadata
-        for metadata in batch {
-            lastErrorKind = nil
-            await handleAcceptedShare(
-                metadata: metadata,
-                participantDisplayName: nil,
-                in: modelContext
-            )
-            let shouldRetry: Bool
-            switch lastErrorKind {
-            case .iCloudAccountUnavailable, .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed:
-                shouldRetry = true
-            case .none, .acceptFailed, .sessionNotFound,
-                    .invalidPayload, .permissionDenied:
-                // Invalid payload and permission denial are terminal after compensating leave.
-                shouldRetry = false
+        var processedKeys = Set<String>()
+        while true {
+            let batch = pendingShareMetadata.filter {
+                !processedKeys.contains(Self.metadataKey($0))
             }
-            if !shouldRetry {
-                pendingShareMetadata.removeAll {
-                    Self.metadataKey($0) == Self.metadataKey(metadata)
+            guard !batch.isEmpty else { break }
+
+            for metadata in batch {
+                let key = Self.metadataKey(metadata)
+                processedKeys.insert(key)
+                lastErrorKind = nil
+                await handleAcceptedShare(
+                    metadata: metadata,
+                    participantDisplayName: nil,
+                    in: modelContext
+                )
+                let shouldRetry: Bool
+                switch lastErrorKind {
+                case .iCloudAccountUnavailable, .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed:
+                    shouldRetry = true
+                case .none, .acceptFailed, .sessionNotFound,
+                        .invalidPayload, .permissionDenied:
+                    // Invalid payload and permission denial are terminal after compensating leave.
+                    shouldRetry = false
                 }
-                Self.persistAcceptedShares(pendingShareMetadata)
+                if !shouldRetry {
+                    pendingShareMetadata.removeAll {
+                        Self.metadataKey($0) == key
+                    }
+                    Self.persistAcceptedShares(pendingShareMetadata)
+                }
             }
         }
         Self.persistAcceptedShares(pendingShareMetadata)
@@ -184,8 +193,17 @@ final class CompanionSharingCoordinator {
     }
 
     private static func persistAcceptedShares(_ metadata: [CKShare.Metadata]) {
-        let entries = metadata.compactMap { item in
-            try? NSKeyedArchiver.archivedData(withRootObject: item, requiringSecureCoding: true)
+        var entries: [Data] = []
+        for item in metadata {
+            guard let data = try? NSKeyedArchiver.archivedData(
+                withRootObject: item,
+                requiringSecureCoding: true
+            ) else {
+                // Keep the previous durable queue intact if an archive unexpectedly fails.
+                // The in-memory item remains retryable and will be written on a later flush.
+                return
+            }
+            entries.append(data)
         }
         UserDefaults.standard.set(entries, forKey: acceptedShareInboxKey)
     }
@@ -247,7 +265,7 @@ final class CompanionSharingCoordinator {
     func refreshCompanion(for show: Show, in modelContext: ModelContext) async {
         guard let sessionLocator = show.companionSessionLocator else { return }
         do {
-            let membershipState: OwnerMembershipState
+            let membershipState: CompanionMembershipState
             if show.companionIsOwner == true, let shareLocator = show.companionShareLocator {
                 membershipState = await reconcileOwnerShareMembership(shareLocator: shareLocator)
             } else {
@@ -358,11 +376,15 @@ final class CompanionSharingCoordinator {
 
     func refreshAllLinkedShows(in modelContext: ModelContext) async {
         await flushPendingAcceptedShares(in: modelContext)
-        if let sessions = try? await service.listAcceptedSharedSessions() {
+        do {
+            let sessions = try await service.listAcceptedSharedSessions()
             for session in sessions {
                 // Recover accepted shared sessions after a reinstall or local-store reset.
                 try? applyAcceptedSession(session, in: modelContext)
             }
+        } catch {
+            lastErrorMessage = Self.userMessage(for: error)
+            lastErrorKind = error as? CompanionSharingError
         }
         let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
@@ -383,37 +405,8 @@ final class CompanionSharingCoordinator {
         show.companionShareRecordName = share.recordID.recordName
         show.companionShareZoneName = share.recordID.zoneID.zoneName
         show.companionShareOwnerName = share.recordID.zoneID.ownerName
-
-        let nonOwnerParticipants = share.participants.filter { $0.role != .owner }
-        let acceptedParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .accepted }
-        let pendingParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .pending }
-        let unknownParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .unknown }
-        let allNonOwnersRemoved = !nonOwnerParticipants.isEmpty
-            && nonOwnerParticipants.allSatisfy { $0.acceptanceStatus == .removed }
-        let noNonOwners = nonOwnerParticipants.isEmpty
-
-        if show.companionStatus == .confirmed,
-           unknownParticipants.isEmpty,
-           acceptedParticipants.isEmpty,
-           pendingParticipants.isEmpty,
-           (allNonOwnersRemoved || noNonOwners) {
-            if show.companionSessionLocator != nil {
-                try? await cancelCompanion(for: show, in: modelContext)
-                return
-            }
-        } else if acceptedParticipants.count > 1 {
-            lastErrorMessage = "同行邀请目前只支持一位同伴"
-            lastErrorKind = .permissionDenied
-            try? modelContext.save()
-            return
-        }
-
         try? modelContext.save()
-        let membershipError = lastErrorMessage
         await refreshCompanion(for: show, in: modelContext)
-        if let membershipError, lastErrorMessage == nil {
-            lastErrorMessage = membershipError
-        }
     }
 
     func handleShareControllerDidStopSharing(
@@ -446,42 +439,11 @@ final class CompanionSharingCoordinator {
 
     // MARK: Private
 
-    private enum OwnerMembershipState {
-        case healthy
-        case warning(String)
-        case removed
-
-        var warning: String? {
-            if case .warning(let message) = self { return message }
-            return nil
-        }
-    }
-
     private func reconcileOwnerShareMembership(
         shareLocator: CompanionRecordLocator
-    ) async -> OwnerMembershipState {
+    ) async -> CompanionMembershipState {
         do {
-            let data = try await service.loadShareSystemFields(shareLocator: shareLocator)
-            let share = try CloudKitCompanionSharingService.unarchiveShare(from: data)
-            let nonOwner = share.participants.filter { $0.role != .owner }
-            let accepted = nonOwner.filter {
-                $0.role != .owner && $0.acceptanceStatus == .accepted
-            }
-            if accepted.count > 1 {
-                return .warning("检测到多个已接受的同行者，请在系统共享面板中移除多余成员")
-            }
-            let pending = nonOwner.filter { $0.acceptanceStatus == .pending }
-            let unknown = nonOwner.filter { $0.acceptanceStatus == .unknown }
-            if accepted.count == 1, !pending.isEmpty {
-                return .warning("已有同行者确认，仍有未确认的邀请成员")
-            }
-            if accepted.isEmpty, pending.isEmpty, unknown.isEmpty {
-                return .removed
-            }
-            if accepted.isEmpty, !pending.isEmpty {
-                return .warning("同行邀请尚未有成员确认")
-            }
-            return .healthy
+            return try await service.reconcileOwnerMembership(shareLocator: shareLocator)
         } catch {
             if let sharing = error as? CompanionSharingError,
                sharing == .sessionNotFound {
