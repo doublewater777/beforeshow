@@ -74,10 +74,25 @@ struct AddShowCoordinatorSheet: View {
     var intent: AddShowIntent = .upcoming
     /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
     var allowsBrowseSkip: Bool = false
+    /// Skip method picker and open a specific flow. Only for tests / deep links — normal entry leaves this nil.
+    var initialSheet: AddShowSheet? = nil
     var onShowAdded: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSheet: AddShowSheet?
+
+    init(
+        intent: AddShowIntent = .upcoming,
+        allowsBrowseSkip: Bool = false,
+        initialSheet: AddShowSheet? = nil,
+        onShowAdded: @escaping () -> Void = {}
+    ) {
+        self.intent = intent
+        self.allowsBrowseSkip = allowsBrowseSkip
+        self.initialSheet = initialSheet
+        self.onShowAdded = onShowAdded
+        _selectedSheet = State(initialValue: initialSheet)
+    }
 
     var body: some View {
         Group {
@@ -110,14 +125,6 @@ struct AddShowCoordinatorSheet: View {
             }
         }
         .preferredColorScheme(.dark)
-        #if DEBUG
-        .task {
-            guard ProcessInfo.processInfo.arguments.contains("--open-add-show-manual") else {
-                return
-            }
-            selectedSheet = .manual
-        }
-        #endif
     }
 }
 
@@ -140,7 +147,7 @@ enum AddShowPersistenceCoordinator {
         in modelContext: ModelContext
     ) throws -> NotificationSchedulingState? {
         if intent == .historicalBackfill {
-            let timeState = CurrentShowTimeState(show: show)
+            let timeState = CurrentShowTimeState(show: show, now: Date())
             guard timeState.kind == .postShow || timeState.kind == .ended else {
                 throw AddShowPersistenceError.historicalBackfillRequiresCompletedShow
             }
@@ -189,9 +196,9 @@ struct AddShowMethodButtons: View {
 
     var body: some View {
         Button {
-            addSheet = .link
+            addSheet = .manual
         } label: {
-            Label("链接解析", systemImage: "link")
+            Label("手动添加", systemImage: "square.and.pencil")
         }
 
         Button {
@@ -201,9 +208,9 @@ struct AddShowMethodButtons: View {
         }
 
         Button {
-            addSheet = .manual
+            addSheet = .link
         } label: {
-            Label("手动添加", systemImage: "square.and.pencil")
+            Label("链接解析", systemImage: "link")
         }
     }
 }
@@ -259,34 +266,30 @@ private struct AddShowEntryView: View {
 
                         VStack(spacing: BSSpacing.md) {
                             AddShowMethodCard(
-                                title: "链接解析",
-                                subtitle: "粘贴大麦或秀动的链接，自动提取名称、时间、场馆。",
-                                iconName: "link",
-                                tint: BSColor.Stage.accent,
-                                isRecommended: true,
-                                metaItems: ["约 5 秒", "支持大麦 · 秀动"]
+                                title: "手动填写",
+                                subtitle: "自己填写现场的基本信息。",
+                                iconName: "square.and.pencil",
+                                tint: BSColor.Accent.prepare
                             ) {
-                                onSelect(.link)
+                                onSelect(.manual)
                             }
 
                             AddShowMethodCard(
                                 title: "截图识别",
                                 subtitle: "选择票务截图，设备端识别名称、时间、场馆，不上传。",
                                 iconName: "camera.fill",
-                                tint: BSColor.Accent.violet,
-                                metaItems: ["设备端识别", "截图不离开手机"]
+                                tint: BSColor.Accent.violet
                             ) {
                                 onSelect(.screenshot)
                             }
 
                             AddShowMethodCard(
-                                title: "手动填写",
-                                subtitle: "没有链接或截图时，自己填写现场的基本信息。",
-                                iconName: "square.and.pencil",
-                                tint: BSColor.Accent.prepare,
-                                metaItems: ["约 1 分钟", "只填名称和时间也行"]
+                                title: "链接解析",
+                                subtitle: "粘贴大麦或秀动的链接，自动提取名称、时间、场馆。",
+                                iconName: "link",
+                                tint: BSColor.Stage.accent
                             ) {
-                                onSelect(.manual)
+                                onSelect(.link)
                             }
                         }
 
@@ -338,7 +341,7 @@ struct AddShowFlowView: View {
     @State private var showsProMembership = false
     @State private var showsProSaveLimit = false
     @State private var toast: BSToastPayload?
-    @State private var temporaryCoverURLs: Set<String> = []
+    @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
@@ -347,9 +350,6 @@ struct AddShowFlowView: View {
     @State private var importRequestRevision = 0
     /// 当前进行中的解析 / OCR 任务；关闭页面时取消，避免后台继续写回。
     @State private var importTask: Task<Void, Never>?
-    /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
-    @State private var fallbackDateConfirmed = false
-
     init(
         sheet: AddShowSheet,
         intent: AddShowIntent = .upcoming,
@@ -400,14 +400,9 @@ struct AddShowFlowView: View {
                         if shouldShowDraftFields {
                             ShowDraftFormFields(
                                 draft: $draft,
-                                usesCardLayout: true,
                                 recognizedHighlight: hasImportedDraft,
                                 coverEmptyPlaceholder: true,
-                                requiresDateConfirmation: needsDateConfirmation,
-                                onConfirmFallbackDate: {
-                                    fallbackDateConfirmed = true
-                                },
-                                onCoverImported: registerImportedCover
+                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
                             )
                             // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
                             .id(importRevision)
@@ -445,7 +440,7 @@ struct AddShowFlowView: View {
             // 页面离开时作废进行中的导入，避免任务在 dismiss 后继续写状态 / 弹 toast
             abandonInFlightImport()
             guard !didSave else { return }
-            cleanupTemporaryCovers()
+            coverLifecycle.cancel()
         }
         .sheet(isPresented: $showsProMembership) {
             ProMembershipSheetView()
@@ -466,9 +461,9 @@ struct AddShowFlowView: View {
 
     // MARK: - 顶部导航（与编辑现场同一 sheet 语言）
 
-    /// 识别完成后进入「确认现场信息」语义，呼应确认页必达（链接/OCR 不静默保存）。
+    /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
-        hasImportedDraft ? "确认现场信息" : sheet.navigationTitle
+        sheet.navigationTitle
     }
 
     private var flowNavBar: some View {
@@ -515,16 +510,21 @@ struct AddShowFlowView: View {
         draft.recognizedFields.count
     }
 
-    /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
-    private var needsDateConfirmation: Bool {
-        hasImportedDraft
-            && !draft.recognizedFields.contains(.date)
-            && !fallbackDateConfirmed
-    }
-
     /// 链接解析或截图识别进行中：此时旧草稿不可保存/编辑，避免保存到上一次结果。
     private var isImportingDraft: Bool {
         isParsingLink || isRecognizingScreenshot
+    }
+
+    /// 导入结果按手动填写同等默认：缺开场时间就预填 19:30，用户自己改。
+    private func applyImportDefaults(to draft: inout ShowDraft) {
+        if draft.startTime == nil {
+            draft.startTime = Calendar.current.date(
+                bySettingHour: 19,
+                minute: 30,
+                second: 0,
+                of: draft.date
+            )
+        }
     }
 
     @ViewBuilder
@@ -539,97 +539,97 @@ struct AddShowFlowView: View {
         }
     }
 
+    @ViewBuilder
     private var linkContent: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            EditShowFormCard(
-                title: "票务链接",
-                icon: "link",
-                tint: BSColor.Stage.accent,
-                hint: "粘贴后自动识别来源"
-            ) {
-                AddShowMultilineInput(
-                    placeholder: "https://...",
-                    text: $linkText,
-                    minHeight: 96,
-                    keyboardType: .URL
-                )
-                // 解析期间锁定输入，避免返回结果与当前输入不一致
-                .disabled(isParsingLink)
-                .opacity(isParsingLink ? 0.55 : 1)
+        // 解析成功后只留结果表单；失败时保留输入与失败卡方便重试
+        if !hasImportedDraft {
+            VStack(alignment: .leading, spacing: BSSpacing.md) {
+                EditShowFormCard(
+                    title: "票务链接",
+                    icon: "link",
+                    tint: BSColor.Stage.accent
+                ) {
+                    AddShowMultilineInput(
+                        placeholder: "https://...",
+                        text: $linkText,
+                        minHeight: 96,
+                        keyboardType: .URL
+                    )
+                    // 解析期间锁定输入，避免返回结果与当前输入不一致
+                    .disabled(isParsingLink)
+                    .opacity(isParsingLink ? 0.55 : 1)
 
-                if let detectedLinkSource {
-                    HStack(spacing: 8) {
-                        Text("已识别来源")
-                            .font(.system(size: 12))
-                            .foregroundColor(BSColor.textTertiary)
+                    if let detectedLinkSource {
+                        HStack(spacing: 8) {
+                            Text("已识别来源")
+                                .font(.system(size: 12))
+                                .foregroundColor(BSColor.textTertiary)
 
-                        HStack(spacing: 5) {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 10, weight: .bold))
-                            Text(detectedLinkSource)
+                            HStack(spacing: 5) {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                Text(detectedLinkSource)
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(BSColor.Accent.prepare)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(BSColor.Accent.prepare.opacity(0.10))
+                            .clipShape(Capsule())
+                            .overlay(
+                                Capsule()
+                                    .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
+                            )
                         }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(BSColor.Accent.prepare)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(BSColor.Accent.prepare.opacity(0.10))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule()
-                                .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
-                        )
+                        .accessibilityElement(children: .combine)
                     }
-                    .accessibilityElement(children: .combine)
+
+                    Button {
+                        dismissKeyboard()
+                        beginImportTask {
+                            await parseLink()
+                        }
+                    } label: {
+                        HStack(spacing: BSSpacing.sm) {
+                            if isParsingLink {
+                                ProgressView()
+                                    .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                            }
+                            Text(isParsingLink ? "正在解析…" : "开始解析")
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(EditShowSaveButtonStyle())
+                    .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
+
+                    Text("目前支持：大麦、秀动")
+                        .font(.system(size: 12))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Button {
-                    dismissKeyboard()
-                    beginImportTask {
-                        await parseLink()
-                    }
-                } label: {
-                    HStack(spacing: BSSpacing.sm) {
-                        if isParsingLink {
-                            ProgressView()
-                                .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                if let linkFailure, !isParsingLink {
+                    AddShowLinkFailureCard(
+                        failure: linkFailure,
+                        onRetry: {
+                            guard !isParsingLink else { return }
+                            self.linkFailure = nil
+                            linkText = ""
+                        },
+                        onManual: {
+                            showsManualFallback = true
                         }
-                        Text(isParsingLink ? "正在解析…" : "开始解析")
-                    }
-                    .frame(maxWidth: .infinity)
+                    )
                 }
-                .buttonStyle(EditShowSaveButtonStyle())
-                .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
-
-                AddShowNoteCard(
-                    text: "解析通常 5 秒内完成，失败也能转手动填写，已填内容会保留。",
-                    iconName: "info.circle"
-                )
             }
-
-            if let linkFailure, !isParsingLink {
-                AddShowLinkFailureCard(
-                    failure: linkFailure,
-                    onRetry: {
-                        guard !isParsingLink else { return }
-                        self.linkFailure = nil
-                        linkText = ""
-                    },
-                    onManual: {
-                        showsManualFallback = true
-                    }
-                )
-            }
-
-            AddShowNoteCard(
-                text: "目前支持：大麦、秀动。其他来源的链接会提示你转手动填写。",
-                iconName: "link"
-            )
         }
     }
 
     private var screenshotContent: some View {
         let isRecognizing = isRecognizingScreenshot
+        // 识别成功后只留结果表单，不再占位「点选截图」和隐私说明
+        let showsPicker = !hasImportedDraft
 
         return VStack(alignment: .leading, spacing: BSSpacing.md) {
             if isRecognizing {
@@ -644,61 +644,57 @@ struct AddShowFlowView: View {
                 }
             }
 
-            PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
-                VStack(spacing: BSSpacing.md) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(BSColor.Accent.violet.opacity(0.13))
-                            .frame(width: 64, height: 64)
-                        Image(systemName: isRecognizing ? "text.viewfinder" : "camera.fill")
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundColor(BSColor.Accent.violet)
+            if showsPicker {
+                PhotosPicker(selection: $selectedScreenshotItem, matching: .images) {
+                    VStack(spacing: BSSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 20)
+                                .fill(BSColor.Accent.violet.opacity(0.13))
+                                .frame(width: 64, height: 64)
+                            Image(systemName: isRecognizing ? "text.viewfinder" : "camera.fill")
+                                .font(.system(size: 26, weight: .semibold))
+                                .foregroundColor(BSColor.Accent.violet)
+                        }
+
+                        Text(isRecognizing ? "重新选择截图" : "点击选择截图")
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundColor(BSColor.textSecondary)
+
+                        Text("建议包含现场名称、日期、场馆的页面")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.textTertiary)
                     }
-
-                    Text(isRecognizing ? "重新选择截图" : "点击选择截图")
-                        .font(.system(size: 14.5, weight: .semibold))
-                        .foregroundColor(BSColor.textSecondary)
-
-                    Text("建议包含现场名称、日期、场馆的页面")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: isRecognizing ? 200 : 280)
+                    .padding(.vertical, BSSpacing.xl)
+                    .background(Color.white.opacity(0.025))
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(
+                                BSColor.Accent.violet.opacity(0.40),
+                                style: StrokeStyle(lineWidth: 2, dash: [7, 7])
+                            )
+                    )
                 }
-                .frame(maxWidth: .infinity)
-                .frame(minHeight: isRecognizing ? 200 : 280)
-                .padding(.vertical, BSSpacing.xl)
-                .background(Color.white.opacity(0.025))
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 24)
-                        .stroke(
-                            BSColor.Accent.violet.opacity(0.40),
-                            style: StrokeStyle(lineWidth: 2, dash: [7, 7])
-                        )
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(isRecognizing)
-            .simultaneousGesture(TapGesture().onEnded {
-                dismissKeyboard()
-            })
+                .buttonStyle(.plain)
+                .disabled(isRecognizing)
+                .simultaneousGesture(TapGesture().onEnded {
+                    dismissKeyboard()
+                })
 
-            if showsManualFallback && sheet == .screenshot && !hasImportedDraft {
-                BSEmptyPanel(
-                    iconName: "text.viewfinder",
-                    title: "截图识别失败",
-                    message: "没有识别到可用的现场信息。可以继续在下方手动填写。",
-                    buttonTitle: "手动填写",
-                    buttonIconName: "square.and.pencil"
-                ) {
-                    showsManualFallback = true
+                if showsManualFallback && sheet == .screenshot {
+                    BSEmptyPanel(
+                        iconName: "text.viewfinder",
+                        title: "截图识别失败",
+                        message: "没有识别到可用的现场信息。可以继续在下方手动填写。",
+                        buttonTitle: "手动填写",
+                        buttonIconName: "square.and.pencil"
+                    ) {
+                        showsManualFallback = true
+                    }
                 }
             }
-
-            AddShowNoteCard(
-                text: "识别用于生成草稿的是名称、时间、场馆；座位、价格、订单号不会用于生成草稿或保存；截图不离开这台设备。",
-                iconName: "lock.shield"
-            )
-
         }
     }
 
@@ -738,7 +734,7 @@ struct AddShowFlowView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
-            .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
+            .disabled(!draft.isReadyToSave || isSaving || isImportingDraft)
             .accessibilityLabel(
                 isImportingDraft
                     ? "正在导入，暂不可保存"
@@ -762,8 +758,7 @@ struct AddShowFlowView: View {
     }
 
     private func saveProgressSegment(filled: Bool) -> some View {
-        // 导入中 / 日期未确认都不算就绪，避免进度条全绿但保存仍被挡住
-        let ready = draft.isReadyToSave && !needsDateConfirmation && !isImportingDraft
+        let ready = draft.isReadyToSave && !isImportingDraft
         let fill: Color = filled
             ? (ready ? BSColor.Accent.prepare : BSColor.Stage.accent)
             : Color.white.opacity(0.10)
@@ -783,7 +778,7 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
+    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 开场时间 → 时间范围）。
     private var saveBarStatus: SaveBarStatus {
         if isImportingDraft {
             return SaveBarStatus(
@@ -794,15 +789,9 @@ struct AddShowFlowView: View {
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
         }
-        if needsDateConfirmation {
-            return SaveBarStatus(
-                text: "还差确认开场日期 · 截图没读到日期，已先填今天",
-                tint: BSColor.Stage.muted
-            )
-        }
         if draft.startTime == nil {
             return SaveBarStatus(
-                text: "还差开场时间 · 用于开场前提醒，可先填大概时间",
+                text: "还差开场时间",
                 tint: BSColor.Stage.muted
             )
         }
@@ -812,14 +801,8 @@ struct AddShowFlowView: View {
                 tint: BSColor.Accent.danger
             )
         }
-        if sheet == .manual {
-            return SaveBarStatus(
-                text: "可以保存了 · 封面和更多信息可添加后再补充",
-                tint: BSColor.Stage.dim
-            )
-        }
         return SaveBarStatus(
-            text: "请核对识别出的信息，确认后保存",
+            text: "可以添加了 · 封面等可之后再补",
             tint: BSColor.Stage.dim
         )
     }
@@ -828,7 +811,7 @@ struct AddShowFlowView: View {
         dismissKeyboard()
         // 允许导入中返回/取消；先作废任务，再关页面
         abandonInFlightImport()
-        cleanupTemporaryCovers()
+        coverLifecycle.cancel()
         if let onBack {
             onBack()
         } else {
@@ -910,16 +893,17 @@ struct AddShowFlowView: View {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard isActiveImportRequest(requestRevision) else { return }
 
-            draft = recognized
+            var nextDraft = recognized
+            applyImportDefaults(to: &nextDraft)
+            draft = nextDraft
             hasImportedDraft = true
             showsManualFallback = false
             importRevision += 1
-            fallbackDateConfirmed = false
+            // 缺字段已用默认值填好；轻提示即可，不挡保存
             if !recognized.recognizedFields.contains(.date) {
-                // OCR 日期回退为当天不算识别成功，必须引导用户确认
-                message = "截图里没有识别到日期，已先填今天，请改成实际开场日期。"
-            } else if recognized.startTime == nil {
-                message = "已识别部分信息，请确认日期并补充开场时间。"
+                message = "没读到开场日期，已先填今天，可自行修改。"
+            } else if !recognized.recognizedFields.contains(.startTime) {
+                message = "没读到开场时间，已先填 19:30，可自行修改。"
             } else {
                 message = nil
             }
@@ -953,17 +937,19 @@ struct AddShowFlowView: View {
         }
 
         do {
-            let parsed = try await linkParser.draft(from: requestedLink)
+            var parsed = try await linkParser.draft(from: requestedLink)
             guard isActiveImportRequest(requestRevision) else { return }
+            applyImportDefaults(to: &parsed)
             draft = parsed
             hasImportedDraft = true
             showsManualFallback = false
             linkFailure = nil
             importRevision += 1
-            fallbackDateConfirmed = false
-            message = draft.startTime == nil
-                ? "链接里没有明确开场时间，请确认后再添加。"
-                : nil
+            if !parsed.recognizedFields.contains(.startTime) {
+                message = "链接里没有开场时间，已先填 19:30，可自行修改。"
+            } else {
+                message = nil
+            }
             presentToast(.success, message: "解析完成")
         } catch is CancellationError {
             return
@@ -983,8 +969,6 @@ struct AddShowFlowView: View {
         guard !isSaving else { return }
         // 重新解析 / 识别期间只允许保存新结果，避免写入上一次草稿
         guard !isImportingDraft else { return }
-        // OCR 回退日期未确认时不允许保存，与保存栏状态文案一致
-        guard !needsDateConfirmation else { return }
         isSaving = true
         dismissKeyboard()
 
@@ -1011,7 +995,7 @@ struct AddShowFlowView: View {
                 await activateNotifications(for: show, state: notificationState)
             }
             didSave = true
-            finalizeTemporaryCovers(keeping: draft.coverImageURL)
+            coverLifecycle.finalize(keeping: draft.coverImageURL)
 
             if let onSaved {
                 onSaved()
@@ -1062,28 +1046,6 @@ struct AddShowFlowView: View {
         }
 
         await center.applyFocusChange(to: show, in: modelContext)
-    }
-
-    private func registerImportedCover(previous: String, new: String) {
-        if temporaryCoverURLs.contains(previous) {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: previous)
-            temporaryCoverURLs.remove(previous)
-        }
-        temporaryCoverURLs.insert(new)
-    }
-
-    private func cleanupTemporaryCovers() {
-        for urlString in temporaryCoverURLs {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
-        }
-        temporaryCoverURLs.removeAll()
-    }
-
-    private func finalizeTemporaryCovers(keeping keptURL: String) {
-        for urlString in temporaryCoverURLs where urlString != keptURL {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
-        }
-        temporaryCoverURLs.removeAll()
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -1141,6 +1103,51 @@ enum ShowCoverLocalImageStore {
 
 }
 
+/// Tracks imported cover URLs that haven't been committed to a saved 现场, and owns
+/// the temp-to-permanent lifecycle: commit one on save, discard the rest on cancel.
+///
+/// Deletion test: without this, `AddShowFlowView` and `ShowDraftEditorView` each
+/// re-implemented register/cleanup/finalize over `ShowCoverLocalImageStore`; a cleanup
+/// bug had to be fixed twice. The store stays an internal detail; this is the module
+/// callers touch. `remove` is injected so tests assert keep/discard logic without file I/O.
+struct ShowCoverLifecycle {
+    private let remove: (String) -> Void
+    private var temporaryCoverURLs: Set<String> = []
+
+    init(remove: @escaping (String) -> Void = ShowCoverLocalImageStore.removeManagedLocalImage(at:)) {
+        self.remove = remove
+    }
+
+    /// A newly imported cover replaces `previous` (if it was temp) and is tracked as temp.
+    mutating func register(previous: String, new: String) {
+        if temporaryCoverURLs.contains(previous) {
+            remove(previous)
+            temporaryCoverURLs.remove(previous)
+        }
+        temporaryCoverURLs.insert(new)
+    }
+
+    /// Cancel: discard every temp cover.
+    mutating func cancel() {
+        for urlString in temporaryCoverURLs {
+            remove(urlString)
+        }
+        temporaryCoverURLs.removeAll()
+    }
+
+    /// Commit on save: keep `keptURL`, discard every other temp, plus any
+    /// `additionalDiscards` (e.g. an original cover replaced during edit).
+    mutating func finalize(keeping keptURL: String?, additionalDiscards: [String] = []) {
+        for urlString in temporaryCoverURLs where urlString != keptURL {
+            remove(urlString)
+        }
+        for urlString in additionalDiscards where urlString != keptURL {
+            remove(urlString)
+        }
+        temporaryCoverURLs.removeAll()
+    }
+}
+
 /// 状态操作结果：文案 + 提示语气，避免保存失败被显示成绿色成功 toast。
 struct ShowStatusActionResult {
     let tone: BSToastTone
@@ -1181,7 +1188,7 @@ struct ShowDraftEditorView: View {
     @State private var message: String?
     @State private var isSaving = false
     @State private var showsDiscardConfirmation = false
-    @State private var temporaryCoverURLs: Set<String> = []
+    @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var postponeDate = Date()
     @State private var showsPostponeSheet = false
@@ -1237,9 +1244,7 @@ struct ShowDraftEditorView: View {
 
                         ShowDraftFormFields(
                             draft: $draft,
-                            includesSeatSection: true,
-                            usesCardLayout: true,
-                            onCoverImported: registerImportedCover
+                            onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
                         )
 
                         if let statusEditing {
@@ -1320,7 +1325,7 @@ struct ShowDraftEditorView: View {
         .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
             Button("继续编辑", role: .cancel) {}
             Button("放弃修改", role: .destructive) {
-                cleanupTemporaryCovers()
+                coverLifecycle.cancel()
                 dismiss()
             }
         } message: {
@@ -1328,7 +1333,7 @@ struct ShowDraftEditorView: View {
         }
         .onDisappear {
             guard !didSave else { return }
-            cleanupTemporaryCovers()
+            coverLifecycle.cancel()
         }
     }
 
@@ -1705,7 +1710,7 @@ struct ShowDraftEditorView: View {
             Text(message)
                 .foregroundColor(BSColor.Accent.danger)
         } else if !isEndTimeRangeValid {
-            Text("时间范围无效，修正后才能保存")
+            Text("结束时间需晚于开始，修正后才能保存")
                 .foregroundColor(BSColor.Stage.muted)
         } else if hasUnsavedChanges {
             HStack(spacing: 7) {
@@ -1727,7 +1732,7 @@ struct ShowDraftEditorView: View {
         if hasUnsavedChanges {
             showsDiscardConfirmation = true
         } else {
-            cleanupTemporaryCovers()
+            coverLifecycle.cancel()
             dismiss()
         }
     }
@@ -1746,7 +1751,7 @@ struct ShowDraftEditorView: View {
 
         do {
             try await onSave(draft)
-            finalizeCoverEdit()
+            coverLifecycle.finalize(keeping: draft.coverImageURL, additionalDiscards: [originalCoverURL])
             didSave = true
             dismiss()
         } catch {
@@ -1755,47 +1760,15 @@ struct ShowDraftEditorView: View {
         }
     }
 
-    private func registerImportedCover(previous: String, new: String) {
-        if temporaryCoverURLs.contains(previous) {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: previous)
-            temporaryCoverURLs.remove(previous)
-        }
-        temporaryCoverURLs.insert(new)
-    }
-
-    private func cleanupTemporaryCovers() {
-        for urlString in temporaryCoverURLs {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
-        }
-        temporaryCoverURLs.removeAll()
-    }
-
-    private func finalizeCoverEdit() {
-        for urlString in temporaryCoverURLs where urlString != draft.coverImageURL {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: urlString)
-        }
-        if originalCoverURL != draft.coverImageURL {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: originalCoverURL)
-        }
-        temporaryCoverURLs.removeAll()
-    }
 }
 
 private struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
-    let includesSeatSection: Bool
-    /// true 时按编辑现场的卡片布局渲染（基本信息 / 日期时间 / 地点 / 封面四张卡）；
-    /// false 保持添加现场流程的平铺分组不变。
-    let usesCardLayout: Bool
-    /// 添加现场·识别导入（链接 / 截图）：进入表单时已有值的字段标「✓ 已识别」薄荷绿描边，
-    /// 缺失的开场时间金色标出。标记以进入表单时的草稿为准，用户后续改动不撤销标记。
+    /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边；
+    /// 识别结果直接可改可存，不再二次确认。
     let recognizedHighlight: Bool
-    /// 添加现场：无封面时显示虚线引导占位，封面卡标注「可选 · 保存后也能加」。
+    /// 添加现场：无封面时显示虚线引导占位。
     let coverEmptyPlaceholder: Bool
-    /// OCR 未识别日期（回退为今天）且未确认：日期瓷贴金色「待确认」并显示确认按钮；
-    /// 由父视图持有确认状态并纳入保存资格。
-    let requiresDateConfirmation: Bool
-    let onConfirmFallbackDate: () -> Void
     let onCoverImported: (String, String) -> Void
     @State private var startTime: Date
     @State private var hasEndTime: Bool
@@ -1828,12 +1801,8 @@ private struct ShowDraftFormFields: View {
 
     init(
         draft: Binding<ShowDraft>,
-        includesSeatSection: Bool = false,
-        usesCardLayout: Bool = false,
         recognizedHighlight: Bool = false,
         coverEmptyPlaceholder: Bool = false,
-        requiresDateConfirmation: Bool = false,
-        onConfirmFallbackDate: @escaping () -> Void = {},
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
@@ -1852,12 +1821,8 @@ private struct ShowDraftFormFields: View {
         ) ?? initialEndDate
 
         self._draft = draft
-        self.includesSeatSection = includesSeatSection
-        self.usesCardLayout = usesCardLayout
         self.recognizedHighlight = recognizedHighlight
         self.coverEmptyPlaceholder = coverEmptyPlaceholder
-        self.requiresDateConfirmation = requiresDateConfirmation
-        self.onConfirmFallbackDate = onConfirmFallbackDate
         self.onCoverImported = onCoverImported
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
@@ -1867,11 +1832,11 @@ private struct ShowDraftFormFields: View {
     }
 
     var body: some View {
-        Group {
-            if usesCardLayout {
-                cardLayout
-            } else {
-                legacyLayout
+        formCards
+        .onAppear {
+            // 与手动填写一致：打开表单即写入开场时间，不要求再点确认
+            if draft.startTime == nil {
+                draft.startTime = mergedStartTime()
             }
         }
         .onChange(of: hasEndTime) { _, newValue in
@@ -1915,8 +1880,8 @@ private struct ShowDraftFormFields: View {
         }
     }
 
-    /// 编辑现场：四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
-    private var cardLayout: some View {
+    /// 四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
+    private var formCards: some View {
         VStack(alignment: .leading, spacing: 18) {
             EditShowFormCard(title: "基本信息", icon: "square.and.pencil", tint: BSColor.Stage.accent) {
                 AddShowLabeledTextField(
@@ -1934,14 +1899,6 @@ private struct ShowDraftFormFields: View {
                     isRecognized: artistRecognized
                 )
 
-                if includesSeatSection {
-                    AddShowLabeledTextField(
-                        title: "座位或区域",
-                        placeholder: "看台 / 内场 / 排号",
-                        text: $draft.seatSection
-                    )
-                }
-
                 if !draft.artistAvatarURLs.isEmpty {
                     ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)
                 }
@@ -1950,23 +1907,16 @@ private struct ShowDraftFormFields: View {
             EditShowFormCard(
                 title: "日期与时间",
                 icon: "clock",
-                tint: BSColor.Accent.violet,
-                hint: "开场必填 · 散场可选"
+                tint: BSColor.Accent.violet
             ) {
                 AddShowScheduleFields(
                     draft: $draft,
                     startTime: $startTime,
-                    isStartTimeConfirmed: draft.startTime != nil,
-                    onConfirmStartTime: {
-                        draft.startTime = mergedStartTime()
-                    },
                     hasEndTime: $hasEndTime,
                     endDate: $endDate,
                     endTime: $endTime,
                     dateRecognized: dateRecognized,
-                    dateNeeded: requiresDateConfirmation,
-                    startTimeRecognized: startTimeRecognized,
-                    onConfirmFallbackDate: onConfirmFallbackDate
+                    startTimeRecognized: startTimeRecognized
                 )
 
                 if draft.startTime != nil && !draft.hasValidEndTime() {
@@ -1991,22 +1941,12 @@ private struct ShowDraftFormFields: View {
                     text: $draft.venueName,
                     isRecognized: venueRecognized
                 )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，方便到场",
-                    text: $draft.venueAddress,
-                    city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
-                )
             }
 
             EditShowFormCard(
                 title: "封面",
                 icon: "photo",
-                tint: BSColor.Stage.accent,
-                hint: coverEmptyPlaceholder ? "可选 · 保存后也能加" : nil
+                tint: BSColor.Stage.accent
             ) {
                 if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     ShowDraftCoverPreview(urlString: draft.coverImageURL)
@@ -2015,12 +1955,12 @@ private struct ShowDraftFormFields: View {
                         Image(systemName: "photo")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(BSColor.Accent.violet)
-                        Text("暂无封面 · 保存后也能补充")
+                        Text("还没加封面")
                             .font(.system(size: 12.5))
                             .foregroundColor(BSColor.Stage.dim)
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 96)
+                    .frame(height: 88)
                     .background(Color.white.opacity(0.025))
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(
@@ -2032,139 +1972,21 @@ private struct ShowDraftFormFields: View {
                     )
                 }
 
-                AddShowCoverImportField(
+                AddShowCoverActions(
                     selectedItem: $selectedCoverItem,
+                    showsLinkField: $showsCoverLinkField,
                     isImporting: isImportingCover,
                     message: coverImportMessage
                 )
 
-                DisclosureGroup(isExpanded: $showsCoverLinkField) {
+                if showsCoverLinkField {
                     AddShowLabeledTextField(
                         title: "图片链接",
                         placeholder: "https://...",
                         text: $draft.coverImageURL,
                         keyboardType: .URL
                     )
-                    .padding(.top, BSSpacing.sm)
-                } label: {
-                    Label(
-                        showsCoverLinkField ? "收起图片链接" : "使用图片链接",
-                        systemImage: "link"
-                    )
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
                 }
-                .tint(BSColor.textTertiary)
-            }
-        }
-    }
-
-    /// 添加现场流程：保持原有平铺分组，仅把封面预览换成不裁切的 3:4 海报预览。
-    private var legacyLayout: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.md) {
-            if !draft.coverImageURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                AddShowFieldGroup(title: "当前封面") {
-                    ShowDraftCoverPreview(urlString: draft.coverImageURL)
-                }
-            }
-
-            if !draft.artistAvatarURLs.isEmpty {
-                AddShowFieldGroup(title: "艺人头像") {
-                    ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)
-                }
-            }
-
-            AddShowFieldGroup(title: "基本信息") {
-                AddShowLabeledTextField(
-                    title: "现场名称",
-                    placeholder: "例：五月天上海演唱会",
-                    text: $draft.name,
-                    isRequired: true
-                )
-
-                AddShowLabeledTextField(
-                    title: "艺人 / 阵容",
-                    placeholder: "五月天",
-                    text: $draft.artist
-                )
-
-                if includesSeatSection {
-                    AddShowLabeledTextField(
-                        title: "座位或区域",
-                        placeholder: "看台 / 内场 / 排号",
-                        text: $draft.seatSection
-                    )
-                }
-            }
-
-            AddShowFieldGroup(title: "日期与时间") {
-                AddShowScheduleFields(
-                    draft: $draft,
-                    startTime: $startTime,
-                    isStartTimeConfirmed: draft.startTime != nil,
-                    onConfirmStartTime: {
-                        draft.startTime = mergedStartTime()
-                    },
-                    hasEndTime: $hasEndTime,
-                    endDate: $endDate,
-                    endTime: $endTime
-                )
-
-                if draft.startTime != nil && !draft.hasValidEndTime() {
-                    Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Accent.danger)
-                        .accessibilityLabel("时间范围无效，结束时间需要晚于开始时间")
-                }
-            }
-
-            AddShowFieldGroup(title: "地点") {
-                AddShowLabeledTextField(
-                    title: "城市",
-                    placeholder: "上海",
-                    text: $draft.city
-                )
-
-                AddShowLabeledTextField(
-                    title: "场馆",
-                    placeholder: "上海体育场",
-                    text: $draft.venueName
-                )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，方便到场",
-                    text: $draft.venueAddress,
-                    city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
-                )
-            }
-
-            AddShowFieldGroup(title: "更换封面") {
-                AddShowCoverImportField(
-                    selectedItem: $selectedCoverItem,
-                    isImporting: isImportingCover,
-                    message: coverImportMessage
-                )
-
-                DisclosureGroup(isExpanded: $showsCoverLinkField) {
-                    AddShowLabeledTextField(
-                        title: "图片链接",
-                        placeholder: "https://...",
-                        text: $draft.coverImageURL,
-                        keyboardType: .URL
-                    )
-                    .padding(.top, BSSpacing.sm)
-                } label: {
-                    Label(
-                        showsCoverLinkField ? "收起图片链接" : "使用图片链接",
-                        systemImage: "link"
-                    )
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                }
-                .tint(BSColor.textTertiary)
             }
         }
     }
@@ -2216,7 +2038,7 @@ private struct ShowDraftFormFields: View {
             let previousURL = draft.coverImageURL
             draft.coverImageURL = fileURL.absoluteString
             onCoverImported(previousURL, draft.coverImageURL)
-            coverImportMessage = "已使用本地封面图"
+            coverImportMessage = "已换成本地封面"
         } catch {
             coverImportMessage = "封面图导入失败"
         }
@@ -2228,8 +2050,6 @@ private struct AddShowMethodCard: View {
     let subtitle: String
     let iconName: String
     let tint: Color
-    var isRecommended: Bool = false
-    var metaItems: [String] = []
     let action: () -> Void
 
     var body: some View {
@@ -2245,56 +2065,16 @@ private struct AddShowMethodCard: View {
                 .frame(width: 50, height: 50)
 
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    HStack(spacing: 8) {
-                        Text(title)
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundColor(BSColor.textPrimary)
-                            .lineLimit(1)
-
-                        if isRecommended {
-                            Text("推荐")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(Color(red: 0.15, green: 0.11, blue: 0.04))
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(
-                                    LinearGradient(
-                                        colors: [
-                                            Color(red: 0.82, green: 0.67, blue: 0.42),
-                                            BSColor.Stage.accent
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                )
-                                .clipShape(Capsule())
-                        }
-                    }
+                    Text(title)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(BSColor.textPrimary)
+                        .lineLimit(1)
 
                     Text(subtitle)
                         .font(.system(size: 12.5))
                         .foregroundColor(BSColor.textTertiary)
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    if !metaItems.isEmpty {
-                        HStack(spacing: 6) {
-                            ForEach(metaItems, id: \.self) { item in
-                                Text(item)
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(BSColor.Stage.dim)
-                                    .padding(.horizontal, 9)
-                                    .padding(.vertical, 3)
-                                    .background(Color.white.opacity(0.05))
-                                    .clipShape(Capsule())
-                                    .overlay(
-                                        Capsule()
-                                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
-                                    )
-                            }
-                        }
-                        .padding(.top, 2)
-                    }
                 }
 
                 Spacer(minLength: 0)
@@ -2306,49 +2086,17 @@ private struct AddShowMethodCard: View {
             }
             .padding(18)
             .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 22)
-                        .fill(BSColor.Stage.surface)
-                    if isRecommended {
-                        RoundedRectangle(cornerRadius: 22)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        BSColor.Stage.accent.opacity(0.07),
-                                        Color.clear
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                    }
-                }
+                RoundedRectangle(cornerRadius: 22)
+                    .fill(BSColor.Stage.surface)
             )
             .clipShape(RoundedRectangle(cornerRadius: 22))
             .overlay(
                 RoundedRectangle(cornerRadius: 22)
-                    .stroke(
-                        isRecommended ? BSColor.Stage.accent.opacity(0.38) : BSColor.Stage.border,
-                        lineWidth: 1
-                    )
+                    .stroke(BSColor.Stage.border, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(isRecommended ? "\(title)，推荐" : title)
-    }
-}
-
-private struct AddShowFieldGroup<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            BSSectionHeader(title: title)
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                content
-            }
-        }
+        .accessibilityLabel(title)
     }
 }
 
@@ -2386,42 +2134,30 @@ private struct AddShowLabeledTextField: View {
 private struct AddShowScheduleFields: View {
     @Binding var draft: ShowDraft
     @Binding var startTime: Date
-    let isStartTimeConfirmed: Bool
-    let onConfirmStartTime: () -> Void
     @Binding var hasEndTime: Bool
     @Binding var endDate: Date
     @Binding var endTime: Date
     /// 识别导入：开场日期标「已识别」薄荷绿描边。
     var dateRecognized: Bool = false
-    /// 识别导入但日期是回退值（OCR 没读到日期）：金色「待确认」+ 确认按钮。
-    var dateNeeded: Bool = false
-    /// 识别导入且开场时间已确认：标「已识别」；未确认时金色「待确认」。
+    /// 识别导入：开场时间标「已识别」。
     var startTimeRecognized: Bool = false
-    /// 日期回退值的确认回调：点确认按钮或手动改日期都会触发。
-    var onConfirmFallbackDate: () -> Void = {}
 
-    private let columns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
+    /// 两列瓷贴中间固定间距，不被中文长日期挤没。
+    private static let columnSpacing: CGFloat = 14
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
-            LazyVGrid(columns: columns, alignment: .leading, spacing: BSSpacing.md) {
+            HStack(alignment: .top, spacing: Self.columnSpacing) {
                 AddShowDatePickerField(
                     title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date,
-                    isRecognized: dateRecognized,
-                    isNeeded: dateNeeded,
-                    onConfirmNeeded: onConfirmFallbackDate
+                    isRecognized: dateRecognized
                 )
 
                 AddShowStartTimeField(
                     title: "开场时间",
                     startTime: $startTime,
-                    isConfirmed: isStartTimeConfirmed,
-                    onConfirm: onConfirmStartTime,
                     isRecognized: startTimeRecognized
                 )
             }
@@ -2437,100 +2173,87 @@ private struct AddShowScheduleFields: View {
     }
 }
 
+/// 把系统紧凑 DatePicker 箍进固定瓷贴，避免中文日期把邻列挤叠。
+/// 控件按内容缩宽并左对齐；列宽由外层 HStack 等分，溢出裁剪，间距才能保留。
+private struct AddShowConstrainedDatePicker: View {
+    @Binding var selection: Date
+    let displayedComponents: DatePickerComponents
+    var borderColor: Color? = nil
+
+    var body: some View {
+        HStack(spacing: 0) {
+            DatePicker("", selection: $selection, displayedComponents: displayedComponents)
+                .labelsHidden()
+                .tint(BSColor.Accent.violet)
+                .datePickerStyle(.compact)
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        // minWidth: 0 才能在等分列里被压窄，否则会撑破 HStack 间距
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 48, alignment: .leading)
+        .background(Color.white.opacity(0.05))
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+        .overlay {
+            RoundedRectangle(cornerRadius: BSRadius.md)
+                .stroke(borderColor ?? BSColor.borderProminent, lineWidth: 1)
+        }
+        .contentShape(RoundedRectangle(cornerRadius: BSRadius.md))
+    }
+}
+
 private struct AddShowDatePickerField: View {
     let title: String
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
     var isRequired = true
     var isRecognized = false
-    var isNeeded = false
-    /// isNeeded 时的确认回调：点按钮或手动改动选择器都算确认。
-    var onConfirmNeeded: (() -> Void)? = nil
+
+    private var borderColor: Color? {
+        isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             AddShowFieldLabel(
                 title: title,
                 isRequired: isRequired,
-                mark: isNeeded ? .needed : (isRecognized ? .recognized : nil)
+                mark: isRecognized ? .recognized : nil
             )
-            DatePicker("", selection: $selection, displayedComponents: displayedComponents)
-                .labelsHidden()
-                .tint(BSColor.Accent.violet)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .addShowInputChrome()
-                .overlay {
-                    if isNeeded {
-                        // 日期是回退值：金色描边 + 光晕，引导先确认
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Stage.accent.opacity(0.50), lineWidth: 1)
-                            .shadow(color: BSColor.Stage.accent.opacity(0.10), radius: 6)
-                    } else if isRecognized {
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
-                    }
-                }
-                .onChange(of: selection) { _, _ in
-                    // 手动改动日期即视为确认（含「改走再改回今天」之外的常规选择）
-                    if isNeeded {
-                        onConfirmNeeded?()
-                    }
-                }
-            if isNeeded, let onConfirmNeeded {
-                Button("确认使用这个日期", action: onConfirmNeeded)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.violet)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .accessibilityHint("确认后才可以保存现场")
-            }
+            AddShowConstrainedDatePicker(
+                selection: $selection,
+                displayedComponents: displayedComponents,
+                borderColor: borderColor
+            )
         }
-        .frame(maxWidth: .infinity)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 }
 
 private struct AddShowStartTimeField: View {
     let title: String
     @Binding var startTime: Date
-    let isConfirmed: Bool
-    let onConfirm: () -> Void
     var isRecognized = false
+
+    private var borderColor: Color? {
+        isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             AddShowFieldLabel(
                 title: title,
                 isRequired: true,
-                mark: isConfirmed ? (isRecognized ? .recognized : nil) : .needed
+                mark: isRecognized ? .recognized : nil
             )
-            DatePicker("", selection: $startTime, displayedComponents: .hourAndMinute)
-                .labelsHidden()
-                .tint(BSColor.Accent.violet)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .addShowInputChrome()
-                .overlay {
-                    if !isConfirmed {
-                        // 关键信息缺失：金色描边 + 光晕，引导先补这一项
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Stage.accent.opacity(0.50), lineWidth: 1)
-                            .shadow(color: BSColor.Stage.accent.opacity(0.10), radius: 6)
-                    } else if isRecognized {
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
-                    }
-                }
-            Text(isConfirmed ? "用于开场前提醒；之后随时能改。" : "用于开场前提醒；可先填大概时间。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-            if !isConfirmed {
-                Button("确认使用这个时间", action: onConfirm)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.violet)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .accessibilityHint("确认后才可以保存现场")
-            }
+            AddShowConstrainedDatePicker(
+                selection: $startTime,
+                displayedComponents: .hourAndMinute,
+                borderColor: borderColor
+            )
         }
-        .frame(maxWidth: .infinity)
+        .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
     }
 }
 
@@ -2539,10 +2262,14 @@ private struct AddShowEndTimeField: View {
     @Binding var endDate: Date
     @Binding var endTime: Date
 
+    private static let columnSpacing: CGFloat = 14
+
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack(spacing: BSSpacing.xs) {
-                AddShowFieldLabel(title: "结束时间", isRequired: false)
+            HStack(alignment: .center, spacing: BSSpacing.sm) {
+                Text("结束时间")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(BSColor.textTertiary)
                 Spacer(minLength: 0)
                 Toggle("结束时间", isOn: $hasEndTime)
                     .labelsHidden()
@@ -2551,89 +2278,118 @@ private struct AddShowEndTimeField: View {
             }
 
             if hasEndTime {
-                HStack(alignment: .top, spacing: 12) {
+                HStack(alignment: .top, spacing: Self.columnSpacing) {
                     AddShowDatePickerField(
                         title: "结束日期",
                         selection: $endDate,
-                        displayedComponents: .date
+                        displayedComponents: .date,
+                        isRequired: false
                     )
 
                     VStack(alignment: .leading, spacing: 6) {
                         AddShowFieldLabel(title: "结束时间", isRequired: false)
-                        DatePicker("", selection: $endTime, displayedComponents: .hourAndMinute)
-                            .labelsHidden()
-                            .tint(BSColor.Accent.violet)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .addShowInputChrome()
+                        AddShowConstrainedDatePicker(
+                            selection: $endTime,
+                            displayedComponents: .hourAndMinute
+                        )
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                 }
-            } else {
-                Text("可选。跨天或跨午夜时打开，结束日期可以和开场日不同。")
+            }
+        }
+    }
+}
+
+/// 封面双入口：相册 + 图片链接，并排避免「本地封面图 / 使用图片链接」层层嵌套。
+private struct AddShowCoverActions: View {
+    @Binding var selectedItem: PhotosPickerItem?
+    @Binding var showsLinkField: Bool
+    let isImporting: Bool
+    let message: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                PhotosPicker(selection: $selectedItem, matching: .images) {
+                    AddShowCoverActionChip(
+                        icon: isImporting ? nil : "photo.on.rectangle.angled",
+                        title: isImporting ? "正在导入…" : "从相册选择",
+                        isActive: false,
+                        showsSpinner: isImporting
+                    )
+                }
+                .buttonStyle(.plain)
+                .disabled(isImporting)
+                .frame(maxWidth: .infinity)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        showsLinkField.toggle()
+                    }
+                } label: {
+                    AddShowCoverActionChip(
+                        icon: "link",
+                        title: showsLinkField ? "收起链接" : "图片链接",
+                        isActive: showsLinkField,
+                        showsSpinner: false
+                    )
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
+            }
+
+            if let message, !message.isEmpty {
+                Text(message)
                     .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .background(Color.white.opacity(0.035))
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.border, lineWidth: 1)
+                    .foregroundColor(
+                        message.contains("失败") || message.contains("没有")
+                            ? BSColor.Accent.danger
+                            : BSColor.Accent.prepare
                     )
             }
         }
     }
 }
 
-private struct AddShowCoverImportField: View {
-    @Binding var selectedItem: PhotosPickerItem?
-    let isImporting: Bool
-    let message: String?
+private struct AddShowCoverActionChip: View {
+    let icon: String?
+    let title: String
+    let isActive: Bool
+    let showsSpinner: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            AddShowFieldLabel(title: "本地封面图", isRequired: false)
-
-            PhotosPicker(selection: $selectedItem, matching: .images) {
-                HStack(spacing: BSSpacing.sm) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(BSColor.Accent.violet.opacity(0.16))
-                        if isImporting {
-                            ProgressView()
-                                .tint(BSColor.Accent.violet)
-                        } else {
-                            Image(systemName: "photo.on.rectangle.angled")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(BSColor.Accent.violet)
-                        }
-                    }
-                    .frame(width: 42, height: 42)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(isImporting ? "正在导入封面图" : "从相册选择封面图")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(BSColor.textSecondary)
-                        Text(message ?? "选择后会覆盖上方封面图链接")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.white.opacity(0.045))
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.md)
-                        .stroke(BSColor.borderProminent, lineWidth: 1)
-                )
+        HStack(spacing: 8) {
+            if showsSpinner {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(BSColor.Accent.violet)
+            } else if let icon {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(isActive ? BSColor.Stage.accent : BSColor.Accent.violet)
             }
-            .buttonStyle(.plain)
-            .disabled(isImporting)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(isActive ? BSColor.Stage.accent : BSColor.textSecondary)
+                .lineLimit(1)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 13)
+        .background(
+            isActive
+                ? BSColor.Stage.accent.opacity(0.10)
+                : Color.white.opacity(0.045)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: BSRadius.md)
+                .stroke(
+                    isActive
+                        ? BSColor.Stage.accent.opacity(0.35)
+                        : BSColor.borderProminent,
+                    lineWidth: 1
+                )
+        )
     }
 }
 
@@ -2641,8 +2397,6 @@ private struct AddShowFieldLabel: View {
     enum Mark {
         /// 识别导入成功：薄荷绿「✓ 已识别」
         case recognized
-        /// 关键信息缺失：金色「待确认」
-        case needed
     }
 
     let title: String
@@ -2662,17 +2416,10 @@ private struct AddShowFieldLabel: View {
 
             Spacer(minLength: 0)
 
-            if let mark {
-                switch mark {
-                case .recognized:
-                    Label("已识别", systemImage: "checkmark")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(BSColor.Accent.prepare)
-                case .needed:
-                    Text("待确认")
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundColor(BSColor.Stage.accent)
-                }
+            if mark == .recognized {
+                Label("已识别", systemImage: "checkmark")
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(BSColor.Accent.prepare)
             }
         }
     }
@@ -3133,11 +2880,6 @@ private extension AddShowSheet {
     }
 
     var saveButtonTitle: String {
-        switch self {
-        case .manual:
-            return "保存草稿"
-        case .screenshot, .link:
-            return "确认并添加"
-        }
+        "添加现场"
     }
 }

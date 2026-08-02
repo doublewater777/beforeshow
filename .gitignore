@@ -29,3 +29,4 @@ docs/screenshots/**/debug-*
 apps/ios/prototypes
 .claude
 .builder
+tmp-screenshots
