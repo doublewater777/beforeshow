@@ -262,6 +262,16 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         // Reject resurrecting a canceled invitation.
         if let statusRaw = record[CompanionSessionRecord.status] as? String,
            statusRaw == CompanionCloudStatus.canceled.rawValue {
+            // Compensating leave so accept does not leave residual shared access.
+            do {
+                _ = try await modifyRecords(
+                    in: sharedDB,
+                    saving: [],
+                    deleting: [shareLocator.recordID]
+                )
+            } catch {
+                // Best effort; still deny the accept.
+            }
             throw CompanionSharingError.permissionDenied
         }
 
@@ -439,7 +449,8 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 }
             } catch {
                 let mapped = Self.mapError(error)
-                if mapped == .networkFailure {
+                // Already gone is success; anything else means access may still exist.
+                if mapped != .sessionNotFound {
                     throw mapped
                 }
             }
@@ -472,19 +483,13 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     private func fetchSessionRecord(
         locator: CompanionRecordLocator
     ) async throws -> (CKRecord, CKDatabase) {
-        // Prefer private DB for owner records; shared DB for participant records.
+        // Deterministic database selection: current-user zones live in private DB;
+        // owner-qualified zones (participant view of a shared hierarchy) live in shared DB.
+        let database: CKDatabase =
+            locator.ownerName == CKCurrentUserDefaultName ? privateDB : sharedDB
         do {
-            let record = try await privateDB.record(for: locator.recordID)
-            return (record, privateDB)
-        } catch {
-            let mapped = Self.mapError(error)
-            // Only fall back across databases for a true missing-item miss.
-            guard mapped == .sessionNotFound else { throw mapped }
-        }
-
-        do {
-            let record = try await sharedDB.record(for: locator.recordID)
-            return (record, sharedDB)
+            let record = try await database.record(for: locator.recordID)
+            return (record, database)
         } catch {
             throw Self.mapError(error)
         }
