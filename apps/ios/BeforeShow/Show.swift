@@ -7,6 +7,13 @@ enum ShowValidationError: Error, Equatable {
     case invalidEndTime
 }
 
+enum ShowCompanionStatus: String, CaseIterable, Codable {
+    case none
+    case pending
+    case confirmed
+    case canceled
+}
+
 struct ShowDisplayFormatter {
     private let calendar: Calendar
 
@@ -115,7 +122,14 @@ final class Show {
     /// 用户确认的真实散场时刻。存在时高于录入的结束时间与默认时长估算。
     var endedAt: Date?
 
+    private var companionStatusRawValue: String?
+    var companionName: String?
+
     private var changeStatusRawValue: String
+
+    var companionStatus: ShowCompanionStatus {
+        companionStatusRawValue.flatMap(ShowCompanionStatus.init(rawValue:)) ?? .none
+    }
 
     var changeStatus: ShowChangeStatus {
         get { ShowChangeStatus(rawValue: changeStatusRawValue) ?? .scheduled }
@@ -153,6 +167,8 @@ final class Show {
         artistAvatarURLs: [String] = [],
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
+        companionStatus: ShowCompanionStatus = .none,
+        companionName: String? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -184,6 +200,8 @@ final class Show {
         self.artistAvatarURLStorage = artistAvatarURLs
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
+        self.companionStatusRawValue = companionStatus.rawValue
+        self.companionName = Self.trimmedOptional(companionName)
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -215,6 +233,23 @@ final class Show {
 
     func clearEnded() {
         endedAt = nil
+        touch()
+    }
+
+    func markCompanionInvitationSent(name: String?) {
+        companionName = Self.trimmedOptional(name)
+        companionStatusRawValue = ShowCompanionStatus.pending.rawValue
+        touch()
+    }
+
+    func markCompanionConfirmed(name: String?) {
+        companionName = Self.trimmedOptional(name)
+        companionStatusRawValue = ShowCompanionStatus.confirmed.rawValue
+        touch()
+    }
+
+    func cancelCompanion() {
+        companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
         touch()
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -34,6 +35,71 @@ final class NavigationTests: XCTestCase {
             CurrentShowQuickAction.visibleActions,
             [.ticket, .route, .reminder, .companion]
         )
+    }
+
+    func testCompanionLifecyclePersistsNameAndSupportsRetry() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+
+        XCTAssertEqual(show.companionStatus, .none)
+        XCTAssertNil(show.companionName)
+
+        show.markCompanionInvitationSent(name: "  林嘉  ")
+        XCTAssertEqual(show.companionStatus, .pending)
+        XCTAssertEqual(show.companionName, "林嘉")
+
+        show.markCompanionConfirmed(name: show.companionName)
+        XCTAssertEqual(show.companionStatus, .confirmed)
+
+        show.cancelCompanion()
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionName, "林嘉")
+
+        show.markCompanionInvitationSent(name: "")
+        XCTAssertEqual(show.companionStatus, .pending)
+        XCTAssertNil(show.companionName)
+    }
+
+    @MainActor
+    func testConfirmedCompanionSurvivesModelContextReload() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        container.mainContext.insert(show)
+        show.markCompanionConfirmed(name: "林嘉")
+        try container.mainContext.save()
+
+        let reloadedContext = ModelContext(container)
+        let reloaded = try XCTUnwrap(reloadedContext.fetch(FetchDescriptor<Show>()).first)
+        XCTAssertEqual(reloaded.companionStatus, .confirmed)
+        XCTAssertEqual(reloaded.companionName, "林嘉")
+    }
+
+    func testCompanionQuickActionReflectsEveryPrototypeState() {
+        let none = CompanionQuickActionPresentation(status: .none, companionName: nil, isEnded: false)
+        XCTAssertEqual(none.title, "同行")
+        XCTAssertFalse(none.showsPendingIndicator)
+        XCTAssertFalse(none.showsAvatars)
+
+        let pending = CompanionQuickActionPresentation(status: .pending, companionName: "林嘉", isEnded: false)
+        XCTAssertEqual(pending.title, "待确认")
+        XCTAssertTrue(pending.showsPendingIndicator)
+        XCTAssertFalse(pending.showsAvatars)
+
+        let confirmed = CompanionQuickActionPresentation(status: .confirmed, companionName: "林嘉", isEnded: false)
+        XCTAssertEqual(confirmed.title, "与林嘉")
+        XCTAssertFalse(confirmed.showsPendingIndicator)
+        XCTAssertTrue(confirmed.showsAvatars)
+
+        let ended = CompanionQuickActionPresentation(status: .confirmed, companionName: "林嘉", isEnded: true)
+        XCTAssertEqual(ended.title, "共同足迹")
+        XCTAssertTrue(ended.showsAvatars)
+
+        let canceled = CompanionQuickActionPresentation(status: .canceled, companionName: "林嘉", isEnded: false)
+        XCTAssertEqual(canceled.title, "重新邀请")
+        XCTAssertFalse(canceled.showsPendingIndicator)
+        XCTAssertFalse(canceled.showsAvatars)
     }
 
     func testCurrentFollowUpsExcludeCurrentPastChangedAndSortAscending() throws {
