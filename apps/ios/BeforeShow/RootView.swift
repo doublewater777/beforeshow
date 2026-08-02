@@ -341,10 +341,11 @@ struct CurrentShowManagementSection: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
+    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
     @State private var isShowingCompanion = false
-    @State private var companionSaveFailed = false
+    @State private var companionErrorMessage: String?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -386,28 +387,28 @@ struct CurrentShowManagementSection: View {
         .sheet(isPresented: $isShowingCompanion) {
             CurrentShowCompanionSheet(
                 show: show,
-                shareText: shareText,
                 sharedHistory: companionHistory,
                 isEnded: currentPhase == .ended,
-                onInvitationSent: { name in
-                    updateCompanion { try $0.markCompanionInvitationSent(name: name) }
-                },
-                onConfirmed: { name in
-                    updateCompanion { try $0.markCompanionConfirmed(name: name) }
-                },
-                onCanceled: {
-                    updateCompanion { try $0.cancelCompanion() }
-                },
-                onRestoreCompanionState: { status, name in
-                    updateCompanion { $0.restoreCompanionState(status: status, name: name) }
-                },
+                coordinator: companionCoordinator,
                 onDismiss: { isShowingCompanion = false }
             )
         }
-        .alert("同行状态没有保存", isPresented: $companionSaveFailed) {
-            Button("知道了", role: .cancel) {}
+        .alert(
+            "同行",
+            isPresented: Binding(
+                get: { companionErrorMessage != nil },
+                set: { if !$0 { companionErrorMessage = nil } }
+            )
+        ) {
+            Button("知道了", role: .cancel) { companionErrorMessage = nil }
         } message: {
-            Text("请稍后重试。")
+            Text(companionErrorMessage ?? "")
+        }
+        .task(id: show.companionCloudRecordName) {
+            await companionCoordinator.refreshCompanion(for: show, in: modelContext)
+            if let accepted = companionCoordinator.consumePendingAcceptMessage() {
+                companionErrorMessage = accepted
+            }
         }
     }
 
@@ -546,11 +547,6 @@ struct CurrentShowManagementSection: View {
         return show.name
     }
 
-    private var shareText: String {
-        let location = locationText.isEmpty ? "" : " · \(locationText)"
-        return "一起去 \(show.name) 吗？\n\(formatter.dateText(for: show))\(location)"
-    }
-
     private func quickActionRow(_ actions: [CurrentShowQuickAction]) -> some View {
         HStack(spacing: 9) {
             ForEach(actions, id: \.self) { action in
@@ -590,18 +586,6 @@ struct CurrentShowManagementSection: View {
         )
     }
 
-    @discardableResult
-    private func updateCompanion(_ mutation: (Show) throws -> Void) -> Bool {
-        do {
-            try mutation(show)
-            try modelContext.save()
-            return true
-        } catch {
-            modelContext.rollback()
-            companionSaveFailed = true
-            return false
-        }
-    }
 }
 
 enum CompanionSharedHistory {
@@ -871,40 +855,31 @@ private struct CompanionAvatarStack: View {
 
 private struct CurrentShowCompanionSheet: View {
     let show: Show
-    let shareText: String
     let sharedHistory: [Show]
     let isEnded: Bool
-    let onInvitationSent: (String?) -> Bool
-    let onConfirmed: (String?) -> Bool
-    let onCanceled: () -> Bool
-    let onRestoreCompanionState: (ShowCompanionStatus, String?) -> Bool
+    let coordinator: CompanionSharingCoordinator
     let onDismiss: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
     @State private var companionName: String
     @State private var isShowingHistory = false
-    @State private var isPresentingShare = false
-    @State private var pendingShareText = ""
-    @State private var preShareSnapshot: (status: ShowCompanionStatus, name: String?)?
+    @State private var isPreparingInvite = false
+    @State private var isRefreshing = false
+    @State private var isCanceling = false
+    @State private var cloudShareData: IdentifiableShareData?
+    @State private var errorMessage: String?
 
     init(
         show: Show,
-        shareText: String,
         sharedHistory: [Show],
         isEnded: Bool,
-        onInvitationSent: @escaping (String?) -> Bool,
-        onConfirmed: @escaping (String?) -> Bool,
-        onCanceled: @escaping () -> Bool,
-        onRestoreCompanionState: @escaping (ShowCompanionStatus, String?) -> Bool,
+        coordinator: CompanionSharingCoordinator,
         onDismiss: @escaping () -> Void
     ) {
         self.show = show
-        self.shareText = shareText
         self.sharedHistory = sharedHistory
         self.isEnded = isEnded
-        self.onInvitationSent = onInvitationSent
-        self.onConfirmed = onConfirmed
-        self.onCanceled = onCanceled
-        self.onRestoreCompanionState = onRestoreCompanionState
+        self.coordinator = coordinator
         self.onDismiss = onDismiss
         _companionName = State(initialValue: show.companionName ?? "")
     }
@@ -930,9 +905,26 @@ private struct CurrentShowCompanionSheet: View {
             }
             .scrollIndicators(.hidden)
         }
-        .sheet(isPresented: $isPresentingShare) {
-            CompanionActivityView(items: [pendingShareText], onComplete: handleShareCompletion)
-                .presentationDetents([.large])
+        .fullScreenCover(item: $cloudShareData) { item in
+            CloudSharingPresenter(
+                shareData: item.data,
+                containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
+                onFinished: { cloudShareData = nil }
+            )
+        }
+        .alert(
+            "同行邀请",
+            isPresented: Binding(
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
+            )
+        ) {
+            Button("知道了", role: .cancel) { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .task {
+            await coordinator.refreshCompanion(for: show, in: modelContext)
         }
     }
 
@@ -941,7 +933,9 @@ private struct CurrentShowCompanionSheet: View {
             sheetHeader(
                 icon: "person.2",
                 title: isRetry ? "邀请未接受" : "邀请同行",
-                subtitle: isRetry ? "可以重新发送邀请，不影响你的现场记录。" : "邀请一位朋友，一起留下这场现场。"
+                subtitle: isRetry
+                    ? "可以通过 iCloud 重新发送邀请，对方点开链接后双方都会确认。"
+                    : "通过 iCloud 邀请一位朋友。对方接受后，双方同步为已确认同行。"
             )
 
             TextField("同行者名字（可选）", text: $companionName)
@@ -949,15 +943,17 @@ private struct CurrentShowCompanionSheet: View {
                 .bsInputField()
 
             Button {
-                let snapshot = show.companionStateSnapshot()
-                guard onInvitationSent(companionName) else { return }
-                preShareSnapshot = snapshot
-                pendingShareText = shareText
-                isPresentingShare = true
+                Task { await sendInvitation(isRetry: isRetry) }
             } label: {
-                Label(isRetry ? "重新邀请" : "分享邀请", systemImage: "square.and.arrow.up")
+                if isPreparingInvite {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label(isRetry ? "重新邀请" : "分享邀请", systemImage: "square.and.arrow.up")
+                }
             }
             .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(isPreparingInvite)
         }
     }
 
@@ -966,23 +962,34 @@ private struct CurrentShowCompanionSheet: View {
             sheetHeader(
                 icon: "hourglass",
                 title: "等待\(displayName)确认",
-                subtitle: "邀请已经发出。对方确认后，这场会出现在你们共同的足迹中。"
+                subtitle: "已通过 iCloud 发出邀请。对方点开链接并接受后，这里会自动变成已确认。"
             )
 
             Button {
-                pendingShareText = shareText
-                isPresentingShare = true
+                Task { await resendInvitation() }
             } label: {
                 Label("再次发送", systemImage: "paperplane")
             }
             .buttonStyle(BSSecondaryButtonStyle())
+            .disabled(isPreparingInvite || show.companionShareRecordName == nil)
 
-            Button("标记对方已确认") {
-                onConfirmed(companionName)
+            Button {
+                Task { await refreshStatus() }
+            } label: {
+                if isRefreshing {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("刷新状态", systemImage: "arrow.clockwise")
+                }
             }
             .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(isRefreshing)
 
-            destructiveButton("取消邀请") { _ = onCanceled() }
+            destructiveButton("取消邀请") {
+                Task { await cancelInvitation() }
+            }
+            .disabled(isCanceling)
         }
     }
 
@@ -998,10 +1005,7 @@ private struct CurrentShowCompanionSheet: View {
 
                 sharedMemoryCard
 
-                Button {
-                    pendingShareText = sharedFootprintShareText
-                    isPresentingShare = true
-                } label: {
+                ShareLink(item: sharedFootprintShareText) {
                     Label("分享共同足迹", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
@@ -1031,7 +1035,10 @@ private struct CurrentShowCompanionSheet: View {
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
 
-                destructiveButton("取消同行") { _ = onCanceled() }
+                destructiveButton("取消同行") {
+                    Task { await cancelInvitation() }
+                }
+                .disabled(isCanceling)
             }
         }
     }
@@ -1156,18 +1163,9 @@ private struct CurrentShowCompanionSheet: View {
         .foregroundColor(BSColor.Stage.liveTitle)
     }
 
-    private func handleShareCompletion(completed: Bool) {
-        guard let snapshot = preShareSnapshot else { return }
-        defer { preShareSnapshot = nil }
-        if completed {
-            return
-        }
-        _ = onRestoreCompanionState(snapshot.status, snapshot.name)
-    }
-
-
     private var displayName: String {
-        let trimmed = companionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = (show.companionName ?? companionName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "同行者" : trimmed
     }
 
@@ -1178,32 +1176,63 @@ private struct CurrentShowCompanionSheet: View {
     private var sharedFootprintShareText: String {
         "我和\(displayName)一起看了 \(show.name)。\n这是我们共同记录的第 \(max(1, sharedHistory.count)) 场现场。"
     }
+
+    @MainActor
+    private func sendInvitation(isRetry: Bool) async {
+        isPreparingInvite = true
+        defer { isPreparingInvite = false }
+        do {
+            let prepared = try await coordinator.prepareInvitation(
+                for: show,
+                preferredParticipantName: companionName,
+                ownerDisplayName: nil,
+                in: modelContext
+            )
+            cloudShareData = IdentifiableShareData(data: prepared.shareSystemFields)
+        } catch {
+            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
+        }
+    }
+
+    @MainActor
+    private func resendInvitation() async {
+        isPreparingInvite = true
+        defer { isPreparingInvite = false }
+        do {
+            let data = try await coordinator.shareSystemFieldsForResend(show: show)
+            cloudShareData = IdentifiableShareData(data: data)
+        } catch {
+            // Share missing — create a fresh invitation.
+            await sendInvitation(isRetry: true)
+        }
+    }
+
+    @MainActor
+    private func refreshStatus() async {
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await coordinator.refreshCompanion(for: show, in: modelContext)
+        if let error = coordinator.consumeLastErrorMessage() {
+            errorMessage = error
+        }
+    }
+
+    @MainActor
+    private func cancelInvitation() async {
+        isCanceling = true
+        defer { isCanceling = false }
+        do {
+            try await coordinator.cancelCompanion(for: show, in: modelContext)
+        } catch {
+            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
+        }
+    }
 }
 
-private struct CompanionActivityView: UIViewControllerRepresentable {
-    let items: [Any]
-    let onComplete: (Bool) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onComplete: onComplete)
-    }
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        controller.completionWithItemsHandler = { _, completed, _, _ in
-            context.coordinator.onComplete(completed)
-        }
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
-
-    final class Coordinator {
-        let onComplete: (Bool) -> Void
-        init(onComplete: @escaping (Bool) -> Void) {
-            self.onComplete = onComplete
-        }
-    }
+/// Wrapper so CloudKit share blobs can drive `fullScreenCover(item:)`.
+private struct IdentifiableShareData: Identifiable {
+    let id = UUID()
+    let data: Data
 }
 
 private struct CurrentShowMapChooserSheet: View {

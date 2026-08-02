@@ -100,7 +100,7 @@ final class CurrentShowSelectionTests: XCTestCase {
 
         let container = try ModelContainer(
             for: CurrentShowSelection.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         container.mainContext.insert(selection)
         try container.mainContext.save()

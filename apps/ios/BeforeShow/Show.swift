@@ -120,6 +120,12 @@ final class Show {
 
     private var companionStatusRawValue: String?
     private(set) var companionName: String?
+    /// CloudKit `CompanionSession` record name; local cache of the shared session.
+    var companionCloudRecordName: String?
+    /// CloudKit `CKShare` record name for re-presenting the system share UI.
+    var companionShareRecordName: String?
+    /// `true` when this device created the share (owner); `false` when accepted as participant.
+    var companionIsOwner: Bool?
 
     private var changeStatusRawValue: String
 
@@ -165,6 +171,9 @@ final class Show {
         endedAt: Date? = nil,
         companionStatus: ShowCompanionStatus = .none,
         companionName: String? = nil,
+        companionCloudRecordName: String? = nil,
+        companionShareRecordName: String? = nil,
+        companionIsOwner: Bool? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -198,6 +207,9 @@ final class Show {
         self.endedAt = endedAt
         self.companionStatusRawValue = companionStatus.rawValue
         self.companionName = Self.trimmedOptional(companionName)
+        self.companionCloudRecordName = companionCloudRecordName
+        self.companionShareRecordName = companionShareRecordName
+        self.companionIsOwner = companionIsOwner
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -265,12 +277,12 @@ final class Show {
         (companionStatus, companionName)
     }
 
-    /// Force-restore a previous companion snapshot after a canceled share presentation.
+    /// Force-restore a previous companion snapshot after a failed CloudKit invite.
     func restoreCompanionState(status: ShowCompanionStatus, name: String?) {
         applyCompanionState(status: status, name: name)
     }
 
-    private func applyCompanionState(status: ShowCompanionStatus, name: String?) {
+    func applyCompanionState(status: ShowCompanionStatus, name: String?) {
         companionName = Self.trimmedOptional(name)
         companionStatusRawValue = status.rawValue
         touch()

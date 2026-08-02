@@ -150,7 +150,7 @@ final class NavigationTests: XCTestCase {
 
     @MainActor
     func testConfirmedCompanionSurvivesModelContextReload() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "同行现场", date: now, startTime: now)
@@ -167,7 +167,7 @@ final class NavigationTests: XCTestCase {
 
     @MainActor
     func testPendingAndCanceledCompanionSurviveModelContextReload() throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 

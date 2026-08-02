@@ -42,6 +42,8 @@
 	<string>LaunchScreen</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>CKSharingSupported</key>
+	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>用于把你的现场足迹卡保存到照片。</string>
 	<key>UISupportedInterfaceOrientations</key>
