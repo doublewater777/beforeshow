@@ -44,11 +44,13 @@ struct BeforeShowApp: App {
                 .onAppear {
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
+                    appDelegate.noteDependenciesReady()
                 }
                 .task {
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
+                    appDelegate.noteDependenciesReady()
                     await companionCoordinator.flushPendingAcceptedShares(
                         in: modelContainer.mainContext
                     )

@@ -65,6 +65,7 @@ struct CompanionShowSnapshot: Equatable, Sendable {
     var showID: String
     var showName: String
     var showDate: Date
+    var showStartTime: Date
     var showLocation: String?
 }
 
@@ -143,6 +144,7 @@ enum CompanionSessionRecord {
     static let showID = "showID"
     static let showName = "showName"
     static let showDate = "showDate"
+    static let showStartTime = "showStartTime"
     static let showLocation = "showLocation"
     static let ownerDisplayName = "ownerDisplayName"
     static let participantDisplayName = "participantDisplayName"
@@ -185,6 +187,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         session[CompanionSessionRecord.showID] = show.showID as CKRecordValue
         session[CompanionSessionRecord.showName] = show.showName as CKRecordValue
         session[CompanionSessionRecord.showDate] = show.showDate as CKRecordValue
+        session[CompanionSessionRecord.showStartTime] = show.showStartTime as CKRecordValue
         if let location = show.showLocation, !location.isEmpty {
             session[CompanionSessionRecord.showLocation] = location as CKRecordValue
         }
@@ -239,10 +242,10 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         do {
             try await container.accept(metadata)
         } catch {
-            // Accepting an already-accepted share is fine; other failures block.
+            // Accepting an already-accepted share is fine; map other failures precisely.
             let ck = error as? CKError
             if ck?.code != .alreadyShared {
-                throw CompanionSharingError.acceptFailed
+                throw Self.mapError(error, fallback: .acceptFailed)
             }
         }
 
@@ -262,6 +265,17 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             throw CompanionSharingError.permissionDenied
         }
 
+        // One-companion invariant: if another participant display name is already accepted,
+        // refuse to overwrite with a different participant.
+        if let existingStatus = record[CompanionSessionRecord.status] as? String,
+           existingStatus == CompanionCloudStatus.accepted.rawValue,
+           let existingParticipant = record[CompanionSessionRecord.participantDisplayName] as? String,
+           let incoming = participantDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !incoming.isEmpty,
+           existingParticipant != incoming {
+            throw CompanionSharingError.permissionDenied
+        }
+
         if let participantDisplayName, !participantDisplayName.isEmpty {
             record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
         }
@@ -277,6 +291,10 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         } catch {
             // Share is accepted in CloudKit, but session status is not durable yet.
             // Do not publish a false local "confirmed" — surface a retryable sync error.
+            let mapped = Self.mapError(error)
+            if mapped == .networkFailure || mapped == .conflict || mapped == .permissionDenied {
+                throw CompanionSharingError.statusSyncPending
+            }
             throw CompanionSharingError.statusSyncPending
         }
     }
@@ -355,13 +373,15 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     ) async throws -> CompanionSessionSnapshot {
         let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
 
-        // Mark canceled first so late acceptors can reject.
+        // Mark canceled first so late acceptors can reject and participants can observe cancel
+        // before access is revoked.
         record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
         record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
         record[CompanionSessionRecord.acceptedAt] = nil
         let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
 
         // Revoke the share so old invitation URLs stop granting access.
+        var retainedShareLocator: CompanionRecordLocator? = nil
         if let shareLocator {
             do {
                 let shareRecord = try await privateDB.record(for: shareLocator.recordID)
@@ -374,72 +394,79 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 }
             } catch {
                 let mapped = Self.mapError(error)
-                if mapped != .sessionNotFound {
+                if mapped == .sessionNotFound {
+                    retainedShareLocator = nil
+                } else {
+                    // Keep share locator so the coordinator can retry revocation.
+                    retainedShareLocator = shareLocator
                     throw mapped
                 }
             }
         }
 
-        return try Self.snapshot(from: saved, shareLocator: nil)
+        return try Self.snapshot(from: saved, shareLocator: retainedShareLocator)
     }
 
     private func cancelAsParticipant(
         sessionLocator: CompanionRecordLocator,
         shareLocator: CompanionRecordLocator?
     ) async throws -> CompanionSessionSnapshot {
-        // Best-effort: leave the share if we still have the share record.
-        if let shareLocator {
-            do {
-                let shareRecord = try await sharedDB.record(for: shareLocator.recordID)
-                if let share = shareRecord as? CKShare {
-                    // Removing the share record from the participant removes their access.
-                    _ = try await modifyRecords(
-                        in: sharedDB,
-                        saving: [],
-                        deleting: [share.recordID]
-                    )
-                }
-            } catch {
-                let mapped = Self.mapError(error)
-                if mapped != .sessionNotFound {
-                    // Still try to mark session canceled when possible.
-                    if mapped == .networkFailure || mapped == .permissionDenied {
-                        throw mapped
-                    }
-                }
-            }
-        }
-
-        // If the participant can still write the root, mark canceled for owner refresh.
+        // Write canceled status first so the owner can observe it before access is removed.
+        var canceledSnapshot: CompanionSessionSnapshot?
         do {
             let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
             record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
             record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
             let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
-            return try Self.snapshot(from: saved, shareLocator: nil)
+            canceledSnapshot = try Self.snapshot(from: saved, shareLocator: nil)
         } catch {
-            // Participant may already have lost access after leaving the share.
-            // Return a synthetic canceled snapshot so local cache can clear.
-            if Self.mapError(error) == .sessionNotFound {
-                return CompanionSessionSnapshot(
-                    sessionLocator: sessionLocator,
-                    shareLocator: nil,
-                    show: CompanionShowSnapshot(
-                        showID: "",
-                        showName: "",
-                        showDate: Date(),
-                        showLocation: nil
-                    ),
-                    ownerDisplayName: nil,
-                    participantDisplayName: nil,
-                    status: .canceled,
-                    createdAt: Date(),
-                    acceptedAt: nil,
-                    canceledAt: Date()
-                )
+            let mapped = Self.mapError(error)
+            if mapped == .networkFailure || mapped == .permissionDenied || mapped == .conflict {
+                throw mapped
             }
-            throw Self.mapError(error)
+            // Continue to leave the share even if status write is already unavailable.
         }
+
+        if let shareLocator {
+            do {
+                let shareRecord = try await sharedDB.record(for: shareLocator.recordID)
+                if shareRecord is CKShare {
+                    _ = try await modifyRecords(
+                        in: sharedDB,
+                        saving: [],
+                        deleting: [shareLocator.recordID]
+                    )
+                }
+            } catch {
+                let mapped = Self.mapError(error)
+                if mapped == .networkFailure {
+                    throw mapped
+                }
+            }
+        }
+
+        if let canceledSnapshot {
+            return canceledSnapshot
+        }
+
+        // Access already gone and status could not be read — local cancel is still terminal.
+        return CompanionSessionSnapshot(
+            sessionLocator: sessionLocator,
+            shareLocator: nil,
+            show: CompanionShowSnapshot(
+                showID: "",
+                showName: "",
+                showDate: Date(),
+                showStartTime: Date(),
+                showLocation: nil
+            ),
+            ownerDisplayName: nil,
+            participantDisplayName: nil,
+            status: .canceled,
+            createdAt: Date(),
+            acceptedAt: nil,
+            canceledAt: Date()
+        )
     }
 
     private func fetchSessionRecord(
@@ -495,7 +522,10 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         }
     }
 
-    private static func mapError(_ error: Error) -> CompanionSharingError {
+    private static func mapError(
+        _ error: Error,
+        fallback: CompanionSharingError = .sharePreparationFailed
+    ) -> CompanionSharingError {
         if let sharing = error as? CompanionSharingError {
             return sharing
         }
@@ -514,13 +544,13 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         default:
             // partialFailure may wrap unknownItem or network errors.
             if let partial = ck?.partialErrorsByItemID?.values {
-                let mapped = partial.map(mapError)
+                let mapped = partial.map { mapError($0, fallback: fallback) }
                 if mapped.contains(.networkFailure) { return .networkFailure }
                 if mapped.contains(.permissionDenied) { return .permissionDenied }
                 if mapped.contains(.conflict) { return .conflict }
                 if mapped.allSatisfy({ $0 == .sessionNotFound }) { return .sessionNotFound }
             }
-            return .sharePreparationFailed
+            return fallback
         }
     }
 
@@ -537,6 +567,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         else {
             throw CompanionSharingError.invalidPayload
         }
+        let showStartTime = (record[CompanionSessionRecord.showStartTime] as? Date) ?? showDate
 
         let status: CompanionCloudStatus
         if let forcedStatus {
@@ -555,6 +586,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 showID: showID,
                 showName: showName,
                 showDate: showDate,
+                showStartTime: showStartTime,
                 showLocation: record[CompanionSessionRecord.showLocation] as? String
             ),
             ownerDisplayName: record[CompanionSessionRecord.ownerDisplayName] as? String,
@@ -591,6 +623,7 @@ extension CompanionShowSnapshot {
             showID: show.id.uuidString,
             showName: show.name,
             showDate: show.effectiveDate,
+            showStartTime: show.startTime,
             showLocation: locationParts.isEmpty ? nil : locationParts.joined(separator: " · ")
         )
     }

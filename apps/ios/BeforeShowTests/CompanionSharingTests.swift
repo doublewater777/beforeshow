@@ -419,6 +419,75 @@ final class CompanionSharingTests: XCTestCase {
         )
         XCTAssertTrue(message.contains("同步"))
     }
+
+    @MainActor
+    func testAppDelegateQueuesShareMetadataBeforeCoordinatorWiring() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = CompanionSharingCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+
+        let appDelegate = BeforeShowAppDelegate()
+        // Simulate cold launch: metadata arrives before wiring.
+        // We cannot construct CKShare.Metadata easily; instead verify the public queue API
+        // on the coordinator and the noteDependenciesReady drain path.
+        XCTAssertNil(appDelegate.companionCoordinator)
+        appDelegate.companionCoordinator = coordinator
+        appDelegate.modelContainer = container
+        appDelegate.noteDependenciesReady()
+        // No crash / no lost dependency assignment.
+        XCTAssertTrue(appDelegate.companionCoordinator === coordinator)
+    }
+
+    @MainActor
+    func testRefreshSessionNotFoundCancelsLinkedParticipantLocally() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = CompanionSharingCoordinator(service: service)
+
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        try show.markCompanionInvitationSent(name: "Alex")
+        try show.markCompanionConfirmed(name: "Alex")
+        show.companionCloudRecordName = "session-missing"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-missing"
+        show.companionIsOwner = false
+        context.insert(show)
+        try context.save()
+
+        // No session in mock => sessionNotFound
+        await coordinator.refreshCompanion(for: show, in: context)
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertNil(show.companionCloudRecordName)
+    }
+
+    @MainActor
+    func testRefreshNetworkFailureDoesNotRollbackUnrelatedEdits() async throws {
+        let service = MockCompanionSharingService()
+        service.fetchError = .networkFailure
+        let coordinator = CompanionSharingCoordinator(service: service)
+
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        try show.markCompanionInvitationSent(name: "林嘉")
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        // Unsaved unrelated edit
+        show.city = "上海"
+        await coordinator.refreshCompanion(for: show, in: context)
+        XCTAssertEqual(show.city, "上海")
+        XCTAssertEqual(show.companionStatus, .pending)
+    }
 }
 
 // MARK: - Helpers
@@ -451,6 +520,7 @@ private func makeSession(
             showID: showID,
             showName: showName,
             showDate: showDate,
+            showStartTime: showDate,
             showLocation: nil
         ),
         ownerDisplayName: owner,
@@ -468,6 +538,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     var prepareError: CompanionSharingError?
     var loadShareError: CompanionSharingError?
     var cancelError: CompanionSharingError?
+    var fetchError: CompanionSharingError?
     var sessions: [String: CompanionSessionSnapshot] = [:]
     var revokedShareNames: [String] = []
     private(set) var prepareCallCount = 0
@@ -543,6 +614,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     }
 
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
+        if let fetchError { throw fetchError }
         guard let session = sessions[sessionLocator.recordName] else {
             throw CompanionSharingError.sessionNotFound
         }

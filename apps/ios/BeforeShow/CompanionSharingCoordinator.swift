@@ -117,13 +117,22 @@ final class CompanionSharingCoordinator {
         guard !pendingShareMetadata.isEmpty else { return }
         let batch = pendingShareMetadata
         pendingShareMetadata.removeAll()
+        var retryable: [CKShare.Metadata] = []
         for metadata in batch {
+            let beforeError = lastErrorMessage
             await handleAcceptedShare(
                 metadata: metadata,
                 participantDisplayName: nil,
                 in: modelContext
             )
+            // Requeue only retryable transport/sync failures so cold-launch does not drop them.
+            if let err = lastErrorMessage, err != beforeError {
+                if err.contains("网络") || err.contains("同步") || err.contains("稍后") {
+                    retryable.append(metadata)
+                }
+            }
         }
+        pendingShareMetadata.append(contentsOf: retryable)
     }
 
     // MARK: Cancel / sync
@@ -168,14 +177,26 @@ final class CompanionSharingCoordinator {
             let isOwner = show.companionIsOwner ?? (session.show.showID == show.id.uuidString)
             show.applyCompanionSession(session, isOwner: isOwner)
             if session.status == .canceled {
+                if show.companionStatus == .pending || show.companionStatus == .confirmed {
+                    try? show.cancelCompanion()
+                }
                 show.clearCompanionCloudLinkage()
             }
             try modelContext.save()
             lastErrorMessage = nil
+        } catch let error as CompanionSharingError where error == .sessionNotFound {
+            // Linked session disappeared (owner revoked share / deleted root).
+            // Treat as terminal local cancellation rather than keeping a stale confirmed state.
+            if show.companionStatus == .pending || show.companionStatus == .confirmed {
+                try? show.cancelCompanion()
+            }
+            show.clearCompanionCloudLinkage()
+            try? modelContext.save()
+            lastErrorMessage = nil
         } catch {
             // Keep last known local state on network / permission failures.
+            // Do not rollback the shared main context — that would discard unrelated edits.
             lastErrorMessage = Self.userMessage(for: error)
-            modelContext.rollback()
         }
     }
 
@@ -200,6 +221,23 @@ final class CompanionSharingCoordinator {
         show.companionShareRecordName = share.recordID.recordName
         show.companionShareZoneName = share.recordID.zoneID.zoneName
         show.companionShareOwnerName = share.recordID.zoneID.ownerName
+
+        // One-companion model: if no accepted non-owner participants remain, cancel locally.
+        let acceptedParticipants = share.participants.filter {
+            $0.role != .owner && $0.acceptanceStatus == .accepted
+        }
+        if acceptedParticipants.isEmpty,
+           show.companionStatus == .confirmed || show.companionStatus == .pending {
+            // Participant removed via system UI — mirror as canceled and revoke remote session.
+            if show.companionSessionLocator != nil {
+                try? await cancelCompanion(for: show, in: modelContext)
+                return
+            }
+        } else if acceptedParticipants.count > 1 {
+            // Domain assumes a single companion; surface an error for now.
+            lastErrorMessage = "同行邀请目前只支持一位同伴"
+        }
+
         try? modelContext.save()
         await refreshCompanion(for: show, in: modelContext)
     }
@@ -256,13 +294,30 @@ final class CompanionSharingCoordinator {
             return
         }
 
-        // Prefer matching an upcoming local show with the same name + day when possible.
-        // Only auto-link when the match is unambiguous.
+        // Prefer a high-confidence unique match: same name + day + location when available.
         let calendar = Calendar.current
+        let location = session.show.showLocation
+        let parts = location?.split(separator: "·").map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        } ?? []
+        let venue: String? = parts.first.map { String($0) }
+        let city: String? = parts.count > 1 ? parts.last.map { String($0) } : nil
+
         let candidates = shows.filter { candidate in
-            candidate.name == session.show.showName
-                && calendar.isDate(candidate.effectiveDate, inSameDayAs: session.show.showDate)
-                && candidate.companionStatus == .none
+            guard candidate.companionStatus == .none else { return false }
+            guard candidate.name == session.show.showName else { return false }
+            guard calendar.isDate(candidate.effectiveDate, inSameDayAs: session.show.showDate) else {
+                return false
+            }
+            if let venue, let candidateVenue = candidate.venueName,
+               !candidateVenue.isEmpty, candidateVenue != venue {
+                return false
+            }
+            if let city, let candidateCity = candidate.city,
+               !candidateCity.isEmpty, candidateCity != city {
+                return false
+            }
+            return true
         }
 
         if candidates.count == 1, let match = candidates.first {
@@ -272,17 +327,10 @@ final class CompanionSharingCoordinator {
         }
 
         // Ambiguous or missing: create a dedicated show from the shared snapshot.
-        let location = session.show.showLocation
-        let parts = location?.split(separator: "·").map {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines)
-        } ?? []
-        let venue = parts.first
-        let city = parts.count > 1 ? parts.last : nil
-
         let show = try Show(
             name: session.show.showName,
             date: session.show.showDate,
-            startTime: session.show.showDate,
+            startTime: session.show.showStartTime,
             city: city.flatMap { $0.isEmpty ? nil : $0 },
             venueName: venue.flatMap { $0.isEmpty ? nil : $0 }
         )
@@ -384,9 +432,13 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         deliverAcceptedShare(cloudKitShareMetadata)
     }
 
+    /// Metadata that arrived before coordinator/container wiring (cold launch).
+    private var earlyShareMetadata: [CKShare.Metadata] = []
+
     func deliverAcceptedShare(_ metadata: CKShare.Metadata) {
         guard let coordinator = companionCoordinator else {
-            // Coordinator not ready yet — SceneDelegate should re-deliver after wiring.
+            // Dependencies not ready — queue on the app delegate itself.
+            earlyShareMetadata.append(metadata)
             return
         }
         if let container = modelContainer {
@@ -399,8 +451,24 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
                 )
             }
         } else {
+            // Coordinator exists but container not yet assigned.
             Task { @MainActor in
                 coordinator.enqueueAcceptedShare(metadata)
+            }
+        }
+    }
+
+    /// Called when RootView/task wires dependencies so cold-launch metadata is drained.
+    func noteDependenciesReady() {
+        let queued = earlyShareMetadata
+        earlyShareMetadata.removeAll()
+        for metadata in queued {
+            deliverAcceptedShare(metadata)
+        }
+        if let coordinator = companionCoordinator, let container = modelContainer {
+            let context = ModelContext(container)
+            Task { @MainActor in
+                await coordinator.flushPendingAcceptedShares(in: context)
             }
         }
     }
