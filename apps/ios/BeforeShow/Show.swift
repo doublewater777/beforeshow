@@ -14,6 +14,10 @@ enum ShowCompanionStatus: String, CaseIterable, Codable {
     case canceled
 }
 
+enum ShowCompanionMutationError: Error, Equatable {
+    case invalidTransition(from: ShowCompanionStatus, to: ShowCompanionStatus)
+}
+
 struct ShowDisplayFormatter {
     private let calendar: Calendar
 
@@ -123,7 +127,7 @@ final class Show {
     var endedAt: Date?
 
     private var companionStatusRawValue: String?
-    var companionName: String?
+    private(set) var companionName: String?
 
     private var changeStatusRawValue: String
 
@@ -236,20 +240,47 @@ final class Show {
         touch()
     }
 
-    func markCompanionInvitationSent(name: String?) {
-        companionName = Self.trimmedOptional(name)
-        companionStatusRawValue = ShowCompanionStatus.pending.rawValue
-        touch()
+    /// Valid transitions: `.none` / `.canceled` → `.pending`.
+    func markCompanionInvitationSent(name: String?) throws {
+        let from = companionStatus
+        guard from == .none || from == .canceled else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .pending)
+        }
+        applyCompanionState(status: .pending, name: name)
     }
 
-    func markCompanionConfirmed(name: String?) {
-        companionName = Self.trimmedOptional(name)
-        companionStatusRawValue = ShowCompanionStatus.confirmed.rawValue
-        touch()
+    /// Valid transition: `.pending` → `.confirmed`.
+    func markCompanionConfirmed(name: String?) throws {
+        let from = companionStatus
+        guard from == .pending else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .confirmed)
+        }
+        applyCompanionState(status: .confirmed, name: name)
     }
 
-    func cancelCompanion() {
+    /// Valid transitions: `.pending` / `.confirmed` → `.canceled`.
+    func cancelCompanion() throws {
+        let from = companionStatus
+        guard from == .pending || from == .confirmed else {
+            throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
+        }
         companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
+        touch()
+    }
+
+    /// Snapshot used to restore state when the user cancels the system share sheet.
+    func companionStateSnapshot() -> (status: ShowCompanionStatus, name: String?) {
+        (companionStatus, companionName)
+    }
+
+    /// Force-restore a previous companion snapshot after a canceled share presentation.
+    func restoreCompanionState(status: ShowCompanionStatus, name: String?) {
+        applyCompanionState(status: status, name: name)
+    }
+
+    private func applyCompanionState(status: ShowCompanionStatus, name: String?) {
+        companionName = Self.trimmedOptional(name)
+        companionStatusRawValue = status.rawValue
         touch()
     }
 

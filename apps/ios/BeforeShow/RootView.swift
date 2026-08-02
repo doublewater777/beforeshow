@@ -373,9 +373,18 @@ struct CurrentShowManagementSection: View {
                 shareText: shareText,
                 sharedHistory: companionHistory,
                 isEnded: currentPhase == .ended,
-                onInvitationSent: { name in updateCompanion { $0.markCompanionInvitationSent(name: name) } },
-                onConfirmed: { name in updateCompanion { $0.markCompanionConfirmed(name: name) } },
-                onCanceled: { updateCompanion { $0.cancelCompanion() } },
+                onInvitationSent: { name in
+                    updateCompanion { try $0.markCompanionInvitationSent(name: name) }
+                },
+                onConfirmed: { name in
+                    updateCompanion { try $0.markCompanionConfirmed(name: name) }
+                },
+                onCanceled: {
+                    updateCompanion { try $0.cancelCompanion() }
+                },
+                onRestoreCompanionState: { status, name in
+                    updateCompanion { $0.restoreCompanionState(status: status, name: name) }
+                },
                 onDismiss: { isShowingCompanion = false }
             )
         }
@@ -804,24 +813,45 @@ struct CurrentShowManagementSection: View {
     }
 
     private var companionHistory: [Show] {
+        CompanionSharedHistory.shows(
+            matching: show,
+            from: candidateShows
+        )
+    }
+
+    @discardableResult
+    private func updateCompanion(_ mutation: (Show) throws -> Void) -> Bool {
+        do {
+            try mutation(show)
+            try modelContext.save()
+            return true
+        } catch {
+            modelContext.rollback()
+            companionSaveFailed = true
+            return false
+        }
+    }
+}
+
+enum CompanionSharedHistory {
+    /// Aggregate only when a stable non-empty companion name exists.
+    /// Unnamed confirmed companions must not merge across unrelated shows.
+    static func shows(matching show: Show, from candidates: [Show]) -> [Show] {
         let normalizedName = show.companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return candidateShows
+        guard let normalizedName, !normalizedName.isEmpty else {
+            if show.companionStatus == .confirmed, show.endedAt != nil {
+                return [show]
+            }
+            return []
+        }
+
+        return candidates
             .filter { candidate in
                 candidate.companionStatus == .confirmed
                     && candidate.endedAt != nil
                     && candidate.companionName?.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedName
             }
             .sorted { ($0.endedAt ?? .distantPast) > ($1.endedAt ?? .distantPast) }
-    }
-
-    private func updateCompanion(_ mutation: (Show) -> Void) {
-        mutation(show)
-        do {
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            companionSaveFailed = true
-        }
     }
 }
 
@@ -1011,27 +1041,37 @@ enum CurrentShowQuickAction: Hashable {
 
 struct CompanionQuickActionPresentation: Equatable {
     let title: String
+    let accessibilityLabel: String
+    let companionName: String?
     let showsPendingIndicator: Bool
     let showsAvatars: Bool
 
     init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool) {
         let name = companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedName = name.flatMap { $0.isEmpty ? nil : $0 }
+        self.companionName = normalizedName
         switch status {
         case .none:
             title = "同行"
+            accessibilityLabel = "同行，邀请一位朋友"
             showsPendingIndicator = false
             showsAvatars = false
         case .pending:
             title = "待确认"
+            accessibilityLabel = normalizedName.map { "同行，等待\($0)确认" } ?? "同行，待确认"
             showsPendingIndicator = true
             showsAvatars = false
         case .confirmed:
-            let displayName = name.flatMap { $0.isEmpty ? nil : $0 } ?? "同行者"
+            let displayName = normalizedName ?? "同行者"
             title = isEnded ? "共同足迹" : "与\(displayName)"
+            accessibilityLabel = isEnded
+                ? (normalizedName.map { "同行，与\($0)的共同足迹" } ?? "同行，共同足迹")
+                : "同行，与\(displayName)已确认"
             showsPendingIndicator = false
             showsAvatars = true
         case .canceled:
             title = "重新邀请"
+            accessibilityLabel = normalizedName.map { "同行，重新邀请\($0)" } ?? "同行，重新邀请"
             showsPendingIndicator = false
             showsAvatars = false
         }
@@ -1045,7 +1085,7 @@ private struct CurrentShowQuickActionTile: View {
     var body: some View {
         VStack(spacing: 7) {
             if let companion, companion.showsAvatars {
-                CompanionAvatarStack(name: companion.title.replacingOccurrences(of: "与", with: ""))
+                CompanionAvatarStack(name: companion.companionName ?? "同行者")
             } else {
                 Image(systemName: action.iconName)
                     .font(.system(size: 18, weight: .medium))
@@ -1072,11 +1112,12 @@ private struct CurrentShowQuickActionTile: View {
                     .frame(width: 7, height: 7)
                     .shadow(color: BSColor.Stage.accent.opacity(0.5), radius: 5)
                     .padding(11)
+                    .accessibilityHidden(true)
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 16))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(companion?.title ?? action.title)
+        .accessibilityLabel(companion?.accessibilityLabel ?? action.title)
     }
 }
 
@@ -1112,24 +1153,27 @@ private struct CurrentShowCompanionSheet: View {
     let shareText: String
     let sharedHistory: [Show]
     let isEnded: Bool
-    let onInvitationSent: (String?) -> Void
-    let onConfirmed: (String?) -> Void
-    let onCanceled: () -> Void
+    let onInvitationSent: (String?) -> Bool
+    let onConfirmed: (String?) -> Bool
+    let onCanceled: () -> Bool
+    let onRestoreCompanionState: (ShowCompanionStatus, String?) -> Bool
     let onDismiss: () -> Void
 
     @State private var companionName: String
     @State private var isShowingHistory = false
     @State private var isPresentingShare = false
     @State private var pendingShareText = ""
+    @State private var preShareSnapshot: (status: ShowCompanionStatus, name: String?)?
 
     init(
         show: Show,
         shareText: String,
         sharedHistory: [Show],
         isEnded: Bool,
-        onInvitationSent: @escaping (String?) -> Void,
-        onConfirmed: @escaping (String?) -> Void,
-        onCanceled: @escaping () -> Void,
+        onInvitationSent: @escaping (String?) -> Bool,
+        onConfirmed: @escaping (String?) -> Bool,
+        onCanceled: @escaping () -> Bool,
+        onRestoreCompanionState: @escaping (ShowCompanionStatus, String?) -> Bool,
         onDismiss: @escaping () -> Void
     ) {
         self.show = show
@@ -1139,6 +1183,7 @@ private struct CurrentShowCompanionSheet: View {
         self.onInvitationSent = onInvitationSent
         self.onConfirmed = onConfirmed
         self.onCanceled = onCanceled
+        self.onRestoreCompanionState = onRestoreCompanionState
         self.onDismiss = onDismiss
         _companionName = State(initialValue: show.companionName ?? "")
     }
@@ -1165,7 +1210,7 @@ private struct CurrentShowCompanionSheet: View {
             .scrollIndicators(.hidden)
         }
         .sheet(isPresented: $isPresentingShare) {
-            CompanionActivityView(items: [pendingShareText])
+            CompanionActivityView(items: [pendingShareText], onComplete: handleShareCompletion)
                 .presentationDetents([.large])
         }
     }
@@ -1183,7 +1228,9 @@ private struct CurrentShowCompanionSheet: View {
                 .bsInputField()
 
             Button {
-                onInvitationSent(companionName)
+                let snapshot = show.companionStateSnapshot()
+                guard onInvitationSent(companionName) else { return }
+                preShareSnapshot = snapshot
                 pendingShareText = shareText
                 isPresentingShare = true
             } label: {
@@ -1214,7 +1261,7 @@ private struct CurrentShowCompanionSheet: View {
             }
             .buttonStyle(BSPrimaryButtonStyle())
 
-            destructiveButton("取消邀请", action: onCanceled)
+            destructiveButton("取消邀请") { _ = onCanceled() }
         }
     }
 
@@ -1263,7 +1310,7 @@ private struct CurrentShowCompanionSheet: View {
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
 
-                destructiveButton("取消同行", action: onCanceled)
+                destructiveButton("取消同行") { _ = onCanceled() }
             }
         }
     }
@@ -1367,6 +1414,7 @@ private struct CurrentShowCompanionSheet: View {
                 .frame(width: 54, height: 54)
                 .background(BSColor.Stage.accent.opacity(0.10))
                 .clipShape(RoundedRectangle(cornerRadius: 17))
+                .accessibilityHidden(true)
             Text(title)
                 .font(.system(size: 21, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
@@ -1378,12 +1426,24 @@ private struct CurrentShowCompanionSheet: View {
     }
 
     private func destructiveButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .font(BSFont.caption)
-            .foregroundColor(BSColor.Stage.liveTitle)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
+        Button(role: .destructive, action: action) {
+            Text(title)
+                .font(BSFont.caption)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 11)
+        }
+        .foregroundColor(BSColor.Stage.liveTitle)
     }
+
+    private func handleShareCompletion(completed: Bool) {
+        guard let snapshot = preShareSnapshot else { return }
+        defer { preShareSnapshot = nil }
+        if completed {
+            return
+        }
+        _ = onRestoreCompanionState(snapshot.status, snapshot.name)
+    }
+
 
     private var displayName: String {
         let trimmed = companionName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1401,12 +1461,28 @@ private struct CurrentShowCompanionSheet: View {
 
 private struct CompanionActivityView: UIViewControllerRepresentable {
     let items: [Any]
+    let onComplete: (Bool) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onComplete: onComplete)
+    }
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        controller.completionWithItemsHandler = { _, completed, _, _ in
+            context.coordinator.onComplete(completed)
+        }
+        return controller
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+
+    final class Coordinator {
+        let onComplete: (Bool) -> Void
+        init(onComplete: @escaping (Bool) -> Void) {
+            self.onComplete = onComplete
+        }
+    }
 }
 
 private struct CurrentShowTicketSheet: View {

@@ -6,7 +6,7 @@ Simulator verification caught a race in the initial `ShareLink` implementation: 
 
 Verification:
 
-- Full iOS suite: 148 tests passed with 0 failures, including the final persistence assertion.
+- Full iOS suite: 153 tests passed with 0 failures, including the final persistence assertion.
 - Focused companion/navigation suite passes.
 - iPhone 17 accessibility inspection confirms all state actions and labels.
 - Screenshots:
@@ -17,3 +17,12 @@ Verification:
   - `docs/screenshots/2026-08-02-companion-shared-footprint.png`
 
 Remote acceptance comprehension and repeat usage remain unmeasured.
+
+
+## Review loop P1 fixes (2026-08-02)
+
+- Persist success now gates share presentation (`updateCompanion` returns `Bool`).
+- Share cancellation restores the pre-share companion snapshot via `completionWithItemsHandler`.
+- Unnamed confirmed companions no longer merge across shows (`CompanionSharedHistory`).
+- Model enforces companion lifecycle transitions; invalid transitions throw.
+- Regression coverage expanded; full suite: 153 tests passed, 0 failures.

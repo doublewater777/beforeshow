@@ -44,20 +44,108 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(show.companionStatus, .none)
         XCTAssertNil(show.companionName)
 
-        show.markCompanionInvitationSent(name: "  林嘉  ")
+        try show.markCompanionInvitationSent(name: "  林嘉  ")
         XCTAssertEqual(show.companionStatus, .pending)
         XCTAssertEqual(show.companionName, "林嘉")
 
-        show.markCompanionConfirmed(name: show.companionName)
+        try show.markCompanionConfirmed(name: show.companionName)
         XCTAssertEqual(show.companionStatus, .confirmed)
 
-        show.cancelCompanion()
+        try show.cancelCompanion()
         XCTAssertEqual(show.companionStatus, .canceled)
         XCTAssertEqual(show.companionName, "林嘉")
 
-        show.markCompanionInvitationSent(name: "")
+        try show.markCompanionInvitationSent(name: "")
         XCTAssertEqual(show.companionStatus, .pending)
         XCTAssertNil(show.companionName)
+    }
+
+    func testCompanionLifecycleRejectsInvalidTransitions() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+
+        XCTAssertThrowsError(try show.markCompanionConfirmed(name: "林嘉")) { error in
+            XCTAssertEqual(
+                error as? ShowCompanionMutationError,
+                .invalidTransition(from: .none, to: .confirmed)
+            )
+        }
+        XCTAssertEqual(show.companionStatus, .none)
+
+        XCTAssertThrowsError(try show.cancelCompanion()) { error in
+            XCTAssertEqual(
+                error as? ShowCompanionMutationError,
+                .invalidTransition(from: .none, to: .canceled)
+            )
+        }
+
+        try show.markCompanionInvitationSent(name: "林嘉")
+        XCTAssertThrowsError(try show.markCompanionInvitationSent(name: "重发")) { error in
+            XCTAssertEqual(
+                error as? ShowCompanionMutationError,
+                .invalidTransition(from: .pending, to: .pending)
+            )
+        }
+        XCTAssertEqual(show.companionName, "林嘉")
+
+        try show.markCompanionConfirmed(name: "林嘉")
+        XCTAssertThrowsError(try show.markCompanionInvitationSent(name: "旁路")) { error in
+            XCTAssertEqual(
+                error as? ShowCompanionMutationError,
+                .invalidTransition(from: .confirmed, to: .pending)
+            )
+        }
+        XCTAssertEqual(show.companionStatus, .confirmed)
+    }
+
+    func testCompanionStateCanBeRestoredAfterCanceledShare() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        let snapshot = show.companionStateSnapshot()
+
+        try show.markCompanionInvitationSent(name: "林嘉")
+        XCTAssertEqual(show.companionStatus, .pending)
+
+        show.restoreCompanionState(status: snapshot.status, name: snapshot.name)
+        XCTAssertEqual(show.companionStatus, .none)
+        XCTAssertNil(show.companionName)
+    }
+
+    func testUnnamedConfirmedCompanionsDoNotMergeAcrossShows() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let showA = try Show(name: "A", date: now, startTime: now)
+        try showA.markCompanionInvitationSent(name: nil)
+        try showA.markCompanionConfirmed(name: nil)
+        showA.markEnded(at: now)
+
+        let showB = try Show(name: "B", date: now.addingTimeInterval(3_600), startTime: now.addingTimeInterval(3_600))
+        try showB.markCompanionInvitationSent(name: nil)
+        try showB.markCompanionConfirmed(name: nil)
+        showB.markEnded(at: now.addingTimeInterval(3_600))
+
+        let history = CompanionSharedHistory.shows(matching: showA, from: [showA, showB])
+        XCTAssertEqual(history.map(\.id), [showA.id])
+    }
+
+    func testNamedConfirmedCompanionsMergeAcrossEndedShows() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let showA = try Show(name: "A", date: now, startTime: now)
+        try showA.markCompanionInvitationSent(name: "林嘉")
+        try showA.markCompanionConfirmed(name: "林嘉")
+        showA.markEnded(at: now)
+
+        let showB = try Show(name: "B", date: now.addingTimeInterval(3_600), startTime: now.addingTimeInterval(3_600))
+        try showB.markCompanionInvitationSent(name: "林嘉")
+        try showB.markCompanionConfirmed(name: "林嘉")
+        showB.markEnded(at: now.addingTimeInterval(3_600))
+
+        let other = try Show(name: "C", date: now.addingTimeInterval(7_200), startTime: now.addingTimeInterval(7_200))
+        try other.markCompanionInvitationSent(name: "小雨")
+        try other.markCompanionConfirmed(name: "小雨")
+        other.markEnded(at: now.addingTimeInterval(7_200))
+
+        let history = CompanionSharedHistory.shows(matching: showB, from: [showA, showB, other])
+        XCTAssertEqual(history.map(\.id), [showB.id, showA.id])
     }
 
     @MainActor
@@ -67,7 +155,8 @@ final class NavigationTests: XCTestCase {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "同行现场", date: now, startTime: now)
         container.mainContext.insert(show)
-        show.markCompanionConfirmed(name: "林嘉")
+        try show.markCompanionInvitationSent(name: "林嘉")
+        try show.markCompanionConfirmed(name: "林嘉")
         try container.mainContext.save()
 
         let reloadedContext = ModelContext(container)
@@ -76,28 +165,66 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(reloaded.companionName, "林嘉")
     }
 
+    @MainActor
+    func testPendingAndCanceledCompanionSurviveModelContextReload() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        let pending = try Show(name: "待确认", date: now, startTime: now)
+        try pending.markCompanionInvitationSent(name: "林嘉")
+        container.mainContext.insert(pending)
+
+        let canceled = try Show(name: "已取消", date: now.addingTimeInterval(60), startTime: now.addingTimeInterval(60))
+        try canceled.markCompanionInvitationSent(name: "小雨")
+        try canceled.cancelCompanion()
+        container.mainContext.insert(canceled)
+        try container.mainContext.save()
+
+        let reloadedContext = ModelContext(container)
+        let reloaded = try reloadedContext.fetch(FetchDescriptor<Show>())
+        let reloadedPending = try XCTUnwrap(reloaded.first { $0.name == "待确认" })
+        let reloadedCanceled = try XCTUnwrap(reloaded.first { $0.name == "已取消" })
+        XCTAssertEqual(reloadedPending.companionStatus, .pending)
+        XCTAssertEqual(reloadedPending.companionName, "林嘉")
+        XCTAssertEqual(reloadedCanceled.companionStatus, .canceled)
+        XCTAssertEqual(reloadedCanceled.companionName, "小雨")
+    }
+
     func testCompanionQuickActionReflectsEveryPrototypeState() {
         let none = CompanionQuickActionPresentation(status: .none, companionName: nil, isEnded: false)
         XCTAssertEqual(none.title, "同行")
+        XCTAssertEqual(none.accessibilityLabel, "同行，邀请一位朋友")
         XCTAssertFalse(none.showsPendingIndicator)
         XCTAssertFalse(none.showsAvatars)
+        XCTAssertNil(none.companionName)
 
         let pending = CompanionQuickActionPresentation(status: .pending, companionName: "林嘉", isEnded: false)
         XCTAssertEqual(pending.title, "待确认")
+        XCTAssertEqual(pending.accessibilityLabel, "同行，等待林嘉确认")
         XCTAssertTrue(pending.showsPendingIndicator)
         XCTAssertFalse(pending.showsAvatars)
 
         let confirmed = CompanionQuickActionPresentation(status: .confirmed, companionName: "林嘉", isEnded: false)
         XCTAssertEqual(confirmed.title, "与林嘉")
+        XCTAssertEqual(confirmed.accessibilityLabel, "同行，与林嘉已确认")
+        XCTAssertEqual(confirmed.companionName, "林嘉")
         XCTAssertFalse(confirmed.showsPendingIndicator)
         XCTAssertTrue(confirmed.showsAvatars)
 
         let ended = CompanionQuickActionPresentation(status: .confirmed, companionName: "林嘉", isEnded: true)
         XCTAssertEqual(ended.title, "共同足迹")
+        XCTAssertEqual(ended.accessibilityLabel, "同行，与林嘉的共同足迹")
         XCTAssertTrue(ended.showsAvatars)
+        XCTAssertEqual(ended.companionName, "林嘉")
+
+        let namedWithYu = CompanionQuickActionPresentation(status: .confirmed, companionName: "与田", isEnded: false)
+        XCTAssertEqual(namedWithYu.title, "与与田")
+        XCTAssertEqual(namedWithYu.companionName, "与田")
 
         let canceled = CompanionQuickActionPresentation(status: .canceled, companionName: "林嘉", isEnded: false)
         XCTAssertEqual(canceled.title, "重新邀请")
+        XCTAssertEqual(canceled.accessibilityLabel, "同行，重新邀请林嘉")
         XCTAssertFalse(canceled.showsPendingIndicator)
         XCTAssertFalse(canceled.showsAvatars)
     }
