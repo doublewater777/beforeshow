@@ -252,12 +252,16 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             if ck?.code != .alreadyShared {
                 throw Self.mapError(error, fallback: .acceptFailed)
             }
-            guard
-                let existingShare = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare
-            else {
-                throw Self.mapError(error, fallback: .acceptFailed)
+            do {
+                guard let existingShare = try await sharedDB.record(for: shareLocator.recordID) as? CKShare else {
+                    throw CompanionSharingError.sessionNotFound
+                }
+                acceptedShare = existingShare
+            } catch {
+                // The share was already accepted, but a transient refetch failure must remain
+                // retryable so the durable inbox is not discarded.
+                throw Self.mapError(error, fallback: .statusSyncPending)
             }
-            acceptedShare = existingShare
         }
 
         let rootID = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
@@ -304,14 +308,14 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
 
         // One-companion invariant: reject a second accepted participant, while allowing
         // the same participant to reopen an already accepted invitation.
-        let currentUserRecordID = try? await container.userRecordID()
+        let currentParticipantID = acceptedShare.currentUserParticipant?.participantID
         let acceptedOthers = acceptedShare.participants.filter { participant in
             guard participant.role != .owner,
                   participant.acceptanceStatus == .accepted else {
                 return false
             }
-            guard let currentUserRecordID else { return true }
-            return participant.userIdentity.userRecordID != currentUserRecordID
+            guard let currentParticipantID else { return true }
+            return participant.participantID != currentParticipantID
         }
         if !acceptedOthers.isEmpty {
             try await leaveShareOrThrowCleanupPending()
@@ -369,19 +373,37 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             predicate: NSPredicate(value: true)
         )
         do {
-            let (matchResults, _) = try await sharedDB.records(
-                matching: query,
-                inZoneWith: nil,
-                desiredKeys: nil,
-                resultsLimit: 50
-            )
             var sessions: [CompanionSessionSnapshot] = []
-            for (_, result) in matchResults {
-                guard case .success(let record) = result else { continue }
-                guard let snapshot = try? Self.snapshot(from: record, shareLocator: nil) else { continue }
-                if snapshot.status == .accepted || snapshot.status == .pending {
-                    sessions.append(snapshot)
-                }
+            for zone in try await sharedDB.allRecordZones() {
+                var cursor: CKQueryOperation.Cursor?
+                repeat {
+                    let page: (matchResults: [(CKRecord.ID, Result<CKRecord, Error>)], queryCursor: CKQueryOperation.Cursor?)
+                    if let cursor {
+                        page = try await sharedDB.records(
+                            continuingMatchFrom: cursor,
+                            desiredKeys: nil,
+                            resultsLimit: 50
+                        )
+                    } else {
+                        page = try await sharedDB.records(
+                            matching: query,
+                            inZoneWith: zone.zoneID,
+                            desiredKeys: nil,
+                            resultsLimit: 50
+                        )
+                    }
+                    for (_, result) in page.matchResults {
+                        guard case .success(let record) = result else { continue }
+                        guard let snapshot = try? Self.snapshot(
+                            from: record,
+                            shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) }
+                        ) else { continue }
+                        if snapshot.status == .accepted || snapshot.status == .pending {
+                            sessions.append(snapshot)
+                        }
+                    }
+                    cursor = page.queryCursor
+                } while cursor != nil
             }
             return sessions
         } catch {

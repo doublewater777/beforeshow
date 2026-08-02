@@ -149,9 +149,9 @@ final class CompanionSharingCoordinator {
             )
             let shouldRetry: Bool
             switch lastErrorKind {
-            case .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed:
+            case .iCloudAccountUnavailable, .networkFailure, .conflict, .statusSyncPending, .sharePreparationFailed:
                 shouldRetry = true
-            case .none, .iCloudAccountUnavailable, .acceptFailed, .sessionNotFound,
+            case .none, .acceptFailed, .sessionNotFound,
                     .invalidPayload, .permissionDenied:
                 // Invalid payload and permission denial are terminal after compensating leave.
                 shouldRetry = false
@@ -475,13 +475,21 @@ final class CompanionSharingCoordinator {
             if accepted.count == 1, !pending.isEmpty {
                 return .warning("已有同行者确认，仍有未确认的邀请成员")
             }
-            if accepted.isEmpty, pending.isEmpty, unknown.isEmpty, !nonOwner.isEmpty {
+            if accepted.isEmpty, pending.isEmpty, unknown.isEmpty {
                 return .removed
+            }
+            if accepted.isEmpty, !pending.isEmpty {
+                return .warning("同行邀请尚未有成员确认")
             }
             return .healthy
         } catch {
-            // Membership load failure is non-fatal for root refresh.
-            return .healthy
+            if let sharing = error as? CompanionSharingError,
+               sharing == .sessionNotFound {
+                // The share disappeared on another device; let the owner close the root.
+                return .removed
+            }
+            // Transport failures are non-terminal and must be surfaced as a warning.
+            return .warning("同行成员状态暂时无法同步，请稍后重试")
         }
     }
 
