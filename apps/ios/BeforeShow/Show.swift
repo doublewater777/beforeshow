@@ -59,14 +59,6 @@ struct ShowDisplayFormatter {
         return text
     }
 
-    func statusText(for show: Show) -> String {
-        CurrentShowTimeState(show: show, calendar: calendar).statusText
-    }
-
-    func countdownText(for show: Show) -> String {
-        CurrentShowTimeState(show: show, calendar: calendar).countdownText
-    }
-
     private func dayRangeText(from start: Date, to end: Date) -> String {
         let startComponents = calendar.dateComponents([.year, .month, .day], from: start)
         let endComponents = calendar.dateComponents([.year, .month, .day], from: end)
