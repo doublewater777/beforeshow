@@ -40,6 +40,10 @@ final class CompanionSharingCoordinator {
         let cloudBefore = show.companionCloudLinkageSnapshot()
 
         do {
+            // Do not create a replacement invite while an old share still needs revocation.
+            if show.companionStatus == .canceled, show.companionShareLocator != nil {
+                throw CompanionSharingError.conflict
+            }
             switch show.companionStatus {
             case .none, .canceled:
                 try show.markCompanionInvitationSent(name: preferredParticipantName)
@@ -107,7 +111,12 @@ final class CompanionSharingCoordinator {
             lastErrorKind = nil
         } catch {
             lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError
+            if let sharing = error as? CompanionSharingError {
+                lastErrorKind = sharing
+            } else {
+                // Local persistence / unexpected failures after remote accept should retry.
+                lastErrorKind = .statusSyncPending
+            }
         }
     }
 
@@ -219,6 +228,34 @@ final class CompanionSharingCoordinator {
                 }
             }
 
+            // Participant: canceled root with retained share locator means leave is incomplete.
+            if session.status == .canceled,
+               isOwnerRole == false,
+               let shareLocator = show.companionShareLocator ?? session.shareLocator {
+                do {
+                    _ = try await service.cancelSession(
+                        sessionLocator: sessionLocator,
+                        shareLocator: shareLocator,
+                        isOwner: false
+                    )
+                } catch {
+                    if show.companionStatus == .pending || show.companionStatus == .confirmed {
+                        try? show.cancelCompanion()
+                    }
+                    // Keep share locator to retry leave.
+                    show.companionCloudRecordName = sessionLocator.recordName
+                    show.companionCloudZoneName = sessionLocator.zoneName
+                    show.companionCloudOwnerName = sessionLocator.ownerName
+                    show.companionShareRecordName = shareLocator.recordName
+                    show.companionShareZoneName = shareLocator.zoneName
+                    show.companionShareOwnerName = shareLocator.ownerName
+                    show.companionIsOwner = false
+                    try modelContext.save()
+                    lastErrorMessage = Self.userMessage(for: error)
+                    return
+                }
+            }
+
             show.applyCompanionSession(session, isOwner: isOwnerRole)
             if session.status == .canceled {
                 if show.companionStatus == .pending || show.companionStatus == .confirmed {
@@ -228,9 +265,10 @@ final class CompanionSharingCoordinator {
             }
             try modelContext.save()
             lastErrorMessage = nil
-        } catch let error as CompanionSharingError where error == .sessionNotFound {
-            // Linked session disappeared (owner revoked share / deleted root).
-            // Treat as terminal local cancellation rather than keeping a stale confirmed state.
+        } catch let error as CompanionSharingError
+            where error == .sessionNotFound
+                || (error == .permissionDenied && show.companionIsOwner == false) {
+            // Linked session disappeared / access revoked for participant.
             if show.companionStatus == .pending || show.companionStatus == .confirmed {
                 try? show.cancelCompanion()
             }
@@ -245,6 +283,8 @@ final class CompanionSharingCoordinator {
     }
 
     func refreshAllLinkedShows(in modelContext: ModelContext) async {
+        // Opportunistic retry for acceptance inbox when the app refreshes linked sessions.
+        await flushPendingAcceptedShares(in: modelContext)
         let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
         for show in shows where show.companionCloudRecordName != nil {
@@ -268,17 +308,24 @@ final class CompanionSharingCoordinator {
 
         // One-companion model: only treat "no accepted non-owner" as removal when we were
         // already confirmed. A normal pending invite save has zero accepted participants.
-        let acceptedParticipants = share.participants.filter {
-            $0.role != .owner && $0.acceptanceStatus == .accepted
-        }
-        let pendingParticipants = share.participants.filter {
-            $0.role != .owner && $0.acceptanceStatus == .pending
-        }
+        let nonOwnerParticipants = share.participants.filter { $0.role != .owner }
+        let acceptedParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .accepted }
+        let pendingParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .pending }
+        let unknownParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .unknown }
+        let removedParticipants = nonOwnerParticipants.filter { $0.acceptanceStatus == .removed }
+        _ = removedParticipants
 
-        if acceptedParticipants.isEmpty,
+        // Only infer removal when every non-owner is explicitly removed, or none remain.
+        // `.unknown` is indeterminate and must not destroy a confirmed relationship.
+        let allNonOwnersRemoved = !nonOwnerParticipants.isEmpty
+            && nonOwnerParticipants.allSatisfy { $0.acceptanceStatus == .removed }
+        let noNonOwners = nonOwnerParticipants.isEmpty
+
+        if show.companionStatus == .confirmed,
+           unknownParticipants.isEmpty,
+           acceptedParticipants.isEmpty,
            pendingParticipants.isEmpty,
-           show.companionStatus == .confirmed {
-            // Confirmed participant removed via system UI — mirror as canceled.
+           (allNonOwnersRemoved || noNonOwners) {
             if show.companionSessionLocator != nil {
                 try? await cancelCompanion(for: show, in: modelContext)
                 return

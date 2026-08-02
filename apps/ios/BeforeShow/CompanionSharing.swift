@@ -270,7 +270,11 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                     deleting: [shareLocator.recordID]
                 )
             } catch {
-                // Best effort; still deny the accept.
+                let mapped = Self.mapError(error)
+                if mapped != .sessionNotFound {
+                    // Keep residual-access risk visible as retryable cleanup failure.
+                    throw CompanionSharingError.statusSyncPending
+                }
             }
             throw CompanionSharingError.permissionDenied
         }
@@ -542,7 +546,8 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             return .networkFailure
         case .permissionFailure:
             return .permissionDenied
-        case .unknownItem:
+        case .unknownItem, .zoneNotFound:
+            // Missing zone/record both mean the linked hierarchy is gone from this DB view.
             return .sessionNotFound
         case .serverRecordChanged, .batchRequestFailed:
             return .conflict

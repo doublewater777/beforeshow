@@ -1188,6 +1188,10 @@ private struct CurrentShowCompanionSheet: View {
     private func sendInvitation(isRetry: Bool) async {
         isPreparingInvite = true
         defer { isPreparingInvite = false }
+        if isRetry, show.companionShareLocator != nil {
+            errorMessage = "请先完成取消同步，再重新邀请"
+            return
+        }
         do {
             let prepared = try await coordinator.prepareInvitation(
                 for: show,
