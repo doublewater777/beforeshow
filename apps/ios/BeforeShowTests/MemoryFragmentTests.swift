@@ -93,6 +93,8 @@ final class MemoryFragmentTests: XCTestCase {
         )
         XCTAssertEqual(committed.count, 1)
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Staging/\(draftID.uuidString)").path))
+        try await store.finalizeCommit(draftID: draftID)
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Staging/\(draftID.uuidString)").path))
 
         try await store.deleteFragment(showID: showID, fragmentID: fragmentID)
@@ -127,6 +129,7 @@ final class MemoryFragmentTests: XCTestCase {
             fragmentID: fragmentID,
             media: [initial]
         )
+        try await store.finalizeCommit(draftID: initialDraftID)
         let additionDraftID = UUID()
         let addition = try await store.stageCameraPhoto(makeJPEG(), draftID: additionDraftID)
 
@@ -136,9 +139,92 @@ final class MemoryFragmentTests: XCTestCase {
             fragmentID: fragmentID,
             media: [addition]
         )
+        try await store.finalizeCommit(draftID: additionDraftID)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(firstCommit[0].relativePath).path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(secondCommit[0].relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Staging/\(additionDraftID.uuidString)").path))
+    }
+
+
+    func testCommitKeepsStagingWhenSaveWouldFailAndRetrySucceeds() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        // Simulate SwiftData save failure: roll back final files, keep staging for retry.
+        try await store.rollbackCommittedFiles(relativePaths: committed.flatMap {
+            [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
+        })
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(staged.stagedRelativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+
+        let retried = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(retried[0].relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("Staging/\(draftID.uuidString)").path))
+    }
+
+    func testReconcileRemovesUnreferencedFilesInsideValidFragmentDirectory() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+
+        let fragmentDirectory = root
+            .appendingPathComponent(showID.uuidString)
+            .appendingPathComponent(fragmentID.uuidString)
+        let orphan = fragmentDirectory.appendingPathComponent("orphan-left-behind.mov")
+        try Data("orphan".utf8).write(to: orphan)
+
+        try await store.reconcileFragmentFiles(
+            showID: showID,
+            validFilesByFragmentID: [
+                fragmentID: Set(
+                    committed.flatMap { [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 } }
+                )
+            ]
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: orphan.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+    }
+
+    func testUpdateTextAllowsClearingCaptionWhenMediaExists() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "开场前")
+        fragment.appendMedia(makeMedia(kind: .photo, order: 0))
+        try fragment.updateText(nil)
+        XCTAssertNil(fragment.text)
+        XCTAssertEqual(fragment.mediaItems.count, 1)
     }
 
     private func makeContainer() throws -> ModelContainer {

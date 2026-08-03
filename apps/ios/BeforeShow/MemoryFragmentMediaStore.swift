@@ -55,6 +55,8 @@ enum MemoryMediaStoreError: Error {
     case unsupportedMedia
     case imageEncodingFailed
     case missingStagedDraft
+    case insufficientDiskSpace
+    case importCancelled
 }
 
 struct MemoryMediaLocation {
@@ -146,42 +148,15 @@ actor MemoryFragmentMediaStore {
     }
 
     func commit(draftID: UUID, showID: UUID, fragmentID: UUID, media: [MemoryDraftMedia]) throws -> [MemoryCommittedMedia] {
-        let stagedDirectory = location.url(for: "Staging/\(draftID.uuidString)")
-        guard fileManager.fileExists(atPath: stagedDirectory.path) else {
-            throw MemoryMediaStoreError.missingStagedDraft
-        }
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
-        try fileManager.createDirectory(at: finalDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if fileManager.fileExists(atPath: finalDirectory.path) {
-            try fileManager.removeItem(at: finalDirectory)
-        }
-        try fileManager.moveItem(at: stagedDirectory, to: finalDirectory)
-
-        let keptFileNames = Set(media.flatMap { item in
-            [item.stagedRelativePath, item.thumbnailStagedRelativePath]
-                .compactMap { $0 }
-                .map { URL(fileURLWithPath: $0).lastPathComponent }
-        })
-        for fileURL in try fileManager.contentsOfDirectory(
-            at: finalDirectory,
-            includingPropertiesForKeys: nil
-        ) where !keptFileNames.contains(fileURL.lastPathComponent) {
-            try fileManager.removeItem(at: fileURL)
-        }
-
-        return media.map { item in
-            MemoryCommittedMedia(
-                id: item.id,
-                kind: item.kind,
-                relativePath: finalPath(from: item.stagedRelativePath, finalDirectory: finalRelativeDirectory),
-                thumbnailRelativePath: item.thumbnailStagedRelativePath.map {
-                    finalPath(from: $0, finalDirectory: finalRelativeDirectory)
-                },
-                contentTypeIdentifier: item.contentTypeIdentifier,
-                videoDuration: item.videoDuration
-            )
-        }
+        return try copyStagingToFinal(
+            draftID: draftID,
+            finalRelativeDirectory: finalRelativeDirectory,
+            finalDirectory: finalDirectory,
+            media: media,
+            replaceExistingDirectory: true
+        )
     }
 
     func commitAdditions(
@@ -192,6 +167,44 @@ actor MemoryFragmentMediaStore {
     ) throws -> [MemoryCommittedMedia] {
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
+        return try copyStagingToFinal(
+            draftID: draftID,
+            finalRelativeDirectory: finalRelativeDirectory,
+            finalDirectory: finalDirectory,
+            media: media,
+            replaceExistingDirectory: false
+        )
+    }
+
+    /// Call only after SwiftData successfully persisted the committed media.
+    func finalizeCommit(draftID: UUID) throws {
+        try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
+    }
+
+    /// Call when SwiftData failed after files were copied to the final location.
+    func rollbackCommittedFiles(relativePaths: [String]) throws {
+        try deleteFiles(relativePaths: relativePaths)
+    }
+
+    private func copyStagingToFinal(
+        draftID: UUID,
+        finalRelativeDirectory: String,
+        finalDirectory: URL,
+        media: [MemoryDraftMedia],
+        replaceExistingDirectory: Bool
+    ) throws -> [MemoryCommittedMedia] {
+        let stagedDirectory = location.url(for: "Staging/\(draftID.uuidString)")
+        guard fileManager.fileExists(atPath: stagedDirectory.path) else {
+            throw MemoryMediaStoreError.missingStagedDraft
+        }
+
+        try fileManager.createDirectory(
+            at: finalDirectory.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        if replaceExistingDirectory, fileManager.fileExists(atPath: finalDirectory.path) {
+            try fileManager.removeItem(at: finalDirectory)
+        }
         try fileManager.createDirectory(at: finalDirectory, withIntermediateDirectories: true)
 
         var committed: [MemoryCommittedMedia] = []
@@ -199,6 +212,9 @@ actor MemoryFragmentMediaStore {
         do {
             for item in media {
                 let source = location.url(for: item.stagedRelativePath)
+                guard fileManager.fileExists(atPath: source.path) else {
+                    throw MemoryMediaStoreError.missingStagedDraft
+                }
                 let relativePath = "\(finalRelativeDirectory)/\(source.lastPathComponent)"
                 let destination = location.url(for: relativePath)
                 try fileManager.copyItem(at: source, to: destination)
@@ -207,12 +223,16 @@ actor MemoryFragmentMediaStore {
                 var thumbnailRelativePath: String?
                 if let stagedThumbnail = item.thumbnailStagedRelativePath {
                     let thumbnailSource = location.url(for: stagedThumbnail)
+                    guard fileManager.fileExists(atPath: thumbnailSource.path) else {
+                        throw MemoryMediaStoreError.missingStagedDraft
+                    }
                     let thumbnailPath = "\(finalRelativeDirectory)/\(thumbnailSource.lastPathComponent)"
                     let thumbnailDestination = location.url(for: thumbnailPath)
                     try fileManager.copyItem(at: thumbnailSource, to: thumbnailDestination)
                     copiedURLs.append(thumbnailDestination)
                     thumbnailRelativePath = thumbnailPath
                 }
+
                 committed.append(MemoryCommittedMedia(
                     id: item.id,
                     kind: item.kind,
@@ -222,7 +242,7 @@ actor MemoryFragmentMediaStore {
                     videoDuration: item.videoDuration
                 ))
             }
-            try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
+            // Keep staging until SwiftData save succeeds so failed saves remain retryable.
             return committed
         } catch {
             for copiedURL in copiedURLs {
@@ -280,6 +300,49 @@ actor MemoryFragmentMediaStore {
                 try removeIfPresent(directory)
                 continue
             }
+        }
+    }
+
+    /// Removes unreferenced files inside valid fragment directories and orphan fragment directories.
+    func reconcileFragmentFiles(
+        showID: UUID,
+        validFilesByFragmentID: [UUID: Set<String>]
+    ) throws {
+        let showDirectory = location.url(for: showID.uuidString)
+        guard fileManager.fileExists(atPath: showDirectory.path) else { return }
+
+        for directory in try fileManager.contentsOfDirectory(
+            at: showDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) {
+            guard let fragmentID = UUID(uuidString: directory.lastPathComponent) else {
+                try removeIfPresent(directory)
+                continue
+            }
+
+            guard let validRelativePaths = validFilesByFragmentID[fragmentID] else {
+                try removeIfPresent(directory)
+                continue
+            }
+
+            let validFileNames = Set(validRelativePaths.map { URL(fileURLWithPath: $0).lastPathComponent })
+            for fileURL in try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: nil
+            ) where !validFileNames.contains(fileURL.lastPathComponent) {
+                try removeIfPresent(fileURL)
+            }
+        }
+    }
+
+    func ensureAvailableCapacity(forByteCount required: Int64) throws {
+        guard required > 0 else { return }
+        let values = try location.rootDirectory.resourceValues(forKeys: [
+            .volumeAvailableCapacityForImportantUsageKey
+        ])
+        if let available = values.volumeAvailableCapacityForImportantUsage,
+           available < required {
+            throw MemoryMediaStoreError.insufficientDiskSpace
         }
     }
 

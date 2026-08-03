@@ -126,7 +126,10 @@ struct MemoryFragmentsView: View {
             )
         }
         .sheet(item: $textEditorTarget) { target in
-            MemoryTextComposerView(initialText: target.text) { text in
+            MemoryTextComposerView(
+                initialText: target.text,
+                allowsEmptyText: target.fragment.map { !$0.mediaItems.isEmpty } ?? false
+            ) { text in
                 try saveText(text, editing: target.fragment)
             }
         }
@@ -183,9 +186,16 @@ struct MemoryFragmentsView: View {
             try? await MemoryFragmentMediaStore.shared.cleanupStaging(
                 olderThan: Date().addingTimeInterval(-86_400)
             )
-            try? await MemoryFragmentMediaStore.shared.cleanupOrphanedFragments(
+            var validFilesByFragmentID: [UUID: Set<String>] = [:]
+            for fragment in fragments {
+                let paths = fragment.mediaItems.flatMap { item in
+                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+                }
+                validFilesByFragmentID[fragment.id] = Set(paths)
+            }
+            try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(
                 showID: showID,
-                validFragmentIDs: Set(fragments.map(\.id))
+                validFilesByFragmentID: validFilesByFragmentID
             )
         }
     }
@@ -240,6 +250,9 @@ struct MemoryFragmentsView: View {
             fragmentID: fragmentID,
             media: media
         )
+        let committedPaths = committed.flatMap {
+            [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
+        }
         do {
             let fragment = try MemoryFragment(id: fragmentID, showID: showID, text: caption)
             for (index, item) in committed.enumerated() {
@@ -255,10 +268,11 @@ struct MemoryFragmentsView: View {
             }
             modelContext.insert(fragment)
             try modelContext.save()
+            try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
             presentToast(.success, "已加入这场现场")
         } catch {
             modelContext.rollback()
-            try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: showID, fragmentID: fragmentID)
+            try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
             throw error
         }
     }
@@ -290,6 +304,9 @@ struct MemoryFragmentsView: View {
             fragmentID: fragment.id,
             media: media
         )
+        let committedPaths = committed.flatMap {
+            [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
+        }
         do {
             for item in committed {
                 fragment.appendMedia(MemoryMediaItem(
@@ -303,11 +320,10 @@ struct MemoryFragmentsView: View {
                 ))
             }
             try modelContext.save()
+            try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         } catch {
             modelContext.rollback()
-            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: committed.flatMap {
-                [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
-            })
+            try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
             throw error
         }
     }
@@ -369,10 +385,16 @@ private struct MemoryTextComposerView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
     @State private var errorMessage: String?
+    let allowsEmptyText: Bool
     let onSave: (String) throws -> Void
 
-    init(initialText: String, onSave: @escaping (String) throws -> Void) {
+    init(
+        initialText: String,
+        allowsEmptyText: Bool = false,
+        onSave: @escaping (String) throws -> Void
+    ) {
         _text = State(initialValue: initialText)
+        self.allowsEmptyText = allowsEmptyText
         self.onSave = onSave
     }
 
@@ -411,7 +433,7 @@ private struct MemoryTextComposerView: View {
 
                     Button("加入这场现场") { save() }
                         .buttonStyle(BSPrimaryButtonStyle())
-                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(!allowsEmptyText && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Spacer()
                 }
                 .padding(BSSpacing.roomy)
@@ -526,6 +548,9 @@ private struct MemoryMediaCarousel: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(height: 260)
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+            .onChange(of: items.map(\.id)) { _, _ in
+                selection = min(selection, max(0, items.count - 1))
+            }
 
             if items.count > 1 {
                 Text("\(selection + 1) / \(items.count)")
@@ -649,13 +674,13 @@ private struct MemoryMediaManagerView: View {
                 )
             }
             .alert("删除最后一个媒体？", isPresented: $isConfirmingLastDeletion) {
-                Button("删除这条记忆", role: .destructive) {
+                Button("继续", role: .destructive) {
                     dismiss()
                     onDeleteLastItem()
                 }
                 Button("取消", role: .cancel) {}
             } message: {
-                Text("这条记忆没有文字，删除最后一个媒体后，整条记忆也会被删除。")
+                Text("这条记忆没有文字，删除最后一个媒体后，整条记忆也会被删除。下一步仍会再次确认。")
             }
             .alert("没有完成", isPresented: Binding(
                 get: { errorMessage != nil },
@@ -691,6 +716,8 @@ private struct MemoryMediaComposerView: View {
     @State private var progressText: String?
     @State private var errorMessage: String?
     @State private var selection = 0
+    @State private var activeImportTask: Task<Void, Never>?
+    @State private var importGeneration = 0
 
     var body: some View {
         NavigationStack {
@@ -719,11 +746,13 @@ private struct MemoryMediaComposerView: View {
                     HStack(spacing: BSSpacing.compact) {
                         Button("继续添加") { isShowingAddOptions = true }
                             .buttonStyle(BSSecondaryButtonStyle())
+                            .disabled(isProcessing)
                         if !media.isEmpty {
                             Button("删除当前项", role: .destructive) {
                                 removeCurrentItem()
                             }
                             .buttonStyle(BSSecondaryButtonStyle())
+                            .disabled(isProcessing)
                         }
                     }
 
@@ -753,27 +782,26 @@ private struct MemoryMediaComposerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { cancel() }
-                        .disabled(isProcessing)
+                    Button(isProcessing ? "停止" : "取消") { cancel() }
                 }
             }
             .interactiveDismissDisabled()
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
                 selection: $selectedItems,
-                maxSelectionCount: nil,
+                maxSelectionCount: 20,
                 selectionBehavior: .ordered,
                 matching: .any(of: [.images, .videos])
             )
             .onChange(of: selectedItems) { _, items in
                 guard !items.isEmpty else { return }
-                Task { await importItems(items) }
+                startImport { await importItems(items) }
             }
             .fullScreenCover(isPresented: $isCameraPresented) {
                 SystemMemoryCameraPicker { result in
                     isCameraPresented = false
                     guard let result else { return }
-                    Task { await importCameraResult(result) }
+                    startImport { await importCameraResult(result) }
                 }
                 .ignoresSafeArea()
             }
@@ -832,6 +860,7 @@ private struct MemoryMediaComposerView: View {
     }
 
     private func requestCamera() {
+        guard !isProcessing else { return }
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             errorMessage = "当前设备无法使用相机。"
             return
@@ -854,21 +883,45 @@ private struct MemoryMediaComposerView: View {
         }
     }
 
+    private func startImport(_ work: @escaping @MainActor () async -> Void) {
+        guard !isProcessing else {
+            errorMessage = "正在处理媒体，请稍后再继续添加。"
+            selectedItems = []
+            return
+        }
+        importGeneration += 1
+        let generation = importGeneration
+        isProcessing = true
+        activeImportTask = Task { @MainActor in
+            await work()
+            if generation == importGeneration {
+                isProcessing = false
+                progressText = nil
+                activeImportTask = nil
+            }
+        }
+    }
+
     @MainActor
     private func importItems(_ items: [PhotosPickerItem]) async {
-        isProcessing = true
-        defer {
-            isProcessing = false
-            selectedItems = []
-            progressText = nil
-        }
+        defer { selectedItems = [] }
         for (index, item) in items.enumerated() {
+            if Task.isCancelled { return }
             progressText = "正在处理 \(index + 1) / \(items.count)"
             do {
                 guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else {
                     throw MemoryMediaStoreError.unsupportedMedia
                 }
+                if Task.isCancelled {
+                    try? FileManager.default.removeItem(at: imported.url)
+                    return
+                }
                 media.append(try await MemoryFragmentMediaStore.shared.stageTransferredFile(imported, draftID: launch.id))
+            } catch is CancellationError {
+                return
+            } catch MemoryMediaStoreError.insufficientDiskSpace {
+                errorMessage = "可用空间不足，未能载入全部媒体。"
+                return
             } catch {
                 errorMessage = "第 \(index + 1) 个媒体没有载入，请重试。"
                 return
@@ -879,13 +932,9 @@ private struct MemoryMediaComposerView: View {
 
     @MainActor
     private func importCameraResult(_ result: MemoryCameraResult) async {
-        isProcessing = true
         progressText = "正在处理拍摄内容"
-        defer {
-            isProcessing = false
-            progressText = nil
-        }
         do {
+            if Task.isCancelled { return }
             switch result {
             case .photo(let data):
                 media.append(try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: launch.id))
@@ -896,18 +945,25 @@ private struct MemoryMediaComposerView: View {
                 ))
             }
             selection = media.count - 1
+        } catch is CancellationError {
+            return
+        } catch MemoryMediaStoreError.insufficientDiskSpace {
+            errorMessage = "可用空间不足，拍摄内容没有载入。"
         } catch {
             errorMessage = "拍摄内容没有载入，请重试。"
         }
     }
 
     private func removeCurrentItem() {
+        guard !isProcessing else { return }
         guard media.indices.contains(selection) else { return }
         media.remove(at: selection)
         selection = min(selection, max(0, media.count - 1))
     }
 
     private func save() {
+        guard !isProcessing else { return }
+        guard !media.isEmpty else { return }
         isProcessing = true
         Task {
             do {
@@ -921,6 +977,12 @@ private struct MemoryMediaComposerView: View {
     }
 
     private func cancel() {
+        activeImportTask?.cancel()
+        activeImportTask = nil
+        importGeneration += 1
+        isProcessing = false
+        progressText = nil
+        selectedItems = []
         Task {
             try? await MemoryFragmentMediaStore.shared.discardDraft(launch.id)
             dismiss()
