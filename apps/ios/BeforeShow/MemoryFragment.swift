@@ -22,6 +22,13 @@ final class MemoryFragment {
     @Relationship(deleteRule: .cascade, inverse: \MemoryMediaItem.fragment)
     var mediaItems: [MemoryMediaItem] = []
 
+    /// Model-level link to the owning `Show`. `showID` is retained as a denormalized
+    /// key for file paths and fetch predicates, but this relationship is what makes
+    /// the fragment<->show boundary enforceable: deleting a `Show` cascades to its
+    /// fragments, and reconciliation can reject any fragment whose `showID` has no
+    /// corresponding `Show`.
+    var show: Show?
+
     init(
         id: UUID = UUID(),
         showID: UUID,

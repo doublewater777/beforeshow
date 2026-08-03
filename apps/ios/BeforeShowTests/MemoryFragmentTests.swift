@@ -278,9 +278,177 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(second[0].relativePath).path))
     }
 
+    // MARK: - P2-1: model-level fragment<->show boundary
+
+    func testDeletingShowCascadesToMemoryFragments() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        let fragment = try MemoryFragment(showID: show.id, text: "记忆")
+        fragment.show = show
+        context.insert(fragment)
+        try context.save()
+
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 1)
+        context.delete(show)
+        try context.save()
+        // Cascade delete rule removes the fragment at the model layer; no orphan record
+        // survives a show deletion that previously depended on a manual coordinator.
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 0)
+    }
+
+    func testMemoryFragmentShowRelationshipLinksOwner() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        let fragment = try MemoryFragment(showID: show.id, text: "记忆")
+        fragment.show = show
+        context.insert(fragment)
+        try context.save()
+
+        let fetched = try context.fetch(FetchDescriptor<MemoryFragment>()).first
+        XCTAssertEqual(fetched?.showID, show.id)
+        XCTAssertEqual(fetched?.show?.id, show.id)
+        XCTAssertEqual(show.memoryFragments.first?.id, fragment.id)
+    }
+
+    // MARK: - P1-1: reconciliation/commit coordination gate
+
+    func testCommitGateSerializesConcurrentAccess() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+
+        await store.acquireCommitGate()
+        var secondAcquired = false
+        let waiter = Task<Void, Never> {
+            await store.acquireCommitGate()
+            secondAcquired = true
+            await store.releaseCommitGate()
+        }
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertFalse(secondAcquired, "Second acquire must block while the gate is held")
+        await store.releaseCommitGate()
+        await waiter.value
+        XCTAssertTrue(secondAcquired, "Second acquire completes once the gate is released")
+    }
+
+    func testReconcileAllKeepsReferencedFragmentFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+
+        let valid: [UUID: [UUID: Set<String>]] = [
+            showID: [fragmentID: Set(committed.flatMap { [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 } })]
+        ]
+        try await store.reconcileAll(validFilesByShowAndFragment: valid)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+    }
+
+    // MARK: - P1-2: staging cleanup must not evict in-use/retrying drafts
+
+    func testCleanupStagingPreservesFreshDraft() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        _ = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+
+        // A freshly staged draft must survive the 24h staging cleanup so an open
+        // composer, or a draft retained for retry after a failed save, is not evicted.
+        try await store.cleanupStaging(olderThan: Date().addingTimeInterval(-86_400))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent("Staging/\(draftID.uuidString)").path))
+    }
+
+    // MARK: - P1-3: removing a draft item reclaims its staging
+
+    func testRemoveStagedItemDeletesStagingOriginalAndThumbnail() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+
+        try await store.removeStagedItem(staged)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(staged.stagedRelativePath).path))
+        if let thumb = staged.thumbnailStagedRelativePath {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(thumb).path))
+        }
+    }
+
+    // MARK: - P1-4: capacity checks + import-temp reclaim
+
+    func testEnsureAvailableCapacityThrowsWhenInsufficient() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        // ensureAvailableCapacity reads volume capacity off the root directory, so the
+        // directory must exist (in production prepareRootDirectory creates it first).
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+
+        do {
+            try await store.ensureAvailableCapacity(forByteCount: Int64.max)
+            XCTFail("Expected insufficientDiskSpace for an impossible byte count")
+        } catch MemoryMediaStoreError.insufficientDiskSpace {
+            // expected: the capacity path surfaces the typed error before any copy.
+        }
+    }
+
+    func testCleanupImportTempRemovesStaleFiles() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let stale = tempDir.appendingPathComponent("stale-\(UUID().uuidString).jpg")
+        let fresh = tempDir.appendingPathComponent("fresh-\(UUID().uuidString).jpg")
+        try Data("stale".utf8).write(to: stale)
+        try Data("fresh".utf8).write(to: fresh)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-100_000)],
+            ofItemAtPath: stale.path
+        )
+        defer {
+            try? FileManager.default.removeItem(at: stale)
+            try? FileManager.default.removeItem(at: fresh)
+        }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+
+        try await store.cleanupImportTemp(olderThan: Date().addingTimeInterval(-86_400))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path))
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
-            for: MemoryFragment.self,
+            for: Show.self,
+            MemoryFragment.self,
             MemoryMediaItem.self,
             configurations: ModelConfiguration(
                 isStoredInMemoryOnly: true,

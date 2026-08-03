@@ -183,9 +183,10 @@ struct MemoryFragmentsView: View {
             }
         }
         .task(id: fragments.map(\.id)) {
-            try? await MemoryFragmentMediaStore.shared.cleanupStaging(
-                olderThan: Date().addingTimeInterval(-86_400)
-            )
+            // Gated so this per-show reconcile cannot delete a concurrent commit's
+            // files via a stale snapshot. Staging cleanup is launch-only (BeforeShowApp)
+            // so it never evicts a draft still in use by an open composer or awaiting retry.
+            await MemoryFragmentMediaStore.shared.acquireCommitGate()
             var validFilesByFragmentID: [UUID: Set<String>] = [:]
             for fragment in fragments {
                 let paths = fragment.mediaItems.flatMap { item in
@@ -197,6 +198,7 @@ struct MemoryFragmentsView: View {
                 showID: showID,
                 validFilesByFragmentID: validFilesByFragmentID
             )
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
         }
     }
 
@@ -244,17 +246,27 @@ struct MemoryFragmentsView: View {
     ) async throws {
         guard !media.isEmpty else { throw MemoryFragmentValidationError.emptyContent }
         let fragmentID = UUID()
-        let committed = try await MemoryFragmentMediaStore.shared.commit(
-            draftID: draftID,
-            showID: showID,
-            fragmentID: fragmentID,
-            media: media
-        )
+        // Hold the commit gate across copy + SwiftData save so a reconciliation pass
+        // cannot take a stale snapshot and delete these just-committed files.
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
+        let committed: [MemoryCommittedMedia]
+        do {
+            committed = try await MemoryFragmentMediaStore.shared.commit(
+                draftID: draftID,
+                showID: showID,
+                fragmentID: fragmentID,
+                media: media
+            )
+        } catch {
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            throw error
+        }
         let committedPaths = committed.flatMap {
             [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
         }
         do {
             let fragment = try MemoryFragment(id: fragmentID, showID: showID, text: caption)
+            fragment.show = fetchShow(for: showID)
             for (index, item) in committed.enumerated() {
                 fragment.appendMedia(MemoryMediaItem(
                     id: item.id,
@@ -271,11 +283,19 @@ struct MemoryFragmentsView: View {
         } catch {
             modelContext.rollback()
             try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
         // DB is authoritative after save; staging cleanup failures must not delete final media.
         try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         presentToast(.success, "已加入这场现场")
+    }
+
+    private func fetchShow(for id: UUID) -> Show? {
+        var descriptor = FetchDescriptor<Show>(predicate: #Predicate { $0.id == id })
+        descriptor.fetchLimit = 1
+        return try? modelContext.fetch(descriptor).first
     }
 
     private func delete(_ fragment: MemoryFragment) {
@@ -299,12 +319,19 @@ struct MemoryFragmentsView: View {
         media: [MemoryDraftMedia],
         to fragment: MemoryFragment
     ) async throws {
-        let committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
-            draftID: draftID,
-            showID: showID,
-            fragmentID: fragment.id,
-            media: media
-        )
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
+        let committed: [MemoryCommittedMedia]
+        do {
+            committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
+                draftID: draftID,
+                showID: showID,
+                fragmentID: fragment.id,
+                media: media
+            )
+        } catch {
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            throw error
+        }
         let committedPaths = committed.flatMap {
             [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
         }
@@ -324,8 +351,10 @@ struct MemoryFragmentsView: View {
         } catch {
             modelContext.rollback()
             try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
         try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
     }
 
@@ -564,20 +593,32 @@ private struct MemoryMediaCarousel: View {
 
 private struct MemoryThumbnail: View {
     let relativePath: String
+    @State private var image: UIImage?
 
     var body: some View {
-        if let image = UIImage(contentsOfFile: MemoryMediaLocation.applicationSupport().url(for: relativePath).path) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .clipped()
-        } else {
-            ZStack {
-                BSColor.Stage.surface
-                Image(systemName: "photo")
-                    .foregroundColor(BSColor.Stage.muted)
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            } else {
+                ZStack {
+                    BSColor.Stage.surface
+                    Image(systemName: "photo")
+                        .foregroundColor(BSColor.Stage.muted)
+                }
             }
+        }
+        .task(id: relativePath) {
+            // Decoding full-size JPEGs synchronously in the SwiftUI body stalls the UI
+            // (especially in carousels); decode off the main thread and cache the result.
+            let path = MemoryMediaLocation.applicationSupport().url(for: relativePath).path
+            let loaded = await Task.detached(priority: .userInitiated) {
+                UIImage(contentsOfFile: path)
+            }.value
+            image = loaded
         }
     }
 }
@@ -984,8 +1025,11 @@ private struct MemoryMediaComposerView: View {
     private func removeCurrentItem() {
         guard operation == .idle else { return }
         guard media.indices.contains(selection) else { return }
-        media.remove(at: selection)
+        let removed = media.remove(at: selection)
         selection = min(selection, max(0, media.count - 1))
+        // Reclaim the staged original + thumbnail so the 20-item cap reflects real
+        // staged files and "import -> delete -> reimport" cannot bypass it.
+        Task { try? await MemoryFragmentMediaStore.shared.removeStagedItem(removed) }
     }
 
     private func save() {
@@ -1063,12 +1107,19 @@ private struct SystemMemoryCameraPicker: UIViewControllerRepresentable {
                 onComplete(.video(url))
                 return
             }
-            guard let image = info[.originalImage] as? UIImage,
-                  let data = image.jpegData(compressionQuality: 0.92) else {
+            guard let image = info[.originalImage] as? UIImage else {
                 onComplete(nil)
                 return
             }
-            onComplete(.photo(data))
+            // Full-size JPEG encoding is CPU-heavy; run it off the main thread so the
+            // picker callback (and picker dismissal) stay responsive.
+            Task.detached(priority: .userInitiated) { [weak self] in
+                guard let data = image.jpegData(compressionQuality: 0.92) else {
+                    await MainActor.run { self?.onComplete(nil) }
+                    return
+                }
+                await MainActor.run { self?.onComplete(.photo(data)) }
+            }
         }
     }
 }

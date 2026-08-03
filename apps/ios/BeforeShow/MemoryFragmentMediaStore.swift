@@ -46,7 +46,21 @@ struct MemoryImportedFile: Transferable {
         let destination = directory
             .appendingPathComponent(UUID().uuidString)
             .appendingPathExtension(fileExtension)
-        try FileManager.default.copyItem(at: source, to: destination)
+        // Capacity must be checked BEFORE the full copy; otherwise a huge video can
+        // exhaust disk and leave an orphan temp copy that app-level reconciliation
+        // (which only scans the memory root, not this temp dir) would never reclaim.
+        let requiredBytes = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+        do {
+            try MemoryCapacity.throwIfInsufficient(at: destination, required: requiredBytes)
+            try FileManager.default.copyItem(at: source, to: destination)
+        } catch MemoryMediaStoreError.insufficientDiskSpace {
+            // No partial copy is created by copyItem on failure, but be defensive.
+            try? FileManager.default.removeItem(at: destination)
+            throw MemoryMediaStoreError.insufficientDiskSpace
+        } catch {
+            try? FileManager.default.removeItem(at: destination)
+            throw MemoryMediaStoreError.map(error)
+        }
         return MemoryImportedFile(url: destination, contentType: contentType)
     }
 }
@@ -57,6 +71,70 @@ enum MemoryMediaStoreError: Error {
     case missingStagedDraft
     case insufficientDiskSpace
     case importCancelled
+
+    /// Maps a raw file-system error to `insufficientDiskSpace` when the device is out
+    /// of space, otherwise returns the original error. Non-isolated so it can be used
+    /// from `MemoryImportedFile.copied` (which runs outside the store actor).
+    static func map(_ error: Error) -> Error {
+        let nsError = error as NSError
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(ENOSPC) {
+            return Self.insufficientDiskSpace
+        }
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileWriteOutOfSpaceError {
+            return Self.insufficientDiskSpace
+        }
+        return error
+    }
+}
+
+/// Non-isolated disk-capacity checks, usable from `MemoryImportedFile.copied` and
+/// other non-actor sites that run before the store actor is involved.
+enum MemoryCapacity {
+    static func availableBytes(at url: URL, fileManager: FileManager = .default) -> Int64? {
+        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
+    }
+
+    /// Throws `insufficientDiskSpace` when `required` bytes are unavailable on the
+    /// volume that contains `url`. A missing capacity value is treated as permissive
+    /// (the volume may not report the key) so we never block valid low-volume devices.
+    static func throwIfInsufficient(at url: URL, required: Int64, fileManager: FileManager = .default) throws {
+        guard required > 0 else { return }
+        guard let available = availableBytes(at: url, fileManager: fileManager) else { return }
+        if available < required {
+            throw MemoryMediaStoreError.insufficientDiskSpace
+        }
+    }
+}
+
+/// Single-permit async gate that makes media reconciliation and media commits
+/// mutually exclusive. Reconciliation builds its on-disk-valid set from a SwiftData
+/// snapshot while holding the gate; commits copy staging into the final directory and
+/// save to SwiftData while holding the gate. This removes the window in which a
+/// reconciliation snapshot taken before a commit's `save()` could delete that commit's
+/// just-copied files.
+actor MemoryMediaGate {
+    private var inUse = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !inUse {
+            inUse = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        if let next = waiters.first {
+            waiters.removeFirst()
+            next.resume()
+        } else {
+            inUse = false
+        }
+    }
 }
 
 struct MemoryMediaLocation {
@@ -78,18 +156,31 @@ actor MemoryFragmentMediaStore {
 
     let location: MemoryMediaLocation
     private let fileManager: FileManager
+    /// Serializes media commits against reconciliation so a stale reconciliation
+    /// snapshot can never delete a concurrent commit's just-copied files.
+    private let gate = MemoryMediaGate()
 
     init(location: MemoryMediaLocation, fileManager: FileManager = .default) {
         self.location = location
         self.fileManager = fileManager
     }
 
+    /// Acquired by commit paths around `[copy + SwiftData save]` and by reconciliation
+    /// around `[fetch snapshot + reconcile]` so the two cannot interleave.
+    func acquireCommitGate() async { await gate.acquire() }
+    func releaseCommitGate() async { await gate.release() }
+
     func stageCameraPhoto(_ data: Data, draftID: UUID) throws -> MemoryDraftMedia {
         let id = UUID()
         let relativePath = stagingPath(draftID: draftID, fileName: "\(id.uuidString).jpg")
         let url = location.url(for: relativePath)
         try createParentDirectory(for: url)
-        try data.write(to: url, options: .atomic)
+        try ensureAvailableCapacity(forByteCount: Int64(data.count))
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw MemoryMediaStoreError.map(error)
+        }
         let thumbnail = try makePhotoThumbnail(sourceURL: url, draftID: draftID, mediaID: id)
         return MemoryDraftMedia(
             id: id,
@@ -126,7 +217,7 @@ actor MemoryFragmentMediaStore {
         do {
             try fileManager.copyItem(at: imported.url, to: destination)
         } catch {
-            throw mapFileError(error)
+            throw MemoryMediaStoreError.map(error)
         }
         try Task.checkCancellation()
 
@@ -279,6 +370,17 @@ actor MemoryFragmentMediaStore {
         try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
     }
 
+    /// Removes a single staged item's original and thumbnail from the staging
+    /// directory. Called when the user removes a draft item from the composer so the
+    /// 20-item limit reflects real staged files instead of leaving orphan staging
+    /// behind (which previously let "import -> delete -> reimport" bypass the cap).
+    func removeStagedItem(_ item: MemoryDraftMedia) throws {
+        try removeIfPresent(location.url(for: item.stagedRelativePath))
+        if let thumbnail = item.thumbnailStagedRelativePath {
+            try removeIfPresent(location.url(for: thumbnail))
+        }
+    }
+
     func deleteFragment(showID: UUID, fragmentID: UUID) throws {
         try removeIfPresent(location.url(for: "\(showID.uuidString)/\(fragmentID.uuidString)"))
     }
@@ -301,6 +403,26 @@ actor MemoryFragmentMediaStore {
             let values = try directory.resourceValues(forKeys: [.contentModificationDateKey])
             if values.contentModificationDate.map({ $0 < cutoff }) ?? true {
                 try removeIfPresent(directory)
+            }
+        }
+    }
+
+    /// Removes stale files left in the PhotosPicker transfer temp directory
+    /// (`BeforeShowMemoryImports`). The picker copies each selected file here before
+    /// the store is involved, and a failed/cancelled import can leave files behind
+    /// that memory reconciliation (which scans the memory root, not this temp dir)
+    /// would never reclaim.
+    func cleanupImportTemp(olderThan cutoff: Date) throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        for fileURL in try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) {
+            let values = try fileURL.resourceValues(forKeys: [.contentModificationDateKey])
+            if values.contentModificationDate.map({ $0 < cutoff }) ?? true {
+                try removeIfPresent(fileURL)
             }
         }
     }
@@ -393,19 +515,8 @@ actor MemoryFragmentMediaStore {
         do {
             try fileManager.copyItem(at: source, to: destination)
         } catch {
-            throw mapFileError(error)
+            throw MemoryMediaStoreError.map(error)
         }
-    }
-
-    private func mapFileError(_ error: Error) -> Error {
-        let nsError = error as NSError
-        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(ENOSPC) {
-            return MemoryMediaStoreError.insufficientDiskSpace
-        }
-        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileWriteOutOfSpaceError {
-            return MemoryMediaStoreError.insufficientDiskSpace
-        }
-        return error
     }
 
     private func stagingPath(draftID: UUID, fileName: String) -> String {
@@ -453,7 +564,12 @@ actor MemoryFragmentMediaStore {
         }
         let relativePath = stagingPath(draftID: draftID, fileName: "\(mediaID.uuidString)-thumbnail.jpg")
         let url = location.url(for: relativePath)
-        try data.write(to: url, options: .atomic)
+        try ensureAvailableCapacity(forByteCount: Int64(data.count))
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw MemoryMediaStoreError.map(error)
+        }
         return relativePath
     }
 
@@ -466,7 +582,13 @@ actor MemoryFragmentMediaStore {
             throw MemoryMediaStoreError.imageEncodingFailed
         }
         let relativePath = stagingPath(draftID: draftID, fileName: "\(mediaID.uuidString)-thumbnail.jpg")
-        try data.write(to: location.url(for: relativePath), options: .atomic)
+        let url = location.url(for: relativePath)
+        try ensureAvailableCapacity(forByteCount: Int64(data.count))
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw MemoryMediaStoreError.map(error)
+        }
         return relativePath
     }
 }

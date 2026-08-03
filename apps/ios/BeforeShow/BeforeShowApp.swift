@@ -60,7 +60,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
-                    await reconcileAllMemoryMedia(in: modelContainer.mainContext)
+                    await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -71,7 +71,7 @@ struct BeforeShowApp: App {
                         await companionCoordinator.refreshAllLinkedShows(
                             in: modelContainer.mainContext
                         )
-                        await reconcileAllMemoryMedia(in: modelContainer.mainContext)
+                        await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                     }
                 }
         }
@@ -80,11 +80,26 @@ struct BeforeShowApp: App {
 }
 
 @MainActor
-private func reconcileAllMemoryMedia(in modelContext: ModelContext) async {
+private func reconcileAllMemoryMedia(in modelContext: ModelContext, includesStagingCleanup: Bool) async {
+    // The commit gate makes this pass mutually exclusive with media commits, so the
+    // SwiftData snapshot taken here can never be stale relative to a concurrent
+    // commit's copy-then-save and delete that commit's just-written files.
+    await MemoryFragmentMediaStore.shared.acquireCommitGate()
     do {
+        // Enforce the fragment<->show boundary: a fragment whose showID has no
+        // corresponding Show is an orphan (its Show was deleted outside the cascade
+        // path, or it was created against a fabricated showID). Drop the record and
+        // let reconcileAll reclaim its files.
+        let realShowIDs = Set(try modelContext.fetch(FetchDescriptor<Show>()).map(\.id))
         let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
         var valid: [UUID: [UUID: Set<String>]] = [:]
+        var removedOrphanRecords = false
         for fragment in fragments {
+            guard realShowIDs.contains(fragment.showID) else {
+                modelContext.delete(fragment)
+                removedOrphanRecords = true
+                continue
+            }
             let paths = Set(
                 fragment.mediaItems.flatMap { item in
                     [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
@@ -92,11 +107,24 @@ private func reconcileAllMemoryMedia(in modelContext: ModelContext) async {
             )
             valid[fragment.showID, default: [:]][fragment.id] = paths
         }
+        if removedOrphanRecords {
+            try modelContext.save()
+        }
         try await MemoryFragmentMediaStore.shared.reconcileAll(validFilesByShowAndFragment: valid)
-        try await MemoryFragmentMediaStore.shared.cleanupStaging(
-            olderThan: Date().addingTimeInterval(-86_400)
-        )
+        // Staging/import-temp cleanup is intentionally launch-only: running it on every
+        // scenePhase=.active could delete a draft still in use by an open composer or
+        // retained for retry after a failed save.
+        if includesStagingCleanup {
+            try await MemoryFragmentMediaStore.shared.cleanupStaging(
+                olderThan: Date().addingTimeInterval(-86_400)
+            )
+            try await MemoryFragmentMediaStore.shared.cleanupImportTemp(
+                olderThan: Date().addingTimeInterval(-86_400)
+            )
+        }
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
     } catch {
-        // Best-effort recovery; next launch retries.
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
+        // Best-effort recovery; next launch/active retries.
     }
 }
