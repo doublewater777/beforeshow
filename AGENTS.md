@@ -4,7 +4,7 @@
 
 涉及到页面UI的修改，一定要截图保存更改
 
-临时文件不要上传git，密钥不要上传git
+临时文件、截图不要上传git，密钥不要上传git
 
 use iphone 17 simulator
 

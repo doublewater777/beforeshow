@@ -17,7 +17,7 @@ final class ShowModelTests: XCTestCase {
 
         let container = try ModelContainer(
             for: Show.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         container.mainContext.insert(show)
         try container.mainContext.save()
@@ -54,7 +54,7 @@ final class ShowModelTests: XCTestCase {
     func testShowStoresOptionalEndDateAndEndTime() throws {
         let container = try ModelContainer(
             for: Show.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let startDate = Date(timeIntervalSince1970: 1_783_468_800)
         let startTime = Date(timeIntervalSince1970: 1_783_551_600)

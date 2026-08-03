@@ -164,7 +164,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
         let container = try ModelContainer(
             for: NotificationSchedulingState.self, ShowNotificationScheduleRecord.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true)
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         container.mainContext.insert(state)
         container.mainContext.insert(record)
