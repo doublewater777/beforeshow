@@ -268,13 +268,14 @@ struct MemoryFragmentsView: View {
             }
             modelContext.insert(fragment)
             try modelContext.save()
-            try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
-            presentToast(.success, "已加入这场现场")
         } catch {
             modelContext.rollback()
             try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
             throw error
         }
+        // DB is authoritative after save; staging cleanup failures must not delete final media.
+        try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+        presentToast(.success, "已加入这场现场")
     }
 
     private func delete(_ fragment: MemoryFragment) {
@@ -320,12 +321,12 @@ struct MemoryFragmentsView: View {
                 ))
             }
             try modelContext.save()
-            try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         } catch {
             modelContext.rollback()
             try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
             throw error
         }
+        try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
     }
 
     private func deleteMedia(_ item: MemoryMediaItem, from fragment: MemoryFragment) throws {
@@ -711,8 +712,16 @@ private struct MemoryMediaComposerView: View {
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
+    private enum ComposerOperation {
+        case idle
+        case importing
+        case saving
+    }
+
+    private static let maximumMediaCount = 20
+
     @State private var isShowingAddOptions = false
-    @State private var isProcessing = false
+    @State private var operation: ComposerOperation = .idle
     @State private var progressText: String?
     @State private var errorMessage: String?
     @State private var selection = 0
@@ -746,13 +755,13 @@ private struct MemoryMediaComposerView: View {
                     HStack(spacing: BSSpacing.compact) {
                         Button("继续添加") { isShowingAddOptions = true }
                             .buttonStyle(BSSecondaryButtonStyle())
-                            .disabled(isProcessing)
+                            .disabled(operation != .idle || media.count >= Self.maximumMediaCount)
                         if !media.isEmpty {
                             Button("删除当前项", role: .destructive) {
                                 removeCurrentItem()
                             }
                             .buttonStyle(BSSecondaryButtonStyle())
-                            .disabled(isProcessing)
+                            .disabled(operation != .idle)
                         }
                     }
 
@@ -774,7 +783,7 @@ private struct MemoryMediaComposerView: View {
 
                     Button("加入这场现场") { save() }
                         .buttonStyle(BSPrimaryButtonStyle())
-                        .disabled(media.isEmpty || isProcessing)
+                        .disabled(media.isEmpty || operation != .idle)
                 }
                 .padding(BSSpacing.roomy)
             }
@@ -782,14 +791,15 @@ private struct MemoryMediaComposerView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(isProcessing ? "停止" : "取消") { cancel() }
+                    Button(operation == .importing ? "停止" : "取消") { cancel() }
+                        .disabled(operation == .saving)
                 }
             }
             .interactiveDismissDisabled()
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
                 selection: $selectedItems,
-                maxSelectionCount: 20,
+                maxSelectionCount: max(1, Self.maximumMediaCount - media.count),
                 selectionBehavior: .ordered,
                 matching: .any(of: [.images, .videos])
             )
@@ -860,7 +870,11 @@ private struct MemoryMediaComposerView: View {
     }
 
     private func requestCamera() {
-        guard !isProcessing else { return }
+        guard operation == .idle else { return }
+        guard media.count < Self.maximumMediaCount else {
+            errorMessage = "一条记忆最多 \(Self.maximumMediaCount) 个媒体。"
+            return
+        }
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
             errorMessage = "当前设备无法使用相机。"
             return
@@ -884,18 +898,18 @@ private struct MemoryMediaComposerView: View {
     }
 
     private func startImport(_ work: @escaping @MainActor () async -> Void) {
-        guard !isProcessing else {
+        guard operation == .idle else {
             errorMessage = "正在处理媒体，请稍后再继续添加。"
             selectedItems = []
             return
         }
         importGeneration += 1
         let generation = importGeneration
-        isProcessing = true
+        operation = .importing
         activeImportTask = Task { @MainActor in
             await work()
-            if generation == importGeneration {
-                isProcessing = false
+            if generation == importGeneration, operation == .importing {
+                operation = .idle
                 progressText = nil
                 activeImportTask = nil
             }
@@ -905,9 +919,18 @@ private struct MemoryMediaComposerView: View {
     @MainActor
     private func importItems(_ items: [PhotosPickerItem]) async {
         defer { selectedItems = [] }
-        for (index, item) in items.enumerated() {
+        let remaining = Self.maximumMediaCount - media.count
+        guard remaining > 0 else {
+            errorMessage = "一条记忆最多 \(Self.maximumMediaCount) 个媒体。"
+            return
+        }
+        let accepted = Array(items.prefix(remaining))
+        if items.count > remaining {
+            errorMessage = "一条记忆最多 \(Self.maximumMediaCount) 个媒体，已只载入前 \(remaining) 个。"
+        }
+        for (index, item) in accepted.enumerated() {
             if Task.isCancelled { return }
-            progressText = "正在处理 \(index + 1) / \(items.count)"
+            progressText = "正在处理 \(index + 1) / \(accepted.count)"
             do {
                 guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else {
                     throw MemoryMediaStoreError.unsupportedMedia
@@ -932,6 +955,10 @@ private struct MemoryMediaComposerView: View {
 
     @MainActor
     private func importCameraResult(_ result: MemoryCameraResult) async {
+        guard media.count < Self.maximumMediaCount else {
+            errorMessage = "一条记忆最多 \(Self.maximumMediaCount) 个媒体。"
+            return
+        }
         progressText = "正在处理拍摄内容"
         do {
             if Task.isCancelled { return }
@@ -955,32 +982,33 @@ private struct MemoryMediaComposerView: View {
     }
 
     private func removeCurrentItem() {
-        guard !isProcessing else { return }
+        guard operation == .idle else { return }
         guard media.indices.contains(selection) else { return }
         media.remove(at: selection)
         selection = min(selection, max(0, media.count - 1))
     }
 
     private func save() {
-        guard !isProcessing else { return }
+        guard operation == .idle else { return }
         guard !media.isEmpty else { return }
-        isProcessing = true
+        operation = .saving
         Task {
             do {
                 try await onSave(media, caption)
                 dismiss()
             } catch {
-                isProcessing = false
+                operation = .idle
                 errorMessage = "记忆没有保存，草稿仍然保留。"
             }
         }
     }
 
     private func cancel() {
+        guard operation != .saving else { return }
         activeImportTask?.cancel()
         activeImportTask = nil
         importGeneration += 1
-        isProcessing = false
+        operation = .idle
         progressText = nil
         selectedItems = []
         Task {

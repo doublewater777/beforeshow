@@ -60,6 +60,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
+                    await reconcileAllMemoryMedia(in: modelContainer.mainContext)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -70,9 +71,32 @@ struct BeforeShowApp: App {
                         await companionCoordinator.refreshAllLinkedShows(
                             in: modelContainer.mainContext
                         )
+                        await reconcileAllMemoryMedia(in: modelContainer.mainContext)
                     }
                 }
         }
         .modelContainer(modelContainer)
+    }
+}
+
+@MainActor
+private func reconcileAllMemoryMedia(in modelContext: ModelContext) async {
+    do {
+        let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
+        var valid: [UUID: [UUID: Set<String>]] = [:]
+        for fragment in fragments {
+            let paths = Set(
+                fragment.mediaItems.flatMap { item in
+                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+                }
+            )
+            valid[fragment.showID, default: [:]][fragment.id] = paths
+        }
+        try await MemoryFragmentMediaStore.shared.reconcileAll(validFilesByShowAndFragment: valid)
+        try await MemoryFragmentMediaStore.shared.cleanupStaging(
+            olderThan: Date().addingTimeInterval(-86_400)
+        )
+    } catch {
+        // Best-effort recovery; next launch retries.
     }
 }

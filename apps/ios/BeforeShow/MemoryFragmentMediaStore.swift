@@ -120,10 +120,20 @@ actor MemoryFragmentMediaStore {
         let relativePath = stagingPath(draftID: draftID, fileName: "\(id.uuidString).\(fileExtension)")
         let destination = location.url(for: relativePath)
         try createParentDirectory(for: destination)
-        try fileManager.copyItem(at: imported.url, to: destination)
+        try Task.checkCancellation()
+        let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+        try ensureAvailableCapacity(forByteCount: requiredBytes)
+        do {
+            try fileManager.copyItem(at: imported.url, to: destination)
+        } catch {
+            throw mapFileError(error)
+        }
+        try Task.checkCancellation()
 
         if kind == .photo {
+            try Task.checkCancellation()
             let thumbnail = try makePhotoThumbnail(sourceURL: destination, draftID: draftID, mediaID: id)
+            try Task.checkCancellation()
             return MemoryDraftMedia(
                 id: id,
                 kind: kind,
@@ -134,9 +144,12 @@ actor MemoryFragmentMediaStore {
             )
         }
 
+        try Task.checkCancellation()
         let asset = AVURLAsset(url: destination)
         let duration = try await asset.load(.duration).seconds
+        try Task.checkCancellation()
         let thumbnail = try await makeVideoThumbnail(asset: asset, draftID: draftID, mediaID: id)
+        try Task.checkCancellation()
         return MemoryDraftMedia(
             id: id,
             kind: kind,
@@ -217,7 +230,9 @@ actor MemoryFragmentMediaStore {
                 }
                 let relativePath = "\(finalRelativeDirectory)/\(source.lastPathComponent)"
                 let destination = location.url(for: relativePath)
-                try fileManager.copyItem(at: source, to: destination)
+                let sourceSize = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+                try ensureAvailableCapacity(forByteCount: sourceSize)
+                try replaceItem(at: destination, with: source)
                 copiedURLs.append(destination)
 
                 var thumbnailRelativePath: String?
@@ -228,7 +243,9 @@ actor MemoryFragmentMediaStore {
                     }
                     let thumbnailPath = "\(finalRelativeDirectory)/\(thumbnailSource.lastPathComponent)"
                     let thumbnailDestination = location.url(for: thumbnailPath)
-                    try fileManager.copyItem(at: thumbnailSource, to: thumbnailDestination)
+                    let thumbSize = (try? thumbnailSource.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+                    try ensureAvailableCapacity(forByteCount: thumbSize)
+                    try replaceItem(at: thumbnailDestination, with: thumbnailSource)
                     copiedURLs.append(thumbnailDestination)
                     thumbnailRelativePath = thumbnailPath
                 }
@@ -344,6 +361,51 @@ actor MemoryFragmentMediaStore {
            available < required {
             throw MemoryMediaStoreError.insufficientDiskSpace
         }
+    }
+
+    /// App-wide recovery: remove orphan show/fragment dirs and unreferenced files.
+    func reconcileAll(validFilesByShowAndFragment: [UUID: [UUID: Set<String>]]) throws {
+        guard fileManager.fileExists(atPath: location.rootDirectory.path) else { return }
+        for showDirectory in try fileManager.contentsOfDirectory(
+            at: location.rootDirectory,
+            includingPropertiesForKeys: [.isDirectoryKey]
+        ) {
+            let name = showDirectory.lastPathComponent
+            if name == "Staging" {
+                continue
+            }
+            guard let showID = UUID(uuidString: name) else {
+                try removeIfPresent(showDirectory)
+                continue
+            }
+            guard let fragments = validFilesByShowAndFragment[showID] else {
+                try removeIfPresent(showDirectory)
+                continue
+            }
+            try reconcileFragmentFiles(showID: showID, validFilesByFragmentID: fragments)
+        }
+    }
+
+    private func replaceItem(at destination: URL, with source: URL) throws {
+        if fileManager.fileExists(atPath: destination.path) {
+            try fileManager.removeItem(at: destination)
+        }
+        do {
+            try fileManager.copyItem(at: source, to: destination)
+        } catch {
+            throw mapFileError(error)
+        }
+    }
+
+    private func mapFileError(_ error: Error) -> Error {
+        let nsError = error as NSError
+        if nsError.domain == NSPOSIXErrorDomain && nsError.code == Int(ENOSPC) {
+            return MemoryMediaStoreError.insufficientDiskSpace
+        }
+        if nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileWriteOutOfSpaceError {
+            return MemoryMediaStoreError.insufficientDiskSpace
+        }
+        return error
     }
 
     private func stagingPath(draftID: UUID, fileName: String) -> String {

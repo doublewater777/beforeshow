@@ -227,6 +227,57 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertEqual(fragment.mediaItems.count, 1)
     }
 
+
+    func testReconcileAllRemovesOrphanShowDirectories() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+
+        // Simulate DB no longer knowing this show.
+        try await store.reconcileAll(validFilesByShowAndFragment: [:])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(showID.uuidString).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+    }
+
+    func testCommitOverwriteIsIdempotentOnRetry() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+        let first = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        // Simulate partial DB failure: keep final files, keep staging, retry commit.
+        let second = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+        XCTAssertEqual(first[0].relativePath, second[0].relativePath)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(second[0].relativePath).path))
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: MemoryFragment.self,
