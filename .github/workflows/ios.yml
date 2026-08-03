@@ -20,7 +20,7 @@ concurrency:
 
 jobs:
   build-and-test:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     defaults:
       run:
         working-directory: apps/ios
