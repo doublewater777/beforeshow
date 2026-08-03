@@ -445,6 +445,96 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path))
     }
 
+    // MARK: - Round 4: production seam (show-boundary reconcile), import rollback, import time
+
+    func testReconcileBackfillsShowRelationshipForExistingFragments() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        // An existing fragment that predates the relationship: valid showID, but show == nil.
+        let fragment = try MemoryFragment(showID: show.id, text: "旧记忆")
+        context.insert(fragment)
+        try context.save()
+        XCTAssertNil(fragment.show)
+
+        let valid = try reconcileMemoryFragmentShowBoundary(in: context)
+
+        XCTAssertNotNil(fragment.show, "Existing fragments should be backfilled with the Show relationship")
+        XCTAssertEqual(fragment.show?.id, show.id)
+        XCTAssertNotNil(valid[show.id]?[fragment.id])
+    }
+
+    func testReconcileDeletesOrphanFragments() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        let validFragment = try MemoryFragment(showID: show.id, text: "有效")
+        context.insert(validFragment)
+        let orphan = try MemoryFragment(showID: UUID(), text: "孤儿")
+        context.insert(orphan)
+        try context.save()
+
+        let valid = try reconcileMemoryFragmentShowBoundary(in: context)
+
+        XCTAssertNotNil(valid[show.id]?[validFragment.id], "Valid fragment is retained")
+        XCTAssertNil(valid[orphan.showID], "Orphan fragment is not in the valid set")
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 1, "Orphan record is deleted")
+    }
+
+    func testStageTransferredFileRollsBackStagingOnPostCopyFailure() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        // A file that claims to be JPEG but isn't a valid image: copy succeeds, thumbnail
+        // decoding fails, so the post-copy rollback path must run.
+        let bogus = FileManager.default.temporaryDirectory
+            .appendingPathComponent("bogus-\(UUID().uuidString).jpg")
+        try Data("not an image".utf8).write(to: bogus)
+        defer { try? FileManager.default.removeItem(at: bogus) }
+        let imported = MemoryImportedFile(url: bogus, contentType: .image)
+
+        do {
+            _ = try await store.stageTransferredFile(imported, draftID: draftID)
+            XCTFail("Expected staging to fail for a non-image")
+        } catch MemoryMediaStoreError.imageEncodingFailed {
+            // expected
+        }
+
+        // The copied staging file must be rolled back, not left as an orphan that
+        // bypasses the composer's 20-item cap.
+        let stagingDir = root.appendingPathComponent("Staging/\(draftID.uuidString)")
+        if FileManager.default.fileExists(atPath: stagingDir.path) {
+            let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: stagingDir.path)) ?? []
+            XCTAssertTrue(leftovers.isEmpty, "No orphan staging files should remain after a failed import")
+        }
+    }
+
+    func testImportedFileCopyStampsImportTime() throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("src-\(UUID().uuidString).jpg")
+        try Data("img".utf8).write(to: source)
+        // Backdate the source mtime to simulate an old original photo.
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-10_000_000)],
+            ofItemAtPath: source.path
+        )
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        let imported = try MemoryImportedFile.copied(source, contentType: .image)
+        defer { try? FileManager.default.removeItem(at: imported.url) }
+
+        let mtime = try imported.url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+        XCTAssertNotNil(mtime)
+        // The copy stamps the import time, so mtime should be recent, not the backdated source time.
+        XCTAssertGreaterThan(mtime!.timeIntervalSinceNow, -60)
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Show.self,

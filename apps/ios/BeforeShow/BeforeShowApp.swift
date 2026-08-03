@@ -86,30 +86,7 @@ private func reconcileAllMemoryMedia(in modelContext: ModelContext, includesStag
     // commit's copy-then-save and delete that commit's just-written files.
     await MemoryFragmentMediaStore.shared.acquireCommitGate()
     do {
-        // Enforce the fragment<->show boundary: a fragment whose showID has no
-        // corresponding Show is an orphan (its Show was deleted outside the cascade
-        // path, or it was created against a fabricated showID). Drop the record and
-        // let reconcileAll reclaim its files.
-        let realShowIDs = Set(try modelContext.fetch(FetchDescriptor<Show>()).map(\.id))
-        let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
-        var valid: [UUID: [UUID: Set<String>]] = [:]
-        var removedOrphanRecords = false
-        for fragment in fragments {
-            guard realShowIDs.contains(fragment.showID) else {
-                modelContext.delete(fragment)
-                removedOrphanRecords = true
-                continue
-            }
-            let paths = Set(
-                fragment.mediaItems.flatMap { item in
-                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
-                }
-            )
-            valid[fragment.showID, default: [:]][fragment.id] = paths
-        }
-        if removedOrphanRecords {
-            try modelContext.save()
-        }
+        let valid = try reconcileMemoryFragmentShowBoundary(in: modelContext)
         try await MemoryFragmentMediaStore.shared.reconcileAll(validFilesByShowAndFragment: valid)
         // Staging/import-temp cleanup is intentionally launch-only: running it on every
         // scenePhase=.active could delete a draft still in use by an open composer or
@@ -127,4 +104,46 @@ private func reconcileAllMemoryMedia(in modelContext: ModelContext, includesStag
         await MemoryFragmentMediaStore.shared.releaseCommitGate()
         // Best-effort recovery; next launch/active retries.
     }
+}
+
+/// Enforces the fragment<->show boundary against the current SwiftData state and
+/// returns the on-disk-valid file map for media reconciliation.
+///
+/// - Fragments whose `showID` has no corresponding `Show` are orphan records (their
+///   Show was deleted, or they were created against a fabricated showID) and are
+///   removed here so `reconcileAll` can reclaim their files.
+/// - Fragments that predate the `show` relationship (existing production data has
+///   `showID` but `show == nil`) are backfilled with the relationship so the cascade
+///   delete rule applies to them too.
+///
+/// Extracted from `reconcileAllMemoryMedia` so this production seam is unit-testable
+/// without touching the media store actor or disk.
+@MainActor
+func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -> [UUID: [UUID: Set<String>]] {
+    let shows = try modelContext.fetch(FetchDescriptor<Show>())
+    let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
+    var valid: [UUID: [UUID: Set<String>]] = [:]
+    var mutated = false
+    for fragment in fragments {
+        guard let show = showsByID[fragment.showID] else {
+            modelContext.delete(fragment)
+            mutated = true
+            continue
+        }
+        if fragment.show == nil {
+            fragment.show = show
+            mutated = true
+        }
+        let paths = Set(
+            fragment.mediaItems.flatMap { item in
+                [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+            }
+        )
+        valid[fragment.showID, default: [:]][fragment.id] = paths
+    }
+    if mutated {
+        try modelContext.save()
+    }
+    return valid
 }

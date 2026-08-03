@@ -184,15 +184,22 @@ struct MemoryFragmentsView: View {
         }
         .task(id: fragments.map(\.id)) {
             // Gated so this per-show reconcile cannot delete a concurrent commit's
-            // files via a stale snapshot. Staging cleanup is launch-only (BeforeShowApp)
-            // so it never evicts a draft still in use by an open composer or awaiting retry.
+            // files. Fetch a fresh snapshot from the context *inside* the gate (not the
+            // SwiftUI @Query value captured at task start) so the valid set is consistent
+            // with any commit that holds the gate. Staging cleanup is launch-only
+            // (BeforeShowApp) so it never evicts a draft still in use or awaiting retry.
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             var validFilesByFragmentID: [UUID: Set<String>] = [:]
-            for fragment in fragments {
-                let paths = fragment.mediaItems.flatMap { item in
-                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+            let descriptor = FetchDescriptor<MemoryFragment>(
+                predicate: #Predicate<MemoryFragment> { $0.showID == showID }
+            )
+            if let current = try? modelContext.fetch(descriptor) {
+                for fragment in current {
+                    let paths = fragment.mediaItems.flatMap { item in
+                        [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+                    }
+                    validFilesByFragmentID[fragment.id] = Set(paths)
                 }
-                validFilesByFragmentID[fragment.id] = Set(paths)
             }
             try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(
                 showID: showID,

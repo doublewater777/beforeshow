@@ -36,7 +36,7 @@ struct MemoryImportedFile: Transferable {
         }
     }
 
-    private static func copied(_ source: URL, contentType: UTType) throws -> MemoryImportedFile {
+    static func copied(_ source: URL, contentType: UTType) throws -> MemoryImportedFile {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -61,6 +61,10 @@ struct MemoryImportedFile: Transferable {
             try? FileManager.default.removeItem(at: destination)
             throw MemoryMediaStoreError.map(error)
         }
+        // copyItem preserves the source's modificationDate; stamp the import time so
+        // cleanupImportTemp ages by when the file was imported, not the original's date
+        // (a freshly imported photo taken years ago would otherwise look "stale").
+        try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: destination.path)
         return MemoryImportedFile(url: destination, contentType: contentType)
     }
 }
@@ -219,11 +223,29 @@ actor MemoryFragmentMediaStore {
         } catch {
             throw MemoryMediaStoreError.map(error)
         }
-        try Task.checkCancellation()
 
-        if kind == .photo {
+        do {
+            // Post-copy work (thumbnail/duration) must roll back the copied staging
+            // file on failure; otherwise a failed single-item import leaves an orphan
+            // the composer's 20-item cap never accounts for.
             try Task.checkCancellation()
-            let thumbnail = try makePhotoThumbnail(sourceURL: destination, draftID: draftID, mediaID: id)
+            if kind == .photo {
+                let thumbnail = try makePhotoThumbnail(sourceURL: destination, draftID: draftID, mediaID: id)
+                try Task.checkCancellation()
+                return MemoryDraftMedia(
+                    id: id,
+                    kind: kind,
+                    stagedRelativePath: relativePath,
+                    thumbnailStagedRelativePath: thumbnail,
+                    contentTypeIdentifier: type.identifier,
+                    videoDuration: nil
+                )
+            }
+
+            let asset = AVURLAsset(url: destination)
+            let duration = try await asset.load(.duration).seconds
+            try Task.checkCancellation()
+            let thumbnail = try await makeVideoThumbnail(asset: asset, draftID: draftID, mediaID: id)
             try Task.checkCancellation()
             return MemoryDraftMedia(
                 id: id,
@@ -231,24 +253,12 @@ actor MemoryFragmentMediaStore {
                 stagedRelativePath: relativePath,
                 thumbnailStagedRelativePath: thumbnail,
                 contentTypeIdentifier: type.identifier,
-                videoDuration: nil
+                videoDuration: duration.isFinite ? duration : nil
             )
+        } catch {
+            try? removeIfPresent(destination)
+            throw error
         }
-
-        try Task.checkCancellation()
-        let asset = AVURLAsset(url: destination)
-        let duration = try await asset.load(.duration).seconds
-        try Task.checkCancellation()
-        let thumbnail = try await makeVideoThumbnail(asset: asset, draftID: draftID, mediaID: id)
-        try Task.checkCancellation()
-        return MemoryDraftMedia(
-            id: id,
-            kind: kind,
-            stagedRelativePath: relativePath,
-            thumbnailStagedRelativePath: thumbnail,
-            contentTypeIdentifier: type.identifier,
-            videoDuration: duration.isFinite ? duration : nil
-        )
     }
 
     func commit(draftID: UUID, showID: UUID, fragmentID: UUID, media: [MemoryDraftMedia]) throws -> [MemoryCommittedMedia] {
