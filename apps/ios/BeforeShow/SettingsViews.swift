@@ -635,7 +635,10 @@ private struct PrivacyLocalDataView: View {
                 try context.delete(model: CurrentShowSelection.self)
                 try context.delete(model: NotificationSchedulingState.self)
                 try context.delete(model: ShowNotificationScheduleRecord.self)
+                try context.delete(model: MemoryMediaItem.self)
+                try context.delete(model: MemoryFragment.self)
                 try context.save()
+                try? await MemoryFragmentMediaStore.shared.deleteAll()
                 clearResult = try await clearer.clearAppOwnedLocalData()
             } catch {
                 clearResult = nil

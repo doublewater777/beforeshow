@@ -32,6 +32,7 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 - The active current-show management cycle `.builder/cycles/2026-07-31-current-show-management/` tests whether one poster-led, phase-driven surface can make adding, opening, preparing for, and explicitly ending the current show understandable without reviving retired standalone tools.
 - The active archive cycle `.builder/cycles/2026-08-01-footprints-archive/` tests whether the supplied Current / Footprints split and a personal history of ended shows increase repeat recording.
 - The active companion cycle `.builder/cycles/2026-08-02-companion-icon-states/` tests whether one local, phase-aware friend state makes shared attendance legible without requiring accounts or a social feed.
+- The active memory-fragments cycle `.builder/cycles/2026-08-03-current-show-memory-fragments/` explicitly revisits the July retirement decision with a narrower current-show-only, private local timeline; it tests whether low-friction capture adds emotional value without reopening history, social, cloud, or AI scope.
 
 ## Open Questions
 

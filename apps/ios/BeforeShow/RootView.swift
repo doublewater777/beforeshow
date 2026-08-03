@@ -342,6 +342,7 @@ struct CurrentShowManagementSection: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
+    @Query private var memoryFragments: [MemoryFragment]
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
     @State private var isShowingCompanion = false
@@ -570,9 +571,23 @@ struct CurrentShowManagementSection: View {
                         )
                     }
                     .buttonStyle(.plain)
+                case .memoryFragments:
+                    NavigationLink {
+                        MemoryFragmentsView(showID: show.id, showName: show.name)
+                    } label: {
+                        CurrentShowQuickActionTile(
+                            action: action,
+                            subtitle: memoryFragmentCount == 0 ? "记录这一刻" : "\(memoryFragmentCount) 条"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private var memoryFragmentCount: Int {
+        memoryFragments.lazy.filter { $0.showID == show.id }.count
     }
 
     private func openMapApp(_ app: ExternalMapApp) {
@@ -727,11 +742,13 @@ private struct CurrentShowFollowUpSummary: View {
 enum CurrentShowQuickAction: Hashable {
     case route
     case companion
+    case memoryFragments
 
     var title: String {
         switch self {
         case .route: return "路线"
         case .companion: return "同行"
+        case .memoryFragments: return "记忆碎片"
         }
     }
 
@@ -739,11 +756,12 @@ enum CurrentShowQuickAction: Hashable {
         switch self {
         case .route: return "map"
         case .companion: return "person.2"
+        case .memoryFragments: return "photo.on.rectangle.angled"
         }
     }
 
     /// 当前现场的管理入口保持稳定，避免用户因演出阶段变化而找不到功能。
-    static let visibleActions: [Self] = [.route, .companion]
+    static let visibleActions: [Self] = [.route, .companion, .memoryFragments]
 }
 
 struct CompanionQuickActionPresentation: Equatable {
@@ -788,6 +806,7 @@ struct CompanionQuickActionPresentation: Equatable {
 private struct CurrentShowQuickActionTile: View {
     let action: CurrentShowQuickAction
     var companion: CompanionQuickActionPresentation?
+    var subtitle: String?
 
     var body: some View {
         VStack(spacing: 7) {
@@ -803,6 +822,13 @@ private struct CurrentShowQuickActionTile: View {
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 72)

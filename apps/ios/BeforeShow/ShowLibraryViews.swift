@@ -15,7 +15,14 @@ enum ShowDeletionCoordinator {
             selections.first?.clearManualSelection()
         }
 
-        let remainingShows = shows.filter { $0.id != show.id }
+        let showID = show.id
+        let remainingShows = shows.filter { $0.id != showID }
+        let fragments = try modelContext.fetch(
+            FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
+        )
+        for fragment in fragments {
+            modelContext.delete(fragment)
+        }
         modelContext.delete(show)
         let nextCurrentShow = CurrentShowSession().selectCurrentShow(
             from: remainingShows,
@@ -28,6 +35,7 @@ enum ShowDeletionCoordinator {
         )
 
         try modelContext.save()
+        try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
 
         if let coverImageURL,
            !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
@@ -1073,4 +1081,3 @@ private struct CurrentShowLibraryActionSheet: View {
         .buttonStyle(.plain)
     }
 }
-

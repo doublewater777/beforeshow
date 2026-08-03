@@ -33,7 +33,7 @@ final class NavigationTests: XCTestCase {
     func testCurrentShowQuickActionsAreAlwaysVisible() {
         XCTAssertEqual(
             CurrentShowQuickAction.visibleActions,
-            [.route, .companion]
+            [.route, .companion, .memoryFragments]
         )
     }
 

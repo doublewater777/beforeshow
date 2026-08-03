@@ -18,6 +18,8 @@ struct BeforeShowApp: App {
                 CurrentShowSelection.self,
                 NotificationSchedulingState.self,
                 ShowNotificationScheduleRecord.self,
+                MemoryFragment.self,
+                MemoryMediaItem.self,
                 configurations: configuration
             )
         } catch {
