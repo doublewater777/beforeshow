@@ -4,6 +4,7 @@ import SwiftData
 enum MemoryFragmentValidationError: Error, Equatable {
     case emptyContent
     case textTooLong
+    case mediaLimitExceeded
 }
 
 enum MemoryMediaKind: String, Codable, Equatable {
@@ -13,11 +14,15 @@ enum MemoryMediaKind: String, Codable, Equatable {
 
 @Model
 final class MemoryFragment {
+    static let maximumMediaCount = 10
+
     var id: UUID
     var showID: UUID
     var text: String?
     var createdAt: Date
     var updatedAt: Date
+    /// Frozen phase raw value. `nil` means legacy rows awaiting one-time backfill.
+    var phaseRawValue: String?
 
     @Relationship(deleteRule: .cascade, inverse: \MemoryMediaItem.fragment)
     var mediaItems: [MemoryMediaItem] = []
@@ -29,18 +34,25 @@ final class MemoryFragment {
     /// corresponding `Show`.
     var show: Show?
 
+    var phase: MemoryFragmentPhase {
+        get { phaseRawValue.flatMap(MemoryFragmentPhase.init(rawValue:)) ?? .live }
+        set { phaseRawValue = newValue.rawValue }
+    }
+
     init(
         id: UUID = UUID(),
         showID: UUID,
         text: String? = nil,
         createdAt: Date = Date(),
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        phase: MemoryFragmentPhase = .live
     ) throws {
         self.id = id
         self.showID = showID
         self.text = try Self.normalized(text)
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+        self.phaseRawValue = phase.rawValue
     }
 
     var orderedMediaItems: [MemoryMediaItem] {
@@ -61,7 +73,10 @@ final class MemoryFragment {
         updatedAt = Date()
     }
 
-    func appendMedia(_ item: MemoryMediaItem) {
+    func appendMedia(_ item: MemoryMediaItem) throws {
+        guard mediaItems.count < Self.maximumMediaCount else {
+            throw MemoryFragmentValidationError.mediaLimitExceeded
+        }
         item.sortOrder = mediaItems.count
         mediaItems.append(item)
         updatedAt = Date()
@@ -72,10 +87,80 @@ final class MemoryFragment {
             throw MemoryFragmentValidationError.emptyContent
         }
         mediaItems.removeAll { $0.id == item.id }
+        renumberMediaOrder()
+        updatedAt = Date()
+    }
+
+    /// Reorder media to match `orderedIDs`. Unknown IDs are ignored; missing current
+    /// items keep relative order at the end.
+    func reorderMedia(orderedIDs: [UUID]) {
+        let byID = Dictionary(uniqueKeysWithValues: mediaItems.map { ($0.id, $0) })
+        var next = 0
+        var seen = Set<UUID>()
+        for id in orderedIDs {
+            guard let item = byID[id], !seen.contains(id) else { continue }
+            item.sortOrder = next
+            next += 1
+            seen.insert(id)
+        }
+        for item in orderedMediaItems where !seen.contains(item.id) {
+            item.sortOrder = next
+            next += 1
+        }
+        updatedAt = Date()
+    }
+
+    /// Apply a full media edit as one final-state transaction.
+    /// Validates only the final set, so intermediate empty/limit states from
+    /// replace-at-capacity or textless single-media swaps do not fail mid-edit.
+    func applyMediaEdit(
+        removingIDs: Set<UUID>,
+        adding: [MemoryMediaItem],
+        finalOrder: [UUID]
+    ) throws {
+        let remaining = orderedMediaItems.filter { !removingIDs.contains($0.id) }
+        let finalCount = remaining.count + adding.count
+        guard finalCount <= Self.maximumMediaCount else {
+            throw MemoryFragmentValidationError.mediaLimitExceeded
+        }
+        guard text != nil || finalCount > 0 else {
+            throw MemoryFragmentValidationError.emptyContent
+        }
+
+        if !removingIDs.isEmpty {
+            mediaItems.removeAll { removingIDs.contains($0.id) }
+        }
+        for item in adding {
+            mediaItems.append(item)
+        }
+
+        // Prefer caller final order; fall back to remaining + additions order.
+        let desired = finalOrder.isEmpty
+            ? remaining.map(\.id) + adding.map(\.id)
+            : finalOrder
+        reorderMedia(orderedIDs: desired)
+        updatedAt = Date()
+    }
+
+    /// Hard-cap helper for migration / defensive saves. Keeps the first 10 ordered items.
+    /// Returns media that must be deleted from disk by the caller.
+    @discardableResult
+    func trimMediaToMaximum() -> [MemoryMediaItem] {
+        let ordered = orderedMediaItems
+        guard ordered.count > Self.maximumMediaCount else { return [] }
+        let overflow = Array(ordered.dropFirst(Self.maximumMediaCount))
+        for item in overflow {
+            mediaItems.removeAll { $0.id == item.id }
+        }
+        renumberMediaOrder()
+        updatedAt = Date()
+        return overflow
+    }
+
+    private func renumberMediaOrder() {
         for (index, remaining) in orderedMediaItems.enumerated() {
             remaining.sortOrder = index
         }
-        updatedAt = Date()
     }
 
     static func normalized(_ text: String?) throws -> String? {

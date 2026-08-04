@@ -128,6 +128,7 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
     var valid: [UUID: [UUID: Set<String>]] = [:]
     var mutated = false
+    var overflowPaths: [String] = []
     for fragment in fragments {
         guard let show = showsByID[fragment.showID] else {
             modelContext.delete(fragment)
@@ -137,6 +138,21 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
         if fragment.show == nil {
             fragment.show = show
             mutated = true
+        }
+        if fragment.phaseRawValue == nil {
+            fragment.phase = MemoryFragmentPhase.resolved(
+                at: fragment.createdAt,
+                timing: show.timingFields
+            )
+            mutated = true
+        }
+        let overflow = fragment.trimMediaToMaximum()
+        if !overflow.isEmpty {
+            mutated = true
+            for item in overflow {
+                overflowPaths.append(contentsOf: [item.relativePath, item.thumbnailRelativePath].compactMap { $0 })
+                modelContext.delete(item)
+            }
         }
         let paths = Set(
             fragment.mediaItems.flatMap { item in
@@ -264,6 +280,11 @@ func reconcileShowAssetShowBoundary(
     }
     if mutated {
         try saveModelContextRollingBackOnFailure(modelContext)
+    }
+    if !overflowPaths.isEmpty {
+        Task {
+            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
+        }
     }
     return valid
 }
