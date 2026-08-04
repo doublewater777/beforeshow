@@ -672,6 +672,26 @@ final class MemoryFragmentTests: XCTestCase {
 
 
 
+
+    func testEditValidationRejectsEmptyResultBeforeMutation() throws {
+        // Mirrors saveEditedFragment preflight: removing all media with blank caption must fail
+        // before any model mutation is applied.
+        let fragment = try MemoryFragment(showID: UUID(), text: "旧文案")
+        let only = makeMedia(kind: .photo, order: 0)
+        try fragment.appendMedia(only)
+
+        let removedIDs: Set<UUID> = [only.id]
+        let remaining = fragment.orderedMediaItems.filter { !removedIDs.contains($0.id) }
+        let additions: [MemoryDraftMedia] = []
+        let normalized = try MemoryFragment.normalized("   ")
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertTrue(additions.isEmpty)
+        XCTAssertNil(normalized)
+        // Preflight would throw emptyContent; fragment text/media remain untouched.
+        XCTAssertEqual(fragment.text, "旧文案")
+        XCTAssertEqual(fragment.mediaItems.count, 1)
+    }
+
     func testReorderMediaPreservesRequestedOrder() throws {
         let fragment = try MemoryFragment(showID: UUID(), text: "排序")
         let a = makeMedia(kind: .photo, order: 0)

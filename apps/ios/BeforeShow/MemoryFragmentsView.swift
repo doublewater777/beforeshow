@@ -467,26 +467,29 @@ struct MemoryFragmentsView: View {
         additions: [MemoryDraftMedia],
         draftID: UUID
     ) async throws {
-        try fragment.updateText(caption)
-
-        var removedPaths: [String] = []
-        for item in fragment.orderedMediaItems where removedIDs.contains(item.id) {
-            removedPaths.append(contentsOf: [item.relativePath, item.thumbnailRelativePath].compactMap { $0 })
-            try fragment.removeMedia(item)
-            modelContext.delete(item)
+        // Validate the post-edit content shape *before* mutating SwiftData or copying files.
+        // Otherwise a failed save can leave partial in-memory model changes (text update /
+        // media removals) that still render until the next refresh.
+        let normalizedCaption = try MemoryFragment.normalized(caption)
+        let remainingExisting = fragment.orderedMediaItems.filter { !removedIDs.contains($0.id) }
+        if remainingExisting.isEmpty && additions.isEmpty {
+            guard normalizedCaption != nil else { throw MemoryFragmentValidationError.emptyContent }
+        }
+        guard remainingExisting.count + additions.count <= MemoryFragment.maximumMediaCount else {
+            throw MemoryFragmentValidationError.mediaLimitExceeded
         }
 
-        if fragment.mediaItems.isEmpty && additions.isEmpty {
-            let normalized = try MemoryFragment.normalized(caption)
-            guard normalized != nil else { throw MemoryFragmentValidationError.emptyContent }
-        }
+        // Capture file paths to delete only after a successful model save.
+        let removedPaths = fragment.orderedMediaItems
+            .filter { removedIDs.contains($0.id) }
+            .flatMap { item in [item.relativePath, item.thumbnailRelativePath].compactMap { $0 } }
 
+        // Commit new files first so model mutations can stay one transactional unit:
+        // either all model edits save, or we roll back the context *and* any newly copied files.
+        var committed: [MemoryCommittedMedia] = []
+        var committedPaths: [String] = []
         if !additions.isEmpty {
-            guard fragment.mediaItems.count + additions.count <= MemoryFragment.maximumMediaCount else {
-                throw MemoryFragmentValidationError.mediaLimitExceeded
-            }
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
-            let committed: [MemoryCommittedMedia]
             do {
                 committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
                     draftID: draftID,
@@ -494,39 +497,52 @@ struct MemoryFragmentsView: View {
                     fragmentID: fragment.id,
                     media: additions
                 )
-            } catch {
-                await MemoryFragmentMediaStore.shared.releaseCommitGate()
-                throw error
-            }
-            let committedPaths = committed.flatMap {
-                [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
-            }
-            do {
-                for item in committed {
-                    try fragment.appendMedia(MemoryMediaItem(
-                        id: item.id,
-                        kind: item.kind,
-                        relativePath: item.relativePath,
-                        thumbnailRelativePath: item.thumbnailRelativePath,
-                        contentTypeIdentifier: item.contentTypeIdentifier,
-                        videoDuration: item.videoDuration,
-                        sortOrder: fragment.mediaItems.count
-                    ))
+                committedPaths = committed.flatMap {
+                    [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
                 }
-                // Draft IDs are preserved through commit, so fullOrder can include them.
-                fragment.reorderMedia(orderedIDs: fullOrder)
-                try modelContext.save()
             } catch {
-                modelContext.rollback()
-                try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
                 await MemoryFragmentMediaStore.shared.releaseCommitGate()
                 throw error
             }
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
-            try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
-        } else {
+        }
+
+        do {
+            try fragment.updateText(caption)
+
+            for item in fragment.orderedMediaItems where removedIDs.contains(item.id) {
+                try fragment.removeMedia(item)
+                modelContext.delete(item)
+            }
+
+            for item in committed {
+                try fragment.appendMedia(MemoryMediaItem(
+                    id: item.id,
+                    kind: item.kind,
+                    relativePath: item.relativePath,
+                    thumbnailRelativePath: item.thumbnailRelativePath,
+                    contentTypeIdentifier: item.contentTypeIdentifier,
+                    videoDuration: item.videoDuration,
+                    sortOrder: fragment.mediaItems.count
+                ))
+            }
+
+            // Draft IDs are preserved through commit, so fullOrder can include them.
             fragment.reorderMedia(orderedIDs: fullOrder)
             try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            if !committedPaths.isEmpty {
+                try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
+            }
+            if !additions.isEmpty {
+                await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            }
+            throw error
+        }
+
+        if !additions.isEmpty {
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         }
 
         if !removedPaths.isEmpty {
