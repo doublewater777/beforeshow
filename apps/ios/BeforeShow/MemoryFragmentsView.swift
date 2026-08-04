@@ -836,6 +836,12 @@ private struct MemoryMediaViewer: View {
 
 // MARK: - Unified editor
 
+private enum MemoryEditorOperation: Equatable {
+    case idle
+    case importing(UInt64)
+    case saving(UInt64)
+}
+
 private struct MemoryUnifiedEditorView: View {
     let launch: MemoryEditorLaunch
     let showName: String
@@ -851,11 +857,27 @@ private struct MemoryUnifiedEditorView: View {
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
     @State private var selectedItems: [PhotosPickerItem] = []
-    @State private var operationBusy = false
+    @State private var operation: MemoryEditorOperation = .idle
+    @State private var operationGeneration: UInt64 = 0
     @State private var errorMessage: String?
     @State private var activeImportTask: Task<Void, Never>?
+    @State private var saveTask: Task<Void, Never>?
     @State private var draggingID: UUID?
     @State private var didCommitSuccessfully = false
+
+    private var operationBusy: Bool {
+        operation != .idle
+    }
+
+    private var isImporting: Bool {
+        if case .importing = operation { return true }
+        return false
+    }
+
+    private var isSaving: Bool {
+        if case .saving = operation { return true }
+        return false
+    }
 
     private var isEditing: Bool {
         if case .edit = launch.kind { return true }
@@ -942,7 +964,7 @@ private struct MemoryUnifiedEditorView: View {
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.textTertiary)
 
-                        Button(operationBusy ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
+                        Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
                             save()
                         }
                         .buttonStyle(BSPrimaryButtonStyle())
@@ -955,8 +977,8 @@ private struct MemoryUnifiedEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(operationBusy ? "停止" : "取消") { cancel() }
-                        .disabled(operationBusy && activeImportTask == nil)
+                    Button(isImporting ? "停止" : "取消") { cancel() }
+                        .disabled(isSaving)
                 }
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 1) {
@@ -1020,13 +1042,13 @@ private struct MemoryUnifiedEditorView: View {
             }
             .onDisappear {
                 // Interactive dismiss and navigation pops bypass the Cancel button.
-                // Drop uncommitted staging unless this session successfully saved.
-                if didCommitSuccessfully { return }
+                // A save owns staging until its transaction finishes.
+                if didCommitSuccessfully || isSaving { return }
+                let importTask = activeImportTask
                 activeImportTask?.cancel()
-                let drafts = items.compactMap(\.draftMedia)
-                guard !drafts.isEmpty else { return }
                 let draftID = draftID
                 Task {
+                    await importTask?.value
                     try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
                 }
             }
@@ -1220,46 +1242,71 @@ private struct MemoryUnifiedEditorView: View {
         }
     }
 
-    private func importLibrary(_ pickerItems: [PhotosPickerItem]) {
+    private func beginImport() -> UInt64 {
         activeImportTask?.cancel()
+        operationGeneration &+= 1
+        let generation = operationGeneration
+        operation = .importing(generation)
+        return generation
+    }
+
+    private func isCurrentImport(_ generation: UInt64) -> Bool {
+        guard case .importing(let currentGeneration) = operation,
+              currentGeneration == generation else { return false }
+        return !Task.isCancelled
+    }
+
+    private func finishImport(_ generation: UInt64) {
+        guard case .importing(let currentGeneration) = operation,
+              currentGeneration == generation else { return }
+        operation = .idle
+        activeImportTask = nil
+        selectedItems = []
+    }
+
+    private func importLibrary(_ pickerItems: [PhotosPickerItem]) {
+        let generation = beginImport()
         activeImportTask = Task { @MainActor in
-            operationBusy = true
-            defer {
-                operationBusy = false
-                selectedItems = []
-            }
+            defer { finishImport(generation) }
             let remaining = MemoryFragment.maximumMediaCount - items.count
             guard remaining > 0 else {
                 errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
                 return
             }
-            if pickerItems.count > remaining {
+            if pickerItems.count > remaining, isCurrentImport(generation) {
                 errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体，已只载入前 \(remaining) 个。"
             }
             for item in pickerItems.prefix(remaining) {
-                if Task.isCancelled { return }
+                guard isCurrentImport(generation) else { return }
                 do {
                     guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else { continue }
+                    guard isCurrentImport(generation) else { return }
                     let staged = try await MemoryFragmentMediaStore.shared.stageTransferredFile(
                         imported,
                         draftID: draftID
                     )
+                    guard isCurrentImport(generation) else {
+                        try? await MemoryFragmentMediaStore.shared.removeStagedItem(staged)
+                        return
+                    }
                     items.append(MemoryEditorItem(id: staged.id, kind: .draft(staged)))
                 } catch is CancellationError {
                     return
                 } catch {
-                    errorMessage = "媒体没有载入，请重试。"
+                    if isCurrentImport(generation) {
+                        errorMessage = "媒体没有载入，请重试。"
+                    }
                 }
             }
+            guard isCurrentImport(generation) else { return }
             selection = max(0, items.count - 1)
         }
     }
 
     private func importCamera(_ result: MemoryCameraResult) {
-        activeImportTask?.cancel()
+        let generation = beginImport()
         activeImportTask = Task { @MainActor in
-            operationBusy = true
-            defer { operationBusy = false }
+            defer { finishImport(generation) }
             guard items.count < MemoryFragment.maximumMediaCount else {
                 errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
                 return
@@ -1268,22 +1315,40 @@ private struct MemoryUnifiedEditorView: View {
                 switch result {
                 case .photo(let data):
                     let staged = try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: draftID)
+                    guard isCurrentImport(generation) else {
+                        try? await MemoryFragmentMediaStore.shared.removeStagedItem(staged)
+                        return
+                    }
                     items.append(MemoryEditorItem(id: staged.id, kind: .draft(staged)))
                 case .video:
                     errorMessage = "App 内相机只拍照片，视频请从图库选择。"
                     return
                 }
+                guard isCurrentImport(generation) else { return }
                 selection = max(0, items.count - 1)
+            } catch is CancellationError {
+                return
             } catch {
-                errorMessage = "照片没有载入，请重试。"
+                if isCurrentImport(generation) {
+                    errorMessage = "照片没有载入，请重试。"
+                }
             }
         }
     }
 
+    private func finishSave(_ generation: UInt64) {
+        guard case .saving(generation) = operation else { return }
+        operation = .idle
+        saveTask = nil
+    }
+
     private func save() {
-        operationBusy = true
-        Task { @MainActor in
-            defer { operationBusy = false }
+        guard operation == .idle, canSave else { return }
+        operationGeneration &+= 1
+        let generation = operationGeneration
+        operation = .saving(generation)
+        saveTask = Task { @MainActor in
+            defer { finishSave(generation) }
             do {
                 let draftsInOrder = items.compactMap(\.draftMedia)
                 // Keep editor visual order, including interleaved new drafts.
@@ -1306,25 +1371,27 @@ private struct MemoryUnifiedEditorView: View {
                 didCommitSuccessfully = true
                 dismiss()
             } catch {
-                errorMessage = "内容没有保存，请重试。"
+                if case .saving(generation) = operation {
+                    errorMessage = "内容没有保存，请重试。"
+                }
             }
         }
     }
 
     private func cancel() {
-        if operationBusy {
+        switch operation {
+        case .importing:
             activeImportTask?.cancel()
-            activeImportTask = nil
-            operationBusy = false
             return
-        }
-        let drafts = items.compactMap(\.draftMedia)
-        Task {
-            if !drafts.isEmpty {
+        case .saving:
+            return
+        case .idle:
+            let draftID = draftID
+            Task {
                 try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
             }
+            dismiss()
         }
-        dismiss()
     }
 }
 
