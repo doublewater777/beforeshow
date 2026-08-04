@@ -152,6 +152,26 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: secondURL.path))
     }
 
+    func testCommitGateSerializesConcurrentAccess() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetCommitGate-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+
+        await store.acquireCommitGate()
+        var secondAcquired = false
+        let waiter = Task<Void, Never> {
+            await store.acquireCommitGate()
+            secondAcquired = true
+            await store.releaseCommitGate()
+        }
+        try await Task.sleep(for: .milliseconds(60))
+        XCTAssertFalse(secondAcquired, "Second acquire must block while the gate is held")
+        await store.releaseCommitGate()
+        await waiter.value
+        XCTAssertTrue(secondAcquired, "Second acquire completes once the gate is released")
+    }
+
     func testUniqueKeyIsStablePerShowAndKind() {
         let showID = UUID()
         XCTAssertEqual(

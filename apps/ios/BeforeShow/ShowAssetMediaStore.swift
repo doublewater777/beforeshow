@@ -51,7 +51,7 @@ actor ShowAssetMediaStore {
 
     private let location: ShowAssetMediaLocation
     private let fileManager: FileManager
-    private var commitGateCount = 0
+    private var isCommitGateInUse = false
     private var commitGateWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(location: ShowAssetMediaLocation, fileManager: FileManager = .default) {
@@ -68,22 +68,21 @@ actor ShowAssetMediaStore {
     }
 
     func acquireCommitGate() async {
-        if commitGateCount == 0 {
-            commitGateCount = 1
+        if !isCommitGateInUse {
+            isCommitGateInUse = true
             return
         }
         await withCheckedContinuation { continuation in
             commitGateWaiters.append(continuation)
-            commitGateCount += 1
         }
     }
 
     func releaseCommitGate() {
-        guard commitGateCount > 0 else { return }
-        commitGateCount -= 1
-        if !commitGateWaiters.isEmpty {
-            let waiter = commitGateWaiters.removeFirst()
-            waiter.resume()
+        if let next = commitGateWaiters.first {
+            commitGateWaiters.removeFirst()
+            next.resume()
+        } else {
+            isCommitGateInUse = false
         }
     }
 
