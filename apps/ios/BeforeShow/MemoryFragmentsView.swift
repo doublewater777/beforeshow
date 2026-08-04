@@ -509,11 +509,8 @@ struct MemoryFragmentsView: View {
         do {
             try fragment.updateText(caption)
 
-            for item in fragment.orderedMediaItems where removedIDs.contains(item.id) {
-                try fragment.removeMedia(item)
-                modelContext.delete(item)
-            }
-
+            // Append replacements before removals so a textless single-media fragment
+            // can swap its only photo/video without tripping emptyContent mid-mutation.
             for item in committed {
                 try fragment.appendMedia(MemoryMediaItem(
                     id: item.id,
@@ -524,6 +521,11 @@ struct MemoryFragmentsView: View {
                     videoDuration: item.videoDuration,
                     sortOrder: fragment.mediaItems.count
                 ))
+            }
+
+            for item in fragment.orderedMediaItems where removedIDs.contains(item.id) {
+                try fragment.removeMedia(item)
+                modelContext.delete(item)
             }
 
             // Draft IDs are preserved through commit, so fullOrder can include them.

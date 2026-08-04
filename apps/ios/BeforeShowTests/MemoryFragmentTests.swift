@@ -673,6 +673,22 @@ final class MemoryFragmentTests: XCTestCase {
 
 
 
+
+    func testReplaceOnlyMediaWithoutTextDoesNotTripEmptyContent() throws {
+        // Textless single-media fragments must support "remove old + add new" by
+        // appending the replacement before removing the last existing item.
+        let fragment = try MemoryFragment(showID: UUID())
+        let old = makeMedia(kind: .photo, order: 0)
+        try fragment.appendMedia(old)
+        XCTAssertNil(fragment.text)
+
+        let replacement = makeMedia(kind: .photo, order: 1)
+        try fragment.appendMedia(replacement)
+        try fragment.removeMedia(old)
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.id), [replacement.id])
+        XCTAssertNil(fragment.text)
+    }
+
     func testEditValidationRejectsEmptyResultBeforeMutation() throws {
         // Mirrors saveEditedFragment preflight: removing all media with blank caption must fail
         // before any model mutation is applied.
