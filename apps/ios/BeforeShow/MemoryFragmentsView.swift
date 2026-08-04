@@ -1280,7 +1280,10 @@ private struct MemoryUnifiedEditorView: View {
                 guard isCurrentImport(generation) else { return }
                 do {
                     guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else { continue }
-                    guard isCurrentImport(generation) else { return }
+                    guard isCurrentImport(generation) else {
+                        try? await MemoryFragmentMediaStore.shared.discardImportedFile(imported)
+                        return
+                    }
                     let staged = try await MemoryFragmentMediaStore.shared.stageTransferredFile(
                         imported,
                         draftID: draftID

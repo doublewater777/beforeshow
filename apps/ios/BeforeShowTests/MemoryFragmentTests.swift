@@ -515,6 +515,23 @@ final class MemoryFragmentTests: XCTestCase {
         }
     }
 
+    func testDiscardImportedFileRemovesTransferTempAfterCancellation() async throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transfer-\(UUID().uuidString).jpg")
+        try Data("img".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        let imported = try MemoryImportedFile.copied(source, contentType: .image)
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(
+            rootDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        ))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imported.url.path))
+        try await store.discardImportedFile(imported)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imported.url.path))
+    }
+
     func testImportedFileCopyStampsImportTime() throws {
         let source = FileManager.default.temporaryDirectory
             .appendingPathComponent("src-\(UUID().uuidString).jpg")
