@@ -214,18 +214,25 @@ struct ShowAssetUploadView: View {
         isSaving = true
         defer { isSaving = false }
 
+        var writtenRelativePath: String?
         do {
-            let assetID = replacingAsset?.id ?? UUID()
+            let existing = replacingAsset ?? existingAssetOfSameKind()
+            let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(
                 data: pendingData,
                 showID: showID,
                 kind: kind,
                 assetID: assetID
             )
+            writtenRelativePath = relativePath
 
-            if let existing = replacingAsset ?? existingAssetOfSameKind() {
+            if let existing {
                 let oldPath = existing.relativePath
                 existing.replaceImage(relativePath: relativePath)
+                // Collapse any stale duplicate rows for the same show+kind.
+                for duplicate in assetsOfSameKind().filter({ $0.id != existing.id }) {
+                    modelContext.delete(duplicate)
+                }
                 if oldPath != relativePath {
                     try? await ShowAssetMediaStore.shared.delete(relativePath: oldPath)
                 }
@@ -252,19 +259,35 @@ struct ShowAssetUploadView: View {
             }
         } catch {
             modelContext.rollback()
+            // File write happens before SwiftData save; reclaim the just-written path on failure
+            // when it is not already referenced by a committed asset.
+            if let writtenRelativePath {
+                let stillReferenced = assetsOfSameKind().contains { $0.relativePath == writtenRelativePath }
+                if !stillReferenced {
+                    try? await ShowAssetMediaStore.shared.delete(relativePath: writtenRelativePath)
+                }
+            }
             presentToast(.failure, message: saveErrorMessage(error))
         }
     }
 
 
-    private func existingAssetOfSameKind() -> ShowAsset? {
+    private func assetsOfSameKind() -> [ShowAsset] {
         let kindRaw = kind.rawValue
         let descriptor = FetchDescriptor<ShowAsset>(
             predicate: #Predicate<ShowAsset> { asset in
                 asset.showID == showID && asset.kindRawValue == kindRaw
-            }
+            },
+            sortBy: [
+                SortDescriptor(\ShowAsset.updatedAt, order: .reverse),
+                SortDescriptor(\ShowAsset.id)
+            ]
         )
-        return try? modelContext.fetch(descriptor).first
+        return (try? modelContext.fetch(descriptor)) ?? []
+    }
+
+    private func existingAssetOfSameKind() -> ShowAsset? {
+        assetsOfSameKind().first
     }
 
     private func saveErrorMessage(_ error: Error) -> String {

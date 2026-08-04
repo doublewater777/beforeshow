@@ -59,7 +59,8 @@ actor ShowAssetMediaStore {
     }
 
     /// Imports image data into a final relative path for the show/kind.
-    /// Returns the relative path that should be persisted on `ShowAsset`.
+    /// Uses a stable path so each show keeps at most one file per kind even if
+    /// concurrent saves race; later writes overwrite the same on-disk slot.
     @discardableResult
     func saveImage(
         data: Data,
@@ -71,10 +72,13 @@ actor ShowAssetMediaStore {
         let jpegData = try encodedJPEG(from: image)
         try ensureCapacity(for: Int64(jpegData.count))
 
+        // Keep `assetID` in the API for callers that already allocate an ID for the
+        // SwiftData row, but pin the file name so uniqueness is filesystem-enforced.
+        _ = assetID
         let relativePath = [
             showID.uuidString,
             kind.directoryName,
-            "\(assetID.uuidString).jpg"
+            "image.jpg"
         ].joined(separator: "/")
 
         let destination = absoluteURL(for: relativePath)

@@ -117,6 +117,33 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<ShowAsset>()).isEmpty)
     }
 
+
+    func testSaveImageUsesStablePathPerShowAndKind() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetStablePath-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+        let showID = UUID()
+        let data = try XCTUnwrap(solidJPEGData())
+
+        let first = try await store.saveImage(data: data, showID: showID, kind: .ticket, assetID: UUID())
+        let second = try await store.saveImage(data: data, showID: showID, kind: .ticket, assetID: UUID())
+        XCTAssertEqual(first, second)
+        XCTAssertTrue(first.hasSuffix("/ticket/image.jpg"))
+        let absolute = await store.absoluteURL(for: first)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: absolute.path))
+    }
+
+    func testPrivacyCopyMentionsLocalTicketAssetsWithoutTicketWalletLanguage() {
+        let joined = PrivacyLocalDataCopy.points.joined(separator: " ")
+        XCTAssertTrue(joined.contains("票根"))
+        XCTAssertTrue(joined.contains("时刻表"))
+        XCTAssertTrue(joined.contains("本机") || joined.contains("本地"))
+        XCTAssertFalse(joined.contains("验票"))
+        XCTAssertFalse(joined.contains("票夹"))
+        XCTAssertTrue(PrivacyLocalDataCopy.clearDataExplanation.contains("票根"))
+    }
+
     private func solidJPEGData() -> Data? {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24))
         let image = renderer.image { context in
