@@ -20,6 +20,7 @@ struct BeforeShowApp: App {
                 ShowNotificationScheduleRecord.self,
                 MemoryFragment.self,
                 MemoryMediaItem.self,
+                ShowAsset.self,
                 configurations: configuration
             )
         } catch {
@@ -61,6 +62,7 @@ struct BeforeShowApp: App {
                         in: modelContainer.mainContext
                     )
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
+                    await reconcileAllShowAssets(in: modelContainer.mainContext)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -72,6 +74,7 @@ struct BeforeShowApp: App {
                             in: modelContainer.mainContext
                         )
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
+                        await reconcileAllShowAssets(in: modelContainer.mainContext)
                     }
                 }
         }
@@ -147,3 +150,41 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     }
     return valid
 }
+
+
+@MainActor
+private func reconcileAllShowAssets(in modelContext: ModelContext) async {
+    do {
+        let valid = try reconcileShowAssetShowBoundary(in: modelContext)
+        try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
+    } catch {
+        // Best-effort recovery; next launch/active retries.
+    }
+}
+
+/// Enforces the asset<->show boundary and returns valid on-disk relative paths.
+@MainActor
+func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set<String> {
+    let shows = try modelContext.fetch(FetchDescriptor<Show>())
+    let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    let assets = try modelContext.fetch(FetchDescriptor<ShowAsset>())
+    var valid: Set<String> = []
+    var mutated = false
+    for asset in assets {
+        guard let show = showsByID[asset.showID] else {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+        if asset.show == nil {
+            asset.show = show
+            mutated = true
+        }
+        valid.insert(asset.relativePath)
+    }
+    if mutated {
+        try modelContext.save()
+    }
+    return valid
+}
+

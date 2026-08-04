@@ -141,6 +141,11 @@ final class Show {
     @Relationship(deleteRule: .cascade, inverse: \MemoryFragment.show)
     var memoryFragments: [MemoryFragment] = []
 
+    /// Ticket stub / timetable images bound to this show. Deleting a `Show` cascades
+    /// to its assets; disk files are reclaimed by asset-media reconciliation.
+    @Relationship(deleteRule: .cascade, inverse: \ShowAsset.show)
+    var assets: [ShowAsset] = []
+
     private var changeStatusRawValue: String
 
     var companionStatus: ShowCompanionStatus {

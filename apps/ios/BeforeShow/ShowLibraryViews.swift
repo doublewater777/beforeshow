@@ -23,6 +23,12 @@ enum ShowDeletionCoordinator {
         for fragment in fragments {
             modelContext.delete(fragment)
         }
+        let assets = try modelContext.fetch(
+            FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
+        )
+        for asset in assets {
+            modelContext.delete(asset)
+        }
         modelContext.delete(show)
         let nextCurrentShow = CurrentShowSession().selectCurrentShow(
             from: remainingShows,
@@ -36,6 +42,7 @@ enum ShowDeletionCoordinator {
 
         try modelContext.save()
         try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+        try? await ShowAssetMediaStore.shared.deleteShow(showID)
 
         if let coverImageURL,
            !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
