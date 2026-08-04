@@ -60,6 +60,7 @@ struct ShowAssetUploadView: View {
     @State private var isImporting = false
     @State private var isSaving = false
     @State private var importTask: Task<Void, Never>?
+    @State private var activeImportToken: UUID?
     @State private var saveTask: Task<Void, Never>?
     @State private var toast: BSToastPayload?
     @State private var didSave = false
@@ -87,10 +88,13 @@ struct ShowAssetUploadView: View {
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }
             importTask?.cancel()
-            importTask = Task { await importItem(item) }
+            let token = UUID()
+            activeImportToken = token
+            importTask = Task { await importItem(item, token: token) }
         }
         .onDisappear {
             importTask?.cancel()
+            activeImportToken = nil
             if !didSave {
                 saveTask?.cancel()
             }
@@ -192,15 +196,23 @@ struct ShowAssetUploadView: View {
         }
     }
 
-    private func importItem(_ item: PhotosPickerItem) async {
+    private func importItem(_ item: PhotosPickerItem, token: UUID) async {
         isImporting = true
-        defer { isImporting = false }
+        defer {
+            if activeImportToken == token {
+                isImporting = false
+                activeImportToken = nil
+                importTask = nil
+            }
+        }
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
+                guard activeImportToken == token else { return }
                 presentToast(.failure, message: "没有读到这张图片")
                 return
             }
             try Task.checkCancellation()
+            guard activeImportToken == token else { return }
             guard let image = UIImage(data: data) else {
                 presentToast(.failure, message: "这张图片暂时无法使用")
                 return
@@ -208,7 +220,10 @@ struct ShowAssetUploadView: View {
             pendingData = data
             previewImage = image
             selectedItem = nil
+        } catch is CancellationError {
+            return
         } catch {
+            guard activeImportToken == token else { return }
             presentToast(.failure, message: "图片读取失败，请重试")
             selectedItem = nil
         }
@@ -533,19 +548,22 @@ struct ShowAssetViewerView: View {
     }
 
     private func deleteAsset() {
-        let relativePath = asset.relativePath
+        let assetID = asset.id
         Task { @MainActor in
             do {
                 await ShowAssetMediaStore.shared.acquireCommitGate()
                 do {
-                    modelContext.delete(asset)
-                    do {
-                        try modelContext.save()
-                    } catch {
-                        modelContext.rollback()
-                        throw error
+                    let currentAsset = try modelContext.fetch(
+                        FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.id == assetID })
+                    ).first
+                    guard let currentAsset else {
+                        await ShowAssetMediaStore.shared.releaseCommitGate()
+                        return
                     }
-                    try? await ShowAssetMediaStore.shared.delete(relativePath: relativePath)
+                    let currentRelativePath = currentAsset.relativePath
+                    modelContext.delete(currentAsset)
+                    try saveModelContextRollingBackOnFailure(modelContext)
+                    try? await ShowAssetMediaStore.shared.delete(relativePath: currentRelativePath)
                     await ShowAssetMediaStore.shared.releaseCommitGate()
                 } catch {
                     await ShowAssetMediaStore.shared.releaseCommitGate()
