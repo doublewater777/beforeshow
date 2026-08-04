@@ -25,7 +25,7 @@ enum SettingsInformation {
 enum PrivacyLocalDataCopy {
     static let points = [
         "添加现场时的票务截图只用于设备端 OCR，不会为了识别上传。",
-        "票根与时刻表默认保存在 BeforeShow 的设备本地 App 沙盒中；正常保存流程不会主动上传这些图片，也不会加入同行 CloudKit 分享记录。",
+        "票根与时刻表保存在 BeforeShow 的设备本地 App 沙盒中；BeforeShow 不会主动上传这些图片，也不会加入同行 CloudKit 分享记录，并会将它们排除在 iOS 系统备份之外。",
         "链接解析、同行分享等你主动使用的联网功能会发起网络请求；系统备份是否包含 App 数据由 iOS 和你的系统设置决定。",
         "记忆碎片、票根和时刻表里的图片是 App 沙盒副本，不是系统相册原始内容；BeforeShow 不提供跨设备同步或恢复保证。"
     ]
@@ -121,6 +121,7 @@ enum LocalDataClearancePolicy {
         deletesAppOwnedData: [
             "SwiftData 中的现场和偏好设置",
             "记忆碎片文字与元数据",
+            "BeforeShow 沙盒中的票根和时刻表图片",
             "BeforeShow 沙盒中保存的记忆照片和视频副本",
             "BeforeShow 沙盒中的临时缓存"
         ],

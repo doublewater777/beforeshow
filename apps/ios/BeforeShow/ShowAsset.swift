@@ -100,6 +100,23 @@ final class ShowAsset {
         "\(showID.uuidString)|\(kind.rawValue)"
     }
 
+    /// Asset paths are intentionally limited to the show/kind directory layout
+    /// produced by `ShowAssetMediaStore`. This keeps persisted paths from escaping
+    /// the media root through `..` or an absolute path.
+    static func isValidRelativePath(
+        _ relativePath: String,
+        showID: UUID,
+        kind: ShowAssetKind
+    ) -> Bool {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        return components.count == 3
+            && components[0] == showID.uuidString
+            && components[1] == kind.directoryName
+            && !components[2].isEmpty
+            && !components.contains(where: { $0 == "." || $0 == ".." })
+    }
+
     @discardableResult
     func repairUniqueKeyIfNeeded() -> Bool {
         guard let rawKind = ShowAssetKind(rawValue: kindRawValue) else { return false }

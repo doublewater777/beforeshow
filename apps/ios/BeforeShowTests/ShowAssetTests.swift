@@ -31,6 +31,8 @@ final class ShowAssetTests: XCTestCase {
         )
         let absolute = await store.absoluteURL(for: relativePath)
         XCTAssertTrue(FileManager.default.fileExists(atPath: absolute.path))
+        let fileValues = try absolute.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(fileValues.isExcludedFromBackup, true)
         XCTAssertTrue(relativePath.contains(showID.uuidString))
         XCTAssertTrue(relativePath.contains(ShowAssetKind.ticket.directoryName))
         let rootURL = await store.rootDirectoryURL()
@@ -132,6 +134,45 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<ShowAsset>()).isEmpty)
     }
 
+    func testRollbackHelperClearsDirtyContextWhenSaveFails() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(
+            for: Show.self,
+            ShowAsset.self,
+            configurations: configuration
+        )
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "票根现场", date: now, startTime: now)
+        context.insert(show)
+        let linked = ShowAsset(
+            showID: show.id,
+            kind: .ticket,
+            relativePath: "\(show.id.uuidString)/ticket/original.jpg"
+        )
+        linked.show = show
+        context.insert(linked)
+        try context.save()
+
+        let originalPath = linked.relativePath
+        linked.replaceImage(relativePath: "\(show.id.uuidString)/ticket/dirty.jpg")
+        XCTAssertTrue(context.hasChanges)
+
+        XCTAssertThrowsError(
+            try saveModelContextRollingBackOnFailure(context) {
+                struct ForcedSaveError: Error {}
+                throw ForcedSaveError()
+            }
+        )
+        XCTAssertFalse(context.hasChanges)
+
+        let verificationContext = ModelContext(container)
+        let fetched = try XCTUnwrap(
+            verificationContext.fetch(FetchDescriptor<ShowAsset>()).first
+        )
+        XCTAssertEqual(fetched.relativePath, originalPath)
+    }
+
 
     func testSaveImageUsesVersionedPathsAndKeepsBothCandidatesUntilCallerDeletes() async throws {
         let root = FileManager.default.temporaryDirectory
@@ -159,17 +200,19 @@ final class ShowAssetTests: XCTestCase {
         let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
 
         await store.acquireCommitGate()
-        var secondAcquired = false
+        let secondAcquired = BooleanBox()
         let waiter = Task<Void, Never> {
             await store.acquireCommitGate()
-            secondAcquired = true
+            await secondAcquired.setTrue()
             await store.releaseCommitGate()
         }
         try await Task.sleep(for: .milliseconds(60))
-        XCTAssertFalse(secondAcquired, "Second acquire must block while the gate is held")
+        let wasAcquiredBeforeRelease = await secondAcquired.get()
+        XCTAssertFalse(wasAcquiredBeforeRelease, "Second acquire must block while the gate is held")
         await store.releaseCommitGate()
         await waiter.value
-        XCTAssertTrue(secondAcquired, "Second acquire completes once the gate is released")
+        let wasAcquiredAfterRelease = await secondAcquired.get()
+        XCTAssertTrue(wasAcquiredAfterRelease, "Second acquire completes once the gate is released")
     }
 
     func testUniqueKeyIsStablePerShowAndKind() {
@@ -184,6 +227,31 @@ final class ShowAssetTests: XCTestCase {
         )
     }
 
+    func testAssetPathMustStayUnderItsShowAndKindDirectory() {
+        let showID = UUID()
+        XCTAssertTrue(
+            ShowAsset.isValidRelativePath(
+                "\(showID.uuidString)/ticket/image.jpg",
+                showID: showID,
+                kind: .ticket
+            )
+        )
+        XCTAssertFalse(
+            ShowAsset.isValidRelativePath(
+                "\(showID.uuidString)/timetable/image.jpg",
+                showID: showID,
+                kind: .ticket
+            )
+        )
+        XCTAssertFalse(
+            ShowAsset.isValidRelativePath(
+                "\(showID.uuidString)/ticket/../other.jpg",
+                showID: showID,
+                kind: .ticket
+            )
+        )
+    }
+
     func testPrivacyCopyMentionsLocalTicketAssetsWithoutTicketWalletLanguage() {
         let joined = PrivacyLocalDataCopy.points.joined(separator: " ")
         XCTAssertTrue(joined.contains("票根"))
@@ -192,6 +260,11 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertFalse(joined.contains("验票"))
         XCTAssertFalse(joined.contains("票夹"))
         XCTAssertTrue(PrivacyLocalDataCopy.clearDataExplanation.contains("票根"))
+        XCTAssertTrue(
+            LocalDataClearancePolicy.defaultPlan.deletesAppOwnedData.contains {
+                $0.contains("票根") && $0.contains("时刻表")
+            }
+        )
     }
 
     private func solidJPEGData() -> Data? {
@@ -201,5 +274,17 @@ final class ShowAssetTests: XCTestCase {
             context.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
         }
         return image.jpegData(compressionQuality: 0.9)
+    }
+}
+
+private actor BooleanBox {
+    private var value = false
+
+    func setTrue() {
+        value = true
+    }
+
+    func get() -> Bool {
+        value
     }
 }

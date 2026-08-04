@@ -5,6 +5,7 @@ enum ShowAssetMediaStoreError: Error, Equatable {
     case unsupportedImage
     case imageEncodingFailed
     case insufficientDiskSpace
+    case missingShow
     case missingAsset
     case importCancelled
 
@@ -60,7 +61,10 @@ actor ShowAssetMediaStore {
     }
 
     func absoluteURL(for relativePath: String) -> URL {
-        location.rootDirectory.appendingPathComponent(relativePath)
+        guard Self.isSafeRelativePath(relativePath) else {
+            return location.rootDirectory.appendingPathComponent("__invalid-relative-path__")
+        }
+        return location.rootDirectory.appendingPathComponent(relativePath)
     }
 
     func rootDirectoryURL() -> URL {
@@ -113,6 +117,7 @@ actor ShowAssetMediaStore {
                 withIntermediateDirectories: true
             )
             try jpegData.write(to: destination, options: .atomic)
+            try excludeFromBackup(at: destination)
         } catch {
             try? fileManager.removeItem(at: destination)
             throw ShowAssetMediaStoreError.map(error)
@@ -185,6 +190,21 @@ actor ShowAssetMediaStore {
         } catch {
             throw ShowAssetMediaStoreError.map(error)
         }
+    }
+
+    private func excludeFromBackup(at url: URL) throws {
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var url = url
+        try url.setResourceValues(values)
+    }
+
+    nonisolated private static func isSafeRelativePath(_ relativePath: String) -> Bool {
+        guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else { return false }
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+            .map(String.init)
+        return !components.isEmpty
+            && !components.contains(where: { $0.isEmpty || $0 == "." || $0 == ".." })
     }
 
     private func decodedImage(from data: Data) throws -> UIImage {

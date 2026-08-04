@@ -53,19 +53,16 @@ struct ShowAssetUploadView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query private var shows: [Show]
 
     @State private var selectedItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
     @State private var pendingData: Data?
     @State private var isImporting = false
     @State private var isSaving = false
+    @State private var importTask: Task<Void, Never>?
+    @State private var saveTask: Task<Void, Never>?
     @State private var toast: BSToastPayload?
     @State private var didSave = false
-
-    private var owningShow: Show? {
-        shows.first(where: { $0.id == showID })
-    }
 
     var body: some View {
         ZStack {
@@ -89,15 +86,22 @@ struct ShowAssetUploadView: View {
         .bsToastOverlay(toast, bottomPadding: 36)
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }
-            Task { await importItem(item) }
+            importTask?.cancel()
+            importTask = Task { await importItem(item) }
         }
         .onDisappear {
+            importTask?.cancel()
+            if !didSave {
+                saveTask?.cancel()
+            }
             // If user backs out after choosing a preview without saving, nothing was written.
             if !didSave {
                 pendingData = nil
                 previewImage = nil
             }
         }
+        .navigationBarBackButtonHidden(isSaving)
+        .interactiveDismissDisabled(isSaving)
     }
 
     private var emptyUploadSection: some View {
@@ -177,7 +181,7 @@ struct ShowAssetUploadView: View {
                 .disabled(isSaving || isImporting)
 
                 Button {
-                    Task { await savePending() }
+                    saveTask = Task { await savePending() }
                 } label: {
                     Text(isSaving ? "保存中…" : "保存\(kind.title)")
                         .frame(maxWidth: .infinity)
@@ -196,6 +200,7 @@ struct ShowAssetUploadView: View {
                 presentToast(.failure, message: "没有读到这张图片")
                 return
             }
+            try Task.checkCancellation()
             guard let image = UIImage(data: data) else {
                 presentToast(.failure, message: "这张图片暂时无法使用")
                 return
@@ -218,7 +223,16 @@ struct ShowAssetUploadView: View {
         var writtenRelativePath: String?
         do {
             try Task.checkCancellation()
-            let existing = replacingAsset ?? existingAssetOfSameKind()
+            let currentShow = try modelContext.fetch(
+                FetchDescriptor<Show>(predicate: #Predicate { $0.id == showID })
+            ).first
+            guard let currentShow else {
+                throw ShowAssetMediaStoreError.missingShow
+            }
+            let currentAssets = assetsOfSameKind()
+            let existing = replacingAsset.flatMap { replacement in
+                currentAssets.first(where: { $0.id == replacement.id })
+            } ?? currentAssets.first
             let previousRelativePath = existing?.relativePath
             let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(
@@ -231,6 +245,7 @@ struct ShowAssetUploadView: View {
             try Task.checkCancellation()
 
             if let existing {
+                existing.show = currentShow
                 existing.replaceImage(relativePath: relativePath)
                 for duplicate in assetsOfSameKind().filter({ $0.id != existing.id }) {
                     modelContext.delete(duplicate)
@@ -242,9 +257,7 @@ struct ShowAssetUploadView: View {
                     kind: kind,
                     relativePath: relativePath
                 )
-                if let owningShow {
-                    asset.show = owningShow
-                }
+                asset.show = currentShow
                 modelContext.insert(asset)
             }
 
@@ -297,6 +310,8 @@ struct ShowAssetUploadView: View {
                 return "这张图片暂时无法保存"
             case .importCancelled:
                 return "已取消"
+            case .missingShow:
+                return "这场现场已不存在，无法保存"
             case .missingAsset:
                 return "保存失败，请重试"
             }

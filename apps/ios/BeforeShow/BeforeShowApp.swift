@@ -146,9 +146,29 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
         valid[fragment.showID, default: [:]][fragment.id] = paths
     }
     if mutated {
-        try modelContext.save()
+        try saveModelContextRollingBackOnFailure(modelContext)
     }
     return valid
+}
+
+@MainActor
+func saveModelContextRollingBackOnFailure(
+    _ modelContext: ModelContext,
+    save: () throws -> Void
+) throws {
+    do {
+        try save()
+    } catch {
+        modelContext.rollback()
+        throw error
+    }
+}
+
+@MainActor
+func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
+    try saveModelContextRollingBackOnFailure(modelContext) {
+        try modelContext.save()
+    }
 }
 
 
@@ -164,6 +184,7 @@ private func reconcileAllShowAssets(in modelContext: ModelContext) async {
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
         await ShowAssetMediaStore.shared.releaseCommitGate()
     } catch {
+        modelContext.rollback()
         await ShowAssetMediaStore.shared.releaseCommitGate()
         // Best-effort recovery; next launch/active retries.
     }
@@ -174,7 +195,7 @@ private func reconcileAllShowAssets(in modelContext: ModelContext) async {
 @MainActor
 func reconcileShowAssetShowBoundary(
     in modelContext: ModelContext,
-    assetRootDirectory: URL? = nil
+    assetRootDirectory: URL
 ) throws -> Set<String> {
     let shows = try modelContext.fetch(FetchDescriptor<Show>())
     let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -207,6 +228,16 @@ func reconcileShowAssetShowBoundary(
             continue
         }
 
+        guard ShowAsset.isValidRelativePath(
+            asset.relativePath,
+            showID: asset.showID,
+            kind: asset.kind
+        ) else {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
         let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind)
         if asset.repairUniqueKeyIfNeeded() {
             mutated = true
@@ -221,9 +252,8 @@ func reconcileShowAssetShowBoundary(
         }
 
         // Drop records whose files disappeared so UI returns to "未添加".
-        let fileURL = assetRootDirectory?
-            .appendingPathComponent(asset.relativePath)
-        if let fileURL, !FileManager.default.fileExists(atPath: fileURL.path) {
+        let fileURL = assetRootDirectory.appendingPathComponent(asset.relativePath)
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
             modelContext.delete(asset)
             mutated = true
             continue
@@ -233,8 +263,7 @@ func reconcileShowAssetShowBoundary(
         valid.insert(asset.relativePath)
     }
     if mutated {
-        try modelContext.save()
+        try saveModelContextRollingBackOnFailure(modelContext)
     }
     return valid
 }
-
