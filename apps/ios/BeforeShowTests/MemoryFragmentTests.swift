@@ -48,8 +48,8 @@ final class MemoryFragmentTests: XCTestCase {
 
     func testMixedMediaKeepsInsertionOrder() throws {
         let fragment = try MemoryFragment(showID: UUID())
-        fragment.appendMedia(makeMedia(kind: .video, order: 9))
-        fragment.appendMedia(makeMedia(kind: .photo, order: 9))
+        try fragment.appendMedia(makeMedia(kind: .video, order: 9))
+        try fragment.appendMedia(makeMedia(kind: .photo, order: 9))
 
         XCTAssertEqual(fragment.orderedMediaItems.map(\.kind), [.video, .photo])
         XCTAssertEqual(fragment.orderedMediaItems.map(\.sortOrder), [0, 1])
@@ -58,7 +58,7 @@ final class MemoryFragmentTests: XCTestCase {
     func testRemovingLastMediaRequiresText() throws {
         let withoutText = try MemoryFragment(showID: UUID())
         let onlyMedia = makeMedia(kind: .photo, order: 0)
-        withoutText.appendMedia(onlyMedia)
+        try withoutText.appendMedia(onlyMedia)
 
         XCTAssertThrowsError(try withoutText.removeMedia(onlyMedia)) {
             XCTAssertEqual($0 as? MemoryFragmentValidationError, .emptyContent)
@@ -67,7 +67,7 @@ final class MemoryFragmentTests: XCTestCase {
 
         let withText = try MemoryFragment(showID: UUID(), text: "保留文字")
         let removable = makeMedia(kind: .video, order: 0)
-        withText.appendMedia(removable)
+        try withText.appendMedia(removable)
         try withText.removeMedia(removable)
         XCTAssertTrue(withText.mediaItems.isEmpty)
         XCTAssertEqual(withText.text, "保留文字")
@@ -221,7 +221,7 @@ final class MemoryFragmentTests: XCTestCase {
 
     func testUpdateTextAllowsClearingCaptionWhenMediaExists() throws {
         let fragment = try MemoryFragment(showID: UUID(), text: "开场前")
-        fragment.appendMedia(makeMedia(kind: .photo, order: 0))
+        try fragment.appendMedia(makeMedia(kind: .photo, order: 0))
         try fragment.updateText(nil)
         XCTAssertNil(fragment.text)
         XCTAssertEqual(fragment.mediaItems.count, 1)
@@ -507,12 +507,29 @@ final class MemoryFragmentTests: XCTestCase {
         }
 
         // The copied staging file must be rolled back, not left as an orphan that
-        // bypasses the composer's 20-item cap.
+        // bypasses the composer's 10-item cap.
         let stagingDir = root.appendingPathComponent("Staging/\(draftID.uuidString)")
         if FileManager.default.fileExists(atPath: stagingDir.path) {
             let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: stagingDir.path)) ?? []
             XCTAssertTrue(leftovers.isEmpty, "No orphan staging files should remain after a failed import")
         }
+    }
+
+    func testDiscardImportedFileRemovesTransferTempAfterCancellation() async throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("transfer-\(UUID().uuidString).jpg")
+        try Data("img".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        let imported = try MemoryImportedFile.copied(source, contentType: .image)
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(
+            rootDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        ))
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: imported.url.path))
+        try await store.discardImportedFile(imported)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imported.url.path))
     }
 
     func testImportedFileCopyStampsImportTime() throws {
@@ -668,6 +685,168 @@ final class MemoryFragmentTests: XCTestCase {
                 cloudKitDatabase: .none
             )
         )
+    }
+
+
+
+
+
+    func testReplaceOnlyMediaWithoutTextDoesNotTripEmptyContent() throws {
+        // Textless single-media fragments must support "remove old + add new" by
+        // appending the replacement before removing the last existing item.
+        let fragment = try MemoryFragment(showID: UUID())
+        let old = makeMedia(kind: .photo, order: 0)
+        try fragment.appendMedia(old)
+        XCTAssertNil(fragment.text)
+
+        let replacement = makeMedia(kind: .photo, order: 1)
+        try fragment.appendMedia(replacement)
+        try fragment.removeMedia(old)
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.id), [replacement.id])
+        XCTAssertNil(fragment.text)
+    }
+
+    func testEditValidationRejectsEmptyResultBeforeMutation() throws {
+        // Mirrors saveEditedFragment preflight: removing all media with blank caption must fail
+        // before any model mutation is applied.
+        let fragment = try MemoryFragment(showID: UUID(), text: "旧文案")
+        let only = makeMedia(kind: .photo, order: 0)
+        try fragment.appendMedia(only)
+
+        let removedIDs: Set<UUID> = [only.id]
+        let remaining = fragment.orderedMediaItems.filter { !removedIDs.contains($0.id) }
+        let additions: [MemoryDraftMedia] = []
+        let normalized = try MemoryFragment.normalized("   ")
+        XCTAssertTrue(remaining.isEmpty)
+        XCTAssertTrue(additions.isEmpty)
+        XCTAssertNil(normalized)
+        // Preflight would throw emptyContent; fragment text/media remain untouched.
+        XCTAssertEqual(fragment.text, "旧文案")
+        XCTAssertEqual(fragment.mediaItems.count, 1)
+    }
+
+    func testReorderMediaPreservesRequestedOrder() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "排序")
+        let a = makeMedia(kind: .photo, order: 0)
+        let b = makeMedia(kind: .photo, order: 1)
+        let c = makeMedia(kind: .video, order: 2)
+        try fragment.appendMedia(a)
+        try fragment.appendMedia(b)
+        try fragment.appendMedia(c)
+        fragment.reorderMedia(orderedIDs: [c.id, a.id, b.id])
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.id), [c.id, a.id, b.id])
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.sortOrder), [0, 1, 2])
+    }
+
+
+    func testApplyMediaEditSupportsCapacityReplacement() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "cap")
+        var media: [MemoryMediaItem] = []
+        for index in 0..<MemoryFragment.maximumMediaCount {
+            let item = makeMedia(kind: .photo, order: index)
+            try fragment.appendMedia(item)
+            media.append(item)
+        }
+        let removed = media[0]
+        let addition = makeMedia(kind: .video, order: 99)
+        let finalOrder = media.dropFirst().map(\.id) + [addition.id]
+        try fragment.applyMediaEdit(
+            removingIDs: [removed.id],
+            adding: [addition],
+            finalOrder: finalOrder
+        )
+        XCTAssertEqual(fragment.mediaItems.count, MemoryFragment.maximumMediaCount)
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.id), finalOrder)
+        XCTAssertFalse(fragment.mediaItems.contains(where: { $0.id == removed.id }))
+    }
+
+    func testApplyMediaEditRejectsOverCapacityFinalSet() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "cap")
+        for index in 0..<MemoryFragment.maximumMediaCount {
+            try fragment.appendMedia(makeMedia(kind: .photo, order: index))
+        }
+        XCTAssertThrowsError(
+            try fragment.applyMediaEdit(
+                removingIDs: [],
+                adding: [makeMedia(kind: .photo, order: 100)],
+                finalOrder: []
+            )
+        ) {
+            XCTAssertEqual($0 as? MemoryFragmentValidationError, .mediaLimitExceeded)
+        }
+    }
+
+    func testMultiDayInterSessionPhaseIsAfterNotBefore() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        // 2026-08-15..17 daily 13:00-22:00
+        let day1 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 15, hour: 13, minute: 0))!
+        let endTime = calendar.date(from: DateComponents(year: 2026, month: 8, day: 15, hour: 22, minute: 0))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 17, hour: 0, minute: 0))!
+        let timing = ShowTimingFields(
+            date: day1,
+            startTime: day1,
+            endDate: endDate,
+            endTime: endTime,
+            endedAt: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+        func at(day: Int, hour: Int, minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: day, hour: hour, minute: minute))!
+        }
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 12), timing: timing, calendar: calendar), .before)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 14), timing: timing, calendar: calendar), .live)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 22, minute: 1), timing: timing, calendar: calendar), .after)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 16, hour: 10), timing: timing, calendar: calendar), .after)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 16, hour: 14), timing: timing, calendar: calendar), .live)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 17, hour: 22, minute: 1), timing: timing, calendar: calendar), .after)
+    }
+
+    func testPhaseResolutionUsesShowTimingBoundaries() {
+        let calendar = Calendar(identifier: .gregorian)
+        var components = DateComponents(calendar: calendar, year: 2026, month: 8, day: 4, hour: 19, minute: 30)
+        let start = calendar.date(from: components)!
+        components.hour = 23
+        let end = calendar.date(from: components)!
+        let timing = ShowTimingFields(
+            date: start,
+            startTime: start,
+            endDate: nil,
+            endTime: end,
+            endedAt: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+        XCTAssertEqual(
+            MemoryFragmentPhase.resolved(at: start.addingTimeInterval(-60), timing: timing, calendar: calendar),
+            .before
+        )
+        XCTAssertEqual(
+            MemoryFragmentPhase.resolved(at: start.addingTimeInterval(60), timing: timing, calendar: calendar),
+            .live
+        )
+        XCTAssertEqual(
+            MemoryFragmentPhase.resolved(at: end.addingTimeInterval(60), timing: timing, calendar: calendar),
+            .after
+        )
+    }
+
+    func testMediaLimitIsHardCappedAtTen() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "cap")
+        for index in 0..<MemoryFragment.maximumMediaCount {
+            try fragment.appendMedia(makeMedia(kind: .photo, order: index))
+        }
+        XCTAssertThrowsError(try fragment.appendMedia(makeMedia(kind: .photo, order: 99))) {
+            XCTAssertEqual($0 as? MemoryFragmentValidationError, .mediaLimitExceeded)
+        }
+    }
+
+    func testRelativeTimeFormatting() {
+        let calendar = Calendar(identifier: .gregorian)
+        let now = Date()
+        XCTAssertEqual(MemoryFragmentRelativeTime.format(now.addingTimeInterval(-10), now: now, calendar: calendar), "刚刚")
+        XCTAssertEqual(MemoryFragmentRelativeTime.format(now.addingTimeInterval(-5 * 60), now: now, calendar: calendar), "5 分钟前")
     }
 
     private func makeMedia(kind: MemoryMediaKind, order: Int) -> MemoryMediaItem {

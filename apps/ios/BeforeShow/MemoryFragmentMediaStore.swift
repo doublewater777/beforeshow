@@ -415,6 +415,11 @@ actor MemoryFragmentMediaStore {
         try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
     }
 
+    /// Removes a transferred temporary file when cancellation happens before staging owns it.
+    func discardImportedFile(_ imported: MemoryImportedFile) throws {
+        try removeIfPresent(imported.url)
+    }
+
     /// Removes a single staged item's original and thumbnail from the staging
     /// directory. Called when the user removes a draft item from the composer so the
     /// 20-item limit reflects real staged files instead of leaving orphan staging
