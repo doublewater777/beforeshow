@@ -116,6 +116,7 @@ final class ProSubscriptionTests: XCTestCase {
 
         XCTAssertTrue(copy.contains("设备端 OCR"))
         XCTAssertTrue(copy.contains("设备本地"))
+        XCTAssertTrue(copy.contains("记忆碎片"))
         XCTAssertTrue(copy.contains("不会删除系统相册中的原始图片或视频"))
     }
 
@@ -146,6 +147,8 @@ final class ProSubscriptionTests: XCTestCase {
         let plan = LocalDataClearancePolicy.defaultPlan
 
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("SwiftData") }))
+        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("记忆碎片") }))
+        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("照片和视频副本") }))
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("临时缓存") }))
         XCTAssertTrue(plan.preservesSystemData.contains(where: { $0.contains("系统相册中的原始图片和视频") }))
     }

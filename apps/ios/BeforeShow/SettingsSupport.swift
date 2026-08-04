@@ -25,10 +25,11 @@ enum SettingsInformation {
 enum PrivacyLocalDataCopy {
     static let points = [
         "票务截图只用于设备端 OCR，截图不会为了识别上传。",
-        "现场与偏好设置保存在设备本地。"
+        "现场、偏好设置和记忆碎片保存在设备本地。",
+        "记忆碎片中的照片与视频是 App 沙盒副本，不是系统相册原始内容。"
     ]
 
-    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 保存的现场、偏好设置和临时缓存；不会删除系统相册中的原始图片或视频。"
+    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 保存的现场、偏好设置、记忆碎片文字，以及 App 沙盒中的照片/视频副本和临时缓存；不会删除系统相册中的原始图片或视频。"
 }
 
 enum ProMembershipCopy {
@@ -118,6 +119,8 @@ enum LocalDataClearancePolicy {
     static let defaultPlan = LocalDataClearancePlan(
         deletesAppOwnedData: [
             "SwiftData 中的现场和偏好设置",
+            "记忆碎片文字与元数据",
+            "BeforeShow 沙盒中保存的记忆照片和视频副本",
             "BeforeShow 沙盒中的临时缓存"
         ],
         preservesSystemData: [

@@ -121,3 +121,15 @@ Decision: implementation and simulator verification complete; user comprehension
 Reason: the companion shortcut now preserves invitation, confirmation, cancellation, and shared-footprint states with a system-share handoff, but the local manual-confirmation model still needs real-user evidence before any account or remote-acceptance investment.
 
 - 2026-08-02 companion P1 review fixes: share persistence gating, cancel restore, history identity, lifecycle invariants; 153 tests.
+
+## 2026-08-03 · Current-show Memory Fragments
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-08-03-current-show-memory-fragments/`
+
+Decision: implementation-ready, user value validation pending.
+
+Reason: the product owner explicitly reintroduced memory capture as one private, local-only shortcut bound to the current show, while keeping history, social, sharing, cloud, audio, and AI out of scope. The riskiest question is whether capture remains lighter than using general-purpose Photos or Notes.
+
+- 2026-08-03 implementation verification: text and ordered mixed-media flows passed on iPhone 17; 213 tests passed; physical-device camera and release-user value remain pending.

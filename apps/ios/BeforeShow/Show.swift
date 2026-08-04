@@ -135,6 +135,12 @@ final class Show {
     /// `true` when this device created the share (owner); `false` when accepted as participant.
     var companionIsOwner: Bool?
 
+    /// Fragments bound to this show. Deleting a `Show` cascades to its fragments
+    /// (and their media items) so no orphan fragment records can survive a show
+    /// deletion. Disk files are reclaimed by memory-media reconciliation.
+    @Relationship(deleteRule: .cascade, inverse: \MemoryFragment.show)
+    var memoryFragments: [MemoryFragment] = []
+
     private var changeStatusRawValue: String
 
     var companionStatus: ShowCompanionStatus {

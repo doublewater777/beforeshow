@@ -18,6 +18,8 @@ struct BeforeShowApp: App {
                 CurrentShowSelection.self,
                 NotificationSchedulingState.self,
                 ShowNotificationScheduleRecord.self,
+                MemoryFragment.self,
+                MemoryMediaItem.self,
                 configurations: configuration
             )
         } catch {
@@ -58,6 +60,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
+                    await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -68,9 +71,79 @@ struct BeforeShowApp: App {
                         await companionCoordinator.refreshAllLinkedShows(
                             in: modelContainer.mainContext
                         )
+                        await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                     }
                 }
         }
         .modelContainer(modelContainer)
     }
+}
+
+@MainActor
+private func reconcileAllMemoryMedia(in modelContext: ModelContext, includesStagingCleanup: Bool) async {
+    // The commit gate makes this pass mutually exclusive with media commits, so the
+    // SwiftData snapshot taken here can never be stale relative to a concurrent
+    // commit's copy-then-save and delete that commit's just-written files.
+    await MemoryFragmentMediaStore.shared.acquireCommitGate()
+    do {
+        let valid = try reconcileMemoryFragmentShowBoundary(in: modelContext)
+        try await MemoryFragmentMediaStore.shared.reconcileAll(validFilesByShowAndFragment: valid)
+        // Staging/import-temp cleanup is intentionally launch-only: running it on every
+        // scenePhase=.active could delete a draft still in use by an open composer or
+        // retained for retry after a failed save.
+        if includesStagingCleanup {
+            try await MemoryFragmentMediaStore.shared.cleanupStaging(
+                olderThan: Date().addingTimeInterval(-86_400)
+            )
+            try await MemoryFragmentMediaStore.shared.cleanupImportTemp(
+                olderThan: Date().addingTimeInterval(-86_400)
+            )
+        }
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
+    } catch {
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
+        // Best-effort recovery; next launch/active retries.
+    }
+}
+
+/// Enforces the fragment<->show boundary against the current SwiftData state and
+/// returns the on-disk-valid file map for media reconciliation.
+///
+/// - Fragments whose `showID` has no corresponding `Show` are orphan records (their
+///   Show was deleted, or they were created against a fabricated showID) and are
+///   removed here so `reconcileAll` can reclaim their files.
+/// - Fragments that predate the `show` relationship (existing production data has
+///   `showID` but `show == nil`) are backfilled with the relationship so the cascade
+///   delete rule applies to them too.
+///
+/// Extracted from `reconcileAllMemoryMedia` so this production seam is unit-testable
+/// without touching the media store actor or disk.
+@MainActor
+func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -> [UUID: [UUID: Set<String>]] {
+    let shows = try modelContext.fetch(FetchDescriptor<Show>())
+    let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
+    var valid: [UUID: [UUID: Set<String>]] = [:]
+    var mutated = false
+    for fragment in fragments {
+        guard let show = showsByID[fragment.showID] else {
+            modelContext.delete(fragment)
+            mutated = true
+            continue
+        }
+        if fragment.show == nil {
+            fragment.show = show
+            mutated = true
+        }
+        let paths = Set(
+            fragment.mediaItems.flatMap { item in
+                [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+            }
+        )
+        valid[fragment.showID, default: [:]][fragment.id] = paths
+    }
+    if mutated {
+        try modelContext.save()
+    }
+    return valid
 }
