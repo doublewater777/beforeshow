@@ -79,6 +79,14 @@ private struct MemoryEditorItem: Identifiable, Equatable {
     }
 }
 
+private struct MemorySavePayload {
+    let draftID: UUID
+    let fullOrder: [UUID]
+    let caption: String
+    let removedExistingIDs: Set<UUID>
+    let additions: [MemoryDraftMedia]
+}
+
 // MARK: - Timeline
 
 struct MemoryFragmentsView: View {
@@ -142,20 +150,7 @@ struct MemoryFragmentsView: View {
                                         }
 
                                         ForEach(section.fragments) { fragment in
-                                            MemoryFragmentRow(
-                                                fragment: fragment,
-                                                isLatest: fragment.id == fragments.first?.id,
-                                                onEdit: {
-                                                    editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-                                                },
-                                                onDelete: { deleteTarget = fragment },
-                                                onOpenMedia: { index in
-                                                    viewerTarget = MemoryViewerTarget(
-                                                        fragment: fragment,
-                                                        initialIndex: index
-                                                    )
-                                                }
-                                            )
+                                            fragmentRow(fragment)
                                             .id(fragment.id)
                                         }
                                     }
@@ -198,17 +193,21 @@ struct MemoryFragmentsView: View {
             MemoryUnifiedEditorView(
                 launch: launch,
                 showName: showName,
-                onSaveCreate: { draftID, media, caption in
-                    try await createFragment(draftID: draftID, media: media, caption: caption)
+                onSaveCreate: { payload in
+                    try await createFragment(
+                        draftID: payload.draftID,
+                        media: payload.additions,
+                        caption: payload.caption
+                    )
                 },
-                onSaveEdit: { fragment, fullOrder, caption, removedIDs, additions, draftID in
+                onSaveEdit: { fragment, payload in
                     try await saveEditedFragment(
                         fragment,
-                        fullOrder: fullOrder,
-                        caption: caption,
-                        removedIDs: removedIDs,
-                        additions: additions,
-                        draftID: draftID
+                        fullOrder: payload.fullOrder,
+                        caption: payload.caption,
+                        removedIDs: payload.removedExistingIDs,
+                        additions: payload.additions,
+                        draftID: payload.draftID
                     )
                 }
             )
@@ -252,7 +251,7 @@ struct MemoryFragmentsView: View {
                 hasSeenLocalNotice = true
             }
         } message: {
-            Text("删除 App 或清除本地数据后，记忆碎片可能无法恢复。")
+            localNoticeMessage
         }
         .onAppear {
             #if DEBUG
@@ -276,8 +275,23 @@ struct MemoryFragmentsView: View {
                 return
             }
             for fragment in current {
-                let paths = fragment.mediaItems.flatMap { item in
-                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+                var paths: [String] = []
+                for item in fragment.mediaItems {
+                    if MemoryMediaLocation.isValidCommittedPath(
+                        item.relativePath,
+                        showID: fragment.showID,
+                        fragmentID: fragment.id
+                    ) {
+                        paths.append(item.relativePath)
+                    }
+                    if let thumbnail = item.thumbnailRelativePath,
+                       MemoryMediaLocation.isValidCommittedPath(
+                           thumbnail,
+                           showID: fragment.showID,
+                           fragmentID: fragment.id
+                       ) {
+                        paths.append(thumbnail)
+                    }
                 }
                 validFilesByFragmentID[fragment.id] = Set(paths)
             }
@@ -318,6 +332,10 @@ struct MemoryFragmentsView: View {
         )
     }
 
+    private var localNoticeMessage: some View {
+        Text("删除 App 或清除本地数据后，记忆碎片可能无法恢复。")
+    }
+
     private func timelineStat(value: String, label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(value)
@@ -335,6 +353,24 @@ struct MemoryFragmentsView: View {
         case .live: return BSColor.Stage.liveTitle
         case .before: return BSColor.Stage.muted
         }
+    }
+
+    @ViewBuilder
+    private func fragmentRow(_ fragment: MemoryFragment) -> some View {
+        MemoryFragmentRow(
+            fragment: fragment,
+            isLatest: fragment.id == fragments.first?.id,
+            onEdit: {
+                editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
+            },
+            onDelete: { deleteTarget = fragment },
+            onOpenMedia: { index in
+                viewerTarget = MemoryViewerTarget(
+                    fragment: fragment,
+                    initialIndex: index
+                )
+            }
+        )
     }
 
     private func launchEditor(_ source: MemoryComposerSource) {
@@ -432,8 +468,20 @@ struct MemoryFragmentsView: View {
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
-        let committedPaths = committed.flatMap {
-            [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
+        let committedPaths: [MemoryOwnedMediaPath] = committed.flatMap { item in
+            var paths = [MemoryOwnedMediaPath(
+                showID: showID,
+                fragmentID: fragmentID,
+                relativePath: item.relativePath
+            )]
+            if let thumbnail = item.thumbnailRelativePath {
+                paths.append(MemoryOwnedMediaPath(
+                    showID: showID,
+                    fragmentID: fragmentID,
+                    relativePath: thumbnail
+                ))
+            }
+            return paths
         }
         do {
             guard let show = fetchShow(for: showID) else {
@@ -465,12 +513,32 @@ struct MemoryFragmentsView: View {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
+            do {
+                try await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(
+                    relativePaths: committedPaths.map { $0.relativePath },
+                    showID: showID,
+                    fragmentID: fragmentID
+                )
+            } catch {
+                for path in committedPaths {
+                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                        showID: path.showID,
+                        fragmentID: path.fragmentID,
+                        relativePath: path.relativePath
+                    )
+                }
+            }
+            LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
         await MemoryFragmentMediaStore.shared.releaseCommitGate()
-        try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+        do {
+            try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+            LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(draftID)
+        } catch {
+            LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
+        }
         presentToast(.success, "已加入这场现场")
     }
 
@@ -529,14 +597,28 @@ struct MemoryFragmentsView: View {
         }
 
         // Capture file paths to delete only after a successful model save.
-        let removedPaths = fragment.orderedMediaItems
+        let removedPaths: [MemoryOwnedMediaPath] = fragment.orderedMediaItems
             .filter { removedIDs.contains($0.id) }
-            .flatMap { item in [item.relativePath, item.thumbnailRelativePath].compactMap { $0 } }
+            .flatMap { item in
+                var paths = [MemoryOwnedMediaPath(
+                    showID: fragment.showID,
+                    fragmentID: fragment.id,
+                    relativePath: item.relativePath
+                )]
+                if let thumbnail = item.thumbnailRelativePath {
+                    paths.append(MemoryOwnedMediaPath(
+                        showID: fragment.showID,
+                        fragmentID: fragment.id,
+                        relativePath: thumbnail
+                    ))
+                }
+                return paths
+            }
 
         // Commit new files first so model mutations can stay one transactional unit:
         // either all model edits save, or we roll back the context *and* any newly copied files.
         var committed: [MemoryCommittedMedia] = []
-        var committedPaths: [String] = []
+        var committedPaths: [MemoryOwnedMediaPath] = []
         await MemoryFragmentMediaStore.shared.acquireCommitGate()
         if !additions.isEmpty {
             do {
@@ -549,8 +631,20 @@ struct MemoryFragmentsView: View {
                     fragmentID: fragment.id,
                     media: additions
                 )
-                committedPaths = committed.flatMap {
-                    [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
+                committedPaths = committed.flatMap { item in
+                    var paths = [MemoryOwnedMediaPath(
+                        showID: fragment.showID,
+                        fragmentID: fragment.id,
+                        relativePath: item.relativePath
+                    )]
+                    if let thumbnail = item.thumbnailRelativePath {
+                        paths.append(MemoryOwnedMediaPath(
+                            showID: fragment.showID,
+                            fragmentID: fragment.id,
+                            relativePath: thumbnail
+                        ))
+                    }
+                    return paths
                 }
             } catch {
                 await MemoryFragmentMediaStore.shared.releaseCommitGate()
@@ -588,15 +682,31 @@ struct MemoryFragmentsView: View {
         } catch {
             modelContext.rollback()
             if !committedPaths.isEmpty {
-                try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
+                do {
+                    try await MemoryFragmentMediaStore.shared.deleteFiles(committedPaths)
+                } catch {
+                    for path in committedPaths {
+                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                            showID: path.showID,
+                            fragmentID: path.fragmentID,
+                            relativePath: path.relativePath
+                        )
+                    }
+                }
             }
+            LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
 
         await MemoryFragmentMediaStore.shared.releaseCommitGate()
         if !additions.isEmpty {
-            try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+            do {
+                try await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+                LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(draftID)
+            } catch {
+                LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
+            }
         }
 
         var mediaCleanupPending = false
@@ -604,34 +714,21 @@ struct MemoryFragmentsView: View {
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             for path in removedPaths {
                 do {
-                    let components = path.split(separator: "/")
-                    guard components.count >= 3,
-                          let pathShowID = UUID(uuidString: String(components[0])),
-                          let pathFragmentID = UUID(uuidString: String(components[1])) else {
-                        throw MemoryMediaStoreError.invalidRelativePath
-                    }
                     try await MemoryFragmentMediaStore.shared.deleteFiles(
-                        relativePaths: [path],
-                        showID: pathShowID,
-                        fragmentID: pathFragmentID
+                        [path]
                     )
                     LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
-                        showID: pathShowID,
-                        fragmentID: pathFragmentID,
-                        relativePath: path
+                        showID: path.showID,
+                        fragmentID: path.fragmentID,
+                        relativePath: path.relativePath
                     )
                 } catch {
                     mediaCleanupPending = true
-                    let components = path.split(separator: "/")
-                    if components.count >= 3,
-                       let pathShowID = UUID(uuidString: String(components[0])),
-                       let pathFragmentID = UUID(uuidString: String(components[1])) {
-                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
-                            showID: pathShowID,
-                            fragmentID: pathFragmentID,
-                            relativePath: path
-                        )
-                    }
+                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                        showID: path.showID,
+                        fragmentID: path.fragmentID,
+                        relativePath: path.relativePath
+                    )
                 }
             }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
@@ -716,7 +813,11 @@ private struct MemoryFragmentRow: View {
                 }
 
                 if !fragment.mediaItems.isEmpty {
-                    MemoryMediaCarousel(items: fragment.orderedMediaItems) { index, _ in
+                    MemoryMediaCarousel(
+                        items: fragment.orderedMediaItems,
+                        showID: fragment.showID,
+                        fragmentID: fragment.id
+                    ) { index, _ in
                         onOpenMedia(index)
                     }
                 }
@@ -744,6 +845,8 @@ private struct MemoryFragmentRow: View {
 
 private struct MemoryMediaCarousel: View {
     let items: [MemoryMediaItem]
+    let showID: UUID
+    let fragmentID: UUID
     let onTap: (Int, MemoryMediaItem) -> Void
     @State private var selection = 0
 
@@ -753,7 +856,11 @@ private struct MemoryMediaCarousel: View {
                 ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     Button { onTap(index, item) } label: {
                         ZStack {
-                            MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
+                            MemoryThumbnail(
+                                relativePath: item.thumbnailRelativePath ?? item.relativePath,
+                                showID: showID,
+                                fragmentID: fragmentID
+                            )
                             if item.kind == .video {
                                 Image(systemName: "play.circle.fill")
                                     .font(.system(size: 46))
@@ -784,7 +891,15 @@ private struct MemoryMediaCarousel: View {
 
 private struct MemoryThumbnail: View {
     let relativePath: String
+    let showID: UUID?
+    let fragmentID: UUID?
     @State private var image: UIImage?
+
+    init(relativePath: String, showID: UUID? = nil, fragmentID: UUID? = nil) {
+        self.relativePath = relativePath
+        self.showID = showID
+        self.fragmentID = fragmentID
+    }
 
     var body: some View {
         Group {
@@ -802,9 +917,20 @@ private struct MemoryThumbnail: View {
                 }
             }
         }
-        .task(id: relativePath) {
-            guard let path = try? MemoryMediaLocation.applicationSupport()
-                .validatedURL(for: relativePath).path else {
+        .task(id: "\(showID?.uuidString ?? "draft")|\(fragmentID?.uuidString ?? "draft")|\(relativePath)") {
+            guard let location = try? MemoryMediaLocation.applicationSupport(),
+                  let path = try? {
+                      if let showID, let fragmentID {
+                          return try location.validatedURL(
+                              for: relativePath,
+                              showID: showID,
+                              fragmentID: fragmentID
+                          ).path
+                      }
+                      // Draft previews live under Staging and have no committed
+                      // fragment owner yet; root containment is still required.
+                      return try location.validatedURL(for: relativePath).path
+                  }() else {
                 image = nil
                 return
             }
@@ -879,14 +1005,22 @@ private struct MemoryMediaViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
                             if item.kind == .video {
-                                if let url = try? MemoryMediaLocation.applicationSupport()
-                                    .validatedURL(for: item.relativePath) {
+                                if let location = try? MemoryMediaLocation.applicationSupport(),
+                                   let url = try? location.validatedURL(
+                                       for: item.relativePath,
+                                       showID: fragment.showID,
+                                       fragmentID: fragment.id
+                                   ) {
                                     VideoPlayer(player: AVPlayer(url: url))
                                 } else {
                                     unavailableMediaView
                                 }
                             } else {
-                                MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
+                        MemoryThumbnail(
+                            relativePath: item.thumbnailRelativePath ?? item.relativePath,
+                            showID: fragment.showID,
+                            fragmentID: fragment.id
+                        )
                                     .scaledToFit()
                             }
                         }
@@ -937,8 +1071,8 @@ private enum MemoryEditorOperation: Equatable {
 private struct MemoryUnifiedEditorView: View {
     let launch: MemoryEditorLaunch
     let showName: String
-    let onSaveCreate: @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void
-    let onSaveEdit: @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void
+    let onSaveCreate: @MainActor (MemorySavePayload) async throws -> Void
+    let onSaveEdit: @MainActor (MemoryFragment, MemorySavePayload) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var items: [MemoryEditorItem]
@@ -989,8 +1123,8 @@ private struct MemoryUnifiedEditorView: View {
     init(
         launch: MemoryEditorLaunch,
         showName: String,
-        onSaveCreate: @escaping @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void,
-        onSaveEdit: @escaping @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void
+        onSaveCreate: @escaping @MainActor (MemorySavePayload) async throws -> Void,
+        onSaveEdit: @escaping @MainActor (MemoryFragment, MemorySavePayload) async throws -> Void
     ) {
         self.launch = launch
         self.showName = showName
@@ -1043,10 +1177,15 @@ private struct MemoryUnifiedEditorView: View {
                             axis: .vertical
                         )
                         .lineLimit(items.isEmpty ? 8...14 : 3...8)
-                        .onChange(of: caption) { _, value in
+                        .onChange(of: caption) { oldValue, value in
+                            guard operation == .idle else {
+                                caption = oldValue
+                                return
+                            }
                             if value.count > 500 { caption = String(value.prefix(500)) }
                         }
                         .bsInputField()
+                        .disabled(operationBusy)
 
                         HStack {
                             Text(items.isEmpty ? "最多 500 字" : "整组媒体共用一段文字 · 拖动缩略图排序")
@@ -1158,7 +1297,11 @@ private struct MemoryUnifiedEditorView: View {
             ZStack {
                 if items.indices.contains(selection) {
                     let item = items[selection]
-                    MemoryThumbnail(relativePath: item.previewRelativePath)
+                    MemoryThumbnail(
+                        relativePath: item.previewRelativePath,
+                        showID: item.isDraft ? nil : editingFragment?.showID,
+                        fragmentID: item.isDraft ? nil : editingFragment?.id
+                    )
                     if item.mediaKind == .video {
                         Image(systemName: "play.circle.fill")
                             .font(.system(size: 46))
@@ -1186,6 +1329,7 @@ private struct MemoryUnifiedEditorView: View {
                         .background(Color.black.opacity(0.55))
                         .foregroundStyle(Color(red: 1, green: 0.77, blue: 0.79))
                         .clipShape(Capsule())
+                        .disabled(operationBusy)
                     Spacer()
                     Menu {
                         Button("继续拍照") { requestCamera() }
@@ -1230,9 +1374,11 @@ private struct MemoryUnifiedEditorView: View {
                                     targetID: item.id,
                                     items: $items,
                                     draggingID: $draggingID,
-                                    selection: $selection
+                                    selection: $selection,
+                                    operation: $operation
                                 )
                             )
+                            .disabled(operationBusy)
                     }
 
                     if items.count < MemoryFragment.maximumMediaCount {
@@ -1262,7 +1408,11 @@ private struct MemoryUnifiedEditorView: View {
             selection = index
         } label: {
             ZStack(alignment: .topTrailing) {
-                MemoryThumbnail(relativePath: item.previewRelativePath)
+                MemoryThumbnail(
+                    relativePath: item.previewRelativePath,
+                    showID: item.isDraft ? nil : editingFragment?.showID,
+                    fragmentID: item.isDraft ? nil : editingFragment?.id
+                )
                     .frame(width: 62, height: 76)
                     .clipShape(RoundedRectangle(cornerRadius: 13))
                 if item.mediaKind == .video {
@@ -1296,6 +1446,7 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private func removeCurrent() {
+        guard operation == .idle else { return }
         guard items.indices.contains(selection) else { return }
         let removed = items.remove(at: selection)
         if case .existing(let id, _, _, _, _) = removed.kind {
@@ -1357,6 +1508,7 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private func importLibrary(_ pickerItems: [PhotosPickerItem]) {
+        guard operation == .idle else { return }
         let generation = beginImport()
         activeImportTask = Task { @MainActor in
             defer { finishImport(generation) }
@@ -1399,6 +1551,7 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private func importCamera(_ result: MemoryCameraResult) {
+        guard operation == .idle else { return }
         let generation = beginImport()
         activeImportTask = Task { @MainActor in
             defer { finishImport(generation) }
@@ -1439,29 +1592,24 @@ private struct MemoryUnifiedEditorView: View {
 
     private func save() {
         guard operation == .idle, canSave else { return }
+        let payload = MemorySavePayload(
+            draftID: draftID,
+            fullOrder: items.map(\.id),
+            caption: caption,
+            removedExistingIDs: removedExistingIDs,
+            additions: items.compactMap(\.draftMedia)
+        )
         operationGeneration &+= 1
         let generation = operationGeneration
         operation = .saving(generation)
         saveTask = Task { @MainActor in
             defer { finishSave(generation) }
             do {
-                let draftsInOrder = items.compactMap(\.draftMedia)
-                // Keep editor visual order, including interleaved new drafts.
-                // Draft IDs are preserved by MediaStore commit, so this list is the final order.
-                let fullOrder = items.map(\.id)
                 switch launch.kind {
                 case .create:
-                    // Create path commits drafts in array order.
-                    try await onSaveCreate(draftID, draftsInOrder, caption)
+                    try await onSaveCreate(payload)
                 case .edit(let fragment):
-                    try await onSaveEdit(
-                        fragment,
-                        fullOrder,
-                        caption,
-                        removedExistingIDs,
-                        draftsInOrder,
-                        draftID
-                    )
+                    try await onSaveEdit(fragment, payload)
                 }
                 didCommitSuccessfully = true
                 dismiss()
@@ -1496,8 +1644,10 @@ private struct MemoryThumbReorderDropDelegate: DropDelegate {
     @Binding var items: [MemoryEditorItem]
     @Binding var draggingID: UUID?
     @Binding var selection: Int
+    @Binding var operation: MemoryEditorOperation
 
     func dropEntered(info: DropInfo) {
+        guard operation == .idle, items.count > 0 else { return }
         guard let draggingID,
               draggingID != targetID,
               let from = items.firstIndex(where: { $0.id == draggingID }),
@@ -1511,6 +1661,7 @@ private struct MemoryThumbReorderDropDelegate: DropDelegate {
     }
 
     func performDrop(info: DropInfo) -> Bool {
+        guard operation == .idle else { return false }
         draggingID = nil
         return true
     }

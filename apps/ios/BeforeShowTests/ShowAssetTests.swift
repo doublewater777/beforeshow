@@ -574,6 +574,17 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertFalse(LocalMediaCleanupRetry.pendingMemoryCleanups.contains {
             $0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == memoryPath
         })
+
+        let draftID = UUID()
+        LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(draftID)
+        LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
+        LocalMediaCleanupRetry.markMemoryStagingCleanupPending(draftID)
+        XCTAssertEqual(
+            LocalMediaCleanupRetry.pendingMemoryStaging.filter { $0.draftID == draftID }.count,
+            1
+        )
+        LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(draftID)
+        XCTAssertFalse(LocalMediaCleanupRetry.pendingMemoryStaging.contains { $0.draftID == draftID })
     }
 
     func testUniqueKeyIsStablePerShowAndKind() {

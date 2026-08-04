@@ -633,7 +633,15 @@ struct ShowAssetViewerView: View {
 
     private func loadImage() async {
         let relativePath = asset.relativePath
-        let url = await ShowAssetMediaStore.shared.absoluteURL(for: relativePath)
+        guard let url = try? await ShowAssetMediaStore.shared.absoluteURL(
+            for: relativePath,
+            showID: showID,
+            kind: kind
+        ) else {
+            image = nil
+            presentToast(.failure, message: "图片暂时不可用")
+            return
+        }
         if let data = try? Data(contentsOf: url), let loaded = UIImage(data: data) {
             image = loaded
         } else {

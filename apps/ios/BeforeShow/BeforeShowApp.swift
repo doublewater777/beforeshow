@@ -88,7 +88,8 @@ private func retryPendingLocalMediaCleanupIfNeeded() async {
     guard LocalMediaCleanupRetry.isFullCleanupPending
             || !LocalMediaCleanupRetry.pendingShowCleanupIDs.isEmpty
             || !LocalMediaCleanupRetry.pendingAssets.isEmpty
-            || !LocalMediaCleanupRetry.pendingMemoryCleanups.isEmpty else { return }
+            || !LocalMediaCleanupRetry.pendingMemoryCleanups.isEmpty
+            || !LocalMediaCleanupRetry.pendingMemoryStaging.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
     if LocalMediaCleanupRetry.isMemoryFullCleanupPending {
@@ -158,6 +159,14 @@ private func retryPendingLocalMediaCleanupIfNeeded() async {
             // Keep this exact owned path marked for the next retry.
         }
     }
+    for pending in LocalMediaCleanupRetry.pendingMemoryStaging {
+        do {
+            try await MemoryFragmentMediaStore.shared.discardDraft(pending.draftID)
+            LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(pending.draftID)
+        } catch {
+            // Keep this staging directory marked for the next retry.
+        }
+    }
     await ShowAssetMediaStore.shared.releaseCommitGate()
 }
 
@@ -207,7 +216,7 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
     var valid: [UUID: [UUID: Set<String>]] = [:]
     var mutated = false
-    var overflowPaths: [String] = []
+    var overflowPaths: [MemoryOwnedMediaPath] = []
     for fragment in fragments {
         guard let show = showsByID[fragment.showID] else {
             modelContext.delete(fragment)
@@ -229,13 +238,53 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
         if !overflow.isEmpty {
             mutated = true
             for item in overflow {
-                overflowPaths.append(contentsOf: [item.relativePath, item.thumbnailRelativePath].compactMap { $0 })
+                let itemPaths: [String] = [item.relativePath] + (item.thumbnailRelativePath.map { [$0] } ?? [])
+                overflowPaths.append(contentsOf: itemPaths.compactMap {
+                    guard MemoryMediaLocation.isValidCommittedPath(
+                        $0,
+                        showID: fragment.showID,
+                        fragmentID: fragment.id
+                    ) else { return nil }
+                    return MemoryOwnedMediaPath(
+                        showID: fragment.showID,
+                        fragmentID: fragment.id,
+                        relativePath: $0
+                    )
+                })
                 modelContext.delete(item)
             }
         }
+        let invalidItems = fragment.mediaItems.filter {
+            !MemoryMediaLocation.isValidCommittedPath(
+                $0.relativePath,
+                showID: fragment.showID,
+                fragmentID: fragment.id
+            ) || ($0.thumbnailRelativePath.map {
+                !MemoryMediaLocation.isValidCommittedPath(
+                    $0,
+                    showID: fragment.showID,
+                    fragmentID: fragment.id
+                )
+            } ?? false)
+        }
+        if !invalidItems.isEmpty {
+            for item in invalidItems {
+                modelContext.delete(item)
+            }
+            mutated = true
+        }
         let paths = Set(
             fragment.mediaItems.flatMap { item in
-                [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
+                let itemPaths: [String] = [item.relativePath] + (item.thumbnailRelativePath.map { [$0] } ?? [])
+                let validPaths: [String] = itemPaths.compactMap { path -> String? in
+                    guard MemoryMediaLocation.isValidCommittedPath(
+                        path,
+                        showID: fragment.showID,
+                        fragmentID: fragment.id
+                    ) else { return nil }
+                    return path
+                }
+                return validPaths
             }
         )
         valid[fragment.showID, default: [:]][fragment.id] = paths
@@ -248,33 +297,20 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             for path in overflowPaths {
                 do {
-                    let components = path.split(separator: "/")
-                    guard components.count >= 3,
-                          let pathShowID = UUID(uuidString: String(components[0])),
-                          let pathFragmentID = UUID(uuidString: String(components[1])) else {
-                        throw MemoryMediaStoreError.invalidRelativePath
-                    }
                     try await MemoryFragmentMediaStore.shared.deleteFiles(
-                        relativePaths: [path],
-                        showID: pathShowID,
-                        fragmentID: pathFragmentID
+                        [path]
                     )
                     LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
-                        showID: pathShowID,
-                        fragmentID: pathFragmentID,
-                        relativePath: path
+                        showID: path.showID,
+                        fragmentID: path.fragmentID,
+                        relativePath: path.relativePath
                     )
                 } catch {
-                    let components = path.split(separator: "/")
-                    if components.count >= 3,
-                       let pathShowID = UUID(uuidString: String(components[0])),
-                       let pathFragmentID = UUID(uuidString: String(components[1])) {
-                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
-                            showID: pathShowID,
-                            fragmentID: pathFragmentID,
-                            relativePath: path
-                        )
-                    }
+                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                        showID: path.showID,
+                        fragmentID: path.fragmentID,
+                        relativePath: path.relativePath
+                    )
                 }
             }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()

@@ -445,6 +445,24 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: fresh.path))
     }
 
+    func testCleanupImportTempWorksWhenPersistentStorageIsUnavailable() async throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        let stale = tempDir.appendingPathComponent("unavailable-\(UUID().uuidString).jpg")
+        try Data("stale".utf8).write(to: stale)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(-100_000)],
+            ofItemAtPath: stale.path
+        )
+        defer { try? FileManager.default.removeItem(at: stale) }
+
+        let store = MemoryFragmentMediaStore(storageError: .storageUnavailable)
+        try await store.cleanupImportTemp(olderThan: Date().addingTimeInterval(-86_400))
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path))
+    }
+
     // MARK: - Round 4: production seam (show-boundary reconcile), import rollback, import time
 
     func testReconcileBackfillsShowRelationshipForExistingFragments() throws {
@@ -483,6 +501,72 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertNotNil(valid[show.id]?[validFragment.id], "Valid fragment is retained")
         XCTAssertNil(valid[orphan.showID], "Orphan fragment is not in the valid set")
         XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 1, "Orphan record is deleted")
+    }
+
+    func testReconcileDropsMediaWithMismatchedOwnerFromValidSet() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        let fragment = try MemoryFragment(showID: show.id, text: "记忆")
+        fragment.show = show
+        let wrongFragmentID = UUID()
+        let item = MemoryMediaItem(
+            id: UUID(),
+            kind: .photo,
+            relativePath: "\(show.id.uuidString)/\(wrongFragmentID.uuidString)/photo.jpg",
+            thumbnailRelativePath: nil,
+            contentTypeIdentifier: "public.jpeg",
+            videoDuration: nil,
+            sortOrder: 0
+        )
+        try fragment.appendMedia(item)
+        context.insert(fragment)
+        try context.save()
+
+        let valid = try reconcileMemoryFragmentShowBoundary(in: context)
+
+        XCTAssertEqual(valid[show.id]?[fragment.id], Set<String>())
+        XCTAssertTrue(fragment.mediaItems.isEmpty)
+    }
+
+    func testOwnedMemoryDeleteRejectsMismatchedPathBeforeDeletingAnyFile() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryOwnershipBatch-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let showID = UUID()
+        let fragmentID = UUID()
+        let otherShowID = UUID()
+        let otherFragmentID = UUID()
+        let keptPath = "\(otherShowID.uuidString)/\(otherFragmentID.uuidString)/photo.jpg"
+        let keptURL = root.appendingPathComponent(keptPath)
+        try FileManager.default.createDirectory(
+            at: keptURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data("kept".utf8).write(to: keptURL)
+
+        let forged = MemoryOwnedMediaPath(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: keptPath
+        )
+        let valid = MemoryOwnedMediaPath(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: "\(showID.uuidString)/\(fragmentID.uuidString)/photo.jpg"
+        )
+
+        do {
+            try await store.deleteFiles([valid, forged])
+            XCTFail("A path whose directory owner disagrees with its metadata must be rejected")
+        } catch MemoryMediaStoreError.invalidRelativePath {
+            // expected
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: keptURL.path))
     }
 
     func testStageTransferredFileRollsBackStagingOnPostCopyFailure() async throws {

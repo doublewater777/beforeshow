@@ -113,6 +113,17 @@ actor ShowAssetMediaStore {
         return location.rootDirectory.appendingPathComponent(relativePath)
     }
 
+    func absoluteURL(
+        for relativePath: String,
+        showID: UUID,
+        kind: ShowAssetKind
+    ) throws -> URL {
+        guard ShowAsset.isValidRelativePath(relativePath, showID: showID, kind: kind) else {
+            throw ShowAssetMediaStoreError.invalidRelativePath
+        }
+        return absoluteURL(for: relativePath)
+    }
+
     func rootDirectoryURL() -> URL {
         location.rootDirectory
     }

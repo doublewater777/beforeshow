@@ -144,11 +144,16 @@ enum LocalMediaCleanupRetry {
         let relativePath: String?
     }
 
+    struct PendingMemoryStaging: Codable, Equatable {
+        let draftID: UUID
+    }
+
     private static let pendingMemoryFullCleanupKey = "BeforeShow.pendingFullMemoryMediaCleanup"
     private static let pendingShowAssetFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
     private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
     private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
     private static let pendingMemoryCleanupKey = "BeforeShow.pendingMemoryCleanup"
+    private static let pendingMemoryStagingCleanupKey = "BeforeShow.pendingMemoryStagingCleanup"
     private static let legacyPendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
 
     static var isMemoryFullCleanupPending: Bool {
@@ -240,7 +245,14 @@ enum LocalMediaCleanupRetry {
     static var pendingMemoryCleanups: [PendingMemoryCleanup] {
         if let data = UserDefaults.standard.data(forKey: pendingMemoryCleanupKey),
            let values = try? JSONDecoder().decode([PendingMemoryCleanup].self, from: data) {
-            return values
+            return values.filter { pending in
+                guard let path = pending.relativePath else { return true }
+                return MemoryMediaLocation.isValidCommittedPath(
+                    path,
+                    showID: pending.showID,
+                    fragmentID: pending.fragmentID
+                )
+            }
         }
 
         // Migrate the old unscoped path journal only when the path itself has the
@@ -251,8 +263,15 @@ enum LocalMediaCleanupRetry {
             let components = path.split(separator: "/", omittingEmptySubsequences: false)
             guard (components.count == 2 || components.count == 3),
                   let showID = UUID(uuidString: String(components[0])),
-                  let fragmentID = UUID(uuidString: String(components[1])),
-                  components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+                  let fragmentID = UUID(uuidString: String(components[1])) else {
+                return nil
+            }
+            if components.count == 3,
+               !MemoryMediaLocation.isValidCommittedPath(
+                   path,
+                   showID: showID,
+                   fragmentID: fragmentID
+               ) {
                 return nil
             }
             return PendingMemoryCleanup(
@@ -280,7 +299,11 @@ enum LocalMediaCleanupRetry {
         fragmentID: UUID,
         relativePath: String
     ) {
-        guard !relativePath.isEmpty else { return }
+        guard MemoryMediaLocation.isValidCommittedPath(
+            relativePath,
+            showID: showID,
+            fragmentID: fragmentID
+        ) else { return }
         var values = pendingMemoryCleanups
         let pending = PendingMemoryCleanup(
             showID: showID,
@@ -316,6 +339,36 @@ enum LocalMediaCleanupRetry {
         }
         if let data = try? JSONEncoder().encode(values) {
             UserDefaults.standard.set(data, forKey: pendingMemoryCleanupKey)
+        }
+    }
+
+    static var pendingMemoryStaging: [PendingMemoryStaging] {
+        guard let data = UserDefaults.standard.data(forKey: pendingMemoryStagingCleanupKey) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([PendingMemoryStaging].self, from: data)) ?? []
+    }
+
+    static func markMemoryStagingCleanupPending(_ draftID: UUID) {
+        var values = pendingMemoryStaging
+        let pending = PendingMemoryStaging(draftID: draftID)
+        if !values.contains(pending) {
+            values.append(pending)
+            persistMemoryStaging(values)
+        }
+    }
+
+    static func clearMemoryStagingCleanupPending(_ draftID: UUID) {
+        persistMemoryStaging(pendingMemoryStaging.filter { $0.draftID != draftID })
+    }
+
+    private static func persistMemoryStaging(_ values: [PendingMemoryStaging]) {
+        if values.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingMemoryStagingCleanupKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: pendingMemoryStagingCleanupKey)
         }
     }
 }

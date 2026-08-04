@@ -23,6 +23,12 @@ struct MemoryCommittedMedia: Sendable {
     let videoDuration: TimeInterval?
 }
 
+struct MemoryOwnedMediaPath: Codable, Equatable, Sendable {
+    let showID: UUID
+    let fragmentID: UUID
+    let relativePath: String
+}
+
 struct MemoryImportedFile: Transferable {
     let url: URL
     let contentType: UTType
@@ -153,6 +159,18 @@ struct MemoryMediaLocation {
             && components.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
     }
 
+    static func isValidCommittedPath(
+        _ relativePath: String,
+        showID: UUID,
+        fragmentID: UUID
+    ) -> Bool {
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        return components.count == 3
+            && components[0] == Substring(showID.uuidString)
+            && components[1] == Substring(fragmentID.uuidString)
+            && isSafeRelativePath(relativePath)
+    }
+
     /// Resolve persisted paths only when they are normal relative paths contained
     /// by this store's root. A persisted path may be corrupt or from an older
     /// version, so appending it directly is not sufficient for ownership checks.
@@ -168,6 +186,21 @@ struct MemoryMediaLocation {
             throw MemoryMediaStoreError.invalidRelativePath
         }
         return candidate
+    }
+
+    func validatedURL(
+        for relativePath: String,
+        showID: UUID,
+        fragmentID: UUID
+    ) throws -> URL {
+        guard Self.isValidCommittedPath(
+            relativePath,
+            showID: showID,
+            fragmentID: fragmentID
+        ) else {
+            throw MemoryMediaStoreError.invalidRelativePath
+        }
+        return try validatedURL(for: relativePath)
     }
 }
 
@@ -389,6 +422,21 @@ actor MemoryFragmentMediaStore {
         try deleteFiles(relativePaths: relativePaths)
     }
 
+    /// Call when a model transaction failed after copying files for one fragment.
+    /// The model owner is trusted; paths are still required to match it before any
+    /// filesystem operation is attempted.
+    func rollbackCommittedFiles(
+        relativePaths: [String],
+        showID: UUID,
+        fragmentID: UUID
+    ) throws {
+        try deleteFiles(
+            relativePaths: relativePaths,
+            showID: showID,
+            fragmentID: fragmentID
+        )
+    }
+
     private func copyStagingToFinal(
         draftID: UUID,
         finalRelativeDirectory: String,
@@ -472,16 +520,30 @@ actor MemoryFragmentMediaStore {
         showID: UUID,
         fragmentID: UUID
     ) throws {
-        guard relativePaths.allSatisfy({ path in
-            let components = path.split(separator: "/", omittingEmptySubsequences: false)
-            return components.count == 3
-                && components[0] == Substring(showID.uuidString)
-                && components[1] == Substring(fragmentID.uuidString)
-                && MemoryMediaLocation.isSafeRelativePath(path)
+        guard relativePaths.allSatisfy({
+            MemoryMediaLocation.isValidCommittedPath(
+                $0,
+                showID: showID,
+                fragmentID: fragmentID
+            )
         }) else {
             throw MemoryMediaStoreError.invalidRelativePath
         }
         try deleteFiles(relativePaths: relativePaths)
+    }
+
+    func deleteFiles(_ paths: [MemoryOwnedMediaPath]) throws {
+        try ensureAvailable()
+        let urls = try paths.map { path in
+            try location.validatedURL(
+                for: path.relativePath,
+                showID: path.showID,
+                fragmentID: path.fragmentID
+            )
+        }
+        for url in urls {
+            try removeIfPresent(url)
+        }
     }
 
     func discardDraft(_ draftID: UUID) throws {
@@ -584,7 +646,6 @@ actor MemoryFragmentMediaStore {
     /// that memory reconciliation (which scans the memory root, not this temp dir)
     /// would never reclaim.
     func cleanupImportTemp(olderThan cutoff: Date) throws {
-        try ensureAvailable()
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
         guard fileManager.fileExists(atPath: directory.path) else { return }
