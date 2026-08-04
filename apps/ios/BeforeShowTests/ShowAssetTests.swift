@@ -400,6 +400,45 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
+    func testDeleteAllIncludingImportTempStillCleansPickerCopiesWhenPersistentStorageUnavailable() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        let file = directory.appendingPathComponent("unavailable-\(UUID().uuidString).jpg")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("temporary".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let store = MemoryFragmentMediaStore(storageError: .storageUnavailable)
+        do {
+            try await store.deleteAllIncludingImportTemp()
+            XCTFail("Unavailable persistent storage must still report cleanup failure")
+        } catch {
+            XCTAssertEqual(error as? MemoryMediaStoreError, .storageUnavailable)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testMemoryDeleteRejectsPathOutsideStoreRoot() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryOwnership-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = root.deletingLastPathComponent()
+            .appendingPathComponent("outside-\(UUID().uuidString).jpg")
+        try Data("outside".utf8).write(to: outside)
+        defer { try? FileManager.default.removeItem(at: outside) }
+
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        do {
+            try await store.deleteFiles(relativePaths: ["../\(outside.lastPathComponent)"])
+            XCTFail("A path outside the memory root must not be deleted")
+        } catch MemoryMediaStoreError.invalidRelativePath {
+            // expected
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outside.path))
+    }
+
     func testLocalMediaCleanupRetryMarkerPersistsUntilCleared() {
         LocalMediaCleanupRetry.clearFullCleanupPending()
         XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)

@@ -79,6 +79,7 @@ enum MemoryMediaStoreError: Error, Equatable {
     case insufficientDiskSpace
     case storageUnavailable
     case importCancelled
+    case invalidRelativePath
 
     /// Maps a raw file-system error to `insufficientDiskSpace` when the device is out
     /// of space, otherwise returns the original error. Non-isolated so it can be used
@@ -138,6 +139,33 @@ struct MemoryMediaLocation {
 
     func url(for relativePath: String) -> URL {
         rootDirectory.appendingPathComponent(relativePath, isDirectory: false)
+    }
+
+    /// Resolve persisted paths only when they are normal relative paths contained
+    /// by this store's root. A persisted path may be corrupt or from an older
+    /// version, so appending it directly is not sufficient for ownership checks.
+    func validatedURL(for relativePath: String) throws -> URL {
+        guard !relativePath.isEmpty,
+              !relativePath.hasPrefix("/"),
+              !relativePath.contains("\0") else {
+            throw MemoryMediaStoreError.invalidRelativePath
+        }
+
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        guard !components.isEmpty,
+              components.allSatisfy({ component in
+                  !component.isEmpty && component != "." && component != ".."
+              }) else {
+            throw MemoryMediaStoreError.invalidRelativePath
+        }
+
+        let root = rootDirectory.standardizedFileURL
+        let candidate = url(for: relativePath).standardizedFileURL
+        let prefix = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        guard candidate.path.hasPrefix(prefix) else {
+            throw MemoryMediaStoreError.invalidRelativePath
+        }
+        return candidate
     }
 }
 
@@ -403,8 +431,9 @@ actor MemoryFragmentMediaStore {
 
     func deleteFiles(relativePaths: [String]) throws {
         try ensureAvailable()
-        for path in relativePaths {
-            try removeIfPresent(location.url(for: path))
+        let urls = try relativePaths.map { try location.validatedURL(for: $0) }
+        for url in urls {
+            try removeIfPresent(url)
         }
     }
 
@@ -450,13 +479,32 @@ actor MemoryFragmentMediaStore {
     /// that live outside the persistent media root. Used only by the explicit
     /// local-data clear flow and its persisted startup retry.
     func deleteAllIncludingImportTemp() throws {
-        try ensureAvailable()
-        try deleteAll()
-        try deleteAllImportTemp()
+        var firstError: Error?
+
+        do {
+            try ensureAvailable()
+            try removeIfPresent(location.rootDirectory)
+        } catch {
+            firstError = error
+        }
+
+        do {
+            try deleteAllImportTempFiles()
+        } catch {
+            firstError = firstError ?? error
+        }
+
+        if let firstError {
+            throw firstError
+        }
     }
 
     func deleteAllImportTemp() throws {
         try ensureAvailable()
+        try deleteAllImportTempFiles()
+    }
+
+    private func deleteAllImportTempFiles() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
         try removeIfPresent(directory)

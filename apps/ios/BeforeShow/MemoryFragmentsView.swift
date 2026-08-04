@@ -773,7 +773,8 @@ private struct MemoryThumbnail: View {
             }
         }
         .task(id: relativePath) {
-            guard let path = try? MemoryMediaLocation.applicationSupport().url(for: relativePath).path else {
+            guard let path = try? MemoryMediaLocation.applicationSupport()
+                .validatedURL(for: relativePath).path else {
                 image = nil
                 return
             }
@@ -848,7 +849,8 @@ private struct MemoryMediaViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
                             if item.kind == .video {
-                                if let url = try? MemoryMediaLocation.applicationSupport().url(for: item.relativePath) {
+                                if let url = try? MemoryMediaLocation.applicationSupport()
+                                    .validatedURL(for: item.relativePath) {
                                     VideoPlayer(player: AVPlayer(url: url))
                                 } else {
                                     unavailableMediaView
