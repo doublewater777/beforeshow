@@ -543,6 +543,7 @@ private struct PrivacyLocalDataView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var clearResult: LocalDataClearancePlan?
+    @State private var clearStatusText: String?
     @State private var isClearing = false
     @State private var showsClearConfirmation = false
     private let clearer = LocalDataClearer()
@@ -607,6 +608,12 @@ private struct PrivacyLocalDataView: View {
                         }
                     }
                 }
+
+                if let clearStatusText {
+                    Text(clearStatusText)
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textSecondary)
+                }
                 }
             }
         }
@@ -641,17 +648,36 @@ private struct PrivacyLocalDataView: View {
                     try context.delete(model: MemoryFragment.self)
                     try context.delete(model: ShowAsset.self)
                     try context.save()
-                    try await MemoryFragmentMediaStore.shared.deleteAll()
-                    try await ShowAssetMediaStore.shared.deleteAll()
-                    await ShowAssetMediaStore.shared.releaseCommitGate()
                 } catch {
                     context.rollback()
-                    await ShowAssetMediaStore.shared.releaseCommitGate()
                     throw error
                 }
-                clearResult = try await clearer.clearAppOwnedLocalData()
+
+                var cleanupFailures: [String] = []
+                do {
+                    try await MemoryFragmentMediaStore.shared.deleteAll()
+                } catch {
+                    cleanupFailures.append("记忆碎片副本")
+                }
+
+                do {
+                    try await ShowAssetMediaStore.shared.deleteAll()
+                } catch {
+                    cleanupFailures.append("票根和时刻表副本")
+                }
+
+                if cleanupFailures.isEmpty {
+                    clearResult = try await clearer.clearAppOwnedLocalData()
+                    clearStatusText = nil
+                } else {
+                    clearResult = nil
+                    clearStatusText = "部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。"
+                }
+                await ShowAssetMediaStore.shared.releaseCommitGate()
             } catch {
                 clearResult = nil
+                clearStatusText = "清除本地数据失败，请重试。"
+                await ShowAssetMediaStore.shared.releaseCommitGate()
             }
             isClearing = false
         }
