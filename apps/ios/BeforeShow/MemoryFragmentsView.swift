@@ -480,9 +480,24 @@ struct MemoryFragmentsView: View {
         do {
             modelContext.delete(fragment)
             try modelContext.save()
-            try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: showID, fragmentID: fragmentID)
+            let fragmentRelativePath = "\(showID.uuidString)/\(fragmentID.uuidString)"
+            var cleanupPending = false
+            do {
+                try await MemoryFragmentMediaStore.shared.deleteFragment(
+                    showID: showID,
+                    fragmentID: fragmentID
+                )
+            } catch {
+                cleanupPending = true
+                LocalMediaCleanupRetry.markMemoryPathCleanupPending(fragmentRelativePath)
+            }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
-            presentToast(.success, "已删除这条记忆")
+            presentToast(
+                cleanupPending ? .neutral : .success,
+                cleanupPending
+                    ? "记忆记录已删除，媒体将在下次启动继续清理"
+                    : "已删除这条记忆"
+            )
         } catch {
             modelContext.rollback()
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
@@ -583,7 +598,18 @@ struct MemoryFragmentsView: View {
         }
 
         if !removedPaths.isEmpty {
-            Task { try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: removedPaths) }
+            Task { @MainActor in
+                await MemoryFragmentMediaStore.shared.acquireCommitGate()
+                for path in removedPaths {
+                    do {
+                        try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
+                        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+                    } catch {
+                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
+                    }
+                }
+                await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            }
         }
         presentToast(.success, "已保存修改")
     }
@@ -747,7 +773,10 @@ private struct MemoryThumbnail: View {
             }
         }
         .task(id: relativePath) {
-            let path = MemoryMediaLocation.applicationSupport().url(for: relativePath).path
+            guard let path = try? MemoryMediaLocation.applicationSupport().url(for: relativePath).path else {
+                image = nil
+                return
+            }
             let loaded = await Task.detached(priority: .userInitiated) {
                 UIImage(contentsOfFile: path)
             }.value
@@ -819,11 +848,11 @@ private struct MemoryMediaViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
                             if item.kind == .video {
-                                VideoPlayer(
-                                    player: AVPlayer(
-                                        url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
-                                    )
-                                )
+                                if let url = try? MemoryMediaLocation.applicationSupport().url(for: item.relativePath) {
+                                    VideoPlayer(player: AVPlayer(url: url))
+                                } else {
+                                    unavailableMediaView
+                                }
                             } else {
                                 MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
                                     .scaledToFit()
@@ -852,6 +881,16 @@ private struct MemoryMediaViewer: View {
                 .padding(.vertical, 16)
             }
         }
+    }
+
+    private var unavailableMediaView: some View {
+        VStack(spacing: 10) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 32))
+            Text("媒体暂时不可用")
+                .font(.system(size: 14, weight: .medium))
+        }
+        .foregroundStyle(.white.opacity(0.7))
     }
 }
 

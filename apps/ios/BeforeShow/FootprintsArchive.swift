@@ -769,14 +769,18 @@ struct FootprintsView: View {
         deleteTarget = nil
         Task { @MainActor in
             do {
-                try await ShowDeletionCoordinator.delete(
+                let result = try await ShowDeletionCoordinator.delete(
                     show,
                     from: shows,
                     selections: selections,
                     notificationStates: notificationStates,
                     in: modelContext
                 )
-                presentToast("已删除足迹记录")
+                presentToast(
+                    result == .mediaCleanupPending
+                        ? "足迹记录已删除，部分本地副本将在下次启动继续清理"
+                        : "已删除足迹记录"
+                )
             } catch {
                 modelContext.rollback()
                 let payload = BSToastPayload(tone: .failure, message: "删除失败，请重试")

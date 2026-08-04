@@ -61,6 +61,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
+                    await retryPendingLocalMediaCleanupIfNeeded()
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
                 }
@@ -80,6 +81,65 @@ struct BeforeShowApp: App {
         }
         .modelContainer(modelContainer)
     }
+}
+
+@MainActor
+private func retryPendingLocalMediaCleanupIfNeeded() async {
+    guard LocalMediaCleanupRetry.isFullCleanupPending
+            || !LocalMediaCleanupRetry.pendingShowCleanupIDs.isEmpty
+            || !LocalMediaCleanupRetry.pendingAssets.isEmpty
+            || !LocalMediaCleanupRetry.pendingMemoryPaths.isEmpty else { return }
+
+    await ShowAssetMediaStore.shared.acquireCommitGate()
+    if LocalMediaCleanupRetry.isFullCleanupPending {
+        var memoryCleanupSucceeded = false
+        do {
+            try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
+            memoryCleanupSucceeded = true
+        } catch {
+            // Keep the marker so the next launch retries the complete operation.
+        }
+        var showAssetCleanupSucceeded = false
+        do {
+            try await ShowAssetMediaStore.shared.deleteAll()
+            showAssetCleanupSucceeded = true
+        } catch {
+            // Keep the marker so the next launch retries the complete operation.
+        }
+        if memoryCleanupSucceeded && showAssetCleanupSucceeded {
+            LocalMediaCleanupRetry.clearFullCleanupPending()
+        }
+    }
+    for showID in LocalMediaCleanupRetry.pendingShowCleanupIDs {
+        do {
+            try await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            try await ShowAssetMediaStore.shared.deleteShow(showID)
+            LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+        } catch {
+            // Keep only this show marked for the next retry.
+        }
+    }
+    for pending in LocalMediaCleanupRetry.pendingAssets {
+        do {
+            try await ShowAssetMediaStore.shared.delete(
+                relativePath: pending.relativePath,
+                showID: pending.showID,
+                kind: pending.kind
+            )
+            LocalMediaCleanupRetry.clearAssetCleanupPending(pending)
+        } catch {
+            // Keep this exact path marked for the next retry.
+        }
+    }
+    for path in LocalMediaCleanupRetry.pendingMemoryPaths {
+        do {
+            try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
+            LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+        } catch {
+            // Keep this exact path marked for the next retry.
+        }
+    }
+    await ShowAssetMediaStore.shared.releaseCommitGate()
 }
 
 @MainActor
@@ -166,7 +226,16 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     }
     if !overflowPaths.isEmpty {
         Task {
-            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
+            await MemoryFragmentMediaStore.shared.acquireCommitGate()
+            for path in overflowPaths {
+                do {
+                    try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
+                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+                } catch {
+                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
+                }
+            }
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
         }
     }
     return valid
@@ -197,11 +266,10 @@ func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
 private func reconcileAllShowAssets(in modelContext: ModelContext) async {
     await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
-        try await ShowAssetMediaStore.shared.ensureAvailable()
-        let rootDirectory = await ShowAssetMediaStore.shared.rootDirectoryURL()
+        let existingRelativePaths = try await ShowAssetMediaStore.shared.verifiedExistingRelativePaths()
         let valid = try reconcileShowAssetShowBoundary(
             in: modelContext,
-            assetRootDirectory: rootDirectory
+            existingRelativePaths: existingRelativePaths
         )
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
         await ShowAssetMediaStore.shared.releaseCommitGate()
@@ -212,12 +280,10 @@ private func reconcileAllShowAssets(in modelContext: ModelContext) async {
     }
 }
 
-/// Enforces the asset<->show boundary and returns valid on-disk relative paths.
-/// Also collapses duplicate (showID, kind) rows and drops records whose files are missing.
 @MainActor
 func reconcileShowAssetShowBoundary(
     in modelContext: ModelContext,
-    assetRootDirectory: URL
+    existingRelativePaths: Set<String>
 ) throws -> Set<String> {
     let shows = try modelContext.fetch(FetchDescriptor<Show>())
     let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -226,7 +292,6 @@ func reconcileShowAssetShowBoundary(
     var mutated = false
     var keptByKey: [String: ShowAsset] = [:]
 
-    // Prefer newest updatedAt when collapsing historical duplicates.
     let ordered = assets.sorted {
         if $0.updatedAt == $1.updatedAt {
             return $0.id.uuidString > $1.id.uuidString
@@ -265,7 +330,6 @@ func reconcileShowAssetShowBoundary(
             mutated = true
         }
         if let kept = keptByKey[key] {
-            // Keep newest; drop older duplicate.
             if kept.id != asset.id {
                 modelContext.delete(asset)
                 mutated = true
@@ -273,9 +337,7 @@ func reconcileShowAssetShowBoundary(
             continue
         }
 
-        // Drop records whose files disappeared so UI returns to "未添加".
-        let fileURL = assetRootDirectory.appendingPathComponent(asset.relativePath)
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
+        guard existingRelativePaths.contains(asset.relativePath) else {
             modelContext.delete(asset)
             mutated = true
             continue
@@ -284,6 +346,7 @@ func reconcileShowAssetShowBoundary(
         keptByKey[key] = asset
         valid.insert(asset.relativePath)
     }
+
     if mutated {
         try saveModelContextRollingBackOnFailure(modelContext)
     }

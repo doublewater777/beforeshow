@@ -131,6 +131,107 @@ enum LocalDataClearancePolicy {
     )
 }
 
+enum LocalMediaCleanupRetry {
+    struct PendingAsset: Codable, Equatable {
+        let showID: UUID
+        let kind: ShowAssetKind
+        let relativePath: String
+    }
+
+    private static let pendingFullCleanupKey = "BeforeShow.pendingFullLocalMediaCleanup"
+    private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
+    private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
+    private static let pendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
+
+    static var isFullCleanupPending: Bool {
+        UserDefaults.standard.bool(forKey: pendingFullCleanupKey)
+    }
+
+    static func markFullCleanupPending() {
+        UserDefaults.standard.set(true, forKey: pendingFullCleanupKey)
+    }
+
+    static func clearFullCleanupPending() {
+        UserDefaults.standard.removeObject(forKey: pendingFullCleanupKey)
+    }
+
+    static var pendingShowCleanupIDs: [UUID] {
+        let rawValues = UserDefaults.standard.stringArray(forKey: pendingShowCleanupKey) ?? []
+        return rawValues.compactMap(UUID.init(uuidString:))
+    }
+
+    static func markShowCleanupPending(_ showID: UUID) {
+        var ids = Set(pendingShowCleanupIDs.map(\.uuidString))
+        ids.insert(showID.uuidString)
+        UserDefaults.standard.set(Array(ids).sorted(), forKey: pendingShowCleanupKey)
+    }
+
+    static func clearShowCleanupPending(_ showID: UUID) {
+        let remaining = pendingShowCleanupIDs
+            .filter { $0 != showID }
+            .map(\.uuidString)
+        if remaining.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingShowCleanupKey)
+        } else {
+            UserDefaults.standard.set(remaining, forKey: pendingShowCleanupKey)
+        }
+    }
+
+    static var pendingAssets: [PendingAsset] {
+        guard let data = UserDefaults.standard.data(forKey: pendingAssetCleanupKey) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([PendingAsset].self, from: data)) ?? []
+    }
+
+    static func markAssetCleanupPending(
+        showID: UUID,
+        kind: ShowAssetKind,
+        relativePath: String
+    ) {
+        let pending = PendingAsset(showID: showID, kind: kind, relativePath: relativePath)
+        var values = pendingAssets
+        if !values.contains(pending) {
+            values.append(pending)
+            persistAssets(values)
+        }
+    }
+
+    static func clearAssetCleanupPending(_ pending: PendingAsset) {
+        persistAssets(pendingAssets.filter { $0 != pending })
+    }
+
+    private static func persistAssets(_ values: [PendingAsset]) {
+        if values.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingAssetCleanupKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: pendingAssetCleanupKey)
+        }
+    }
+
+    static var pendingMemoryPaths: [String] {
+        UserDefaults.standard.stringArray(forKey: pendingMemoryPathCleanupKey) ?? []
+    }
+
+    static func markMemoryPathCleanupPending(_ relativePath: String) {
+        guard !relativePath.isEmpty else { return }
+        var values = Set(pendingMemoryPaths)
+        values.insert(relativePath)
+        UserDefaults.standard.set(Array(values).sorted(), forKey: pendingMemoryPathCleanupKey)
+    }
+
+    static func clearMemoryPathCleanupPending(_ relativePath: String) {
+        let values = pendingMemoryPaths.filter { $0 != relativePath }
+        if values.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingMemoryPathCleanupKey)
+        } else {
+            UserDefaults.standard.set(values, forKey: pendingMemoryPathCleanupKey)
+        }
+    }
+}
+
 protocol LocalDataClearing {
     func clearAppOwnedLocalData() async throws -> LocalDataClearancePlan
 }

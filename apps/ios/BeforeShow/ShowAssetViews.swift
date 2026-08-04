@@ -45,6 +45,31 @@ struct ShowAssetEntryView: View {
 
 // MARK: - Upload
 
+enum ShowAssetEditorOperation: Equatable {
+    case idle
+    case importing(UUID)
+    case saving(UUID)
+
+    var isImporting: Bool {
+        if case .importing = self { return true }
+        return false
+    }
+
+    var isSaving: Bool {
+        if case .saving = self { return true }
+        return false
+    }
+
+    func canBeginImport() -> Bool {
+        if case .saving = self { return false }
+        return true
+    }
+
+    func canBeginSave(hasPendingData: Bool, saveTaskIsActive: Bool) -> Bool {
+        self == .idle && hasPendingData && !saveTaskIsActive
+    }
+}
+
 struct ShowAssetUploadView: View {
     let showID: UUID
     let showName: String
@@ -57,10 +82,8 @@ struct ShowAssetUploadView: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var previewImage: UIImage?
     @State private var pendingData: Data?
-    @State private var isImporting = false
-    @State private var isSaving = false
+    @State private var operation: ShowAssetEditorOperation = .idle
     @State private var importTask: Task<Void, Never>?
-    @State private var activeImportToken: UUID?
     @State private var saveTask: Task<Void, Never>?
     @State private var toast: BSToastPayload?
     @State private var didSave = false
@@ -87,14 +110,17 @@ struct ShowAssetUploadView: View {
         .bsToastOverlay(toast, bottomPadding: 36)
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }
+            guard operation.canBeginImport() else { return }
             importTask?.cancel()
             let token = UUID()
-            activeImportToken = token
+            // Claim import ownership synchronously in the selection callback. The
+            // async task must never be the first place that marks the editor busy:
+            // otherwise Save can observe the previous image in the scheduling gap.
+            operation = .importing(token)
             importTask = Task { await importItem(item, token: token) }
         }
         .onDisappear {
             importTask?.cancel()
-            activeImportToken = nil
             if !didSave {
                 saveTask?.cancel()
             }
@@ -104,9 +130,12 @@ struct ShowAssetUploadView: View {
                 previewImage = nil
             }
         }
-        .navigationBarBackButtonHidden(isSaving)
-        .interactiveDismissDisabled(isSaving)
+        .navigationBarBackButtonHidden(operation.isSaving)
+        .interactiveDismissDisabled(operation.isSaving)
     }
+
+    private var isImporting: Bool { operation.isImporting }
+    private var isSaving: Bool { operation.isSaving }
 
     private var emptyUploadSection: some View {
         VStack(spacing: BSSpacing.lg) {
@@ -153,7 +182,7 @@ struct ShowAssetUploadView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isImporting)
+            .disabled(isImporting || isSaving)
             .accessibilityLabel("选择\(kind.title)图片")
         }
         .frame(maxWidth: .infinity)
@@ -191,28 +220,29 @@ struct ShowAssetUploadView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
-                .disabled(isSaving || pendingData == nil)
+                .disabled(!operation.canBeginSave(
+                    hasPendingData: pendingData != nil,
+                    saveTaskIsActive: saveTask != nil
+                ))
             }
         }
     }
 
     private func importItem(_ item: PhotosPickerItem, token: UUID) async {
-        isImporting = true
         defer {
-            if activeImportToken == token {
-                isImporting = false
-                activeImportToken = nil
+            if operation == .importing(token) {
+                operation = .idle
                 importTask = nil
             }
         }
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
-                guard activeImportToken == token else { return }
+                guard operation == .importing(token) else { return }
                 presentToast(.failure, message: "没有读到这张图片")
                 return
             }
             try Task.checkCancellation()
-            guard activeImportToken == token else { return }
+            guard operation == .importing(token) else { return }
             guard let image = UIImage(data: data) else {
                 presentToast(.failure, message: "这张图片暂时无法使用")
                 return
@@ -223,17 +253,21 @@ struct ShowAssetUploadView: View {
         } catch is CancellationError {
             return
         } catch {
-            guard activeImportToken == token else { return }
+            guard operation == .importing(token) else { return }
             presentToast(.failure, message: "图片读取失败，请重试")
             selectedItem = nil
         }
     }
 
-    private func savePending() async {
-        guard let pendingData else { return }
+    private func savePending(data: Data, token: UUID) async {
+        // Re-check ownership inside the task. Button disabled state is only a UI
+        // affordance; this guard is the actual invariant against stale tasks.
+        guard operation == .saving(token) else { return }
         defer {
-            isSaving = false
-            saveTask = nil
+            if operation == .saving(token) {
+                operation = .idle
+                saveTask = nil
+            }
         }
 
         await ShowAssetMediaStore.shared.acquireCommitGate()
@@ -253,7 +287,7 @@ struct ShowAssetUploadView: View {
             let previousRelativePath = existing?.relativePath
             let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(
-                data: pendingData,
+                data: data,
                 showID: showID,
                 kind: kind,
                 assetID: assetID
@@ -280,12 +314,39 @@ struct ShowAssetUploadView: View {
 
             try Task.checkCancellation()
             try modelContext.save()
+            var cleanupPending = false
             if let previousRelativePath, previousRelativePath != relativePath {
-                try? await ShowAssetMediaStore.shared.delete(relativePath: previousRelativePath)
+                do {
+                    try await ShowAssetMediaStore.shared.delete(
+                        relativePath: previousRelativePath,
+                        showID: showID,
+                        kind: kind
+                    )
+                } catch {
+                    cleanupPending = true
+                }
+            }
+            if cleanupPending,
+               let previousRelativePath,
+               ShowAsset.isValidRelativePath(
+                   previousRelativePath,
+                   showID: showID,
+                   kind: kind
+               ) {
+                LocalMediaCleanupRetry.markAssetCleanupPending(
+                    showID: showID,
+                    kind: kind,
+                    relativePath: previousRelativePath
+                )
             }
             await ShowAssetMediaStore.shared.releaseCommitGate()
             didSave = true
-            presentToast(.success, message: "\(kind.title)已保存")
+            presentToast(
+                cleanupPending ? .neutral : .success,
+                message: cleanupPending
+                    ? "\(kind.title)已保存，旧图片将在下次启动继续清理"
+                    : "\(kind.title)已保存"
+            )
             if replacingAsset != nil {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 dismiss()
@@ -293,7 +354,19 @@ struct ShowAssetUploadView: View {
         } catch {
             modelContext.rollback()
             if let writtenRelativePath {
-                try? await ShowAssetMediaStore.shared.delete(relativePath: writtenRelativePath)
+                do {
+                    try await ShowAssetMediaStore.shared.delete(
+                        relativePath: writtenRelativePath,
+                        showID: showID,
+                        kind: kind
+                    )
+                } catch {
+                    LocalMediaCleanupRetry.markAssetCleanupPending(
+                        showID: showID,
+                        kind: kind,
+                        relativePath: writtenRelativePath
+                    )
+                }
             }
             await ShowAssetMediaStore.shared.releaseCommitGate()
             presentToast(.failure, message: saveErrorMessage(error))
@@ -301,13 +374,16 @@ struct ShowAssetUploadView: View {
     }
 
     private func beginSave() {
-        guard saveTask == nil, !isSaving, pendingData != nil else { return }
-        // Enter the busy state in the button action itself. This closes the tiny
-        // MainActor scheduling window in which a rapid second tap could otherwise
-        // create another unowned save task.
-        isSaving = true
+        guard operation.canBeginSave(
+            hasPendingData: pendingData != nil,
+            saveTaskIsActive: saveTask != nil
+        ), let data = pendingData else { return }
+        let token = UUID()
+        // Enter saving ownership before creating the task. This closes both the
+        // rapid double-tap window and the import/save interleaving window.
+        operation = .saving(token)
         saveTask = Task { @MainActor in
-            await savePending()
+            await savePending(data: data, token: token)
         }
     }
 
@@ -344,6 +420,8 @@ struct ShowAssetUploadView: View {
                 return "这场现场已不存在，无法保存"
             case .missingAsset:
                 return "保存失败，请重试"
+            case .invalidRelativePath:
+                return "图片路径异常，请重新添加"
             }
         }
         return "保存失败，请重试"
@@ -576,17 +654,54 @@ struct ShowAssetViewerView: View {
                         return
                     }
                     let currentRelativePath = currentAsset.relativePath
+                    let currentKind = currentAsset.kind
                     modelContext.delete(currentAsset)
                     try saveModelContextRollingBackOnFailure(modelContext)
-                    try? await ShowAssetMediaStore.shared.delete(relativePath: currentRelativePath)
+                    let cleanupPending: Bool
+                    let invalidPath: Bool
+                    do {
+                        try await ShowAssetMediaStore.shared.delete(
+                            relativePath: currentRelativePath,
+                            showID: showID,
+                            kind: currentKind
+                        )
+                        cleanupPending = false
+                        invalidPath = false
+                    } catch ShowAssetMediaStoreError.invalidRelativePath {
+                        cleanupPending = false
+                        invalidPath = true
+                    } catch {
+                        cleanupPending = true
+                        invalidPath = false
+                    }
                     await ShowAssetMediaStore.shared.releaseCommitGate()
+                    if cleanupPending,
+                       ShowAsset.isValidRelativePath(
+                           currentRelativePath,
+                           showID: showID,
+                           kind: currentKind
+                       ) {
+                        LocalMediaCleanupRetry.markAssetCleanupPending(
+                            showID: showID,
+                            kind: currentKind,
+                            relativePath: currentRelativePath
+                        )
+                    }
+                    presentToast(
+                        invalidPath || cleanupPending ? .neutral : .success,
+                        message: invalidPath
+                            ? "\(kind.title)记录已删除，异常图片将在下次启动整理"
+                            : cleanupPending
+                            ? "\(kind.title)记录已删除，图片将在下次启动继续清理"
+                            : "\(kind.title)已删除"
+                    )
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                    dismiss()
+                    return
                 } catch {
                     await ShowAssetMediaStore.shared.releaseCommitGate()
                     throw error
                 }
-                presentToast(.neutral, message: "\(kind.title)已删除")
-                try? await Task.sleep(nanoseconds: 350_000_000)
-                dismiss()
             } catch {
                 presentToast(.failure, message: "删除失败，请重试")
             }

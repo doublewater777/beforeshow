@@ -656,13 +656,16 @@ struct ShowDetailView: View {
     @MainActor
     private func deleteShow() async {
         do {
-            try await ShowDeletionCoordinator.delete(
+            let result = try await ShowDeletionCoordinator.delete(
                 show,
                 from: shows,
                 selections: selections,
                 notificationStates: notificationStates,
                 in: modelContext
             )
+            if result == .mediaCleanupPending {
+                presentToast(.neutral, message: "现场记录已删除，部分本地副本将在下次启动继续清理")
+            }
             dismiss()
         } catch {
             modelContext.rollback()

@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+enum ShowDeletionResult: Equatable {
+    case complete
+    case mediaCleanupPending
+}
+
 @MainActor
 enum ShowDeletionCoordinator {
     static func delete(
@@ -9,7 +14,7 @@ enum ShowDeletionCoordinator {
         selections: [CurrentShowSelection],
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext
-    ) async throws {
+    ) async throws -> ShowDeletionResult {
         await ShowAssetMediaStore.shared.acquireCommitGate()
         do {
             let coverImageURL = show.coverImageURL
@@ -43,8 +48,27 @@ enum ShowDeletionCoordinator {
             )
 
             try modelContext.save()
-            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
-            try? await ShowAssetMediaStore.shared.deleteShow(showID)
+            // Record the retry intent before the first filesystem deletion. If the
+            // app is terminated after the model commit, startup can finish both
+            // store cleanups instead of relying only on reconciliation.
+            LocalMediaCleanupRetry.markShowCleanupPending(showID)
+            var cleanupPending = false
+            do {
+                try await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            } catch {
+                cleanupPending = true
+            }
+            do {
+                try await ShowAssetMediaStore.shared.deleteShow(showID)
+            } catch {
+                cleanupPending = true
+            }
+
+            if cleanupPending {
+                LocalMediaCleanupRetry.markShowCleanupPending(showID)
+            } else {
+                LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+            }
 
             if let coverImageURL,
                !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
@@ -56,6 +80,7 @@ enum ShowDeletionCoordinator {
             )
             WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
             await ShowAssetMediaStore.shared.releaseCommitGate()
+            return cleanupPending ? .mediaCleanupPending : .complete
         } catch {
             modelContext.rollback()
             await ShowAssetMediaStore.shared.releaseCommitGate()
@@ -973,14 +998,19 @@ struct CurrentShowLibraryManagementView: View {
         deleteTarget = nil
         Task { @MainActor in
             do {
-                try await ShowDeletionCoordinator.delete(
+                let result = try await ShowDeletionCoordinator.delete(
                     show,
                     from: shows,
                     selections: selections,
                     notificationStates: notificationStates,
                     in: modelContext
                 )
-                presentToast(.success, message: "已删除现场")
+                presentToast(
+                    result == .mediaCleanupPending ? .neutral : .success,
+                    message: result == .mediaCleanupPending
+                        ? "现场记录已删除，部分本地副本将在下次启动继续清理"
+                        : "已删除现场"
+                )
             } catch {
                 modelContext.rollback()
                 presentToast(.failure, message: "删除失败，请重试")

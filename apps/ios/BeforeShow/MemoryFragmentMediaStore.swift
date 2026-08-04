@@ -72,11 +72,12 @@ struct MemoryImportedFile: Transferable {
     }
 }
 
-enum MemoryMediaStoreError: Error {
+enum MemoryMediaStoreError: Error, Equatable {
     case unsupportedMedia
     case imageEncodingFailed
     case missingStagedDraft
     case insufficientDiskSpace
+    case storageUnavailable
     case importCancelled
 
     /// Maps a raw file-system error to `insufficientDiskSpace` when the device is out
@@ -128,9 +129,10 @@ enum MemoryCapacity {
 struct MemoryMediaLocation {
     let rootDirectory: URL
 
-    static func applicationSupport(fileManager: FileManager = .default) -> Self {
-        let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first ?? fileManager.temporaryDirectory
+    static func applicationSupport(fileManager: FileManager = .default) throws -> Self {
+        guard let applicationSupport = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            throw MemoryMediaStoreError.storageUnavailable
+        }
         return Self(rootDirectory: applicationSupport.appendingPathComponent("MemoryFragments", isDirectory: true))
     }
 
@@ -140,13 +142,28 @@ struct MemoryMediaLocation {
 }
 
 actor MemoryFragmentMediaStore {
-    static let shared = MemoryFragmentMediaStore(location: .applicationSupport())
+    static let shared: MemoryFragmentMediaStore = {
+        do {
+            return MemoryFragmentMediaStore(location: try MemoryMediaLocation.applicationSupport())
+        } catch {
+            return MemoryFragmentMediaStore(storageError: .storageUnavailable)
+        }
+    }()
 
     let location: MemoryMediaLocation
     private let fileManager: FileManager
+    private let storageError: MemoryMediaStoreError?
+
     init(location: MemoryMediaLocation, fileManager: FileManager = .default) {
         self.location = location
         self.fileManager = fileManager
+        self.storageError = nil
+    }
+
+    init(storageError: MemoryMediaStoreError, fileManager: FileManager = .default) {
+        self.location = MemoryMediaLocation(rootDirectory: fileManager.temporaryDirectory.appendingPathComponent("UnavailableMemoryFragments", isDirectory: true))
+        self.fileManager = fileManager
+        self.storageError = storageError
     }
 
     /// Shares the app-wide media gate with ticket/timetable assets. Commit paths,
@@ -155,7 +172,14 @@ actor MemoryFragmentMediaStore {
     func acquireCommitGate() async { await LocalMediaCommitGate.shared.acquire() }
     func releaseCommitGate() async { await LocalMediaCommitGate.shared.release() }
 
+    func ensureAvailable() throws {
+        if let storageError {
+            throw storageError
+        }
+    }
+
     func stageCameraPhoto(_ data: Data, draftID: UUID) throws -> MemoryDraftMedia {
+        try ensureAvailable()
         let id = UUID()
         let relativePath = stagingPath(draftID: draftID, fileName: "\(id.uuidString).jpg")
         let url = location.url(for: relativePath)
@@ -189,6 +213,7 @@ actor MemoryFragmentMediaStore {
     }
 
     func stageTransferredFile(_ imported: MemoryImportedFile, draftID: UUID) async throws -> MemoryDraftMedia {
+        try ensureAvailable()
         defer { try? fileManager.removeItem(at: imported.url) }
         let id = UUID()
         let type = resolvedContentType(imported)
@@ -264,6 +289,7 @@ actor MemoryFragmentMediaStore {
     }
 
     func commit(draftID: UUID, showID: UUID, fragmentID: UUID, media: [MemoryDraftMedia]) throws -> [MemoryCommittedMedia] {
+        try ensureAvailable()
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
         return try copyStagingToFinal(
@@ -281,6 +307,7 @@ actor MemoryFragmentMediaStore {
         fragmentID: UUID,
         media: [MemoryDraftMedia]
     ) throws -> [MemoryCommittedMedia] {
+        try ensureAvailable()
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
         return try copyStagingToFinal(
@@ -294,11 +321,13 @@ actor MemoryFragmentMediaStore {
 
     /// Call only after SwiftData successfully persisted the committed media.
     func finalizeCommit(draftID: UUID) throws {
+        try ensureAvailable()
         try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
     }
 
     /// Call when SwiftData failed after files were copied to the final location.
     func rollbackCommittedFiles(relativePaths: [String]) throws {
+        try ensureAvailable()
         try deleteFiles(relativePaths: relativePaths)
     }
 
@@ -373,17 +402,20 @@ actor MemoryFragmentMediaStore {
     }
 
     func deleteFiles(relativePaths: [String]) throws {
+        try ensureAvailable()
         for path in relativePaths {
             try removeIfPresent(location.url(for: path))
         }
     }
 
     func discardDraft(_ draftID: UUID) throws {
+        try ensureAvailable()
         try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
     }
 
     /// Removes a transferred temporary file when cancellation happens before staging owns it.
     func discardImportedFile(_ imported: MemoryImportedFile) throws {
+        try ensureAvailable()
         try removeIfPresent(imported.url)
     }
 
@@ -392,6 +424,7 @@ actor MemoryFragmentMediaStore {
     /// 20-item limit reflects real staged files instead of leaving orphan staging
     /// behind (which previously let "import -> delete -> reimport" bypass the cap).
     func removeStagedItem(_ item: MemoryDraftMedia) throws {
+        try ensureAvailable()
         try removeIfPresent(location.url(for: item.stagedRelativePath))
         if let thumbnail = item.thumbnailStagedRelativePath {
             try removeIfPresent(location.url(for: thumbnail))
@@ -399,18 +432,38 @@ actor MemoryFragmentMediaStore {
     }
 
     func deleteFragment(showID: UUID, fragmentID: UUID) throws {
+        try ensureAvailable()
         try removeIfPresent(location.url(for: "\(showID.uuidString)/\(fragmentID.uuidString)"))
     }
 
     func deleteShow(_ showID: UUID) throws {
+        try ensureAvailable()
         try removeIfPresent(location.url(for: showID.uuidString))
     }
 
     func deleteAll() throws {
+        try ensureAvailable()
         try removeIfPresent(location.rootDirectory)
     }
 
+    /// Deletes every app-owned memory copy, including PhotosPicker transfer files
+    /// that live outside the persistent media root. Used only by the explicit
+    /// local-data clear flow and its persisted startup retry.
+    func deleteAllIncludingImportTemp() throws {
+        try ensureAvailable()
+        try deleteAll()
+        try deleteAllImportTemp()
+    }
+
+    func deleteAllImportTemp() throws {
+        try ensureAvailable()
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        try removeIfPresent(directory)
+    }
+
     func cleanupStaging(olderThan cutoff: Date) throws {
+        try ensureAvailable()
         let staging = location.url(for: "Staging")
         guard fileManager.fileExists(atPath: staging.path) else { return }
         for directory in try fileManager.contentsOfDirectory(
@@ -430,6 +483,7 @@ actor MemoryFragmentMediaStore {
     /// that memory reconciliation (which scans the memory root, not this temp dir)
     /// would never reclaim.
     func cleanupImportTemp(olderThan cutoff: Date) throws {
+        try ensureAvailable()
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
         guard fileManager.fileExists(atPath: directory.path) else { return }
@@ -504,6 +558,7 @@ actor MemoryFragmentMediaStore {
 
     /// App-wide recovery: remove orphan show/fragment dirs and unreferenced files.
     func reconcileAll(validFilesByShowAndFragment: [UUID: [UUID: Set<String>]]) throws {
+        try ensureAvailable()
         guard fileManager.fileExists(atPath: location.rootDirectory.path) else { return }
         for showDirectory in try fileManager.contentsOfDirectory(
             at: location.rootDirectory,

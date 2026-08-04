@@ -9,6 +9,7 @@ enum ShowAssetMediaStoreError: Error, Equatable {
     case missingShow
     case missingAsset
     case importCancelled
+    case invalidRelativePath
 
     static func map(_ error: Error) -> Error {
         let nsError = error as NSError
@@ -175,6 +176,23 @@ actor ShowAssetMediaStore {
         }
     }
 
+    /// Deletes a relative path during orphan reconciliation. It deliberately
+    /// remains permissive about ownership because reconciliation has already
+    /// enumerated the store root and is the recovery path for invalid records.
+    func deleteReconciled(relativePath: String) throws {
+        try delete(relativePath: relativePath)
+    }
+
+    /// Deletes a path only when it still belongs to the expected show and kind.
+    /// Callers operating on a model record must use this overload so corrupted
+    /// SwiftData cannot make one show's cleanup remove another show's file.
+    func delete(relativePath: String, showID: UUID, kind: ShowAssetKind) throws {
+        guard ShowAsset.isValidRelativePath(relativePath, showID: showID, kind: kind) else {
+            throw ShowAssetMediaStoreError.invalidRelativePath
+        }
+        try delete(relativePath: relativePath)
+    }
+
     func deleteShow(_ showID: UUID) throws {
         try ensureStorageAvailable()
         let showDirectory = location.rootDirectory.appendingPathComponent(showID.uuidString, isDirectory: true)
@@ -198,15 +216,28 @@ actor ShowAssetMediaStore {
 
     /// Keep only files referenced by valid SwiftData assets; drop orphans.
     func reconcile(validRelativePaths: Set<String>) throws {
+        let existing = try verifiedExistingRelativePaths()
+
+        for relative in existing where !validRelativePaths.contains(relative) {
+            try? deleteReconciled(relativePath: relative)
+        }
+    }
+
+    /// Verifies the durable root is usable and returns the files currently present.
+    /// Callers that mutate SwiftData based on file presence must run this first so
+    /// a transient storage fault cannot be mistaken for "all files are missing".
+    func verifiedExistingRelativePaths() throws -> Set<String> {
         try ensureStorageAvailable()
         try prepareRootDirectory()
         guard let enumerator = fileManager.enumerator(
             at: location.rootDirectory,
             includingPropertiesForKeys: [.isRegularFileKey],
             options: [.skipsHiddenFiles]
-        ) else { return }
+        ) else {
+            throw ShowAssetMediaStoreError.storageUnavailable
+        }
 
-        var existing: [String] = []
+        var existing: Set<String> = []
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
             guard values.isRegularFile == true else { continue }
@@ -214,12 +245,9 @@ actor ShowAssetMediaStore {
                 of: location.rootDirectory.path + "/",
                 with: ""
             )
-            existing.append(relative)
+            existing.insert(relative)
         }
-
-        for relative in existing where !validRelativePaths.contains(relative) {
-            try? delete(relativePath: relative)
-        }
+        return existing
     }
 
     private func prepareRootDirectory() throws {
@@ -313,7 +341,7 @@ actor ShowAssetMediaStore {
         var directory = fileURL.deletingLastPathComponent()
         while directory.path.hasPrefix(location.rootDirectory.path),
               directory.path != location.rootDirectory.path {
-            let contents = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
+            let contents = try fileManager.contentsOfDirectory(atPath: directory.path)
             guard contents.isEmpty else { return }
             try fileManager.removeItem(at: directory)
             directory = directory.deletingLastPathComponent()

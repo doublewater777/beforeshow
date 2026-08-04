@@ -74,17 +74,7 @@ final class ShowAssetTests: XCTestCase {
         let show = try Show(name: "票根现场", date: now, startTime: now)
         context.insert(show)
 
-        // Create the on-disk file so boundary reconcile keeps the linked asset.
         let relativePath = "\(show.id.uuidString)/ticket/a.jpg"
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ShowAssetBoundary-\(UUID().uuidString)", isDirectory: true)
-        let fileURL = root.appendingPathComponent(relativePath)
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data([0xFF, 0xD8, 0xFF]).write(to: fileURL)
-        defer { try? FileManager.default.removeItem(at: root) }
 
         let linked = ShowAsset(
             showID: show.id,
@@ -102,7 +92,7 @@ final class ShowAssetTests: XCTestCase {
         context.insert(orphan)
         try context.save()
 
-        let valid = try reconcileShowAssetShowBoundary(in: context, assetRootDirectory: root)
+        let valid = try reconcileShowAssetShowBoundary(in: context, existingRelativePaths: [relativePath])
         XCTAssertEqual(valid, [linked.relativePath])
         XCTAssertEqual(try context.fetch(FetchDescriptor<ShowAsset>()).count, 1)
         XCTAssertEqual(linked.show?.id, show.id)
@@ -215,6 +205,56 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(wasAcquiredAfterRelease, "Second acquire completes once the gate is released")
     }
 
+    func testGatedSaveAndDeleteTransactionsWaitAtTheirFileBoundaries() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetTransactionGate-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+        let showID = UUID()
+        let data = try XCTUnwrap(solidJPEGData())
+
+        await store.acquireCommitGate()
+        let saveStarted = AsyncSignal()
+        let saveFinished = AsyncSignal()
+        let saveTask = Task { () throws -> String in
+            await saveStarted.signal()
+            await store.acquireCommitGate()
+            let path = try await store.saveImage(data: data, showID: showID, kind: .ticket)
+            await saveFinished.signal()
+            await store.releaseCommitGate()
+            return path
+        }
+        await saveStarted.wait()
+        let saveFinishedBeforeRelease = await saveFinished.wasSignaled()
+        XCTAssertFalse(saveFinishedBeforeRelease)
+        await store.releaseCommitGate()
+        let path = try await saveTask.value
+        let saveFinishedAfterRelease = await saveFinished.wasSignaled()
+        XCTAssertTrue(saveFinishedAfterRelease)
+
+        await store.acquireCommitGate()
+        let deleteStarted = AsyncSignal()
+        let deleteFinished = AsyncSignal()
+        let deleteTask = Task {
+            await deleteStarted.signal()
+            await store.acquireCommitGate()
+            try await store.delete(relativePath: path, showID: showID, kind: .ticket)
+            await deleteFinished.signal()
+            await store.releaseCommitGate()
+        }
+        await deleteStarted.wait()
+        let url = await store.absoluteURL(for: path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let deleteFinishedBeforeRelease = await deleteFinished.wasSignaled()
+        XCTAssertFalse(deleteFinishedBeforeRelease)
+        await store.releaseCommitGate()
+        try await deleteTask.value
+        let deleteFinishedAfterRelease = await deleteFinished.wasSignaled()
+        XCTAssertTrue(deleteFinishedAfterRelease)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testTicketAndMemoryStoresShareCommitGate() async throws {
         let ticketStore = ShowAssetMediaStore(location: ShowAssetMediaLocation(
             rootDirectory: FileManager.default.temporaryDirectory
@@ -242,6 +282,51 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(wasAcquiredAfterRelease)
     }
 
+    func testShowAssetReconcileKeepsSwiftDataWhenRootEnumerationFails() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetRootFailure-\(UUID().uuidString)")
+        try Data([0x01]).write(to: root)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let container = try ModelContainer(
+            for: Show.self,
+            ShowAsset.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let show = try Show(name: "现场", date: Date(), startTime: Date())
+        context.insert(show)
+        let asset = ShowAsset(showID: show.id, kind: .ticket, relativePath: "\(show.id.uuidString)/ticket/a.jpg")
+        asset.show = show
+        context.insert(asset)
+        try context.save()
+
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+        do {
+            _ = try await store.verifiedExistingRelativePaths()
+            XCTFail("Root scan must fail when the durable root is occupied by a file")
+        } catch {
+            XCTAssertNotNil(error)
+        }
+
+        let fetched = try context.fetch(FetchDescriptor<ShowAsset>())
+        XCTAssertEqual(fetched.count, 1)
+    }
+
+    func testMemoryStorageUnavailableFailsClosed() async throws {
+        let store = MemoryFragmentMediaStore(storageError: .storageUnavailable)
+        do {
+            _ = try await store.commit(
+                draftID: UUID(),
+                showID: UUID(),
+                fragmentID: UUID(),
+                media: []
+            )
+            XCTFail("Unavailable storage must reject memory media commits")
+        } catch {
+            XCTAssertEqual(error as? MemoryMediaStoreError, .storageUnavailable)
+        }
+    }
+
     func testUnavailableStorageFailsClosedBeforeWritingAsset() async throws {
         let store = ShowAssetMediaStore(storageError: .storageUnavailable)
         do {
@@ -254,6 +339,103 @@ final class ShowAssetTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? ShowAssetMediaStoreError, .storageUnavailable)
         }
+    }
+
+    func testEditorOperationClaimsImportAndSaveExclusively() {
+        let token = UUID()
+        XCTAssertTrue(ShowAssetEditorOperation.idle.canBeginImport())
+        XCTAssertFalse(ShowAssetEditorOperation.importing(token).canBeginSave(
+            hasPendingData: true,
+            saveTaskIsActive: false
+        ))
+        XCTAssertFalse(ShowAssetEditorOperation.saving(token).canBeginImport())
+        XCTAssertTrue(ShowAssetEditorOperation.idle.canBeginSave(
+            hasPendingData: true,
+            saveTaskIsActive: false
+        ))
+        XCTAssertFalse(ShowAssetEditorOperation.idle.canBeginSave(
+            hasPendingData: true,
+            saveTaskIsActive: true
+        ))
+    }
+
+    func testDeleteRejectsPathOutsideCurrentShowAndKind() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetOwnership-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+        let owner = UUID()
+        let other = UUID()
+        let path = try await store.saveImage(
+            data: try XCTUnwrap(solidJPEGData()),
+            showID: owner,
+            kind: .ticket
+        )
+
+        do {
+            try await store.delete(relativePath: path, showID: other, kind: .ticket)
+            XCTFail("A path from another show must not be deleted")
+        } catch ShowAssetMediaStoreError.invalidRelativePath {
+            // expected
+        }
+
+        let url = await store.absoluteURL(for: path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    func testDeleteAllIncludingImportTempRemovesPickerCopies() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
+        let file = directory.appendingPathComponent("clear-\(UUID().uuidString).jpg")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try Data("temporary".utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryClear-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        try await store.deleteAllIncludingImportTemp()
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
+    }
+
+    func testLocalMediaCleanupRetryMarkerPersistsUntilCleared() {
+        LocalMediaCleanupRetry.clearFullCleanupPending()
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
+        LocalMediaCleanupRetry.markFullCleanupPending()
+        XCTAssertTrue(LocalMediaCleanupRetry.isFullCleanupPending)
+        LocalMediaCleanupRetry.clearFullCleanupPending()
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
+
+        let showID = UUID()
+        LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+        LocalMediaCleanupRetry.markShowCleanupPending(showID)
+        XCTAssertTrue(LocalMediaCleanupRetry.pendingShowCleanupIDs.contains(showID))
+        LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+        XCTAssertFalse(LocalMediaCleanupRetry.pendingShowCleanupIDs.contains(showID))
+
+        let pending = LocalMediaCleanupRetry.PendingAsset(
+            showID: showID,
+            kind: .ticket,
+            relativePath: "\(showID.uuidString)/ticket/pending.jpg"
+        )
+        LocalMediaCleanupRetry.clearAssetCleanupPending(pending)
+        LocalMediaCleanupRetry.markAssetCleanupPending(
+            showID: pending.showID,
+            kind: pending.kind,
+            relativePath: pending.relativePath
+        )
+        XCTAssertTrue(LocalMediaCleanupRetry.pendingAssets.contains(pending))
+        LocalMediaCleanupRetry.clearAssetCleanupPending(pending)
+        XCTAssertFalse(LocalMediaCleanupRetry.pendingAssets.contains(pending))
+
+        let memoryPath = "\(showID.uuidString)/\(UUID().uuidString)/photo.jpg"
+        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(memoryPath)
+        LocalMediaCleanupRetry.markMemoryPathCleanupPending(memoryPath)
+        XCTAssertTrue(LocalMediaCleanupRetry.pendingMemoryPaths.contains(memoryPath))
+        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(memoryPath)
+        XCTAssertFalse(LocalMediaCleanupRetry.pendingMemoryPaths.contains(memoryPath))
     }
 
     func testUniqueKeyIsStablePerShowAndKind() {
@@ -327,5 +509,28 @@ private actor BooleanBox {
 
     func get() -> Bool {
         value
+    }
+}
+
+private actor AsyncSignal {
+    private var signaled = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func signal() {
+        signaled = true
+        let continuations = waiters
+        waiters.removeAll()
+        continuations.forEach { $0.resume() }
+    }
+
+    func wait() async {
+        if signaled { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func wasSignaled() -> Bool {
+        signaled
     }
 }
