@@ -220,7 +220,9 @@ struct MemoryFragmentsView: View {
                 destructiveTitle: "删除",
                 onConfirm: {
                     deleteTarget = nil
-                    delete(fragment)
+                    Task { @MainActor in
+                        await delete(fragment)
+                    }
                 },
                 onCancel: { deleteTarget = nil }
             )
@@ -386,28 +388,40 @@ struct MemoryFragmentsView: View {
             throw MemoryFragmentValidationError.mediaLimitExceeded
         }
 
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
         if media.isEmpty {
-            let show = fetchShow(for: showID)
-            let createdAt = Date()
-            let phase = resolvedPhase(for: show, at: createdAt)
-            let fragment = try MemoryFragment(
-                showID: showID,
-                text: caption,
-                createdAt: createdAt,
-                updatedAt: createdAt,
-                phase: phase
-            )
-            fragment.show = show
-            modelContext.insert(fragment)
-            try modelContext.save()
-            presentToast(.success, "已加入这场现场")
+            do {
+                guard let show = fetchShow(for: showID) else {
+                    throw ShowAssetMediaStoreError.missingShow
+                }
+                let createdAt = Date()
+                let phase = resolvedPhase(for: show, at: createdAt)
+                let fragment = try MemoryFragment(
+                    showID: showID,
+                    text: caption,
+                    createdAt: createdAt,
+                    updatedAt: createdAt,
+                    phase: phase
+                )
+                fragment.show = show
+                modelContext.insert(fragment)
+                try modelContext.save()
+                await MemoryFragmentMediaStore.shared.releaseCommitGate()
+                presentToast(.success, "已加入这场现场")
+            } catch {
+                modelContext.rollback()
+                await MemoryFragmentMediaStore.shared.releaseCommitGate()
+                throw error
+            }
             return
         }
 
         let fragmentID = UUID()
-        await MemoryFragmentMediaStore.shared.acquireCommitGate()
         let committed: [MemoryCommittedMedia]
         do {
+            guard fetchShow(for: showID) != nil else {
+                throw ShowAssetMediaStoreError.missingShow
+            }
             committed = try await MemoryFragmentMediaStore.shared.commit(
                 draftID: draftID,
                 showID: showID,
@@ -422,7 +436,9 @@ struct MemoryFragmentsView: View {
             [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
         }
         do {
-            let show = fetchShow(for: showID)
+            guard let show = fetchShow(for: showID) else {
+                throw ShowAssetMediaStoreError.missingShow
+            }
             let createdAt = Date()
             let phase = resolvedPhase(for: show, at: createdAt)
             let fragment = try MemoryFragment(
@@ -458,17 +474,18 @@ struct MemoryFragmentsView: View {
         presentToast(.success, "已加入这场现场")
     }
 
-    private func delete(_ fragment: MemoryFragment) {
+    private func delete(_ fragment: MemoryFragment) async {
         let fragmentID = fragment.id
-        modelContext.delete(fragment)
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
         do {
+            modelContext.delete(fragment)
             try modelContext.save()
-            Task {
-                try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: showID, fragmentID: fragmentID)
-            }
+            try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: showID, fragmentID: fragmentID)
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             presentToast(.success, "已删除这条记忆")
         } catch {
             modelContext.rollback()
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             presentToast(.failure, "删除失败，请重试")
         }
     }
@@ -503,9 +520,12 @@ struct MemoryFragmentsView: View {
         // either all model edits save, or we roll back the context *and* any newly copied files.
         var committed: [MemoryCommittedMedia] = []
         var committedPaths: [String] = []
+        await MemoryFragmentMediaStore.shared.acquireCommitGate()
         if !additions.isEmpty {
-            await MemoryFragmentMediaStore.shared.acquireCommitGate()
             do {
+                guard fetchShow(for: showID) != nil else {
+                    throw ShowAssetMediaStoreError.missingShow
+                }
                 committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
                     draftID: draftID,
                     showID: showID,
@@ -522,6 +542,9 @@ struct MemoryFragmentsView: View {
         }
 
         do {
+            guard fetchShow(for: fragment.showID) != nil else {
+                throw ShowAssetMediaStoreError.missingShow
+            }
             try fragment.updateText(caption)
 
             let additionItems = committed.map { item in
@@ -550,14 +573,12 @@ struct MemoryFragmentsView: View {
             if !committedPaths.isEmpty {
                 try? await MemoryFragmentMediaStore.shared.rollbackCommittedFiles(relativePaths: committedPaths)
             }
-            if !additions.isEmpty {
-                await MemoryFragmentMediaStore.shared.releaseCommitGate()
-            }
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             throw error
         }
 
+        await MemoryFragmentMediaStore.shared.releaseCommitGate()
         if !additions.isEmpty {
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
             try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         }
 

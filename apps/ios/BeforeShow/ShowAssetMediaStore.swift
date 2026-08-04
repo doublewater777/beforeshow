@@ -5,6 +5,7 @@ enum ShowAssetMediaStoreError: Error, Equatable {
     case unsupportedImage
     case imageEncodingFailed
     case insufficientDiskSpace
+    case storageUnavailable
     case missingShow
     case missingAsset
     case importCancelled
@@ -18,6 +19,36 @@ enum ShowAssetMediaStoreError: Error, Equatable {
             return Self.insufficientDiskSpace
         }
         return error
+    }
+}
+
+/// A single permit for all app-owned media commits. Ticket/timetable assets and
+/// memory-fragment media share the same SwiftData show boundary, so operations
+/// that delete or reconcile both stores must not interleave with either store's
+/// copy-then-save transaction.
+actor LocalMediaCommitGate {
+    static let shared = LocalMediaCommitGate()
+
+    private var isInUse = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func acquire() async {
+        if !isInUse {
+            isInUse = true
+            return
+        }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func release() {
+        if let next = waiters.first {
+            waiters.removeFirst()
+            next.resume()
+        } else {
+            isInUse = false
+        }
     }
 }
 
@@ -42,22 +73,35 @@ struct ShowAssetMediaLocation: Sendable {
 /// cannot be written and then immediately reclaimed before SwiftData saves.
 actor ShowAssetMediaStore {
     static let shared: ShowAssetMediaStore = {
-        let location = (try? ShowAssetMediaLocation.applicationSupport())
-            ?? ShowAssetMediaLocation(
-                rootDirectory: FileManager.default.temporaryDirectory
-                    .appendingPathComponent("ShowAssets", isDirectory: true)
-            )
-        return ShowAssetMediaStore(location: location)
+        do {
+            return ShowAssetMediaStore(location: try ShowAssetMediaLocation.applicationSupport())
+        } catch {
+            // A temporary directory is not a durable location for a user asset:
+            // persist the failure and fail closed instead of reporting a save that
+            // may disappear before the next launch.
+            return ShowAssetMediaStore(storageError: .storageUnavailable)
+        }
     }()
 
     private let location: ShowAssetMediaLocation
     private let fileManager: FileManager
-    private var isCommitGateInUse = false
-    private var commitGateWaiters: [CheckedContinuation<Void, Never>] = []
+    private let storageError: ShowAssetMediaStoreError?
 
     init(location: ShowAssetMediaLocation, fileManager: FileManager = .default) {
         self.location = location
         self.fileManager = fileManager
+        self.storageError = nil
+    }
+
+    init(storageError: ShowAssetMediaStoreError, fileManager: FileManager = .default) {
+        self.location = ShowAssetMediaLocation(
+            rootDirectory: fileManager.temporaryDirectory.appendingPathComponent(
+                "UnavailableShowAssets",
+                isDirectory: true
+            )
+        )
+        self.fileManager = fileManager
+        self.storageError = storageError
     }
 
     func absoluteURL(for relativePath: String) -> URL {
@@ -71,23 +115,16 @@ actor ShowAssetMediaStore {
         location.rootDirectory
     }
 
-    func acquireCommitGate() async {
-        if !isCommitGateInUse {
-            isCommitGateInUse = true
-            return
-        }
-        await withCheckedContinuation { continuation in
-            commitGateWaiters.append(continuation)
-        }
+    func ensureAvailable() throws {
+        try ensureStorageAvailable()
     }
 
-    func releaseCommitGate() {
-        if let next = commitGateWaiters.first {
-            commitGateWaiters.removeFirst()
-            next.resume()
-        } else {
-            isCommitGateInUse = false
-        }
+    func acquireCommitGate() async {
+        await LocalMediaCommitGate.shared.acquire()
+    }
+
+    func releaseCommitGate() async {
+        await LocalMediaCommitGate.shared.release()
     }
 
     /// Writes a versioned candidate image. Callers must only delete the previous path
@@ -99,6 +136,7 @@ actor ShowAssetMediaStore {
         kind: ShowAssetKind,
         assetID: UUID = UUID()
     ) async throws -> String {
+        try ensureStorageAvailable()
         let image = try decodedImage(from: data)
         let jpegData = try encodedJPEG(from: image)
         try prepareRootDirectory()
@@ -126,6 +164,7 @@ actor ShowAssetMediaStore {
     }
 
     func delete(relativePath: String) throws {
+        try ensureStorageAvailable()
         let url = absoluteURL(for: relativePath)
         guard fileManager.fileExists(atPath: url.path) else { return }
         do {
@@ -137,6 +176,7 @@ actor ShowAssetMediaStore {
     }
 
     func deleteShow(_ showID: UUID) throws {
+        try ensureStorageAvailable()
         let showDirectory = location.rootDirectory.appendingPathComponent(showID.uuidString, isDirectory: true)
         guard fileManager.fileExists(atPath: showDirectory.path) else { return }
         do {
@@ -147,6 +187,7 @@ actor ShowAssetMediaStore {
     }
 
     func deleteAll() throws {
+        try ensureStorageAvailable()
         guard fileManager.fileExists(atPath: location.rootDirectory.path) else { return }
         do {
             try fileManager.removeItem(at: location.rootDirectory)
@@ -157,6 +198,7 @@ actor ShowAssetMediaStore {
 
     /// Keep only files referenced by valid SwiftData assets; drop orphans.
     func reconcile(validRelativePaths: Set<String>) throws {
+        try ensureStorageAvailable()
         try prepareRootDirectory()
         guard let enumerator = fileManager.enumerator(
             at: location.rootDirectory,
@@ -189,6 +231,12 @@ actor ShowAssetMediaStore {
             try root.setResourceValues(values)
         } catch {
             throw ShowAssetMediaStoreError.map(error)
+        }
+    }
+
+    private func ensureStorageAvailable() throws {
+        if let storageError {
+            throw storageError
         }
     }
 

@@ -125,36 +125,6 @@ enum MemoryCapacity {
     }
 }
 
-/// Single-permit async gate that makes media reconciliation and media commits
-/// mutually exclusive. Reconciliation builds its on-disk-valid set from a SwiftData
-/// snapshot while holding the gate; commits copy staging into the final directory and
-/// save to SwiftData while holding the gate. This removes the window in which a
-/// reconciliation snapshot taken before a commit's `save()` could delete that commit's
-/// just-copied files.
-actor MemoryMediaGate {
-    private var inUse = false
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-
-    func acquire() async {
-        if !inUse {
-            inUse = true
-            return
-        }
-        await withCheckedContinuation { continuation in
-            waiters.append(continuation)
-        }
-    }
-
-    func release() {
-        if let next = waiters.first {
-            waiters.removeFirst()
-            next.resume()
-        } else {
-            inUse = false
-        }
-    }
-}
-
 struct MemoryMediaLocation {
     let rootDirectory: URL
 
@@ -174,19 +144,16 @@ actor MemoryFragmentMediaStore {
 
     let location: MemoryMediaLocation
     private let fileManager: FileManager
-    /// Serializes media commits against reconciliation so a stale reconciliation
-    /// snapshot can never delete a concurrent commit's just-copied files.
-    private let gate = MemoryMediaGate()
-
     init(location: MemoryMediaLocation, fileManager: FileManager = .default) {
         self.location = location
         self.fileManager = fileManager
     }
 
-    /// Acquired by commit paths around `[copy + SwiftData save]` and by reconciliation
-    /// around `[fetch snapshot + reconcile]` so the two cannot interleave.
-    func acquireCommitGate() async { await gate.acquire() }
-    func releaseCommitGate() async { await gate.release() }
+    /// Shares the app-wide media gate with ticket/timetable assets. Commit paths,
+    /// reconciliation, show deletion, and local-data clearing all operate under
+    /// the same permit so their SwiftData and file-system boundaries cannot race.
+    func acquireCommitGate() async { await LocalMediaCommitGate.shared.acquire() }
+    func releaseCommitGate() async { await LocalMediaCommitGate.shared.release() }
 
     func stageCameraPhoto(_ data: Data, draftID: UUID) throws -> MemoryDraftMedia {
         let id = UUID()

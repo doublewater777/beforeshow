@@ -635,6 +635,7 @@ private struct PrivacyLocalDataView: View {
 
     private func clearLocalData() {
         isClearing = true
+        clearStatusText = nil
         Task { @MainActor in
             do {
                 let context = modelContext

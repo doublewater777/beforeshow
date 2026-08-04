@@ -57,6 +57,7 @@ enum ShowDeletionCoordinator {
             WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
             await ShowAssetMediaStore.shared.releaseCommitGate()
         } catch {
+            modelContext.rollback()
             await ShowAssetMediaStore.shared.releaseCommitGate()
             throw error
         }

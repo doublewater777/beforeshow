@@ -215,6 +215,47 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(wasAcquiredAfterRelease, "Second acquire completes once the gate is released")
     }
 
+    func testTicketAndMemoryStoresShareCommitGate() async throws {
+        let ticketStore = ShowAssetMediaStore(location: ShowAssetMediaLocation(
+            rootDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("ShowAssetSharedGate-\(UUID().uuidString)", isDirectory: true)
+        ))
+        await ticketStore.acquireCommitGate()
+
+        let memoryStore = MemoryFragmentMediaStore(location: MemoryMediaLocation(
+            rootDirectory: FileManager.default.temporaryDirectory
+                .appendingPathComponent("MemorySharedGate-\(UUID().uuidString)", isDirectory: true)
+        ))
+        let acquired = BooleanBox()
+        let waiter = Task {
+            await memoryStore.acquireCommitGate()
+            await acquired.setTrue()
+            await memoryStore.releaseCommitGate()
+        }
+
+        try await Task.sleep(for: .milliseconds(60))
+        let wasAcquiredBeforeRelease = await acquired.get()
+        XCTAssertFalse(wasAcquiredBeforeRelease)
+        await ticketStore.releaseCommitGate()
+        await waiter.value
+        let wasAcquiredAfterRelease = await acquired.get()
+        XCTAssertTrue(wasAcquiredAfterRelease)
+    }
+
+    func testUnavailableStorageFailsClosedBeforeWritingAsset() async throws {
+        let store = ShowAssetMediaStore(storageError: .storageUnavailable)
+        do {
+            _ = try await store.saveImage(
+                data: try XCTUnwrap(solidJPEGData()),
+                showID: UUID(),
+                kind: .ticket
+            )
+            XCTFail("Unavailable storage must reject the asset before writing")
+        } catch {
+            XCTAssertEqual(error as? ShowAssetMediaStoreError, .storageUnavailable)
+        }
+    }
+
     func testUniqueKeyIsStablePerShowAndKind() {
         let showID = UUID()
         XCTAssertEqual(

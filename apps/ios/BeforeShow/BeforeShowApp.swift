@@ -164,6 +164,11 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     if mutated {
         try saveModelContextRollingBackOnFailure(modelContext)
     }
+    if !overflowPaths.isEmpty {
+        Task {
+            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
+        }
+    }
     return valid
 }
 
@@ -192,6 +197,7 @@ func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
 private func reconcileAllShowAssets(in modelContext: ModelContext) async {
     await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
+        try await ShowAssetMediaStore.shared.ensureAvailable()
         let rootDirectory = await ShowAssetMediaStore.shared.rootDirectoryURL()
         let valid = try reconcileShowAssetShowBoundary(
             in: modelContext,
@@ -280,11 +286,6 @@ func reconcileShowAssetShowBoundary(
     }
     if mutated {
         try saveModelContextRollingBackOnFailure(modelContext)
-    }
-    if !overflowPaths.isEmpty {
-        Task {
-            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
-        }
     }
     return valid
 }

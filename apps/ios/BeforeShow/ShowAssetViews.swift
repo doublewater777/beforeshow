@@ -185,7 +185,7 @@ struct ShowAssetUploadView: View {
                 .disabled(isSaving || isImporting)
 
                 Button {
-                    saveTask = Task { await savePending() }
+                    beginSave()
                 } label: {
                     Text(isSaving ? "保存中…" : "保存\(kind.title)")
                         .frame(maxWidth: .infinity)
@@ -231,8 +231,10 @@ struct ShowAssetUploadView: View {
 
     private func savePending() async {
         guard let pendingData else { return }
-        isSaving = true
-        defer { isSaving = false }
+        defer {
+            isSaving = false
+            saveTask = nil
+        }
 
         await ShowAssetMediaStore.shared.acquireCommitGate()
         var writtenRelativePath: String?
@@ -298,6 +300,17 @@ struct ShowAssetUploadView: View {
         }
     }
 
+    private func beginSave() {
+        guard saveTask == nil, !isSaving, pendingData != nil else { return }
+        // Enter the busy state in the button action itself. This closes the tiny
+        // MainActor scheduling window in which a rapid second tap could otherwise
+        // create another unowned save task.
+        isSaving = true
+        saveTask = Task { @MainActor in
+            await savePending()
+        }
+    }
+
     private func assetsOfSameKind() -> [ShowAsset] {
         let kindRaw = kind.rawValue
         let descriptor = FetchDescriptor<ShowAsset>(
@@ -321,6 +334,8 @@ struct ShowAssetUploadView: View {
             switch storeError {
             case .insufficientDiskSpace:
                 return "存储空间不足，先腾出一点空间再试"
+            case .storageUnavailable:
+                return "本地存储暂时不可用，请稍后重试"
             case .unsupportedImage, .imageEncodingFailed:
                 return "这张图片暂时无法保存"
             case .importCancelled:
