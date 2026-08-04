@@ -772,6 +772,7 @@ private struct MemoryMediaComposerView: View {
         case idle
         case importing
         case saving
+        case removing
     }
 
     private static let maximumMediaCount = 20
@@ -848,7 +849,7 @@ private struct MemoryMediaComposerView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(operation == .importing ? "停止" : "取消") { cancel() }
-                        .disabled(operation == .saving)
+                        .disabled(operation == .saving || operation == .removing)
                 }
             }
             .interactiveDismissDisabled()
@@ -1041,15 +1042,20 @@ private struct MemoryMediaComposerView: View {
         guard operation == .idle else { return }
         guard media.indices.contains(selection) else { return }
         let removed = media[selection]
+        // Enter a dedicated removing state synchronously so save / 继续添加 / 再次删除 /
+        // 取消 are blocked until the on-disk deletion completes. Only drop the item from
+        // the array if the deletion fully succeeds, so a failure leaves the quota intact
+        // and no uncounted staging file is left behind.
+        operation = .removing
         Task { @MainActor in
-            // Reclaim the staged original + thumbnail BEFORE releasing the composer
-            // quota, so the 20-item cap and on-disk state stay consistent (no
-            // "import -> delete -> reimport" window while old files are still present).
-            try? await MemoryFragmentMediaStore.shared.removeStagedItem(removed)
-            if let index = media.firstIndex(where: { $0.id == removed.id }) {
-                media.remove(at: index)
+            do {
+                try await MemoryFragmentMediaStore.shared.removeStagedItem(removed)
+                media.removeAll { $0.id == removed.id }
                 selection = min(selection, max(0, media.count - 1))
+            } catch {
+                errorMessage = "媒体没有删除，请重试。"
             }
+            operation = .idle
         }
     }
 

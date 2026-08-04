@@ -580,6 +580,84 @@ final class MemoryFragmentTests: XCTestCase {
         }
     }
 
+    // MARK: - Round 6: camera-capture transaction + on-disk migration
+
+    func testStageCameraPhotoRollsBackOriginalOnThumbnailFailure() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        // Bytes that are not a valid JPEG: the original writes, but thumbnail decoding fails.
+        let bogus = Data("not an image".utf8)
+
+        do {
+            _ = try await store.stageCameraPhoto(bogus, draftID: draftID)
+            XCTFail("Expected staging to fail for a non-image")
+        } catch MemoryMediaStoreError.imageEncodingFailed {
+            // expected
+        }
+
+        // The original JPEG must be rolled back so a failed camera capture leaves no
+        // uncounted staging file (original or thumbnail).
+        let stagingDir = root.appendingPathComponent("Staging/\(draftID.uuidString)")
+        if FileManager.default.fileExists(atPath: stagingDir.path) {
+            let leftovers = (try? FileManager.default.contentsOfDirectory(atPath: stagingDir.path)) ?? []
+            XCTAssertTrue(leftovers.isEmpty, "No orphan original/thumbnail should remain after a failed camera capture")
+        }
+    }
+
+    func testReconcileBackfillsRelationshipAcrossDiskStoreRestart() throws {
+        let storeDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: storeDir) }
+        try FileManager.default.createDirectory(at: storeDir, withIntermediateDirectories: true)
+        let dbURL = storeDir.appendingPathComponent("memory.store")
+
+        let showID: UUID
+        let fragmentID: UUID
+        do {
+            let container = try ModelContainer(
+                for: Show.self, MemoryFragment.self, MemoryMediaItem.self,
+                configurations: ModelConfiguration(url: dbURL, cloudKitDatabase: .none)
+            )
+            let context = container.mainContext
+            let now = Date()
+            let show = try Show(name: "现场", date: now, startTime: now)
+            context.insert(show)
+            showID = show.id
+            // Legacy fragment that predates the relationship: showID set, show == nil.
+            let fragment = try MemoryFragment(showID: showID, text: "旧记忆")
+            fragmentID = fragment.id
+            context.insert(fragment)
+            try context.save()
+        }
+
+        // Reopen the on-disk store (simulates app restart with legacy data).
+        let container = try ModelContainer(
+            for: Show.self, MemoryFragment.self, MemoryMediaItem.self,
+            configurations: ModelConfiguration(url: dbURL, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let reopened = try context.fetch(
+            FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.id == fragmentID })
+        ).first
+        XCTAssertNotNil(reopened)
+        XCTAssertNil(reopened?.show, "Legacy fragment reopens without the relationship")
+
+        let valid = try reconcileMemoryFragmentShowBoundary(in: context)
+        XCTAssertNotNil(reopened?.show, "Backfill binds the relationship after restart")
+        XCTAssertEqual(reopened?.show?.id, showID)
+        XCTAssertNotNil(valid[showID]?[fragmentID])
+
+        // Cascade delete works on the backfilled relationship.
+        let show = try context.fetch(FetchDescriptor<Show>(predicate: #Predicate { $0.id == showID })).first
+        XCTAssertNotNil(show)
+        context.delete(show!)
+        try context.save()
+        XCTAssertEqual(try context.fetch(FetchDescriptor<MemoryFragment>()).count, 0, "Cascade delete removes the fragment")
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Show.self,

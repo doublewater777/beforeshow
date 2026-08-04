@@ -49,7 +49,10 @@ struct MemoryImportedFile: Transferable {
         // Capacity must be checked BEFORE the full copy; otherwise a huge video can
         // exhaust disk and leave an orphan temp copy that app-level reconciliation
         // (which only scans the memory root, not this temp dir) would never reclaim.
-        let requiredBytes = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+        // Unknown source size must not bypass the capacity precheck; fail closed.
+        guard let requiredBytes = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) else {
+            throw MemoryMediaStoreError.insufficientDiskSpace
+        }
         do {
             try MemoryCapacity.throwIfInsufficient(at: directory, required: requiredBytes)
             try FileManager.default.copyItem(at: source, to: destination)
@@ -196,15 +199,26 @@ actor MemoryFragmentMediaStore {
         } catch {
             throw MemoryMediaStoreError.map(error)
         }
-        let thumbnail = try makePhotoThumbnail(sourceURL: url, draftID: draftID, mediaID: id)
-        return MemoryDraftMedia(
-            id: id,
-            kind: .photo,
-            stagedRelativePath: relativePath,
-            thumbnailStagedRelativePath: thumbnail,
-            contentTypeIdentifier: UTType.jpeg.identifier,
-            videoDuration: nil
-        )
+        do {
+            // Thumbnail generation must be transactional with the original write: if it
+            // fails or is cancelled, roll back the original so a failed camera capture
+            // leaves no uncounted file in staging.
+            try Task.checkCancellation()
+            let thumbnail = try makePhotoThumbnail(sourceURL: url, draftID: draftID, mediaID: id)
+            try Task.checkCancellation()
+            return MemoryDraftMedia(
+                id: id,
+                kind: .photo,
+                stagedRelativePath: relativePath,
+                thumbnailStagedRelativePath: thumbnail,
+                contentTypeIdentifier: UTType.jpeg.identifier,
+                videoDuration: nil
+            )
+        } catch {
+            try? removeIfPresent(url)
+            try? removeIfPresent(location.url(for: stagingPath(draftID: draftID, fileName: "\(id.uuidString)-thumbnail.jpg")))
+            throw error
+        }
     }
 
     func stageTransferredFile(_ imported: MemoryImportedFile, draftID: UUID) async throws -> MemoryDraftMedia {
@@ -227,11 +241,18 @@ actor MemoryFragmentMediaStore {
         let destination = location.url(for: relativePath)
         try createParentDirectory(for: destination)
         try Task.checkCancellation()
-        let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
+        // Unknown source size must not bypass the capacity precheck (required <= 0
+        // returns early); fail closed instead of copying without a size check.
+        guard let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) else {
+            throw MemoryMediaStoreError.insufficientDiskSpace
+        }
         try ensureAvailableCapacity(forByteCount: requiredBytes)
         do {
             try fileManager.copyItem(at: imported.url, to: destination)
         } catch {
+            // Defensive cleanup: a partial copy left by an interrupted copyItem must not
+            // become an uncounted staging file.
+            try? removeIfPresent(destination)
             throw MemoryMediaStoreError.map(error)
         }
 
