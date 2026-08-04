@@ -535,6 +535,51 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertGreaterThan(mtime!.timeIntervalSinceNow, -60)
     }
 
+    // MARK: - Round 5: destructive failure paths + capacity precheck
+
+    func testReconcileFragmentFilesEmptyValidSetRemovesAllFragmentFiles() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let showID = UUID()
+        let fragmentID = UUID()
+        let staged = try await store.stageCameraPhoto(makeJPEG(), draftID: draftID)
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: showID,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        try await store.finalizeCommit(draftID: draftID)
+
+        // An empty valid set means "no fragment is valid" -> reconcile removes every
+        // fragment directory for the show. This is why the per-show view reconcile must
+        // abort on fetch failure instead of passing an empty (authoritative-looking) set.
+        try await store.reconcileFragmentFiles(showID: showID, validFilesByFragmentID: [:])
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed[0].relativePath).path))
+    }
+
+    func testCapacityCheckResolvesExistingAncestorForNonExistentPath() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        // A non-existent destination path must still resolve to its volume via an
+        // existing ancestor, so the first-copy capacity precheck is real, not fail-open.
+        let nonExistent = root.appendingPathComponent("does-not-exist", isDirectory: true)
+        XCTAssertNotNil(MemoryCapacity.availableBytes(at: nonExistent))
+
+        do {
+            try MemoryCapacity.throwIfInsufficient(at: nonExistent, required: Int64.max)
+            XCTFail("Expected insufficientDiskSpace for an impossible byte count")
+        } catch MemoryMediaStoreError.insufficientDiskSpace {
+            // expected: the check resolves the ancestor and throws rather than skipping.
+        }
+    }
+
     private func makeContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Show.self,

@@ -51,7 +51,7 @@ struct MemoryImportedFile: Transferable {
         // (which only scans the memory root, not this temp dir) would never reclaim.
         let requiredBytes = (try? source.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) ?? 0
         do {
-            try MemoryCapacity.throwIfInsufficient(at: destination, required: requiredBytes)
+            try MemoryCapacity.throwIfInsufficient(at: directory, required: requiredBytes)
             try FileManager.default.copyItem(at: source, to: destination)
         } catch MemoryMediaStoreError.insufficientDiskSpace {
             // No partial copy is created by copyItem on failure, but be defensive.
@@ -95,16 +95,27 @@ enum MemoryMediaStoreError: Error {
 /// other non-actor sites that run before the store actor is involved.
 enum MemoryCapacity {
     static func availableBytes(at url: URL, fileManager: FileManager = .default) -> Int64? {
-        let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        // `volumeAvailableCapacityForImportantUsageKey` is a volume property, but
+        // `URL.resourceValues` fails on a non-existent path. Resolve to the nearest
+        // existing ancestor so the check is real instead of silently fail-open.
+        var current = url
+        while !fileManager.fileExists(atPath: current.path) {
+            let parent = current.deletingLastPathComponent()
+            if parent.path == current.path { return nil }
+            current = parent
+        }
+        let values = try? current.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
         return values?.volumeAvailableCapacityForImportantUsage
     }
 
     /// Throws `insufficientDiskSpace` when `required` bytes are unavailable on the
-    /// volume that contains `url`. A missing capacity value is treated as permissive
-    /// (the volume may not report the key) so we never block valid low-volume devices.
+    /// volume that contains `url`. A missing capacity value (no existing ancestor on
+    /// the volume) is treated as insufficient rather than silently allowed.
     static func throwIfInsufficient(at url: URL, required: Int64, fileManager: FileManager = .default) throws {
         guard required > 0 else { return }
-        guard let available = availableBytes(at: url, fileManager: fileManager) else { return }
+        guard let available = availableBytes(at: url, fileManager: fileManager) else {
+            throw MemoryMediaStoreError.insufficientDiskSpace
+        }
         if available < required {
             throw MemoryMediaStoreError.insufficientDiskSpace
         }
@@ -257,6 +268,9 @@ actor MemoryFragmentMediaStore {
             )
         } catch {
             try? removeIfPresent(destination)
+            // Also remove a partially-generated thumbnail so cancellation/failure after
+            // thumbnail generation does not leave an orphan in staging.
+            try? removeIfPresent(location.url(for: stagingPath(draftID: draftID, fileName: "\(id.uuidString)-thumbnail.jpg")))
             throw error
         }
     }

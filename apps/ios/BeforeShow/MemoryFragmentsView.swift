@@ -193,13 +193,18 @@ struct MemoryFragmentsView: View {
             let descriptor = FetchDescriptor<MemoryFragment>(
                 predicate: #Predicate<MemoryFragment> { $0.showID == showID }
             )
-            if let current = try? modelContext.fetch(descriptor) {
-                for fragment in current {
-                    let paths = fragment.mediaItems.flatMap { item in
-                        [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
-                    }
-                    validFilesByFragmentID[fragment.id] = Set(paths)
+            // A fetch failure must NOT be treated as an authoritative empty set:
+            // reconcileFragmentFiles with an empty valid set would delete the whole
+            // show's media. Abort (release the gate) and let the next pass retry.
+            guard let current = try? modelContext.fetch(descriptor) else {
+                await MemoryFragmentMediaStore.shared.releaseCommitGate()
+                return
+            }
+            for fragment in current {
+                let paths = fragment.mediaItems.flatMap { item in
+                    [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
                 }
+                validFilesByFragmentID[fragment.id] = Set(paths)
             }
             try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(
                 showID: showID,
@@ -235,6 +240,9 @@ struct MemoryFragmentsView: View {
             } else {
                 let fragment = try MemoryFragment(showID: showID, text: text)
                 guard fragment.text != nil else { throw MemoryFragmentValidationError.emptyContent }
+                // Bind the Show relationship immediately so new text fragments don't
+                // rely on reconciliation to backfill it.
+                fragment.show = fetchShow(for: showID)
                 modelContext.insert(fragment)
             }
             try modelContext.save()
@@ -1032,11 +1040,17 @@ private struct MemoryMediaComposerView: View {
     private func removeCurrentItem() {
         guard operation == .idle else { return }
         guard media.indices.contains(selection) else { return }
-        let removed = media.remove(at: selection)
-        selection = min(selection, max(0, media.count - 1))
-        // Reclaim the staged original + thumbnail so the 20-item cap reflects real
-        // staged files and "import -> delete -> reimport" cannot bypass it.
-        Task { try? await MemoryFragmentMediaStore.shared.removeStagedItem(removed) }
+        let removed = media[selection]
+        Task { @MainActor in
+            // Reclaim the staged original + thumbnail BEFORE releasing the composer
+            // quota, so the 20-item cap and on-disk state stay consistent (no
+            // "import -> delete -> reimport" window while old files are still present).
+            try? await MemoryFragmentMediaStore.shared.removeStagedItem(removed)
+            if let index = media.firstIndex(where: { $0.id == removed.id }) {
+                media.remove(at: index)
+                selection = min(selection, max(0, media.count - 1))
+            }
+        }
     }
 
     private func save() {
