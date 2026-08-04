@@ -138,21 +138,40 @@ enum LocalMediaCleanupRetry {
         let relativePath: String
     }
 
-    private static let pendingFullCleanupKey = "BeforeShow.pendingFullLocalMediaCleanup"
+    private static let pendingMemoryFullCleanupKey = "BeforeShow.pendingFullMemoryMediaCleanup"
+    private static let pendingShowAssetFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
     private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
     private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
     private static let pendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
 
+    static var isMemoryFullCleanupPending: Bool {
+        UserDefaults.standard.bool(forKey: pendingMemoryFullCleanupKey)
+    }
+
+    static var isShowAssetFullCleanupPending: Bool {
+        UserDefaults.standard.bool(forKey: pendingShowAssetFullCleanupKey)
+    }
+
     static var isFullCleanupPending: Bool {
-        UserDefaults.standard.bool(forKey: pendingFullCleanupKey)
+        isMemoryFullCleanupPending || isShowAssetFullCleanupPending
     }
 
-    static func markFullCleanupPending() {
-        UserDefaults.standard.set(true, forKey: pendingFullCleanupKey)
+    static func markFullCleanupPending(memory: Bool, showAssets: Bool) {
+        if memory {
+            UserDefaults.standard.set(true, forKey: pendingMemoryFullCleanupKey)
+        }
+        if showAssets {
+            UserDefaults.standard.set(true, forKey: pendingShowAssetFullCleanupKey)
+        }
     }
 
-    static func clearFullCleanupPending() {
-        UserDefaults.standard.removeObject(forKey: pendingFullCleanupKey)
+    static func clearFullCleanupPending(memory: Bool, showAssets: Bool) {
+        if memory {
+            UserDefaults.standard.removeObject(forKey: pendingMemoryFullCleanupKey)
+        }
+        if showAssets {
+            UserDefaults.standard.removeObject(forKey: pendingShowAssetFullCleanupKey)
+        }
     }
 
     static var pendingShowCleanupIDs: [UUID] {

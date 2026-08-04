@@ -419,6 +419,24 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
     }
 
+    func testStageTransferredFileRemovesPickerCopyWhenPersistentStorageUnavailable() async throws {
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("unavailable-source-\(UUID().uuidString).jpg")
+        try Data("source".utf8).write(to: source)
+        defer { try? FileManager.default.removeItem(at: source) }
+
+        let imported = try MemoryImportedFile.copied(source, contentType: .image)
+        let store = MemoryFragmentMediaStore(storageError: .storageUnavailable)
+        do {
+            _ = try await store.stageTransferredFile(imported, draftID: UUID())
+            XCTFail("Unavailable persistent storage must reject staging")
+        } catch {
+            XCTAssertEqual(error as? MemoryMediaStoreError, .storageUnavailable)
+        }
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: imported.url.path))
+    }
+
     func testMemoryDeleteRejectsPathOutsideStoreRoot() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MemoryOwnership-\(UUID().uuidString)", isDirectory: true)
@@ -440,11 +458,18 @@ final class ShowAssetTests: XCTestCase {
     }
 
     func testLocalMediaCleanupRetryMarkerPersistsUntilCleared() {
-        LocalMediaCleanupRetry.clearFullCleanupPending()
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
         XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
-        LocalMediaCleanupRetry.markFullCleanupPending()
+        LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
         XCTAssertTrue(LocalMediaCleanupRetry.isFullCleanupPending)
-        LocalMediaCleanupRetry.clearFullCleanupPending()
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
+
+        LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
+        XCTAssertFalse(LocalMediaCleanupRetry.isMemoryFullCleanupPending)
+        XCTAssertTrue(LocalMediaCleanupRetry.isShowAssetFullCleanupPending)
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
         XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
 
         let showID = UUID()

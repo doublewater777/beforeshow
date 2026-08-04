@@ -657,16 +657,18 @@ private struct PrivacyLocalDataView: View {
                 // Persist the retry intent before touching either media root so a
                 // termination between the database commit and file cleanup cannot
                 // silently lose the user's explicit clear request.
-                LocalMediaCleanupRetry.markFullCleanupPending()
+                LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
                 var cleanupFailures: [String] = []
                 do {
                     try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
+                    LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
                 } catch {
                     cleanupFailures.append("记忆碎片副本")
                 }
 
                 do {
                     try await ShowAssetMediaStore.shared.deleteAll()
+                    LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
                 } catch {
                     cleanupFailures.append("票根和时刻表副本")
                 }
@@ -674,10 +676,8 @@ private struct PrivacyLocalDataView: View {
                 if cleanupFailures.isEmpty {
                     clearResult = try await clearer.clearAppOwnedLocalData()
                     clearStatusText = nil
-                    LocalMediaCleanupRetry.clearFullCleanupPending()
                 } else {
                     clearResult = nil
-                    LocalMediaCleanupRetry.markFullCleanupPending()
                     clearStatusText = "部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。"
                 }
                 await ShowAssetMediaStore.shared.releaseCommitGate()

@@ -91,23 +91,20 @@ private func retryPendingLocalMediaCleanupIfNeeded() async {
             || !LocalMediaCleanupRetry.pendingMemoryPaths.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
-    if LocalMediaCleanupRetry.isFullCleanupPending {
-        var memoryCleanupSucceeded = false
+    if LocalMediaCleanupRetry.isMemoryFullCleanupPending {
         do {
             try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
-            memoryCleanupSucceeded = true
+            LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
         } catch {
-            // Keep the marker so the next launch retries the complete operation.
+            // Keep only the memory marker so the next launch retries this root.
         }
-        var showAssetCleanupSucceeded = false
+    }
+    if LocalMediaCleanupRetry.isShowAssetFullCleanupPending {
         do {
             try await ShowAssetMediaStore.shared.deleteAll()
-            showAssetCleanupSucceeded = true
+            LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
         } catch {
-            // Keep the marker so the next launch retries the complete operation.
-        }
-        if memoryCleanupSucceeded && showAssetCleanupSucceeded {
-            LocalMediaCleanupRetry.clearFullCleanupPending()
+            // Keep only the ShowAsset marker so the next launch retries this root.
         }
     }
     for showID in LocalMediaCleanupRetry.pendingShowCleanupIDs {

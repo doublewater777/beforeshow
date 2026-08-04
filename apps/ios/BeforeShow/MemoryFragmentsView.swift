@@ -597,21 +597,26 @@ struct MemoryFragmentsView: View {
             try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         }
 
+        var mediaCleanupPending = false
         if !removedPaths.isEmpty {
-            Task { @MainActor in
-                await MemoryFragmentMediaStore.shared.acquireCommitGate()
-                for path in removedPaths {
-                    do {
-                        try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
-                        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
-                    } catch {
-                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
-                    }
+            await MemoryFragmentMediaStore.shared.acquireCommitGate()
+            for path in removedPaths {
+                do {
+                    try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
+                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+                } catch {
+                    mediaCleanupPending = true
+                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
                 }
-                await MemoryFragmentMediaStore.shared.releaseCommitGate()
             }
+            await MemoryFragmentMediaStore.shared.releaseCommitGate()
         }
-        presentToast(.success, "已保存修改")
+        presentToast(
+            mediaCleanupPending ? .neutral : .success,
+            mediaCleanupPending
+                ? "已保存修改，媒体将在下次启动继续清理"
+                : "已保存修改"
+        )
     }
 
     private func presentToast(_ tone: BSToastTone, _ message: String) {

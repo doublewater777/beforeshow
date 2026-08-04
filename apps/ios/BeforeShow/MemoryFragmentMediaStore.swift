@@ -241,8 +241,8 @@ actor MemoryFragmentMediaStore {
     }
 
     func stageTransferredFile(_ imported: MemoryImportedFile, draftID: UUID) async throws -> MemoryDraftMedia {
-        try ensureAvailable()
         defer { try? fileManager.removeItem(at: imported.url) }
+        try ensureAvailable()
         let id = UUID()
         let type = resolvedContentType(imported)
         let kind: MemoryMediaKind
@@ -444,7 +444,6 @@ actor MemoryFragmentMediaStore {
 
     /// Removes a transferred temporary file when cancellation happens before staging owns it.
     func discardImportedFile(_ imported: MemoryImportedFile) throws {
-        try ensureAvailable()
         try removeIfPresent(imported.url)
     }
 
@@ -500,7 +499,6 @@ actor MemoryFragmentMediaStore {
     }
 
     func deleteAllImportTemp() throws {
-        try ensureAvailable()
         try deleteAllImportTempFiles()
     }
 
