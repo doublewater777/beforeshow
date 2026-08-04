@@ -110,6 +110,38 @@ final class MemoryFragment {
         updatedAt = Date()
     }
 
+    /// Apply a full media edit as one final-state transaction.
+    /// Validates only the final set, so intermediate empty/limit states from
+    /// replace-at-capacity or textless single-media swaps do not fail mid-edit.
+    func applyMediaEdit(
+        removingIDs: Set<UUID>,
+        adding: [MemoryMediaItem],
+        finalOrder: [UUID]
+    ) throws {
+        let remaining = orderedMediaItems.filter { !removingIDs.contains($0.id) }
+        let finalCount = remaining.count + adding.count
+        guard finalCount <= Self.maximumMediaCount else {
+            throw MemoryFragmentValidationError.mediaLimitExceeded
+        }
+        guard text != nil || finalCount > 0 else {
+            throw MemoryFragmentValidationError.emptyContent
+        }
+
+        if !removingIDs.isEmpty {
+            mediaItems.removeAll { removingIDs.contains($0.id) }
+        }
+        for item in adding {
+            mediaItems.append(item)
+        }
+
+        // Prefer caller final order; fall back to remaining + additions order.
+        let desired = finalOrder.isEmpty
+            ? remaining.map(\.id) + adding.map(\.id)
+            : finalOrder
+        reorderMedia(orderedIDs: desired)
+        updatedAt = Date()
+    }
+
     /// Hard-cap helper for migration / defensive saves. Keeps the first 10 ordered items.
     /// Returns media that must be deleted from disk by the caller.
     @discardableResult

@@ -17,23 +17,84 @@ enum MemoryFragmentPhase: String, Codable, CaseIterable, Equatable, Sendable {
     /// 时间流组序：散场后 → 进行中 → 开场前。
     static let timelineDisplayOrder: [MemoryFragmentPhase] = [.after, .live, .before]
 
-    /// 用记录时刻对照现场时间边界解析阶段。取消 / 延期待定兜底为进行中。
+    /// 用记录时刻对照现场时间边界解析阶段。
+    ///
+    /// 这是记忆专用规则，不能直接复用首页 `HomeShowPhase`：
+    /// 多日现场在“当日结束后、次日开场前”应固化为散场后，而不是开场前。
+    /// 取消 / 延期待定等无可靠边界兜底为进行中。
     static func resolved(
         at createdAt: Date,
         timing: ShowTimingFields,
         calendar: Calendar = .current
     ) -> MemoryFragmentPhase {
-        let state = CurrentShowTimeState(timing: timing, calendar: calendar, now: createdAt)
-        switch HomeShowPhase(timeState: state, now: createdAt) {
-        case .pre:
-            return .before
-        case .live:
-            return .live
-        case .ended:
-            return .after
-        case .inactive:
+        if timing.changeStatus == .canceled {
             return .live
         }
+        if timing.changeStatus == .postponed && timing.postponedDate == nil {
+            return .live
+        }
+
+        let state = CurrentShowTimeState(timing: timing, calendar: calendar, now: createdAt)
+
+        // Manual end: anything at/after endedAt is after.
+        if let endedAt = timing.endedAt, createdAt >= endedAt {
+            return .after
+        }
+
+        if CurrentShowTimeState.isMultiDayDailyCycle(timing: timing, calendar: calendar) {
+            return resolveMultiDay(at: createdAt, timing: timing, calendar: calendar)
+        }
+
+        guard let start = state.effectiveStartTime else {
+            return .live
+        }
+        if createdAt < start {
+            return .before
+        }
+        if let endBoundary = state.endBoundary {
+            return createdAt < endBoundary ? .live : .after
+        }
+        return .live
+    }
+
+    private static func resolveMultiDay(
+        at createdAt: Date,
+        timing: ShowTimingFields,
+        calendar: Calendar
+    ) -> MemoryFragmentPhase {
+        let firstStart = CurrentShowTimeState.effectiveStartTime(timing: timing, calendar: calendar)
+        if createdAt < firstStart {
+            return .before
+        }
+
+        let firstDay = calendar.startOfDay(for: timing.effectiveDate)
+        let lastDay = calendar.startOfDay(
+            for: CurrentShowTimeState.effectiveEndDate(timing: timing, calendar: calendar) ?? timing.effectiveDate
+        )
+
+        // Walk each daily session until we find where createdAt lands.
+        var day = firstDay
+        while day <= lastDay {
+            let dayStart = CurrentShowTimeState.dailyStartTime(on: day, timing: timing, calendar: calendar)
+            let dayEnd = CurrentShowTimeState.dailyEndTime(on: day, timing: timing, calendar: calendar)
+
+            if createdAt < dayStart {
+                // After a previous day ended, before this day's start.
+                return day == firstDay ? .before : .after
+            }
+            if createdAt < dayEnd {
+                return .live
+            }
+
+            // createdAt is at/after this day's end. If there is a next day, keep scanning;
+            // otherwise the whole run has finished.
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day), nextDay <= lastDay else {
+                return .after
+            }
+            day = nextDay
+        }
+
+        return .after
     }
 }
 

@@ -388,8 +388,15 @@ struct MemoryFragmentsView: View {
 
         if media.isEmpty {
             let show = fetchShow(for: showID)
-            let phase = resolvedPhase(for: show, at: Date())
-            let fragment = try MemoryFragment(showID: showID, text: caption, phase: phase)
+            let createdAt = Date()
+            let phase = resolvedPhase(for: show, at: createdAt)
+            let fragment = try MemoryFragment(
+                showID: showID,
+                text: caption,
+                createdAt: createdAt,
+                updatedAt: createdAt,
+                phase: phase
+            )
             fragment.show = show
             modelContext.insert(fragment)
             try modelContext.save()
@@ -416,8 +423,16 @@ struct MemoryFragmentsView: View {
         }
         do {
             let show = fetchShow(for: showID)
-            let phase = resolvedPhase(for: show, at: Date())
-            let fragment = try MemoryFragment(id: fragmentID, showID: showID, text: caption, phase: phase)
+            let createdAt = Date()
+            let phase = resolvedPhase(for: show, at: createdAt)
+            let fragment = try MemoryFragment(
+                id: fragmentID,
+                showID: showID,
+                text: caption,
+                createdAt: createdAt,
+                updatedAt: createdAt,
+                phase: phase
+            )
             fragment.show = show
             for (index, item) in committed.enumerated() {
                 try fragment.appendMedia(MemoryMediaItem(
@@ -509,27 +524,26 @@ struct MemoryFragmentsView: View {
         do {
             try fragment.updateText(caption)
 
-            // Append replacements before removals so a textless single-media fragment
-            // can swap its only photo/video without tripping emptyContent mid-mutation.
-            for item in committed {
-                try fragment.appendMedia(MemoryMediaItem(
+            let additionItems = committed.map { item in
+                MemoryMediaItem(
                     id: item.id,
                     kind: item.kind,
                     relativePath: item.relativePath,
                     thumbnailRelativePath: item.thumbnailRelativePath,
                     contentTypeIdentifier: item.contentTypeIdentifier,
                     videoDuration: item.videoDuration,
-                    sortOrder: fragment.mediaItems.count
-                ))
+                    sortOrder: 0
+                )
             }
-
-            for item in fragment.orderedMediaItems where removedIDs.contains(item.id) {
-                try fragment.removeMedia(item)
+            let removedItems = fragment.orderedMediaItems.filter { removedIDs.contains($0.id) }
+            try fragment.applyMediaEdit(
+                removingIDs: removedIDs,
+                adding: additionItems,
+                finalOrder: fullOrder
+            )
+            for item in removedItems {
                 modelContext.delete(item)
             }
-
-            // Draft IDs are preserved through commit, so fullOrder can include them.
-            fragment.reorderMedia(orderedIDs: fullOrder)
             try modelContext.save()
         } catch {
             modelContext.rollback()
@@ -608,9 +622,11 @@ private struct MemoryFragmentRow: View {
         BSGlassPanel {
             VStack(alignment: .leading, spacing: BSSpacing.compact) {
                 HStack {
-                    Text(MemoryFragmentRelativeTime.format(fragment.createdAt))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(isLatest ? BSColor.Stage.accent : BSColor.textTertiary)
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(isLatest ? BSColor.Stage.accent : BSColor.textTertiary)
+                    }
                     Spacer()
                     Menu {
                         Button("编辑记忆", action: onEdit)
@@ -804,9 +820,11 @@ private struct MemoryMediaViewer: View {
                             .foregroundStyle(.white)
                             .fixedSize(horizontal: false, vertical: true)
                     }
-                    Text(MemoryFragmentRelativeTime.format(fragment.createdAt))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white.opacity(0.45))
+                    TimelineView(.periodic(from: .now, by: 30)) { context in
+                        Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.45))
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 18)
@@ -837,6 +855,7 @@ private struct MemoryUnifiedEditorView: View {
     @State private var errorMessage: String?
     @State private var activeImportTask: Task<Void, Never>?
     @State private var draggingID: UUID?
+    @State private var didCommitSuccessfully = false
 
     private var isEditing: Bool {
         if case .edit = launch.kind { return true }
@@ -984,7 +1003,12 @@ private struct MemoryUnifiedEditorView: View {
                 Text(errorMessage ?? "请稍后重试。")
             }
             .task {
-                try? await Task.sleep(for: .milliseconds(320))
+                do {
+                    try await Task.sleep(for: .milliseconds(320))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
                 switch initialSource {
                 case .camera:
                     requestCamera()
@@ -992,6 +1016,18 @@ private struct MemoryUnifiedEditorView: View {
                     isPhotoPickerPresented = true
                 case .text, .none:
                     break
+                }
+            }
+            .onDisappear {
+                // Interactive dismiss and navigation pops bypass the Cancel button.
+                // Drop uncommitted staging unless this session successfully saved.
+                if didCommitSuccessfully { return }
+                activeImportTask?.cancel()
+                let drafts = items.compactMap(\.draftMedia)
+                guard !drafts.isEmpty else { return }
+                let draftID = draftID
+                Task {
+                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
                 }
             }
         }
@@ -1267,6 +1303,7 @@ private struct MemoryUnifiedEditorView: View {
                         draftID
                     )
                 }
+                didCommitSuccessfully = true
                 dismiss()
             } catch {
                 errorMessage = "内容没有保存，请重试。"

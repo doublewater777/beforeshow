@@ -721,6 +721,71 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertEqual(fragment.orderedMediaItems.map(\.sortOrder), [0, 1, 2])
     }
 
+
+    func testApplyMediaEditSupportsCapacityReplacement() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "cap")
+        var media: [MemoryMediaItem] = []
+        for index in 0..<MemoryFragment.maximumMediaCount {
+            let item = makeMedia(kind: .photo, order: index)
+            try fragment.appendMedia(item)
+            media.append(item)
+        }
+        let removed = media[0]
+        let addition = makeMedia(kind: .video, order: 99)
+        let finalOrder = media.dropFirst().map(\.id) + [addition.id]
+        try fragment.applyMediaEdit(
+            removingIDs: [removed.id],
+            adding: [addition],
+            finalOrder: finalOrder
+        )
+        XCTAssertEqual(fragment.mediaItems.count, MemoryFragment.maximumMediaCount)
+        XCTAssertEqual(fragment.orderedMediaItems.map(\.id), finalOrder)
+        XCTAssertFalse(fragment.mediaItems.contains(where: { $0.id == removed.id }))
+    }
+
+    func testApplyMediaEditRejectsOverCapacityFinalSet() throws {
+        let fragment = try MemoryFragment(showID: UUID(), text: "cap")
+        for index in 0..<MemoryFragment.maximumMediaCount {
+            try fragment.appendMedia(makeMedia(kind: .photo, order: index))
+        }
+        XCTAssertThrowsError(
+            try fragment.applyMediaEdit(
+                removingIDs: [],
+                adding: [makeMedia(kind: .photo, order: 100)],
+                finalOrder: []
+            )
+        ) {
+            XCTAssertEqual($0 as? MemoryFragmentValidationError, .mediaLimitExceeded)
+        }
+    }
+
+    func testMultiDayInterSessionPhaseIsAfterNotBefore() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
+        // 2026-08-15..17 daily 13:00-22:00
+        let day1 = calendar.date(from: DateComponents(year: 2026, month: 8, day: 15, hour: 13, minute: 0))!
+        let endTime = calendar.date(from: DateComponents(year: 2026, month: 8, day: 15, hour: 22, minute: 0))!
+        let endDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 17, hour: 0, minute: 0))!
+        let timing = ShowTimingFields(
+            date: day1,
+            startTime: day1,
+            endDate: endDate,
+            endTime: endTime,
+            endedAt: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+        func at(day: Int, hour: Int, minute: Int = 0) -> Date {
+            calendar.date(from: DateComponents(year: 2026, month: 8, day: day, hour: hour, minute: minute))!
+        }
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 12), timing: timing, calendar: calendar), .before)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 14), timing: timing, calendar: calendar), .live)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 15, hour: 22, minute: 1), timing: timing, calendar: calendar), .after)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 16, hour: 10), timing: timing, calendar: calendar), .after)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 16, hour: 14), timing: timing, calendar: calendar), .live)
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 17, hour: 22, minute: 1), timing: timing, calendar: calendar), .after)
+    }
+
     func testPhaseResolutionUsesShowTimingBoundaries() {
         let calendar = Calendar(identifier: .gregorian)
         var components = DateComponents(calendar: calendar, year: 2026, month: 8, day: 4, hour: 19, minute: 30)
