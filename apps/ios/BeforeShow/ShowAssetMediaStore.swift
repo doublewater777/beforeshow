@@ -36,6 +36,9 @@ struct ShowAssetMediaLocation: Sendable {
 
 /// Local image store for ticket stubs and timetables.
 /// Paths are relative to the store root so SwiftData can stay portable across reinstalls of the container.
+///
+/// Commit gate serializes media writes with launch/active reconciliation so a file
+/// cannot be written and then immediately reclaimed before SwiftData saves.
 actor ShowAssetMediaStore {
     static let shared: ShowAssetMediaStore = {
         let location = (try? ShowAssetMediaLocation.applicationSupport())
@@ -48,6 +51,8 @@ actor ShowAssetMediaStore {
 
     private let location: ShowAssetMediaLocation
     private let fileManager: FileManager
+    private var commitGateCount = 0
+    private var commitGateWaiters: [CheckedContinuation<Void, Never>] = []
 
     init(location: ShowAssetMediaLocation, fileManager: FileManager = .default) {
         self.location = location
@@ -58,9 +63,28 @@ actor ShowAssetMediaStore {
         location.rootDirectory.appendingPathComponent(relativePath)
     }
 
-    /// Imports image data into a final relative path for the show/kind.
-    /// Uses a stable path so each show keeps at most one file per kind even if
-    /// concurrent saves race; later writes overwrite the same on-disk slot.
+    func acquireCommitGate() async {
+        if commitGateCount == 0 {
+            commitGateCount = 1
+            return
+        }
+        await withCheckedContinuation { continuation in
+            commitGateWaiters.append(continuation)
+            commitGateCount += 1
+        }
+    }
+
+    func releaseCommitGate() {
+        guard commitGateCount > 0 else { return }
+        commitGateCount -= 1
+        if !commitGateWaiters.isEmpty {
+            let waiter = commitGateWaiters.removeFirst()
+            waiter.resume()
+        }
+    }
+
+    /// Writes a versioned candidate image. Callers must only delete the previous path
+    /// after SwiftData successfully commits the new relative path.
     @discardableResult
     func saveImage(
         data: Data,
@@ -72,45 +96,63 @@ actor ShowAssetMediaStore {
         let jpegData = try encodedJPEG(from: image)
         try ensureCapacity(for: Int64(jpegData.count))
 
-        // Keep `assetID` in the API for callers that already allocate an ID for the
-        // SwiftData row, but pin the file name so uniqueness is filesystem-enforced.
-        _ = assetID
         let relativePath = [
             showID.uuidString,
             kind.directoryName,
-            "image.jpg"
+            "\(assetID.uuidString)-\(UUID().uuidString).jpg"
         ].joined(separator: "/")
 
         let destination = absoluteURL(for: relativePath)
-        try fileManager.createDirectory(
-            at: destination.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try jpegData.write(to: destination, options: .atomic)
+        do {
+            try fileManager.createDirectory(
+                at: destination.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try jpegData.write(to: destination, options: .atomic)
+        } catch {
+            try? fileManager.removeItem(at: destination)
+            throw ShowAssetMediaStoreError.map(error)
+        }
         return relativePath
     }
 
     func delete(relativePath: String) throws {
         let url = absoluteURL(for: relativePath)
         guard fileManager.fileExists(atPath: url.path) else { return }
-        try fileManager.removeItem(at: url)
-        try removeEmptyParents(of: url)
+        do {
+            try fileManager.removeItem(at: url)
+            try removeEmptyParents(of: url)
+        } catch {
+            throw ShowAssetMediaStoreError.map(error)
+        }
     }
 
     func deleteShow(_ showID: UUID) throws {
         let showDirectory = location.rootDirectory.appendingPathComponent(showID.uuidString, isDirectory: true)
         guard fileManager.fileExists(atPath: showDirectory.path) else { return }
-        try fileManager.removeItem(at: showDirectory)
+        do {
+            try fileManager.removeItem(at: showDirectory)
+        } catch {
+            throw ShowAssetMediaStoreError.map(error)
+        }
     }
 
     func deleteAll() throws {
         guard fileManager.fileExists(atPath: location.rootDirectory.path) else { return }
-        try fileManager.removeItem(at: location.rootDirectory)
+        do {
+            try fileManager.removeItem(at: location.rootDirectory)
+        } catch {
+            throw ShowAssetMediaStoreError.map(error)
+        }
     }
 
     /// Keep only files referenced by valid SwiftData assets; drop orphans.
     func reconcile(validRelativePaths: Set<String>) throws {
-        try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
+        do {
+            try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
+        } catch {
+            throw ShowAssetMediaStoreError.map(error)
+        }
         guard let enumerator = fileManager.enumerator(
             at: location.rootDirectory,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -141,7 +183,6 @@ actor ShowAssetMediaStore {
     }
 
     private func encodedJPEG(from image: UIImage) throws -> Data {
-        // Normalize orientation by redrawing into a standard bitmap.
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = min(image.scale, 2)
         format.opaque = false
@@ -165,16 +206,27 @@ actor ShowAssetMediaStore {
     }
 
     private func ensureCapacity(for required: Int64) throws {
-        guard let available = availableBytes() else { return }
-        // Keep a small headroom so the system does not hit zero mid-write.
+        guard let available = availableBytes() else {
+            // Fail closed when capacity cannot be measured.
+            throw ShowAssetMediaStoreError.insufficientDiskSpace
+        }
         if available < required + 2_000_000 {
             throw ShowAssetMediaStoreError.insufficientDiskSpace
         }
     }
 
     private func availableBytes() -> Int64? {
-        let values = try? location.rootDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
-        return values?.volumeAvailableCapacityForImportantUsage.map { Int64($0) }
+        // Probe an existing ancestor so capacity works before the root is created.
+        var probe = location.rootDirectory
+        while !fileManager.fileExists(atPath: probe.path),
+              probe.path != "/" {
+            probe = probe.deletingLastPathComponent()
+        }
+        let values = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        if let capacity = values?.volumeAvailableCapacityForImportantUsage {
+            return Int64(capacity)
+        }
+        return nil
     }
 
     private func removeEmptyParents(of fileURL: URL) throws {

@@ -69,10 +69,28 @@ final class ShowAssetTests: XCTestCase {
         let show = try Show(name: "票根现场", date: now, startTime: now)
         context.insert(show)
 
+        // Create the on-disk file so boundary reconcile keeps the linked asset.
+        let relativePath = "\(show.id.uuidString)/ticket/a.jpg"
+        let support = try FileManager.default.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let fileURL = support
+            .appendingPathComponent("ShowAssets", isDirectory: true)
+            .appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data([0xFF, 0xD8, 0xFF]).write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent().deletingLastPathComponent()) }
+
         let linked = ShowAsset(
             showID: show.id,
             kind: .ticket,
-            relativePath: "\(show.id.uuidString)/ticket/a.jpg"
+            relativePath: relativePath
         )
         // Simulate pre-relationship production data: showID present, relationship nil.
         context.insert(linked)
@@ -118,9 +136,9 @@ final class ShowAssetTests: XCTestCase {
     }
 
 
-    func testSaveImageUsesStablePathPerShowAndKind() async throws {
+    func testSaveImageUsesVersionedPathsAndKeepsBothCandidatesUntilCallerDeletes() async throws {
         let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ShowAssetStablePath-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("ShowAssetVersionedPath-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
         let showID = UUID()
@@ -128,10 +146,25 @@ final class ShowAssetTests: XCTestCase {
 
         let first = try await store.saveImage(data: data, showID: showID, kind: .ticket, assetID: UUID())
         let second = try await store.saveImage(data: data, showID: showID, kind: .ticket, assetID: UUID())
-        XCTAssertEqual(first, second)
-        XCTAssertTrue(first.hasSuffix("/ticket/image.jpg"))
-        let absolute = await store.absoluteURL(for: first)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: absolute.path))
+        XCTAssertNotEqual(first, second)
+        XCTAssertTrue(first.contains("/ticket/"))
+        XCTAssertTrue(second.contains("/ticket/"))
+        let firstURL = await store.absoluteURL(for: first)
+        let secondURL = await store.absoluteURL(for: second)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: firstURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: secondURL.path))
+    }
+
+    func testUniqueKeyIsStablePerShowAndKind() {
+        let showID = UUID()
+        XCTAssertEqual(
+            ShowAsset.makeUniqueKey(showID: showID, kind: .ticket),
+            "\(showID.uuidString)|ticket"
+        )
+        XCTAssertNotEqual(
+            ShowAsset.makeUniqueKey(showID: showID, kind: .ticket),
+            ShowAsset.makeUniqueKey(showID: showID, kind: .timetable)
+        )
     }
 
     func testPrivacyCopyMentionsLocalTicketAssetsWithoutTicketWalletLanguage() {

@@ -214,9 +214,12 @@ struct ShowAssetUploadView: View {
         isSaving = true
         defer { isSaving = false }
 
+        await ShowAssetMediaStore.shared.acquireCommitGate()
         var writtenRelativePath: String?
+        var previousRelativePath: String?
         do {
             let existing = replacingAsset ?? existingAssetOfSameKind()
+            previousRelativePath = existing?.relativePath
             let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(
                 data: pendingData,
@@ -227,14 +230,10 @@ struct ShowAssetUploadView: View {
             writtenRelativePath = relativePath
 
             if let existing {
-                let oldPath = existing.relativePath
                 existing.replaceImage(relativePath: relativePath)
                 // Collapse any stale duplicate rows for the same show+kind.
                 for duplicate in assetsOfSameKind().filter({ $0.id != existing.id }) {
                     modelContext.delete(duplicate)
-                }
-                if oldPath != relativePath {
-                    try? await ShowAssetMediaStore.shared.delete(relativePath: oldPath)
                 }
             } else {
                 let asset = ShowAsset(
@@ -250,6 +249,10 @@ struct ShowAssetUploadView: View {
             }
 
             try modelContext.save()
+            if let previousRelativePath, previousRelativePath != relativePath {
+                try? await ShowAssetMediaStore.shared.delete(relativePath: previousRelativePath)
+            }
+            await ShowAssetMediaStore.shared.releaseCommitGate()
             didSave = true
             presentToast(.success, message: "\(kind.title)已保存")
             // Replace flow is pushed from the viewer; first save stays so EntryView can flip to viewer.
@@ -259,18 +262,13 @@ struct ShowAssetUploadView: View {
             }
         } catch {
             modelContext.rollback()
-            // File write happens before SwiftData save; reclaim the just-written path on failure
-            // when it is not already referenced by a committed asset.
             if let writtenRelativePath {
-                let stillReferenced = assetsOfSameKind().contains { $0.relativePath == writtenRelativePath }
-                if !stillReferenced {
-                    try? await ShowAssetMediaStore.shared.delete(relativePath: writtenRelativePath)
-                }
+                try? await ShowAssetMediaStore.shared.delete(relativePath: writtenRelativePath)
             }
+            await ShowAssetMediaStore.shared.releaseCommitGate()
             presentToast(.failure, message: saveErrorMessage(error))
         }
     }
-
 
     private func assetsOfSameKind() -> [ShowAsset] {
         let kindRaw = kind.rawValue
@@ -385,7 +383,12 @@ struct ShowAssetViewerView: View {
         }
         .navigationBarHidden(true)
         .bsToastOverlay(toast, bottomPadding: 36)
-        .task(id: asset.relativePath) {
+        .task(id: "\(asset.relativePath)|\(asset.updatedAt.timeIntervalSince1970)") {
+            scale = 1
+            lastScale = 1
+            offset = .zero
+            lastOffset = .zero
+            image = nil
             await loadImage()
         }
         .sheet(isPresented: $isShowingManage) {

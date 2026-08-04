@@ -29,7 +29,7 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var addDescription: String {
         switch self {
         case .ticket:
-            return "选择一张电子票截图或实体票照片，保存到这场现场。"
+            return "选择一张电子票截图或实体票照片，保存到这场现场。只作现场记录，不替代官方票务凭证。"
         case .timetable:
             return "选择一张演出流程、阵容安排或时间图片，保存到这场现场。"
         }
@@ -64,6 +64,9 @@ final class ShowAsset {
     var id: UUID
     var showID: UUID
     var kindRawValue: String
+    /// Composite uniqueness key: "showID|kind". Enforced by SwiftData unique attribute.
+    @Attribute(.unique)
+    var uniqueKey: String
     var relativePath: String
     var createdAt: Date
     var updatedAt: Date
@@ -88,9 +91,14 @@ final class ShowAsset {
         self.id = id
         self.showID = showID
         self.kindRawValue = kind.rawValue
+        self.uniqueKey = Self.makeUniqueKey(showID: showID, kind: kind)
         self.relativePath = relativePath
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    static func makeUniqueKey(showID: UUID, kind: ShowAssetKind) -> String {
+        "\(showID.uuidString)|\(kind.rawValue)"
     }
 
     func replaceImage(relativePath: String) {

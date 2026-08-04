@@ -154,15 +154,19 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
 
 @MainActor
 private func reconcileAllShowAssets(in modelContext: ModelContext) async {
+    await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
         let valid = try reconcileShowAssetShowBoundary(in: modelContext)
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
+        await ShowAssetMediaStore.shared.releaseCommitGate()
     } catch {
+        await ShowAssetMediaStore.shared.releaseCommitGate()
         // Best-effort recovery; next launch/active retries.
     }
 }
 
 /// Enforces the asset<->show boundary and returns valid on-disk relative paths.
+/// Also collapses duplicate (showID, kind) rows and drops records whose files are missing.
 @MainActor
 func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set<String> {
     let shows = try modelContext.fetch(FetchDescriptor<Show>())
@@ -170,16 +174,57 @@ func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set
     let assets = try modelContext.fetch(FetchDescriptor<ShowAsset>())
     var valid: Set<String> = []
     var mutated = false
-    for asset in assets {
+    var keptByKey: [String: ShowAsset] = [:]
+
+    // Prefer newest updatedAt when collapsing historical duplicates.
+    let ordered = assets.sorted {
+        if $0.updatedAt == $1.updatedAt {
+            return $0.id.uuidString > $1.id.uuidString
+        }
+        return $0.updatedAt > $1.updatedAt
+    }
+
+    for asset in ordered {
         guard let show = showsByID[asset.showID] else {
             modelContext.delete(asset)
             mutated = true
             continue
         }
-        if asset.show == nil {
+        if asset.show?.id != show.id {
             asset.show = show
             mutated = true
         }
+        if ShowAssetKind(rawValue: asset.kindRawValue) == nil {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
+        let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind)
+        if asset.uniqueKey != key {
+            asset.uniqueKey = key
+            mutated = true
+        }
+        if let kept = keptByKey[key] {
+            // Keep newest; drop older duplicate.
+            if kept.id != asset.id {
+                modelContext.delete(asset)
+                mutated = true
+            }
+            continue
+        }
+
+        // Drop records whose files disappeared so UI returns to "未添加".
+        let fileURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
+            .appendingPathComponent("ShowAssets", isDirectory: true)
+            .appendingPathComponent(asset.relativePath)
+        if let fileURL, !FileManager.default.fileExists(atPath: fileURL.path) {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
+        keptByKey[key] = asset
         valid.insert(asset.relativePath)
     }
     if mutated {
