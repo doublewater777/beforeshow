@@ -33,6 +33,9 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: absolute.path))
         XCTAssertTrue(relativePath.contains(showID.uuidString))
         XCTAssertTrue(relativePath.contains(ShowAssetKind.ticket.directoryName))
+        let rootURL = await store.rootDirectoryURL()
+        let resourceValues = try rootURL.resourceValues(forKeys: [.isExcludedFromBackupKey])
+        XCTAssertEqual(resourceValues.isExcludedFromBackup, true)
 
         try await store.deleteShow(showID)
         XCTAssertFalse(FileManager.default.fileExists(atPath: absolute.path))
@@ -71,21 +74,15 @@ final class ShowAssetTests: XCTestCase {
 
         // Create the on-disk file so boundary reconcile keeps the linked asset.
         let relativePath = "\(show.id.uuidString)/ticket/a.jpg"
-        let support = try FileManager.default.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let fileURL = support
-            .appendingPathComponent("ShowAssets", isDirectory: true)
-            .appendingPathComponent(relativePath)
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetBoundary-\(UUID().uuidString)", isDirectory: true)
+        let fileURL = root.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(
             at: fileURL.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
         try Data([0xFF, 0xD8, 0xFF]).write(to: fileURL)
-        defer { try? FileManager.default.removeItem(at: fileURL.deletingLastPathComponent().deletingLastPathComponent()) }
+        defer { try? FileManager.default.removeItem(at: root) }
 
         let linked = ShowAsset(
             showID: show.id,
@@ -103,7 +100,7 @@ final class ShowAssetTests: XCTestCase {
         context.insert(orphan)
         try context.save()
 
-        let valid = try reconcileShowAssetShowBoundary(in: context)
+        let valid = try reconcileShowAssetShowBoundary(in: context, assetRootDirectory: root)
         XCTAssertEqual(valid, [linked.relativePath])
         XCTAssertEqual(try context.fetch(FetchDescriptor<ShowAsset>()).count, 1)
         XCTAssertEqual(linked.show?.id, show.id)

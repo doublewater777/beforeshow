@@ -548,7 +548,7 @@ private struct PrivacyLocalDataView: View {
     private let clearer = LocalDataClearer()
 
     var body: some View {
-        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容", bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(title: "隐私与本地数据", subtitle: "管理 BeforeShow 的本地记录和副本", bottomPadding: BSLayout.tabBarContentInset) {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 BSSectionHeader(title: "隐私说明")
                 ForEach(PrivacyLocalDataCopy.points, id: \.self) { point in
@@ -613,7 +613,7 @@ private struct PrivacyLocalDataView: View {
         .sheet(isPresented: $showsClearConfirmation) {
             BSDangerConfirmationSheet(
                 title: "清除本地数据",
-                message: "这会删除所有现场和本地设置，且无法恢复。",
+                message: "这会删除 BeforeShow 管理的本地记录和副本，且无法恢复；系统相册原图不会删除。",
                 destructiveTitle: "清除",
                 onConfirm: {
                     showsClearConfirmation = false
@@ -631,16 +631,24 @@ private struct PrivacyLocalDataView: View {
         Task { @MainActor in
             do {
                 let context = modelContext
-                try context.delete(model: Show.self)
-                try context.delete(model: CurrentShowSelection.self)
-                try context.delete(model: NotificationSchedulingState.self)
-                try context.delete(model: ShowNotificationScheduleRecord.self)
-                try context.delete(model: MemoryMediaItem.self)
-                try context.delete(model: MemoryFragment.self)
-                try context.delete(model: ShowAsset.self)
-                try context.save()
-                try await MemoryFragmentMediaStore.shared.deleteAll()
-                try await ShowAssetMediaStore.shared.deleteAll()
+                await ShowAssetMediaStore.shared.acquireCommitGate()
+                do {
+                    try context.delete(model: Show.self)
+                    try context.delete(model: CurrentShowSelection.self)
+                    try context.delete(model: NotificationSchedulingState.self)
+                    try context.delete(model: ShowNotificationScheduleRecord.self)
+                    try context.delete(model: MemoryMediaItem.self)
+                    try context.delete(model: MemoryFragment.self)
+                    try context.delete(model: ShowAsset.self)
+                    try context.save()
+                    try await MemoryFragmentMediaStore.shared.deleteAll()
+                    try await ShowAssetMediaStore.shared.deleteAll()
+                    await ShowAssetMediaStore.shared.releaseCommitGate()
+                } catch {
+                    context.rollback()
+                    await ShowAssetMediaStore.shared.releaseCommitGate()
+                    throw error
+                }
                 clearResult = try await clearer.clearAppOwnedLocalData()
             } catch {
                 clearResult = nil

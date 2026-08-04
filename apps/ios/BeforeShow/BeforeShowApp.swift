@@ -156,7 +156,11 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
 private func reconcileAllShowAssets(in modelContext: ModelContext) async {
     await ShowAssetMediaStore.shared.acquireCommitGate()
     do {
-        let valid = try reconcileShowAssetShowBoundary(in: modelContext)
+        let rootDirectory = await ShowAssetMediaStore.shared.rootDirectoryURL()
+        let valid = try reconcileShowAssetShowBoundary(
+            in: modelContext,
+            assetRootDirectory: rootDirectory
+        )
         try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
         await ShowAssetMediaStore.shared.releaseCommitGate()
     } catch {
@@ -168,7 +172,10 @@ private func reconcileAllShowAssets(in modelContext: ModelContext) async {
 /// Enforces the asset<->show boundary and returns valid on-disk relative paths.
 /// Also collapses duplicate (showID, kind) rows and drops records whose files are missing.
 @MainActor
-func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set<String> {
+func reconcileShowAssetShowBoundary(
+    in modelContext: ModelContext,
+    assetRootDirectory: URL? = nil
+) throws -> Set<String> {
     let shows = try modelContext.fetch(FetchDescriptor<Show>())
     let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     let assets = try modelContext.fetch(FetchDescriptor<ShowAsset>())
@@ -201,8 +208,7 @@ func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set
         }
 
         let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind)
-        if asset.uniqueKey != key {
-            asset.uniqueKey = key
+        if asset.repairUniqueKeyIfNeeded() {
             mutated = true
         }
         if let kept = keptByKey[key] {
@@ -215,8 +221,7 @@ func reconcileShowAssetShowBoundary(in modelContext: ModelContext) throws -> Set
         }
 
         // Drop records whose files disappeared so UI returns to "未添加".
-        let fileURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first?
-            .appendingPathComponent("ShowAssets", isDirectory: true)
+        let fileURL = assetRootDirectory?
             .appendingPathComponent(asset.relativePath)
         if let fileURL, !FileManager.default.fileExists(atPath: fileURL.path) {
             modelContext.delete(asset)

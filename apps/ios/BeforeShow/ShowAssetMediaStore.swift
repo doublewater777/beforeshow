@@ -63,6 +63,10 @@ actor ShowAssetMediaStore {
         location.rootDirectory.appendingPathComponent(relativePath)
     }
 
+    func rootDirectoryURL() -> URL {
+        location.rootDirectory
+    }
+
     func acquireCommitGate() async {
         if commitGateCount == 0 {
             commitGateCount = 1
@@ -94,6 +98,7 @@ actor ShowAssetMediaStore {
     ) async throws -> String {
         let image = try decodedImage(from: data)
         let jpegData = try encodedJPEG(from: image)
+        try prepareRootDirectory()
         try ensureCapacity(for: Int64(jpegData.count))
 
         let relativePath = [
@@ -148,11 +153,7 @@ actor ShowAssetMediaStore {
 
     /// Keep only files referenced by valid SwiftData assets; drop orphans.
     func reconcile(validRelativePaths: Set<String>) throws {
-        do {
-            try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
-        } catch {
-            throw ShowAssetMediaStoreError.map(error)
-        }
+        try prepareRootDirectory()
         guard let enumerator = fileManager.enumerator(
             at: location.rootDirectory,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -172,6 +173,18 @@ actor ShowAssetMediaStore {
 
         for relative in existing where !validRelativePaths.contains(relative) {
             try? delete(relativePath: relative)
+        }
+    }
+
+    private func prepareRootDirectory() throws {
+        do {
+            try fileManager.createDirectory(at: location.rootDirectory, withIntermediateDirectories: true)
+            var values = URLResourceValues()
+            values.isExcludedFromBackup = true
+            var root = location.rootDirectory
+            try root.setResourceValues(values)
+        } catch {
+            throw ShowAssetMediaStoreError.map(error)
         }
     }
 

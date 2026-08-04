@@ -61,12 +61,12 @@ enum ShowAssetValidationError: Error, Equatable {
 /// Uniqueness is enforced in save paths: each show keeps at most one asset per kind.
 @Model
 final class ShowAsset {
-    var id: UUID
-    var showID: UUID
-    var kindRawValue: String
+    private(set) var id: UUID
+    private(set) var showID: UUID
+    private(set) var kindRawValue: String
     /// Composite uniqueness key: "showID|kind". Enforced by SwiftData unique attribute.
     @Attribute(.unique)
-    var uniqueKey: String
+    private(set) var uniqueKey: String
     var relativePath: String
     var createdAt: Date
     var updatedAt: Date
@@ -76,8 +76,7 @@ final class ShowAsset {
     var show: Show?
 
     var kind: ShowAssetKind {
-        get { ShowAssetKind(rawValue: kindRawValue) ?? .ticket }
-        set { kindRawValue = newValue.rawValue }
+        ShowAssetKind(rawValue: kindRawValue) ?? .ticket
     }
 
     init(
@@ -99,6 +98,15 @@ final class ShowAsset {
 
     static func makeUniqueKey(showID: UUID, kind: ShowAssetKind) -> String {
         "\(showID.uuidString)|\(kind.rawValue)"
+    }
+
+    @discardableResult
+    func repairUniqueKeyIfNeeded() -> Bool {
+        guard let rawKind = ShowAssetKind(rawValue: kindRawValue) else { return false }
+        let expected = Self.makeUniqueKey(showID: showID, kind: rawKind)
+        guard uniqueKey != expected else { return false }
+        uniqueKey = expected
+        return true
     }
 
     func replaceImage(relativePath: String) {

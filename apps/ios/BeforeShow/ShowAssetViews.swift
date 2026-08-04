@@ -216,10 +216,10 @@ struct ShowAssetUploadView: View {
 
         await ShowAssetMediaStore.shared.acquireCommitGate()
         var writtenRelativePath: String?
-        var previousRelativePath: String?
         do {
+            try Task.checkCancellation()
             let existing = replacingAsset ?? existingAssetOfSameKind()
-            previousRelativePath = existing?.relativePath
+            let previousRelativePath = existing?.relativePath
             let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(
                 data: pendingData,
@@ -228,10 +228,10 @@ struct ShowAssetUploadView: View {
                 assetID: assetID
             )
             writtenRelativePath = relativePath
+            try Task.checkCancellation()
 
             if let existing {
                 existing.replaceImage(relativePath: relativePath)
-                // Collapse any stale duplicate rows for the same show+kind.
                 for duplicate in assetsOfSameKind().filter({ $0.id != existing.id }) {
                     modelContext.delete(duplicate)
                 }
@@ -248,6 +248,7 @@ struct ShowAssetUploadView: View {
                 modelContext.insert(asset)
             }
 
+            try Task.checkCancellation()
             try modelContext.save()
             if let previousRelativePath, previousRelativePath != relativePath {
                 try? await ShowAssetMediaStore.shared.delete(relativePath: previousRelativePath)
@@ -255,7 +256,6 @@ struct ShowAssetUploadView: View {
             await ShowAssetMediaStore.shared.releaseCommitGate()
             didSave = true
             presentToast(.success, message: "\(kind.title)已保存")
-            // Replace flow is pushed from the viewer; first save stays so EntryView can flip to viewer.
             if replacingAsset != nil {
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 dismiss()
@@ -519,20 +519,29 @@ struct ShowAssetViewerView: View {
 
     private func deleteAsset() {
         let relativePath = asset.relativePath
-        modelContext.delete(asset)
-        do {
-            try modelContext.save()
-            Task {
-                try? await ShowAssetMediaStore.shared.delete(relativePath: relativePath)
-            }
-            presentToast(.neutral, message: "\(kind.title)已删除")
-            Task { @MainActor in
+        Task { @MainActor in
+            do {
+                await ShowAssetMediaStore.shared.acquireCommitGate()
+                do {
+                    modelContext.delete(asset)
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        modelContext.rollback()
+                        throw error
+                    }
+                    try? await ShowAssetMediaStore.shared.delete(relativePath: relativePath)
+                    await ShowAssetMediaStore.shared.releaseCommitGate()
+                } catch {
+                    await ShowAssetMediaStore.shared.releaseCommitGate()
+                    throw error
+                }
+                presentToast(.neutral, message: "\(kind.title)已删除")
                 try? await Task.sleep(nanoseconds: 350_000_000)
                 dismiss()
+            } catch {
+                presentToast(.failure, message: "删除失败，请重试")
             }
-        } catch {
-            modelContext.rollback()
-            presentToast(.failure, message: "删除失败，请重试")
         }
     }
 

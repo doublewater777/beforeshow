@@ -10,49 +10,56 @@ enum ShowDeletionCoordinator {
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext
     ) async throws {
-        let coverImageURL = show.coverImageURL
-        if selections.first?.selectedShowID == show.id {
-            selections.first?.clearManualSelection()
-        }
+        await ShowAssetMediaStore.shared.acquireCommitGate()
+        do {
+            let coverImageURL = show.coverImageURL
+            if selections.first?.selectedShowID == show.id {
+                selections.first?.clearManualSelection()
+            }
 
-        let showID = show.id
-        let remainingShows = shows.filter { $0.id != showID }
-        let fragments = try modelContext.fetch(
-            FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
-        )
-        for fragment in fragments {
-            modelContext.delete(fragment)
-        }
-        let assets = try modelContext.fetch(
-            FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
-        )
-        for asset in assets {
-            modelContext.delete(asset)
-        }
-        modelContext.delete(show)
-        let nextCurrentShow = CurrentShowSession().selectCurrentShow(
-            from: remainingShows,
-            manualSelection: selections.first
-        )
-        ShowMutationCoordinator.updateNotificationFocus(
-            showID: nextCurrentShow?.id,
-            notificationStates: notificationStates,
-            in: modelContext
-        )
+            let showID = show.id
+            let remainingShows = shows.filter { $0.id != showID }
+            let fragments = try modelContext.fetch(
+                FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
+            )
+            for fragment in fragments {
+                modelContext.delete(fragment)
+            }
+            let assets = try modelContext.fetch(
+                FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
+            )
+            for asset in assets {
+                modelContext.delete(asset)
+            }
+            modelContext.delete(show)
+            let nextCurrentShow = CurrentShowSession().selectCurrentShow(
+                from: remainingShows,
+                manualSelection: selections.first
+            )
+            ShowMutationCoordinator.updateNotificationFocus(
+                showID: nextCurrentShow?.id,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
 
-        try modelContext.save()
-        try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
-        try? await ShowAssetMediaStore.shared.deleteShow(showID)
+            try modelContext.save()
+            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            try? await ShowAssetMediaStore.shared.deleteShow(showID)
 
-        if let coverImageURL,
-           !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+            if let coverImageURL,
+               !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
+                ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+            }
+            _ = await LocalNotificationCenter.shared.applyFocusChange(
+                to: nextCurrentShow,
+                in: modelContext
+            )
+            WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+        } catch {
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+            throw error
         }
-        _ = await LocalNotificationCenter.shared.applyFocusChange(
-            to: nextCurrentShow,
-            in: modelContext
-        )
-        WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
     }
 }
 
