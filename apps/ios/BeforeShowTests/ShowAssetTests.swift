@@ -457,6 +457,54 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertTrue(FileManager.default.fileExists(atPath: outside.path))
     }
 
+    func testMemoryDeleteRejectsAbsoluteAndWrongOwnerPaths() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryOwnership-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let showID = UUID()
+        let fragmentID = UUID()
+
+        for path in [
+            "/tmp/BeforeShow-outside.jpg",
+            "\(UUID().uuidString)/\(fragmentID.uuidString)/photo.jpg",
+            "\(showID.uuidString)/\(UUID().uuidString)/photo.jpg"
+        ] {
+            do {
+                try await store.deleteFiles(
+                    relativePaths: [path],
+                    showID: showID,
+                    fragmentID: fragmentID
+                )
+                XCTFail("The memory path must be rejected: \(path)")
+            } catch MemoryMediaStoreError.invalidRelativePath {
+                // expected
+            }
+        }
+    }
+
+    func testMemoryStagingIsBlockedOnlyWhileItsOwnFullCleanupRetryIsPending() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryCleanupBarrier-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let draftID = UUID()
+        let data = try XCTUnwrap(solidJPEGData())
+
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
+        LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: false)
+        do {
+            _ = try await store.stageCameraPhoto(data, draftID: draftID)
+            XCTFail("Memory writes must wait for the failed memory cleanup retry")
+        } catch MemoryMediaStoreError.fullCleanupPending {
+            // expected
+        }
+
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
+        let staged = try await store.stageCameraPhoto(data, draftID: draftID)
+        try await store.removeStagedItem(staged)
+    }
+
     func testLocalMediaCleanupRetryMarkerPersistsUntilCleared() {
         LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
         XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
@@ -494,12 +542,38 @@ final class ShowAssetTests: XCTestCase {
         LocalMediaCleanupRetry.clearAssetCleanupPending(pending)
         XCTAssertFalse(LocalMediaCleanupRetry.pendingAssets.contains(pending))
 
-        let memoryPath = "\(showID.uuidString)/\(UUID().uuidString)/photo.jpg"
-        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(memoryPath)
-        LocalMediaCleanupRetry.markMemoryPathCleanupPending(memoryPath)
-        XCTAssertTrue(LocalMediaCleanupRetry.pendingMemoryPaths.contains(memoryPath))
-        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(memoryPath)
-        XCTAssertFalse(LocalMediaCleanupRetry.pendingMemoryPaths.contains(memoryPath))
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
+        LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
+        XCTAssertTrue(LocalMediaCleanupRetry.isMemoryFullCleanupPending)
+        XCTAssertTrue(LocalMediaCleanupRetry.isShowAssetFullCleanupPending)
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
+        XCTAssertFalse(LocalMediaCleanupRetry.isMemoryFullCleanupPending)
+        XCTAssertTrue(LocalMediaCleanupRetry.isShowAssetFullCleanupPending)
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
+
+        let fragmentID = UUID()
+        let memoryPath = "\(showID.uuidString)/\(fragmentID.uuidString)/photo.jpg"
+        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: memoryPath
+        )
+        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: memoryPath
+        )
+        XCTAssertTrue(LocalMediaCleanupRetry.pendingMemoryCleanups.contains {
+            $0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == memoryPath
+        })
+        LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: memoryPath
+        )
+        XCTAssertFalse(LocalMediaCleanupRetry.pendingMemoryCleanups.contains {
+            $0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == memoryPath
+        })
     }
 
     func testUniqueKeyIsStablePerShowAndKind() {

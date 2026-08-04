@@ -422,6 +422,8 @@ struct ShowAssetUploadView: View {
                 return "保存失败，请重试"
             case .invalidRelativePath:
                 return "图片路径异常，请重新添加"
+            case .fullCleanupPending:
+                return "本地清除正在重试，请稍后再试"
             }
         }
         return "保存失败，请重试"

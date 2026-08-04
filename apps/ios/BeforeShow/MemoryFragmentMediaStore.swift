@@ -80,6 +80,7 @@ enum MemoryMediaStoreError: Error, Equatable {
     case storageUnavailable
     case importCancelled
     case invalidRelativePath
+    case fullCleanupPending
 
     /// Maps a raw file-system error to `insufficientDiskSpace` when the device is out
     /// of space, otherwise returns the original error. Non-isolated so it can be used
@@ -141,21 +142,22 @@ struct MemoryMediaLocation {
         rootDirectory.appendingPathComponent(relativePath, isDirectory: false)
     }
 
+    static func isSafeRelativePath(_ relativePath: String) -> Bool {
+        guard !relativePath.isEmpty,
+              !relativePath.hasPrefix("/"),
+              !relativePath.contains("\0") else {
+            return false
+        }
+        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+        return !components.isEmpty
+            && components.allSatisfy { !$0.isEmpty && $0 != "." && $0 != ".." }
+    }
+
     /// Resolve persisted paths only when they are normal relative paths contained
     /// by this store's root. A persisted path may be corrupt or from an older
     /// version, so appending it directly is not sufficient for ownership checks.
     func validatedURL(for relativePath: String) throws -> URL {
-        guard !relativePath.isEmpty,
-              !relativePath.hasPrefix("/"),
-              !relativePath.contains("\0") else {
-            throw MemoryMediaStoreError.invalidRelativePath
-        }
-
-        let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
-        guard !components.isEmpty,
-              components.allSatisfy({ component in
-                  !component.isEmpty && component != "." && component != ".."
-              }) else {
+        guard Self.isSafeRelativePath(relativePath) else {
             throw MemoryMediaStoreError.invalidRelativePath
         }
 
@@ -200,14 +202,33 @@ actor MemoryFragmentMediaStore {
     func acquireCommitGate() async { await LocalMediaCommitGate.shared.acquire() }
     func releaseCommitGate() async { await LocalMediaCommitGate.shared.release() }
 
+    private func withCommitGate<T>(_ operation: () async throws -> T) async throws -> T {
+        await LocalMediaCommitGate.shared.acquire()
+        do {
+            let value = try await operation()
+            await LocalMediaCommitGate.shared.release()
+            return value
+        } catch {
+            await LocalMediaCommitGate.shared.release()
+            throw error
+        }
+    }
+
     func ensureAvailable() throws {
         if let storageError {
             throw storageError
         }
     }
 
-    func stageCameraPhoto(_ data: Data, draftID: UUID) throws -> MemoryDraftMedia {
+    func stageCameraPhoto(_ data: Data, draftID: UUID) async throws -> MemoryDraftMedia {
+        try await withCommitGate {
+            try self.stageCameraPhotoUnlocked(data, draftID: draftID)
+        }
+    }
+
+    private func stageCameraPhotoUnlocked(_ data: Data, draftID: UUID) throws -> MemoryDraftMedia {
         try ensureAvailable()
+        try ensureWritable()
         let id = UUID()
         let relativePath = stagingPath(draftID: draftID, fileName: "\(id.uuidString).jpg")
         let url = location.url(for: relativePath)
@@ -241,8 +262,15 @@ actor MemoryFragmentMediaStore {
     }
 
     func stageTransferredFile(_ imported: MemoryImportedFile, draftID: UUID) async throws -> MemoryDraftMedia {
+        try await withCommitGate {
+            try await self.stageTransferredFileUnlocked(imported, draftID: draftID)
+        }
+    }
+
+    private func stageTransferredFileUnlocked(_ imported: MemoryImportedFile, draftID: UUID) async throws -> MemoryDraftMedia {
         defer { try? fileManager.removeItem(at: imported.url) }
         try ensureAvailable()
+        try ensureWritable()
         let id = UUID()
         let type = resolvedContentType(imported)
         let kind: MemoryMediaKind
@@ -318,6 +346,7 @@ actor MemoryFragmentMediaStore {
 
     func commit(draftID: UUID, showID: UUID, fragmentID: UUID, media: [MemoryDraftMedia]) throws -> [MemoryCommittedMedia] {
         try ensureAvailable()
+        try ensureWritable()
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
         return try copyStagingToFinal(
@@ -336,6 +365,7 @@ actor MemoryFragmentMediaStore {
         media: [MemoryDraftMedia]
     ) throws -> [MemoryCommittedMedia] {
         try ensureAvailable()
+        try ensureWritable()
         let finalRelativeDirectory = "\(showID.uuidString)/\(fragmentID.uuidString)"
         let finalDirectory = location.url(for: finalRelativeDirectory)
         return try copyStagingToFinal(
@@ -437,6 +467,23 @@ actor MemoryFragmentMediaStore {
         }
     }
 
+    func deleteFiles(
+        relativePaths: [String],
+        showID: UUID,
+        fragmentID: UUID
+    ) throws {
+        guard relativePaths.allSatisfy({ path in
+            let components = path.split(separator: "/", omittingEmptySubsequences: false)
+            return components.count == 3
+                && components[0] == Substring(showID.uuidString)
+                && components[1] == Substring(fragmentID.uuidString)
+                && MemoryMediaLocation.isSafeRelativePath(path)
+        }) else {
+            throw MemoryMediaStoreError.invalidRelativePath
+        }
+        try deleteFiles(relativePaths: relativePaths)
+    }
+
     func discardDraft(_ draftID: UUID) throws {
         try ensureAvailable()
         try removeIfPresent(location.url(for: "Staging/\(draftID.uuidString)"))
@@ -461,7 +508,9 @@ actor MemoryFragmentMediaStore {
 
     func deleteFragment(showID: UUID, fragmentID: UUID) throws {
         try ensureAvailable()
-        try removeIfPresent(location.url(for: "\(showID.uuidString)/\(fragmentID.uuidString)"))
+        try removeIfPresent(
+            try location.validatedURL(for: "\(showID.uuidString)/\(fragmentID.uuidString)")
+        )
     }
 
     func deleteShow(_ showID: UUID) throws {
@@ -506,6 +555,12 @@ actor MemoryFragmentMediaStore {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShowMemoryImports", isDirectory: true)
         try removeIfPresent(directory)
+    }
+
+    private func ensureWritable() throws {
+        guard !LocalMediaCleanupRetry.isMemoryFullCleanupPending else {
+            throw MemoryMediaStoreError.fullCleanupPending
+        }
     }
 
     func cleanupStaging(olderThan cutoff: Date) throws {

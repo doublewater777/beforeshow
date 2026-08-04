@@ -138,11 +138,18 @@ enum LocalMediaCleanupRetry {
         let relativePath: String
     }
 
+    struct PendingMemoryCleanup: Codable, Equatable {
+        let showID: UUID
+        let fragmentID: UUID
+        let relativePath: String?
+    }
+
     private static let pendingMemoryFullCleanupKey = "BeforeShow.pendingFullMemoryMediaCleanup"
     private static let pendingShowAssetFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
     private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
     private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
-    private static let pendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
+    private static let pendingMemoryCleanupKey = "BeforeShow.pendingMemoryCleanup"
+    private static let legacyPendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
 
     static var isMemoryFullCleanupPending: Bool {
         UserDefaults.standard.bool(forKey: pendingMemoryFullCleanupKey)
@@ -156,7 +163,7 @@ enum LocalMediaCleanupRetry {
         isMemoryFullCleanupPending || isShowAssetFullCleanupPending
     }
 
-    static func markFullCleanupPending(memory: Bool, showAssets: Bool) {
+    static func markFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {
         if memory {
             UserDefaults.standard.set(true, forKey: pendingMemoryFullCleanupKey)
         }
@@ -165,7 +172,7 @@ enum LocalMediaCleanupRetry {
         }
     }
 
-    static func clearFullCleanupPending(memory: Bool, showAssets: Bool) {
+    static func clearFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {
         if memory {
             UserDefaults.standard.removeObject(forKey: pendingMemoryFullCleanupKey)
         }
@@ -230,23 +237,85 @@ enum LocalMediaCleanupRetry {
         }
     }
 
-    static var pendingMemoryPaths: [String] {
-        UserDefaults.standard.stringArray(forKey: pendingMemoryPathCleanupKey) ?? []
+    static var pendingMemoryCleanups: [PendingMemoryCleanup] {
+        if let data = UserDefaults.standard.data(forKey: pendingMemoryCleanupKey),
+           let values = try? JSONDecoder().decode([PendingMemoryCleanup].self, from: data) {
+            return values
+        }
+
+        // Migrate the old unscoped path journal only when the path itself has the
+        // canonical UUID ownership shape. Anything else is discarded instead of
+        // replaying an untrusted string during startup cleanup.
+        let legacy = UserDefaults.standard.stringArray(forKey: legacyPendingMemoryPathCleanupKey) ?? []
+        let migrated = legacy.compactMap { path -> PendingMemoryCleanup? in
+            let components = path.split(separator: "/", omittingEmptySubsequences: false)
+            guard (components.count == 2 || components.count == 3),
+                  let showID = UUID(uuidString: String(components[0])),
+                  let fragmentID = UUID(uuidString: String(components[1])),
+                  components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }) else {
+                return nil
+            }
+            return PendingMemoryCleanup(
+                showID: showID,
+                fragmentID: fragmentID,
+                relativePath: components.count == 3 ? path : nil
+            )
+        }
+        UserDefaults.standard.removeObject(forKey: legacyPendingMemoryPathCleanupKey)
+        persistMemoryCleanups(migrated)
+        return migrated
     }
 
-    static func markMemoryPathCleanupPending(_ relativePath: String) {
+    static func markMemoryFragmentCleanupPending(showID: UUID, fragmentID: UUID) {
+        var values = pendingMemoryCleanups
+        let pending = PendingMemoryCleanup(showID: showID, fragmentID: fragmentID, relativePath: nil)
+        if !values.contains(pending) {
+            values.append(pending)
+            persistMemoryCleanups(values)
+        }
+    }
+
+    static func markMemoryPathCleanupPending(
+        showID: UUID,
+        fragmentID: UUID,
+        relativePath: String
+    ) {
         guard !relativePath.isEmpty else { return }
-        var values = Set(pendingMemoryPaths)
-        values.insert(relativePath)
-        UserDefaults.standard.set(Array(values).sorted(), forKey: pendingMemoryPathCleanupKey)
+        var values = pendingMemoryCleanups
+        let pending = PendingMemoryCleanup(
+            showID: showID,
+            fragmentID: fragmentID,
+            relativePath: relativePath
+        )
+        if !values.contains(pending) {
+            values.append(pending)
+            persistMemoryCleanups(values)
+        }
     }
 
-    static func clearMemoryPathCleanupPending(_ relativePath: String) {
-        let values = pendingMemoryPaths.filter { $0 != relativePath }
+    static func clearMemoryFragmentCleanupPending(showID: UUID, fragmentID: UUID) {
+        persistMemoryCleanups(pendingMemoryCleanups.filter {
+            !($0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == nil)
+        })
+    }
+
+    static func clearMemoryPathCleanupPending(
+        showID: UUID,
+        fragmentID: UUID,
+        relativePath: String
+    ) {
+        persistMemoryCleanups(pendingMemoryCleanups.filter {
+            !($0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == relativePath)
+        })
+    }
+
+    private static func persistMemoryCleanups(_ values: [PendingMemoryCleanup]) {
         if values.isEmpty {
-            UserDefaults.standard.removeObject(forKey: pendingMemoryPathCleanupKey)
-        } else {
-            UserDefaults.standard.set(values, forKey: pendingMemoryPathCleanupKey)
+            UserDefaults.standard.removeObject(forKey: pendingMemoryCleanupKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: pendingMemoryCleanupKey)
         }
     }
 }

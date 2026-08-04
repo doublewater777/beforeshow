@@ -480,7 +480,6 @@ struct MemoryFragmentsView: View {
         do {
             modelContext.delete(fragment)
             try modelContext.save()
-            let fragmentRelativePath = "\(showID.uuidString)/\(fragmentID.uuidString)"
             var cleanupPending = false
             do {
                 try await MemoryFragmentMediaStore.shared.deleteFragment(
@@ -489,7 +488,10 @@ struct MemoryFragmentsView: View {
                 )
             } catch {
                 cleanupPending = true
-                LocalMediaCleanupRetry.markMemoryPathCleanupPending(fragmentRelativePath)
+                LocalMediaCleanupRetry.markMemoryFragmentCleanupPending(
+                    showID: showID,
+                    fragmentID: fragmentID
+                )
             }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
             presentToast(
@@ -602,11 +604,34 @@ struct MemoryFragmentsView: View {
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             for path in removedPaths {
                 do {
-                    try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
-                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+                    let components = path.split(separator: "/")
+                    guard components.count >= 3,
+                          let pathShowID = UUID(uuidString: String(components[0])),
+                          let pathFragmentID = UUID(uuidString: String(components[1])) else {
+                        throw MemoryMediaStoreError.invalidRelativePath
+                    }
+                    try await MemoryFragmentMediaStore.shared.deleteFiles(
+                        relativePaths: [path],
+                        showID: pathShowID,
+                        fragmentID: pathFragmentID
+                    )
+                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
+                        showID: pathShowID,
+                        fragmentID: pathFragmentID,
+                        relativePath: path
+                    )
                 } catch {
                     mediaCleanupPending = true
-                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
+                    let components = path.split(separator: "/")
+                    if components.count >= 3,
+                       let pathShowID = UUID(uuidString: String(components[0])),
+                       let pathFragmentID = UUID(uuidString: String(components[1])) {
+                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                            showID: pathShowID,
+                            fragmentID: pathFragmentID,
+                            relativePath: path
+                        )
+                    }
                 }
             }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()

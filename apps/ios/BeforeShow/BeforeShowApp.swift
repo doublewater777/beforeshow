@@ -88,7 +88,7 @@ private func retryPendingLocalMediaCleanupIfNeeded() async {
     guard LocalMediaCleanupRetry.isFullCleanupPending
             || !LocalMediaCleanupRetry.pendingShowCleanupIDs.isEmpty
             || !LocalMediaCleanupRetry.pendingAssets.isEmpty
-            || !LocalMediaCleanupRetry.pendingMemoryPaths.isEmpty else { return }
+            || !LocalMediaCleanupRetry.pendingMemoryCleanups.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
     if LocalMediaCleanupRetry.isMemoryFullCleanupPending {
@@ -128,12 +128,34 @@ private func retryPendingLocalMediaCleanupIfNeeded() async {
             // Keep this exact path marked for the next retry.
         }
     }
-    for path in LocalMediaCleanupRetry.pendingMemoryPaths {
+    for pending in LocalMediaCleanupRetry.pendingMemoryCleanups {
         do {
-            try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
-            LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+            if let relativePath = pending.relativePath {
+                try await MemoryFragmentMediaStore.shared.deleteFiles(
+                    relativePaths: [relativePath],
+                    showID: pending.showID,
+                    fragmentID: pending.fragmentID
+                )
+            } else {
+                try await MemoryFragmentMediaStore.shared.deleteFragment(
+                    showID: pending.showID,
+                    fragmentID: pending.fragmentID
+                )
+            }
+            if let relativePath = pending.relativePath {
+                LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
+                    showID: pending.showID,
+                    fragmentID: pending.fragmentID,
+                    relativePath: relativePath
+                )
+            } else {
+                LocalMediaCleanupRetry.clearMemoryFragmentCleanupPending(
+                    showID: pending.showID,
+                    fragmentID: pending.fragmentID
+                )
+            }
         } catch {
-            // Keep this exact path marked for the next retry.
+            // Keep this exact owned path marked for the next retry.
         }
     }
     await ShowAssetMediaStore.shared.releaseCommitGate()
@@ -226,10 +248,33 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             for path in overflowPaths {
                 do {
-                    try await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: [path])
-                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(path)
+                    let components = path.split(separator: "/")
+                    guard components.count >= 3,
+                          let pathShowID = UUID(uuidString: String(components[0])),
+                          let pathFragmentID = UUID(uuidString: String(components[1])) else {
+                        throw MemoryMediaStoreError.invalidRelativePath
+                    }
+                    try await MemoryFragmentMediaStore.shared.deleteFiles(
+                        relativePaths: [path],
+                        showID: pathShowID,
+                        fragmentID: pathFragmentID
+                    )
+                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
+                        showID: pathShowID,
+                        fragmentID: pathFragmentID,
+                        relativePath: path
+                    )
                 } catch {
-                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(path)
+                    let components = path.split(separator: "/")
+                    if components.count >= 3,
+                       let pathShowID = UUID(uuidString: String(components[0])),
+                       let pathFragmentID = UUID(uuidString: String(components[1])) {
+                        LocalMediaCleanupRetry.markMemoryPathCleanupPending(
+                            showID: pathShowID,
+                            fragmentID: pathFragmentID,
+                            relativePath: path
+                        )
+                    }
                 }
             }
             await MemoryFragmentMediaStore.shared.releaseCommitGate()

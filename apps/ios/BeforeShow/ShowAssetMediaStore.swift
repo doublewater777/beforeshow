@@ -10,6 +10,7 @@ enum ShowAssetMediaStoreError: Error, Equatable {
     case missingAsset
     case importCancelled
     case invalidRelativePath
+    case fullCleanupPending
 
     static func map(_ error: Error) -> Error {
         let nsError = error as NSError
@@ -138,6 +139,9 @@ actor ShowAssetMediaStore {
         assetID: UUID = UUID()
     ) async throws -> String {
         try ensureStorageAvailable()
+        guard !LocalMediaCleanupRetry.isShowAssetFullCleanupPending else {
+            throw ShowAssetMediaStoreError.fullCleanupPending
+        }
         let image = try decodedImage(from: data)
         let jpegData = try encodedJPEG(from: image)
         try prepareRootDirectory()
