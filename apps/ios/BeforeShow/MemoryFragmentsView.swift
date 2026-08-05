@@ -1512,8 +1512,15 @@ private struct MemoryUnifiedEditorView: View {
     var body: some View {
         ZStack {
             BSColor.Stage.background.ignoresSafeArea()
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
+            GeometryReader { geometry in
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        // UIImagePicker/PhotosPicker-style full-screen presentation can
+                        // report an unreliable safe-area value while the cover is
+                        // animating. Keep the editor header below the status bar even
+                        // when SwiftUI reports zero insets.
+                        Color.clear
+                            .frame(height: max(geometry.safeAreaInsets.top, 56))
                     HStack(spacing: 10) {
                         Button(isImporting ? "停止" : "取消") { cancel() }
                             .font(.system(size: 13))
@@ -1584,7 +1591,7 @@ private struct MemoryUnifiedEditorView: View {
                 .padding(.bottom, 34)
             }
         }
-        .safeAreaPadding(.top, 8)
+        }
         .preferredColorScheme(.dark)
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
