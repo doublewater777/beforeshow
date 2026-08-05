@@ -84,6 +84,7 @@ private struct MemoryEditorItem: Identifiable, Equatable {
 struct MemoryFragmentsView: View {
     let show: Show
 
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
     @AppStorage("hasSeenMemoryFragmentsLocalNotice") private var hasSeenLocalNotice = false
@@ -93,6 +94,7 @@ struct MemoryFragmentsView: View {
     @State private var pendingDelete: MemoryFragment?
     @State private var pendingDeleteTask: Task<Void, Never>?
     @State private var viewerTarget: MemoryViewerTarget?
+    @State private var managementTarget: MemoryFragment?
     @State private var toast: BSToastPayload?
     @State private var isShowingLocalNotice = false
 
@@ -110,62 +112,34 @@ struct MemoryFragmentsView: View {
 
     var body: some View {
         ZStack {
-            CurrentShowStageBackground().ignoresSafeArea()
+            BSColor.Stage.background.ignoresSafeArea()
 
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
+                        timelineNavigation
                         header
+                            .padding(.top, 4)
 
                         if visibleFragments.isEmpty {
-                            BSEmptyPanel(
-                                iconName: "sparkles.rectangle.stack",
-                                title: "还没有记忆碎片",
-                                message: "拍一张照片、从图库选择媒体，\n或者写下一段现场小记。"
-                            )
-                            .padding(.top, 32)
+                            timelineEmptyState
                         } else {
-                            LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
-                                ForEach(timelineSections, id: \.phase) { section in
-                                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                                        HStack(spacing: BSSpacing.sm) {
-                                            Text(section.phase.title)
-                                                .font(.system(size: 11, weight: .semibold))
-                                                .tracking(1.0)
-                                                .foregroundColor(phaseColor(section.phase))
-                                            Text("\(section.fragments.count) 条")
-                                                .font(BSFont.caption)
-                                                .foregroundColor(BSColor.Stage.dim)
-                                            Rectangle()
-                                                .fill(Color.white.opacity(0.09))
-                                                .frame(height: 1)
-                                        }
-
-                                        ForEach(section.fragments) { fragment in
-                                            MemoryFragmentRow(
-                                                fragment: fragment,
-                                                isLatest: fragment.id == visibleFragments.first?.id,
-                                                onEdit: {
-                                                    editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-                                                },
-                                                onDelete: { stageDelete(fragment) },
-                                                onOpenMedia: { index in
-                                                    viewerTarget = MemoryViewerTarget(
-                                                        fragment: fragment,
-                                                        initialIndex: index
-                                                    )
-                                                }
-                                            )
-                                            .id(fragment.id)
-                                        }
+                            ForEach(timelineSections, id: \.phase) { section in
+                                MemoryTimelineSection(
+                                    phase: section.phase,
+                                    fragments: section.fragments,
+                                    onManage: { managementTarget = $0 },
+                                    onOpenMedia: { fragment, index in
+                                        viewerTarget = MemoryViewerTarget(fragment: fragment, initialIndex: index)
                                     }
+                                )
+                                .id(section.phase)
                                 }
-                            }
                         }
+
+                        localPrivacyNotice
                     }
-                    .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.md)
-                    .padding(.bottom, 118)
+                    .padding(.bottom, 104)
                 }
                 .onChange(of: fragments.count) { oldCount, newCount in
                     guard newCount > oldCount, let firstID = fragments.first?.id else { return }
@@ -173,17 +147,29 @@ struct MemoryFragmentsView: View {
                 }
             }
         }
-        .navigationTitle("记忆碎片")
-        .navigationBarTitleDisplayMode(.inline)
-        .safeAreaInset(edge: .bottom) {
-            Button { isShowingCreateOptions = true } label: {
-                Label("新增记忆", systemImage: "plus")
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .bottom) {
+            HStack {
+                Button { isShowingCreateOptions = true } label: {
+                    Text("＋ 新增记忆")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(BSColor.Stage.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 15))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(BSColor.Stage.accent.opacity(0.24), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(BSPrimaryButtonStyle())
-            .padding(.horizontal, BSSpacing.roomy)
-            .padding(.top, BSSpacing.compact)
-            .padding(.bottom, BSLayout.floatingTabBarClearance - 20)
-            .background(.ultraThinMaterial)
+            .padding(6)
+            .background(BSColor.Stage.surface.opacity(0.90), in: RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.11), lineWidth: 1))
+            .shadow(color: .black.opacity(0.5), radius: 18, y: 10)
+            .padding(.horizontal, 15)
+            .padding(.bottom, 18)
         }
         .bsToastOverlay(toast, bottomPadding: 92)
         .overlay(alignment: .bottom) {
@@ -229,6 +215,23 @@ struct MemoryFragmentsView: View {
                         draftID: draftID
                     )
                 }
+            )
+        }
+        .sheet(item: $managementTarget) { fragment in
+            MemoryManagementSheet(
+                isTextOnly: fragment.mediaItems.isEmpty,
+                onEdit: {
+                    managementTarget = nil
+                    Task { @MainActor in
+                        await Task.yield()
+                        editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
+                    }
+                },
+                onDelete: {
+                    managementTarget = nil
+                    stageDelete(fragment)
+                },
+                onCancel: { managementTarget = nil }
             )
         }
         .fullScreenCover(item: $viewerTarget) { target in
@@ -300,6 +303,45 @@ struct MemoryFragmentsView: View {
         }
     }
 
+    private var timelineNavigation: some View {
+        HStack(spacing: 10) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .frame(width: 41, height: 41)
+                    .background(Color.white.opacity(0.06), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("返回")
+
+            VStack(spacing: 2) {
+                Text("记忆碎片")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text("仅保存在本机")
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+            .frame(maxWidth: .infinity)
+
+            Button(action: {}) {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .frame(width: 41, height: 41)
+                    .background(Color.white.opacity(0.06), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("记忆碎片设置")
+        }
+        .padding(.horizontal, 17)
+        .frame(height: 58)
+        .padding(.top, 4)
+    }
+
     private var header: some View {
         let stats = timelineStats
         return VStack(alignment: .leading, spacing: BSSpacing.sm) {
@@ -308,7 +350,7 @@ struct MemoryFragmentsView: View {
                 .tracking(1.1)
                 .foregroundColor(BSColor.Stage.accent)
             Text(show.name)
-                .font(BSFont.title)
+                .font(.system(size: 20, weight: .bold))
                 .foregroundColor(BSColor.Stage.foreground)
             Text(showMetadata)
                 .font(.system(size: 11))
@@ -321,7 +363,7 @@ struct MemoryFragmentsView: View {
             }
             .padding(.top, 2)
         }
-        .padding(BSSpacing.md)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: BSRadius.v3Medium)
@@ -331,6 +373,7 @@ struct MemoryFragmentsView: View {
                         .stroke(BSColor.Stage.accent.opacity(0.15), lineWidth: 1)
                 )
         )
+        .padding(.horizontal, 20)
     }
 
     private func timelineStat(value: String, label: String) -> some View {
@@ -350,6 +393,50 @@ struct MemoryFragmentsView: View {
         case .live: return BSColor.Stage.liveTitle
         case .before: return BSColor.Stage.muted
         }
+    }
+
+    private var timelineEmptyState: some View {
+        VStack(spacing: 0) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 24, weight: .light))
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(width: 68, height: 68)
+                .background(Color.white.opacity(0.04), in: Circle())
+                .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
+            Text("还没有记忆碎片")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundColor(BSColor.Stage.foreground)
+                .padding(.top, 18)
+            Text("拍一张照片、选择一段短视频，\n或者写下此刻的一句话。")
+                .font(.system(size: 13))
+                .foregroundColor(BSColor.Stage.muted)
+                .multilineTextAlignment(.center)
+                .lineSpacing(5)
+                .padding(.top, 9)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 32)
+        .padding(.bottom, 18)
+    }
+
+    private var localPrivacyNotice: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "lock.fill")
+                .font(.system(size: 10))
+            Text("私密本地时间流。没有公开发布、点赞、评论或自动上传。")
+                .font(.system(size: 11))
+                .lineSpacing(3)
+        }
+        .foregroundColor(BSColor.Stage.dim)
+        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 15)
+                .stroke(style: StrokeStyle(lineWidth: 1, dash: [4]))
+                .foregroundColor(Color.white.opacity(0.13))
+        )
+        .padding(.horizontal, 20)
+        .padding(.top, 15)
     }
 
     private func launchEditor(_ source: MemoryComposerSource) {
@@ -644,8 +731,8 @@ private struct MemoryCreateSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(360)) {
-            VStack(spacing: BSSpacing.md) {
+        BSDrawerSheet(detent: .height(342)) {
+            VStack(spacing: 0) {
                 VStack(spacing: 6) {
                     Text("新增记忆碎片")
                         .font(.system(size: 19, weight: .semibold))
@@ -660,13 +747,16 @@ private struct MemoryCreateSheet: View {
                     createButton("相册", subtitle: "选择照片或视频", icon: "photo.on.rectangle", action: onPhotoLibrary)
                     createButton("文字", subtitle: "写一段现场小记", icon: "text.alignleft", action: onText)
                 }
+                .padding(.top, 20)
 
                 Label("仅自己可见 · 不会公开发布", systemImage: "lock.fill")
                     .font(.system(size: 11))
                     .foregroundColor(BSColor.Stage.dim)
+                    .padding(.top, 17)
 
                 Button("取消", action: onCancel)
                     .buttonStyle(BSSecondaryButtonStyle())
+                    .padding(.top, 10)
             }
         }
     }
@@ -701,7 +791,7 @@ private struct MemoryCreateSheet: View {
                     .lineLimit(2)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 126)
+            .frame(height: 122)
             .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
             .overlay(RoundedRectangle(cornerRadius: 19).stroke(BSColor.Stage.border, lineWidth: 1))
         }
@@ -709,66 +799,202 @@ private struct MemoryCreateSheet: View {
     }
 }
 
-// MARK: - Timeline row
-
-private struct MemoryFragmentRow: View {
-    let fragment: MemoryFragment
-    var isLatest = false
+private struct MemoryManagementSheet: View {
+    let isTextOnly: Bool
     let onEdit: () -> Void
     let onDelete: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        BSDrawerSheet(detent: .height(286)) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("管理这条记忆")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .padding(.bottom, 8)
+                managementButton(
+                    isTextOnly ? "编辑文字" : "编辑说明",
+                    subtitle: isTextOnly ? "修改这段现场小记" : "修改照片或视频的文字",
+                    icon: "pencil",
+                    tint: BSColor.Stage.foreground,
+                    action: onEdit
+                )
+                Divider().overlay(BSColor.Stage.border)
+                managementButton(
+                    "删除这条记忆",
+                    subtitle: "从本地时间流中移除",
+                    icon: "trash",
+                    tint: BSColor.Stage.danger,
+                    action: onDelete
+                )
+                Button("取消", action: onCancel)
+                    .buttonStyle(BSSecondaryButtonStyle())
+                    .padding(.top, 8)
+            }
+        }
+    }
+
+    private func managementButton(
+        _ title: String,
+        subtitle: String,
+        icon: String,
+        tint: Color,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 11) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .foregroundColor(tint)
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(tint)
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+                Spacer()
+            }
+            .frame(minHeight: 56)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Timeline row
+
+private struct MemoryTimelineSection: View {
+    let phase: MemoryFragmentPhase
+    let fragments: [MemoryFragment]
+    let onManage: (MemoryFragment) -> Void
+    let onOpenMedia: (MemoryFragment, Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 9) {
+                Text(phase.title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1.0)
+                    .foregroundColor(BSColor.Stage.muted)
+                Rectangle()
+                    .fill(BSColor.Stage.border)
+                    .frame(height: 1)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 22)
+
+            VStack(spacing: 17) {
+                ForEach(fragments) { fragment in
+                    MemoryTimelinePost(
+                        fragment: fragment,
+                        onManage: { onManage(fragment) },
+                        onOpenMedia: { onOpenMedia(fragment, $0) }
+                    )
+                }
+            }
+            .padding(.top, 10)
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+private struct MemoryTimelinePost: View {
+    let fragment: MemoryFragment
+    let onManage: () -> Void
     let onOpenMedia: (Int) -> Void
 
     var body: some View {
-        BSGlassPanel {
-            VStack(alignment: .leading, spacing: BSSpacing.compact) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(fragment.createdAt.formatted(date: .omitted, time: .shortened))
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(isLatest ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                        Text(fragment.phase.title)
-                            .font(.system(size: 10))
-                            .foregroundColor(BSColor.Stage.dim)
-                    }
-                    Spacer()
-                    Menu {
-                        Button("编辑记忆", action: onEdit)
-                        Button("删除", role: .destructive, action: onDelete)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    }
-                    .foregroundColor(BSColor.textSecondary)
-                }
+        HStack(alignment: .top, spacing: 13) {
+            VStack(spacing: 0) {
+                Circle()
+                    .fill(BSColor.Stage.surfaceRaised)
+                    .frame(width: 11, height: 11)
+                    .overlay(Circle().stroke(BSColor.Stage.accent, lineWidth: 2))
+                    .overlay(Circle().stroke(BSColor.Stage.background, lineWidth: 5).padding(-5))
+                    .padding(.top, 5)
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [BSColor.Stage.border, Color.white.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 1)
+                    .frame(maxHeight: .infinity)
+            }
+            .frame(width: 31)
 
-                if !fragment.mediaItems.isEmpty {
-                    MemoryMediaCarousel(items: fragment.orderedMediaItems) { index, _ in
-                        onOpenMedia(index)
-                    }
-                }
-
-                if let text = fragment.text {
-                    Text(text)
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if !fragment.mediaItems.isEmpty {
-                    Text("\(fragment.mediaItems.count) 项媒体 · 仅本机")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                } else {
-                    Label("仅保存在本机", systemImage: "lock.fill")
+            VStack(alignment: .leading, spacing: 7) {
+                HStack(spacing: 7) {
+                    Text(fragment.createdAt.formatted(date: .omitted, time: .shortened))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text(fragment.phase.title)
                         .font(.system(size: 10))
                         .foregroundColor(BSColor.Stage.dim)
+                    Spacer()
+                    Button(action: onManage) {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.dim)
+                            .frame(width: 32, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("管理这条记忆")
+                }
+
+                if fragment.mediaItems.isEmpty {
+                    textCard
+                } else {
+                    mediaCard
                 }
             }
         }
-        .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                .stroke(isLatest ? BSColor.Stage.accent.opacity(0.28) : Color.clear, lineWidth: 1)
-        )
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var textCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(fragment.text ?? "")
+                .font(.system(size: 14, design: .serif))
+                .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
+                .lineSpacing(7)
+                .fixedSize(horizontal: false, vertical: true)
+            Label("仅保存在本机", systemImage: "lock.fill")
+                .font(.system(size: 10))
+                .foregroundColor(BSColor.Stage.dim)
+        }
+        .padding(15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 17))
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(BSColor.Stage.border, lineWidth: 1))
+    }
+
+    private var mediaCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MemoryMediaCarousel(items: fragment.orderedMediaItems) { index, _ in
+                onOpenMedia(index)
+            }
+            if let text = fragment.text, !text.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(text)
+                        .font(.system(size: 13))
+                        .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
+                        .lineSpacing(5)
+                    Text("\(fragment.orderedMediaItems.first?.kind == .video ? "短视频" : "照片") · 仅本机")
+                        .font(.system(size: 10))
+                        .foregroundColor(BSColor.Stage.dim)
+                }
+                .padding(13)
+            }
+        }
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 17))
+        .clipShape(RoundedRectangle(cornerRadius: 17))
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(BSColor.Stage.border, lineWidth: 1))
     }
 }
 
@@ -797,16 +1023,15 @@ private struct MemoryMediaCarousel: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 260)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+            .frame(height: 174)
             .onChange(of: items.map(\.id)) { _, _ in
                 selection = min(selection, max(0, items.count - 1))
             }
 
             if items.count > 1 {
                 Text("\(selection + 1) / \(items.count)")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
+                    .font(.system(size: 10))
+                    .foregroundColor(BSColor.Stage.dim)
             }
         }
     }
@@ -1030,68 +1255,74 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                CurrentShowStageBackground().ignoresSafeArea()
-                ScrollView {
-                    VStack(alignment: .leading, spacing: BSSpacing.md) {
-                        if items.isEmpty {
-                            BSEmptyPanel(
-                                iconName: initialSource == .text ? "text.alignleft" : "photo.badge.plus",
-                                title: initialSource == .text ? "写一段现场小记" : "选择照片或视频",
-                                message: initialSource == .text
-                                    ? "自动记录当前现场时间，最多 500 字。"
-                                    : "选择一张照片或一个视频，再补一句说明。"
-                            )
-                        } else {
-                            draftPreview
-                        }
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.white.opacity(0.18))
+                .frame(width: 38, height: 4)
+                .padding(.top, 11)
+                .padding(.bottom, 17)
 
-                        TextField(
-                            items.isEmpty ? "这一刻，你想记下什么？" : "写点什么……（可选）",
-                            text: $caption,
-                            axis: .vertical
-                        )
-                        .lineLimit(items.isEmpty ? 8...14 : 3...8)
-                        .onChange(of: caption) { _, value in
-                            if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
-                        }
-                        .bsInputField()
-
-                        HStack {
-                            Text(items.isEmpty ? "自动记录当前现场时间" : "照片或视频说明（可选）")
-                            Spacer()
-                            Text("\(caption.count) / \(captionLimit)")
-                        }
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-
-                        Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
-                            save()
-                        }
-                        .buttonStyle(BSPrimaryButtonStyle())
-                        .disabled(operationBusy || !canSave)
-                    }
-                    .padding(BSSpacing.roomy)
-                }
+            HStack {
+                Button(isImporting ? "停止" : "取消") { cancel() }
+                    .font(.system(size: 13))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .disabled(isSaving)
+                Spacer()
+                Text(editorTitle)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                Spacer()
+                Color.clear.frame(width: 32, height: 1)
             }
-            .navigationTitle(isEditing ? "编辑记忆" : "新记忆")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(isImporting ? "停止" : "取消") { cancel() }
-                        .disabled(isSaving)
-                }
-                ToolbarItem(placement: .principal) {
-                    VStack(spacing: 1) {
-                        Text(isEditing ? "编辑记忆" : "新记忆")
-                            .font(.system(size: 14.5, weight: .semibold))
-                        Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
-                            .font(.system(size: 10.5))
-                            .foregroundColor(BSColor.textTertiary)
-                    }
-                }
+
+            Text(editorSubtitle)
+                .font(.system(size: 12))
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 6)
+
+            if !items.isEmpty {
+                draftPreview
+                    .padding(.top, 14)
             }
+
+            TextField(
+                items.isEmpty ? "这一刻，你想记下什么？" : "写点什么……（可选）",
+                text: $caption,
+                axis: .vertical
+            )
+            .lineLimit(items.isEmpty ? 6...8 : 2...4)
+            .onChange(of: caption) { _, value in
+                if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
+            }
+            .padding(13)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(BSColor.Stage.border, lineWidth: 1))
+            .padding(.top, 14)
+
+            HStack {
+                Text(items.isEmpty ? "自动记录当前现场时间" : "照片或视频说明（可选）")
+                Spacer()
+                Text("\(caption.count) / \(captionLimit)")
+            }
+            .font(.system(size: 11))
+            .foregroundColor(BSColor.Stage.dim)
+            .padding(.top, 10)
+
+            Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
+                save()
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(operationBusy || !canSave)
+            .padding(.top, 13)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 20)
+        .background(Color(red: 0.071, green: 0.090, blue: 0.133))
+        .preferredColorScheme(.dark)
+        .presentationDetents([.height(items.isEmpty ? 390 : 650)])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(Color(red: 0.071, green: 0.090, blue: 0.133))
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
                 selection: $selectedItems,
@@ -1156,8 +1387,17 @@ private struct MemoryUnifiedEditorView: View {
                     try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
                 }
             }
-        }
         .interactiveDismissDisabled(operationBusy)
+    }
+
+    private var editorTitle: String {
+        if isEditing { return items.isEmpty ? "编辑现场小记" : "编辑说明" }
+        return items.isEmpty ? "写下这一刻" : "新记忆"
+    }
+
+    private var editorSubtitle: String {
+        if items.isEmpty { return "自动记录当前现场时间。" }
+        return "像发一条私密动态，但不会公开发布。"
     }
 
     private var canSave: Bool {
@@ -1181,7 +1421,7 @@ private struct MemoryUnifiedEditorView: View {
                 }
             }
             .frame(height: 320)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+            .clipShape(RoundedRectangle(cornerRadius: 17))
             .overlay(alignment: .topTrailing) {
                 Text("\(min(selection + 1, max(items.count, 1))) / \(max(items.count, 1))")
                     .font(BSFont.caption)

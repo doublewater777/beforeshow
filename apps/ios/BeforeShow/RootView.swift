@@ -87,7 +87,7 @@ struct RootView: View {
     /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
         ZStack(alignment: .bottom) {
-            CurrentShowHomeView()
+            CurrentShowHomeView(onDetailVisibilityChange: { isTabBarHidden = $0 })
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
@@ -152,6 +152,8 @@ private struct OnboardingPlaceholderView: View {
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -189,6 +191,7 @@ private struct CurrentShowHomeView: View {
                         show: show,
                         formatter: formatter,
                         candidateShows: shows,
+                        onDetailVisibilityChange: onDetailVisibilityChange,
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
@@ -333,6 +336,7 @@ struct CurrentShowManagementSection: View {
     let show: Show
     let formatter: ShowDisplayFormatter
     let candidateShows: [Show]
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
@@ -574,6 +578,8 @@ struct CurrentShowManagementSection: View {
                 case .memoryFragments:
                     NavigationLink {
                         MemoryFragmentsView(show: show)
+                            .onAppear { onDetailVisibilityChange(true) }
+                            .onDisappear { onDetailVisibilityChange(false) }
                     } label: {
                         CurrentShowQuickActionTile(
                             action: action,
@@ -1569,6 +1575,24 @@ private enum DebugSampleShowSeeder {
                 selection.select(showID: show.id)
             } else {
                 modelContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            }
+            if ProcessInfo.processInfo.arguments.contains("--seed-memory-fragments"),
+               show.memoryFragments.isEmpty {
+                let samples: [(String, MemoryFragmentPhase, TimeInterval)] = [
+                    ("终于到了，外面已经排了很长的队。", .before, -62 * 60),
+                    ("灯暗下来的一刻，整个场馆都安静了。", .live, -24 * 60),
+                    ("散场后还不想离开，想把这一刻多留一会儿。", .after, 18 * 60)
+                ]
+                for sample in samples {
+                    let fragment = try MemoryFragment(
+                        showID: show.id,
+                        text: sample.0,
+                        createdAt: now.addingTimeInterval(sample.2),
+                        phase: sample.1
+                    )
+                    fragment.show = show
+                    modelContext.insert(fragment)
+                }
             }
             try modelContext.save()
         } catch {
