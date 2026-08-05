@@ -1515,82 +1515,83 @@ private struct MemoryUnifiedEditorView: View {
             GeometryReader { geometry in
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
-                        // UIImagePicker/PhotosPicker-style full-screen presentation can
-                        // report an unreliable safe-area value while the cover is
-                        // animating. Keep the editor header below the status bar even
-                        // when SwiftUI reports zero insets.
+                        // The editor fills the screen, then puts back the actual
+                        // container inset so the header sits below the status bar.
                         Color.clear
-                            .frame(height: max(geometry.safeAreaInsets.top, 56))
-                    HStack(spacing: 10) {
-                        Button(isImporting ? "停止" : "取消") { cancel() }
-                            .font(.system(size: 13))
-                            .foregroundColor(BSColor.Stage.muted)
-                            .disabled(isSaving)
-                            .frame(width: 52, alignment: .leading)
-                        Spacer()
-                        VStack(spacing: 2) {
-                            Text(editorTitle)
-                                .font(.system(size: 16, weight: .semibold))
-                            Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
-                                .font(.system(size: 10.5))
-                                .foregroundColor(BSColor.Stage.dim)
+                            .frame(height: geometry.safeAreaInsets.top)
+                        HStack(spacing: 10) {
+                            Button(isImporting ? "停止" : "取消") { cancel() }
+                                .font(.system(size: 13))
+                                .foregroundColor(BSColor.Stage.muted)
+                                .disabled(isSaving)
+                                .frame(width: 52, alignment: .leading)
+                            Spacer()
+                            VStack(spacing: 2) {
+                                Text(editorTitle)
+                                    .font(.system(size: 16, weight: .semibold))
+                                Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
+                                    .font(.system(size: 10.5))
+                                    .foregroundColor(BSColor.Stage.dim)
+                            }
+                            Spacer()
+                            Color.clear.frame(width: 52, height: 1)
                         }
-                        Spacer()
-                        Color.clear.frame(width: 52, height: 1)
+                        .frame(height: 58)
+
+                        if isMediaComposer {
+                            if !items.isEmpty {
+                                draftPreview
+                                    .padding(.top, 4)
+                            }
+                            HStack {
+                                Text("点击查看 · 拖动调整顺序")
+                                Spacer()
+                                Text("最多 \(MemoryFragment.maximumMediaCount) 项")
+                            }
+                            .font(.system(size: 9.5))
+                            .foregroundColor(BSColor.Stage.dim)
+                            .padding(.horizontal, 2)
+                            .padding(.top, 13)
+                            mediaThumbs
+                                .padding(.top, 8)
+                        }
+
+                        TextField(
+                            items.isEmpty ? "这一刻，你想记下什么？" : "写点什么……（可选）",
+                            text: $caption,
+                            axis: .vertical
+                        )
+                        .lineLimit(items.isEmpty ? 10...14 : 4...7)
+                        .onChange(of: caption) { _, value in
+                            if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
+                        }
+                        .padding(13)
+                        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
+                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(BSColor.Stage.border, lineWidth: 1))
+                        .frame(minHeight: items.isEmpty ? 270 : 105, alignment: .top)
+                        .padding(.top, 15)
+
+                        HStack {
+                            Text(items.isEmpty ? "最多 500 字" : "整组媒体共用一段文字")
+                            Spacer()
+                            Text("\(caption.count) / \(captionLimit)")
+                        }
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .padding(.top, 10)
+
+                        Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
+                            save()
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                        .disabled(operationBusy || !canSave)
+                        .padding(.top, 15)
                     }
-                    .frame(height: 58)
-
-            if !items.isEmpty {
-                draftPreview
-                    .padding(.top, 4)
-                HStack {
-                    Text("点击查看 · 拖动调整顺序")
-                    Spacer()
-                    Text("最多 \(MemoryFragment.maximumMediaCount) 项")
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 34)
                 }
-                .font(.system(size: 9.5))
-                .foregroundColor(BSColor.Stage.dim)
-                .padding(.horizontal, 2)
-                .padding(.top, 13)
-                mediaThumbs
-                    .padding(.top, 8)
+                .ignoresSafeArea(.container, edges: .top)
             }
-
-            TextField(
-                items.isEmpty ? "这一刻，你想记下什么？" : "写点什么……（可选）",
-                text: $caption,
-                axis: .vertical
-            )
-            .lineLimit(items.isEmpty ? 10...14 : 4...7)
-            .onChange(of: caption) { _, value in
-                if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
-            }
-            .padding(13)
-            .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
-            .overlay(RoundedRectangle(cornerRadius: 18).stroke(BSColor.Stage.border, lineWidth: 1))
-            .frame(minHeight: items.isEmpty ? 270 : 105, alignment: .top)
-            .padding(.top, 15)
-
-            HStack {
-                Text(items.isEmpty ? "最多 500 字" : "整组媒体共用一段文字")
-                Spacer()
-                Text("\(caption.count) / \(captionLimit)")
-            }
-            .font(.system(size: 11))
-            .foregroundColor(BSColor.Stage.dim)
-            .padding(.top, 10)
-
-            Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
-                save()
-            }
-            .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(operationBusy || !canSave)
-            .padding(.top, 15)
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 34)
-            }
-        }
         }
         .preferredColorScheme(.dark)
             .photosPicker(
@@ -1670,6 +1671,18 @@ private struct MemoryUnifiedEditorView: View {
         return items.isEmpty ? "写下这一刻" : "新记忆"
     }
 
+    private var isMediaComposer: Bool {
+        if !items.isEmpty { return true }
+        switch launch.kind {
+        case .createMedia:
+            return true
+        case .edit(let fragment):
+            return !fragment.mediaItems.isEmpty
+        case .createText:
+            return false
+        }
+    }
+
     private var editorSubtitle: String {
         if items.isEmpty { return "自动记录当前现场时间。" }
         return "像发一条私密动态，但不会公开发布。"
@@ -1709,9 +1722,6 @@ private struct MemoryUnifiedEditorView: View {
             }
             .overlay(alignment: .bottom) {
                 HStack {
-                    Button(items[selection].mediaKind == .photo ? "重新拍摄" : "更换媒体") {
-                        replaceCurrent()
-                    }
                     Spacer()
                     Button("移除") { removeCurrent() }
                         .foregroundColor(Color(red: 1, green: 0.77, blue: 0.79))
