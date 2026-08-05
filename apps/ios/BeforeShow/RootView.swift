@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
@@ -1593,6 +1594,41 @@ private enum DebugSampleShowSeeder {
                     fragment.show = show
                     modelContext.insert(fragment)
                 }
+            }
+            if ProcessInfo.processInfo.arguments.contains("--seed-memory-media"),
+               !show.memoryFragments.contains(where: { !$0.mediaItems.isEmpty }) {
+                let fragmentID = UUID()
+                let relativeDirectory = "\(show.id.uuidString)/\(fragmentID.uuidString)"
+                let relativePath = "\(relativeDirectory)/sample.jpg"
+                let destination = MemoryMediaLocation.applicationSupport().url(for: relativePath)
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                let image = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 1200)).image { context in
+                    UIColor(red: 0.18, green: 0.25, blue: 0.48, alpha: 1).setFill()
+                    context.fill(CGRect(x: 0, y: 0, width: 900, height: 1200))
+                }
+                guard let data = image.jpegData(compressionQuality: 0.9) else { return }
+                try data.write(to: destination, options: .atomic)
+                let fragment = try MemoryFragment(
+                    id: fragmentID,
+                    showID: show.id,
+                    text: "灯亮以后随手留下的一段画面。",
+                    createdAt: now.addingTimeInterval(-8 * 60),
+                    phase: .live
+                )
+                fragment.show = show
+                try fragment.appendMedia(MemoryMediaItem(
+                    id: UUID(),
+                    kind: .photo,
+                    relativePath: relativePath,
+                    thumbnailRelativePath: nil,
+                    contentTypeIdentifier: UTType.jpeg.identifier,
+                    videoDuration: nil,
+                    sortOrder: 0
+                ))
+                modelContext.insert(fragment)
             }
             try modelContext.save()
         } catch {
