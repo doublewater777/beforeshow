@@ -1514,28 +1514,24 @@ private struct MemoryUnifiedEditorView: View {
             BSColor.Stage.background.ignoresSafeArea()
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                Button(isImporting ? "停止" : "取消") { cancel() }
-                    .font(.system(size: 13))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .disabled(isSaving)
-                    .frame(width: 52, alignment: .leading)
-                Spacer()
-                VStack(spacing: 2) {
-                    Text(editorTitle)
-                        .font(.system(size: 16, weight: .semibold))
-                    Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
-                        .font(.system(size: 10.5))
-                        .foregroundColor(BSColor.Stage.dim)
-                }
-                Spacer()
-                Button(isSaving ? "保存中" : "完成") { save() }
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 52, alignment: .trailing)
-                    .disabled(operationBusy || !canSave)
-            }
-            .frame(height: 58)
+                    HStack(spacing: 10) {
+                        Button(isImporting ? "停止" : "取消") { cancel() }
+                            .font(.system(size: 13))
+                            .foregroundColor(BSColor.Stage.muted)
+                            .disabled(isSaving)
+                            .frame(width: 52, alignment: .leading)
+                        Spacer()
+                        VStack(spacing: 2) {
+                            Text(editorTitle)
+                                .font(.system(size: 16, weight: .semibold))
+                            Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(BSColor.Stage.dim)
+                        }
+                        Spacer()
+                        Color.clear.frame(width: 52, height: 1)
+                    }
+                    .frame(height: 58)
 
             if !items.isEmpty {
                 draftPreview
@@ -1588,6 +1584,7 @@ private struct MemoryUnifiedEditorView: View {
                 .padding(.bottom, 34)
             }
         }
+        .safeAreaPadding(.top, 8)
         .preferredColorScheme(.dark)
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
@@ -1988,10 +1985,41 @@ private struct MemoryUnifiedEditorView: View {
                 dismiss()
             } catch {
                 if case .saving(generation) = operation {
-                    errorMessage = "内容没有保存，请重试。"
+                    #if DEBUG
+                    print("[MemoryFragments] save failed: \(String(reflecting: error))")
+                    #endif
+                    errorMessage = saveFailureMessage(for: error)
                 }
             }
         }
+    }
+
+    private func saveFailureMessage(for error: Error) -> String {
+        if let storeError = error as? MemoryMediaStoreError {
+            switch storeError {
+            case .missingStagedDraft:
+                return "所选媒体的临时文件已失效，请返回图库重新选择。"
+            case .insufficientDiskSpace:
+                return "设备储存空间不足，暂时无法保存。"
+            case .unsupportedMedia:
+                return "这个媒体格式暂不支持，请换一张照片或视频。"
+            case .imageEncodingFailed:
+                return "这张图片无法处理，请换一张图片后重试。"
+            case .importCancelled:
+                return "媒体导入已取消，请重新选择。"
+            }
+        }
+        if let validationError = error as? MemoryFragmentValidationError {
+            switch validationError {
+            case .emptyContent:
+                return "请保留至少一项媒体或一段文字。"
+            case .textTooLong:
+                return "文字最多 500 字。"
+            case .mediaLimitExceeded:
+                return "一条记忆最多 10 项媒体。"
+            }
+        }
+        return "内容没有保存，请重试。"
     }
 
     private func cancel() {
