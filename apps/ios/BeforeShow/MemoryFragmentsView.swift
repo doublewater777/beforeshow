@@ -8,15 +8,10 @@ import UIKit
 
 // MARK: - Presentation models
 
-private enum MemoryComposerSource {
-    case camera
-    case photoLibrary
-    case text
-}
-
 private struct MemoryEditorLaunch: Identifiable {
     enum Kind {
-        case create(MemoryComposerSource)
+        case createText
+        case createMedia(draftID: UUID, media: MemoryDraftMedia)
         case edit(MemoryFragment)
     }
 
@@ -91,6 +86,10 @@ struct MemoryFragmentsView: View {
 
     @State private var isShowingCreateOptions = false
     @State private var editorLaunch: MemoryEditorLaunch?
+    @State private var isPhotoPickerPresented = false
+    @State private var isCameraPresented = false
+    @State private var selectedCreateMedia: [PhotosPickerItem] = []
+    @State private var createSourceError: String?
     @State private var pendingDelete: MemoryFragment?
     @State private var pendingDeleteTask: Task<Void, Never>?
     @State private var viewerTarget: MemoryViewerTarget?
@@ -193,11 +192,45 @@ struct MemoryFragmentsView: View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: pendingDelete?.id)
         .sheet(isPresented: $isShowingCreateOptions) {
             MemoryCreateSheet(
-                onCamera: { launchEditor(.camera) },
-                onPhotoLibrary: { launchEditor(.photoLibrary) },
-                onText: { launchEditor(.text) },
+                onCamera: { openCameraDirectly() },
+                onPhotoLibrary: { openPhotoLibraryDirectly() },
+                onText: { launchTextEditor() },
                 onCancel: { isShowingCreateOptions = false }
             )
+        }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedCreateMedia,
+            maxSelectionCount: 1,
+            selectionBehavior: .ordered,
+            matching: .any(of: [.images, .videos])
+        )
+        .onChange(of: selectedCreateMedia) { _, items in
+            guard let item = items.first else { return }
+            importDirectLibrarySelection(item)
+        }
+        .fullScreenCover(isPresented: $isCameraPresented) {
+            SystemMemoryCameraPicker { result in
+                isCameraPresented = false
+                guard let result else { return }
+                importDirectCameraResult(result)
+            }
+            .ignoresSafeArea()
+        }
+        .alert("无法继续", isPresented: Binding(
+            get: { createSourceError != nil },
+            set: { if !$0 { createSourceError = nil } }
+        )) {
+            if AVCaptureDevice.authorizationStatus(for: .video) == .denied {
+                Button("前往设置") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+            }
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(createSourceError ?? "请稍后重试。")
         }
         .sheet(item: $editorLaunch) { launch in
             MemoryUnifiedEditorView(
@@ -439,11 +472,83 @@ struct MemoryFragmentsView: View {
         .padding(.top, 15)
     }
 
-    private func launchEditor(_ source: MemoryComposerSource) {
+    private func launchTextEditor() {
         isShowingCreateOptions = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
-            editorLaunch = MemoryEditorLaunch(kind: .create(source))
+            editorLaunch = MemoryEditorLaunch(kind: .createText)
+        }
+    }
+
+    private func openPhotoLibraryDirectly() {
+        isShowingCreateOptions = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            selectedCreateMedia = []
+            isPhotoPickerPresented = true
+        }
+    }
+
+    private func openCameraDirectly() {
+        isShowingCreateOptions = false
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(250))
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                createSourceError = "当前设备无法使用相机。"
+                return
+            }
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .authorized:
+                isCameraPresented = true
+            case .notDetermined:
+                if await AVCaptureDevice.requestAccess(for: .video) {
+                    isCameraPresented = true
+                } else {
+                    createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
+                }
+            case .denied, .restricted:
+                createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
+            @unknown default:
+                createSourceError = "当前无法使用相机。"
+            }
+        }
+    }
+
+    private func importDirectLibrarySelection(_ item: PhotosPickerItem) {
+        selectedCreateMedia = []
+        Task { @MainActor in
+            let draftID = UUID()
+            do {
+                guard let imported = try await item.loadTransferable(type: MemoryImportedFile.self) else {
+                    createSourceError = "媒体没有载入，请重试。"
+                    return
+                }
+                let staged = try await MemoryFragmentMediaStore.shared.stageTransferredFile(
+                    imported,
+                    draftID: draftID
+                )
+                editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: staged))
+            } catch {
+                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                createSourceError = "媒体没有载入，请重试。"
+            }
+        }
+    }
+
+    private func importDirectCameraResult(_ result: MemoryCameraResult) {
+        Task { @MainActor in
+            let draftID = UUID()
+            do {
+                guard case .photo(let data) = result else {
+                    createSourceError = "相机入口只拍照片，视频请从相册选择。"
+                    return
+                }
+                let staged = try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: draftID)
+                editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: staged))
+            } catch {
+                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                createSourceError = "照片没有载入，请重试。"
+            }
         }
     }
 
@@ -1219,11 +1324,6 @@ private struct MemoryUnifiedEditorView: View {
         return nil
     }
 
-    private var initialSource: MemoryComposerSource? {
-        if case .create(let source) = launch.kind { return source }
-        return nil
-    }
-
     init(
         launch: MemoryEditorLaunch,
         onSaveCreate: @escaping @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void,
@@ -1234,9 +1334,13 @@ private struct MemoryUnifiedEditorView: View {
         self.onSaveEdit = onSaveEdit
 
         switch launch.kind {
-        case .create:
+        case .createText:
             _items = State(initialValue: [])
             _caption = State(initialValue: "")
+        case .createMedia(let draftID, let media):
+            _items = State(initialValue: [MemoryEditorItem(id: media.id, kind: .draft(media))])
+            _caption = State(initialValue: "")
+            _draftID = State(initialValue: draftID)
         case .edit(let fragment):
             _items = State(initialValue: fragment.orderedMediaItems.map { item in
                 MemoryEditorItem(
@@ -1358,22 +1462,6 @@ private struct MemoryUnifiedEditorView: View {
                 Button("知道了", role: .cancel) {}
             } message: {
                 Text(errorMessage ?? "请稍后重试。")
-            }
-            .task {
-                do {
-                    try await Task.sleep(for: .milliseconds(320))
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled else { return }
-                switch initialSource {
-                case .camera:
-                    requestCamera()
-                case .photoLibrary:
-                    isPhotoPickerPresented = true
-                case .text, .none:
-                    break
-                }
             }
             .onDisappear {
                 // Interactive dismiss and navigation pops bypass the Cancel button.
@@ -1584,7 +1672,7 @@ private struct MemoryUnifiedEditorView: View {
                 // Draft IDs are preserved by MediaStore commit, so this list is the final order.
                 let fullOrder = items.map(\.id)
                 switch launch.kind {
-                case .create:
+                case .createText, .createMedia:
                     // Create path commits drafts in array order.
                     try await onSaveCreate(draftID, draftsInOrder, caption)
                 case .edit(let fragment):
