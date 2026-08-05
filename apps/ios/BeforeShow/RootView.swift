@@ -573,7 +573,7 @@ struct CurrentShowManagementSection: View {
                     .buttonStyle(.plain)
                 case .memoryFragments:
                     NavigationLink {
-                        MemoryFragmentsView(showID: show.id, showName: show.name)
+                        MemoryFragmentsView(show: show)
                     } label: {
                         CurrentShowQuickActionTile(
                             action: action,

@@ -82,8 +82,7 @@ private struct MemoryEditorItem: Identifiable, Equatable {
 // MARK: - Timeline
 
 struct MemoryFragmentsView: View {
-    let showID: UUID
-    let showName: String
+    let show: Show
 
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
@@ -91,14 +90,15 @@ struct MemoryFragmentsView: View {
 
     @State private var isShowingCreateOptions = false
     @State private var editorLaunch: MemoryEditorLaunch?
-    @State private var deleteTarget: MemoryFragment?
+    @State private var pendingDelete: MemoryFragment?
+    @State private var pendingDeleteTask: Task<Void, Never>?
     @State private var viewerTarget: MemoryViewerTarget?
     @State private var toast: BSToastPayload?
     @State private var isShowingLocalNotice = false
 
-    init(showID: UUID, showName: String) {
-        self.showID = showID
-        self.showName = showName
+    init(show: Show) {
+        self.show = show
+        let showID = show.id
         _fragments = Query(
             filter: #Predicate<MemoryFragment> { $0.showID == showID },
             sort: [
@@ -117,7 +117,7 @@ struct MemoryFragmentsView: View {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         header
 
-                        if fragments.isEmpty {
+                        if visibleFragments.isEmpty {
                             BSEmptyPanel(
                                 iconName: "sparkles.rectangle.stack",
                                 title: "还没有记忆碎片",
@@ -144,11 +144,11 @@ struct MemoryFragmentsView: View {
                                         ForEach(section.fragments) { fragment in
                                             MemoryFragmentRow(
                                                 fragment: fragment,
-                                                isLatest: fragment.id == fragments.first?.id,
+                                                isLatest: fragment.id == visibleFragments.first?.id,
                                                 onEdit: {
                                                     editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
                                                 },
-                                                onDelete: { deleteTarget = fragment },
+                                                onDelete: { stageDelete(fragment) },
                                                 onOpenMedia: { index in
                                                     viewerTarget = MemoryViewerTarget(
                                                         fragment: fragment,
@@ -186,6 +186,25 @@ struct MemoryFragmentsView: View {
             .background(.ultraThinMaterial)
         }
         .bsToastOverlay(toast, bottomPadding: 92)
+        .overlay(alignment: .bottom) {
+            if pendingDelete != nil {
+                HStack(spacing: BSSpacing.md) {
+                    Text("已删除这条记忆")
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Button("撤销", action: undoDelete)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                }
+                .padding(.horizontal, BSSpacing.md)
+                .padding(.vertical, BSSpacing.compact)
+                .background(Color.black.opacity(0.86), in: Capsule())
+                .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
+                .padding(.bottom, 92)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: pendingDelete?.id)
         .sheet(isPresented: $isShowingCreateOptions) {
             MemoryCreateSheet(
                 onCamera: { launchEditor(.camera) },
@@ -197,7 +216,6 @@ struct MemoryFragmentsView: View {
         .sheet(item: $editorLaunch) { launch in
             MemoryUnifiedEditorView(
                 launch: launch,
-                showName: showName,
                 onSaveCreate: { draftID, media, caption in
                     try await createFragment(draftID: draftID, media: media, caption: caption)
                 },
@@ -211,18 +229,6 @@ struct MemoryFragmentsView: View {
                         draftID: draftID
                     )
                 }
-            )
-        }
-        .sheet(item: $deleteTarget) { fragment in
-            BSDangerConfirmationSheet(
-                title: "删除这条记忆？",
-                message: "文字和 App 内保存的照片或视频将一起删除，且无法恢复。",
-                destructiveTitle: "删除",
-                onConfirm: {
-                    deleteTarget = nil
-                    delete(fragment)
-                },
-                onCancel: { deleteTarget = nil }
             )
         }
         .fullScreenCover(item: $viewerTarget) { target in
@@ -240,10 +246,16 @@ struct MemoryFragmentsView: View {
                     viewerTarget = nil
                     Task { @MainActor in
                         await Task.yield()
-                        deleteTarget = target.fragment
+                        stageDelete(target.fragment)
                     }
                 }
             )
+        }
+        .onDisappear {
+            if let pendingDelete {
+                pendingDeleteTask?.cancel()
+                commitDelete(pendingDelete)
+            }
         }
         .alert("只保存在这台设备上", isPresented: $isShowingLocalNotice) {
             Button("知道了") {
@@ -266,6 +278,7 @@ struct MemoryFragmentsView: View {
         .task(id: fragments.map(\.id)) {
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             var validFilesByFragmentID: [UUID: Set<String>] = [:]
+            let showID = show.id
             let descriptor = FetchDescriptor<MemoryFragment>(
                 predicate: #Predicate<MemoryFragment> { $0.showID == showID }
             )
@@ -280,7 +293,7 @@ struct MemoryFragmentsView: View {
                 validFilesByFragmentID[fragment.id] = Set(paths)
             }
             try? await MemoryFragmentMediaStore.shared.reconcileFragmentFiles(
-                showID: showID,
+                showID: show.id,
                 validFilesByFragmentID: validFilesByFragmentID
             )
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
@@ -290,17 +303,21 @@ struct MemoryFragmentsView: View {
     private var header: some View {
         let stats = timelineStats
         return VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("只保存在本机")
+            Text(headerEyebrow)
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.1)
                 .foregroundColor(BSColor.Stage.accent)
-            Text(showName)
+            Text(show.name)
                 .font(BSFont.title)
                 .foregroundColor(BSColor.Stage.foreground)
+            Text(showMetadata)
+                .font(.system(size: 11))
+                .foregroundColor(BSColor.Stage.muted)
             HStack(spacing: BSSpacing.lg) {
-                timelineStat(value: "\(stats.memories)", label: "条记忆")
+                timelineStat(value: "\(stats.memories)", label: "全部碎片")
                 timelineStat(value: "\(stats.photos)", label: "照片")
                 timelineStat(value: "\(stats.videos)", label: "视频")
+                timelineStat(value: "\(stats.notes)", label: "小记")
             }
             .padding(.top, 2)
         }
@@ -344,21 +361,39 @@ struct MemoryFragmentsView: View {
     }
 
     private var timelineSections: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
-        MemoryFragmentPhase.timelineDisplayOrder.compactMap { phase in
-            let items = fragments.filter { $0.phase == phase }
+        [MemoryFragmentPhase.before, .live, .after].compactMap { phase in
+            let items = visibleFragments.filter { $0.phase == phase }
             guard !items.isEmpty else { return nil }
             return (phase, items)
         }
     }
 
-    private var timelineStats: (memories: Int, photos: Int, videos: Int) {
-        let photos = fragments.reduce(0) { partial, fragment in
-            partial + fragment.mediaItems.filter { $0.kind == .photo }.count
-        }
-        let videos = fragments.reduce(0) { partial, fragment in
-            partial + fragment.mediaItems.filter { $0.kind == .video }.count
-        }
-        return (fragments.count, photos, videos)
+    private var visibleFragments: [MemoryFragment] {
+        fragments.filter { $0.id != pendingDelete?.id }
+    }
+
+    private var timelineStats: (memories: Int, photos: Int, videos: Int, notes: Int) {
+        let photos = visibleFragments.filter { fragment in
+            fragment.mediaItems.contains { $0.kind == .photo }
+        }.count
+        let videos = visibleFragments.filter { fragment in
+            fragment.mediaItems.contains { $0.kind == .video }
+        }.count
+        let notes = visibleFragments.filter { $0.mediaItems.isEmpty }.count
+        return (visibleFragments.count, photos, videos, notes)
+    }
+
+    private var headerEyebrow: String {
+        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [show.endedAt == nil ? "LIVE" : "MEMORY", city?.uppercased()]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+    }
+
+    private var showMetadata: String {
+        let date = ShowDisplayFormatter().dateText(for: show)
+        let place = show.venueName ?? show.city
+        return [date, place].compactMap { $0 }.joined(separator: " · ")
     }
 
     private func fetchShow(for id: UUID) -> Show? {
@@ -387,17 +422,17 @@ struct MemoryFragmentsView: View {
         }
 
         if media.isEmpty {
-            let show = fetchShow(for: showID)
+            let owner = fetchShow(for: show.id)
             let createdAt = Date()
-            let phase = resolvedPhase(for: show, at: createdAt)
+            let phase = resolvedPhase(for: owner, at: createdAt)
             let fragment = try MemoryFragment(
-                showID: showID,
+                showID: show.id,
                 text: caption,
                 createdAt: createdAt,
                 updatedAt: createdAt,
                 phase: phase
             )
-            fragment.show = show
+            fragment.show = owner
             modelContext.insert(fragment)
             try modelContext.save()
             presentToast(.success, "已加入这场现场")
@@ -410,7 +445,7 @@ struct MemoryFragmentsView: View {
         do {
             committed = try await MemoryFragmentMediaStore.shared.commit(
                 draftID: draftID,
-                showID: showID,
+                showID: show.id,
                 fragmentID: fragmentID,
                 media: media
             )
@@ -422,18 +457,18 @@ struct MemoryFragmentsView: View {
             [$0.relativePath, $0.thumbnailRelativePath].compactMap { $0 }
         }
         do {
-            let show = fetchShow(for: showID)
+            let owner = fetchShow(for: show.id)
             let createdAt = Date()
-            let phase = resolvedPhase(for: show, at: createdAt)
+            let phase = resolvedPhase(for: owner, at: createdAt)
             let fragment = try MemoryFragment(
                 id: fragmentID,
-                showID: showID,
+                showID: show.id,
                 text: caption,
                 createdAt: createdAt,
                 updatedAt: createdAt,
                 phase: phase
             )
-            fragment.show = show
+            fragment.show = owner
             for (index, item) in committed.enumerated() {
                 try fragment.appendMedia(MemoryMediaItem(
                     id: item.id,
@@ -458,15 +493,38 @@ struct MemoryFragmentsView: View {
         presentToast(.success, "已加入这场现场")
     }
 
-    private func delete(_ fragment: MemoryFragment) {
+    private func stageDelete(_ fragment: MemoryFragment) {
+        if let pendingDelete {
+            pendingDeleteTask?.cancel()
+            commitDelete(pendingDelete)
+        }
+        pendingDelete = fragment
+        toast = nil
+        pendingDeleteTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, pendingDelete?.id == fragment.id else { return }
+            commitDelete(fragment)
+        }
+    }
+
+    private func undoDelete() {
+        pendingDeleteTask?.cancel()
+        pendingDeleteTask = nil
+        pendingDelete = nil
+        presentToast(.success, "已撤销删除")
+    }
+
+    private func commitDelete(_ fragment: MemoryFragment) {
         let fragmentID = fragment.id
+        pendingDeleteTask?.cancel()
+        pendingDeleteTask = nil
+        if pendingDelete?.id == fragmentID { pendingDelete = nil }
         modelContext.delete(fragment)
         do {
             try modelContext.save()
             Task {
-                try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: showID, fragmentID: fragmentID)
+                try? await MemoryFragmentMediaStore.shared.deleteFragment(showID: show.id, fragmentID: fragmentID)
             }
-            presentToast(.success, "已删除这条记忆")
         } catch {
             modelContext.rollback()
             presentToast(.failure, "删除失败，请重试")
@@ -508,7 +566,7 @@ struct MemoryFragmentsView: View {
             do {
                 committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
                     draftID: draftID,
-                    showID: showID,
+                    showID: show.id,
                     fragmentID: fragment.id,
                     media: additions
                 )
@@ -586,26 +644,68 @@ private struct MemoryCreateSheet: View {
     let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(330)) {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                Text("新增记忆")
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.textPrimary)
-                createButton("相机", icon: "camera", action: onCamera)
-                createButton("相册", icon: "photo.on.rectangle", action: onPhotoLibrary)
-                createButton("文字", icon: "text.alignleft", action: onText)
+        BSDrawerSheet(detent: .height(360)) {
+            VStack(spacing: BSSpacing.md) {
+                VStack(spacing: 6) {
+                    Text("新增记忆碎片")
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text("选择一种方式开始。内容只保存在本机。")
+                        .font(.system(size: 13))
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+
+                HStack(spacing: 10) {
+                    createButton("相机", subtitle: "拍一张照片", icon: "camera", action: onCamera)
+                    createButton("相册", subtitle: "选择照片或视频", icon: "photo.on.rectangle", action: onPhotoLibrary)
+                    createButton("文字", subtitle: "写一段现场小记", icon: "text.alignleft", action: onText)
+                }
+
+                Label("仅自己可见 · 不会公开发布", systemImage: "lock.fill")
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+
                 Button("取消", action: onCancel)
                     .buttonStyle(BSSecondaryButtonStyle())
             }
         }
     }
 
-    private func createButton(_ title: String, icon: String, action: @escaping () -> Void) -> some View {
+    private func createButton(
+        _ title: String,
+        subtitle: String,
+        icon: String,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
-            Label(title, systemImage: icon)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(spacing: 9) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        LinearGradient(
+                            colors: [BSColor.Stage.accent.opacity(0.16), BSColor.Stage.glowBlue.opacity(0.11)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        in: Circle()
+                    )
+                Text(title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text(subtitle)
+                    .font(.system(size: 10))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 126)
+            .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 19))
+            .overlay(RoundedRectangle(cornerRadius: 19).stroke(BSColor.Stage.border, lineWidth: 1))
         }
-        .buttonStyle(BSSecondaryButtonStyle())
+        .buttonStyle(.plain)
     }
 }
 
@@ -622,10 +722,13 @@ private struct MemoryFragmentRow: View {
         BSGlassPanel {
             VStack(alignment: .leading, spacing: BSSpacing.compact) {
                 HStack {
-                    TimelineView(.periodic(from: .now, by: 30)) { context in
-                        Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(fragment.createdAt.formatted(date: .omitted, time: .shortened))
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(isLatest ? BSColor.Stage.accent : BSColor.textTertiary)
+                            .foregroundColor(isLatest ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                        Text(fragment.phase.title)
+                            .font(.system(size: 10))
+                            .foregroundColor(BSColor.Stage.dim)
                     }
                     Spacer()
                     Menu {
@@ -652,9 +755,13 @@ private struct MemoryFragmentRow: View {
                 }
 
                 if !fragment.mediaItems.isEmpty {
-                    Text("\(fragment.mediaItems.count) 项媒体 · \(MemoryFragmentRelativeTime.exact(fragment.createdAt))")
+                    Text("\(fragment.mediaItems.count) 项媒体 · 仅本机")
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.textTertiary)
+                } else {
+                    Label("仅保存在本机", systemImage: "lock.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(BSColor.Stage.dim)
                 }
             }
         }
@@ -844,7 +951,6 @@ private enum MemoryEditorOperation: Equatable {
 
 private struct MemoryUnifiedEditorView: View {
     let launch: MemoryEditorLaunch
-    let showName: String
     let onSaveCreate: @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void
     let onSaveEdit: @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void
 
@@ -862,7 +968,6 @@ private struct MemoryUnifiedEditorView: View {
     @State private var errorMessage: String?
     @State private var activeImportTask: Task<Void, Never>?
     @State private var saveTask: Task<Void, Never>?
-    @State private var draggingID: UUID?
     @State private var didCommitSuccessfully = false
 
     private var operationBusy: Bool {
@@ -896,12 +1001,10 @@ private struct MemoryUnifiedEditorView: View {
 
     init(
         launch: MemoryEditorLaunch,
-        showName: String,
         onSaveCreate: @escaping @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void,
         onSaveEdit: @escaping @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void
     ) {
         self.launch = launch
-        self.showName = showName
         self.onSaveCreate = onSaveCreate
         self.onSaveEdit = onSaveEdit
 
@@ -937,12 +1040,11 @@ private struct MemoryUnifiedEditorView: View {
                                 iconName: initialSource == .text ? "text.alignleft" : "photo.badge.plus",
                                 title: initialSource == .text ? "写一段现场小记" : "选择照片或视频",
                                 message: initialSource == .text
-                                    ? "也可以稍后继续添加照片或视频。"
-                                    : "可以混合选择，多项会保存为同一条记忆。"
+                                    ? "自动记录当前现场时间，最多 500 字。"
+                                    : "选择一张照片或一个视频，再补一句说明。"
                             )
                         } else {
                             draftPreview
-                            thumbStrip
                         }
 
                         TextField(
@@ -952,14 +1054,14 @@ private struct MemoryUnifiedEditorView: View {
                         )
                         .lineLimit(items.isEmpty ? 8...14 : 3...8)
                         .onChange(of: caption) { _, value in
-                            if value.count > 500 { caption = String(value.prefix(500)) }
+                            if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
                         }
                         .bsInputField()
 
                         HStack {
-                            Text(items.isEmpty ? "最多 500 字" : "整组媒体共用一段文字 · 拖动缩略图排序")
+                            Text(items.isEmpty ? "自动记录当前现场时间" : "照片或视频说明（可选）")
                             Spacer()
-                            Text("\(caption.count) / 500")
+                            Text("\(caption.count) / \(captionLimit)")
                         }
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.textTertiary)
@@ -993,7 +1095,9 @@ private struct MemoryUnifiedEditorView: View {
             .photosPicker(
                 isPresented: $isPhotoPickerPresented,
                 selection: $selectedItems,
-                maxSelectionCount: max(1, MemoryFragment.maximumMediaCount - items.count),
+                maxSelectionCount: isEditing
+                    ? max(1, MemoryFragment.maximumMediaCount - items.count)
+                    : 1,
                 selectionBehavior: .ordered,
                 matching: .any(of: [.images, .videos])
             )
@@ -1061,6 +1165,8 @@ private struct MemoryUnifiedEditorView: View {
         return !items.isEmpty || hasText
     }
 
+    private var captionLimit: Int { items.isEmpty ? 500 : 200 }
+
     private var draftPreview: some View {
         VStack(spacing: BSSpacing.sm) {
             ZStack {
@@ -1085,137 +1191,15 @@ private struct MemoryUnifiedEditorView: View {
                     .clipShape(Capsule())
                     .padding(10)
             }
-            .overlay(alignment: .bottom) {
-                HStack {
-                    Button("移除") { removeCurrent() }
-                        .font(BSFont.caption)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(Color.black.opacity(0.55))
-                        .foregroundStyle(Color(red: 1, green: 0.77, blue: 0.79))
-                        .clipShape(Capsule())
-                    Spacer()
-                    Menu {
-                        Button("继续拍照") { requestCamera() }
-                        Button("从图库选择") { isPhotoPickerPresented = true }
-                    } label: {
-                        Text("继续添加")
-                            .font(BSFont.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 8)
-                            .background(Color.black.opacity(0.55))
-                            .foregroundStyle(.white)
-                            .clipShape(Capsule())
-                    }
-                    .disabled(items.count >= MemoryFragment.maximumMediaCount || operationBusy)
-                }
-                .padding(10)
-            }
         }
-    }
-
-    private var thumbStrip: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text("点击查看 · 拖动调整顺序")
-                Spacer()
-                Text("最多 \(MemoryFragment.maximumMediaCount) 项")
-            }
-            .font(.system(size: 10.5))
-            .foregroundColor(BSColor.Stage.dim)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        thumbCell(item: item, index: index)
-                            .onDrag {
-                                draggingID = item.id
-                                return NSItemProvider(object: item.id.uuidString as NSString)
-                            }
-                            .onDrop(
-                                of: [.text],
-                                delegate: MemoryThumbReorderDropDelegate(
-                                    targetID: item.id,
-                                    items: $items,
-                                    draggingID: $draggingID,
-                                    selection: $selection
-                                )
-                            )
-                    }
-
-                    if items.count < MemoryFragment.maximumMediaCount {
-                        Menu {
-                            Button("继续拍照") { requestCamera() }
-                            Button("从图库选择") { isPhotoPickerPresented = true }
-                        } label: {
-                            RoundedRectangle(cornerRadius: 13)
-                                .stroke(style: StrokeStyle(lineWidth: 1, dash: [5]))
-                                .foregroundStyle(BSColor.Stage.accent)
-                                .frame(width: 62, height: 76)
-                                .overlay(
-                                    Text("＋")
-                                        .font(.system(size: 22))
-                                        .foregroundStyle(BSColor.Stage.accent)
-                                )
-                        }
-                        .disabled(operationBusy)
-                    }
-                }
-            }
-        }
-    }
-
-    private func thumbCell(item: MemoryEditorItem, index: Int) -> some View {
-        Button {
-            selection = index
-        } label: {
-            ZStack(alignment: .topTrailing) {
-                MemoryThumbnail(relativePath: item.previewRelativePath)
-                    .frame(width: 62, height: 76)
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
-                if item.mediaKind == .video {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(5)
-                        .background(Color.black.opacity(0.45))
-                        .clipShape(Circle())
-                        .padding(4)
-                }
-                Text("\(index + 1)")
-                    .font(.system(size: 8, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 2)
-                    .background(Color.black.opacity(0.55))
-                    .clipShape(Capsule())
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .padding(4)
-            }
-            .overlay(
-                RoundedRectangle(cornerRadius: 13)
-                    .stroke(
-                        selection == index ? BSColor.Stage.accent : Color.white.opacity(0.09),
-                        lineWidth: selection == index ? 2 : 1
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func removeCurrent() {
-        guard items.indices.contains(selection) else { return }
-        let removed = items.remove(at: selection)
-        if case .existing(let id, _, _, _, _) = removed.kind {
-            removedExistingIDs.insert(id)
-        } else if case .draft(let draft) = removed.kind {
-            Task { try? await MemoryFragmentMediaStore.shared.removeStagedItem(draft) }
-        }
-        selection = min(selection, max(0, items.count - 1))
     }
 
     private func requestCamera() {
         guard !operationBusy else { return }
+        if !isEditing, !items.isEmpty {
+            errorMessage = "一条记忆只选择一张照片或一个视频。"
+            return
+        }
         guard items.count < MemoryFragment.maximumMediaCount else {
             errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
             return
@@ -1268,12 +1252,14 @@ private struct MemoryUnifiedEditorView: View {
         let generation = beginImport()
         activeImportTask = Task { @MainActor in
             defer { finishImport(generation) }
-            let remaining = MemoryFragment.maximumMediaCount - items.count
+            let remaining = isEditing
+                ? MemoryFragment.maximumMediaCount - items.count
+                : (items.isEmpty ? 1 : 0)
             guard remaining > 0 else {
                 errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
                 return
             }
-            if pickerItems.count > remaining, isCurrentImport(generation) {
+            if isEditing, pickerItems.count > remaining, isCurrentImport(generation) {
                 errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体，已只载入前 \(remaining) 个。"
             }
             for item in pickerItems.prefix(remaining) {
@@ -1324,7 +1310,7 @@ private struct MemoryUnifiedEditorView: View {
                     }
                     items.append(MemoryEditorItem(id: staged.id, kind: .draft(staged)))
                 case .video:
-                    errorMessage = "App 内相机只拍照片，视频请从图库选择。"
+                    errorMessage = "相机入口只拍照片，视频请从相册选择。"
                     return
                 }
                 guard isCurrentImport(generation) else { return }
@@ -1395,36 +1381,6 @@ private struct MemoryUnifiedEditorView: View {
             }
             dismiss()
         }
-    }
-}
-
-// Drop delegate for thumbnail reorder.
-private struct MemoryThumbReorderDropDelegate: DropDelegate {
-    let targetID: UUID
-    @Binding var items: [MemoryEditorItem]
-    @Binding var draggingID: UUID?
-    @Binding var selection: Int
-
-    func dropEntered(info: DropInfo) {
-        guard let draggingID,
-              draggingID != targetID,
-              let from = items.firstIndex(where: { $0.id == draggingID }),
-              let to = items.firstIndex(where: { $0.id == targetID }) else { return }
-        withAnimation(.easeInOut(duration: 0.15)) {
-            items.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
-            if let newSelection = items.firstIndex(where: { $0.id == draggingID }) {
-                selection = newSelection
-            }
-        }
-    }
-
-    func performDrop(info: DropInfo) -> Bool {
-        draggingID = nil
-        return true
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: .move)
     }
 }
 
