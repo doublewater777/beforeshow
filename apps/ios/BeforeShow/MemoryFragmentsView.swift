@@ -141,8 +141,12 @@ struct MemoryFragmentsView: View {
                                 MemoryTimelineSection(
                                     phase: section.phase,
                                     fragments: section.fragments,
-                                    onManage: { managementTarget = $0 },
+                                    onManage: {
+                                        guard directImportTask == nil else { return }
+                                        managementTarget = $0
+                                    },
                                     onOpenMedia: { fragment, index in
+                                        guard directImportTask == nil else { return }
                                         viewerTarget = MemoryViewerTarget(fragment: fragment, initialIndex: index)
                                     }
                                 )
