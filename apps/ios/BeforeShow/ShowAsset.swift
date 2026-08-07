@@ -52,6 +52,34 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var directoryName: String { rawValue }
 }
 
+/// The asset controls shown from a show-bound detail surface.
+///
+/// This remains available for every show state. A canceled or ended show is
+/// still a useful place to retrieve, replace, or remove a ticket or timetable.
+struct ShowAssetManagementEntry: Identifiable, Equatable {
+    let kind: ShowAssetKind
+    let hasSavedAsset: Bool
+
+    var id: ShowAssetKind { kind }
+
+    var subtitle: String {
+        hasSavedAsset ? kind.savedSubtitle : kind.emptySubtitle
+    }
+}
+
+enum ShowAssetManagementPolicy {
+    static func entries(for show: Show, assets: [ShowAsset]) -> [ShowAssetManagementEntry] {
+        ShowAssetKind.allCases.map { kind in
+            ShowAssetManagementEntry(
+                kind: kind,
+                hasSavedAsset: assets.contains { asset in
+                    asset.showID == show.id && asset.kind == kind
+                }
+            )
+        }
+    }
+}
+
 enum ShowAssetValidationError: Error, Equatable {
     case emptyImage
     case unsupportedImage

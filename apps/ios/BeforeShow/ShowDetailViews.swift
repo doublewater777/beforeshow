@@ -109,15 +109,34 @@ struct ShowDetailView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var showAssets: [ShowAsset]
     let show: Show
     var startsEditing = false
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @State private var isEditing = false
     @State private var isEditingConfirmedEnd = false
+    @State private var showingAssetKind: ShowAssetKind?
     @State private var confirmedEndDraft = Date()
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
+
+    init(
+        show: Show,
+        startsEditing: Bool = false,
+        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.show = show
+        self.startsEditing = startsEditing
+        self.onDetailVisibilityChange = onDetailVisibilityChange
+        let showID = show.id
+        _showAssets = Query(
+            filter: #Predicate<ShowAsset> { asset in
+                asset.showID == showID
+            }
+        )
+    }
 
     private var snapshot: CurrentShowSnapshot {
         session.snapshot(for: show)
@@ -178,6 +197,14 @@ struct ShowDetailView: View {
                 onSave: saveConfirmedEnd,
                 onUndo: undoConfirmedEnd,
                 onCancel: { isEditingConfirmedEnd = false }
+            )
+        }
+        .sheet(item: $showingAssetKind) { kind in
+            ShowAssetSheet(
+                showID: show.id,
+                showName: show.name,
+                kind: kind,
+                onDetailVisibilityChange: onDetailVisibilityChange
             )
         }
         .task {
@@ -403,6 +430,8 @@ struct ShowDetailView: View {
                 }
             }
 
+            assetManagementRow
+
             if let endedAt = show.endedAt {
                 Button {
                     confirmedEndDraft = endedAt
@@ -451,6 +480,49 @@ struct ShowDetailView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("填写真实散场日期和时间")
+            }
+        }
+    }
+
+    private var assetManagementRow: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("现场资料")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+                Spacer()
+                Text("随时可查看或更换")
+                    .font(BSFont.tag)
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+
+            HStack(spacing: BSSpacing.sm) {
+                ForEach(ShowAssetManagementPolicy.entries(for: show, assets: showAssets)) { entry in
+                    Button {
+                        showingAssetKind = entry.kind
+                    } label: {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Image(systemName: entry.kind.iconName)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.accent)
+                            Text(entry.kind.title)
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.foreground)
+                            Text(entry.subtitle)
+                                .font(BSFont.tag)
+                                .foregroundColor(BSColor.Stage.muted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(13)
+                        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.md))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.md)
+                                .stroke(BSColor.Stage.border, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("管理\(entry.kind.title)，\(entry.subtitle)")
+                }
             }
         }
     }

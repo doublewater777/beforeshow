@@ -38,14 +38,9 @@ struct HomeHeroStage: View {
     private var timeState: CurrentShowTimeState { snapshot.timeState }
 
     var body: some View {
-        NavigationLink {
-            ShowDetailView(show: show)
-        } label: {
-            heroVisual(width: coverWidth, height: coverHeight)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("现场封面，\(show.name)，点按进入详情")
-        .accessibilityAddTraits(.isButton)
+        heroVisual(width: coverWidth, height: coverHeight)
+        .accessibilityLabel("现场封面，\(show.name)")
+        .accessibilityAddTraits(.isImage)
         .frame(width: coverWidth, height: coverHeight)
     }
 

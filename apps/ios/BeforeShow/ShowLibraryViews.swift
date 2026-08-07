@@ -724,6 +724,7 @@ private struct CurrentShowLibraryDestination: Identifiable, Hashable {
 
 /// 从“当前”页进入的完整管理页。刻意与底部“我的现场”Tab 分离，避免改变其现有结构与状态。
 struct CurrentShowLibraryManagementView: View {
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -773,7 +774,11 @@ struct CurrentShowLibraryManagementView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $destination) { target in
-            ShowDetailView(show: target.show, startsEditing: target.startsEditing)
+            ShowDetailView(
+                show: target.show,
+                startsEditing: target.startsEditing,
+                onDetailVisibilityChange: onDetailVisibilityChange
+            )
         }
         .sheet(item: $actionTarget) { show in
             CurrentShowLibraryActionSheet(

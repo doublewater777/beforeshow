@@ -307,7 +307,11 @@ struct FootprintsView: View {
         }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $detailTarget) { target in
-                ShowDetailView(show: target.show, startsEditing: target.startsEditing)
+                ShowDetailView(
+                    show: target.show,
+                    startsEditing: target.startsEditing,
+                    onDetailVisibilityChange: onArchiveVisibilityChange
+                )
             }
             .sheet(isPresented: $isAddingShow) {
                 AddShowCoordinatorSheet(intent: .historicalBackfill) {}

@@ -228,7 +228,7 @@ private struct CurrentShowHomeView: View {
                 SettingsView()
             }
             .navigationDestination(isPresented: $isShowingShowLibrary) {
-                CurrentShowLibraryManagementView()
+                CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
             }
             #if DEBUG
             .task {
@@ -402,10 +402,11 @@ struct CurrentShowManagementSection: View {
             )
         }
         .sheet(item: $showingAssetKind) { kind in
-            CurrentShowAssetSheet(
+            ShowAssetSheet(
                 showID: show.id,
                 showName: show.name,
-                kind: kind
+                kind: kind,
+                onDetailVisibilityChange: onDetailVisibilityChange
             )
         }
         .alert(
@@ -480,7 +481,8 @@ struct CurrentShowManagementSection: View {
                     CurrentShowFollowUpSummary(
                         shows: followUpShows,
                         formatter: formatter,
-                        now: now
+                        now: now,
+                        onDetailVisibilityChange: onDetailVisibilityChange
                     )
                     .padding(.horizontal, contentInset)
                     .padding(.top, 25)
@@ -671,6 +673,7 @@ private struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
     let now: Date
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -687,7 +690,7 @@ private struct CurrentShowFollowUpSummary: View {
 
             ForEach(shows.prefix(2)) { show in
                 NavigationLink {
-                    ShowDetailView(show: show)
+                    ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     followUpRow(show)
                 }
@@ -696,7 +699,7 @@ private struct CurrentShowFollowUpSummary: View {
 
             if shows.count > 2 {
                 NavigationLink {
-                    CurrentShowLibraryManagementView()
+                    CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     HStack(spacing: 8) {
                         Text("查看我的现场 · \(shows.count) 场")
@@ -776,27 +779,6 @@ private struct CurrentShowFollowUpSummary: View {
         if seconds >= 86_400 { return "\(seconds / 86_400) 天后" }
         if seconds >= 3_600 { return "\(seconds / 3_600) 小时后" }
         return "\(max(1, seconds / 60)) 分钟后"
-    }
-}
-
-/// Presents ticket/timetable assets with the same drawer interaction as companion.
-/// A nested navigation stack keeps the existing viewer, upload, replace, and delete
-/// flows intact while the whole asset surface stays inside a bottom sheet.
-private struct CurrentShowAssetSheet: View {
-    let showID: UUID
-    let showName: String
-    let kind: ShowAssetKind
-
-    var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
-            NavigationStack {
-                ShowAssetEntryView(
-                    showID: showID,
-                    showName: showName,
-                    kind: kind
-                )
-            }
-        }
     }
 }
 

@@ -3,6 +3,57 @@ import SwiftData
 import SwiftUI
 import UIKit
 
+enum DetailVisibilityEvent {
+    case assetSheetPresented
+    case assetSheetDismissed
+}
+
+enum DetailVisibilityHandoff {
+    static func tabBarHidden(after event: DetailVisibilityEvent) -> Bool {
+        switch event {
+        case .assetSheetPresented:
+            return true
+        case .assetSheetDismissed:
+            return false
+        }
+    }
+}
+
+/// Presents one ticket/timetable asset in a drawer sheet.
+///
+/// The entry view remains inside a navigation stack so its existing upload,
+/// replacement, viewer, and delete flows work from both the current-show home
+/// and a historical/canceled/ended show detail page.
+struct ShowAssetSheet: View {
+    let showID: UUID
+    let showName: String
+    let kind: ShowAssetKind
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large]) {
+            NavigationStack {
+                ShowAssetEntryView(
+                    showID: showID,
+                    showName: showName,
+                    kind: kind
+                )
+            }
+        }
+        .onAppear {
+            setDetailVisibility(for: .assetSheetPresented)
+        }
+        .onDisappear {
+            setDetailVisibility(for: .assetSheetDismissed)
+        }
+    }
+
+    private func setDetailVisibility(for event: DetailVisibilityEvent) {
+        let hidden = DetailVisibilityHandoff.tabBarHidden(after: event)
+        onDetailVisibilityChange(hidden)
+    }
+}
+
 // MARK: - Entry
 
 /// Routes a ticket/timetable quick action: open viewer when saved, otherwise start upload.
