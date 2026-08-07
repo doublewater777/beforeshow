@@ -156,8 +156,6 @@ struct ShowAssetUploadView: View {
                 .padding(.bottom, 40)
             }
         }
-        .navigationTitle(previewImage == nil ? kind.addTitle : "\(kind.title)预览")
-        .navigationBarTitleDisplayMode(.inline)
         .bsToastOverlay(toast, bottomPadding: 36)
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }
