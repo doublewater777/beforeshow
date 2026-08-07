@@ -525,6 +525,7 @@ struct MemoryFragmentsView: View {
                 try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
                 directImportDraftID = nil
                 directImportTask = nil
+                guard !Task.isCancelled else { return }
                 createSourceError = "媒体没有载入，请重试。"
             }
         }
