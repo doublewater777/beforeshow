@@ -1072,6 +1072,7 @@ private struct MemoryTimelineSection: View {
                         onManage: { onManage(fragment) },
                         onOpenMedia: { onOpenMedia(fragment, $0) }
                     )
+                    .id(fragment.id)
                 }
             }
             .padding(.top, 10)
