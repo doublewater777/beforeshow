@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import Security
 import SwiftData
 import UIKit
 
@@ -18,23 +19,28 @@ final class CompanionSharingCoordinator {
     private var pendingShareMetadata: [CKShare.Metadata]
     private var isFlushingAcceptedShares = false
     private let userDefaults: UserDefaults
+    private let usesKeychainCloudSyncMarker: Bool
 
     private static let acceptedShareInboxKey = "companion.accepted-share-inbox.v1"
     static let cloudSyncEnabledKey = "companion.cloud-sync-enabled.v1"
+    private static let cloudSyncMarkerService = "com.doublewaterapps.beforeshow.companion"
+    private static let cloudSyncMarkerAccount = "cloud-sync-enabled"
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
         container: CKContainer = CKContainer(
             identifier: CloudKitCompanionSharingService.defaultContainerIdentifier
         ),
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        usesKeychainCloudSyncMarker: Bool = true
     ) {
         self.service = service
         self.container = container
         self.userDefaults = userDefaults
+        self.usesKeychainCloudSyncMarker = usesKeychainCloudSyncMarker
         self.pendingShareMetadata = Self.loadPersistedAcceptedShares(from: userDefaults)
         if !pendingShareMetadata.isEmpty {
-            userDefaults.set(true, forKey: Self.cloudSyncEnabledKey)
+            enableCloudSync()
         }
     }
 
@@ -238,6 +244,7 @@ final class CompanionSharingCoordinator {
         }
         persistAcceptedShares(current, to: userDefaults)
         userDefaults.set(true, forKey: cloudSyncEnabledKey)
+        persistKeychainCloudSyncMarker()
     }
 
     // MARK: Cancel / sync
@@ -403,6 +410,11 @@ final class CompanionSharingCoordinator {
         let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
         let hasLocalCompanionLink = shows.contains { $0.companionCloudRecordName != nil }
+        if hasLocalCompanionLink {
+            // Also migrate existing linked shows into the durable marker before any
+            // local-store reset can remove the only local linkage evidence.
+            enableCloudSync()
+        }
         guard hasLocalCompanionLink || hasPendingAcceptedShares || isCloudSyncEnabled else {
             // Do not perform accountStatus() or shared-database discovery for users who
             // have never entered the companion flow.
@@ -473,10 +485,40 @@ final class CompanionSharingCoordinator {
 
     private var isCloudSyncEnabled: Bool {
         userDefaults.bool(forKey: Self.cloudSyncEnabledKey)
+            || (usesKeychainCloudSyncMarker && Self.hasKeychainCloudSyncMarker())
     }
 
     private func enableCloudSync() {
         userDefaults.set(true, forKey: Self.cloudSyncEnabledKey)
+        if usesKeychainCloudSyncMarker {
+            Self.persistKeychainCloudSyncMarker()
+        }
+    }
+
+    private static func hasKeychainCloudSyncMarker() -> Bool {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: cloudSyncMarkerService,
+            kSecAttrAccount as String: cloudSyncMarkerAccount,
+            kSecReturnData as String: false,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+    }
+
+    private static func persistKeychainCloudSyncMarker() {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: cloudSyncMarkerService,
+            kSecAttrAccount as String: cloudSyncMarkerAccount
+        ]
+        let attributes: [String: Any] = [
+            kSecValueData as String: Data([1]),
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
+        ]
+        let status = SecItemAdd((query.merging(attributes, uniquingKeysWith: { _, new in new })) as CFDictionary, nil)
+        guard status == errSecDuplicateItem else { return }
+        SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
     }
 
     private func reconcileOwnerShareMembership(

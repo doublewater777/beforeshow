@@ -494,7 +494,11 @@ final class CompanionSharingTests: XCTestCase {
         let service = MockCompanionSharingService()
         let userDefaults = makeIsolatedUserDefaults()
         userDefaults.set(true, forKey: CompanionSharingCoordinator.cloudSyncEnabledKey)
-        let coordinator = CompanionSharingCoordinator(service: service, userDefaults: userDefaults)
+        let coordinator = CompanionSharingCoordinator(
+            service: service,
+            userDefaults: userDefaults,
+            usesKeychainCloudSyncMarker: false
+        )
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let context = container.mainContext
@@ -587,7 +591,8 @@ final class CompanionSharingTests: XCTestCase {
     ) -> CompanionSharingCoordinator {
         CompanionSharingCoordinator(
             service: service,
-            userDefaults: makeIsolatedUserDefaults()
+            userDefaults: makeIsolatedUserDefaults(),
+            usesKeychainCloudSyncMarker: false
         )
     }
 
