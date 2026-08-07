@@ -543,12 +543,13 @@ private struct PrivacyLocalDataView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var clearResult: LocalDataClearancePlan?
+    @State private var clearStatusText: String?
     @State private var isClearing = false
     @State private var showsClearConfirmation = false
     private let clearer = LocalDataClearer()
 
     var body: some View {
-        BSStageScaffold(title: "隐私与本地数据", subtitle: "只保留 BeforeShow 需要的本机内容", bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(title: "隐私与本地数据", subtitle: "管理 BeforeShow 的本地记录和副本", bottomPadding: BSLayout.tabBarContentInset) {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
                 BSSectionHeader(title: "隐私说明")
                 ForEach(PrivacyLocalDataCopy.points, id: \.self) { point in
@@ -607,13 +608,19 @@ private struct PrivacyLocalDataView: View {
                         }
                     }
                 }
+
+                if let clearStatusText {
+                    Text(clearStatusText)
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.textSecondary)
+                }
                 }
             }
         }
         .sheet(isPresented: $showsClearConfirmation) {
             BSDangerConfirmationSheet(
                 title: "清除本地数据",
-                message: "这会删除所有现场和本地设置，且无法恢复。",
+                message: "这会删除 BeforeShow 管理的本地记录和副本，且无法恢复；系统相册原图不会删除。",
                 destructiveTitle: "清除",
                 onConfirm: {
                     showsClearConfirmation = false
@@ -628,20 +635,50 @@ private struct PrivacyLocalDataView: View {
 
     private func clearLocalData() {
         isClearing = true
+        clearStatusText = nil
         Task { @MainActor in
             do {
                 let context = modelContext
-                try context.delete(model: Show.self)
-                try context.delete(model: CurrentShowSelection.self)
-                try context.delete(model: NotificationSchedulingState.self)
-                try context.delete(model: ShowNotificationScheduleRecord.self)
-                try context.delete(model: MemoryMediaItem.self)
-                try context.delete(model: MemoryFragment.self)
-                try context.save()
+                await ShowAssetMediaStore.shared.acquireCommitGate()
+                ShowAssetCleanupRetry.markFullCleanupPrepared()
+                do {
+                    try context.delete(model: Show.self)
+                    try context.delete(model: CurrentShowSelection.self)
+                    try context.delete(model: NotificationSchedulingState.self)
+                    try context.delete(model: ShowNotificationScheduleRecord.self)
+                    try context.delete(model: MemoryMediaItem.self)
+                    try context.delete(model: MemoryFragment.self)
+                    try context.delete(model: ShowAsset.self)
+                    try context.save()
+                } catch {
+                    context.rollback()
+                    throw error
+                }
+                ShowAssetCleanupRetry.markFullCleanupPending()
+                ShowAssetCleanupRetry.clearFullCleanupPrepared()
+
+                var cleanupFailures: [String] = []
                 try await MemoryFragmentMediaStore.shared.deleteAll()
-                clearResult = try await clearer.clearAppOwnedLocalData()
+                do {
+                    try await ShowAssetMediaStore.shared.deleteAll()
+                    ShowAssetCleanupRetry.clearFullCleanupPending()
+                } catch {
+                    cleanupFailures.append("票根和时刻表副本")
+                }
+
+                if cleanupFailures.isEmpty {
+                    clearResult = try await clearer.clearAppOwnedLocalData()
+                    clearStatusText = nil
+                } else {
+                    clearResult = nil
+                    clearStatusText = "部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。"
+                }
+                await ShowAssetMediaStore.shared.releaseCommitGate()
             } catch {
+                ShowAssetCleanupRetry.clearFullCleanupPrepared()
                 clearResult = nil
+                clearStatusText = "清除本地数据失败，请重试。"
+                await ShowAssetMediaStore.shared.releaseCommitGate()
             }
             isClearing = false
         }

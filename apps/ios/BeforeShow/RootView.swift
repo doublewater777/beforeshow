@@ -228,7 +228,7 @@ private struct CurrentShowHomeView: View {
                 SettingsView()
             }
             .navigationDestination(isPresented: $isShowingShowLibrary) {
-                CurrentShowLibraryManagementView()
+                CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
             }
             #if DEBUG
             .task {
@@ -348,9 +348,11 @@ struct CurrentShowManagementSection: View {
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var memoryFragments: [MemoryFragment]
+    @Query private var showAssets: [ShowAsset]
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
     @State private var isShowingCompanion = false
+    @State private var showingAssetKind: ShowAssetKind?
     @State private var companionErrorMessage: String?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
@@ -397,6 +399,14 @@ struct CurrentShowManagementSection: View {
                 isEnded: currentPhase == .ended,
                 coordinator: companionCoordinator,
                 onDismiss: { isShowingCompanion = false }
+            )
+        }
+        .sheet(item: $showingAssetKind) { kind in
+            ShowAssetSheet(
+                showID: show.id,
+                showName: show.name,
+                kind: kind,
+                onDetailVisibilityChange: onDetailVisibilityChange
             )
         }
         .alert(
@@ -471,7 +481,8 @@ struct CurrentShowManagementSection: View {
                     CurrentShowFollowUpSummary(
                         shows: followUpShows,
                         formatter: formatter,
-                        now: now
+                        now: now,
+                        onDetailVisibilityChange: onDetailVisibilityChange
                     )
                     .padding(.horizontal, contentInset)
                     .padding(.top, 25)
@@ -556,45 +567,69 @@ struct CurrentShowManagementSection: View {
     }
 
     private func quickActionRow(_ actions: [CurrentShowQuickAction]) -> some View {
-        HStack(spacing: 9) {
-            ForEach(actions, id: \.self) { action in
-                switch action {
-                case .route:
-                    Button { isShowingMapChooser = true } label: {
-                        CurrentShowQuickActionTile(action: action)
-                    }
-                    .buttonStyle(.plain)
-                case .companion:
-                    Button { isShowingCompanion = true } label: {
-                        CurrentShowQuickActionTile(
-                            action: action,
-                            companion: CompanionQuickActionPresentation(
-                                status: show.companionStatus,
-                                companionName: show.companionName,
-                                isEnded: currentPhase == .ended
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                ForEach(actions, id: \.self) { action in
+                    switch action {
+                    case .route:
+                        Button { isShowingMapChooser = true } label: {
+                            CurrentShowQuickActionTile(action: action)
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 86)
+                    case .companion:
+                        Button { isShowingCompanion = true } label: {
+                            CurrentShowQuickActionTile(
+                                action: action,
+                                companion: CompanionQuickActionPresentation(
+                                    status: show.companionStatus,
+                                    companionName: show.companionName,
+                                    isEnded: currentPhase == .ended
+                                )
                             )
-                        )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 86)
+                    case .ticket, .timetable:
+                        let kind: ShowAssetKind = action == .ticket ? .ticket : .timetable
+                        Button {
+                            showingAssetKind = kind
+                        } label: {
+                            CurrentShowQuickActionTile(
+                                action: action,
+                                subtitle: assetSubtitle(for: kind)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 86)
+                    case .memoryFragments:
+                        NavigationLink {
+                            MemoryFragmentsView(show: show)
+                                .onAppear { onDetailVisibilityChange(true) }
+                                .onDisappear { onDetailVisibilityChange(false) }
+                        } label: {
+                            CurrentShowQuickActionTile(
+                                action: action,
+                                subtitle: memoryFragmentCount == 0 ? "记录这一刻" : "\(memoryFragmentCount) 条"
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .frame(width: 86)
                     }
-                    .buttonStyle(.plain)
-                case .memoryFragments:
-                    NavigationLink {
-                        MemoryFragmentsView(show: show)
-                            .onAppear { onDetailVisibilityChange(true) }
-                            .onDisappear { onDetailVisibilityChange(false) }
-                    } label: {
-                        CurrentShowQuickActionTile(
-                            action: action,
-                            subtitle: memoryFragmentCount == 0 ? "记录这一刻" : "\(memoryFragmentCount) 条"
-                        )
-                    }
-                    .buttonStyle(.plain)
                 }
             }
+            .padding(.trailing, 4)
         }
     }
 
     private var memoryFragmentCount: Int {
         memoryFragments.lazy.filter { $0.showID == show.id }.count
+    }
+
+    private func assetSubtitle(for kind: ShowAssetKind) -> String {
+        showAssets.contains { $0.showID == show.id && $0.kind == kind }
+            ? kind.savedSubtitle
+            : kind.emptySubtitle
     }
 
     private func openMapApp(_ app: ExternalMapApp) {
@@ -638,6 +673,7 @@ private struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
     let now: Date
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -654,7 +690,7 @@ private struct CurrentShowFollowUpSummary: View {
 
             ForEach(shows.prefix(2)) { show in
                 NavigationLink {
-                    ShowDetailView(show: show)
+                    ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     followUpRow(show)
                 }
@@ -663,7 +699,7 @@ private struct CurrentShowFollowUpSummary: View {
 
             if shows.count > 2 {
                 NavigationLink {
-                    CurrentShowLibraryManagementView()
+                    CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     HStack(spacing: 8) {
                         Text("查看我的现场 · \(shows.count) 场")
@@ -749,12 +785,16 @@ private struct CurrentShowFollowUpSummary: View {
 enum CurrentShowQuickAction: Hashable {
     case route
     case companion
+    case ticket
+    case timetable
     case memoryFragments
 
     var title: String {
         switch self {
         case .route: return "路线"
         case .companion: return "同行"
+        case .ticket: return "票根"
+        case .timetable: return "时刻表"
         case .memoryFragments: return "记忆碎片"
         }
     }
@@ -763,12 +803,14 @@ enum CurrentShowQuickAction: Hashable {
         switch self {
         case .route: return "map"
         case .companion: return "person.2"
+        case .ticket: return "ticket"
+        case .timetable: return "list.bullet.rectangle"
         case .memoryFragments: return "photo.on.rectangle.angled"
         }
     }
 
     /// 当前现场的管理入口保持稳定，避免用户因演出阶段变化而找不到功能。
-    static let visibleActions: [Self] = [.route, .companion, .memoryFragments]
+    static let visibleActions: [Self] = [.route, .companion, .ticket, .timetable, .memoryFragments]
 }
 
 struct CompanionQuickActionPresentation: Equatable {

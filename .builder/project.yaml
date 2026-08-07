@@ -18,3 +18,4 @@ links:
   footprints_archive_cycle: .builder/cycles/2026-08-01-footprints-archive/
   companion_icon_states_cycle: .builder/cycles/2026-08-02-companion-icon-states/
   current_show_memory_fragments_cycle: .builder/cycles/2026-08-03-current-show-memory-fragments/
+  ticket_timetable_assets_cycle: .builder/cycles/2026-08-04-ticket-timetable-assets/

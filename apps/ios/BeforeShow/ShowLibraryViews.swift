@@ -1,6 +1,11 @@
 import SwiftData
 import SwiftUI
 
+enum ShowDeletionResult: Equatable {
+    case complete
+    case mediaCleanupPending
+}
+
 @MainActor
 enum ShowDeletionCoordinator {
     static func delete(
@@ -9,43 +14,70 @@ enum ShowDeletionCoordinator {
         selections: [CurrentShowSelection],
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext
-    ) async throws {
-        let coverImageURL = show.coverImageURL
-        if selections.first?.selectedShowID == show.id {
-            selections.first?.clearManualSelection()
-        }
+    ) async throws -> ShowDeletionResult {
+        await ShowAssetMediaStore.shared.acquireCommitGate()
+        do {
+            let coverImageURL = show.coverImageURL
+            if selections.first?.selectedShowID == show.id {
+                selections.first?.clearManualSelection()
+            }
 
-        let showID = show.id
-        let remainingShows = shows.filter { $0.id != showID }
-        let fragments = try modelContext.fetch(
-            FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
-        )
-        for fragment in fragments {
-            modelContext.delete(fragment)
-        }
-        modelContext.delete(show)
-        let nextCurrentShow = CurrentShowSession().selectCurrentShow(
-            from: remainingShows,
-            manualSelection: selections.first
-        )
-        ShowMutationCoordinator.updateNotificationFocus(
-            showID: nextCurrentShow?.id,
-            notificationStates: notificationStates,
-            in: modelContext
-        )
+            let showID = show.id
+            let remainingShows = shows.filter { $0.id != showID }
+            let fragments = try modelContext.fetch(
+                FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
+            )
+            for fragment in fragments {
+                modelContext.delete(fragment)
+            }
+            let assets = try modelContext.fetch(
+                FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
+            )
+            for asset in assets {
+                modelContext.delete(asset)
+            }
+            modelContext.delete(show)
+            let nextCurrentShow = CurrentShowSession().selectCurrentShow(
+                from: remainingShows,
+                manualSelection: selections.first
+            )
+            ShowMutationCoordinator.updateNotificationFocus(
+                showID: nextCurrentShow?.id,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
 
-        try modelContext.save()
-        try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            try modelContext.save()
+            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            ShowAssetCleanupRetry.markShowCleanupPending(showID)
+            var cleanupPending = false
+            do {
+                try await ShowAssetMediaStore.shared.deleteShow(showID)
+            } catch {
+                cleanupPending = true
+            }
+            if cleanupPending {
+                ShowAssetCleanupRetry.markShowCleanupPending(showID)
+            } else {
+                ShowAssetCleanupRetry.clearShowCleanupPending(showID)
+            }
 
-        if let coverImageURL,
-           !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
-            ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+            if let coverImageURL,
+               !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
+                ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
+            }
+            _ = await LocalNotificationCenter.shared.applyFocusChange(
+                to: nextCurrentShow,
+                in: modelContext
+            )
+            WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+            return cleanupPending ? .mediaCleanupPending : .complete
+        } catch {
+            modelContext.rollback()
+            await ShowAssetMediaStore.shared.releaseCommitGate()
+            throw error
         }
-        _ = await LocalNotificationCenter.shared.applyFocusChange(
-            to: nextCurrentShow,
-            in: modelContext
-        )
-        WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
     }
 }
 
@@ -684,6 +716,7 @@ private struct CurrentShowLibraryDestination: Identifiable, Hashable {
 
 /// 从“当前”页进入的完整管理页。刻意与底部“我的现场”Tab 分离，避免改变其现有结构与状态。
 struct CurrentShowLibraryManagementView: View {
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -733,7 +766,11 @@ struct CurrentShowLibraryManagementView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .navigationDestination(item: $destination) { target in
-            ShowDetailView(show: target.show, startsEditing: target.startsEditing)
+            ShowDetailView(
+                show: target.show,
+                startsEditing: target.startsEditing,
+                onDetailVisibilityChange: onDetailVisibilityChange
+            )
         }
         .sheet(item: $actionTarget) { show in
             CurrentShowLibraryActionSheet(
@@ -958,14 +995,19 @@ struct CurrentShowLibraryManagementView: View {
         deleteTarget = nil
         Task { @MainActor in
             do {
-                try await ShowDeletionCoordinator.delete(
+                let result = try await ShowDeletionCoordinator.delete(
                     show,
                     from: shows,
                     selections: selections,
                     notificationStates: notificationStates,
                     in: modelContext
                 )
-                presentToast(.success, message: "已删除现场")
+                presentToast(
+                    result == .mediaCleanupPending ? .neutral : .success,
+                    message: result == .mediaCleanupPending
+                        ? "现场记录已删除，部分本地副本将在下次启动继续清理"
+                        : "已删除现场"
+                )
             } catch {
                 modelContext.rollback()
                 presentToast(.failure, message: "删除失败，请重试")

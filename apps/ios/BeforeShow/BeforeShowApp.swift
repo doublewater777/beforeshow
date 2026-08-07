@@ -20,6 +20,7 @@ struct BeforeShowApp: App {
                 ShowNotificationScheduleRecord.self,
                 MemoryFragment.self,
                 MemoryMediaItem.self,
+                ShowAsset.self,
                 configurations: configuration
             )
         } catch {
@@ -60,7 +61,9 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
+                    await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
+                    await reconcileAllShowAssets(in: modelContainer.mainContext)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -72,11 +75,63 @@ struct BeforeShowApp: App {
                             in: modelContainer.mainContext
                         )
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
+                        await reconcileAllShowAssets(in: modelContainer.mainContext)
                     }
                 }
         }
         .modelContainer(modelContainer)
     }
+}
+
+@MainActor
+private func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) async {
+    guard ShowAssetCleanupRetry.isFullCleanupPrepared
+            || ShowAssetCleanupRetry.isFullCleanupPending
+            || !ShowAssetCleanupRetry.pendingShowCleanupIDs.isEmpty
+            || !ShowAssetCleanupRetry.pendingAssets.isEmpty else { return }
+
+    await ShowAssetMediaStore.shared.acquireCommitGate()
+    if ShowAssetCleanupRetry.isFullCleanupPrepared {
+        let hasPersistedShowData = ((try? context.fetch(FetchDescriptor<Show>()).isEmpty == false) ?? true)
+            || ((try? context.fetch(FetchDescriptor<ShowAsset>()).isEmpty == false) ?? true)
+        if hasPersistedShowData {
+            // The crash happened before the model transaction committed. Do not
+            // delete any live ticket/timetable files; the next clear can start fresh.
+            ShowAssetCleanupRetry.clearFullCleanupPrepared()
+        } else {
+            ShowAssetCleanupRetry.markFullCleanupPending()
+            ShowAssetCleanupRetry.clearFullCleanupPrepared()
+        }
+    }
+    if ShowAssetCleanupRetry.isFullCleanupPending {
+        do {
+            try await ShowAssetMediaStore.shared.deleteAll()
+            ShowAssetCleanupRetry.clearFullCleanupPending()
+        } catch {
+            // Keep the marker so the next launch retries the asset root.
+        }
+    }
+    for showID in ShowAssetCleanupRetry.pendingShowCleanupIDs {
+        do {
+            try await ShowAssetMediaStore.shared.deleteShow(showID)
+            ShowAssetCleanupRetry.clearShowCleanupPending(showID)
+        } catch {
+            // Keep only this show marked for the next retry.
+        }
+    }
+    for pending in ShowAssetCleanupRetry.pendingAssets {
+        do {
+            try await ShowAssetMediaStore.shared.delete(
+                relativePath: pending.relativePath,
+                showID: pending.showID,
+                kind: pending.kind
+            )
+            ShowAssetCleanupRetry.clearAssetCleanupPending(pending)
+        } catch {
+            // Keep this exact path marked for the next retry.
+        }
+    }
+    await ShowAssetMediaStore.shared.releaseCommitGate()
 }
 
 @MainActor
@@ -165,6 +220,117 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
         Task {
             try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
         }
+    }
+    return valid
+}
+
+@MainActor
+func saveModelContextRollingBackOnFailure(
+    _ modelContext: ModelContext,
+    save: () throws -> Void
+) throws {
+    do {
+        try save()
+    } catch {
+        modelContext.rollback()
+        throw error
+    }
+}
+
+@MainActor
+func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
+    try saveModelContextRollingBackOnFailure(modelContext) {
+        try modelContext.save()
+    }
+}
+
+@MainActor
+private func reconcileAllShowAssets(in modelContext: ModelContext) async {
+    await ShowAssetMediaStore.shared.acquireCommitGate()
+    do {
+        let existingRelativePaths = try await ShowAssetMediaStore.shared.verifiedExistingRelativePaths()
+        let valid = try reconcileShowAssetShowBoundary(
+            in: modelContext,
+            existingRelativePaths: existingRelativePaths
+        )
+        try await ShowAssetMediaStore.shared.reconcile(validRelativePaths: valid)
+        await ShowAssetMediaStore.shared.releaseCommitGate()
+    } catch {
+        modelContext.rollback()
+        await ShowAssetMediaStore.shared.releaseCommitGate()
+        // Best-effort recovery; next launch/active retries.
+    }
+}
+
+@MainActor
+func reconcileShowAssetShowBoundary(
+    in modelContext: ModelContext,
+    existingRelativePaths: Set<String>
+) throws -> Set<String> {
+    let shows = try modelContext.fetch(FetchDescriptor<Show>())
+    let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    let assets = try modelContext.fetch(FetchDescriptor<ShowAsset>())
+    var valid: Set<String> = []
+    var mutated = false
+    var keptByKey: [String: ShowAsset] = [:]
+
+    let ordered = assets.sorted {
+        if $0.updatedAt == $1.updatedAt {
+            return $0.id.uuidString > $1.id.uuidString
+        }
+        return $0.updatedAt > $1.updatedAt
+    }
+
+    for asset in ordered {
+        guard let show = showsByID[asset.showID] else {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+        if asset.show?.id != show.id {
+            asset.show = show
+            mutated = true
+        }
+        if ShowAssetKind(rawValue: asset.kindRawValue) == nil {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
+        guard ShowAsset.isValidRelativePath(
+            asset.relativePath,
+            showID: asset.showID,
+            kind: asset.kind
+        ) else {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
+        let key = ShowAsset.makeUniqueKey(showID: asset.showID, kind: asset.kind)
+        if asset.repairUniqueKeyIfNeeded() {
+            mutated = true
+        }
+        if let kept = keptByKey[key] {
+            if kept.id != asset.id {
+                modelContext.delete(asset)
+                mutated = true
+            }
+            continue
+        }
+
+        guard existingRelativePaths.contains(asset.relativePath) else {
+            modelContext.delete(asset)
+            mutated = true
+            continue
+        }
+
+        keptByKey[key] = asset
+        valid.insert(asset.relativePath)
+    }
+
+    if mutated {
+        try saveModelContextRollingBackOnFailure(modelContext)
     }
     return valid
 }

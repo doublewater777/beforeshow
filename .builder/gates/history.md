@@ -133,3 +133,13 @@ Decision: implementation-ready, user value validation pending.
 Reason: the product owner explicitly reintroduced memory capture as one private, local-only shortcut bound to the current show, while keeping history, social, sharing, cloud, audio, and AI out of scope. The riskiest question is whether capture remains lighter than using general-purpose Photos or Notes.
 
 - 2026-08-03 implementation verification: text and ordered mixed-media flows passed on iPhone 17; 213 tests passed; physical-device camera and release-user value remain pending.
+
+## 2026-08-04 · Ticket and Timetable Assets
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-08-04-ticket-timetable-assets/`
+
+Decision: implementation and simulator verification complete; user-value validation pending.
+
+Reason: ticket and timetable images now have local, show-bound storage with explicit non-official-ticket positioning, while shared media transaction boundaries and durable-storage failure behavior were hardened during adversarial review.

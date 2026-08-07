@@ -24,12 +24,13 @@ enum SettingsInformation {
 
 enum PrivacyLocalDataCopy {
     static let points = [
-        "票务截图只用于设备端 OCR，截图不会为了识别上传。",
-        "现场、偏好设置和记忆碎片保存在设备本地。",
-        "记忆碎片中的照片与视频是 App 沙盒副本，不是系统相册原始内容。"
+        "添加现场时的票务截图只用于设备端 OCR，不会为了识别上传。",
+        "票根与时刻表保存在 BeforeShow 的设备本地 App 沙盒中；BeforeShow 不会主动上传这些图片，也不会加入同行 CloudKit 分享记录，并会将它们排除在 iOS 系统备份之外。",
+        "链接解析、同行分享等你主动使用的联网功能会发起网络请求；系统备份是否包含 App 数据由 iOS 和你的系统设置决定。",
+        "记忆碎片、票根和时刻表里的图片是 App 沙盒副本，不是系统相册原始内容；BeforeShow 不提供跨设备同步或恢复保证。"
     ]
 
-    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 保存的现场、偏好设置、记忆碎片文字，以及 App 沙盒中的照片/视频副本和临时缓存；不会删除系统相册中的原始图片或视频。"
+    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 管理的本地记录、记忆碎片文字，以及 App 沙盒中的票根/时刻表、照片/视频副本和临时缓存；不会删除系统相册中的原始图片或视频。"
 }
 
 enum ProMembershipCopy {
@@ -120,6 +121,7 @@ enum LocalDataClearancePolicy {
         deletesAppOwnedData: [
             "SwiftData 中的现场和偏好设置",
             "记忆碎片文字与元数据",
+            "BeforeShow 沙盒中的票根和时刻表图片",
             "BeforeShow 沙盒中保存的记忆照片和视频副本",
             "BeforeShow 沙盒中的临时缓存"
         ],
@@ -127,6 +129,106 @@ enum LocalDataClearancePolicy {
             "系统相册中的原始图片和视频"
         ]
     )
+}
+
+/// Retry journal for ticket/timetable files only. Memory-fragment cleanup keeps
+/// the implementation from `main` and deliberately does not use this type.
+enum ShowAssetCleanupRetry {
+    struct PendingAsset: Codable, Equatable {
+        let showID: UUID
+        let kind: ShowAssetKind
+        let relativePath: String
+    }
+
+    private static let pendingFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
+    private static let preparedFullCleanupKey = "BeforeShow.preparedShowAssetCleanup"
+    // Keep the pre-split ticket markers readable so an interrupted ticket-only
+    // cleanup from an earlier build is still recovered after this refactor.
+    private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
+    private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
+
+    static var isFullCleanupPending: Bool {
+        UserDefaults.standard.bool(forKey: pendingFullCleanupKey)
+    }
+
+    static var isFullCleanupPrepared: Bool {
+        UserDefaults.standard.bool(forKey: preparedFullCleanupKey)
+    }
+
+    static func markFullCleanupPrepared() {
+        UserDefaults.standard.set(true, forKey: preparedFullCleanupKey)
+        UserDefaults.standard.synchronize()
+    }
+
+    static func clearFullCleanupPrepared() {
+        UserDefaults.standard.removeObject(forKey: preparedFullCleanupKey)
+    }
+
+    static func markFullCleanupPending() {
+        UserDefaults.standard.set(true, forKey: pendingFullCleanupKey)
+        UserDefaults.standard.synchronize()
+    }
+
+    static func clearFullCleanupPending() {
+        UserDefaults.standard.removeObject(forKey: pendingFullCleanupKey)
+    }
+
+    static var pendingShowCleanupIDs: [UUID] {
+        let rawValues = UserDefaults.standard.stringArray(forKey: pendingShowCleanupKey) ?? []
+        return rawValues.compactMap(UUID.init(uuidString:))
+    }
+
+    static func markShowCleanupPending(_ showID: UUID) {
+        var ids = Set(pendingShowCleanupIDs.map(\.uuidString))
+        ids.insert(showID.uuidString)
+        UserDefaults.standard.set(Array(ids).sorted(), forKey: pendingShowCleanupKey)
+    }
+
+    static func clearShowCleanupPending(_ showID: UUID) {
+        let remaining = pendingShowCleanupIDs
+            .filter { $0 != showID }
+            .map(\.uuidString)
+        if remaining.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingShowCleanupKey)
+        } else {
+            UserDefaults.standard.set(remaining, forKey: pendingShowCleanupKey)
+        }
+    }
+
+    static var pendingAssets: [PendingAsset] {
+        guard let data = UserDefaults.standard.data(forKey: pendingAssetCleanupKey) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([PendingAsset].self, from: data)) ?? []
+    }
+
+    static func markAssetCleanupPending(
+        showID: UUID,
+        kind: ShowAssetKind,
+        relativePath: String
+    ) {
+        guard ShowAsset.isValidRelativePath(relativePath, showID: showID, kind: kind) else { return }
+        let pending = PendingAsset(showID: showID, kind: kind, relativePath: relativePath)
+        var values = pendingAssets
+        if !values.contains(pending) {
+            values.append(pending)
+            persistAssets(values)
+        }
+    }
+
+    static func clearAssetCleanupPending(_ pending: PendingAsset) {
+        persistAssets(pendingAssets.filter { $0 != pending })
+    }
+
+    private static func persistAssets(_ values: [PendingAsset]) {
+        if values.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingAssetCleanupKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: pendingAssetCleanupKey)
+        }
+    }
 }
 
 protocol LocalDataClearing {

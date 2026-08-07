@@ -30,11 +30,43 @@ final class NavigationTests: XCTestCase {
             }
         }
     }
+
     func testCurrentShowQuickActionsAreAlwaysVisible() {
         XCTAssertEqual(
             CurrentShowQuickAction.visibleActions,
-            [.route, .companion, .memoryFragments]
+            [.route, .companion, .ticket, .timetable, .memoryFragments]
         )
+    }
+
+    func testAssetSheetUsesDetailVisibilityHandoff() {
+        XCTAssertTrue(
+            DetailVisibilityHandoff.tabBarHidden(after: .assetSheetPresented)
+        )
+        XCTAssertFalse(
+            DetailVisibilityHandoff.tabBarHidden(after: .assetSheetDismissed)
+        )
+    }
+
+    func testCanceledAndEndedShowsKeepAssetManagementEntries() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let canceled = try Show(
+            name: "已取消现场",
+            date: now,
+            startTime: now,
+            changeStatus: .canceled
+        )
+        let ended = try Show(
+            name: "已结束现场",
+            date: now.addingTimeInterval(-3_600),
+            startTime: now.addingTimeInterval(-3_600),
+            endedAt: now
+        )
+
+        for show in [canceled, ended] {
+            let entries = ShowAssetManagementPolicy.entries(for: show, assets: [])
+            XCTAssertEqual(entries.map(\.kind), ShowAssetKind.allCases)
+            XCTAssertEqual(entries.map(\.hasSavedAsset), [false, false])
+        }
     }
 
     func testCompanionLifecyclePersistsNameAndSupportsRetry() throws {
