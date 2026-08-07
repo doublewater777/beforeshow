@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
@@ -87,7 +88,7 @@ struct RootView: View {
     /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
         ZStack(alignment: .bottom) {
-            CurrentShowHomeView()
+            CurrentShowHomeView(onDetailVisibilityChange: { isTabBarHidden = $0 })
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
@@ -152,6 +153,8 @@ private struct OnboardingPlaceholderView: View {
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -189,6 +192,7 @@ private struct CurrentShowHomeView: View {
                         show: show,
                         formatter: formatter,
                         candidateShows: shows,
+                        onDetailVisibilityChange: onDetailVisibilityChange,
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
@@ -333,6 +337,7 @@ struct CurrentShowManagementSection: View {
     let show: Show
     let formatter: ShowDisplayFormatter
     let candidateShows: [Show]
+    var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
@@ -573,7 +578,9 @@ struct CurrentShowManagementSection: View {
                     .buttonStyle(.plain)
                 case .memoryFragments:
                     NavigationLink {
-                        MemoryFragmentsView(showID: show.id, showName: show.name)
+                        MemoryFragmentsView(show: show)
+                            .onAppear { onDetailVisibilityChange(true) }
+                            .onDisappear { onDetailVisibilityChange(false) }
                     } label: {
                         CurrentShowQuickActionTile(
                             action: action,
@@ -1569,6 +1576,59 @@ private enum DebugSampleShowSeeder {
                 selection.select(showID: show.id)
             } else {
                 modelContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            }
+            if ProcessInfo.processInfo.arguments.contains("--seed-memory-fragments"),
+               show.memoryFragments.isEmpty {
+                let samples: [(String, MemoryFragmentPhase, TimeInterval)] = [
+                    ("终于到了，外面已经排了很长的队。", .before, -62 * 60),
+                    ("灯暗下来的一刻，整个场馆都安静了。", .live, -24 * 60),
+                    ("散场后还不想离开，想把这一刻多留一会儿。", .after, 18 * 60)
+                ]
+                for sample in samples {
+                    let fragment = try MemoryFragment(
+                        showID: show.id,
+                        text: sample.0,
+                        createdAt: now.addingTimeInterval(sample.2),
+                        phase: sample.1
+                    )
+                    fragment.show = show
+                    modelContext.insert(fragment)
+                }
+            }
+            if ProcessInfo.processInfo.arguments.contains("--seed-memory-media"),
+               !show.memoryFragments.contains(where: { !$0.mediaItems.isEmpty }) {
+                let fragmentID = UUID()
+                let relativeDirectory = "\(show.id.uuidString)/\(fragmentID.uuidString)"
+                let relativePath = "\(relativeDirectory)/sample.jpg"
+                let destination = MemoryMediaLocation.applicationSupport().url(for: relativePath)
+                try FileManager.default.createDirectory(
+                    at: destination.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                let image = UIGraphicsImageRenderer(size: CGSize(width: 900, height: 1200)).image { context in
+                    UIColor(red: 0.18, green: 0.25, blue: 0.48, alpha: 1).setFill()
+                    context.fill(CGRect(x: 0, y: 0, width: 900, height: 1200))
+                }
+                guard let data = image.jpegData(compressionQuality: 0.9) else { return }
+                try data.write(to: destination, options: .atomic)
+                let fragment = try MemoryFragment(
+                    id: fragmentID,
+                    showID: show.id,
+                    text: "灯亮以后随手留下的一段画面。",
+                    createdAt: now.addingTimeInterval(-8 * 60),
+                    phase: .live
+                )
+                fragment.show = show
+                try fragment.appendMedia(MemoryMediaItem(
+                    id: UUID(),
+                    kind: .photo,
+                    relativePath: relativePath,
+                    thumbnailRelativePath: nil,
+                    contentTypeIdentifier: UTType.jpeg.identifier,
+                    videoDuration: nil,
+                    sortOrder: 0
+                ))
+                modelContext.insert(fragment)
             }
             try modelContext.save()
         } catch {

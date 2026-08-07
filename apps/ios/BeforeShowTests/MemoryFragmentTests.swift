@@ -101,6 +101,55 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(showID.uuidString).appendingPathComponent(fragmentID.uuidString).path))
     }
 
+    func testPhotoPickerStyleImportCommitsAndPersistsMediaFragment() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = MemoryFragmentMediaStore(location: MemoryMediaLocation(rootDirectory: root))
+        let source = root.appendingPathComponent("picker-source.jpg")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try makeJPEG().write(to: source, options: .atomic)
+        let imported = try MemoryImportedFile.copied(source, contentType: .jpeg)
+        let draftID = UUID()
+        let staged = try await store.stageTransferredFile(imported, draftID: draftID)
+
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "现场", date: now, startTime: now)
+        context.insert(show)
+        let fragmentID = UUID()
+        let committed = try await store.commit(
+            draftID: draftID,
+            showID: show.id,
+            fragmentID: fragmentID,
+            media: [staged]
+        )
+        let fragment = try MemoryFragment(id: fragmentID, showID: show.id, phase: .live)
+        fragment.show = show
+        for (index, item) in committed.enumerated() {
+            try fragment.appendMedia(MemoryMediaItem(
+                id: item.id,
+                kind: item.kind,
+                relativePath: item.relativePath,
+                thumbnailRelativePath: item.thumbnailRelativePath,
+                contentTypeIdentifier: item.contentTypeIdentifier,
+                videoDuration: item.videoDuration,
+                sortOrder: index
+            ))
+        }
+        context.insert(fragment)
+        try context.save()
+        try await store.finalizeCommit(draftID: draftID)
+
+        let persisted = try XCTUnwrap(context.fetch(FetchDescriptor<MemoryFragment>()).first)
+        XCTAssertEqual(persisted.orderedMediaItems.count, 1)
+        XCTAssertEqual(persisted.orderedMediaItems.first?.kind, .photo)
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: root.appendingPathComponent(try XCTUnwrap(persisted.orderedMediaItems.first?.relativePath)).path
+        ))
+    }
+
     func testDiscardDraftRemovesStagedFiles() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("MemoryFragmentTests-\(UUID().uuidString)", isDirectory: true)
