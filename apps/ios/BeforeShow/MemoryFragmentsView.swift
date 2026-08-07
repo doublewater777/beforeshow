@@ -1122,9 +1122,6 @@ private struct MemoryTimelinePost: View {
                     }
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text(fragment.phase.title)
-                        .font(.system(size: 10))
-                        .foregroundColor(BSColor.Stage.dim)
                     Spacer()
                     Button(action: onManage) {
                         Image(systemName: "ellipsis")
