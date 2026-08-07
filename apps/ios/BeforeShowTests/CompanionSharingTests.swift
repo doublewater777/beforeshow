@@ -149,7 +149,7 @@ final class CompanionSharingTests: XCTestCase {
     func testCoordinatorPrepareInvitationUsesServiceAndRollsBackOnFailure() async throws {
         let service = MockCompanionSharingService()
         service.prepareError = CompanionSharingError.networkFailure
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -180,7 +180,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testCoordinatorPrepareInvitationPersistsCloudFieldsOnSuccess() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -210,7 +210,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testCoordinatorRefreshUpdatesAcceptedStatus() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -250,7 +250,7 @@ final class CompanionSharingTests: XCTestCase {
     func testCoordinatorResendDoesNotRecreateOnNetworkError() async throws {
         let service = MockCompanionSharingService()
         service.loadShareError = .networkFailure
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -279,7 +279,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testCoordinatorCancelClearsCloudLinkageAndRevokesShare() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -320,7 +320,7 @@ final class CompanionSharingTests: XCTestCase {
     func testCoordinatorCancelDoesNotMarkLocalCanceledOnNetworkError() async throws {
         let service = MockCompanionSharingService()
         service.cancelError = .networkFailure
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -349,7 +349,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testCoordinatorStopSharingEventClearsLocalLinkage() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -373,7 +373,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testAcceptPrefersStableShowIDAndAvoidsAmbiguousNameMatch() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -423,7 +423,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testAppDelegateQueuesShareMetadataBeforeCoordinatorWiring() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
 
@@ -442,7 +442,7 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testRefreshSessionNotFoundCancelsLinkedParticipantLocally() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -468,7 +468,7 @@ final class CompanionSharingTests: XCTestCase {
     func testRefreshNetworkFailureDoesNotRollbackUnrelatedEdits() async throws {
         let service = MockCompanionSharingService()
         service.fetchError = .networkFailure
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let coordinator = makeCoordinator(service: service)
 
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -492,7 +492,9 @@ final class CompanionSharingTests: XCTestCase {
     @MainActor
     func testRefreshAllLinkedShowsRecoversAcceptedSharedSessionAfterLocalReset() async throws {
         let service = MockCompanionSharingService()
-        let coordinator = CompanionSharingCoordinator(service: service)
+        let userDefaults = makeIsolatedUserDefaults()
+        userDefaults.set(true, forKey: CompanionSharingCoordinator.cloudSyncEnabledKey)
+        let coordinator = CompanionSharingCoordinator(service: service, userDefaults: userDefaults)
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let context = container.mainContext
@@ -514,10 +516,84 @@ final class CompanionSharingTests: XCTestCase {
         await coordinator.refreshAllLinkedShows(in: context)
 
         let shows = try context.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(service.listAcceptedSharedSessionsCallCount, 1)
         XCTAssertEqual(shows.count, 1)
         XCTAssertEqual(shows.first?.name, "恢复现场")
         XCTAssertEqual(shows.first?.companionStatus, .confirmed)
         XCTAssertEqual(shows.first?.companionCloudRecordName, "remote-session")
+    }
+
+    @MainActor
+    func testRefreshAllLinkedShowsSkipsCloudDiscoveryBeforeCompanionUse() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+
+        await coordinator.refreshAllLinkedShows(in: container.mainContext)
+
+        XCTAssertEqual(service.listAcceptedSharedSessionsCallCount, 0)
+    }
+
+    @MainActor
+    func testLocalCompanionLinkEnablesCloudDiscovery() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        show.companionCloudRecordName = "session-local"
+        context.insert(show)
+        try context.save()
+
+        await coordinator.refreshAllLinkedShows(in: context)
+
+        XCTAssertEqual(service.listAcceptedSharedSessionsCallCount, 1)
+    }
+
+    @MainActor
+    func testExplicitInvitationPersistsCloudDiscoveryOptInForLocalResetRecovery() async throws {
+        let service = MockCompanionSharingService()
+        let userDefaults = makeIsolatedUserDefaults()
+        let coordinator = CompanionSharingCoordinator(service: service, userDefaults: userDefaults)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let firstContainer = try ModelContainer(for: Show.self, configurations: configuration)
+        let firstContext = firstContainer.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "恢复同行", date: now, startTime: now)
+        firstContext.insert(show)
+        try firstContext.save()
+
+        _ = try await coordinator.prepareInvitation(
+            for: show,
+            preferredParticipantName: "林嘉",
+            ownerDisplayName: "Alex",
+            in: firstContext
+        )
+
+        let secondCoordinator = CompanionSharingCoordinator(service: service, userDefaults: userDefaults)
+        let secondContainer = try ModelContainer(for: Show.self, configurations: configuration)
+        await secondCoordinator.refreshAllLinkedShows(in: secondContainer.mainContext)
+
+        XCTAssertEqual(service.listAcceptedSharedSessionsCallCount, 1)
+        XCTAssertEqual(try secondContainer.mainContext.fetch(FetchDescriptor<Show>()).count, 1)
+    }
+
+    @MainActor
+    private func makeCoordinator(
+        service: MockCompanionSharingService
+    ) -> CompanionSharingCoordinator {
+        CompanionSharingCoordinator(
+            service: service,
+            userDefaults: makeIsolatedUserDefaults()
+        )
+    }
+
+    private func makeIsolatedUserDefaults() -> UserDefaults {
+        let suiteName = "CompanionSharingTests.\(UUID().uuidString)"
+        return UserDefaults(suiteName: suiteName)!
     }
 }
 
@@ -574,6 +650,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     var sessions: [String: CompanionSessionSnapshot] = [:]
     var revokedShareNames: [String] = []
     private(set) var prepareCallCount = 0
+    private(set) var listAcceptedSharedSessionsCallCount = 0
     private var counter = 0
 
     func prepareInvitation(
@@ -654,7 +731,8 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     }
 
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
-        sessions.values.filter { $0.status == .accepted || $0.status == .pending }
+        listAcceptedSharedSessionsCallCount += 1
+        return sessions.values.filter { $0.status == .accepted || $0.status == .pending }
     }
 
     func reconcileOwnerMembership(

@@ -17,18 +17,25 @@ final class CompanionSharingCoordinator {
     /// Share metadata waiting for successful acceptance/apply.
     private var pendingShareMetadata: [CKShare.Metadata]
     private var isFlushingAcceptedShares = false
+    private let userDefaults: UserDefaults
 
     private static let acceptedShareInboxKey = "companion.accepted-share-inbox.v1"
+    static let cloudSyncEnabledKey = "companion.cloud-sync-enabled.v1"
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
         container: CKContainer = CKContainer(
             identifier: CloudKitCompanionSharingService.defaultContainerIdentifier
-        )
+        ),
+        userDefaults: UserDefaults = .standard
     ) {
         self.service = service
         self.container = container
-        self.pendingShareMetadata = Self.loadPersistedAcceptedShares()
+        self.userDefaults = userDefaults
+        self.pendingShareMetadata = Self.loadPersistedAcceptedShares(from: userDefaults)
+        if !pendingShareMetadata.isEmpty {
+            userDefaults.set(true, forKey: Self.cloudSyncEnabledKey)
+        }
     }
 
     // MARK: Invite (owner)
@@ -39,6 +46,10 @@ final class CompanionSharingCoordinator {
         ownerDisplayName: String?,
         in modelContext: ModelContext
     ) async throws -> CompanionPreparedShare {
+        // This method is reached from an explicit "邀请同行" action. Persisting the
+        // opt-in before the remote mutation also preserves recovery if the process is
+        // terminated after CloudKit creates the session but before local linkage saves.
+        enableCloudSync()
         let snapshotBefore = show.companionStateSnapshot()
         let cloudBefore = show.companionCloudLinkageSnapshot()
 
@@ -99,6 +110,9 @@ final class CompanionSharingCoordinator {
         participantDisplayName: String?,
         in modelContext: ModelContext
     ) async {
+        // A share callback is an explicit companion entry point. Keep the recovery
+        // marker even if acceptance needs a later retry.
+        enableCloudSync()
         do {
             let session = try await service.acceptShare(
                 metadata: metadata,
@@ -119,16 +133,17 @@ final class CompanionSharingCoordinator {
     }
 
     func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
+        enableCloudSync()
         let key = Self.metadataKey(metadata)
         guard !pendingShareMetadata.contains(where: { Self.metadataKey($0) == key }) else {
             return
         }
         pendingShareMetadata.append(metadata)
-        Self.persistAcceptedShares(pendingShareMetadata)
+        Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
     }
 
     func reloadPersistedAcceptedShares() {
-        for metadata in Self.loadPersistedAcceptedShares() {
+        for metadata in Self.loadPersistedAcceptedShares(from: userDefaults) {
             enqueueAcceptedShare(metadata)
         }
     }
@@ -168,11 +183,11 @@ final class CompanionSharingCoordinator {
                     pendingShareMetadata.removeAll {
                         Self.metadataKey($0) == key
                     }
-                    Self.persistAcceptedShares(pendingShareMetadata)
+                    Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
                 }
             }
         }
-        Self.persistAcceptedShares(pendingShareMetadata)
+        Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
     }
 
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
@@ -183,8 +198,8 @@ final class CompanionSharingCoordinator {
         return "\(root.zoneID.ownerName)|\(root.zoneID.zoneName)|\(root.recordName)|\(share.recordName)"
     }
 
-    private static func loadPersistedAcceptedShares() -> [CKShare.Metadata] {
-        guard let entries = UserDefaults.standard.array(forKey: acceptedShareInboxKey) as? [Data] else {
+    private static func loadPersistedAcceptedShares(from userDefaults: UserDefaults) -> [CKShare.Metadata] {
+        guard let entries = userDefaults.array(forKey: acceptedShareInboxKey) as? [Data] else {
             return []
         }
         return entries.compactMap { data in
@@ -192,7 +207,10 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    private static func persistAcceptedShares(_ metadata: [CKShare.Metadata]) {
+    private static func persistAcceptedShares(
+        _ metadata: [CKShare.Metadata],
+        to userDefaults: UserDefaults
+    ) {
         var entries: [Data] = []
         for item in metadata {
             guard let data = try? NSKeyedArchiver.archivedData(
@@ -205,16 +223,21 @@ final class CompanionSharingCoordinator {
             }
             entries.append(data)
         }
-        UserDefaults.standard.set(entries, forKey: acceptedShareInboxKey)
+        userDefaults.set(entries, forKey: acceptedShareInboxKey)
     }
 
     /// Used when a cold-launch scene callback arrives before the coordinator is installed.
-    static func persistAcceptedShare(_ metadata: CKShare.Metadata) {
-        var current = loadPersistedAcceptedShares()
+    static func persistAcceptedShare(
+        _ metadata: CKShare.Metadata,
+        userDefaults: UserDefaults = .standard
+    ) {
+        var current = loadPersistedAcceptedShares(from: userDefaults)
         let key = metadataKey(metadata)
-        guard !current.contains(where: { metadataKey($0) == key }) else { return }
-        current.append(metadata)
-        persistAcceptedShares(current)
+        if !current.contains(where: { metadataKey($0) == key }) {
+            current.append(metadata)
+        }
+        persistAcceptedShares(current, to: userDefaults)
+        userDefaults.set(true, forKey: cloudSyncEnabledKey)
     }
 
     // MARK: Cancel / sync
@@ -376,6 +399,16 @@ final class CompanionSharingCoordinator {
 
     func refreshAllLinkedShows(in modelContext: ModelContext) async {
         await flushPendingAcceptedShares(in: modelContext)
+
+        let descriptor = FetchDescriptor<Show>()
+        guard let shows = try? modelContext.fetch(descriptor) else { return }
+        let hasLocalCompanionLink = shows.contains { $0.companionCloudRecordName != nil }
+        guard hasLocalCompanionLink || hasPendingAcceptedShares || isCloudSyncEnabled else {
+            // Do not perform accountStatus() or shared-database discovery for users who
+            // have never entered the companion flow.
+            return
+        }
+
         do {
             let sessions = try await service.listAcceptedSharedSessions()
             for session in sessions {
@@ -386,7 +419,6 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = Self.userMessage(for: error)
             lastErrorKind = error as? CompanionSharingError
         }
-        let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
         for show in shows where show.companionCloudRecordName != nil {
             await refreshCompanion(for: show, in: modelContext)
@@ -438,6 +470,14 @@ final class CompanionSharingCoordinator {
     }
 
     // MARK: Private
+
+    private var isCloudSyncEnabled: Bool {
+        userDefaults.bool(forKey: Self.cloudSyncEnabledKey)
+    }
+
+    private func enableCloudSync() {
+        userDefaults.set(true, forKey: Self.cloudSyncEnabledKey)
+    }
 
     private func reconcileOwnerShareMembership(
         shareLocator: CompanionRecordLocator
