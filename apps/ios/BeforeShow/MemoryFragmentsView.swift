@@ -1322,10 +1322,7 @@ private struct MemoryThumbnail: View {
             }
         }
         .task(id: relativePath) {
-            guard let path = try? MemoryMediaLocation.applicationSupport().url(for: relativePath).path else {
-                image = nil
-                return
-            }
+            let path = MemoryMediaLocation.applicationSupport().url(for: relativePath).path
             let loaded = await Task.detached(priority: .userInitiated) {
                 UIImage(contentsOfFile: path)
             }.value
@@ -1397,17 +1394,11 @@ private struct MemoryMediaViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
                             if item.kind == .video {
-                                if let url = try? MemoryMediaLocation.applicationSupport().url(for: item.relativePath) {
-                                    VideoPlayer(player: AVPlayer(url: url))
-                                } else {
-                                    VStack(spacing: 10) {
-                                        Image(systemName: "photo.on.rectangle.angled")
-                                            .font(.system(size: 32))
-                                        Text("媒体暂时不可用")
-                                            .font(.system(size: 14, weight: .medium))
-                                    }
-                                    .foregroundStyle(.white.opacity(0.7))
-                                }
+                                VideoPlayer(
+                                    player: AVPlayer(
+                                        url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
+                                    )
+                                )
                             } else {
                                 MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
                                     .scaledToFit()
@@ -2066,12 +2057,6 @@ private struct MemoryUnifiedEditorView: View {
                 return "这张图片无法处理，请换一张图片后重试。"
             case .importCancelled:
                 return "媒体导入已取消，请重新选择。"
-            case .storageUnavailable:
-                return "本地存储暂时不可用，请稍后重试。"
-            case .invalidRelativePath:
-                return "媒体路径无效，请重新选择。"
-            case .fullCleanupPending:
-                return "本地数据清理尚未完成，请稍后重试。"
             }
         }
         if let validationError = error as? MemoryFragmentValidationError {

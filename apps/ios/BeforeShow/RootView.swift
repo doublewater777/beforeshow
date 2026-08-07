@@ -1642,9 +1642,7 @@ private enum DebugSampleShowSeeder {
                 let fragmentID = UUID()
                 let relativeDirectory = "\(show.id.uuidString)/\(fragmentID.uuidString)"
                 let relativePath = "\(relativeDirectory)/sample.jpg"
-                guard let destination = try? MemoryMediaLocation.applicationSupport().url(for: relativePath) else {
-                    return
-                }
+                let destination = MemoryMediaLocation.applicationSupport().url(for: relativePath)
                 try FileManager.default.createDirectory(
                     at: destination.deletingLastPathComponent(),
                     withIntermediateDirectories: true

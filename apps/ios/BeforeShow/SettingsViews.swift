@@ -640,10 +640,7 @@ private struct PrivacyLocalDataView: View {
             do {
                 let context = modelContext
                 await ShowAssetMediaStore.shared.acquireCommitGate()
-                // Write the recoverable intent before the model transaction. On a
-                // crash after SwiftData commits, launch can then distinguish a
-                // completed clear from a request that never reached the database.
-                LocalMediaCleanupRetry.markFullCleanupPrepared()
+                ShowAssetCleanupRetry.markFullCleanupPrepared()
                 do {
                     try context.delete(model: Show.self)
                     try context.delete(model: CurrentShowSelection.self)
@@ -657,20 +654,14 @@ private struct PrivacyLocalDataView: View {
                     context.rollback()
                     throw error
                 }
-                LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
-                LocalMediaCleanupRetry.clearFullCleanupPrepared()
+                ShowAssetCleanupRetry.markFullCleanupPending()
+                ShowAssetCleanupRetry.clearFullCleanupPrepared()
 
                 var cleanupFailures: [String] = []
-                do {
-                    try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
-                    LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
-                } catch {
-                    cleanupFailures.append("记忆碎片副本")
-                }
-
+                try await MemoryFragmentMediaStore.shared.deleteAll()
                 do {
                     try await ShowAssetMediaStore.shared.deleteAll()
-                    LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
+                    ShowAssetCleanupRetry.clearFullCleanupPending()
                 } catch {
                     cleanupFailures.append("票根和时刻表副本")
                 }
@@ -684,10 +675,7 @@ private struct PrivacyLocalDataView: View {
                 }
                 await ShowAssetMediaStore.shared.releaseCommitGate()
             } catch {
-                // A failed in-process model transaction is rolled back, so the
-                // pre-commit journal must not cause startup to delete live media.
-                // Keep any older committed cleanup markers intact for retry.
-                LocalMediaCleanupRetry.clearFullCleanupPrepared()
+                ShowAssetCleanupRetry.clearFullCleanupPrepared()
                 clearResult = nil
                 clearStatusText = "清除本地数据失败，请重试。"
                 await ShowAssetMediaStore.shared.releaseCommitGate()

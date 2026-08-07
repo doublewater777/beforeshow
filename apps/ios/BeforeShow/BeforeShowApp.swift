@@ -61,7 +61,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
-                    await retryPendingLocalMediaCleanupIfNeeded(in: modelContainer.mainContext)
+                    await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
                 }
@@ -84,98 +84,51 @@ struct BeforeShowApp: App {
 }
 
 @MainActor
-private func retryPendingLocalMediaCleanupIfNeeded(in context: ModelContext) async {
-    guard LocalMediaCleanupRetry.isFullCleanupPrepared
-            || LocalMediaCleanupRetry.isFullCleanupPending
-            || !LocalMediaCleanupRetry.pendingShowCleanupIDs.isEmpty
-            || !LocalMediaCleanupRetry.pendingAssets.isEmpty
-            || !LocalMediaCleanupRetry.pendingMemoryCleanups.isEmpty
-            || !LocalMediaCleanupRetry.pendingMemoryStaging.isEmpty else { return }
+private func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) async {
+    guard ShowAssetCleanupRetry.isFullCleanupPrepared
+            || ShowAssetCleanupRetry.isFullCleanupPending
+            || !ShowAssetCleanupRetry.pendingShowCleanupIDs.isEmpty
+            || !ShowAssetCleanupRetry.pendingAssets.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
-    if LocalMediaCleanupRetry.isFullCleanupPrepared {
-        let hasPersistedAppData = (try? context.fetch(FetchDescriptor<Show>()).isEmpty == false)
-            ?? true
-        if hasPersistedAppData {
-            LocalMediaCleanupRetry.clearFullCleanupPrepared()
+    if ShowAssetCleanupRetry.isFullCleanupPrepared {
+        let hasPersistedShowData = ((try? context.fetch(FetchDescriptor<Show>()).isEmpty == false) ?? true)
+            || ((try? context.fetch(FetchDescriptor<ShowAsset>()).isEmpty == false) ?? true)
+        if hasPersistedShowData {
+            // The crash happened before the model transaction committed. Do not
+            // delete any live ticket/timetable files; the next clear can start fresh.
+            ShowAssetCleanupRetry.clearFullCleanupPrepared()
         } else {
-            LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
-            LocalMediaCleanupRetry.clearFullCleanupPrepared()
+            ShowAssetCleanupRetry.markFullCleanupPending()
+            ShowAssetCleanupRetry.clearFullCleanupPrepared()
         }
     }
-    if LocalMediaCleanupRetry.isMemoryFullCleanupPending {
-        do {
-            try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
-            LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: false)
-        } catch {
-            // Keep only the memory marker so the next launch retries this root.
-        }
-    }
-    if LocalMediaCleanupRetry.isShowAssetFullCleanupPending {
+    if ShowAssetCleanupRetry.isFullCleanupPending {
         do {
             try await ShowAssetMediaStore.shared.deleteAll()
-            LocalMediaCleanupRetry.clearFullCleanupPending(memory: false, showAssets: true)
+            ShowAssetCleanupRetry.clearFullCleanupPending()
         } catch {
-            // Keep only the ShowAsset marker so the next launch retries this root.
+            // Keep the marker so the next launch retries the asset root.
         }
     }
-    for showID in LocalMediaCleanupRetry.pendingShowCleanupIDs {
+    for showID in ShowAssetCleanupRetry.pendingShowCleanupIDs {
         do {
-            try await MemoryFragmentMediaStore.shared.deleteShow(showID)
             try await ShowAssetMediaStore.shared.deleteShow(showID)
-            LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+            ShowAssetCleanupRetry.clearShowCleanupPending(showID)
         } catch {
             // Keep only this show marked for the next retry.
         }
     }
-    for pending in LocalMediaCleanupRetry.pendingAssets {
+    for pending in ShowAssetCleanupRetry.pendingAssets {
         do {
             try await ShowAssetMediaStore.shared.delete(
                 relativePath: pending.relativePath,
                 showID: pending.showID,
                 kind: pending.kind
             )
-            LocalMediaCleanupRetry.clearAssetCleanupPending(pending)
+            ShowAssetCleanupRetry.clearAssetCleanupPending(pending)
         } catch {
             // Keep this exact path marked for the next retry.
-        }
-    }
-    for pending in LocalMediaCleanupRetry.pendingMemoryCleanups {
-        do {
-            if let relativePath = pending.relativePath {
-                try await MemoryFragmentMediaStore.shared.deleteFiles(
-                    relativePaths: [relativePath],
-                    showID: pending.showID,
-                    fragmentID: pending.fragmentID
-                )
-            } else {
-                try await MemoryFragmentMediaStore.shared.deleteFragment(
-                    showID: pending.showID,
-                    fragmentID: pending.fragmentID
-                )
-            }
-            if let relativePath = pending.relativePath {
-                LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
-                    showID: pending.showID,
-                    fragmentID: pending.fragmentID,
-                    relativePath: relativePath
-                )
-            } else {
-                LocalMediaCleanupRetry.clearMemoryFragmentCleanupPending(
-                    showID: pending.showID,
-                    fragmentID: pending.fragmentID
-                )
-            }
-        } catch {
-            // Keep this exact owned path marked for the next retry.
-        }
-    }
-    for pending in LocalMediaCleanupRetry.pendingMemoryStaging {
-        do {
-            try await MemoryFragmentMediaStore.shared.discardDraft(pending.draftID)
-            LocalMediaCleanupRetry.clearMemoryStagingCleanupPending(pending.draftID)
-        } catch {
-            // Keep this staging directory marked for the next retry.
         }
     }
     await ShowAssetMediaStore.shared.releaseCommitGate()
@@ -227,7 +180,7 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
     let fragments = try modelContext.fetch(FetchDescriptor<MemoryFragment>())
     var valid: [UUID: [UUID: Set<String>]] = [:]
     var mutated = false
-    var overflowPaths: [MemoryOwnedMediaPath] = []
+    var overflowPaths: [String] = []
     for fragment in fragments {
         guard let show = showsByID[fragment.showID] else {
             modelContext.delete(fragment)
@@ -249,82 +202,23 @@ func reconcileMemoryFragmentShowBoundary(in modelContext: ModelContext) throws -
         if !overflow.isEmpty {
             mutated = true
             for item in overflow {
-                let itemPaths: [String] = [item.relativePath] + (item.thumbnailRelativePath.map { [$0] } ?? [])
-                overflowPaths.append(contentsOf: itemPaths.compactMap {
-                    guard MemoryMediaLocation.isValidCommittedPath(
-                        $0,
-                        showID: fragment.showID,
-                        fragmentID: fragment.id
-                    ) else { return nil }
-                    return MemoryOwnedMediaPath(
-                        showID: fragment.showID,
-                        fragmentID: fragment.id,
-                        relativePath: $0
-                    )
-                })
+                overflowPaths.append(contentsOf: [item.relativePath, item.thumbnailRelativePath].compactMap { $0 })
                 modelContext.delete(item)
             }
-        }
-        let invalidItems = fragment.mediaItems.filter {
-            !MemoryMediaLocation.isValidCommittedPath(
-                $0.relativePath,
-                showID: fragment.showID,
-                fragmentID: fragment.id
-            ) || ($0.thumbnailRelativePath.map {
-                !MemoryMediaLocation.isValidCommittedPath(
-                    $0,
-                    showID: fragment.showID,
-                    fragmentID: fragment.id
-                )
-            } ?? false)
-        }
-        if !invalidItems.isEmpty {
-            for item in invalidItems {
-                modelContext.delete(item)
-            }
-            mutated = true
         }
         let paths = Set(
             fragment.mediaItems.flatMap { item in
-                let itemPaths: [String] = [item.relativePath] + (item.thumbnailRelativePath.map { [$0] } ?? [])
-                let validPaths: [String] = itemPaths.compactMap { path -> String? in
-                    guard MemoryMediaLocation.isValidCommittedPath(
-                        path,
-                        showID: fragment.showID,
-                        fragmentID: fragment.id
-                    ) else { return nil }
-                    return path
-                }
-                return validPaths
+                [item.relativePath, item.thumbnailRelativePath].compactMap { $0 }
             }
         )
         valid[fragment.showID, default: [:]][fragment.id] = paths
     }
     if mutated {
-        try saveModelContextRollingBackOnFailure(modelContext)
+        try modelContext.save()
     }
     if !overflowPaths.isEmpty {
         Task {
-            await MemoryFragmentMediaStore.shared.acquireCommitGate()
-            for path in overflowPaths {
-                do {
-                    try await MemoryFragmentMediaStore.shared.deleteFiles(
-                        [path]
-                    )
-                    LocalMediaCleanupRetry.clearMemoryPathCleanupPending(
-                        showID: path.showID,
-                        fragmentID: path.fragmentID,
-                        relativePath: path.relativePath
-                    )
-                } catch {
-                    LocalMediaCleanupRetry.markMemoryPathCleanupPending(
-                        showID: path.showID,
-                        fragmentID: path.fragmentID,
-                        relativePath: path.relativePath
-                    )
-                }
-            }
-            await MemoryFragmentMediaStore.shared.releaseCommitGate()
+            try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: overflowPaths)
         }
     }
     return valid
@@ -349,7 +243,6 @@ func saveModelContextRollingBackOnFailure(_ modelContext: ModelContext) throws {
         try modelContext.save()
     }
 }
-
 
 @MainActor
 private func reconcileAllShowAssets(in modelContext: ModelContext) async {

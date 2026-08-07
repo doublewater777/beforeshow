@@ -150,7 +150,7 @@ actor ShowAssetMediaStore {
         assetID: UUID = UUID()
     ) async throws -> String {
         try ensureStorageAvailable()
-        guard !LocalMediaCleanupRetry.isShowAssetFullCleanupPending else {
+        guard !ShowAssetCleanupRetry.isFullCleanupPending else {
             throw ShowAssetMediaStoreError.fullCleanupPending
         }
         let image = try decodedImage(from: data)

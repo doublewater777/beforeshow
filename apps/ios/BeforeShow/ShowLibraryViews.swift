@@ -48,26 +48,18 @@ enum ShowDeletionCoordinator {
             )
 
             try modelContext.save()
-            // Record the retry intent before the first filesystem deletion. If the
-            // app is terminated after the model commit, startup can finish both
-            // store cleanups instead of relying only on reconciliation.
-            LocalMediaCleanupRetry.markShowCleanupPending(showID)
+            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+            ShowAssetCleanupRetry.markShowCleanupPending(showID)
             var cleanupPending = false
-            do {
-                try await MemoryFragmentMediaStore.shared.deleteShow(showID)
-            } catch {
-                cleanupPending = true
-            }
             do {
                 try await ShowAssetMediaStore.shared.deleteShow(showID)
             } catch {
                 cleanupPending = true
             }
-
             if cleanupPending {
-                LocalMediaCleanupRetry.markShowCleanupPending(showID)
+                ShowAssetCleanupRetry.markShowCleanupPending(showID)
             } else {
-                LocalMediaCleanupRetry.clearShowCleanupPending(showID)
+                ShowAssetCleanupRetry.clearShowCleanupPending(showID)
             }
 
             if let coverImageURL,

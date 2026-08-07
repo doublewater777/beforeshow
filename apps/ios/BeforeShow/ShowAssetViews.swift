@@ -387,7 +387,7 @@ struct ShowAssetUploadView: View {
                    showID: showID,
                    kind: kind
                ) {
-                LocalMediaCleanupRetry.markAssetCleanupPending(
+                ShowAssetCleanupRetry.markAssetCleanupPending(
                     showID: showID,
                     kind: kind,
                     relativePath: previousRelativePath
@@ -415,7 +415,7 @@ struct ShowAssetUploadView: View {
                         kind: kind
                     )
                 } catch {
-                    LocalMediaCleanupRetry.markAssetCleanupPending(
+                    ShowAssetCleanupRetry.markAssetCleanupPending(
                         showID: showID,
                         kind: kind,
                         relativePath: writtenRelativePath
@@ -745,7 +745,7 @@ struct ShowAssetViewerView: View {
                            showID: showID,
                            kind: currentKind
                        ) {
-                        LocalMediaCleanupRetry.markAssetCleanupPending(
+                        ShowAssetCleanupRetry.markAssetCleanupPending(
                             showID: showID,
                             kind: currentKind,
                             relativePath: currentRelativePath

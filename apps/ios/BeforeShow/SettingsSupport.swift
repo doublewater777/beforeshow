@@ -131,42 +131,24 @@ enum LocalDataClearancePolicy {
     )
 }
 
-enum LocalMediaCleanupRetry {
+/// Retry journal for ticket/timetable files only. Memory-fragment cleanup keeps
+/// the implementation from `main` and deliberately does not use this type.
+enum ShowAssetCleanupRetry {
     struct PendingAsset: Codable, Equatable {
         let showID: UUID
         let kind: ShowAssetKind
         let relativePath: String
     }
 
-    struct PendingMemoryCleanup: Codable, Equatable {
-        let showID: UUID
-        let fragmentID: UUID
-        let relativePath: String?
-    }
-
-    struct PendingMemoryStaging: Codable, Equatable {
-        let draftID: UUID
-    }
-
-    private static let pendingMemoryFullCleanupKey = "BeforeShow.pendingFullMemoryMediaCleanup"
-    private static let pendingShowAssetFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
-    private static let preparedFullCleanupKey = "BeforeShow.preparedFullCleanup"
+    private static let pendingFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
+    private static let preparedFullCleanupKey = "BeforeShow.preparedShowAssetCleanup"
+    // Keep the pre-split ticket markers readable so an interrupted ticket-only
+    // cleanup from an earlier build is still recovered after this refactor.
     private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
     private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
-    private static let pendingMemoryCleanupKey = "BeforeShow.pendingMemoryCleanup"
-    private static let pendingMemoryStagingCleanupKey = "BeforeShow.pendingMemoryStagingCleanup"
-    private static let legacyPendingMemoryPathCleanupKey = "BeforeShow.pendingMemoryPathCleanup"
-
-    static var isMemoryFullCleanupPending: Bool {
-        UserDefaults.standard.bool(forKey: pendingMemoryFullCleanupKey)
-    }
-
-    static var isShowAssetFullCleanupPending: Bool {
-        UserDefaults.standard.bool(forKey: pendingShowAssetFullCleanupKey)
-    }
 
     static var isFullCleanupPending: Bool {
-        isMemoryFullCleanupPending || isShowAssetFullCleanupPending
+        UserDefaults.standard.bool(forKey: pendingFullCleanupKey)
     }
 
     static var isFullCleanupPrepared: Bool {
@@ -175,8 +157,6 @@ enum LocalMediaCleanupRetry {
 
     static func markFullCleanupPrepared() {
         UserDefaults.standard.set(true, forKey: preparedFullCleanupKey)
-        // This bit is a crash journal written before SwiftData commits. Force it
-        // through the preferences boundary before the destructive transaction.
         UserDefaults.standard.synchronize()
     }
 
@@ -184,24 +164,13 @@ enum LocalMediaCleanupRetry {
         UserDefaults.standard.removeObject(forKey: preparedFullCleanupKey)
     }
 
-    static func markFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {
-        if memory {
-            UserDefaults.standard.set(true, forKey: pendingMemoryFullCleanupKey)
-        }
-        if showAssets {
-            UserDefaults.standard.set(true, forKey: pendingShowAssetFullCleanupKey)
-        }
-        // Persist the committed phase before callers remove the prepared bit.
+    static func markFullCleanupPending() {
+        UserDefaults.standard.set(true, forKey: pendingFullCleanupKey)
         UserDefaults.standard.synchronize()
     }
 
-    static func clearFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {
-        if memory {
-            UserDefaults.standard.removeObject(forKey: pendingMemoryFullCleanupKey)
-        }
-        if showAssets {
-            UserDefaults.standard.removeObject(forKey: pendingShowAssetFullCleanupKey)
-        }
+    static func clearFullCleanupPending() {
+        UserDefaults.standard.removeObject(forKey: pendingFullCleanupKey)
     }
 
     static var pendingShowCleanupIDs: [UUID] {
@@ -238,6 +207,7 @@ enum LocalMediaCleanupRetry {
         kind: ShowAssetKind,
         relativePath: String
     ) {
+        guard ShowAsset.isValidRelativePath(relativePath, showID: showID, kind: kind) else { return }
         let pending = PendingAsset(showID: showID, kind: kind, relativePath: relativePath)
         var values = pendingAssets
         if !values.contains(pending) {
@@ -257,136 +227,6 @@ enum LocalMediaCleanupRetry {
         }
         if let data = try? JSONEncoder().encode(values) {
             UserDefaults.standard.set(data, forKey: pendingAssetCleanupKey)
-        }
-    }
-
-    static var pendingMemoryCleanups: [PendingMemoryCleanup] {
-        if let data = UserDefaults.standard.data(forKey: pendingMemoryCleanupKey),
-           let values = try? JSONDecoder().decode([PendingMemoryCleanup].self, from: data) {
-            return values.filter { pending in
-                guard let path = pending.relativePath else { return true }
-                return MemoryMediaLocation.isValidCommittedPath(
-                    path,
-                    showID: pending.showID,
-                    fragmentID: pending.fragmentID
-                )
-            }
-        }
-
-        // Migrate the old unscoped path journal only when the path itself has the
-        // canonical UUID ownership shape. Anything else is discarded instead of
-        // replaying an untrusted string during startup cleanup.
-        let legacy = UserDefaults.standard.stringArray(forKey: legacyPendingMemoryPathCleanupKey) ?? []
-        let migrated = legacy.compactMap { path -> PendingMemoryCleanup? in
-            let components = path.split(separator: "/", omittingEmptySubsequences: false)
-            guard (components.count == 2 || components.count == 3),
-                  let showID = UUID(uuidString: String(components[0])),
-                  let fragmentID = UUID(uuidString: String(components[1])) else {
-                return nil
-            }
-            if components.count == 3,
-               !MemoryMediaLocation.isValidCommittedPath(
-                   path,
-                   showID: showID,
-                   fragmentID: fragmentID
-               ) {
-                return nil
-            }
-            return PendingMemoryCleanup(
-                showID: showID,
-                fragmentID: fragmentID,
-                relativePath: components.count == 3 ? path : nil
-            )
-        }
-        UserDefaults.standard.removeObject(forKey: legacyPendingMemoryPathCleanupKey)
-        persistMemoryCleanups(migrated)
-        return migrated
-    }
-
-    static func markMemoryFragmentCleanupPending(showID: UUID, fragmentID: UUID) {
-        var values = pendingMemoryCleanups
-        let pending = PendingMemoryCleanup(showID: showID, fragmentID: fragmentID, relativePath: nil)
-        if !values.contains(pending) {
-            values.append(pending)
-            persistMemoryCleanups(values)
-        }
-    }
-
-    static func markMemoryPathCleanupPending(
-        showID: UUID,
-        fragmentID: UUID,
-        relativePath: String
-    ) {
-        guard MemoryMediaLocation.isValidCommittedPath(
-            relativePath,
-            showID: showID,
-            fragmentID: fragmentID
-        ) else { return }
-        var values = pendingMemoryCleanups
-        let pending = PendingMemoryCleanup(
-            showID: showID,
-            fragmentID: fragmentID,
-            relativePath: relativePath
-        )
-        if !values.contains(pending) {
-            values.append(pending)
-            persistMemoryCleanups(values)
-        }
-    }
-
-    static func clearMemoryFragmentCleanupPending(showID: UUID, fragmentID: UUID) {
-        persistMemoryCleanups(pendingMemoryCleanups.filter {
-            !($0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == nil)
-        })
-    }
-
-    static func clearMemoryPathCleanupPending(
-        showID: UUID,
-        fragmentID: UUID,
-        relativePath: String
-    ) {
-        persistMemoryCleanups(pendingMemoryCleanups.filter {
-            !($0.showID == showID && $0.fragmentID == fragmentID && $0.relativePath == relativePath)
-        })
-    }
-
-    private static func persistMemoryCleanups(_ values: [PendingMemoryCleanup]) {
-        if values.isEmpty {
-            UserDefaults.standard.removeObject(forKey: pendingMemoryCleanupKey)
-            return
-        }
-        if let data = try? JSONEncoder().encode(values) {
-            UserDefaults.standard.set(data, forKey: pendingMemoryCleanupKey)
-        }
-    }
-
-    static var pendingMemoryStaging: [PendingMemoryStaging] {
-        guard let data = UserDefaults.standard.data(forKey: pendingMemoryStagingCleanupKey) else {
-            return []
-        }
-        return (try? JSONDecoder().decode([PendingMemoryStaging].self, from: data)) ?? []
-    }
-
-    static func markMemoryStagingCleanupPending(_ draftID: UUID) {
-        var values = pendingMemoryStaging
-        let pending = PendingMemoryStaging(draftID: draftID)
-        if !values.contains(pending) {
-            values.append(pending)
-            persistMemoryStaging(values)
-        }
-    }
-
-    static func clearMemoryStagingCleanupPending(_ draftID: UUID) {
-        persistMemoryStaging(pendingMemoryStaging.filter { $0.draftID != draftID })
-    }
-
-    private static func persistMemoryStaging(_ values: [PendingMemoryStaging]) {
-        if values.isEmpty {
-            UserDefaults.standard.removeObject(forKey: pendingMemoryStagingCleanupKey)
-            return
-        }
-        if let data = try? JSONEncoder().encode(values) {
-            UserDefaults.standard.set(data, forKey: pendingMemoryStagingCleanupKey)
         }
     }
 }
