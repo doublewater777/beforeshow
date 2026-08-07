@@ -352,6 +352,7 @@ struct CurrentShowManagementSection: View {
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
     @State private var isShowingCompanion = false
+    @State private var showingAssetKind: ShowAssetKind?
     @State private var companionErrorMessage: String?
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
@@ -398,6 +399,13 @@ struct CurrentShowManagementSection: View {
                 isEnded: currentPhase == .ended,
                 coordinator: companionCoordinator,
                 onDismiss: { isShowingCompanion = false }
+            )
+        }
+        .sheet(item: $showingAssetKind) { kind in
+            CurrentShowAssetSheet(
+                showID: show.id,
+                showName: show.name,
+                kind: kind
             )
         }
         .alert(
@@ -582,8 +590,8 @@ struct CurrentShowManagementSection: View {
                         .frame(width: 86)
                     case .ticket, .timetable:
                         let kind: ShowAssetKind = action == .ticket ? .ticket : .timetable
-                        NavigationLink {
-                            ShowAssetEntryView(showID: show.id, showName: show.name, kind: kind)
+                        Button {
+                            showingAssetKind = kind
                         } label: {
                             CurrentShowQuickActionTile(
                                 action: action,
@@ -768,6 +776,27 @@ private struct CurrentShowFollowUpSummary: View {
         if seconds >= 86_400 { return "\(seconds / 86_400) 天后" }
         if seconds >= 3_600 { return "\(seconds / 3_600) 小时后" }
         return "\(max(1, seconds / 60)) 分钟后"
+    }
+}
+
+/// Presents ticket/timetable assets with the same drawer interaction as companion.
+/// A nested navigation stack keeps the existing viewer, upload, replace, and delete
+/// flows intact while the whole asset surface stays inside a bottom sheet.
+private struct CurrentShowAssetSheet: View {
+    let showID: UUID
+    let showName: String
+    let kind: ShowAssetKind
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large]) {
+            NavigationStack {
+                ShowAssetEntryView(
+                    showID: showID,
+                    showName: showName,
+                    kind: kind
+                )
+            }
+        }
     }
 }
 
