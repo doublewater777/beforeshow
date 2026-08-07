@@ -30,6 +30,12 @@ private enum MemoryPendingPresentation {
     case delete(MemoryFragment)
 }
 
+private enum MemoryCreateDestination {
+    case text
+    case library
+    case camera
+}
+
 private struct MemoryEditorItem: Identifiable, Equatable {
     enum Kind: Equatable {
         case existing(
@@ -96,6 +102,7 @@ struct MemoryFragmentsView: View {
     @State private var directImportDraftID: UUID?
     @State private var pendingCameraResult: MemoryCameraResult?
     @State private var pendingPresentation: MemoryPendingPresentation?
+    @State private var pendingCreateDestination: MemoryCreateDestination?
     @State private var createSourceError: String?
     @State private var pendingDelete: MemoryFragment?
     @State private var pendingDeleteTask: Task<Void, Never>?
@@ -200,7 +207,7 @@ struct MemoryFragmentsView: View {
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: pendingDelete?.id)
-        .fullScreenCover(isPresented: $isShowingCreateOptions) {
+        .fullScreenCover(isPresented: $isShowingCreateOptions, onDismiss: performPendingCreateDestination) {
             MemoryCreateSourceView(
                 onCamera: { openCameraDirectly() },
                 onPhotoLibrary: { openPhotoLibraryDirectly() },
@@ -444,28 +451,33 @@ struct MemoryFragmentsView: View {
     }
 
     private func launchTextEditor() {
+        pendingCreateDestination = .text
         isShowingCreateOptions = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
-            editorLaunch = MemoryEditorLaunch(kind: .createText)
-        }
     }
 
     private func openPhotoLibraryDirectly() {
         guard directImportTask == nil else { return }
+        pendingCreateDestination = .library
         isShowingCreateOptions = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
-            selectedCreateMedia = []
-            isPhotoPickerPresented = true
-        }
     }
 
     private func openCameraDirectly() {
         guard directImportTask == nil else { return }
+        pendingCreateDestination = .camera
         isShowingCreateOptions = false
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
+    }
+
+    private func performPendingCreateDestination() {
+        guard let destination = pendingCreateDestination else { return }
+        pendingCreateDestination = nil
+        switch destination {
+        case .text:
+            editorLaunch = MemoryEditorLaunch(kind: .createText)
+        case .library:
+            selectedCreateMedia = []
+            isPhotoPickerPresented = true
+        case .camera:
+            Task { @MainActor in
             guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
                 createSourceError = "当前设备无法使用相机。"
                 return
@@ -483,6 +495,7 @@ struct MemoryFragmentsView: View {
                 createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
             @unknown default:
                 createSourceError = "当前无法使用相机。"
+            }
             }
         }
     }
@@ -1450,6 +1463,7 @@ private struct MemoryUnifiedEditorView: View {
     @State private var isCameraPresented = false
     @State private var selectedItems: [PhotosPickerItem] = []
     @State private var isShowingAddSource = false
+    @State private var pendingAddDestination: MemoryCreateDestination?
     @State private var replacementIndex: Int?
     @State private var draggedItemID: UUID?
     @State private var operation: MemoryEditorOperation = .idle
@@ -1638,23 +1652,17 @@ private struct MemoryUnifiedEditorView: View {
             } message: {
                 Text(errorMessage ?? "请稍后重试。")
             }
-            .sheet(isPresented: $isShowingAddSource) {
+            .sheet(isPresented: $isShowingAddSource, onDismiss: performPendingAddDestination) {
                 MemoryAddMediaSheet(
                     onCamera: {
                         replacementIndex = nil
+                        pendingAddDestination = .camera
                         isShowingAddSource = false
-                        Task { @MainActor in
-                            await Task.yield()
-                            requestCamera()
-                        }
                     },
                     onLibrary: {
                         replacementIndex = nil
+                        pendingAddDestination = .library
                         isShowingAddSource = false
-                        Task { @MainActor in
-                            await Task.yield()
-                            isPhotoPickerPresented = true
-                        }
                     },
                     onCancel: { isShowingAddSource = false }
                 )
@@ -1672,6 +1680,19 @@ private struct MemoryUnifiedEditorView: View {
                 }
             }
         .interactiveDismissDisabled(operationBusy)
+    }
+
+    private func performPendingAddDestination() {
+        guard let destination = pendingAddDestination else { return }
+        pendingAddDestination = nil
+        switch destination {
+        case .camera:
+            requestCamera()
+        case .library:
+            isPhotoPickerPresented = true
+        case .text:
+            break
+        }
     }
 
     private var editorTitle: String {
