@@ -640,6 +640,10 @@ private struct PrivacyLocalDataView: View {
             do {
                 let context = modelContext
                 await ShowAssetMediaStore.shared.acquireCommitGate()
+                // Write the recoverable intent before the model transaction. On a
+                // crash after SwiftData commits, launch can then distinguish a
+                // completed clear from a request that never reached the database.
+                LocalMediaCleanupRetry.markFullCleanupPrepared()
                 do {
                     try context.delete(model: Show.self)
                     try context.delete(model: CurrentShowSelection.self)
@@ -653,11 +657,9 @@ private struct PrivacyLocalDataView: View {
                     context.rollback()
                     throw error
                 }
-
-                // Persist the retry intent before touching either media root so a
-                // termination between the database commit and file cleanup cannot
-                // silently lose the user's explicit clear request.
                 LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
+                LocalMediaCleanupRetry.clearFullCleanupPrepared()
+
                 var cleanupFailures: [String] = []
                 do {
                     try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()
@@ -682,6 +684,10 @@ private struct PrivacyLocalDataView: View {
                 }
                 await ShowAssetMediaStore.shared.releaseCommitGate()
             } catch {
+                // A failed in-process model transaction is rolled back, so the
+                // pre-commit journal must not cause startup to delete live media.
+                // Keep any older committed cleanup markers intact for retry.
+                LocalMediaCleanupRetry.clearFullCleanupPrepared()
                 clearResult = nil
                 clearStatusText = "清除本地数据失败，请重试。"
                 await ShowAssetMediaStore.shared.releaseCommitGate()

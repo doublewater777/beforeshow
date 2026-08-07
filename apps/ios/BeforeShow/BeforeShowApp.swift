@@ -61,7 +61,7 @@ struct BeforeShowApp: App {
                     await companionCoordinator.refreshAllLinkedShows(
                         in: modelContainer.mainContext
                     )
-                    await retryPendingLocalMediaCleanupIfNeeded()
+                    await retryPendingLocalMediaCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
                 }
@@ -84,14 +84,25 @@ struct BeforeShowApp: App {
 }
 
 @MainActor
-private func retryPendingLocalMediaCleanupIfNeeded() async {
-    guard LocalMediaCleanupRetry.isFullCleanupPending
+private func retryPendingLocalMediaCleanupIfNeeded(in context: ModelContext) async {
+    guard LocalMediaCleanupRetry.isFullCleanupPrepared
+            || LocalMediaCleanupRetry.isFullCleanupPending
             || !LocalMediaCleanupRetry.pendingShowCleanupIDs.isEmpty
             || !LocalMediaCleanupRetry.pendingAssets.isEmpty
             || !LocalMediaCleanupRetry.pendingMemoryCleanups.isEmpty
             || !LocalMediaCleanupRetry.pendingMemoryStaging.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
+    if LocalMediaCleanupRetry.isFullCleanupPrepared {
+        let hasPersistedAppData = (try? context.fetch(FetchDescriptor<Show>()).isEmpty == false)
+            ?? true
+        if hasPersistedAppData {
+            LocalMediaCleanupRetry.clearFullCleanupPrepared()
+        } else {
+            LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
+            LocalMediaCleanupRetry.clearFullCleanupPrepared()
+        }
+    }
     if LocalMediaCleanupRetry.isMemoryFullCleanupPending {
         do {
             try await MemoryFragmentMediaStore.shared.deleteAllIncludingImportTemp()

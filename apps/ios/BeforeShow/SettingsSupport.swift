@@ -150,6 +150,7 @@ enum LocalMediaCleanupRetry {
 
     private static let pendingMemoryFullCleanupKey = "BeforeShow.pendingFullMemoryMediaCleanup"
     private static let pendingShowAssetFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
+    private static let preparedFullCleanupKey = "BeforeShow.preparedFullCleanup"
     private static let pendingShowCleanupKey = "BeforeShow.pendingShowMediaCleanup"
     private static let pendingAssetCleanupKey = "BeforeShow.pendingAssetMediaCleanup"
     private static let pendingMemoryCleanupKey = "BeforeShow.pendingMemoryCleanup"
@@ -168,6 +169,21 @@ enum LocalMediaCleanupRetry {
         isMemoryFullCleanupPending || isShowAssetFullCleanupPending
     }
 
+    static var isFullCleanupPrepared: Bool {
+        UserDefaults.standard.bool(forKey: preparedFullCleanupKey)
+    }
+
+    static func markFullCleanupPrepared() {
+        UserDefaults.standard.set(true, forKey: preparedFullCleanupKey)
+        // This bit is a crash journal written before SwiftData commits. Force it
+        // through the preferences boundary before the destructive transaction.
+        UserDefaults.standard.synchronize()
+    }
+
+    static func clearFullCleanupPrepared() {
+        UserDefaults.standard.removeObject(forKey: preparedFullCleanupKey)
+    }
+
     static func markFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {
         if memory {
             UserDefaults.standard.set(true, forKey: pendingMemoryFullCleanupKey)
@@ -175,6 +191,8 @@ enum LocalMediaCleanupRetry {
         if showAssets {
             UserDefaults.standard.set(true, forKey: pendingShowAssetFullCleanupKey)
         }
+        // Persist the committed phase before callers remove the prepared bit.
+        UserDefaults.standard.synchronize()
     }
 
     static func clearFullCleanupPending(memory: Bool = true, showAssets: Bool = true) {

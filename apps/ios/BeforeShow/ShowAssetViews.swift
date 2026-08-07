@@ -281,9 +281,14 @@ struct ShowAssetUploadView: View {
                 throw ShowAssetMediaStoreError.missingShow
             }
             let currentAssets = assetsOfSameKind()
-            let existing = replacingAsset.flatMap { replacement in
-                currentAssets.first(where: { $0.id == replacement.id })
-            } ?? currentAssets.first
+            // A replacement target is a compare-and-swap identity, not a hint
+            // to replace whichever asset happens to exist now. Falling back to
+            // currentAssets.first could let a stale editor overwrite a newer
+            // ticket/timetable created by another scene.
+            let existing = try ShowAssetReplacement.target(
+                replacingAssetID: replacingAsset?.id,
+                currentAssets: currentAssets
+            )
             let previousRelativePath = existing?.relativePath
             let assetID = existing?.id ?? UUID()
             let relativePath = try await ShowAssetMediaStore.shared.saveImage(

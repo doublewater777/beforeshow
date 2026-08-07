@@ -57,6 +57,19 @@ enum ShowAssetValidationError: Error, Equatable {
     case unsupportedImage
 }
 
+enum ShowAssetReplacement {
+    static func target(
+        replacingAssetID: UUID?,
+        currentAssets: [ShowAsset]
+    ) throws -> ShowAsset? {
+        guard let replacingAssetID else { return currentAssets.first }
+        guard let target = currentAssets.first(where: { $0.id == replacingAssetID }) else {
+            throw ShowAssetMediaStoreError.missingAsset
+        }
+        return target
+    }
+}
+
 /// One local image asset bound to a show (ticket stub or timetable).
 /// Uniqueness is enforced in save paths: each show keeps at most one asset per kind.
 @Model

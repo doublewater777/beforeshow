@@ -5,6 +5,55 @@ import XCTest
 
 @MainActor
 final class ShowAssetTests: XCTestCase {
+    override func tearDown() {
+        LocalMediaCleanupRetry.clearFullCleanupPrepared()
+        LocalMediaCleanupRetry.clearFullCleanupPending(memory: true, showAssets: true)
+        super.tearDown()
+    }
+
+    func testReplacementTargetDoesNotFallBackToAnotherSameKindAsset() throws {
+        let showID = UUID()
+        let current = ShowAsset(
+            id: UUID(),
+            showID: showID,
+            kind: .ticket,
+            relativePath: "\(showID.uuidString)/ticket/current.jpg"
+        )
+
+        XCTAssertThrowsError(
+            try ShowAssetReplacement.target(
+                replacingAssetID: UUID(),
+                currentAssets: [current]
+            )
+        ) { error in
+            XCTAssertEqual(error as? ShowAssetMediaStoreError, .missingAsset)
+        }
+        XCTAssertEqual(current.relativePath, "\(showID.uuidString)/ticket/current.jpg")
+    }
+
+    func testReplacementTargetWithoutTargetUsesCurrentAssetForNormalSave() throws {
+        let current = ShowAsset(
+            showID: UUID(),
+            kind: .ticket,
+            relativePath: "placeholder"
+        )
+        XCTAssertIdentical(try ShowAssetReplacement.target(replacingAssetID: nil, currentAssets: [current]), current)
+    }
+
+    func testPreparedClearJournalIsDistinctFromCommittedCleanupMarker() {
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPrepared)
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
+
+        LocalMediaCleanupRetry.markFullCleanupPrepared()
+        XCTAssertTrue(LocalMediaCleanupRetry.isFullCleanupPrepared)
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPending)
+
+        LocalMediaCleanupRetry.markFullCleanupPending(memory: true, showAssets: true)
+        LocalMediaCleanupRetry.clearFullCleanupPrepared()
+        XCTAssertFalse(LocalMediaCleanupRetry.isFullCleanupPrepared)
+        XCTAssertTrue(LocalMediaCleanupRetry.isFullCleanupPending)
+    }
+
     func testKindCopyMatchesProductLanguage() {
         XCTAssertEqual(ShowAssetKind.ticket.title, "票根")
         XCTAssertEqual(ShowAssetKind.timetable.title, "时刻表")
