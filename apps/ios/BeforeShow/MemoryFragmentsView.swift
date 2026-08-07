@@ -82,8 +82,6 @@ struct MemoryFragmentsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
-    @AppStorage("hasSeenMemoryFragmentsLocalNotice") private var hasSeenLocalNotice = false
-
     @State private var isShowingCreateOptions = false
     @State private var editorLaunch: MemoryEditorLaunch?
     @State private var isPhotoPickerPresented = false
@@ -96,7 +94,6 @@ struct MemoryFragmentsView: View {
     @State private var managementTarget: MemoryFragment?
     @State private var deleteConfirmationTarget: MemoryFragment?
     @State private var toast: BSToastPayload?
-    @State private var isShowingLocalNotice = false
 
     init(show: Show) {
         self.show = show
@@ -137,7 +134,6 @@ struct MemoryFragmentsView: View {
                                 }
                         }
 
-                        localPrivacyNotice
                     }
                     .padding(.bottom, 104)
                 }
@@ -306,24 +302,6 @@ struct MemoryFragmentsView: View {
                 commitDelete(pendingDelete)
             }
         }
-        .alert("只保存在这台设备上", isPresented: $isShowingLocalNotice) {
-            Button("知道了") {
-                hasSeenLocalNotice = true
-            }
-        } message: {
-            Text("删除 App 或清除本地数据后，记忆碎片可能无法恢复。")
-        }
-        .onAppear {
-            #if DEBUG
-            if ProcessInfo.processInfo.arguments.contains("--skip-memory-local-notice") {
-                hasSeenLocalNotice = true
-                return
-            }
-            #endif
-            if !hasSeenLocalNotice {
-                isShowingLocalNotice = true
-            }
-        }
         .task(id: fragments.map(\.id)) {
             await MemoryFragmentMediaStore.shared.acquireCommitGate()
             var validFilesByFragmentID: [UUID: Set<String>] = [:]
@@ -366,9 +344,6 @@ struct MemoryFragmentsView: View {
                 Text("记忆碎片")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("仅保存在本机")
-                    .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.dim)
             }
             .frame(maxWidth: .infinity)
 
@@ -462,26 +437,6 @@ struct MemoryFragmentsView: View {
         .frame(maxWidth: .infinity)
         .padding(.top, 32)
         .padding(.bottom, 18)
-    }
-
-    private var localPrivacyNotice: some View {
-        HStack(alignment: .top, spacing: 9) {
-            Image(systemName: "lock.fill")
-                .font(.system(size: 10))
-            Text("私密本地时间流。没有公开发布、点赞、评论或自动上传。")
-                .font(.system(size: 11))
-                .lineSpacing(3)
-        }
-        .foregroundColor(BSColor.Stage.dim)
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 15)
-                .stroke(style: StrokeStyle(lineWidth: 1, dash: [4]))
-                .foregroundColor(Color.white.opacity(0.13))
-        )
-        .padding(.horizontal, 20)
-        .padding(.top, 15)
     }
 
     private func launchTextEditor() {
@@ -1198,9 +1153,6 @@ private struct MemoryTimelinePost: View {
                 .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
-            Label("仅保存在本机", systemImage: "lock.fill")
-                .font(.system(size: 10))
-                .foregroundColor(BSColor.Stage.dim)
         }
         .padding(15)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1219,9 +1171,6 @@ private struct MemoryTimelinePost: View {
                         .font(.system(size: 13))
                         .foregroundColor(Color(red: 0.90, green: 0.91, blue: 0.93))
                         .lineSpacing(5)
-                    Text("\(fragment.orderedMediaItems.first?.kind == .video ? "短视频" : "照片") · 仅本机")
-                        .font(.system(size: 10))
-                        .foregroundColor(BSColor.Stage.dim)
                 }
                 .padding(13)
             }
