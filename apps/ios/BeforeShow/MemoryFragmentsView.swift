@@ -25,6 +25,11 @@ private struct MemoryViewerTarget: Identifiable {
     let initialIndex: Int
 }
 
+private enum MemoryPendingPresentation {
+    case edit(MemoryFragment)
+    case delete(MemoryFragment)
+}
+
 private struct MemoryEditorItem: Identifiable, Equatable {
     enum Kind: Equatable {
         case existing(
@@ -87,6 +92,10 @@ struct MemoryFragmentsView: View {
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
     @State private var selectedCreateMedia: [PhotosPickerItem] = []
+    @State private var directImportTask: Task<Void, Never>?
+    @State private var directImportDraftID: UUID?
+    @State private var pendingCameraResult: MemoryCameraResult?
+    @State private var pendingPresentation: MemoryPendingPresentation?
     @State private var createSourceError: String?
     @State private var pendingDelete: MemoryFragment?
     @State private var pendingDeleteTask: Task<Void, Never>?
@@ -146,7 +155,10 @@ struct MemoryFragmentsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .overlay(alignment: .bottom) {
             HStack {
-                Button { isShowingCreateOptions = true } label: {
+                Button {
+                    guard directImportTask == nil else { return }
+                    isShowingCreateOptions = true
+                } label: {
                     Text("＋ 新增记忆")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(BSColor.Stage.accent)
@@ -159,6 +171,7 @@ struct MemoryFragmentsView: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .disabled(directImportTask != nil)
             }
             .padding(6)
             .background(BSColor.Stage.surface.opacity(0.90), in: RoundedRectangle(cornerRadius: 22))
@@ -206,11 +219,14 @@ struct MemoryFragmentsView: View {
             guard !items.isEmpty else { return }
             importDirectLibrarySelection(items)
         }
-        .fullScreenCover(isPresented: $isCameraPresented) {
+        .fullScreenCover(isPresented: $isCameraPresented, onDismiss: {
+            guard let result = pendingCameraResult else { return }
+            pendingCameraResult = nil
+            importDirectCameraResult(result)
+        }) {
             SystemMemoryCameraPicker { result in
                 isCameraPresented = false
-                guard let result else { return }
-                importDirectCameraResult(result)
+                pendingCameraResult = result
             }
             .ignoresSafeArea()
         }
@@ -247,22 +263,16 @@ struct MemoryFragmentsView: View {
                 }
             )
         }
-        .sheet(item: $managementTarget) { fragment in
+        .sheet(item: $managementTarget, onDismiss: performPendingPresentation) { fragment in
             MemoryManagementSheet(
                 isTextOnly: fragment.mediaItems.isEmpty,
                 onEdit: {
+                    pendingPresentation = .edit(fragment)
                     managementTarget = nil
-                    Task { @MainActor in
-                        await Task.yield()
-                        editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-                    }
                 },
                 onDelete: {
+                    pendingPresentation = .delete(fragment)
                     managementTarget = nil
-                    Task { @MainActor in
-                        await Task.yield()
-                        deleteConfirmationTarget = fragment
-                    }
                 },
                 onCancel: { managementTarget = nil }
             )
@@ -276,27 +286,22 @@ struct MemoryFragmentsView: View {
                 onCancel: { deleteConfirmationTarget = nil }
             )
         }
-        .fullScreenCover(item: $viewerTarget) { target in
+        .fullScreenCover(item: $viewerTarget, onDismiss: performPendingPresentation) { target in
             MemoryMediaViewer(
                 fragment: target.fragment,
                 initialIndex: target.initialIndex,
                 onEdit: {
+                    pendingPresentation = .edit(target.fragment)
                     viewerTarget = nil
-                    Task { @MainActor in
-                        await Task.yield()
-                        editorLaunch = MemoryEditorLaunch(kind: .edit(target.fragment))
-                    }
                 },
                 onDelete: {
+                    pendingPresentation = .delete(target.fragment)
                     viewerTarget = nil
-                    Task { @MainActor in
-                        await Task.yield()
-                        deleteConfirmationTarget = target.fragment
-                    }
                 }
             )
         }
         .onDisappear {
+            cancelDirectImport()
             if let pendingDelete {
                 pendingDeleteTask?.cancel()
                 commitDelete(pendingDelete)
@@ -347,7 +352,7 @@ struct MemoryFragmentsView: View {
             }
             .frame(maxWidth: .infinity)
 
-            Button(action: {}) {
+            HStack {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
@@ -355,8 +360,7 @@ struct MemoryFragmentsView: View {
                     .background(Color.white.opacity(0.06), in: Circle())
                     .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("记忆碎片设置")
+            .accessibilityHidden(true)
         }
         .padding(.horizontal, 17)
         .frame(height: 58)
@@ -448,6 +452,7 @@ struct MemoryFragmentsView: View {
     }
 
     private func openPhotoLibraryDirectly() {
+        guard directImportTask == nil else { return }
         isShowingCreateOptions = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
@@ -457,6 +462,7 @@ struct MemoryFragmentsView: View {
     }
 
     private func openCameraDirectly() {
+        guard directImportTask == nil else { return }
         isShowingCreateOptions = false
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(250))
@@ -483,8 +489,10 @@ struct MemoryFragmentsView: View {
 
     private func importDirectLibrarySelection(_ pickerItems: [PhotosPickerItem]) {
         selectedCreateMedia = []
-        Task { @MainActor in
-            let draftID = UUID()
+        guard directImportTask == nil else { return }
+        let draftID = UUID()
+        directImportDraftID = draftID
+        directImportTask = Task { @MainActor in
             do {
                 var stagedItems: [MemoryDraftMedia] = []
                 for item in pickerItems.prefix(MemoryFragment.maximumMediaCount) {
@@ -499,31 +507,83 @@ struct MemoryFragmentsView: View {
                 }
                 guard !stagedItems.isEmpty else {
                     try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                    directImportDraftID = nil
+                    directImportTask = nil
                     createSourceError = "媒体没有载入，请重试。"
                     return
                 }
+                guard !Task.isCancelled else {
+                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                    directImportDraftID = nil
+                    directImportTask = nil
+                    return
+                }
+                directImportDraftID = nil
+                directImportTask = nil
                 editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: stagedItems))
             } catch {
                 try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                directImportDraftID = nil
+                directImportTask = nil
                 createSourceError = "媒体没有载入，请重试。"
             }
         }
     }
 
     private func importDirectCameraResult(_ result: MemoryCameraResult) {
-        Task { @MainActor in
-            let draftID = UUID()
+        guard directImportTask == nil else { return }
+        let draftID = UUID()
+        directImportDraftID = draftID
+        directImportTask = Task { @MainActor in
             do {
                 guard case .photo(let data) = result else {
+                    directImportDraftID = nil
+                    directImportTask = nil
                     createSourceError = "相机入口只拍照片，视频请从相册选择。"
                     return
                 }
                 let staged = try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: draftID)
+                guard !Task.isCancelled else {
+                    try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                    directImportDraftID = nil
+                    directImportTask = nil
+                    return
+                }
+                directImportDraftID = nil
+                directImportTask = nil
                 editorLaunch = MemoryEditorLaunch(kind: .createMedia(draftID: draftID, media: [staged]))
             } catch {
                 try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+                directImportDraftID = nil
+                directImportTask = nil
+                guard !Task.isCancelled else { return }
                 createSourceError = "照片没有载入，请重试。"
             }
+        }
+    }
+
+    private func cancelDirectImport() {
+        guard let task = directImportTask else { return }
+        let draftID = directImportDraftID
+        directImportTask = nil
+        directImportDraftID = nil
+        task.cancel()
+        Task { @MainActor in
+            await task.value
+            if let draftID {
+                try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
+            }
+        }
+    }
+
+    private func performPendingPresentation() {
+        guard let pendingPresentation else { return }
+        self.pendingPresentation = nil
+        switch pendingPresentation {
+        case .edit(let fragment):
+            editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
+        case .delete(let fragment):
+            deleteConfirmationTarget = fragment
         }
     }
 
