@@ -33,4 +33,28 @@ final class VenueAddressAutocompleteTests: XCTestCase {
 
         XCTAssertEqual(formatted, "浙江省杭州市上城区中山南路77号")
     }
+
+    func testVenueAddressSearchPolicyRejectsStaleOrCanceledResults() {
+        XCTAssertTrue(
+            VenueAddressSearchPolicy.shouldApplyResults(
+                revision: 2,
+                currentRevision: 2,
+                taskIsCancelled: false
+            )
+        )
+        XCTAssertFalse(
+            VenueAddressSearchPolicy.shouldApplyResults(
+                revision: 1,
+                currentRevision: 2,
+                taskIsCancelled: false
+            )
+        )
+        XCTAssertFalse(
+            VenueAddressSearchPolicy.shouldApplyResults(
+                revision: 2,
+                currentRevision: 2,
+                taskIsCancelled: true
+            )
+        )
+    }
 }

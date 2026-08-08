@@ -403,7 +403,7 @@ struct ShowDetailView: View {
                                 .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
                         )
                         .accessibilityLabel("当前现场")
-                } else {
+                } else if session.isManuallySelectable(show) {
                     Button {
                         selectCurrent()
                     } label: {

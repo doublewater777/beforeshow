@@ -210,7 +210,7 @@ struct MyShowsListView: View {
                         // VoiceOver 通过可激活的整行按钮 + 「设为当前」自定义动作操作，
                         // 见 accessibleShowRow。
                         let setCurrentAction: (() -> Void)? =
-                            allowsInlineSetCurrent && !isCurrent && show.changeStatus != .canceled
+                            allowsInlineSetCurrent && !isCurrent && session.isManuallySelectable(show)
                             ? { selectCurrent(show) }
                             : nil
                         accessibleShowRow(
@@ -219,7 +219,7 @@ struct MyShowsListView: View {
                             setCurrentAction: setCurrentAction
                         )
                         .contextMenu {
-                            if !isCurrent && show.changeStatus != .canceled {
+                            if !isCurrent && session.isManuallySelectable(show) {
                                 Button {
                                     selectCurrent(show)
                                 } label: {
@@ -233,7 +233,7 @@ struct MyShowsListView: View {
                             }
                         }
                         .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                            if !isCurrent && show.changeStatus != .canceled {
+                            if !isCurrent && session.isManuallySelectable(show) {
                                 Button {
                                     selectCurrent(show)
                                 } label: {
@@ -725,7 +725,9 @@ enum CurrentShowLibraryMenuPolicy {
     ) -> [CurrentShowLibraryMenuAction] {
         switch changeStatus {
         case .postponed:
-            return [.view, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+            return [.view]
+                + (canSetCurrent && timeKind != .postponed ? [.setCurrent] : [])
+                + [.editPostponedDate, .restoreScheduled, .cancel, .delete]
         case .canceled:
             return [.view, .restoreCanceled, .delete]
         case .scheduled:
@@ -1010,7 +1012,7 @@ struct CurrentShowLibraryManagementView: View {
         CurrentShowLibraryMenuPolicy.actions(
             for: show.changeStatus,
             timeKind: session.phase(for: show, now: Date()).kind,
-            canSetCurrent: show.id != selectedShowID
+            canSetCurrent: show.id != selectedShowID && session.isManuallySelectable(show)
         )
     }
 

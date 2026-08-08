@@ -28,6 +28,16 @@ enum AddressSuggestionError: Error, Equatable {
     case providerUnavailable
 }
 
+enum VenueAddressSearchPolicy {
+    static func shouldApplyResults(
+        revision: Int,
+        currentRevision: Int,
+        taskIsCancelled: Bool
+    ) -> Bool {
+        !taskIsCancelled && revision == currentRevision
+    }
+}
+
 @MainActor
 protocol AddressSuggestionProviding: Sendable {
     func suggestions(for query: String, city: String?) async throws -> [AddressSuggestion]
@@ -150,6 +160,7 @@ struct BSVenueField: View {
     @State private var isSearching = false
     @State private var searchMessage: String?
     @State private var searchTask: Task<Void, Never>?
+    @State private var searchRevision = 0
     @State private var appliedVenueName: String?
     @FocusState private var isFocused: Bool
 
@@ -193,6 +204,7 @@ struct BSVenueField: View {
                 }
                 .onChange(of: city) { _, _ in
                     venueAddress = ""
+                    scheduleSearch(for: venueName)
                 }
                 .onChange(of: isFocused) { _, focused in
                     if focused {
@@ -269,33 +281,48 @@ struct BSVenueField: View {
 
     private func scheduleSearch(for query: String) {
         searchTask?.cancel()
+        searchRevision += 1
+        let revision = searchRevision
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        suggestions = []
+        searchMessage = nil
         guard trimmed.count >= 2 else {
-            suggestions = []
-            searchMessage = nil
             isSearching = false
             return
         }
 
+        let city = trimmedCity.isEmpty ? nil : trimmedCity
+        isSearching = true
         searchTask = Task {
             try? await Task.sleep(nanoseconds: 320_000_000)
             guard !Task.isCancelled else { return }
-            await performSearch(query: trimmed)
+            await performSearch(query: trimmed, city: city, revision: revision)
         }
     }
 
     @MainActor
-    private func performSearch(query: String) async {
-        isSearching = true
-        defer { isSearching = false }
+    private func performSearch(query: String, city: String?, revision: Int) async {
+        defer {
+            if revision == searchRevision {
+                isSearching = false
+            }
+        }
 
         do {
-            suggestions = try await provider.suggestions(
-                for: query,
-                city: trimmedCity.isEmpty ? nil : trimmedCity
-            )
+            let results = try await provider.suggestions(for: query, city: city)
+            guard VenueAddressSearchPolicy.shouldApplyResults(
+                revision: revision,
+                currentRevision: searchRevision,
+                taskIsCancelled: Task.isCancelled
+            ) else { return }
+            suggestions = results
             searchMessage = suggestions.isEmpty ? "没找到匹配地址。" : nil
         } catch {
+            guard VenueAddressSearchPolicy.shouldApplyResults(
+                revision: revision,
+                currentRevision: searchRevision,
+                taskIsCancelled: Task.isCancelled
+            ) else { return }
             suggestions = []
             searchMessage = "暂时没查到地址，请稍后再试。"
         }

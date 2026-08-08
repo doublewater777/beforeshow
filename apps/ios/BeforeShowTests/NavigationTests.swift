@@ -53,6 +53,14 @@ final class NavigationTests: XCTestCase {
         )
         XCTAssertEqual(
             CurrentShowLibraryMenuPolicy.actions(
+                for: .postponed,
+                timeKind: .before,
+                canSetCurrent: true
+            ),
+            [.view, .setCurrent, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
                 for: .canceled,
                 timeKind: .canceled,
                 canSetCurrent: false
