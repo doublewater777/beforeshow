@@ -75,6 +75,14 @@ final class NavigationTests: XCTestCase {
             ),
             [.view, .edit, .delete]
         )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .scheduled,
+                timeKind: .postShow,
+                canSetCurrent: true
+            ),
+            [.view, .setCurrent, .edit, .postpone, .cancel, .delete]
+        )
     }
 
     func testTabLabelsDoNotUseForbiddenTerms() {

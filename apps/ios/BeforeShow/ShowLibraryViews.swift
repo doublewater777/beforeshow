@@ -731,7 +731,7 @@ enum CurrentShowLibraryMenuPolicy {
         case .canceled:
             return [.view, .restoreCanceled, .delete]
         case .scheduled:
-            if timeKind == .postShow || timeKind == .ended {
+            if timeKind == .ended {
                 return [.view, .edit, .delete]
             }
 
