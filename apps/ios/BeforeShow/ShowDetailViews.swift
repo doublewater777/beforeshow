@@ -144,13 +144,6 @@ struct ShowDetailView: View {
 
     private var timeState: CurrentShowTimeState { snapshot.phase }
 
-    private var editorSubtitle: String {
-        if show.changeStatus == .postponed {
-            return "这里编辑原定信息；延期日期请在“现场状态”中更新。"
-        }
-        return "修改后会立即更新这个现场。"
-    }
-
     private var isCurrentShow: Bool {
         session.isCurrent(show, among: shows, manualSelection: selections.first)
     }
@@ -178,7 +171,6 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isEditing) {
             ShowDraftEditorView(
                 title: "编辑现场",
-                subtitle: editorSubtitle,
                 draft: ShowDraft(show: show),
                 saveTitle: "保存",
                 statusPillText: session.phase(for: show, now: Date()).statusText,

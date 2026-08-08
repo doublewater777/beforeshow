@@ -705,6 +705,41 @@ enum CurrentShowLibraryFilter: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+enum CurrentShowLibraryMenuAction: String, Hashable {
+    case view = "查看详情"
+    case setCurrent = "设为当前展示"
+    case edit = "编辑"
+    case postpone = "延期"
+    case editPostponedDate = "编辑新日期"
+    case restoreScheduled = "恢复正常"
+    case restoreCanceled = "恢复演出"
+    case cancel = "取消演出"
+    case delete = "删除"
+}
+
+enum CurrentShowLibraryMenuPolicy {
+    static func actions(
+        for changeStatus: ShowChangeStatus,
+        timeKind: CurrentShowTimeKind,
+        canSetCurrent: Bool
+    ) -> [CurrentShowLibraryMenuAction] {
+        switch changeStatus {
+        case .postponed:
+            return [.view, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+        case .canceled:
+            return [.view, .restoreCanceled, .delete]
+        case .scheduled:
+            if timeKind == .postShow || timeKind == .ended {
+                return [.view, .edit, .delete]
+            }
+
+            return [.view]
+                + (canSetCurrent ? [.setCurrent] : [])
+                + [.edit, .postpone, .cancel, .delete]
+        }
+    }
+}
+
 private struct CurrentShowLibraryDestination: Identifiable, Hashable {
     let show: Show
     let startsEditing: Bool
@@ -728,6 +763,9 @@ struct CurrentShowLibraryManagementView: View {
     @State private var actionTarget: Show?
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
+    @State private var postponeTarget: Show?
+    @State private var postponeDate = Date()
+    @State private var cancelTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
 
@@ -775,12 +813,29 @@ struct CurrentShowLibraryManagementView: View {
         .sheet(item: $actionTarget) { show in
             CurrentShowLibraryActionSheet(
                 show: show,
-                canSetCurrent: canSetCurrent(show),
-                onView: { present(show, editing: false) },
-                onSetCurrent: { selectCurrent(show) },
-                onEdit: { present(show, editing: true) },
-                onDelete: { presentDelete(show) },
+                actions: menuActions(for: show),
+                onAction: { action in handle(action, for: show) },
                 onCancel: { actionTarget = nil }
+            )
+        }
+        .sheet(item: $postponeTarget) { show in
+            PostponeShowSheet(
+                newDate: $postponeDate,
+                onUndated: { applyPostponement(to: show, newDate: nil) },
+                onDated: { applyPostponement(to: show, newDate: postponeDate) },
+                onCancel: { postponeTarget = nil }
+            )
+        }
+        .sheet(item: $cancelTarget) { show in
+            BSDangerConfirmationSheet(
+                title: "取消演出",
+                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
+                destructiveTitle: "确认取消",
+                onConfirm: {
+                    cancelTarget = nil
+                    updateStatus(show, message: "已记录取消") { show.markCanceled() }
+                },
+                onCancel: { cancelTarget = nil }
             )
         }
         .sheet(isPresented: $isShowingAdd) {
@@ -792,7 +847,7 @@ struct CurrentShowLibraryManagementView: View {
             Button("删除记录", role: .destructive) { delete(show) }
             Button("取消", role: .cancel) { deleteTarget = nil }
         } message: { show in
-            Text("“\(show.name)”将从本机移除，此操作无法撤销。")
+            Text("“\(show.name)”删除后无法恢复，也会从足迹统计中移除。")
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
@@ -951,8 +1006,35 @@ struct CurrentShowLibraryManagementView: View {
         }
     }
 
-    private func canSetCurrent(_ show: Show) -> Bool {
-        show.id != selectedShowID && show.changeStatus != .canceled && !endedShows.contains(where: { $0.id == show.id })
+    private func menuActions(for show: Show) -> [CurrentShowLibraryMenuAction] {
+        CurrentShowLibraryMenuPolicy.actions(
+            for: show.changeStatus,
+            timeKind: session.phase(for: show, now: Date()).kind,
+            canSetCurrent: show.id != selectedShowID
+        )
+    }
+
+    private func handle(_ action: CurrentShowLibraryMenuAction, for show: Show) {
+        switch action {
+        case .view:
+            present(show, editing: false)
+        case .setCurrent:
+            selectCurrent(show)
+        case .edit:
+            present(show, editing: true)
+        case .postpone, .editPostponedDate:
+            presentPostpone(for: show)
+        case .restoreScheduled:
+            actionTarget = nil
+            updateStatus(show, message: "已恢复原定日期") { show.markScheduled() }
+        case .restoreCanceled:
+            actionTarget = nil
+            updateStatus(show, message: "已撤销取消") { show.markScheduled() }
+        case .cancel:
+            presentCancel(for: show)
+        case .delete:
+            presentDelete(show)
+        }
     }
 
     private func present(_ show: Show, editing: Bool) {
@@ -960,6 +1042,29 @@ struct CurrentShowLibraryManagementView: View {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 260_000_000)
             destination = .init(show: show, startsEditing: editing)
+        }
+    }
+
+    private func presentPostpone(for show: Show) {
+        actionTarget = nil
+        postponeDate = show.postponedDate ?? show.date
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            postponeTarget = show
+        }
+    }
+
+    private func applyPostponement(to show: Show, newDate: Date?) {
+        postponeTarget = nil
+        let message = newDate == nil ? "已记录延期，日期待定" : "延期日期已更新"
+        updateStatus(show, message: message) { show.markPostponed(newDate: newDate) }
+    }
+
+    private func presentCancel(for show: Show) {
+        actionTarget = nil
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 260_000_000)
+            cancelTarget = show
         }
     }
 
@@ -988,6 +1093,26 @@ struct CurrentShowLibraryManagementView: View {
                 modelContext.rollback()
                 presentToast(.failure, message: "切换失败，请重试")
             }
+        }
+    }
+
+    private func updateStatus(
+        _ show: Show,
+        message: String,
+        mutation: @escaping () -> Void
+    ) {
+        Task { @MainActor in
+            let result = await ShowMutationCoordinator.updateStatus(
+                show: show,
+                message: message,
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session,
+                mutation: mutation
+            )
+            presentToast(result.tone, message: result.message)
         }
     }
 
@@ -1087,11 +1212,8 @@ private struct CurrentShowLibraryRow: View {
 
 private struct CurrentShowLibraryActionSheet: View {
     let show: Show
-    let canSetCurrent: Bool
-    let onView: () -> Void
-    let onSetCurrent: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
+    let actions: [CurrentShowLibraryMenuAction]
+    let onAction: (CurrentShowLibraryMenuAction) -> Void
     let onCancel: () -> Void
 
     var body: some View {
@@ -1102,24 +1224,37 @@ private struct CurrentShowLibraryActionSheet: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 2) {
-                action("查看详情", icon: "info.circle", action: onView)
-                if canSetCurrent { action("设为当前展示", icon: "music.note.house", action: onSetCurrent) }
-                action("编辑现场", icon: "pencil", action: onEdit)
-                action("删除记录", icon: "trash", color: BSColor.Stage.liveTitle, action: onDelete)
+                ForEach(actions, id: \.self) { item in
+                    action(item)
+                }
             }
             Button("取消", action: onCancel).buttonStyle(BSSecondaryButtonStyle())
         }
     }
 
-    private func action(_ title: String, icon: String, color: Color = BSColor.Stage.foreground, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
+    private func action(_ item: CurrentShowLibraryMenuAction) -> some View {
+        Button { onAction(item) } label: {
+            Label(item.rawValue, systemImage: item.icon)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(color)
+                .foregroundColor(item == .delete ? BSColor.Stage.liveTitle : BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .frame(height: 47)
         }
         .buttonStyle(.plain)
+    }
+}
+
+private extension CurrentShowLibraryMenuAction {
+    var icon: String {
+        switch self {
+        case .view: return "info.circle"
+        case .setCurrent: return "music.note.house"
+        case .edit: return "pencil"
+        case .postpone, .editPostponedDate: return "calendar.badge.clock"
+        case .restoreScheduled, .restoreCanceled: return "arrow.uturn.backward"
+        case .cancel: return "xmark.circle"
+        case .delete: return "trash"
+        }
     }
 }
