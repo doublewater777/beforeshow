@@ -734,6 +734,11 @@ enum CurrentShowLibraryMenuPolicy {
             if timeKind == .ended {
                 return [.view, .edit, .delete]
             }
+            if timeKind == .postShow {
+                return [.view]
+                    + (canSetCurrent ? [.setCurrent] : [])
+                    + [.edit, .delete]
+            }
 
             return [.view]
                 + (canSetCurrent ? [.setCurrent] : [])

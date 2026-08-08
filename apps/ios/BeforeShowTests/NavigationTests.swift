@@ -81,7 +81,7 @@ final class NavigationTests: XCTestCase {
                 timeKind: .postShow,
                 canSetCurrent: true
             ),
-            [.view, .setCurrent, .edit, .postpone, .cancel, .delete]
+            [.view, .setCurrent, .edit, .delete]
         )
     }
 
