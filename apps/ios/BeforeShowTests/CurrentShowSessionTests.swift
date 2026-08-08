@@ -57,6 +57,32 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(selected?.id, manual.id)
     }
 
+    func testManualSelectionPolicyRejectsUndatedPostponedAndEndedShows() throws {
+        let undatedPostponed = try makeShow(name: "未定延期", day: 16)
+        undatedPostponed.markPostponed(newDate: nil)
+        let ended = try makeShow(name: "已结束", day: 1)
+        ended.markEnded(at: makeDate(year: 2026, month: 6, day: 1, hour: 21))
+        let session = CurrentShowSession(calendar: calendar)
+
+        XCTAssertFalse(session.isManuallySelectable(undatedPostponed, now: now))
+        XCTAssertFalse(session.isManuallySelectable(ended, now: now))
+    }
+
+    func testManualSelectionReconcilesAfterShowBecomesIneligible() throws {
+        let ended = try makeShow(name: "已结束", day: 1)
+        ended.markEnded(at: makeDate(year: 2026, month: 6, day: 1, hour: 21))
+        let selection = CurrentShowSelection(selectedShowID: ended.id)
+
+        ShowMutationCoordinator.reconcileManualSelection(
+            shows: [ended],
+            selections: [selection],
+            session: CurrentShowSession(calendar: calendar),
+            now: now
+        )
+
+        XCTAssertNil(selection.selectedShowID)
+    }
+
     private func makeShow(name: String, day: Int) throws -> Show {
         try Show(
             name: name,

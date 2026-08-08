@@ -254,11 +254,11 @@ private struct AddShowEntryView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                            Text("把下一场现场\n放进来")
+                            Text("把下一场现场\n记下来")
                                 .font(.system(size: 30, weight: .bold))
                                 .foregroundColor(BSColor.textPrimary)
 
-                            Text("三种方式都可以，识别出的内容保存前都能改。")
+                            Text("三种方式任选，识别出的内容保存前都能改。")
                                 .font(BSFont.body)
                                 .foregroundColor(BSColor.textTertiary)
                                 .lineSpacing(3)
@@ -297,7 +297,7 @@ private struct AddShowEntryView: View {
                             Image(systemName: "lock.shield")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(BSColor.Accent.prepare)
-                            Text("截图识别完全在设备端完成；链接解析需要联网处理链接")
+                            Text("截图识别完全在设备端完成；链接解析需要联网")
                         }
                         .font(.system(size: 11.5))
                         .foregroundColor(BSColor.Stage.dim)
@@ -343,6 +343,7 @@ struct AddShowFlowView: View {
     @State private var toast: BSToastPayload?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
+    @State private var didSwitchToManual = false
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
     @State private var importRevision = 0
@@ -393,10 +394,7 @@ struct AddShowFlowView: View {
                         methodContent
 
                         if hasImportedDraft {
-                            AddShowImportedBanner(
-                                source: sheet,
-                                infoCount: importedInfoCount
-                            )
+                            AddShowImportedBanner(source: sheet)
                         }
 
                         if shouldShowDraftFields {
@@ -469,7 +467,7 @@ struct AddShowFlowView: View {
 
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
-        sheet.navigationTitle
+        didSwitchToManual ? "手动填写" : sheet.navigationTitle
     }
 
     private var flowNavBar: some View {
@@ -510,12 +508,6 @@ struct AddShowFlowView: View {
         return nil
     }
 
-    /// 识别成功横幅里的信息项计数：直接读字段级 provenance，
-    /// 不能用「字段是否有值」推断（OCR 失败时日期会回退为当天）。
-    private var importedInfoCount: Int {
-        draft.recognizedFields.count
-    }
-
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
     private var needsDateConfirmation: Bool {
         hasImportedDraft
@@ -530,13 +522,17 @@ struct AddShowFlowView: View {
 
     @ViewBuilder
     private var methodContent: some View {
-        switch sheet {
-        case .manual:
+        if didSwitchToManual {
             EmptyView()
-        case .link:
-            linkContent
-        case .screenshot:
-            screenshotContent
+        } else {
+            switch sheet {
+            case .manual:
+                EmptyView()
+            case .link:
+                linkContent
+            case .screenshot:
+                screenshotContent
+            }
         }
     }
 
@@ -619,7 +615,7 @@ struct AddShowFlowView: View {
                             linkText = ""
                         },
                         onManual: {
-                            showsManualFallback = true
+                            didSwitchToManual = true
                         }
                     )
                 }
@@ -692,7 +688,7 @@ struct AddShowFlowView: View {
                         buttonTitle: "手动填写",
                         buttonIconName: "square.and.pencil"
                     ) {
-                        showsManualFallback = true
+                        didSwitchToManual = true
                     }
                 }
             }
@@ -700,7 +696,7 @@ struct AddShowFlowView: View {
     }
 
     private var shouldShowDraftFields: Bool {
-        sheet == .manual || showsManualFallback || hasImportedDraft
+        sheet == .manual || didSwitchToManual || hasImportedDraft
     }
 
     // MARK: - 吸底保存栏：始终可见，状态行说明缺什么
@@ -981,7 +977,6 @@ struct AddShowFlowView: View {
         do {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             guard ProFeatureGate().canAddShow(savedShowCount: shows.count, entitlement: entitlement) else {
-                message = "免费版可以保存 1 场现场。开通 Pro 后可以继续添加。"
                 showsProSaveLimit = true
                 presentToast(.neutral, message: "保存上限")
                 isSaving = false
@@ -1178,7 +1173,6 @@ struct ShowStatusEditingContext {
 struct ShowDraftEditorView: View {
     @Environment(\.dismiss) private var dismiss
     let title: String
-    let subtitle: String
     let saveTitle: String
     /// 摘要卡右上角的状态胶囊文案（如「即将开场」「已延期」），nil 则不显示。
     var statusPillText: String? = nil
@@ -1205,7 +1199,6 @@ struct ShowDraftEditorView: View {
 
     init(
         title: String,
-        subtitle: String = "修改后会立即更新这个现场。",
         draft: ShowDraft,
         saveTitle: String,
         statusPillText: String? = nil,
@@ -1214,7 +1207,6 @@ struct ShowDraftEditorView: View {
         onSave: @escaping @MainActor (ShowDraft) async throws -> Void
     ) {
         self.title = title
-        self.subtitle = subtitle
         _draft = State(initialValue: draft)
         self.saveTitle = saveTitle
         self.statusPillText = statusPillText
@@ -1315,7 +1307,7 @@ struct ShowDraftEditorView: View {
         .sheet(isPresented: $showsDeleteConfirm) {
             BSDangerConfirmationSheet(
                 title: "删除现场",
-                message: "删除后，这场现场将无法恢复。",
+                message: "删除后，这场现场将无法恢复，也会从足迹统计中移除。",
                 destructiveTitle: "删除",
                 onConfirm: {
                     showsDeleteConfirm = false
@@ -1717,7 +1709,7 @@ struct ShowDraftEditorView: View {
             Text(message)
                 .foregroundColor(BSColor.Accent.danger)
         } else if !isEndTimeRangeValid {
-            Text("结束时间需晚于开始，修正后才能保存")
+            Text("结束时间需晚于开始时间，请修正后保存")
                 .foregroundColor(BSColor.Stage.muted)
         } else if hasUnsavedChanges {
             HStack(spacing: 7) {
@@ -1748,7 +1740,7 @@ struct ShowDraftEditorView: View {
     private func save() async {
         guard !isSaving else { return }
         guard draft.hasValidEndTime() else {
-            message = "结束时间需要晚于开始时间，请检查下方时间范围。"
+            message = "结束时间需晚于开始时间，请修正后保存"
             return
         }
 
@@ -1963,20 +1955,11 @@ private struct ShowDraftFormFields: View {
                     isRecognized: cityRecognized
                 )
 
-                AddShowLabeledTextField(
-                    title: "场馆",
-                    placeholder: "上海体育场",
-                    text: $draft.venueName,
-                    isRecognized: venueRecognized
-                )
-
-                BSAddressSuggestionField(
-                    label: "场馆地址",
-                    placeholder: "街道门牌，方便到场",
-                    text: $draft.venueAddress,
+                BSVenueField(
+                    venueName: $draft.venueName,
+                    venueAddress: $draft.venueAddress,
                     city: draft.city,
-                    seedKeyword: draft.venueName,
-                    helperText: "下面有小地图，点一下就能选准地址。"
+                    isRecognized: venueRecognized
                 )
             }
 
@@ -2322,10 +2305,6 @@ private struct AddShowStartTimeField: View {
                 displayedComponents: .hourAndMinute,
                 borderColor: borderColor
             )
-            Text(isConfirmed ? "用于开场前提醒；之后随时能改。" : "用于开场前提醒；可先填大概时间。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
             if !isConfirmed {
                 Button("确认使用这个时间", action: onConfirm)
                     .font(BSFont.caption)
@@ -2663,10 +2642,9 @@ private struct AddShowLinkFailureCard: View {
     }
 }
 
-/// 识别导入成功横幅：说清「绿色 = 识别结果待核对，金色 = 还差的关键信息」。
+/// 识别导入成功横幅：提示结果来自链接 / 截图，需核对；金色标出的还需补充。
 private struct AddShowImportedBanner: View {
     let source: AddShowSheet
-    let infoCount: Int
 
     private var sourceName: String {
         source == .link ? "链接" : "截图"
@@ -2678,7 +2656,7 @@ private struct AddShowImportedBanner: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(BSColor.Accent.prepare)
 
-            Text("已从\(sourceName)识别 \(infoCount) 项信息。绿色描边的是识别结果，请核对；金色的是还差的关键信息，补上就能保存。")
+            Text("已从\(sourceName)识别出信息，请核对；金色标出的还需补充。")
                 .font(.system(size: 12.5))
                 .foregroundColor(Color(red: 0.79, green: 0.92, blue: 0.87))
                 .lineSpacing(3)

@@ -38,11 +38,12 @@ struct CurrentShowSelector {
         manualSelection: CurrentShowSelection? = nil,
         now: Date = Date()
     ) -> Show? {
-        // Manual selection wins, but a canceled现场 must not stay current
-        // (see ShowDetailView copy: 取消后"不会出现在当前现场"). Fall through to automatic.
+        // Manual selection wins only while the selected show is eligible for the
+        // current focus. Fall through to automatic for canceled, ended, or
+        // undated-postponed shows.
         if let selectedShowID = manualSelection?.selectedShowID,
            let selectedShow = shows.first(where: { $0.id == selectedShowID }),
-           selectedShow.changeStatus != .canceled {
+           isManuallySelectable(selectedShow, now: now) {
             return selectedShow
         }
 
@@ -82,13 +83,20 @@ struct CurrentShowSelector {
     }
 
     func isAutomaticallySelectable(_ show: Show, now: Date = Date()) -> Bool {
+        timeState(for: show, now: now).isAutomaticallySelectable
+    }
+
+    func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
+        timeState(for: show, now: now).isAutomaticallySelectable
+    }
+
+    private func timeState(for show: Show, now: Date) -> CurrentShowTimeState {
         CurrentShowTimeState(
             show: show,
             calendar: calendar,
             now: now,
             retentionDays: postShowRetentionDays
         )
-        .isAutomaticallySelectable
     }
 
     private func automaticSelectionRank(for state: CurrentShowTimeState) -> Int {

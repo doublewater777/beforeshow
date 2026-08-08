@@ -27,6 +27,8 @@ docs/screenshots/**/debug-*
 .scratch
 .vscode
 apps/ios/prototypes
+apps/ios/build
 .claude
 .builder
 tmp-screenshots
+.artifacts

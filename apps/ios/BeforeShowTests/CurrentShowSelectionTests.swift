@@ -78,6 +78,36 @@ final class CurrentShowSelectionTests: XCTestCase {
         XCTAssertEqual(selected?.id, futureShow.id)
     }
 
+    func testUndatedPostponedManualSelectionFallsBackToNearestRelevantShow() throws {
+        let postponedShow = try makeShow(name: "未定延期现场", day: 16)
+        postponedShow.markPostponed(newDate: nil)
+        let futureShow = try makeShow(name: "仍可准备的现场", day: 20)
+        let manualSelection = CurrentShowSelection(selectedShowID: postponedShow.id)
+
+        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
+            from: [postponedShow, futureShow],
+            manualSelection: manualSelection,
+            now: now
+        )
+
+        XCTAssertEqual(selected?.id, futureShow.id)
+    }
+
+    func testDatedPostponedManualSelectionRemainsEligibleBeforeItsNewDate() throws {
+        let postponedShow = try makeShow(name: "已改期现场", day: 10)
+        postponedShow.markPostponed(newDate: makeDate(year: 2026, month: 6, day: 20))
+        let futureShow = try makeShow(name: "更远现场", day: 25)
+        let manualSelection = CurrentShowSelection(selectedShowID: postponedShow.id)
+
+        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
+            from: [futureShow, postponedShow],
+            manualSelection: manualSelection,
+            now: now
+        )
+
+        XCTAssertEqual(selected?.id, postponedShow.id)
+    }
+
     func testManualSelectionIsPersistedAndRespected() throws {
         let nearestShow = try makeShow(name: "最近现场", day: 16)
         let manuallySelectedShow = try makeShow(name: "用户手动选中的现场", day: 25)

@@ -192,15 +192,16 @@ final class CompanionSharingTests: XCTestCase {
 
         let prepared = try await coordinator.prepareInvitation(
             for: show,
-            preferredParticipantName: "林嘉",
-            ownerDisplayName: "Alex",
+            preferredParticipantName: nil,
+            ownerDisplayName: nil,
             in: context
         )
 
         XCTAssertEqual(prepared.session.status, .pending)
         XCTAssertEqual(prepared.session.sessionLocator.zoneName, CompanionRecordLocator.companionZoneName)
         XCTAssertEqual(show.companionStatus, .pending)
-        XCTAssertEqual(show.companionName, "林嘉")
+        XCTAssertNil(show.companionName)
+        XCTAssertNil(prepared.session.participantDisplayName)
         XCTAssertEqual(show.companionCloudRecordName, prepared.session.recordName)
         XCTAssertEqual(show.companionCloudZoneName, CompanionRecordLocator.companionZoneName)
         XCTAssertEqual(show.companionShareRecordName, prepared.session.shareRecordName)

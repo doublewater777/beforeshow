@@ -326,7 +326,7 @@ struct ProMembershipView: View {
     }
 
     var body: some View {
-        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场，重复生成准备内容", bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场", bottomPadding: BSLayout.tabBarContentInset) {
             BSGlassPanel {
                 Text(statusText)
                     .font(BSFont.body)

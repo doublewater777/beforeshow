@@ -20,6 +20,71 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
 
+    func testCompanionSheetAlwaysExposesDismissalAffordance() {
+        for status in ShowCompanionStatus.allCases {
+            XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: status))
+        }
+    }
+
+    func testMyShowsOverflowMenuMatchesShowStatus() {
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .scheduled,
+                timeKind: .before,
+                canSetCurrent: true
+            ),
+            [.view, .setCurrent, .edit, .postpone, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .scheduled,
+                timeKind: .today,
+                canSetCurrent: false
+            ),
+            [.view, .edit, .postpone, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .postponed,
+                timeKind: .postponed,
+                canSetCurrent: false
+            ),
+            [.view, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .postponed,
+                timeKind: .before,
+                canSetCurrent: true
+            ),
+            [.view, .setCurrent, .editPostponedDate, .restoreScheduled, .cancel, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .canceled,
+                timeKind: .canceled,
+                canSetCurrent: false
+            ),
+            [.view, .restoreCanceled, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .scheduled,
+                timeKind: .ended,
+                canSetCurrent: false
+            ),
+            [.view, .edit, .delete]
+        )
+        XCTAssertEqual(
+            CurrentShowLibraryMenuPolicy.actions(
+                for: .scheduled,
+                timeKind: .postShow,
+                canSetCurrent: true
+            ),
+            [.view, .setCurrent, .edit, .delete]
+        )
+    }
+
     func testTabLabelsDoNotUseForbiddenTerms() {
         let forbiddenTerms = ["行程", "歌单", "余韵", "主演出", "演出列表", "日程"]
 

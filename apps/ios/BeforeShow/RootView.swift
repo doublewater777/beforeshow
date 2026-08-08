@@ -158,6 +158,7 @@ private struct CurrentShowHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
@@ -269,7 +270,14 @@ private struct CurrentShowHomeView: View {
 
         presentToast(.success, message: "已落幕，散场时间已计入现场记录")
         Task { @MainActor in
-            _ = await LocalNotificationCenter.shared.applyFocusChange(to: show, in: modelContext)
+            _ = await ShowMutationCoordinator.syncNotifications(
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session
+            )
+            WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
         }
     }
 
@@ -930,6 +938,12 @@ private struct CompanionAvatarStack: View {
     }
 }
 
+enum CompanionSheetPresentationPolicy {
+    static func showsDismissalButton(for _: ShowCompanionStatus) -> Bool {
+        true
+    }
+}
+
 private struct CurrentShowCompanionSheet: View {
     let show: Show
     let sharedHistory: [Show]
@@ -938,7 +952,6 @@ private struct CurrentShowCompanionSheet: View {
     let onDismiss: () -> Void
 
     @Environment(\.modelContext) private var modelContext
-    @State private var companionName: String
     @State private var isShowingHistory = false
     @State private var isPreparingInvite = false
     @State private var isRefreshing = false
@@ -958,7 +971,6 @@ private struct CurrentShowCompanionSheet: View {
         self.isEnded = isEnded
         self.coordinator = coordinator
         self.onDismiss = onDismiss
-        _companionName = State(initialValue: show.companionName ?? "")
     }
 
     var body: some View {
@@ -976,8 +988,10 @@ private struct CurrentShowCompanionSheet: View {
                         invitationContent(isRetry: true)
                     }
 
-                    Button("完成", action: onDismiss)
-                        .buttonStyle(BSSecondaryButtonStyle())
+                    if CompanionSheetPresentationPolicy.showsDismissalButton(for: show.companionStatus) {
+                        Button("完成", action: onDismiss)
+                            .buttonStyle(BSSecondaryButtonStyle())
+                    }
                 }
             }
             .scrollIndicators(.hidden)
@@ -1021,10 +1035,6 @@ private struct CurrentShowCompanionSheet: View {
                     ? "可以通过 iCloud 重新发送邀请，对方点开链接后双方都会确认。"
                     : "通过 iCloud 邀请一位朋友。对方接受后，双方同步为已确认同行。"
             )
-
-            TextField("同行者名字（可选）", text: $companionName)
-                .textInputAutocapitalization(.words)
-                .bsInputField()
 
             Button {
                 Task { await sendInvitation(isRetry: isRetry) }
@@ -1248,9 +1258,12 @@ private struct CurrentShowCompanionSheet: View {
     }
 
     private var displayName: String {
-        let trimmed = (show.companionName ?? companionName)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "同行者" : trimmed
+        guard let name = show.companionName?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else {
+            return "同行者"
+        }
+        return name
     }
 
     private var companionInitial: String {
@@ -1272,7 +1285,7 @@ private struct CurrentShowCompanionSheet: View {
         do {
             let prepared = try await coordinator.prepareInvitation(
                 for: show,
-                preferredParticipantName: companionName,
+                preferredParticipantName: nil,
                 ownerDisplayName: nil,
                 in: modelContext
             )

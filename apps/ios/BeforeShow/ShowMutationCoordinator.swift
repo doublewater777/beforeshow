@@ -35,7 +35,8 @@ enum ShowMutationCoordinator {
     }
 
     /// Apply a status mutation (postpone / cancel / restore), clear manual current
-    /// if canceled, persist, then reschedule. Returns toast tone + message.
+    /// when the resulting show is no longer eligible, persist, then reschedule.
+    /// Returns toast tone + message.
     @MainActor
     static func updateStatus(
         show: Show,
@@ -48,10 +49,11 @@ enum ShowMutationCoordinator {
         mutation: () -> Void
     ) async -> ShowStatusActionResult {
         mutation()
-        if show.changeStatus == .canceled,
-           selections.first?.selectedShowID == show.id {
-            selections.first?.clearManualSelection()
-        }
+        reconcileManualSelection(
+            shows: shows,
+            selections: selections,
+            session: session
+        )
 
         do {
             try modelContext.save()
@@ -84,6 +86,12 @@ enum ShowMutationCoordinator {
         in modelContext: ModelContext,
         session: CurrentShowSession = CurrentShowSession()
     ) async -> Bool {
+        reconcileManualSelection(
+            shows: shows,
+            selections: selections,
+            session: session
+        )
+
         let currentShow = session.selectCurrentShow(
             from: shows,
             manualSelection: selections.first
@@ -105,6 +113,24 @@ enum ShowMutationCoordinator {
             to: currentShow,
             in: modelContext
         )
+    }
+
+    static func reconcileManualSelection(
+        shows: [Show],
+        selections: [CurrentShowSelection],
+        session: CurrentShowSession = CurrentShowSession(),
+        now: Date = Date()
+    ) {
+        guard let selection = selections.first,
+              let selectedShowID = selection.selectedShowID else {
+            return
+        }
+
+        guard let selectedShow = shows.first(where: { $0.id == selectedShowID }),
+              session.isManuallySelectable(selectedShow, now: now) else {
+            selection.clearManualSelection()
+            return
+        }
     }
 
     /// Update manual current-show selection + notification focus models.

@@ -29,9 +29,19 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var addDescription: String {
         switch self {
         case .ticket:
-            return "选择一张电子票截图或实体票照片，保存到这场现场。只作现场记录，不替代官方票务凭证。"
+            return "选择一张电子票截图或实体票照片，保存到这场现场。"
         case .timetable:
             return "选择一张演出流程、阵容安排或时间图片，保存到这场现场。"
+        }
+    }
+
+    /// 查看器底部的合规提示，仅票根需要。
+    var viewerDisclaimer: String? {
+        switch self {
+        case .ticket:
+            return "只作现场记录，不替代官方票务凭证。"
+        case .timetable:
+            return nil
         }
     }
 
