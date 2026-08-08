@@ -293,9 +293,21 @@ struct BSVenueField: View {
 
         let city = trimmedCity.isEmpty ? nil : trimmedCity
         isSearching = true
-        searchTask = Task {
-            try? await Task.sleep(nanoseconds: 320_000_000)
-            guard !Task.isCancelled else { return }
+        searchTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 320_000_000)
+            } catch {
+                if revision == searchRevision {
+                    isSearching = false
+                }
+                return
+            }
+            guard !Task.isCancelled else {
+                if revision == searchRevision {
+                    isSearching = false
+                }
+                return
+            }
             await performSearch(query: trimmed, city: city, revision: revision)
         }
     }

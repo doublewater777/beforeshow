@@ -158,6 +158,7 @@ private struct CurrentShowHomeView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
@@ -269,7 +270,14 @@ private struct CurrentShowHomeView: View {
 
         presentToast(.success, message: "已落幕，散场时间已计入现场记录")
         Task { @MainActor in
-            _ = await LocalNotificationCenter.shared.applyFocusChange(to: show, in: modelContext)
+            _ = await ShowMutationCoordinator.syncNotifications(
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session
+            )
+            WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
         }
     }
 
