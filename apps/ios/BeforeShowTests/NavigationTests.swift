@@ -20,6 +20,12 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
 
+    func testCompanionSheetAlwaysExposesDismissalAffordance() {
+        for status in ShowCompanionStatus.allCases {
+            XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: status))
+        }
+    }
+
     func testMyShowsOverflowMenuMatchesShowStatus() {
         XCTAssertEqual(
             CurrentShowLibraryMenuPolicy.actions(

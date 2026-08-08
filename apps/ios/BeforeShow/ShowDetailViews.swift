@@ -601,8 +601,8 @@ struct ShowDetailView: View {
     }
 
     private func selectCurrent() {
-        guard show.changeStatus != .canceled else {
-            presentToast(.neutral, message: "已取消现场不能设为当前")
+        guard session.isManuallySelectable(show) else {
+            presentToast(.neutral, message: "当前状态不能设为当前现场")
             return
         }
 

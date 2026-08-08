@@ -930,6 +930,12 @@ private struct CompanionAvatarStack: View {
     }
 }
 
+enum CompanionSheetPresentationPolicy {
+    static func showsDismissalButton(for _: ShowCompanionStatus) -> Bool {
+        true
+    }
+}
+
 private struct CurrentShowCompanionSheet: View {
     let show: Show
     let sharedHistory: [Show]
@@ -974,7 +980,7 @@ private struct CurrentShowCompanionSheet: View {
                         invitationContent(isRetry: true)
                     }
 
-                    if showsCompletionButton {
+                    if CompanionSheetPresentationPolicy.showsDismissalButton(for: show.companionStatus) {
                         Button("完成", action: onDismiss)
                             .buttonStyle(BSSecondaryButtonStyle())
                     }
@@ -1241,15 +1247,6 @@ private struct CurrentShowCompanionSheet: View {
                 .padding(.vertical, 11)
         }
         .foregroundColor(BSColor.Stage.liveTitle)
-    }
-
-    private var showsCompletionButton: Bool {
-        switch show.companionStatus {
-        case .none, .canceled:
-            return false
-        case .pending, .confirmed:
-            return true
-        }
     }
 
     private var displayName: String {

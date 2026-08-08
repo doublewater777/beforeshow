@@ -35,7 +35,8 @@ enum ShowMutationCoordinator {
     }
 
     /// Apply a status mutation (postpone / cancel / restore), clear manual current
-    /// if canceled, persist, then reschedule. Returns toast tone + message.
+    /// when the resulting show is no longer eligible, persist, then reschedule.
+    /// Returns toast tone + message.
     @MainActor
     static func updateStatus(
         show: Show,
@@ -48,8 +49,8 @@ enum ShowMutationCoordinator {
         mutation: () -> Void
     ) async -> ShowStatusActionResult {
         mutation()
-        if show.changeStatus == .canceled,
-           selections.first?.selectedShowID == show.id {
+        if selections.first?.selectedShowID == show.id,
+           !session.isManuallySelectable(show) {
             selections.first?.clearManualSelection()
         }
 

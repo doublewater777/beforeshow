@@ -339,8 +339,8 @@ struct MyShowsListView: View {
     }
 
     private func selectCurrent(_ show: Show) {
-        guard show.changeStatus != .canceled else {
-            presentToast(.neutral, message: "已取消现场不能设为当前")
+        guard session.isManuallySelectable(show) else {
+            presentToast(.neutral, message: "当前状态不能设为当前现场")
             return
         }
 
@@ -1082,6 +1082,10 @@ struct CurrentShowLibraryManagementView: View {
 
     private func selectCurrent(_ show: Show) {
         actionTarget = nil
+        guard session.isManuallySelectable(show) else {
+            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            return
+        }
         Task { @MainActor in
             ShowMutationCoordinator.updateCurrentShowFocus(showID: show.id, selections: selections, notificationStates: notificationStates, in: modelContext)
             do {

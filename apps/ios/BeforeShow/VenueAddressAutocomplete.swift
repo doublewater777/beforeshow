@@ -150,6 +150,7 @@ struct BSVenueField: View {
     @State private var isSearching = false
     @State private var searchMessage: String?
     @State private var searchTask: Task<Void, Never>?
+    @State private var appliedVenueName: String?
     @FocusState private var isFocused: Bool
 
     private var trimmedCity: String {
@@ -183,7 +184,15 @@ struct BSVenueField: View {
                     }
                 }
                 .onChange(of: venueName) { _, newValue in
+                    let isApplyingSuggestion = appliedVenueName == newValue
+                    appliedVenueName = nil
+                    if !isApplyingSuggestion {
+                        venueAddress = ""
+                    }
                     scheduleSearch(for: newValue)
+                }
+                .onChange(of: city) { _, _ in
+                    venueAddress = ""
                 }
                 .onChange(of: isFocused) { _, focused in
                     if focused {
@@ -293,6 +302,7 @@ struct BSVenueField: View {
     }
 
     private func applySuggestion(_ suggestion: AddressSuggestion) {
+        appliedVenueName = suggestion.name
         venueName = suggestion.name
         venueAddress = suggestion.fillText
         suggestions = []

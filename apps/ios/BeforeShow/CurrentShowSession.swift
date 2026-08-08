@@ -47,6 +47,10 @@ struct CurrentShowSession {
         selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)?.id == show.id
     }
 
+    func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
+        selector.isManuallySelectable(show, now: now)
+    }
+
     // MARK: - Phase
 
     func phase(for show: Show, now: Date = Date()) -> CurrentShowTimeState {
