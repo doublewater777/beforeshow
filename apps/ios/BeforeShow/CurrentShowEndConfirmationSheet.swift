@@ -1,28 +1,62 @@
 import SwiftUI
 
 struct CurrentShowEndConfirmationSheet: View {
-    let onConfirm: () -> Void
+    private enum Step { case choice, earlier }
+
+    let showName: String
+    let showStart: Date
+    let suggestedEnd: Date
+    let allowsJustEnded: Bool
+    let onConfirm: (Date) -> Void
     let onCancel: () -> Void
 
+    @State private var step: Step
+    @State private var selectedEnd: Date
+
+    init(
+        showName: String,
+        showStart: Date,
+        suggestedEnd: Date,
+        allowsJustEnded: Bool,
+        onConfirm: @escaping (Date) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.showName = showName
+        self.showStart = showStart
+        self.suggestedEnd = suggestedEnd
+        self.allowsJustEnded = allowsJustEnded
+        self.onConfirm = onConfirm
+        self.onCancel = onCancel
+        let suggested = min(Date(), suggestedEnd)
+        _selectedEnd = State(initialValue: max(showStart, suggested))
+        _step = State(initialValue: allowsJustEnded ? .choice : .earlier)
+    }
+
     var body: some View {
-        BSDrawerSheet(
-            detents: [.height(260), .large],
-            background: BSColor.Stage.surfaceRaised,
-            fitsContent: true
-        ) {
-            VStack(spacing: BSSpacing.lg) {
-                BSStageSheetHeader(
-                    icon: "moon.stars",
-                    title: "结束这场现场？",
-                    subtitle: "确定这场已经结束了吗？",
-                    tint: BSColor.Stage.liveTitle
-                )
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+            if step == .choice {
+                choice
+            } else {
+                earlierTime
+            }
+        }
+        .interactiveDismissDisabled(false)
+    }
 
-                HStack(spacing: 9) {
-                    Button("还没有", action: onCancel)
-                        .buttonStyle(BSSecondaryButtonStyle())
+    private var choice: some View {
+        VStack(spacing: BSSpacing.lg) {
+            BSStageSheetHeader(
+                icon: "moon.stars",
+                title: "确认已经散场？",
+                subtitle: "记录散场时间。",
+                tint: BSColor.Stage.liveTitle
+            )
 
-                    Button("结束现场", action: onConfirm)
+            HStack(spacing: 9) {
+                Button("早就结束") { step = .earlier }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                if allowsJustEnded {
+                    Button("刚刚结束") { onConfirm(Date()) }
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.Stage.liveTitle)
                         .frame(maxWidth: .infinity)
@@ -35,7 +69,66 @@ struct CurrentShowEndConfirmationSheet: View {
                         )
                 }
             }
+
+            Button("还没结束", action: onCancel)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(minHeight: BSLayout.minTouchTarget)
         }
-        .interactiveDismissDisabled(false)
+    }
+
+    private var earlierTime: some View {
+        VStack(spacing: BSSpacing.lg) {
+            BSStageSheetHeader(
+                icon: "clock",
+                title: "补记散场时间",
+                subtitle: showName,
+                tint: BSColor.Stage.accent
+            )
+
+            BSGlassPanel {
+                VStack(spacing: BSSpacing.sm) {
+                    DatePicker(
+                        "散场日期",
+                        selection: $selectedEnd,
+                        in: showStart...Date(),
+                        displayedComponents: .date
+                    )
+                    DatePicker(
+                        "散场时间",
+                        selection: $selectedEnd,
+                        in: showStart...Date(),
+                        displayedComponents: .hourAndMinute
+                    )
+                }
+                .tint(BSColor.Stage.accent)
+            }
+
+            HStack {
+                Text("现场时长")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+                Spacer()
+                Text(durationText)
+                    .font(.system(size: 13.5, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+
+            HStack(spacing: 9) {
+                Button("返回") { step = .choice }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                Button("确认这个时间") { onConfirm(selectedEnd) }
+                    .buttonStyle(BSPrimaryButtonStyle())
+            }
+        }
+    }
+
+    private var durationText: String {
+        let minutes = max(0, Int(selectedEnd.timeIntervalSince(showStart) / 60))
+        let hours = minutes / 60
+        let rest = minutes % 60
+        if hours == 0 { return "\(rest) 分" }
+        if rest == 0 { return "\(hours) 小时" }
+        return "\(hours) 小时 \(rest) 分"
     }
 }

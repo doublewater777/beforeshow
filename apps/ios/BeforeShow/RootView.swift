@@ -160,6 +160,7 @@ private struct CurrentShowHomeView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
@@ -197,8 +198,8 @@ private struct CurrentShowHomeView: View {
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
-                        onConfirmEnd: {
-                            confirmEnd(show)
+                        onConfirmEnd: { endDate in
+                            confirmEnd(show, at: endDate)
                         }
                     )
                 } else {
@@ -220,9 +221,15 @@ private struct CurrentShowHomeView: View {
             .task(id: widgetSyncFingerprint) {
                 WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
             }
+            .task {
+                await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+            }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                    Task { @MainActor in
+                        await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+                    }
                 }
             }
             .navigationDestination(isPresented: $isShowingSettings) {
@@ -252,17 +259,22 @@ private struct CurrentShowHomeView: View {
         }
     }
 
-    private func confirmEnd(_ show: Show) {
-        show.markEnded(at: Date())
+    private func confirmEnd(_ show: Show, at date: Date) {
+        guard CurrentShowEndPolicy.isValidConfirmedEnd(date, for: show) else {
+            presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
+            return
+        }
+
+        show.markEnded(at: date)
         do {
             try modelContext.save()
         } catch {
             modelContext.rollback()
-            presentToast(.failure, message: "没有结束成功，请重试")
+            presentToast(.failure, message: "散场时间没有保存，请重试")
             return
         }
 
-        presentToast(.success, message: "这一场结束了")
+        presentToast(.success, message: "已落幕，散场时间已计入现场记录")
         Task { @MainActor in
             _ = await ShowMutationCoordinator.syncNotifications(
                 shows: shows,
@@ -343,7 +355,7 @@ struct CurrentShowManagementSection: View {
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
-    var onConfirmEnd: () -> Void
+    var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
@@ -372,9 +384,13 @@ struct CurrentShowManagementSection: View {
         .id(show.updatedAt)
         .sheet(isPresented: $isShowingEndConfirmation) {
             CurrentShowEndConfirmationSheet(
-                onConfirm: {
+                showName: show.name,
+                showStart: CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
+                suggestedEnd: currentTimeState.endBoundary ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                allowsJustEnded: currentPhase == .live,
+                onConfirm: { date in
                     isShowingEndConfirmation = false
-                    onConfirmEnd()
+                    onConfirmEnd(date)
                 },
                 onCancel: { isShowingEndConfirmation = false }
             )
@@ -419,6 +435,7 @@ struct CurrentShowManagementSection: View {
             Text(companionErrorMessage ?? "")
         }
         .task(id: show.companionCloudRecordName) {
+            await companionCoordinator.refreshCompanion(for: show, in: modelContext)
             companionErrorMessage = CompanionHomeMessagePolicy.message(
                 accepted: companionCoordinator.consumePendingAcceptMessage(),
                 backgroundError: companionCoordinator.lastErrorMessage

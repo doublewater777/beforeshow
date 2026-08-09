@@ -147,12 +147,14 @@ struct ShowDetailView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var showAssets: [ShowAsset]
     let show: Show
     var startsEditing = false
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @State private var isEditing = false
     @State private var isEditingConfirmedEnd = false
+    @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingMoreActions = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingPostpone = false
@@ -171,6 +173,12 @@ struct ShowDetailView: View {
         self.show = show
         self.startsEditing = startsEditing
         self.onDetailVisibilityChange = onDetailVisibilityChange
+        let showID = show.id
+        _showAssets = Query(
+            filter: #Predicate<ShowAsset> { asset in
+                asset.showID == showID
+            }
+        )
     }
 
     private var snapshot: CurrentShowSnapshot {
@@ -198,6 +206,7 @@ struct ShowDetailView: View {
                         showInformationSection
                         currentDisplaySection
                         eventStatusSection
+                        assetManagementSection
                         confirmedEndSection
                     }
                     .padding(.horizontal, BSSpacing.roomy)
@@ -233,6 +242,14 @@ struct ShowDetailView: View {
                 onSave: saveConfirmedEnd,
                 onUndo: undoConfirmedEnd,
                 onCancel: { isEditingConfirmedEnd = false }
+            )
+        }
+        .sheet(item: $showingAssetKind) { kind in
+            ShowAssetSheet(
+                showID: show.id,
+                showName: show.name,
+                kind: kind,
+                onDetailVisibilityChange: onDetailVisibilityChange
             )
         }
         .sheet(isPresented: $isShowingMoreActions) {
@@ -551,6 +568,43 @@ struct ShowDetailView: View {
         }
     }
 
+    private var assetManagementSection: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            Text("现场资料")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.foreground)
+
+            HStack(spacing: BSSpacing.sm) {
+                ForEach(ShowAssetManagementPolicy.entries(for: show, assets: showAssets)) { entry in
+                    Button {
+                        showingAssetKind = entry.kind
+                    } label: {
+                        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                            Image(systemName: entry.kind.iconName)
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.accent)
+                            Text(entry.kind.title)
+                                .font(BSFont.V3.small.weight(.medium))
+                                .foregroundColor(BSColor.Stage.foreground)
+                            Text(entry.subtitle)
+                                .font(BSFont.V3.caption)
+                                .foregroundColor(BSColor.Stage.muted)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(BSSpacing.compact)
+                        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: BSRadius.v3Medium)
+                                .stroke(BSColor.Stage.border, lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("管理\(entry.kind.title)，\(entry.subtitle)")
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private var eventStatusActions: some View {
         switch show.changeStatus {
@@ -841,7 +895,7 @@ struct ShowDetailView: View {
 
     private func saveConfirmedEnd() {
         let start = CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current)
-        guard confirmedEndDraft >= start, confirmedEndDraft <= Date() else {
+        guard CurrentShowEndPolicy.isValidConfirmedEnd(confirmedEndDraft, for: show) else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return
         }

@@ -945,6 +945,7 @@ struct BSDrawerSheet<Content: View>: View {
     let fitsContent: Bool
     @ViewBuilder let content: Content
     @State private var fittedContentHeight: CGFloat = 300
+    @State private var contentExceedsAvailableHeight = false
 
     init(
         detent: PresentationDetent,
@@ -987,24 +988,31 @@ struct BSDrawerSheet<Content: View>: View {
     var body: some View {
         Group {
             if fitsContent {
-                drawerContent
-                    .fixedSize(horizontal: false, vertical: true)
-                    .background {
-                        GeometryReader { geometry in
-                            Color.clear.preference(
-                                key: BSDrawerContentHeightKey.self,
-                                value: geometry.size.height
-                            )
+                if contentExceedsAvailableHeight {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        drawerContent
+                    }
+                    .frame(maxHeight: maxFittedContentHeight)
+                    .presentationDetents(Set(detents).union([.large]))
+                } else {
+                    drawerContent
+                        .fixedSize(horizontal: false, vertical: true)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(
+                                    key: BSDrawerContentHeightKey.self,
+                                    value: geometry.size.height
+                                )
+                            }
                         }
-                    }
-                    .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
-                        guard height > 0 else { return }
-                        fittedContentHeight = min(
-                            max(180, height),
-                            UIScreen.main.bounds.height - 120
-                        )
-                    }
-                    .presentationDetents([.height(fittedContentHeight)])
+                        .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
+                            guard height > 0 else { return }
+                            let maxHeight = maxFittedContentHeight
+                            contentExceedsAvailableHeight = height > maxHeight
+                            fittedContentHeight = min(max(180, height), maxHeight)
+                        }
+                        .presentationDetents([.height(fittedContentHeight)])
+                }
             } else {
                 drawerContent
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -1024,6 +1032,10 @@ struct BSDrawerSheet<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(contentInsets)
         .background(background)
+    }
+
+    private var maxFittedContentHeight: CGFloat {
+        max(180, UIScreen.main.bounds.height - 120)
     }
 }
 

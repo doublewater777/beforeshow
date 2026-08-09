@@ -429,6 +429,23 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, now: finalDay, calendar: calendar))
     }
 
+    func testConfirmedEndPolicyAllowsHistoricalTimeOnlyWithinShowBounds() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let show = try Show(name: "散场时间现场", date: start, startTime: start)
+        let now = makeDate(year: 2026, month: 8, day: 8, hour: 23, minute: 0, calendar: calendar)
+
+        XCTAssertTrue(CurrentShowEndPolicy.isValidConfirmedEnd(
+            makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            for: show,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(CurrentShowEndPolicy.isValidConfirmedEnd(start.addingTimeInterval(-60), for: show, now: now, calendar: calendar))
+        XCTAssertFalse(CurrentShowEndPolicy.isValidConfirmedEnd(now.addingTimeInterval(60), for: show, now: now, calendar: calendar))
+    }
+
     func testFinalOvernightDailyCycleRemainsLiveAfterMidnight() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

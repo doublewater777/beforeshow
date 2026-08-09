@@ -3,6 +3,16 @@ import Foundation
 /// Pure policy: whether the current 现场 can record a confirmed end time right now.
 /// Derives `HomeShowPhase` internally so callers pass time-state once (not phase+timeState).
 enum CurrentShowEndPolicy {
+    static func isValidConfirmedEnd(
+        _ date: Date,
+        for show: Show,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        date >= CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: calendar)
+            && date <= now
+    }
+
     static func canRecordEnd(
         show: Show,
         timeState: CurrentShowTimeState,
