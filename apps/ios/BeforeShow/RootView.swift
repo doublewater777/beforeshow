@@ -253,8 +253,7 @@ private struct CurrentShowHomeView: View {
     }
 
     private func confirmEnd(_ show: Show, at date: Date) {
-        guard date >= CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
-              date <= Date() else {
+        guard CurrentShowEndPolicy.isValidConfirmedEnd(date, for: show) else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return
         }
@@ -430,11 +429,10 @@ struct CurrentShowManagementSection: View {
         }
         .task(id: show.companionCloudRecordName) {
             await companionCoordinator.refreshCompanion(for: show, in: modelContext)
-            if let accepted = companionCoordinator.consumePendingAcceptMessage() {
-                companionErrorMessage = accepted
-            } else if let error = companionCoordinator.consumeLastErrorMessage() {
-                companionErrorMessage = error
-            }
+            companionErrorMessage = CompanionHomeMessagePolicy.message(
+                accepted: companionCoordinator.consumePendingAcceptMessage(),
+                backgroundError: companionCoordinator.lastErrorMessage
+            )
         }
     }
 
@@ -790,6 +788,12 @@ private struct CurrentShowFollowUpSummary: View {
     }
 }
 
+enum CompanionHomeMessagePolicy {
+    static func message(accepted: String?, backgroundError _: String?) -> String? {
+        accepted
+    }
+}
+
 enum CurrentShowQuickAction: Hashable {
     case route
     case companion
@@ -939,8 +943,8 @@ private struct CompanionAvatarStack: View {
 }
 
 enum CompanionSheetPresentationPolicy {
-    static func showsDismissalButton(for _: ShowCompanionStatus) -> Bool {
-        true
+    static func showsDismissalButton(for status: ShowCompanionStatus) -> Bool {
+        status != .none
     }
 }
 
@@ -974,7 +978,11 @@ private struct CurrentShowCompanionSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
+        BSDrawerSheet(
+            detents: [.medium, .large],
+            background: BSColor.Stage.surfaceRaised,
+            fitsContent: true
+        ) {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     switch show.companionStatus {
@@ -1022,13 +1030,17 @@ private struct CurrentShowCompanionSheet: View {
             Text(errorMessage ?? "")
         }
         .task {
+            guard show.companionCloudRecordName != nil else { return }
             await coordinator.refreshCompanion(for: show, in: modelContext)
+            if let error = coordinator.consumeLastErrorMessage() {
+                errorMessage = error
+            }
         }
     }
 
     private func invitationContent(isRetry: Bool) -> some View {
         VStack(spacing: BSSpacing.md) {
-            sheetHeader(
+            BSStageSheetHeader(
                 icon: "person.2",
                 title: isRetry ? "邀请未接受" : "邀请同行",
                 subtitle: isRetry
@@ -1053,7 +1065,7 @@ private struct CurrentShowCompanionSheet: View {
 
     private var pendingContent: some View {
         VStack(spacing: BSSpacing.md) {
-            sheetHeader(
+            BSStageSheetHeader(
                 icon: "hourglass",
                 title: "等待\(displayName)确认",
                 subtitle: "已通过 iCloud 发出邀请。对方点开链接并接受后，这里会自动变成已确认。"
@@ -1091,7 +1103,7 @@ private struct CurrentShowCompanionSheet: View {
     private var confirmedContent: some View {
         if isEnded {
             VStack(spacing: BSSpacing.md) {
-                sheetHeader(
+                BSStageSheetHeader(
                     icon: "person.2.fill",
                     title: "共同足迹",
                     subtitle: "这场现场已经收进你们共同的记录。"
@@ -1106,7 +1118,7 @@ private struct CurrentShowCompanionSheet: View {
             }
         } else {
             VStack(spacing: BSSpacing.md) {
-                sheetHeader(
+                BSStageSheetHeader(
                     icon: "person.2.fill",
                     title: "与\(displayName)同行",
                     subtitle: "这场现场已确认同行。"
@@ -1228,25 +1240,6 @@ private struct CurrentShowCompanionSheet: View {
         }
     }
 
-    private func sheetHeader(icon: String, title: String, subtitle: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 25, weight: .medium))
-                .foregroundColor(BSColor.Stage.accent)
-                .frame(width: 54, height: 54)
-                .background(BSColor.Stage.accent.opacity(0.10))
-                .clipShape(RoundedRectangle(cornerRadius: 17))
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.system(size: 21, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-            Text(subtitle)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
-                .multilineTextAlignment(.center)
-        }
-    }
-
     private func destructiveButton(_ title: String, action: @escaping () -> Void) -> some View {
         Button(role: .destructive, action: action) {
             Text(title)
@@ -1282,6 +1275,12 @@ private struct CurrentShowCompanionSheet: View {
             errorMessage = "请先完成取消同步，再重新邀请"
             return
         }
+        await coordinator.refreshAllLinkedShows(in: modelContext)
+        if let error = coordinator.consumeLastErrorMessage() {
+            errorMessage = error
+            return
+        }
+        guard show.companionCloudRecordName == nil else { return }
         do {
             let prepared = try await coordinator.prepareInvitation(
                 for: show,
@@ -1360,26 +1359,16 @@ private struct CurrentShowMapChooserSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(detent: .height(sheetHeight)) {
-            VStack(spacing: BSSpacing.md) {
-                Image(systemName: "map")
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 56, height: 56)
-                    .background(BSColor.Stage.accent.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                VStack(spacing: 7) {
-                    Text("在地图中打开")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Text(hasDestination ? destinationLabel : "还没有可打开的位置")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                }
-            }
+        BSDrawerSheet(
+            detent: .height(sheetHeight),
+            background: BSColor.Stage.surfaceRaised,
+            fitsContent: true
+        ) {
+            BSStageSheetHeader(
+                icon: "map",
+                title: "在地图中打开",
+                subtitle: hasDestination ? destinationLabel : "还没有可打开的位置"
+            )
 
             if hasDestination {
                 if installedApps.isEmpty {
@@ -1563,7 +1552,7 @@ private enum DebugSampleShowSeeder {
     }
 
     private static func seedCurrentManagementLive(in modelContext: ModelContext) {
-        let name = "当前现场管理 · Live 验证"
+        let name = "夏夜音乐会"
         let now = Date()
         let start = now.addingTimeInterval(-84 * 60)
         let draft = ShowDraft(
@@ -1571,9 +1560,9 @@ private enum DebugSampleShowSeeder {
             date: start,
             startTime: start,
             city: "台北",
-            venueName: "Legacy Taipei",
+            venueName: "台北流行音乐中心",
             venueAddress: "台北市信义区松寿路 20 号",
-            artist: "BeforeShow Live",
+            artist: "夏夜乐队",
             seatSection: "摇滚区 A 排",
             coverImageURL: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85",
             source: .manual
@@ -1592,9 +1581,9 @@ private enum DebugSampleShowSeeder {
             }
 
             let verificationDrafts = [
-                ShowDraft(name: "后续现场 · 第一场", date: now.addingTimeInterval(5 * 86_400), startTime: now.addingTimeInterval(5 * 86_400), city: "新北", venueName: "Zepp New Taipei", artist: "Future One", source: .manual),
-                ShowDraft(name: "后续现场 · 第二场", date: now.addingTimeInterval(18 * 86_400), startTime: now.addingTimeInterval(18 * 86_400), city: "台中", venueName: "Legacy Taichung", artist: "Future Two", source: .manual),
-                ShowDraft(name: "后续现场 · 第三场", date: now.addingTimeInterval(42 * 86_400), startTime: now.addingTimeInterval(42 * 86_400), city: "高雄", venueName: "LIVE WAREHOUSE", artist: "Future Three", source: .manual)
+                ShowDraft(name: "海风音乐祭", date: now.addingTimeInterval(5 * 86_400), startTime: now.addingTimeInterval(5 * 86_400), city: "新北", venueName: "Zepp New Taipei", artist: "海岸线", source: .manual),
+                ShowDraft(name: "城市声浪", date: now.addingTimeInterval(18 * 86_400), startTime: now.addingTimeInterval(18 * 86_400), city: "台中", venueName: "台中 Legacy", artist: "午夜电台", source: .manual),
+                ShowDraft(name: "南方夏夜", date: now.addingTimeInterval(42 * 86_400), startTime: now.addingTimeInterval(42 * 86_400), city: "高雄", venueName: "LIVE WAREHOUSE", artist: "落日之后", source: .manual)
             ]
             for draft in verificationDrafts {
                 if let existing = existingShows.first(where: { $0.name == draft.name }) {
@@ -1606,7 +1595,7 @@ private enum DebugSampleShowSeeder {
                 }
             }
 
-            let endedDraft = ShowDraft(name: "管理页验证 · 已结束", date: now.addingTimeInterval(-10 * 86_400), startTime: now.addingTimeInterval(-10 * 86_400), city: "台北", venueName: "The Wall", artist: "Past Show", source: .manual)
+            let endedDraft = ShowDraft(name: "冬日回声", date: now.addingTimeInterval(-10 * 86_400), startTime: now.addingTimeInterval(-10 * 86_400), city: "台北", venueName: "The Wall", artist: "微光乐团", source: .manual)
             if let existing = existingShows.first(where: { $0.name == endedDraft.name }) {
                 try existing.apply(endedDraft)
                 existing.markEnded(at: now.addingTimeInterval(-10 * 86_400 + 7_200))
@@ -1616,7 +1605,7 @@ private enum DebugSampleShowSeeder {
                 modelContext.insert(ended)
             }
 
-            let canceledDraft = ShowDraft(name: "管理页验证 · 已取消", date: now.addingTimeInterval(28 * 86_400), startTime: now.addingTimeInterval(28 * 86_400), city: "台南", venueName: "漂丿白鹭", artist: "Canceled Show", source: .manual)
+            let canceledDraft = ShowDraft(name: "雨季来信", date: now.addingTimeInterval(28 * 86_400), startTime: now.addingTimeInterval(28 * 86_400), city: "台南", venueName: "漂丿白鹭", artist: "海岸信号", source: .manual)
             if let existing = existingShows.first(where: { $0.name == canceledDraft.name }) {
                 try existing.apply(canceledDraft)
                 existing.markCanceled()

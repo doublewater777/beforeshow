@@ -10,10 +10,17 @@ struct CurrentShowEndConfirmationSheet: View {
     let onConfirm: (Date) -> Void
     let onCancel: () -> Void
 
-    @State private var step: Step = .choice
+    @State private var step: Step
     @State private var selectedEnd: Date
 
-    init(showName: String, showStart: Date, suggestedEnd: Date, allowsJustEnded: Bool, onConfirm: @escaping (Date) -> Void, onCancel: @escaping () -> Void) {
+    init(
+        showName: String,
+        showStart: Date,
+        suggestedEnd: Date,
+        allowsJustEnded: Bool,
+        onConfirm: @escaping (Date) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
         self.showName = showName
         self.showStart = showStart
         self.suggestedEnd = suggestedEnd
@@ -26,7 +33,7 @@ struct CurrentShowEndConfirmationSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
             if step == .choice {
                 choice
             } else {
@@ -38,21 +45,12 @@ struct CurrentShowEndConfirmationSheet: View {
 
     private var choice: some View {
         VStack(spacing: BSSpacing.lg) {
-            VStack(spacing: BSSpacing.sm) {
-                Image(systemName: "moon.stars")
-                    .font(.system(size: 27, weight: .medium))
-                    .foregroundColor(BSColor.Stage.liveTitle)
-                    .frame(width: 56, height: 56)
-                    .background(BSColor.Stage.live.opacity(0.11))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                Text("确认已经散场？")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("记录散场时间，并计入现场记录。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-            }
+            BSStageSheetHeader(
+                icon: "moon.stars",
+                title: "确认已经散场？",
+                subtitle: "记录散场时间。",
+                tint: BSColor.Stage.liveTitle
+            )
 
             HStack(spacing: 9) {
                 Button("早就结束") { step = .earlier }
@@ -81,22 +79,12 @@ struct CurrentShowEndConfirmationSheet: View {
 
     private var earlierTime: some View {
         VStack(spacing: BSSpacing.lg) {
-            VStack(spacing: BSSpacing.sm) {
-                Image(systemName: "clock")
-                    .font(.system(size: 27, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 56, height: 56)
-                    .background(BSColor.Stage.accent.opacity(0.10))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                Text("补记散场时间")
-                    .font(.system(size: 21, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(showName)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
+            BSStageSheetHeader(
+                icon: "clock",
+                title: "补记散场时间",
+                subtitle: showName,
+                tint: BSColor.Stage.accent
+            )
 
             BSGlassPanel {
                 VStack(spacing: BSSpacing.sm) {
@@ -144,4 +132,3 @@ struct CurrentShowEndConfirmationSheet: View {
         return "\(hours) 小时 \(rest) 分"
     }
 }
-

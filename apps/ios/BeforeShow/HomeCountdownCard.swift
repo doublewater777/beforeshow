@@ -25,6 +25,63 @@ enum HomeLineupParser {
 
 // MARK: - Home Countdown Lockup
 
+enum HomeCountdownDisplayState: Equatable {
+    case countdownDays(Int)
+    case countdownClock(hours: Int, minutes: Int, seconds: Int, urgent: Bool)
+    case live
+    case askingEnd
+    case confirmedEnded
+    case dayEnded
+    case postponed
+    case canceled
+}
+
+enum HomeCountdownPresentationPolicy {
+    static func state(
+        for show: Show,
+        timeState: CurrentShowTimeState,
+        now: Date
+    ) -> HomeCountdownDisplayState {
+        switch timeState.kind {
+        case .canceled:
+            return .canceled
+        case .postponed:
+            return .postponed
+        case .dayEnded:
+            return .dayEnded
+        case .postShow, .ended:
+            return show.endedAt == nil ? .askingEnd : .confirmedEnded
+        case .before, .today:
+            let phase = HomeShowPhase(timeState: timeState, now: now)
+            guard phase == .live else {
+                guard let total = remainingSeconds(to: timeState.effectiveStartTime, from: now) else {
+                    return .countdownClock(hours: 0, minutes: 0, seconds: 0, urgent: false)
+                }
+                if total >= 86_400 {
+                    return .countdownDays(total / 86_400)
+                }
+                return clockState(total)
+            }
+            return .live
+        }
+    }
+
+    private static func clockState(_ total: Int) -> HomeCountdownDisplayState {
+        let total = max(0, total)
+        return .countdownClock(
+            hours: total / 3_600,
+            minutes: (total % 3_600) / 60,
+            seconds: total % 60,
+            urgent: total < 3_600
+        )
+    }
+
+    private static func remainingSeconds(to start: Date?, from now: Date) -> Int? {
+        guard let start else { return nil }
+        return max(0, Int(start.timeIntervalSince(now)))
+    }
+}
+
 /// V4 首页倒计时卡片:封面之后的深色卡片。
 /// pre 远场超大天数、当天秒级时钟、临近 1 小时金色时钟;
 /// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
@@ -53,7 +110,7 @@ struct HomeCountdownLockup: View {
                     Text("· \(badge)")
                         .font(.system(size: 10.5, weight: .semibold))
                         .tracking(1.6)
-                        .foregroundColor(badgeColor(for: phase))
+                        .foregroundColor(badgeColor(for: phase, timeState: timeState))
                 }
                 Spacer(minLength: 0)
             }
@@ -65,7 +122,13 @@ struct HomeCountdownLockup: View {
             case .live:
                 liveStatus(timeState: timeState, now: now)
             case .ended:
-                endedStatus(timeState: timeState)
+                if timeState.kind == .dayEnded {
+                    endedStatus(timeState: timeState)
+                } else if show.endedAt == nil {
+                    askingEndStatus
+                } else {
+                    endedStatus(timeState: timeState)
+                }
             case .inactive:
                 inactiveStatus(timeState: timeState)
             }
@@ -90,7 +153,7 @@ struct HomeCountdownLockup: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityHint("打开散场时间确认")
+                .accessibilityHint("打开结束现场确认")
                 .padding(.top, 12)
             }
         }
@@ -120,7 +183,7 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>1 天只到「天」超大节拍,<24h 秒开始跳,<1h 时钟变金色。
+    // 精度随临近程度收束:>1 天只到「天」超大节拍,<24h 秒开始跳,<1h 使用分:秒。
 
     @ViewBuilder
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
@@ -140,7 +203,7 @@ struct HomeCountdownLockup: View {
                             .foregroundColor(BSColor.Stage.muted)
                     }
                     if timeState.isDatedPostponement {
-                        Text("原日期 \(Self.originalDateText(for: show)) · 已按新日期重排提醒")
+                        Text("原定 \(Self.originalDateText(for: show))")
                             .font(.system(size: 12.5, weight: .regular))
                             .foregroundColor(BSColor.Stage.dim)
                             .padding(.top, 10)
@@ -174,7 +237,7 @@ struct HomeCountdownLockup: View {
             HStack(spacing: 14) {
                 HomeLivePulse(reduceMotion: reduceMotion)
 
-                Text("灯光已亮")
+                Text("正在现场")
                     .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(BSColor.Stage.liveTitle)
 
@@ -186,7 +249,7 @@ struct HomeCountdownLockup: View {
                         .monospacedDigit()
                         .tracking(-0.3)
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text("已进行")
+                    Text("开场后")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(BSColor.Stage.dim)
                 }
@@ -196,15 +259,15 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    static func endActionTitle(
+    nonisolated static func endActionTitle(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
         hasConfirmedEnd: Bool
     ) -> String? {
         guard !hasConfirmedEnd else { return nil }
-        if phase == .live { return "散场了，结束这场现场" }
+        if phase == .live { return "结束现场" }
         if timeState.kind == .postShow || timeState.kind == .ended {
-            return "补记真实散场时间"
+            return "结束现场"
         }
         return nil
     }
@@ -212,34 +275,30 @@ struct HomeCountdownLockup: View {
     // MARK: ended:冷静收束
 
     private func endedStatus(timeState: CurrentShowTimeState) -> some View {
-        let title: String
-        let helper: String
-        let emphasize: Bool
-        switch timeState.kind {
-        case .dayEnded:
-            title = "今日已落幕"
-            helper = timeState.helperText
-            emphasize = true
-        case .postShow:
-            title = "已落幕"
-            if let endedAt = show.endedAt {
-                helper = "\(Self.endTimeText(endedAt)) · 已计入足迹"
-            } else {
-                helper = timeState.helperText
-            }
-            emphasize = true
-        default:
-            title = "已结束"
-            helper = "这场已落幕 · 首页等待下一场现场"
-            emphasize = false
-        }
+        let isDayEnded = timeState.kind == .dayEnded
         return VStack(alignment: .leading, spacing: 0) {
-            Text(title)
+            Text(isDayEnded ? "今天结束了" : "这一场结束了")
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
-                .foregroundColor(emphasize ? BSColor.Stage.foreground : BSColor.Stage.dim)
+                .foregroundColor(BSColor.Stage.foreground)
 
-            Text(helper)
+            Text(isDayEnded ? "明天继续" : "散场之后，回味还在")
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(BSColor.Stage.dim)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+        }
+    }
+
+    private var askingEndStatus: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("这场已经结束了吗？")
+                .font(.system(size: 30, weight: .light))
+                .tracking(-0.5)
+                .foregroundColor(BSColor.Stage.foreground)
+
+            Text("如果已经结束，可以在这里确认")
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -251,15 +310,14 @@ struct HomeCountdownLockup: View {
     // MARK: inactive:已取消 / 时间待定
 
     private func inactiveStatus(timeState: CurrentShowTimeState) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(timeState.title)
+        let canceled = timeState.kind == .canceled
+        return VStack(alignment: .leading, spacing: 0) {
+            Text(canceled ? "这场取消了" : "还在等新的日期")
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.dim)
 
-            Text(timeState.kind == .canceled
-                 ? "现场资料保留在我的现场 · 不再收到提醒"
-                 : "新日期公布后会继续倒数 · 现场资料都还在")
+            Text(canceled ? "现场资料还留在我的现场" : "新日期确定后，会继续倒数")
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -273,34 +331,40 @@ struct HomeCountdownLockup: View {
     private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> String {
         switch phase {
         case .pre:
-            if timeState.isDatedPostponement { return "距离灯亮(新日期)" }
+            if timeState.isDatedPostponement { return "离新的开场还有" }
             if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now), total < 3_600 {
-                return "快开场了"
+                return "马上开场"
             }
-            return "距离灯亮"
-        case .live: return "演出进行中"
+            return "离开场还有"
+        case .live: return "开场了"
         case .ended:
             switch timeState.kind {
-            case .dayEnded: return "今天这一场结束了"
-            case .postShow: return "谢幕了 · 回味还在"
-            default: return "这场已经结束"
+            case .dayEnded: return "今天"
+            case .postShow, .ended:
+                return "今晚"
+            default: return "今晚"
             }
-        case .inactive: return timeState.kind == .canceled ? "这场取消了" : "倒计时暂停"
+        case .inactive: return timeState.kind == .canceled ? "这场取消了" : "延期"
         }
     }
 
     private func badge(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> String? {
         switch phase {
         case .pre:
-            if timeState.isDatedPostponement { return "RESCHEDULED" }
-            return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
-        case .live: return "ON STAGE"
-        case .ended: return timeState.kind == .dayEnded ? "TODAY" : "ENDED"
-        case .inactive: return timeState.kind == .canceled ? "CANCELED" : "TBD"
+            if timeState.isDatedPostponement { return "新日期" }
+            return timeState.kind == .today ? "今晚" : nil
+        case .live: return "LIVE"
+        case .ended:
+            if timeState.kind == .dayEnded { return "明天继续" }
+            return show.endedAt == nil ? "还在继续吗？" : nil
+        case .inactive: return nil
         }
     }
 
-    private func badgeColor(for phase: HomeShowPhase) -> Color {
+    private func badgeColor(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> Color {
+        if phase == .ended && show.endedAt == nil {
+            return BSColor.Stage.liveTitle
+        }
         switch phase {
         case .pre: return BSColor.Stage.accent
         case .live: return BSColor.Stage.liveTitle
@@ -325,13 +389,6 @@ struct HomeCountdownLockup: View {
     private static func remainingSeconds(to start: Date?, from now: Date) -> Int? {
         guard let start else { return nil }
         return max(0, Int(start.timeIntervalSince(now)))
-    }
-
-    private static func endTimeText(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
-        return formatter.string(from: date)
     }
 
     private static func clockText(_ total: Int, forceHours: Bool) -> String {
@@ -359,7 +416,7 @@ struct HomeCountdownLockup: View {
 
     private static func originalDateText(for show: Show) -> String {
         let components = Calendar.current.dateComponents([.month, .day], from: show.date)
-        return "\(components.month ?? 0).\(components.day ?? 0)"
+        return "\(components.month ?? 0)月\(components.day ?? 0)日"
     }
 }
 

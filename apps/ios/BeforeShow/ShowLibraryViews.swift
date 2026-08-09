@@ -449,6 +449,7 @@ private struct ShowRowView: View {
             // Covers are 3:4 posters — show the full poster instead of a square crop.
             ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 9)
                 .frame(width: 46, height: 61)
+                .clipShape(RoundedRectangle(cornerRadius: 9))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -766,7 +767,7 @@ struct CurrentShowLibraryManagementView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
 
     @State private var searchText = ""
-    @State private var filter: CurrentShowLibraryFilter = .all
+    @State private var filter: CurrentShowLibraryFilter = .upcoming
     @State private var actionTarget: Show?
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
@@ -1169,11 +1170,12 @@ private struct CurrentShowLibraryRow: View {
     let onMore: () -> Void
 
     var body: some View {
-        HStack(spacing: 11) {
+        HStack(spacing: 0) {
             Button(action: onOpen) {
                 HStack(spacing: 11) {
                     ShowCoverImageView(urlString: show.coverImageURL, aspectRatio: 3.0 / 4.0, contentMode: .fill, cornerRadius: 10)
                         .frame(width: 47, height: 63)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 5) {
                             if isCurrent { tag("当前展示", color: BSColor.Stage.glowBlue) }
@@ -1190,8 +1192,11 @@ private struct CurrentShowLibraryRow: View {
                     }
                     Spacer(minLength: 0)
                 }
+                .padding(11)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Button(action: onMore) {
                 Image(systemName: "ellipsis")
@@ -1202,8 +1207,8 @@ private struct CurrentShowLibraryRow: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("管理 \(show.name)")
+            .padding(.trailing, 11)
         }
-        .padding(11)
         .background(BSColor.Stage.surface)
         .clipShape(RoundedRectangle(cornerRadius: 17))
         .overlay(RoundedRectangle(cornerRadius: 17).stroke(Color.white.opacity(0.09), lineWidth: 1))
@@ -1227,8 +1232,15 @@ private struct CurrentShowLibraryActionSheet: View {
     let onAction: (CurrentShowLibraryMenuAction) -> Void
     let onCancel: () -> Void
 
+    private var detents: [PresentationDetent] {
+        let chromeHeight: CGFloat = 165
+        let actionRowHeight: CGFloat = 47
+        let preferredHeight = min(420, chromeHeight + actionRowHeight * CGFloat(actions.count))
+        return [.height(preferredHeight), .large]
+    }
+
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
+        BSDrawerSheet(detents: detents) {
             Text(show.name)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)

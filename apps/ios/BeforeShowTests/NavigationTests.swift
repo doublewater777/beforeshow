@@ -20,10 +20,27 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
 
-    func testCompanionSheetAlwaysExposesDismissalAffordance() {
-        for status in ShowCompanionStatus.allCases {
-            XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: status))
-        }
+    func testCompanionSheetHidesCompletionBeforeInvitation() {
+        XCTAssertFalse(CompanionSheetPresentationPolicy.showsDismissalButton(for: .none))
+        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .pending))
+        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .confirmed))
+        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .canceled))
+    }
+
+    func testPassiveHomeReturnDoesNotPresentBackgroundCompanionError() {
+        XCTAssertNil(
+            CompanionHomeMessagePolicy.message(
+                accepted: nil,
+                backgroundError: "需要登录 iCloud 才能邀请同行"
+            )
+        )
+        XCTAssertEqual(
+            CompanionHomeMessagePolicy.message(
+                accepted: "已与朋友确认同行",
+                backgroundError: "需要登录 iCloud 才能邀请同行"
+            ),
+            "已与朋友确认同行"
+        )
     }
 
     func testMyShowsOverflowMenuMatchesShowStatus() {
@@ -365,7 +382,7 @@ final class NavigationTests: XCTestCase {
         )
     }
 
-    func testEstimatedEndOffersBackfillUntilRealEndIsConfirmed() throws {
+    func testEstimatedEndAsksToEndUntilRealEndIsConfirmed() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "超时现场", date: start, startTime: start)
         let afterEstimatedEnd = start.addingTimeInterval(5 * 3_600)
@@ -379,7 +396,7 @@ final class NavigationTests: XCTestCase {
                 timeState: timeState,
                 hasConfirmedEnd: false
             ),
-            "补记真实散场时间"
+            "结束现场"
         )
         XCTAssertNil(
             HomeCountdownLockup.endActionTitle(
@@ -410,6 +427,23 @@ final class NavigationTests: XCTestCase {
         let finalPhase = HomeShowPhase(timeState: finalState, now: finalDay)
         XCTAssertEqual(finalPhase, .live)
         XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, now: finalDay, calendar: calendar))
+    }
+
+    func testConfirmedEndPolicyAllowsHistoricalTimeOnlyWithinShowBounds() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let show = try Show(name: "散场时间现场", date: start, startTime: start)
+        let now = makeDate(year: 2026, month: 8, day: 8, hour: 23, minute: 0, calendar: calendar)
+
+        XCTAssertTrue(CurrentShowEndPolicy.isValidConfirmedEnd(
+            makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 0, calendar: calendar),
+            for: show,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(CurrentShowEndPolicy.isValidConfirmedEnd(start.addingTimeInterval(-60), for: show, now: now, calendar: calendar))
+        XCTAssertFalse(CurrentShowEndPolicy.isValidConfirmedEnd(now.addingTimeInterval(60), for: show, now: now, calendar: calendar))
     }
 
     func testFinalOvernightDailyCycleRemainsLiveAfterMidnight() throws {

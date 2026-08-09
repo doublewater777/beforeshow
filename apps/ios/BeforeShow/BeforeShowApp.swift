@@ -55,12 +55,7 @@ struct BeforeShowApp: App {
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
-                    await companionCoordinator.flushPendingAcceptedShares(
-                        in: modelContainer.mainContext
-                    )
-                    await companionCoordinator.refreshAllLinkedShows(
-                        in: modelContainer.mainContext
-                    )
+                    await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
@@ -68,12 +63,7 @@ struct BeforeShowApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
                     Task {
-                        await companionCoordinator.flushPendingAcceptedShares(
-                            in: modelContainer.mainContext
-                        )
-                        await companionCoordinator.refreshAllLinkedShows(
-                            in: modelContainer.mainContext
-                        )
+                        await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                         await reconcileAllShowAssets(in: modelContainer.mainContext)
                     }

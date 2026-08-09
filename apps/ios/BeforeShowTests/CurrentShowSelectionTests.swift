@@ -13,7 +13,7 @@ final class CurrentShowSelectionTests: XCTestCase {
         now = makeDate(year: 2026, month: 6, day: 15, hour: 12)
     }
 
-    func testAutomaticSelectionChoosesNearestRelevantUncancelledShow() throws {
+    func testAutomaticSelectionKeepsUnconfirmedPreviousShowBeforeFutureShow() throws {
         let canceledToday = try makeShow(name: "已取消现场", day: 15)
         canceledToday.markCanceled()
         let expiredPastShow = try makeShow(name: "过了停留期的现场", day: 10)
@@ -25,7 +25,7 @@ final class CurrentShowSelectionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(selected?.id, nearestFutureShow.id)
+        XCTAssertEqual(selected?.id, expiredPastShow.id)
     }
 
     func testRecentlyEndedShowStaysRelevantForPostShowRetentionWindow() throws {
@@ -52,7 +52,7 @@ final class CurrentShowSelectionTests: XCTestCase {
         XCTAssertEqual(selected?.id, recentlyEndedShow.id)
     }
 
-    func testExpiredEndedShowIsNotCurrentWhenNoRelevantShowExists() throws {
+    func testUnconfirmedShowRemainsCurrentBeyondPostShowRetention() throws {
         let expiredPastShow = try makeShow(name: "过了停留期的现场", day: 10)
 
         let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
@@ -60,7 +60,31 @@ final class CurrentShowSelectionTests: XCTestCase {
             now: now
         )
 
+        XCTAssertEqual(selected?.id, expiredPastShow.id)
+    }
+
+    func testConfirmedEndedShowStillLeavesCurrentAfterRetention() throws {
+        let expiredPastShow = try makeShow(name: "已经确认结束的现场", day: 10)
+        expiredPastShow.markEnded(at: makeDate(year: 2026, month: 6, day: 10, hour: 22))
+
+        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
+            from: [expiredPastShow],
+            now: now
+        )
+
         XCTAssertNil(selected)
+    }
+
+    func testActuallyLiveShowWinsOverUnconfirmedPreviousShow() throws {
+        let unconfirmedPreviousShow = try makeShow(name: "尚未确认的上一场", day: 10)
+        let liveShow = try makeShow(name: "正在进行的新现场", day: 15)
+
+        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
+            from: [unconfirmedPreviousShow, liveShow],
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 21)
+        )
+
+        XCTAssertEqual(selected?.id, liveShow.id)
     }
 
     func testCanceledManualSelectionFallsBackToNearestRelevantShow() throws {
@@ -194,8 +218,8 @@ final class CurrentShowSelectionTests: XCTestCase {
         var utcCalendar = Calendar(identifier: .gregorian)
         utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
         let utcSelector = CurrentShowSelector(calendar: utcCalendar)
-        XCTAssertFalse(utcSelector.isAutomaticallySelectable(show, now: evaluationDate), 
-                       "Should be expired in UTC timezone")
+        XCTAssertTrue(utcSelector.isAutomaticallySelectable(show, now: evaluationDate),
+                      "An unconfirmed show remains selectable beyond retention")
         
         // Scenario B: Shanghai Calendar (GMT+8)
         var shanghaiCalendar = Calendar(identifier: .gregorian)

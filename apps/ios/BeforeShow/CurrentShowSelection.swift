@@ -39,8 +39,8 @@ struct CurrentShowSelector {
         now: Date = Date()
     ) -> Show? {
         // Manual selection wins only while the selected show is eligible for the
-        // current focus. Fall through to automatic for canceled, ended, or
-        // undated-postponed shows.
+        // current focus. A show that has passed its estimated boundary remains
+        // eligible until the user confirms its end.
         if let selectedShowID = manualSelection?.selectedShowID,
            let selectedShow = shows.first(where: { $0.id == selectedShowID }),
            isManuallySelectable(selectedShow, now: now) {
@@ -59,10 +59,10 @@ struct CurrentShowSelector {
                     )
                 )
             }
-            .filter { _, state in state.isAutomaticallySelectable }
+            .filter { show, state in isAutomaticallySelectable(show, state: state) }
             .sorted { first, second in
-                let firstRank = automaticSelectionRank(for: first.1)
-                let secondRank = automaticSelectionRank(for: second.1)
+                let firstRank = automaticSelectionRank(for: first.0, state: first.1, now: now)
+                let secondRank = automaticSelectionRank(for: second.0, state: second.1, now: now)
 
                 if firstRank != secondRank {
                     return firstRank < secondRank
@@ -83,11 +83,13 @@ struct CurrentShowSelector {
     }
 
     func isAutomaticallySelectable(_ show: Show, now: Date = Date()) -> Bool {
-        timeState(for: show, now: now).isAutomaticallySelectable
+        let state = timeState(for: show, now: now)
+        return isAutomaticallySelectable(show, state: state)
     }
 
     func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
-        timeState(for: show, now: now).isAutomaticallySelectable
+        let state = timeState(for: show, now: now)
+        return isAutomaticallySelectable(show, state: state)
     }
 
     private func timeState(for show: Show, now: Date) -> CurrentShowTimeState {
@@ -99,16 +101,45 @@ struct CurrentShowSelector {
         )
     }
 
-    private func automaticSelectionRank(for state: CurrentShowTimeState) -> Int {
-        switch state.kind {
-        case .today, .dayEnded:
-            return 0
-        case .postShow:
-            return 1
-        case .before:
-            return 2
-        case .ended, .canceled, .postponed:
-            return 3
+    private func isAutomaticallySelectable(_ show: Show, state: CurrentShowTimeState) -> Bool {
+        if state.kind == .ended {
+            return show.endedAt == nil
         }
+        return state.isAutomaticallySelectable
+    }
+
+    private func automaticSelectionRank(
+        for show: Show,
+        state: CurrentShowTimeState,
+        now: Date
+    ) -> Int {
+        if isActuallyLive(state, now: now) {
+            return 0
+        }
+
+        if state.kind == .dayEnded ||
+            ((state.kind == .postShow || state.kind == .ended) && show.endedAt == nil) {
+            return 1
+        }
+
+        switch state.kind {
+        case .today, .before:
+            return 2
+        case .dayEnded:
+            return 1
+        case .postShow:
+            return 3
+        case .ended, .canceled, .postponed:
+            return 4
+        }
+    }
+
+    private func isActuallyLive(_ state: CurrentShowTimeState, now: Date) -> Bool {
+        guard state.kind == .today,
+              let start = state.effectiveStartTime,
+              let boundary = state.endBoundary else {
+            return false
+        }
+        return now >= start && now < boundary
     }
 }

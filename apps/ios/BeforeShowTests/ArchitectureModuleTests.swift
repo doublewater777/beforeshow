@@ -44,6 +44,33 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testCountdownPresentationAsksBeforeAnnouncingUnconfirmedEnd() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "等待确认的现场", date: start, startTime: start)
+        let state = CurrentShowTimeState(
+            show: show,
+            now: start.addingTimeInterval(5 * 3_600)
+        )
+
+        XCTAssertEqual(
+            HomeCountdownPresentationPolicy.state(for: show, timeState: state, now: start.addingTimeInterval(5 * 3_600)),
+            .askingEnd
+        )
+    }
+
+    func testCountdownPresentationConfirmsOnlyWhenEndedAtExists() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "已经确认的现场", date: start, startTime: start)
+        show.markEnded(at: start.addingTimeInterval(5 * 3_600))
+        let now = start.addingTimeInterval(5 * 3_600 + 60)
+        let state = CurrentShowTimeState(show: show, now: now)
+
+        XCTAssertEqual(
+            HomeCountdownPresentationPolicy.state(for: show, timeState: state, now: now),
+            .confirmedEnded
+        )
+    }
+
     func testFollowUpPolicyExcludesCurrentAndPast() throws {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let past = try Show(name: "过去", date: now.addingTimeInterval(-86_400), startTime: now.addingTimeInterval(-86_400))

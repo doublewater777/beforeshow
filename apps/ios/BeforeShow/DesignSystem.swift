@@ -188,6 +188,34 @@ extension View {
 
 // MARK: - Stage Components
 
+struct BSStageSheetHeader: View {
+    let icon: String
+    let title: String
+    let subtitle: String
+    var tint: Color = BSColor.Stage.accent
+
+    var body: some View {
+        VStack(spacing: BSSpacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 25, weight: .medium))
+                .foregroundColor(tint)
+                .frame(width: 54, height: 54)
+                .background(tint.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 17))
+                .accessibilityHidden(true)
+
+            Text(title)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+
+            Text(subtitle)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .multilineTextAlignment(.center)
+        }
+    }
+}
+
 struct CurrentShowStageBackground: View {
     var body: some View {
         ZStack {
@@ -902,36 +930,112 @@ struct ArtistAvatarStackView: View {
     }
 }
 
+private struct BSDrawerContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct BSDrawerSheet<Content: View>: View {
     let detents: [PresentationDetent]
+    let background: Color
+    let contentInsets: EdgeInsets
+    let fitsContent: Bool
     @ViewBuilder let content: Content
+    @State private var fittedContentHeight: CGFloat = 300
+    @State private var contentExceedsAvailableHeight = false
 
-    init(detent: PresentationDetent, @ViewBuilder content: () -> Content) {
+    init(
+        detent: PresentationDetent,
+        background: Color = .black,
+        fitsContent: Bool = false,
+        contentInsets: EdgeInsets = EdgeInsets(
+            top: BSSpacing.md,
+            leading: BSSpacing.lg,
+            bottom: BSSpacing.xl,
+            trailing: BSSpacing.lg
+        ),
+        @ViewBuilder content: () -> Content
+    ) {
         self.detents = [detent]
+        self.background = background
+        self.fitsContent = fitsContent
+        self.contentInsets = contentInsets
         self.content = content()
     }
 
-    init(detents: [PresentationDetent], @ViewBuilder content: () -> Content) {
+    init(
+        detents: [PresentationDetent],
+        background: Color = .black,
+        fitsContent: Bool = false,
+        contentInsets: EdgeInsets = EdgeInsets(
+            top: BSSpacing.md,
+            leading: BSSpacing.lg,
+            bottom: BSSpacing.xl,
+            trailing: BSSpacing.lg
+        ),
+        @ViewBuilder content: () -> Content
+    ) {
         self.detents = detents
+        self.background = background
+        self.fitsContent = fitsContent
+        self.contentInsets = contentInsets
         self.content = content()
     }
 
     var body: some View {
-        VStack(spacing: BSSpacing.lg) {
-            Capsule()
-                .fill(Color.white.opacity(0.22))
-                .frame(width: 42, height: 4)
+        Group {
+            if fitsContent {
+                if contentExceedsAvailableHeight {
+                    ScrollView(.vertical, showsIndicators: false) {
+                        drawerContent
+                    }
+                    .frame(maxHeight: maxFittedContentHeight)
+                    .presentationDetents(Set(detents).union([.large]))
+                } else {
+                    drawerContent
+                        .fixedSize(horizontal: false, vertical: true)
+                        .background {
+                            GeometryReader { geometry in
+                                Color.clear.preference(
+                                    key: BSDrawerContentHeightKey.self,
+                                    value: geometry.size.height
+                                )
+                            }
+                        }
+                        .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
+                            guard height > 0 else { return }
+                            let maxHeight = maxFittedContentHeight
+                            contentExceedsAvailableHeight = height > maxHeight
+                            fittedContentHeight = min(max(180, height), maxHeight)
+                        }
+                        .presentationDetents([.height(fittedContentHeight)])
+                }
+            } else {
+                drawerContent
+                    .frame(maxHeight: .infinity, alignment: .top)
+                    .presentationDetents(Set(detents))
+            }
+        }
+        .presentationDragIndicator(.visible)
+        .presentationBackground(background)
+        .preferredColorScheme(.dark)
+        .background(background)
+    }
 
+    private var drawerContent: some View {
+        VStack(spacing: BSSpacing.lg) {
             content
         }
-        .padding(.horizontal, BSSpacing.lg)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.xl)
-        .presentationDetents(Set(detents))
-        .presentationDragIndicator(.hidden)
-        .presentationBackground(Color.black)
-        .preferredColorScheme(.dark)
-        .background(Color.black)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .padding(contentInsets)
+        .background(background)
+    }
+
+    private var maxFittedContentHeight: CGFloat {
+        max(180, UIScreen.main.bounds.height - 120)
     }
 }
 
