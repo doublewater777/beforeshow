@@ -2,6 +2,17 @@ import SwiftUI
 import SwiftData
 import UIKit
 
+enum ShowDetailInformationPolicy {
+    static func venueDetail(address: String?, city: String?) -> String? {
+        let value = [address, city].compactMap { $0 }.joined(separator: " · ")
+        return value.isEmpty ? nil : value
+    }
+
+    static func seatDetail(seatSection: String?, showName: String) -> String {
+        seatSection ?? showName
+    }
+}
+
 struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
@@ -426,26 +437,23 @@ struct ShowDetailView: View {
             VStack(spacing: 0) {
                 detailInfoRow(
                     icon: "calendar",
-                    title: "时间",
-                    subtitle: formatter.dateText(for: show)
+                    title: formatter.dateText(for: show),
+                    subtitle: endTimeDescription
                 )
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "mappin.and.ellipse",
-                    title: "场馆",
-                    subtitle: show.venueName ?? "未填写场馆"
-                )
-                Divider().overlay(BSColor.Stage.border)
-                detailInfoRow(
-                    icon: "mappin",
-                    title: "城市",
-                    subtitle: show.city ?? "未填写城市"
+                    title: show.venueName ?? show.city ?? "未填写场馆",
+                    subtitle: venueDetail
                 )
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "music.note",
-                    title: "艺人",
-                    subtitle: show.artist ?? "未填写艺人"
+                    title: show.artist ?? "未填写艺人",
+                    subtitle: ShowDetailInformationPolicy.seatDetail(
+                        seatSection: show.seatSection,
+                        showName: show.name
+                    )
                 )
             }
             .background(BSColor.Stage.surface)
@@ -693,6 +701,20 @@ struct ShowDetailView: View {
     private var venueSummary: String {
         let value = [show.venueName, show.city].compactMap { $0 }.joined(separator: " · ")
         return value.isEmpty ? "场馆待补充" : value
+    }
+
+    private var venueDetail: String? {
+        ShowDetailInformationPolicy.venueDetail(address: show.venueAddress, city: show.city)
+    }
+
+    private var endTimeDescription: String? {
+        if let endedAt = show.endedAt {
+            return "已于 \(Self.confirmedEndFormatter.string(from: endedAt)) 结束"
+        }
+        if let endTime = timeState.effectiveEndTime {
+            return "预计 \(Self.clockFormatter.string(from: endTime)) 结束"
+        }
+        return nil
     }
 
     private var currentDisplayTitle: String {

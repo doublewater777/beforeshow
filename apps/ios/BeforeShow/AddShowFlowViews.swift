@@ -70,6 +70,29 @@ enum AddShowSheet: Identifiable {
     }
 }
 
+enum AddShowMethodCopy {
+    case manual
+    case screenshot
+    case link
+
+    var subtitle: String {
+        switch self {
+        case .manual:
+            return "自己填写现场的基本信息。"
+        case .screenshot:
+            return "选择票务截图，仅在本机识别，图片不会上传。"
+        case .link:
+            return "粘贴大麦或秀动的链接，需要联网解析。"
+        }
+    }
+}
+
+enum ShowDraftEditorExitPolicy {
+    static func requiresDiscardConfirmation(current: ShowDraft, initial: ShowDraft) -> Bool {
+        current != initial
+    }
+}
+
 struct AddShowCoordinatorSheet: View {
     var intent: AddShowIntent = .upcoming
     /// Skip method picker and open a specific flow. Only for tests / deep links — normal entry leaves this nil.
@@ -256,7 +279,7 @@ private struct AddShowEntryView: View {
                         VStack(spacing: BSSpacing.md) {
                             AddShowMethodCard(
                                 title: "手动填写",
-                                subtitle: "自己填写现场的基本信息。",
+                                subtitle: AddShowMethodCopy.manual.subtitle,
                                 iconName: "square.and.pencil",
                                 tint: BSColor.Accent.prepare
                             ) {
@@ -265,7 +288,7 @@ private struct AddShowEntryView: View {
 
                             AddShowMethodCard(
                                 title: "截图识别",
-                                subtitle: "选择票务截图，仅在本机识别，图片不会上传。",
+                                subtitle: AddShowMethodCopy.screenshot.subtitle,
                                 iconName: "camera.fill",
                                 tint: BSColor.Accent.violet
                             ) {
@@ -274,7 +297,7 @@ private struct AddShowEntryView: View {
 
                             AddShowMethodCard(
                                 title: "链接解析",
-                                subtitle: "粘贴购票链接，自动提取名称、时间、场馆。",
+                                subtitle: AddShowMethodCopy.link.subtitle,
                                 iconName: "link",
                                 tint: BSColor.Stage.accent
                             ) {
@@ -1170,6 +1193,7 @@ struct ShowDraftEditorView: View {
     @State private var draft: ShowDraft
     @State private var message: String?
     @State private var isSaving = false
+    @State private var showsDiscardConfirmation = false
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var postponeDate = Date()
@@ -1200,7 +1224,7 @@ struct ShowDraftEditorView: View {
     }
 
     private var hasUnsavedChanges: Bool {
-        draft != initialDraft
+        ShowDraftEditorExitPolicy.requiresDiscardConfirmation(current: draft, initial: initialDraft)
     }
 
     private var isEndTimeRangeValid: Bool {
@@ -1294,6 +1318,15 @@ struct ShowDraftEditorView: View {
             )
         }
         .bsToastOverlay(statusToast, bottomPadding: 96)
+        .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
+            Button("继续编辑", role: .cancel) {}
+            Button("放弃修改", role: .destructive) {
+                coverLifecycle.cancel()
+                dismiss()
+            }
+        } message: {
+            Text("尚未保存的现场信息会丢失。")
+        }
         .onDisappear {
             guard !didSave else { return }
             coverLifecycle.cancel()
@@ -1309,11 +1342,33 @@ struct ShowDraftEditorView: View {
                 .foregroundColor(BSColor.textPrimary)
 
             HStack {
+                Button {
+                    requestDismiss()
+                } label: {
+                    Text("取消")
+                        .font(BSFont.body)
+                        .foregroundColor(BSColor.textSecondary)
+                        .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消编辑")
+
                 Spacer(minLength: 0)
             }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 4)
+    }
+
+    private func requestDismiss() {
+        dismissKeyboard()
+        if hasUnsavedChanges {
+            showsDiscardConfirmation = true
+        } else {
+            coverLifecycle.cancel()
+            dismiss()
+        }
     }
 
     // MARK: - 摘要卡：滚动时始终知道在编辑哪一场
