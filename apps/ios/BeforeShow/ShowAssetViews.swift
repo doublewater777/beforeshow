@@ -29,6 +29,7 @@ struct ShowAssetSheet: View {
     let showName: String
     let kind: ShowAssetKind
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+    var keepsParentDetailHidden = false
 
     var body: some View {
         BSDrawerSheet(
@@ -47,7 +48,11 @@ struct ShowAssetSheet: View {
             setDetailVisibility(for: .assetSheetPresented)
         }
         .onDisappear {
-            setDetailVisibility(for: .assetSheetDismissed)
+            if keepsParentDetailHidden {
+                onDetailVisibilityChange(true)
+            } else {
+                setDetailVisibility(for: .assetSheetDismissed)
+            }
         }
     }
 

@@ -249,7 +249,8 @@ struct ShowDetailView: View {
                 showID: show.id,
                 showName: show.name,
                 kind: kind,
-                onDetailVisibilityChange: onDetailVisibilityChange
+                onDetailVisibilityChange: onDetailVisibilityChange,
+                keepsParentDetailHidden: true
             )
         }
         .sheet(isPresented: $isShowingMoreActions) {
