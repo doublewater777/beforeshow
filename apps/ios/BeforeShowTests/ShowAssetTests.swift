@@ -78,6 +78,32 @@ final class ShowAssetTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: absolute.path))
     }
 
+    func testTicketAndTimetableImagesCanBeReadBackAfterSaving() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetReadback-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: root))
+        let showID = UUID()
+        let data = try XCTUnwrap(solidJPEGData())
+
+        for kind in ShowAssetKind.allCases {
+            let relativePath = try await store.saveImage(
+                data: data,
+                showID: showID,
+                kind: kind
+            )
+            let url = try await store.absoluteURL(
+                for: relativePath,
+                showID: showID,
+                kind: kind
+            )
+            let savedData = try Data(contentsOf: url)
+
+            XCTAssertNotNil(UIImage(data: savedData), "Saved \(kind.title) should be readable")
+        }
+    }
+
     func testReconcileDropsOrphanFilesAndKeepsReferenced() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ShowAssetReconcile-\(UUID().uuidString)", isDirectory: true)

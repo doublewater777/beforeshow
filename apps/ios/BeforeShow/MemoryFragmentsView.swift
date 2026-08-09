@@ -284,8 +284,7 @@ struct MemoryFragmentsView: View {
                 onDelete: {
                     pendingPresentation = .delete(fragment)
                     managementTarget = nil
-                },
-                onCancel: { managementTarget = nil }
+                }
             )
         }
         .sheet(item: $deleteConfirmationTarget) { fragment in
@@ -293,8 +292,7 @@ struct MemoryFragmentsView: View {
                 onDelete: {
                     deleteConfirmationTarget = nil
                     stageDelete(fragment)
-                },
-                onCancel: { deleteConfirmationTarget = nil }
+                }
             )
         }
         .fullScreenCover(item: $viewerTarget, onDismiss: performPendingPresentation) { target in
@@ -979,10 +977,9 @@ private struct MemoryManagementSheet: View {
     let isTextOnly: Bool
     let onEdit: () -> Void
     let onDelete: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(286)) {
+        BSDrawerSheet(detent: .height(286), fitsContent: true) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("管理这条记忆")
                     .font(.system(size: 18, weight: .semibold))
@@ -1003,9 +1000,6 @@ private struct MemoryManagementSheet: View {
                     tint: BSColor.Stage.danger,
                     action: onDelete
                 )
-                Button("取消", action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
-                    .padding(.top, 8)
             }
         }
     }
@@ -1043,10 +1037,9 @@ private struct MemoryManagementSheet: View {
 private struct MemoryAddMediaSheet: View {
     let onCamera: () -> Void
     let onLibrary: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(292)) {
+        BSDrawerSheet(detent: .height(292), fitsContent: true) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("继续添加")
                     .font(.system(size: 18, weight: .semibold))
@@ -1059,9 +1052,6 @@ private struct MemoryAddMediaSheet: View {
                     sourceButton("从图库选择", subtitle: "照片或视频", icon: "photo.on.rectangle", action: onLibrary)
                 }
                 .padding(.top, 17)
-                Button("取消", action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
-                    .padding(.top, 10)
             }
         }
     }
@@ -1088,10 +1078,9 @@ private struct MemoryAddMediaSheet: View {
 
 private struct MemoryDeleteConfirmationSheet: View {
     let onDelete: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(220)) {
+        BSDrawerSheet(detent: .height(220), fitsContent: true) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("删除这条记忆？")
                     .font(.system(size: 18, weight: .semibold))
@@ -1100,19 +1089,13 @@ private struct MemoryDeleteConfirmationSheet: View {
                     .foregroundColor(BSColor.Stage.muted)
                     .lineSpacing(4)
                     .padding(.top, 6)
-                HStack(spacing: 9) {
-                    Button("取消", action: onCancel)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 43)
-                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
-                    Button("删除", role: .destructive, action: onDelete)
-                        .foregroundColor(Color(red: 0.10, green: 0.03, blue: 0.04))
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 43)
-                        .background(BSColor.Stage.danger, in: RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 15)
+                Button("删除", role: .destructive, action: onDelete)
+                    .foregroundColor(Color(red: 0.10, green: 0.03, blue: 0.04))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 43)
+                    .background(BSColor.Stage.danger, in: RoundedRectangle(cornerRadius: 14))
+                    .buttonStyle(.plain)
+                    .padding(.top, 15)
             }
         }
     }
@@ -1437,8 +1420,7 @@ private struct MemoryMediaViewer: View {
                 onDelete: {
                     isShowingManagement = false
                     onDelete()
-                },
-                onCancel: { isShowingManagement = false }
+                }
             )
         }
     }
@@ -1667,8 +1649,7 @@ private struct MemoryUnifiedEditorView: View {
                         replacementIndex = nil
                         pendingAddDestination = .library
                         isShowingAddSource = false
-                    },
-                    onCancel: { isShowingAddSource = false }
+                    }
                 )
             }
             .onDisappear {

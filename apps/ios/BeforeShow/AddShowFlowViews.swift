@@ -72,8 +72,6 @@ enum AddShowSheet: Identifiable {
 
 struct AddShowCoordinatorSheet: View {
     var intent: AddShowIntent = .upcoming
-    /// When true (first-show onboarding), dismiss control reads as「先逛逛」instead of「取消」.
-    var allowsBrowseSkip: Bool = false
     /// Skip method picker and open a specific flow. Only for tests / deep links — normal entry leaves this nil.
     var initialSheet: AddShowSheet? = nil
     var onShowAdded: () -> Void = {}
@@ -83,12 +81,10 @@ struct AddShowCoordinatorSheet: View {
 
     init(
         intent: AddShowIntent = .upcoming,
-        allowsBrowseSkip: Bool = false,
         initialSheet: AddShowSheet? = nil,
         onShowAdded: @escaping () -> Void = {}
     ) {
         self.intent = intent
-        self.allowsBrowseSkip = allowsBrowseSkip
         self.initialSheet = initialSheet
         self.onShowAdded = onShowAdded
         _selectedSheet = State(initialValue: initialSheet)
@@ -112,7 +108,6 @@ struct AddShowCoordinatorSheet: View {
                 )
             } else {
                 AddShowEntryView(
-                    dismissTitle: allowsBrowseSkip ? "先逛逛" : "取消",
                     onDismiss: {
                         dismiss()
                     },
@@ -216,7 +211,6 @@ struct AddShowMethodButtons: View {
 }
 
 private struct AddShowEntryView: View {
-    var dismissTitle: String = "取消"
     let onDismiss: () -> Void
     let onSelect: (AddShowSheet) -> Void
 
@@ -226,7 +220,6 @@ private struct AddShowEntryView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // sheet 导航：与编辑现场同一语言（左侧取消 + 居中标题）
                 ZStack {
                     Text("添加现场")
                         .font(.system(size: 16, weight: .semibold))
@@ -236,32 +229,28 @@ private struct AddShowEntryView: View {
                         Button {
                             onDismiss()
                         } label: {
-                            Text(dismissTitle)
+                            Text("取消")
                                 .font(BSFont.body)
                                 .foregroundColor(BSColor.textSecondary)
-                                .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                                .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(dismissTitle)
+                        .accessibilityLabel("取消添加现场")
 
                         Spacer(minLength: 0)
                     }
                 }
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 20)
                 .padding(.vertical, 4)
 
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                            Text("把下一场现场\n记下来")
-                                .font(.system(size: 30, weight: .bold))
+                            Text("选择添加方式")
+                                .font(BSFont.title)
                                 .foregroundColor(BSColor.textPrimary)
-
-                            Text("三种方式任选，识别出的内容保存前都能改。")
-                                .font(BSFont.body)
-                                .foregroundColor(BSColor.textTertiary)
-                                .lineSpacing(3)
                         }
 
                         VStack(spacing: BSSpacing.md) {
@@ -276,7 +265,7 @@ private struct AddShowEntryView: View {
 
                             AddShowMethodCard(
                                 title: "截图识别",
-                                subtitle: "选择票务截图，设备端识别名称、时间、场馆，不上传。",
+                                subtitle: "选择票务截图，仅在本机识别，图片不会上传。",
                                 iconName: "camera.fill",
                                 tint: BSColor.Accent.violet
                             ) {
@@ -285,7 +274,7 @@ private struct AddShowEntryView: View {
 
                             AddShowMethodCard(
                                 title: "链接解析",
-                                subtitle: "粘贴大麦或秀动的链接，自动提取名称、时间、场馆。",
+                                subtitle: "粘贴购票链接，自动提取名称、时间、场馆。",
                                 iconName: "link",
                                 tint: BSColor.Stage.accent
                             ) {
@@ -293,15 +282,6 @@ private struct AddShowEntryView: View {
                             }
                         }
 
-                        HStack(spacing: 6) {
-                            Image(systemName: "lock.shield")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(BSColor.Accent.prepare)
-                            Text("截图识别完全在设备端完成；链接解析需要联网")
-                        }
-                        .font(.system(size: 11.5))
-                        .foregroundColor(BSColor.Stage.dim)
-                        .frame(maxWidth: .infinity)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
@@ -477,21 +457,24 @@ struct AddShowFlowView: View {
                 .foregroundColor(BSColor.textPrimary)
 
             HStack {
-                Button {
-                    closeOrBack()
-                } label: {
-                    Text(onBack == nil ? "取消" : "‹ 返回")
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textSecondary)
-                        .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                        .contentShape(Rectangle())
+                if onBack != nil {
+                    Button {
+                        closeOrBack()
+                    } label: {
+                        Text("返回")
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.textSecondary)
+                            .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("返回")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(onBack == nil ? "取消" : "返回")
 
                 Spacer(minLength: 0)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
         .padding(.vertical, 4)
     }
@@ -1187,7 +1170,6 @@ struct ShowDraftEditorView: View {
     @State private var draft: ShowDraft
     @State private var message: String?
     @State private var isSaving = false
-    @State private var showsDiscardConfirmation = false
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var postponeDate = Date()
@@ -1282,9 +1264,6 @@ struct ShowDraftEditorView: View {
                     Task { @MainActor in
                         await applyStatusAction { await statusEditing?.onPostpone(newDate) }
                     }
-                },
-                onCancel: {
-                    showsPostponeSheet = false
                 }
             )
         }
@@ -1298,9 +1277,6 @@ struct ShowDraftEditorView: View {
                     Task { @MainActor in
                         await applyStatusAction { await statusEditing?.onCancel() }
                     }
-                },
-                onCancel: {
-                    showsCancelConfirm = false
                 }
             )
         }
@@ -1314,22 +1290,10 @@ struct ShowDraftEditorView: View {
                     Task { @MainActor in
                         await statusEditing?.onDelete()
                     }
-                },
-                onCancel: {
-                    showsDeleteConfirm = false
                 }
             )
         }
         .bsToastOverlay(statusToast, bottomPadding: 96)
-        .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
-            Button("继续编辑", role: .cancel) {}
-            Button("放弃修改", role: .destructive) {
-                coverLifecycle.cancel()
-                dismiss()
-            }
-        } message: {
-            Text("尚未保存的现场信息会丢失。")
-        }
         .onDisappear {
             guard !didSave else { return }
             coverLifecycle.cancel()
@@ -1345,18 +1309,6 @@ struct ShowDraftEditorView: View {
                 .foregroundColor(BSColor.textPrimary)
 
             HStack {
-                Button {
-                    requestDismiss()
-                } label: {
-                    Text("取消")
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textSecondary)
-                        .frame(minWidth: 44, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("取消编辑")
-
                 Spacer(minLength: 0)
             }
         }
@@ -1723,16 +1675,6 @@ struct ShowDraftEditorView: View {
         } else {
             Text("所有修改已保存")
                 .foregroundColor(BSColor.Stage.dim)
-        }
-    }
-
-    private func requestDismiss() {
-        dismissKeyboard()
-        if hasUnsavedChanges {
-            showsDiscardConfirmation = true
-        } else {
-            coverLifecycle.cancel()
-            dismiss()
         }
     }
 

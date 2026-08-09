@@ -163,6 +163,10 @@ enum BSLayout {
     static let tabBarContentInset: CGFloat = 112
     /// Minimum tap target edge per HIG.
     static let minTouchTarget: CGFloat = 44
+    /// Shared top inset for primary page headers across the two root tabs.
+    static let pageHeaderTopPadding: CGFloat = 4
+    static let emptyStateActionWidth: CGFloat = 180
+    static let emptyStateActionHeight: CGFloat = 49
 }
 
 // MARK: - Reusable View Modifiers
@@ -1095,12 +1099,10 @@ struct BSDangerConfirmationSheet: View {
     let title: String
     let message: String
     let destructiveTitle: String
-    var cancelTitle = "取消"
     var onConfirm: () -> Void
-    var onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(292)) {
+        BSDrawerSheet(detent: .height(292), fitsContent: true) {
             VStack(spacing: BSSpacing.md) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 28, weight: .semibold))
@@ -1122,21 +1124,17 @@ struct BSDangerConfirmationSheet: View {
                 }
             }
 
-            HStack(spacing: BSSpacing.sm) {
-                Button(cancelTitle, action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
-                Button(destructiveTitle, action: onConfirm)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.danger)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(BSColor.Accent.danger.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BSRadius.md)
-                            .stroke(BSColor.Accent.danger.opacity(0.30), lineWidth: 1)
-                    )
-            }
+            Button(destructiveTitle, action: onConfirm)
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Accent.danger)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 13)
+                .background(BSColor.Accent.danger.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                .overlay(
+                    RoundedRectangle(cornerRadius: BSRadius.md)
+                        .stroke(BSColor.Accent.danger.opacity(0.30), lineWidth: 1)
+                )
         }
     }
 }

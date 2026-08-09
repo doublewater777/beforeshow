@@ -6,7 +6,6 @@ struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
     let onDated: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
         BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
@@ -28,8 +27,6 @@ struct PostponeShowSheet: View {
                     .buttonStyle(BSSecondaryButtonStyle())
                 Button("按选择日期延期", action: onDated)
                     .buttonStyle(BSPrimaryButtonStyle())
-                Button("取消", action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
             }
         }
     }
@@ -42,10 +39,9 @@ private struct ConfirmedEndTimeEditorSheet: View {
     @Binding var endTime: Date
     let onSave: () -> Void
     let onUndo: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
             VStack(spacing: BSSpacing.sm) {
                 Image(systemName: "clock.arrow.circlepath")
                     .font(.system(size: 26, weight: .medium))
@@ -92,8 +88,6 @@ private struct ConfirmedEndTimeEditorSheet: View {
                         .background(BSColor.Stage.live.opacity(0.10))
                         .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
                 }
-                Button("取消", action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
             }
         }
     }
@@ -101,7 +95,6 @@ private struct ConfirmedEndTimeEditorSheet: View {
 
 private struct ShowDetailMoreActionsSheet: View {
     let onDelete: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
         BSDrawerSheet(
@@ -134,9 +127,6 @@ private struct ShowDetailMoreActionsSheet: View {
                 .frame(minHeight: 52)
             }
             .buttonStyle(.plain)
-
-            Button("取消", action: onCancel)
-                .buttonStyle(BSSecondaryButtonStyle())
         }
     }
 }
@@ -240,8 +230,7 @@ struct ShowDetailView: View {
                 hasConfirmedEnd: show.endedAt != nil,
                 endTime: $confirmedEndDraft,
                 onSave: saveConfirmedEnd,
-                onUndo: undoConfirmedEnd,
-                onCancel: { isEditingConfirmedEnd = false }
+                onUndo: undoConfirmedEnd
             )
         }
         .sheet(item: $showingAssetKind) { kind in
@@ -255,8 +244,7 @@ struct ShowDetailView: View {
         }
         .sheet(isPresented: $isShowingMoreActions) {
             ShowDetailMoreActionsSheet(
-                onDelete: showDeleteConfirmation,
-                onCancel: { isShowingMoreActions = false }
+                onDelete: showDeleteConfirmation
             )
         }
         .sheet(isPresented: $isShowingDeleteConfirmation) {
@@ -264,12 +252,10 @@ struct ShowDetailView: View {
                 title: "删除这条现场记录？",
                 message: "删除后不会出现在“我的现场”和足迹中，此操作无法恢复。",
                 destructiveTitle: "确认删除",
-                cancelTitle: "返回",
                 onConfirm: {
                     isShowingDeleteConfirmation = false
                     Task { @MainActor in await deleteShow() }
-                },
-                onCancel: { isShowingDeleteConfirmation = false }
+                }
             )
         }
         .sheet(isPresented: $isShowingPostpone) {
@@ -287,8 +273,7 @@ struct ShowDetailView: View {
                     applyStatus(message: "延期日期已更新") {
                         show.markPostponed(newDate: newDate)
                     }
-                },
-                onCancel: { isShowingPostpone = false }
+                }
             )
         }
         .sheet(isPresented: $isShowingCancelConfirmation) {
@@ -296,12 +281,10 @@ struct ShowDetailView: View {
                 title: "取消这场演出？",
                 message: "取消后会停止倒计时和提醒，这场仍会保留在“我的现场”。",
                 destructiveTitle: "确认取消演出",
-                cancelTitle: "返回",
                 onConfirm: {
                     isShowingCancelConfirmation = false
                     applyStatus(message: "已记录取消") { show.markCanceled() }
-                },
-                onCancel: { isShowingCancelConfirmation = false }
+                }
             )
         }
         .task {
@@ -443,20 +426,26 @@ struct ShowDetailView: View {
             VStack(spacing: 0) {
                 detailInfoRow(
                     icon: "calendar",
-                    title: formatter.dateText(for: show),
-                    subtitle: endTimeDescription
+                    title: "时间",
+                    subtitle: formatter.dateText(for: show)
                 )
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "mappin.and.ellipse",
-                    title: show.venueName ?? show.city ?? "未填写场馆",
-                    subtitle: venueDetail
+                    title: "场馆",
+                    subtitle: show.venueName ?? "未填写场馆"
+                )
+                Divider().overlay(BSColor.Stage.border)
+                detailInfoRow(
+                    icon: "mappin",
+                    title: "城市",
+                    subtitle: show.city ?? "未填写城市"
                 )
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "music.note",
-                    title: show.artist ?? "未填写艺人",
-                    subtitle: show.seatSection ?? show.name
+                    title: "艺人",
+                    subtitle: show.artist ?? "未填写艺人"
                 )
             }
             .background(BSColor.Stage.surface)
@@ -704,21 +693,6 @@ struct ShowDetailView: View {
     private var venueSummary: String {
         let value = [show.venueName, show.city].compactMap { $0 }.joined(separator: " · ")
         return value.isEmpty ? "场馆待补充" : value
-    }
-
-    private var venueDetail: String? {
-        let value = [show.venueAddress, show.city].compactMap { $0 }.joined(separator: " · ")
-        return value.isEmpty ? nil : value
-    }
-
-    private var endTimeDescription: String? {
-        if let endedAt = show.endedAt {
-            return "已于 \(Self.confirmedEndFormatter.string(from: endedAt)) 结束"
-        }
-        if let endTime = timeState.effectiveEndTime {
-            return "预计 \(Self.clockFormatter.string(from: endTime)) 结束"
-        }
-        return nil
     }
 
     private var currentDisplayTitle: String {

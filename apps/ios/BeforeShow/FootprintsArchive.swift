@@ -449,7 +449,7 @@ struct FootprintsView: View {
             }
         }
         .padding(.horizontal, BSSpacing.roomy)
-        .padding(.top, BSSpacing.lg)
+        .padding(.top, BSLayout.pageHeaderTopPadding)
     }
 
     private func hero(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -974,12 +974,6 @@ private struct FootprintShareActionSheet<Preview: View>: View {
                     .disabled(isSaving)
             }
             .padding(.top, 12)
-
-            Button("取消") { dismiss() }
-                .font(BSFont.caption).foregroundColor(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity).frame(height: 45)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
-                .padding(.top, 12)
         }
         .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -1345,23 +1339,45 @@ private struct FootprintBackground: View {
 private struct FootprintEmptyView: View {
     let onAdd: () -> Void
     var body: some View {
-        VStack(spacing: 0) {
-            Text("足迹").font(.system(size: 32, weight: .bold)).foregroundColor(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 20).padding(.top, 24)
+        VStack(spacing: BSSpacing.md) {
             Spacer()
-            VStack(spacing: 16) {
-                Image(systemName: "flag").font(.system(size: 27, weight: .light)).foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 78, height: 78).background(Color.white.opacity(0.045), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-                Text("这里会长出你的足迹").font(.system(size: 27, weight: .light)).tracking(1.2).foregroundColor(BSColor.Stage.foreground)
-                Text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。")
-                    .font(BSFont.body).foregroundColor(BSColor.Stage.muted).multilineTextAlignment(.center)
-                Button("添加第一场现场", action: onAdd).font(.system(size: 14.5, weight: .semibold)).foregroundColor(BSColor.Stage.background)
-                    .frame(maxWidth: .infinity).frame(height: 49).background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-            }
-            .padding(.horizontal, 38)
+
+            Image(systemName: "flag")
+                .font(.system(size: 34, weight: .light))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: 80, height: 80)
+                .background(Color.white.opacity(0.045), in: Circle())
+                .overlay(Circle().stroke(BSColor.Stage.border))
+
+            Text("这里会长出你的足迹")
+                .font(BSFont.heroTitle)
+                .tracking(BSFont.titleTracking)
+                .foregroundColor(BSColor.Stage.foreground)
+                .multilineTextAlignment(.center)
+
+            Text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。")
+                .font(BSFont.body)
+                .foregroundColor(BSColor.Stage.muted)
+                .multilineTextAlignment(.center)
+
+            Button("添加第一场现场", action: onAdd)
+                .font(.system(size: 14.5, weight: .semibold))
+                .foregroundColor(BSColor.Stage.background)
+                .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
+                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.top, BSSpacing.sm)
+
             Spacer()
-            Spacer().frame(height: BSLayout.floatingTabBarClearance)
+        }
+        .padding(.horizontal, BSSpacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .top) {
+            Text("足迹")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, BSLayout.pageHeaderTopPadding)
         }
     }
 }

@@ -8,7 +8,7 @@ enum BeforeShowTab: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
-        case .current: return "clock"
+        case .current: return "sparkles"
         case .footprints: return "flag"
         }
     }
