@@ -395,8 +395,7 @@ struct CurrentShowManagementSection: View {
                 onSelect: { app in
                     openMapApp(app)
                     isShowingMapChooser = false
-                },
-                onCancel: { isShowingMapChooser = false }
+                }
             )
         }
         .sheet(isPresented: $isShowingCompanion) {
@@ -460,7 +459,7 @@ struct CurrentShowManagementSection: View {
             VStack(spacing: 0) {
                 managementHeader
                     .padding(.horizontal, contentInset)
-                    .padding(.top, 4)
+                    .padding(.top, BSLayout.pageHeaderTopPadding)
 
                 HomeHeroStage(
                     show: show,
@@ -1341,7 +1340,6 @@ private struct CurrentShowMapChooserSheet: View {
     let destinationQuery: String?
     let destinationLabel: String
     let onSelect: (ExternalMapApp) -> Void
-    let onCancel: () -> Void
 
     /// 仅展示本机已安装的地图；在 `onAppear` 用 `canOpenURL` 刷新。
     @State private var installedApps: [ExternalMapApp] = ExternalMapApp.installed
@@ -1354,8 +1352,8 @@ private struct CurrentShowMapChooserSheet: View {
     private var sheetHeight: CGFloat {
         if !hasDestination { return 280 }
         if installedApps.isEmpty { return 300 }
-        // 标题区 + 行高 + 取消 + 内边距
-        return 200 + CGFloat(installedApps.count) * 62 + 56
+        // 标题区 + 行高 + 内边距
+        return 200 + CGFloat(installedApps.count) * 62
     }
 
     var body: some View {
@@ -1418,8 +1416,6 @@ private struct CurrentShowMapChooserSheet: View {
                     .frame(maxWidth: .infinity)
             }
 
-            Button("取消", action: onCancel)
-                .buttonStyle(BSSecondaryButtonStyle())
         }
         .onAppear {
             installedApps = ExternalMapApp.installed
@@ -1436,9 +1432,9 @@ private struct CurrentShowEmptyStateView: View {
         VStack(spacing: BSSpacing.md) {
             Spacer()
 
-            Image(systemName: "music.note.house")
+            Image(systemName: "sparkles")
                 .font(.system(size: 34, weight: .light))
-                .bsGradientText()
+                .foregroundColor(BSColor.Stage.accent)
                 .frame(width: 80, height: 80)
                 .background(Color.white.opacity(0.05))
                 .clipShape(Circle())
@@ -1464,6 +1460,7 @@ private struct CurrentShowEmptyStateView: View {
                     .foregroundColor(.black)
                     .padding(.horizontal, 32)
                     .padding(.vertical, 13)
+                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
             }
@@ -1486,7 +1483,7 @@ private struct CurrentShowEmptyStateView: View {
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 4)
+            .padding(.top, BSLayout.pageHeaderTopPadding)
         }
     }
 

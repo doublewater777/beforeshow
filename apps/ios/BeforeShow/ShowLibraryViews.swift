@@ -822,16 +822,14 @@ struct CurrentShowLibraryManagementView: View {
             CurrentShowLibraryActionSheet(
                 show: show,
                 actions: menuActions(for: show),
-                onAction: { action in handle(action, for: show) },
-                onCancel: { actionTarget = nil }
+                onAction: { action in handle(action, for: show) }
             )
         }
         .sheet(item: $postponeTarget) { show in
             PostponeShowSheet(
                 newDate: $postponeDate,
                 onUndated: { applyPostponement(to: show, newDate: nil) },
-                onDated: { applyPostponement(to: show, newDate: postponeDate) },
-                onCancel: { postponeTarget = nil }
+                onDated: { applyPostponement(to: show, newDate: postponeDate) }
             )
         }
         .sheet(item: $cancelTarget) { show in
@@ -842,8 +840,7 @@ struct CurrentShowLibraryManagementView: View {
                 onConfirm: {
                     cancelTarget = nil
                     updateStatus(show, message: "已记录取消") { show.markCanceled() }
-                },
-                onCancel: { cancelTarget = nil }
+                }
             )
         }
         .sheet(isPresented: $isShowingAdd) {
@@ -1230,7 +1227,6 @@ private struct CurrentShowLibraryActionSheet: View {
     let show: Show
     let actions: [CurrentShowLibraryMenuAction]
     let onAction: (CurrentShowLibraryMenuAction) -> Void
-    let onCancel: () -> Void
 
     private var detents: [PresentationDetent] {
         let chromeHeight: CGFloat = 165
@@ -1240,7 +1236,7 @@ private struct CurrentShowLibraryActionSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(detents: detents) {
+        BSDrawerSheet(detents: detents, fitsContent: true) {
             Text(show.name)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
@@ -1251,7 +1247,6 @@ private struct CurrentShowLibraryActionSheet: View {
                     action(item)
                 }
             }
-            Button("取消", action: onCancel).buttonStyle(BSSecondaryButtonStyle())
         }
     }
 

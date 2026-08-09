@@ -625,9 +625,6 @@ private struct PrivacyLocalDataView: View {
                 onConfirm: {
                     showsClearConfirmation = false
                     clearLocalData()
-                },
-                onCancel: {
-                    showsClearConfirmation = false
                 }
             )
         }

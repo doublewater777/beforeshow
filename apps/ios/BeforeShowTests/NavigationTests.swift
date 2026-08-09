@@ -15,6 +15,51 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(BeforeShowTab.footprints.rawValue, "足迹")
     }
 
+    func testAddShowEntryCopyStatesSupportedLinkPlatformsAndPrivacyBoundary() {
+        XCTAssertEqual(
+            AddShowMethodCopy.screenshot.subtitle,
+            "选择票务截图，仅在本机识别，图片不会上传。"
+        )
+        XCTAssertEqual(
+            AddShowMethodCopy.link.subtitle,
+            "粘贴大麦或秀动的链接，需要联网解析。"
+        )
+    }
+
+    func testEditedShowDraftRequiresExplicitDiscardConfirmation() {
+        let initial = ShowDraft(name: "现场")
+        var edited = initial
+        edited.venueName = "新场馆"
+
+        XCTAssertFalse(
+            ShowDraftEditorExitPolicy.requiresDiscardConfirmation(
+                current: initial,
+                initial: initial
+            )
+        )
+        XCTAssertTrue(
+            ShowDraftEditorExitPolicy.requiresDiscardConfirmation(
+                current: edited,
+                initial: initial
+            )
+        )
+    }
+
+    func testShowDetailInformationKeepsAddressAndSeatDetails() {
+        XCTAssertEqual(
+            ShowDetailInformationPolicy.venueDetail(address: "信义路 1 号", city: "台北"),
+            "信义路 1 号 · 台北"
+        )
+        XCTAssertEqual(
+            ShowDetailInformationPolicy.seatDetail(seatSection: "看台 A", showName: "现场"),
+            "看台 A"
+        )
+        XCTAssertEqual(
+            ShowDetailInformationPolicy.seatDetail(seatSection: nil, showName: "现场"),
+            "现场"
+        )
+    }
+
     /// 设置不是主导航项；当前现场主海报也不承载溢出菜单。
     func testSettingsIsNotAMainTab() {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })

@@ -31,11 +31,34 @@ struct ShowAssetSheet: View {
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var keepsParentDetailHidden = false
 
+    @Query private var assets: [ShowAsset]
+
+    init(
+        showID: UUID,
+        showName: String,
+        kind: ShowAssetKind,
+        onDetailVisibilityChange: @escaping (Bool) -> Void = { _ in },
+        keepsParentDetailHidden: Bool = false
+    ) {
+        self.showID = showID
+        self.showName = showName
+        self.kind = kind
+        self.onDetailVisibilityChange = onDetailVisibilityChange
+        self.keepsParentDetailHidden = keepsParentDetailHidden
+
+        let kindRaw = kind.rawValue
+        _assets = Query(
+            filter: #Predicate<ShowAsset> { asset in
+                asset.showID == showID && asset.kindRawValue == kindRaw
+            }
+        )
+    }
+
     var body: some View {
         BSDrawerSheet(
-            detents: [.medium, .large],
+            detents: assets.isEmpty ? [.medium, .large] : [.large],
             background: BSColor.Stage.surfaceRaised,
-            fitsContent: true,
+            fitsContent: assets.isEmpty,
             contentInsets: EdgeInsets()
         ) {
             ShowAssetEntryView(
@@ -148,25 +171,32 @@ struct ShowAssetUploadView: View {
     @State private var saveTask: Task<Void, Never>?
     @State private var toast: BSToastPayload?
     @State private var didSave = false
+    @State private var isPhotoPickerPresented = false
+    @State private var didAutoPresentPhotoPicker = false
 
     var body: some View {
-        ZStack {
-            BSColor.Stage.surfaceRaised.ignoresSafeArea()
-
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: BSSpacing.lg) {
-                    if let previewImage {
-                        previewSection(previewImage)
-                    } else {
-                        emptyUploadSection
-                    }
-                }
-                .padding(.horizontal, BSSpacing.roomy)
-                .padding(.top, BSSpacing.md)
-                .padding(.bottom, 40)
+        VStack(spacing: BSSpacing.md) {
+            if let previewImage {
+                previewSection(previewImage)
+            } else {
+                emptyUploadSection
             }
         }
+        .padding(.horizontal, BSSpacing.roomy)
+        .padding(.top, BSSpacing.md)
+        .padding(.bottom, BSSpacing.lg)
+        .frame(
+            maxWidth: .infinity,
+            maxHeight: replacingAsset == nil ? nil : .infinity,
+            alignment: .top
+        )
+        .background(BSColor.Stage.surfaceRaised)
         .bsToastOverlay(toast, bottomPadding: 36)
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedItem,
+            matching: .images
+        )
         .onChange(of: selectedItem) { _, item in
             guard let item else { return }
             guard operation.canBeginImport() else { return }
@@ -189,6 +219,12 @@ struct ShowAssetUploadView: View {
                 previewImage = nil
             }
         }
+        .task {
+            guard replacingAsset != nil, !didAutoPresentPhotoPicker else { return }
+            didAutoPresentPhotoPicker = true
+            await Task.yield()
+            isPhotoPickerPresented = true
+        }
         .navigationBarBackButtonHidden(operation.isSaving)
         .interactiveDismissDisabled(operation.isSaving)
     }
@@ -196,12 +232,22 @@ struct ShowAssetUploadView: View {
     private var isImporting: Bool { operation.isImporting }
     private var isSaving: Bool { operation.isSaving }
 
+    private var editorTitle: String {
+        replacingAsset == nil ? kind.addTitle : "替换\(kind.title)"
+    }
+
+    private var editorDescription: String {
+        replacingAsset == nil
+            ? kind.addDescription
+            : "选择一张新的\(kind.choosePrompt)，替换当前保存的图片。"
+    }
+
     private var emptyUploadSection: some View {
         VStack(spacing: BSSpacing.lg) {
             BSStageSheetHeader(
                 icon: kind.iconName,
-                title: kind.addTitle,
-                subtitle: kind.addDescription
+                title: editorTitle,
+                subtitle: editorDescription
             )
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
@@ -224,7 +270,7 @@ struct ShowAssetUploadView: View {
                     .scaledToFit()
             }
             .frame(maxWidth: .infinity)
-            .frame(minHeight: 420)
+            .frame(height: replacingAsset == nil ? 260 : 420)
             .clipShape(RoundedRectangle(cornerRadius: 23))
             .overlay(
                 RoundedRectangle(cornerRadius: 23)
@@ -571,8 +617,7 @@ struct ShowAssetViewerView: View {
                         await Task.yield()
                         isConfirmingDelete = true
                     }
-                },
-                onCancel: { isShowingManage = false }
+                }
             )
         }
         .navigationDestination(isPresented: $isReplacing) {
@@ -591,8 +636,7 @@ struct ShowAssetViewerView: View {
                 onConfirm: {
                     isConfirmingDelete = false
                     deleteAsset()
-                },
-                onCancel: { isConfirmingDelete = false }
+                }
             )
         }
     }
@@ -775,10 +819,9 @@ private struct ShowAssetManageSheet: View {
     let kind: ShowAssetKind
     let onReplace: () -> Void
     let onDelete: () -> Void
-    let onCancel: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detents: [.height(320), .medium]) {
+        BSDrawerSheet(detents: [.height(320), .medium], fitsContent: true) {
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text("管理\(kind.title)")
                     .font(BSFont.headline)
@@ -809,9 +852,6 @@ private struct ShowAssetManageSheet: View {
                     )
                 }
                 .buttonStyle(.plain)
-
-                Button("取消", action: onCancel)
-                    .buttonStyle(BSSecondaryButtonStyle())
             }
         }
     }
