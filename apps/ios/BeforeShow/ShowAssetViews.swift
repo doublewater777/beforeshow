@@ -31,14 +31,17 @@ struct ShowAssetSheet: View {
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     var body: some View {
-        BSDrawerSheet(detents: [.medium, .large]) {
-            NavigationStack {
-                ShowAssetEntryView(
-                    showID: showID,
-                    showName: showName,
-                    kind: kind
-                )
-            }
+        BSDrawerSheet(
+            detents: [.medium, .large],
+            background: BSColor.Stage.surfaceRaised,
+            fitsContent: true,
+            contentInsets: EdgeInsets()
+        ) {
+            ShowAssetEntryView(
+                showID: showID,
+                showName: showName,
+                kind: kind
+            )
         }
         .onAppear {
             setDetailVisibility(for: .assetSheetPresented)
@@ -78,12 +81,14 @@ struct ShowAssetEntryView: View {
 
     var body: some View {
         if let asset = assets.first {
-            ShowAssetViewerView(
-                showID: showID,
-                showName: showName,
-                kind: kind,
-                asset: asset
-            )
+            NavigationStack {
+                ShowAssetViewerView(
+                    showID: showID,
+                    showName: showName,
+                    kind: kind,
+                    asset: asset
+                )
+            }
         } else {
             ShowAssetUploadView(
                 showID: showID,
@@ -141,7 +146,7 @@ struct ShowAssetUploadView: View {
 
     var body: some View {
         ZStack {
-            CurrentShowStageBackground().ignoresSafeArea()
+            BSColor.Stage.surfaceRaised.ignoresSafeArea()
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: BSSpacing.lg) {
@@ -188,43 +193,11 @@ struct ShowAssetUploadView: View {
 
     private var emptyUploadSection: some View {
         VStack(spacing: BSSpacing.lg) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 24)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                BSColor.Stage.accent.opacity(0.14),
-                                BSColor.Stage.glowBlue.opacity(0.08)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 24)
-                            .stroke(BSColor.Stage.accent.opacity(0.22), lineWidth: 1)
-                    )
-                Image(systemName: kind.iconName)
-                    .font(.system(size: 28, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
-            }
-            .frame(width: 76, height: 76)
-
-            VStack(spacing: BSSpacing.xs) {
-                Text(kind.addTitle)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(kind.addDescription)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            Text(showName)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(BSColor.Stage.dim)
-                .lineLimit(1)
+            BSStageSheetHeader(
+                icon: kind.iconName,
+                title: kind.addTitle,
+                subtitle: kind.addDescription
+            )
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
                 Text(isImporting ? "读取中…" : "选择图片")
@@ -235,7 +208,6 @@ struct ShowAssetUploadView: View {
             .accessibilityLabel("选择\(kind.title)图片")
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, 48)
     }
 
     private func previewSection(_ image: UIImage) -> some View {
