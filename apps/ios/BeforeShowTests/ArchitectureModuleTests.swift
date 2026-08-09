@@ -108,20 +108,17 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertTrue(draft.hasValidEndTime())
     }
 
-    func testDraftKeepsEditableVenueAddressAndSeatSection() throws {
+    func testDraftKeepsEditableVenueAddress() throws {
         var draft = ShowDraft(
             name: "可编辑地点",
             date: Date(timeIntervalSince1970: 2_000_000_000),
             startTime: Date(timeIntervalSince1970: 2_000_000_000),
             venueAddress: "旧地址",
-            seatSection: "看台 A",
             source: .manual
         )
         draft.venueAddress = "新地址 1 号"
-        draft.seatSection = ""
         let show = try draft.makeShow()
         XCTAssertEqual(show.venueAddress, "新地址 1 号")
-        XCTAssertNil(show.seatSection)
         XCTAssertEqual(
             MapDestinationQuery.make(
                 venueAddress: show.venueAddress,

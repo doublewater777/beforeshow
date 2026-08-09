@@ -359,6 +359,7 @@ struct CurrentShowManagementSection: View {
     @State private var isShowingEndConfirmation = false
     @State private var isShowingMapChooser = false
     @State private var isShowingCompanion = false
+    @State private var isShowingMemoryFragments = false
     @State private var showingAssetKind: ShowAssetKind?
     @State private var companionErrorMessage: String?
 
@@ -384,8 +385,7 @@ struct CurrentShowManagementSection: View {
                 onConfirm: { date in
                     isShowingEndConfirmation = false
                     onConfirmEnd(date)
-                },
-                onCancel: { isShowingEndConfirmation = false }
+                }
             )
         }
         .sheet(isPresented: $isShowingMapChooser) {
@@ -406,6 +406,13 @@ struct CurrentShowManagementSection: View {
                 coordinator: companionCoordinator,
                 onDismiss: { isShowingCompanion = false }
             )
+        }
+        .sheet(isPresented: $isShowingMemoryFragments) {
+            NavigationStack {
+                MemoryFragmentsView(show: show)
+                    .onAppear { onDetailVisibilityChange(true) }
+                    .onDisappear { onDetailVisibilityChange(false) }
+            }
         }
         .sheet(item: $showingAssetKind) { kind in
             ShowAssetSheet(
@@ -449,54 +456,63 @@ struct CurrentShowManagementSection: View {
             timeState: timeState,
             now: now
         )
+        let phase = HomeShowPhase(timeState: timeState, now: now)
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
         // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶(内容列居中回落到真实视口)。
         let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
         let coverWidth = min(352, max(0, viewportWidth - 40))
 
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                managementHeader
-                    .padding(.horizontal, contentInset)
-                    .padding(.top, BSLayout.pageHeaderTopPadding)
+        ZStack(alignment: .top) {
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
-                HomeHeroStage(
-                    show: show,
-                    snapshot: snapshot,
-                    coverWidth: coverWidth,
-                    reduceMotion: reduceMotion
-                )
-                    .padding(.top, 18)
-
-                HomeCountdownLockup(
-                    show: show,
-                    onEndShow: canRecordEnd
-                        ? { isShowingEndConfirmation = true }
-                        : nil
-                )
-                    .padding(.horizontal, 21)
-                    .padding(.top, 20)
-
-                quickActionRow(CurrentShowQuickAction.visibleActions)
-                    .padding(.horizontal, contentInset)
-                    .padding(.top, 17)
-
-                if !followUpShows.isEmpty {
-                    CurrentShowFollowUpSummary(
-                        shows: followUpShows,
-                        formatter: formatter,
-                        now: now,
-                        onDetailVisibilityChange: onDetailVisibilityChange
+                    HomeHeroStage(
+                        show: show,
+                        snapshot: snapshot,
+                        coverWidth: coverWidth,
+                        reduceMotion: reduceMotion
                     )
-                    .padding(.horizontal, contentInset)
-                    .padding(.top, 25)
+                        .padding(.top, 18)
+
+                    HomeCountdownLockup(
+                        show: show,
+                        onEndShow: canRecordEnd
+                            ? { isShowingEndConfirmation = true }
+                            : nil,
+                        onCompanion: { isShowingCompanion = true },
+                        onMemoryFragments: { isShowingMemoryFragments = true }
+                    )
+                        .padding(.horizontal, 21)
+                        .padding(.top, 20)
+
+                    quickActionRow(CurrentShowQuickAction.actions(for: phase))
+                        .padding(.horizontal, contentInset)
+                        .padding(.top, 17)
+
+                    if !followUpShows.isEmpty {
+                        CurrentShowFollowUpSummary(
+                            shows: followUpShows,
+                            formatter: formatter,
+                            now: now,
+                            onDetailVisibilityChange: onDetailVisibilityChange
+                        )
+                        .padding(.horizontal, contentInset)
+                        .padding(.top, 25)
+                    }
                 }
+                .padding(.bottom, BSLayout.tabBarContentInset)
+                .frame(width: viewportWidth)
+                .frame(width: geometry.size.width, alignment: .center)
+                .frame(minHeight: geometry.size.height, alignment: .top)
             }
-            .padding(.bottom, BSLayout.tabBarContentInset)
-            .frame(width: viewportWidth)
-            .frame(width: geometry.size.width, alignment: .center)
-            .frame(minHeight: geometry.size.height, alignment: .top)
+
+            managementHeader
+                .padding(.horizontal, contentInset)
+                .padding(.top, BSLayout.pageHeaderTopPadding)
+                .zIndex(1)
         }
     }
 
@@ -820,8 +836,20 @@ enum CurrentShowQuickAction: Hashable {
         }
     }
 
-    /// 当前现场的管理入口保持稳定，避免用户因演出阶段变化而找不到功能。
-    static let visibleActions: [Self] = [.route, .companion, .ticket, .timetable, .memoryFragments]
+    /// 快捷入口按生命周期排序:主行动已在卡片上,这里保留其余入口,
+    /// 但把当前阶段次相关的动作后置,避免 ended 后路线/票根抢占记忆。
+    static func actions(for phase: HomeShowPhase) -> [Self] {
+        switch phase {
+        case .pre:
+            return [.route, .ticket, .timetable, .companion, .memoryFragments]
+        case .live:
+            return [.companion, .memoryFragments, .route, .ticket, .timetable]
+        case .ended:
+            return [.memoryFragments, .companion, .route, .ticket, .timetable]
+        case .inactive:
+            return [.route, .companion, .ticket, .timetable, .memoryFragments]
+        }
+    }
 }
 
 struct CompanionQuickActionPresentation: Equatable {
@@ -1560,7 +1588,6 @@ private enum DebugSampleShowSeeder {
             venueName: "台北流行音乐中心",
             venueAddress: "台北市信义区松寿路 20 号",
             artist: "夏夜乐队",
-            seatSection: "摇滚区 A 排",
             coverImageURL: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85",
             source: .manual
         )

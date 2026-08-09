@@ -10,6 +10,14 @@ final class FootprintArchiveTests: XCTestCase {
         return value
     }
 
+    func testEmptyStateHidesAddActionWhenThereIsACurrentShow() {
+        let withCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: true)
+        let withoutCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: false)
+
+        XCTAssertNil(withCurrentShow.actionTitle)
+        XCTAssertEqual(withoutCurrentShow.actionTitle, "添加第一场现场")
+    }
+
     func testArchiveIncludesOnlyEndedScheduledShows() throws {
         let ended = try makeShow("已结束", year: 2025, artist: "落日飞车", city: "上海", venue: "MAO")
         let upcoming = try makeShow("未开始", year: 2027, artist: "陈绮贞", city: "杭州", venue: "奥体")

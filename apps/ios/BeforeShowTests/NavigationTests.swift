@@ -45,18 +45,10 @@ final class NavigationTests: XCTestCase {
         )
     }
 
-    func testShowDetailInformationKeepsAddressAndSeatDetails() {
+    func testShowDetailInformationKeepsAddressDetails() {
         XCTAssertEqual(
             ShowDetailInformationPolicy.venueDetail(address: "信义路 1 号", city: "台北"),
             "信义路 1 号 · 台北"
-        )
-        XCTAssertEqual(
-            ShowDetailInformationPolicy.seatDetail(seatSection: "看台 A", showName: "现场"),
-            "看台 A"
-        )
-        XCTAssertEqual(
-            ShowDetailInformationPolicy.seatDetail(seatSection: nil, showName: "现场"),
-            "现场"
         )
     }
 
@@ -160,8 +152,12 @@ final class NavigationTests: XCTestCase {
 
     func testCurrentShowQuickActionsAreAlwaysVisible() {
         XCTAssertEqual(
-            CurrentShowQuickAction.visibleActions,
-            [.route, .companion, .ticket, .timetable, .memoryFragments]
+            CurrentShowQuickAction.actions(for: .pre),
+            [.route, .ticket, .timetable, .companion, .memoryFragments]
+        )
+        XCTAssertEqual(
+            CurrentShowQuickAction.actions(for: .ended),
+            [.memoryFragments, .companion, .route, .ticket, .timetable]
         )
     }
 
@@ -439,15 +435,17 @@ final class NavigationTests: XCTestCase {
             HomeCountdownLockup.endActionTitle(
                 phase: phase,
                 timeState: timeState,
-                hasConfirmedEnd: false
+                hasConfirmedEnd: false,
+                hasEndHandler: true
             ),
-            "结束现场"
+            "确认已结束"
         )
         XCTAssertNil(
             HomeCountdownLockup.endActionTitle(
                 phase: phase,
                 timeState: timeState,
-                hasConfirmedEnd: true
+                hasConfirmedEnd: true,
+                hasEndHandler: true
             )
         )
     }
@@ -472,6 +470,51 @@ final class NavigationTests: XCTestCase {
         let finalPhase = HomeShowPhase(timeState: finalState, now: finalDay)
         XCTAssertEqual(finalPhase, .live)
         XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: finalState, now: finalDay, calendar: calendar))
+    }
+
+    func testLiveEndActionIsHiddenWhenItsHandlerIsUnavailable() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 7, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let endDate = makeDate(year: 2026, month: 7, day: 10, hour: 0, minute: 0, calendar: calendar)
+        let dailyEnd = makeDate(year: 2026, month: 7, day: 8, hour: 22, minute: 0, calendar: calendar)
+        let show = try Show(name: "三日音乐节", date: start, startTime: start, endDate: endDate, endTime: dailyEnd)
+        let middleDay = makeDate(year: 2026, month: 7, day: 9, hour: 20, minute: 0, calendar: calendar)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: middleDay)
+        let phase = HomeShowPhase(timeState: state, now: middleDay)
+
+        XCTAssertEqual(phase, .live)
+        XCTAssertNil(
+            HomeCountdownLockup.primaryAction(
+                phase: phase,
+                timeState: state,
+                hasConfirmedEnd: false,
+                hasEndHandler: false
+            )
+        )
+    }
+
+    func testPostShowEndConfirmationBackDismissesInsteadOfReturningToChoice() {
+        var didShowChoice = false
+        var didDismiss = false
+
+        CurrentShowEndConfirmationSheet.performEarlierBackAction(
+            allowsJustEnded: false,
+            showChoice: { didShowChoice = true },
+            dismiss: { didDismiss = true }
+        )
+        XCTAssertFalse(didShowChoice)
+        XCTAssertTrue(didDismiss)
+
+        didShowChoice = false
+        didDismiss = false
+        CurrentShowEndConfirmationSheet.performEarlierBackAction(
+            allowsJustEnded: true,
+            showChoice: { didShowChoice = true },
+            dismiss: { didDismiss = true }
+        )
+        XCTAssertTrue(didShowChoice)
+        XCTAssertFalse(didDismiss)
     }
 
     func testConfirmedEndPolicyAllowsHistoricalTimeOnlyWithinShowBounds() throws {

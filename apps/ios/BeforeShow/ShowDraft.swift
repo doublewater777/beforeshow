@@ -36,7 +36,6 @@ struct ShowDraft: Equatable {
     var venueName: String
     var venueAddress: String
     var artist: String
-    var seatSection: String
     var coverImageURL: String
     var artistAvatarURLs: [String]
     var source: ShowDraftSource
@@ -53,7 +52,6 @@ struct ShowDraft: Equatable {
         venueName: String = "",
         venueAddress: String = "",
         artist: String = "",
-        seatSection: String = "",
         coverImageURL: String = "",
         artistAvatarURLs: [String] = [],
         source: ShowDraftSource = .manual,
@@ -68,7 +66,6 @@ struct ShowDraft: Equatable {
         self.venueName = venueName
         self.venueAddress = venueAddress
         self.artist = artist
-        self.seatSection = seatSection
         self.coverImageURL = coverImageURL
         self.artistAvatarURLs = artistAvatarURLs
         self.source = source
@@ -86,7 +83,6 @@ struct ShowDraft: Equatable {
             venueName: show.venueName ?? "",
             venueAddress: show.venueAddress ?? "",
             artist: show.artist ?? "",
-            seatSection: show.seatSection ?? "",
             coverImageURL: show.coverImageURL ?? "",
             artistAvatarURLs: show.artistAvatarURLs,
             source: .manual
@@ -105,7 +101,6 @@ struct ShowDraft: Equatable {
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
             artist: prepared.artist,
-            seatSection: prepared.seatSection,
             coverImageURL: prepared.coverImageURL,
             artistAvatarURLs: prepared.artistAvatarURLs
         )
@@ -178,7 +173,6 @@ struct ShowScreenshotRecognitionService {
         draft.city = city
         draft.venueName = venueName
         draft.artist = artist
-        draft.seatSection = ""
 
         // 字段级 provenance：日期回退为当天时不得计入「已识别」。
         var recognizedFields = Set<ShowDraftField>()
@@ -466,7 +460,6 @@ struct ShowScreenshotRecognitionService {
             "场馆",
             "场地",
             "地点",
-            "座位",
             "票档",
             "票种",
             "艺人",

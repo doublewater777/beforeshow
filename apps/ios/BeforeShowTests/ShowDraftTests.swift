@@ -106,7 +106,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.city, "上海")
         XCTAssertEqual(draft.venueName, "春浪草地")
         XCTAssertEqual(draft.artist, "落日飞车 / deca joins")
-        XCTAssertTrue(draft.seatSection.isEmpty)
         XCTAssertFalse(draft.name.contains("SECRET"))
     }
 
@@ -126,7 +125,6 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.city, "上海")
         XCTAssertEqual(draft.venueName, "MAO Livehouse")
         XCTAssertNil(draft.startTime)
-        XCTAssertTrue(draft.seatSection.isEmpty)
     }
 
     func testScreenshotRecognitionFailureCanFallBackToManualDraft() {

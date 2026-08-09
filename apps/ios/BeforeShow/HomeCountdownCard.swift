@@ -88,6 +88,8 @@ enum HomeCountdownPresentationPolicy {
 struct HomeCountdownLockup: View {
     let show: Show
     var onEndShow: (() -> Void)? = nil
+    var onCompanion: (() -> Void)? = nil
+    var onMemoryFragments: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -133,28 +135,8 @@ struct HomeCountdownLockup: View {
                 inactiveStatus(timeState: timeState)
             }
 
-            if let onEndShow,
-               let actionTitle = Self.endActionTitle(
-                   phase: phase,
-                   timeState: timeState,
-                   hasConfirmedEnd: show.endedAt != nil
-               ) {
-                Button(action: onEndShow) {
-                    Text(actionTitle)
-                        .font(.system(size: 13.5, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.liveTitle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(BSColor.Stage.live.opacity(0.10))
-                        .clipShape(RoundedRectangle(cornerRadius: 14))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14)
-                                .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityHint("打开结束现场确认")
-                .padding(.top, 12)
+            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
+                primaryActionButton(action)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -249,7 +231,7 @@ struct HomeCountdownLockup: View {
                         .monospacedDigit()
                         .tracking(-0.3)
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text("开场后")
+                    Text("已开场")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(BSColor.Stage.dim)
                 }
@@ -259,17 +241,108 @@ struct HomeCountdownLockup: View {
         }
     }
 
+    // MARK: Primary action:单一主行动随生命周期切换
+    // pre → 约人同行;live → 结束现场;ended(未确认) → 确认已结束;其余不出现。
+    // 避免 live/ended 用同一句「结束现场」,让确认动作与所处阶段语气一致。
+
+    enum PrimaryAction: Equatable {
+        case end(live: Bool)
+        case companion
+        case memoryFragments
+    }
+
+    private func availablePrimaryAction(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> PrimaryAction? {
+        Self.primaryAction(
+            phase: phase,
+            timeState: timeState,
+            hasConfirmedEnd: show.endedAt != nil,
+            hasEndHandler: onEndShow != nil
+        )
+    }
+
+    nonisolated static func primaryAction(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        hasConfirmedEnd: Bool,
+        hasEndHandler: Bool
+    ) -> PrimaryAction? {
+        guard !hasConfirmedEnd else { return nil }
+        switch phase {
+        case .pre:
+            return .companion
+        case .live:
+            return hasEndHandler ? .end(live: true) : nil
+        case .ended:
+            if timeState.kind == .postShow || timeState.kind == .ended {
+                return hasEndHandler ? .end(live: false) : nil
+            }
+            return .memoryFragments
+        case .inactive:
+            return nil
+        }
+    }
+
+    private func primaryActionButton(_ action: PrimaryAction) -> some View {
+        let title = primaryActionTitle(action)
+        let handler = primaryActionHandler(action)
+
+        return Button(action: handler) {
+            Text(title)
+                .font(.system(size: 13.5, weight: .semibold))
+                .foregroundColor(BSColor.Stage.liveTitle)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(BSColor.Stage.live.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(BSColor.Stage.live.opacity(0.32), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint(accessibilityHint(for: action))
+        .padding(.top, 12)
+    }
+
+    private func primaryActionTitle(_ action: PrimaryAction) -> String {
+        switch action {
+        case .end(live: true): return "结束现场"
+        case .end(live: false): return "确认已结束"
+        case .companion: return "约人同行"
+        case .memoryFragments: return "记一段记忆"
+        }
+    }
+
+    private func primaryActionHandler(_ action: PrimaryAction) -> () -> Void {
+        switch action {
+        case .end: return { onEndShow?() }
+        case .companion: return { onCompanion?() }
+        case .memoryFragments: return { onMemoryFragments?() }
+        }
+    }
+
+    private func accessibilityHint(for action: PrimaryAction) -> String {
+        switch action {
+        case .end: return "打开结束现场确认"
+        case .companion: return "邀请一位朋友同行"
+        case .memoryFragments: return "打开记忆碎片"
+        }
+    }
+
     nonisolated static func endActionTitle(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
-        hasConfirmedEnd: Bool
+        hasConfirmedEnd: Bool,
+        hasEndHandler: Bool
     ) -> String? {
-        guard !hasConfirmedEnd else { return nil }
-        if phase == .live { return "结束现场" }
-        if timeState.kind == .postShow || timeState.kind == .ended {
-            return "结束现场"
-        }
-        return nil
+        guard let action = primaryAction(
+            phase: phase,
+            timeState: timeState,
+            hasConfirmedEnd: hasConfirmedEnd,
+            hasEndHandler: hasEndHandler
+        ) else { return nil }
+        guard case let .end(live) = action else { return nil }
+        return live ? "结束现场" : "确认已结束"
     }
 
     // MARK: ended:冷静收束
@@ -282,7 +355,7 @@ struct HomeCountdownLockup: View {
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.foreground)
 
-            Text(isDayEnded ? "明天继续" : "散场之后，回味还在")
+            Text(isDayEnded ? "稍作休息，明天见" : "散场之后，回味还在")
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -317,7 +390,7 @@ struct HomeCountdownLockup: View {
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.dim)
 
-            Text(canceled ? "现场资料还留在我的现场" : "新日期确定后，会继续倒数")
+            Text(canceled ? "现场资料还帮你留着" : "新日期确定后，会继续倒数")
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -331,7 +404,7 @@ struct HomeCountdownLockup: View {
     private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> String {
         switch phase {
         case .pre:
-            if timeState.isDatedPostponement { return "离新的开场还有" }
+            if timeState.isDatedPostponement { return "离开场还有" }
             if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now), total < 3_600 {
                 return "马上开场"
             }
@@ -354,9 +427,7 @@ struct HomeCountdownLockup: View {
             if timeState.isDatedPostponement { return "新日期" }
             return timeState.kind == .today ? "今晚" : nil
         case .live: return "LIVE"
-        case .ended:
-            if timeState.kind == .dayEnded { return "明天继续" }
-            return show.endedAt == nil ? "还在继续吗？" : nil
+        case .ended: return nil
         case .inactive: return nil
         }
     }

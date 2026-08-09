@@ -1248,7 +1248,6 @@ struct ShowDraftEditorView: View {
 
                         ShowDraftFormFields(
                             draft: $draft,
-                            includesSeatSection: true,
                             onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
                         )
 
@@ -1760,7 +1759,6 @@ struct ShowDraftEditorView: View {
 
 private struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
-    let includesSeatSection: Bool
     /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边。
     let recognizedHighlight: Bool
     /// 添加现场：无封面时显示虚线引导占位。
@@ -1800,7 +1798,6 @@ private struct ShowDraftFormFields: View {
 
     init(
         draft: Binding<ShowDraft>,
-        includesSeatSection: Bool = false,
         recognizedHighlight: Bool = false,
         coverEmptyPlaceholder: Bool = false,
         requiresDateConfirmation: Bool = false,
@@ -1823,7 +1820,6 @@ private struct ShowDraftFormFields: View {
         ) ?? initialEndDate
 
         self._draft = draft
-        self.includesSeatSection = includesSeatSection
         self.recognizedHighlight = recognizedHighlight
         self.coverEmptyPlaceholder = coverEmptyPlaceholder
         self.requiresDateConfirmation = requiresDateConfirmation
@@ -1901,14 +1897,6 @@ private struct ShowDraftFormFields: View {
                     text: $draft.artist,
                     isRecognized: artistRecognized
                 )
-
-                if includesSeatSection {
-                    AddShowLabeledTextField(
-                        title: "座位或区域",
-                        placeholder: "看台 / 内场 / 排号",
-                        text: $draft.seatSection
-                    )
-                }
 
                 if !draft.artistAvatarURLs.isEmpty {
                     ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)

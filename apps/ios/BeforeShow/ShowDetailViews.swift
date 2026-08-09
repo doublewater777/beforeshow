@@ -7,10 +7,6 @@ enum ShowDetailInformationPolicy {
         let value = [address, city].compactMap { $0 }.joined(separator: " · ")
         return value.isEmpty ? nil : value
     }
-
-    static func seatDetail(seatSection: String?, showName: String) -> String {
-        seatSection ?? showName
-    }
 }
 
 struct PostponeShowSheet: View {
@@ -450,10 +446,7 @@ struct ShowDetailView: View {
                 detailInfoRow(
                     icon: "music.note",
                     title: show.artist ?? "未填写艺人",
-                    subtitle: ShowDetailInformationPolicy.seatDetail(
-                        seatSection: show.seatSection,
-                        showName: show.name
-                    )
+                    subtitle: nil
                 )
             }
             .background(BSColor.Stage.surface)

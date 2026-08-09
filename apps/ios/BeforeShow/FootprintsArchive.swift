@@ -52,6 +52,30 @@ struct FootprintArchiveSnapshot {
     }
 }
 
+enum FootprintEmptyStateCopy {
+    struct Content: Equatable {
+        let title: String
+        let message: String
+        let actionTitle: String?
+    }
+
+    static func content(hasCurrentShow: Bool) -> Content {
+        if hasCurrentShow {
+            return Content(
+                title: "这场结束后，会来到足迹",
+                message: "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。",
+                actionTitle: nil
+            )
+        }
+
+        return Content(
+            title: "这里会长出你的足迹",
+            message: "补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。",
+            actionTitle: "添加第一场现场"
+        )
+    }
+}
+
 private struct FootprintDetailDestination: Identifiable, Hashable {
     let show: Show
     let startsEditing: Bool
@@ -287,20 +311,34 @@ struct FootprintsView: View {
     @State private var toast: BSToastPayload?
     @State private var deleteTarget: Show?
     @State private var actionTarget: Show?
+    private let currentShowSession = CurrentShowSession()
 
     var body: some View {
         NavigationStack {
             TimelineView(.periodic(from: Date(), by: 60)) { context in
-                timelineContent(FootprintArchiveBuilder.make(shows: shows, now: context.date))
+                timelineContent(
+                    FootprintArchiveBuilder.make(shows: shows, now: context.date),
+                    hasCurrentShow: currentShowSession.selectCurrentShow(
+                        from: shows,
+                        manualSelection: selections.first,
+                        now: context.date
+                    ) != nil
+                )
             }
         }
     }
 
-    private func timelineContent(_ archive: FootprintArchiveSnapshot) -> some View {
+    private func timelineContent(
+        _ archive: FootprintArchiveSnapshot,
+        hasCurrentShow: Bool
+    ) -> some View {
         ZStack {
             FootprintBackground()
             if archive.shows.isEmpty {
-                FootprintEmptyView { isAddingShow = true }
+                FootprintEmptyView(
+                    content: FootprintEmptyStateCopy.content(hasCurrentShow: hasCurrentShow),
+                    onAdd: { isAddingShow = true }
+                )
             } else {
                 content(archive)
             }
@@ -1337,7 +1375,9 @@ private struct FootprintBackground: View {
 }
 
 private struct FootprintEmptyView: View {
+    let content: FootprintEmptyStateCopy.Content
     let onAdd: () -> Void
+
     var body: some View {
         VStack(spacing: BSSpacing.md) {
             Spacer()
@@ -1349,23 +1389,25 @@ private struct FootprintEmptyView: View {
                 .background(Color.white.opacity(0.045), in: Circle())
                 .overlay(Circle().stroke(BSColor.Stage.border))
 
-            Text("这里会长出你的足迹")
+            Text(content.title)
                 .font(BSFont.heroTitle)
                 .tracking(BSFont.titleTracking)
                 .foregroundColor(BSColor.Stage.foreground)
                 .multilineTextAlignment(.center)
 
-            Text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。")
+            Text(content.message)
                 .font(BSFont.body)
                 .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
 
-            Button("添加第一场现场", action: onAdd)
-                .font(.system(size: 14.5, weight: .semibold))
-                .foregroundColor(BSColor.Stage.background)
-                .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                .padding(.top, BSSpacing.sm)
+            if let actionTitle = content.actionTitle {
+                Button(actionTitle, action: onAdd)
+                    .font(.system(size: 14.5, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.background)
+                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
+                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                    .padding(.top, BSSpacing.sm)
+            }
 
             Spacer()
         }

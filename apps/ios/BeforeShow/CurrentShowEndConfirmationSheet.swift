@@ -8,8 +8,8 @@ struct CurrentShowEndConfirmationSheet: View {
     let suggestedEnd: Date
     let allowsJustEnded: Bool
     let onConfirm: (Date) -> Void
-    let onCancel: () -> Void
 
+    @Environment(\.dismiss) private var dismiss
     @State private var step: Step
     @State private var selectedEnd: Date
 
@@ -18,15 +18,13 @@ struct CurrentShowEndConfirmationSheet: View {
         showStart: Date,
         suggestedEnd: Date,
         allowsJustEnded: Bool,
-        onConfirm: @escaping (Date) -> Void,
-        onCancel: @escaping () -> Void
+        onConfirm: @escaping (Date) -> Void
     ) {
         self.showName = showName
         self.showStart = showStart
         self.suggestedEnd = suggestedEnd
         self.allowsJustEnded = allowsJustEnded
         self.onConfirm = onConfirm
-        self.onCancel = onCancel
         let suggested = min(Date(), suggestedEnd)
         _selectedEnd = State(initialValue: max(showStart, suggested))
         _step = State(initialValue: allowsJustEnded ? .choice : .earlier)
@@ -69,11 +67,6 @@ struct CurrentShowEndConfirmationSheet: View {
                         )
                 }
             }
-
-            Button("还没结束", action: onCancel)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
-                .frame(minHeight: BSLayout.minTouchTarget)
         }
     }
 
@@ -115,12 +108,32 @@ struct CurrentShowEndConfirmationSheet: View {
             }
 
             HStack(spacing: 9) {
-                Button("返回") { step = .choice }
+                Button("返回", action: handleEarlierBack)
                     .buttonStyle(BSSecondaryButtonStyle())
                 Button("确认这个时间") { onConfirm(selectedEnd) }
                     .buttonStyle(BSPrimaryButtonStyle())
             }
         }
+    }
+
+    nonisolated static func performEarlierBackAction(
+        allowsJustEnded: Bool,
+        showChoice: () -> Void,
+        dismiss: () -> Void
+    ) {
+        if allowsJustEnded {
+            showChoice()
+        } else {
+            dismiss()
+        }
+    }
+
+    private func handleEarlierBack() {
+        Self.performEarlierBackAction(
+            allowsJustEnded: allowsJustEnded,
+            showChoice: { step = .choice },
+            dismiss: { dismiss() }
+        )
     }
 
     private var durationText: String {

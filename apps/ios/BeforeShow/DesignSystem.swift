@@ -949,6 +949,7 @@ struct BSDrawerSheet<Content: View>: View {
     let fitsContent: Bool
     @ViewBuilder let content: Content
     @State private var fittedContentHeight: CGFloat = 300
+    @State private var selectedFittedDetent: PresentationDetent = .height(300)
     @State private var contentExceedsAvailableHeight = false
 
     init(
@@ -1012,10 +1013,15 @@ struct BSDrawerSheet<Content: View>: View {
                         .onPreferenceChange(BSDrawerContentHeightKey.self) { height in
                             guard height > 0 else { return }
                             let maxHeight = maxFittedContentHeight
+                            let fittedHeight = min(max(180, height), maxHeight)
                             contentExceedsAvailableHeight = height > maxHeight
-                            fittedContentHeight = min(max(180, height), maxHeight)
+                            fittedContentHeight = fittedHeight
+                            selectedFittedDetent = .height(fittedHeight)
                         }
-                        .presentationDetents([.height(fittedContentHeight)])
+                        .presentationDetents(
+                            [.height(fittedContentHeight)],
+                            selection: $selectedFittedDetent
+                        )
                 }
             } else {
                 drawerContent

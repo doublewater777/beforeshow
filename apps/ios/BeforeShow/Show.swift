@@ -109,7 +109,6 @@ final class Show {
     var venueName: String?
     var venueAddress: String?
     var artist: String?
-    var seatSection: String?
     var coverImageURL: String?
     private var artistAvatarURLStorage: [String]?
     var createdAt: Date
@@ -183,7 +182,6 @@ final class Show {
         venueName: String? = nil,
         venueAddress: String? = nil,
         artist: String? = nil,
-        seatSection: String? = nil,
         coverImageURL: String? = nil,
         artistAvatarURLs: [String] = [],
         changeStatus: ShowChangeStatus = .scheduled,
@@ -223,7 +221,6 @@ final class Show {
         self.venueName = venueName
         self.venueAddress = venueAddress
         self.artist = artist
-        self.seatSection = seatSection
         self.coverImageURL = coverImageURL
         self.artistAvatarURLStorage = artistAvatarURLs
         self.changeStatusRawValue = changeStatus.rawValue
@@ -331,7 +328,6 @@ final class Show {
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
         artist = prepared.artist
-        seatSection = prepared.seatSection
         coverImageURL = prepared.coverImageURL
         artistAvatarURLs = prepared.artistAvatarURLs
         discardConfirmedEndBeforeEffectiveStart()
@@ -377,7 +373,6 @@ final class Show {
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
             artist: trimmedOptional(draft.artist),
-            seatSection: trimmedOptional(draft.seatSection),
             coverImageURL: trimmedOptional(draft.coverImageURL),
             artistAvatarURLs: draft.artistAvatarURLs
         )
@@ -451,7 +446,6 @@ struct PreparedShowDraft: Equatable {
     let venueName: String?
     let venueAddress: String?
     let artist: String?
-    let seatSection: String?
     let coverImageURL: String?
     let artistAvatarURLs: [String]
 }
