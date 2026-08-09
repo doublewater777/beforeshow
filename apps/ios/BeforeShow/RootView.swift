@@ -160,7 +160,6 @@ private struct CurrentShowHomeView: View {
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @State private var isShowingAddShowCoordinator = false
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
@@ -221,15 +220,9 @@ private struct CurrentShowHomeView: View {
             .task(id: widgetSyncFingerprint) {
                 WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
             }
-            .task {
-                await companionCoordinator.refreshAllLinkedShows(in: modelContext)
-            }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
-                    Task { @MainActor in
-                        await companionCoordinator.refreshAllLinkedShows(in: modelContext)
-                    }
                 }
             }
             .navigationDestination(isPresented: $isShowingSettings) {
