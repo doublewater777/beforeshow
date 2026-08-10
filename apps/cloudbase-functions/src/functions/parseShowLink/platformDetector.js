@@ -102,7 +102,7 @@ export function normalizeUrl(urlString) {
       platform,
       ...(eventId ? { eventId } : {}),
       canonicalUrl: eventId
-        ? `https://show.maoyan.com/detail/${eventId}`
+        ? `https://show.maoyan.com/qqw#/detail/${eventId}`
         : httpsUrlWithoutHash(url)
     };
   }
@@ -191,7 +191,7 @@ export function extractShowUrl(input) {
 
 function hostnameOf(urlString) {
   try {
-    return new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowerCase();
+    return new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowercased?.() ?? new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowerCase();
   } catch {
     return null;
   }
