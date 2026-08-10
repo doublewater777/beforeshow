@@ -13,7 +13,7 @@ private enum FootprintDetailTokens {
     static let infoTitleWidth: CGFloat = 36
     static let infoRowHeight: CGFloat = 58
     static let shareButtonHeight: CGFloat = 50
-    static let shareShellRadius: CGFloat = 22
+    static let shareShellRadius: CGFloat = 18
     static let memoryTileHeight: CGFloat = 168
     static let keepsakeTileHeight: CGFloat = 142
 
@@ -35,8 +35,8 @@ private enum FootprintDetailTokens {
     static let companionGlow = BSColor.Stage.glowBlue.opacity(0.32)
     static let infoIconFill = Color.white.opacity(0.05)
     static let shareShellFill = BSColor.Stage.surfaceRaised.opacity(0.94)
-    static let shareShellBorder = Color.white.opacity(0.11)
-    static let shareShadow = Color.black.opacity(0.48)
+    static let shareShellBorder = Color.white.opacity(0.07)
+    static let shareShadow = Color.black.opacity(0.38)
     static let memoryScrim = Color.black.opacity(0.72)
     static let keepsakeScrim = Color.black.opacity(0.74)
     static let savedKeepsakeText = Color.white.opacity(0.74)
@@ -459,7 +459,7 @@ struct FootprintDetailView: View {
                 .background(BSColor.Stage.accent, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         }
         .buttonStyle(.plain)
-        .padding(BSSpacing.sm)
+        .padding(BSSpacing.xs)
         .background(
             FootprintDetailTokens.shareShellFill,
             in: RoundedRectangle(cornerRadius: FootprintDetailTokens.shareShellRadius)
@@ -470,8 +470,8 @@ struct FootprintDetailView: View {
         )
         .shadow(
             color: FootprintDetailTokens.shareShadow,
-            radius: BSSpacing.roomy,
-            y: BSSpacing.sm
+            radius: BSSpacing.lg,
+            y: BSSpacing.xs
         )
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.bottom, BSSpacing.compact)
