@@ -39,10 +39,43 @@ enum ShowLinkPlatformCatalog {
         ("ticketmaster.co.za", "Ticketmaster"),
         ("ticketmaster.ae", "Ticketmaster"),
         ("dice.fm", "DICE"),
-        ("axs.com", "AXS")
+        ("axs.com", "AXS"),
+        ("livenation.com", "Live Nation"),
+        ("livenation.asia", "Live Nation"),
+        ("livenation.com.au", "Live Nation"),
+        ("livenation.be", "Live Nation"),
+        ("livenation.ca", "Live Nation"),
+        ("livenation.cn", "Live Nation"),
+        ("livenation.cz", "Live Nation"),
+        ("livenation.dk", "Live Nation"),
+        ("livenation.ee", "Live Nation"),
+        ("livenation.fi", "Live Nation"),
+        ("livenation.fr", "Live Nation"),
+        ("livenation.de", "Live Nation"),
+        ("livenation.hk", "Live Nation"),
+        ("livenation.hu", "Live Nation"),
+        ("livenation.co.il", "Live Nation"),
+        ("livenation.it", "Live Nation"),
+        ("livenation.co.jp", "Live Nation"),
+        ("livenation.lt", "Live Nation"),
+        ("livenation.nl", "Live Nation"),
+        ("livenation.co.nz", "Live Nation"),
+        ("livenation.no", "Live Nation"),
+        ("livenation.pl", "Live Nation"),
+        ("livenation.qa", "Live Nation"),
+        ("livenation.sg", "Live Nation"),
+        ("livenation.co.za", "Live Nation"),
+        ("livenation.kr", "Live Nation"),
+        ("livenation.es", "Live Nation"),
+        ("livenation.se", "Live Nation"),
+        ("livenation.com.tw", "Live Nation"),
+        ("livenation.co.th", "Live Nation"),
+        ("livenation.ae", "Live Nation"),
+        ("livenation.co.uk", "Live Nation"),
+        ("livenation.app.link", "Live Nation")
     ]
 
-    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS"
+    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
 
     static func displayName(forHost host: String) -> String? {
         let normalizedHost = host.lowercased()
