@@ -31,7 +31,9 @@ struct HomeHeroStage: View {
     let show: Show
     let snapshot: HomeHeroSnapshot
     let coverWidth: CGFloat
+    var isPlaybackActive = true
     var reduceMotion: Bool = false
+    var onChooseVideo: (() -> Void)? = nil
 
     private var coverHeight: CGFloat { coverWidth * 4.0 / 3.0 }
     private var phase: HomeShowPhase { snapshot.phase }
@@ -45,14 +47,24 @@ struct HomeHeroStage: View {
     }
 
     private func heroVisual(width: CGFloat, height: CGFloat) -> some View {
-        ShowCoverImageView(
-            urlString: show.coverImageURL,
-            aspectRatio: 3.0 / 4.0,
-            contentMode: .fill,
-            alignment: .center,
-            enforcesAspectRatio: false,
-            cornerRadius: 26
-        )
+        DynamicCoverFlipView(
+            showID: show.id,
+            dynamicCover: show.dynamicCover,
+            width: width,
+            height: height,
+            isPlaybackActive: isPlaybackActive && phase != .inactive,
+            reduceMotion: reduceMotion,
+            onChooseVideo: onChooseVideo
+        ) {
+            ShowCoverImageView(
+                urlString: show.coverImageURL,
+                aspectRatio: 3.0 / 4.0,
+                contentMode: .fill,
+                alignment: .center,
+                enforcesAspectRatio: false,
+                cornerRadius: 26
+            )
+        }
         .frame(width: width, height: height)
         .saturation(phase == .inactive ? 0.35 : (phase == .ended ? 0.72 : 1.0))
         .brightness(phase == .inactive ? -0.18 : (phase == .ended ? -0.05 : 0))

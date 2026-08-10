@@ -646,6 +646,7 @@ private struct PrivacyLocalDataView: View {
                     try context.delete(model: MemoryMediaItem.self)
                     try context.delete(model: MemoryFragment.self)
                     try context.delete(model: ShowAsset.self)
+                    try context.delete(model: DynamicCover.self)
                     try context.save()
                 } catch {
                     context.rollback()
@@ -658,9 +659,16 @@ private struct PrivacyLocalDataView: View {
                 try await MemoryFragmentMediaStore.shared.deleteAll()
                 do {
                     try await ShowAssetMediaStore.shared.deleteAll()
-                    ShowAssetCleanupRetry.clearFullCleanupPending()
                 } catch {
                     cleanupFailures.append("票根和时刻表副本")
+                }
+                do {
+                    try await DynamicCoverMediaStore.shared.deleteAll()
+                } catch {
+                    cleanupFailures.append("动态封面视频副本")
+                }
+                if cleanupFailures.isEmpty {
+                    ShowAssetCleanupRetry.clearFullCleanupPending()
                 }
 
                 if cleanupFailures.isEmpty {

@@ -136,6 +136,7 @@ struct FootprintDetailView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                         hero
+                        FootprintDynamicCoverSection(show: show)
                         memorySection
                         keepsakesSection
                         if show.companionStatus == .confirmed {

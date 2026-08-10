@@ -145,6 +145,12 @@ final class Show {
     @Relationship(deleteRule: .cascade, inverse: \ShowAsset.show)
     var assets: [ShowAsset] = []
 
+    /// Optional local video used as the dynamic side of this show's cover.
+    /// Deleting a `Show` cascades to this record; disk files are reclaimed by
+    /// dynamic-cover reconciliation.
+    @Relationship(deleteRule: .cascade, inverse: \DynamicCover.show)
+    var dynamicCover: DynamicCover?
+
     private var changeStatusRawValue: String
 
     var companionStatus: ShowCompanionStatus {

@@ -21,6 +21,7 @@ struct BeforeShowApp: App {
                 MemoryFragment.self,
                 MemoryMediaItem.self,
                 ShowAsset.self,
+                DynamicCover.self,
                 configurations: configuration
             )
         } catch {
@@ -59,6 +60,7 @@ struct BeforeShowApp: App {
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
+                    await reconcileAllDynamicCovers(in: modelContainer.mainContext)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -66,6 +68,7 @@ struct BeforeShowApp: App {
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
                         await reconcileAllShowAssets(in: modelContainer.mainContext)
+                        await reconcileAllDynamicCovers(in: modelContainer.mainContext)
                     }
                 }
         }
@@ -78,12 +81,14 @@ private func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) asyn
     guard ShowAssetCleanupRetry.isFullCleanupPrepared
             || ShowAssetCleanupRetry.isFullCleanupPending
             || !ShowAssetCleanupRetry.pendingShowCleanupIDs.isEmpty
-            || !ShowAssetCleanupRetry.pendingAssets.isEmpty else { return }
+            || !ShowAssetCleanupRetry.pendingAssets.isEmpty
+            || !ShowAssetCleanupRetry.pendingDynamicCovers.isEmpty else { return }
 
     await ShowAssetMediaStore.shared.acquireCommitGate()
     if ShowAssetCleanupRetry.isFullCleanupPrepared {
         let hasPersistedShowData = ((try? context.fetch(FetchDescriptor<Show>()).isEmpty == false) ?? true)
             || ((try? context.fetch(FetchDescriptor<ShowAsset>()).isEmpty == false) ?? true)
+            || ((try? context.fetch(FetchDescriptor<DynamicCover>()).isEmpty == false) ?? true)
         if hasPersistedShowData {
             // The crash happened before the model transaction committed. Do not
             // delete any live ticket/timetable files; the next clear can start fresh.
@@ -117,6 +122,17 @@ private func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) asyn
                 kind: pending.kind
             )
             ShowAssetCleanupRetry.clearAssetCleanupPending(pending)
+        } catch {
+            // Keep this exact path marked for the next retry.
+        }
+    }
+    for pending in ShowAssetCleanupRetry.pendingDynamicCovers {
+        do {
+            try await DynamicCoverMediaStore.shared.delete(
+                relativePath: pending.relativePath,
+                showID: pending.showID
+            )
+            ShowAssetCleanupRetry.clearDynamicCoverCleanupPending(pending)
         } catch {
             // Keep this exact path marked for the next retry.
         }
@@ -249,6 +265,54 @@ private func reconcileAllShowAssets(in modelContext: ModelContext) async {
         modelContext.rollback()
         await ShowAssetMediaStore.shared.releaseCommitGate()
         // Best-effort recovery; next launch/active retries.
+    }
+}
+
+@MainActor
+private func reconcileAllDynamicCovers(in modelContext: ModelContext) async {
+    await LocalMediaCommitGate.shared.acquire()
+    defer { Task { await LocalMediaCommitGate.shared.release() } }
+    do {
+        let shows = try modelContext.fetch(FetchDescriptor<Show>())
+        let showsByID = Dictionary(shows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let covers = try modelContext.fetch(FetchDescriptor<DynamicCover>())
+        let existingPaths = try await DynamicCoverMediaStore.shared.verifiedExistingRelativePaths()
+        var validPaths = Set<String>()
+        var mutated = false
+        var keptByShowID: [UUID: DynamicCover] = [:]
+
+        for cover in covers.sorted(by: { $0.updatedAt > $1.updatedAt }) {
+            guard let show = showsByID[cover.showID],
+                  cover.showID == show.id,
+                  DynamicCover.isValidRelativePath(cover.relativePath, showID: show.id),
+                  existingPaths.contains(cover.relativePath) else {
+                modelContext.delete(cover)
+                mutated = true
+                continue
+            }
+            if let kept = keptByShowID[show.id], kept.id != cover.id {
+                modelContext.delete(cover)
+                mutated = true
+                continue
+            }
+            if cover.show?.id != show.id {
+                cover.show = show
+                mutated = true
+            }
+            keptByShowID[show.id] = cover
+            validPaths.insert(cover.relativePath)
+        }
+        for show in shows where show.dynamicCover?.showID != show.id {
+            if show.dynamicCover != nil {
+                show.dynamicCover = nil
+                DynamicCoverFaceStore.clear(showID: show.id)
+                mutated = true
+            }
+        }
+        if mutated { try modelContext.save() }
+        try await DynamicCoverMediaStore.shared.reconcile(validRelativePaths: validPaths)
+    } catch {
+        modelContext.rollback()
     }
 }
 

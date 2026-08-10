@@ -140,7 +140,13 @@ enum ShowAssetCleanupRetry {
         let relativePath: String
     }
 
+    struct PendingDynamicCover: Codable, Equatable {
+        let showID: UUID
+        let relativePath: String
+    }
+
     private static let pendingFullCleanupKey = "BeforeShow.pendingFullShowAssetMediaCleanup"
+    private static let pendingDynamicCoverCleanupKey = "BeforeShow.pendingDynamicCoverMediaCleanup"
     private static let preparedFullCleanupKey = "BeforeShow.preparedShowAssetCleanup"
     // Keep the pre-split ticket markers readable so an interrupted ticket-only
     // cleanup from an earlier build is still recovered after this refactor.
@@ -218,6 +224,37 @@ enum ShowAssetCleanupRetry {
 
     static func clearAssetCleanupPending(_ pending: PendingAsset) {
         persistAssets(pendingAssets.filter { $0 != pending })
+    }
+
+    static var pendingDynamicCovers: [PendingDynamicCover] {
+        guard let data = UserDefaults.standard.data(forKey: pendingDynamicCoverCleanupKey) else {
+            return []
+        }
+        return (try? JSONDecoder().decode([PendingDynamicCover].self, from: data)) ?? []
+    }
+
+    static func markDynamicCoverCleanupPending(showID: UUID, relativePath: String) {
+        guard DynamicCover.isValidRelativePath(relativePath, showID: showID) else { return }
+        let pending = PendingDynamicCover(showID: showID, relativePath: relativePath)
+        var values = pendingDynamicCovers
+        if !values.contains(pending) {
+            values.append(pending)
+            persistDynamicCovers(values)
+        }
+    }
+
+    static func clearDynamicCoverCleanupPending(_ pending: PendingDynamicCover) {
+        persistDynamicCovers(pendingDynamicCovers.filter { $0 != pending })
+    }
+
+    private static func persistDynamicCovers(_ values: [PendingDynamicCover]) {
+        if values.isEmpty {
+            UserDefaults.standard.removeObject(forKey: pendingDynamicCoverCleanupKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(values) {
+            UserDefaults.standard.set(data, forKey: pendingDynamicCoverCleanupKey)
+        }
     }
 
     private static func persistAssets(_ values: [PendingAsset]) {

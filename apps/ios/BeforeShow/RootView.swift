@@ -88,7 +88,10 @@ struct RootView: View {
     /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
         ZStack(alignment: .bottom) {
-            CurrentShowHomeView(onDetailVisibilityChange: { isTabBarHidden = $0 })
+            CurrentShowHomeView(
+                isPlaybackActive: selectedTab == .current,
+                onDetailVisibilityChange: { isTabBarHidden = $0 }
+            )
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
@@ -153,6 +156,7 @@ private struct OnboardingPlaceholderView: View {
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
+    var isPlaybackActive = true
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.modelContext) private var modelContext
@@ -164,6 +168,8 @@ private struct CurrentShowHomeView: View {
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
     @State private var isShowingShowLibrary = false
+    @State private var isShowingDynamicCoverPicker = false
+    @State private var isDetailVisible = false
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -192,11 +198,20 @@ private struct CurrentShowHomeView: View {
                     CurrentShowManagementSection(
                         show: show,
                         formatter: formatter,
+                        isPlaybackActive: isPlaybackActive
+                            && !isDetailVisible
+                            && !isShowingSettings
+                            && !isShowingShowLibrary
+                            && !isShowingDynamicCoverPicker,
                         candidateShows: shows,
-                        onDetailVisibilityChange: onDetailVisibilityChange,
+                        onDetailVisibilityChange: { isVisible in
+                            isDetailVisible = isVisible
+                            onDetailVisibilityChange(isVisible)
+                        },
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
+                        onChooseDynamicCover: { isShowingDynamicCoverPicker = true },
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         }
@@ -212,6 +227,11 @@ private struct CurrentShowHomeView: View {
             .frame(maxWidth: UIScreen.main.bounds.width)
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $isShowingDynamicCoverPicker) {
+                if let show = currentShow {
+                    DynamicCoverQuickPicker(show: show)
+                }
+            }
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
                     presentAddShowSuccess()
@@ -229,7 +249,12 @@ private struct CurrentShowHomeView: View {
                 SettingsView()
             }
             .navigationDestination(isPresented: $isShowingShowLibrary) {
-                CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
+                CurrentShowLibraryManagementView(
+                    onDetailVisibilityChange: { isVisible in
+                        isDetailVisible = isVisible
+                        onDetailVisibilityChange(isVisible)
+                    }
+                )
             }
             #if DEBUG
             .task {
@@ -343,11 +368,13 @@ private struct HomeFloatingTabBar: View {
 struct CurrentShowManagementSection: View {
     let show: Show
     let formatter: ShowDisplayFormatter
+    var isPlaybackActive = true
     let candidateShows: [Show]
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
+    var onChooseDynamicCover: () -> Void = {}
     var onConfirmEnd: (Date) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -473,7 +500,9 @@ struct CurrentShowManagementSection: View {
                         show: show,
                         snapshot: snapshot,
                         coverWidth: coverWidth,
-                        reduceMotion: reduceMotion
+                        isPlaybackActive: isPlaybackActive,
+                        reduceMotion: reduceMotion,
+                        onChooseVideo: onChooseDynamicCover
                     )
                         .padding(.top, 18)
 

@@ -225,6 +225,7 @@ struct ShowDetailView: View {
                         eventStatusSection
                         experienceSection
                         assetManagementSection
+                        DynamicCoverManagementSection(show: show)
                         confirmedEndSection
                     }
                     .padding(.horizontal, BSSpacing.roomy)
