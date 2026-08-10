@@ -106,7 +106,10 @@ function visibleLines(html) {
     .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/section|\/article|\/header|\/footer)>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
     .split(/\r?\n/)
-    .map((line) => line.replace(/\s+/g, " ").trim())
+    .map((line) => line
+      .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\([^)]+\)\s+([A-Za-z]+)\s+\([^)]+\)/i, "$1 $2")
+      .replace(/\s+/g, " ")
+      .trim())
     .filter(Boolean);
 }
 
