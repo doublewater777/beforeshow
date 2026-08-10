@@ -540,12 +540,7 @@ private struct FootprintMemoryTile: View {
                     HStack(alignment: .bottom, spacing: BSSpacing.sm) {
                         Text(media.kind == .video ? "视频" : "照片")
                         Spacer(minLength: 0)
-                        VStack(alignment: .trailing, spacing: BSSpacing.xs) {
-                            if fragment.orderedMediaItems.count > 1 {
-                                Text("1/\(fragment.orderedMediaItems.count)")
-                            }
-                            Text(timeText(fragment.createdAt))
-                        }
+                        Text(timeText(fragment.createdAt))
                     }
                     .font(FootprintDetailTokens.memoryBadgeFont)
                     .foregroundColor(FootprintDetailTokens.memoryMetadataColor)
