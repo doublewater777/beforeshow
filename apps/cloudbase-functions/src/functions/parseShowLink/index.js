@@ -1,10 +1,10 @@
 import { normalizeUrl, UnsupportedPlatformError } from "./platformDetector.js";
 import { fetchDamaiDetail, parseDamaiDetail } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
+import { fetchMaoyanPerformance, parseMaoyanPerformance } from "./maoyanParser.js";
 import { fetchAndParseTicketPage } from "./ticketPageParser.js";
 
 const PUBLIC_PAGE_PLATFORMS = new Set([
-  "maoyan",
   "piaoxingqiu",
   "fenwandao",
   "ticketmaster",
@@ -31,6 +31,17 @@ export async function parseShowLink(url, options = {}) {
       fetch: options.fetch
     });
     return parseShowStartDetail(detail);
+  }
+
+  if (normalized.platform === "maoyan") {
+    if (!normalized.eventId) {
+      throw new UnsupportedPlatformError(url);
+    }
+    const detail = await fetchMaoyanPerformance({
+      performanceId: normalized.eventId,
+      fetch: options.fetch
+    });
+    return parseMaoyanPerformance(detail);
   }
 
   if (PUBLIC_PAGE_PLATFORMS.has(normalized.platform)) {
