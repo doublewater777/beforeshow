@@ -170,7 +170,7 @@ function parseVenue(lines, dateLineIndex, eventName) {
   for (const line of nearby) {
     if (line === eventName || parseDateRange(line).date || isNavigationText(line)) continue;
     const inline = line.match(/^(.{2,100}?),\s*([A-Za-z][A-Za-z .'-]{1,50})$/);
-    if (inline) {
+    if (inline && looksLikeVenue(inline[1])) {
       return { name: inline[1].trim(), city: inline[2].trim() };
     }
   }
