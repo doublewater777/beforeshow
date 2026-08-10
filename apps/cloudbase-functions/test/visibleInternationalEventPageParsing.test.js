@@ -41,4 +41,46 @@ describe("international visible ticket page fallback", () => {
     assert.equal(draft.venueName, "Sid The Cat Auditorium");
     assert.equal(draft.artist, "Greg Mendez, Maria BC");
   });
+
+  it("parses DICE ordinal dates from the current visible-page pattern", () => {
+    const html = `<!doctype html>
+      <html><head><title>Pacifica Tickets | DICE</title></head><body>
+        <h1>Pacifica</h1>
+        <div>Rough Trade Bristol</div>
+        <div>Wed 13 May, 7:00 pm</div>
+        <div>Gigs Bristol</div>
+        <div>About</div>
+        <div>DHP Presents</div>
+        <div>Pacifica</div>
+        <div>With Special Guests</div>
+        <div>At Rough Trade Bristol</div>
+        <div>13th May 2026</div>
+        <div>Lineup</div><div>Pacifica</div>
+        <div>Venue</div><div>Rough Trade Bristol</div>
+        <div>3 New Bridewell, Nelson Street, Bristol BS1 2QD, United Kingdom</div>
+      </body></html>`;
+
+    const draft = parseVisibleEventPage(html, { source: "dice" });
+    assert.equal(draft.name, "Pacifica");
+    assert.equal(draft.date, "2026-05-13");
+    assert.equal(draft.startTime, "19:00");
+    assert.equal(draft.venueName, "Rough Trade Bristol");
+    assert.match(draft.venueAddr, /New Bridewell/);
+    assert.equal(draft.artist, "Pacifica");
+  });
+
+  it("parses Ticketmaster venue text attached to the date-time line", () => {
+    const html = `<!doctype html>
+      <html><head><title>KCRW Presents Thievery Corporation: 30th Anniversary Tour | Ticketmaster</title></head><body>
+        <h1>KCRW Presents Thievery Corporation: 30th Anniversary Tour</h1>
+        <div>Fri • Sep 11, 2026 • 8:00 PMYouTube Theater, Inglewood, CA</div>
+      </body></html>`;
+
+    const draft = parseVisibleEventPage(html, { source: "ticketmaster" });
+    assert.equal(draft.name, "KCRW Presents Thievery Corporation: 30th Anniversary Tour");
+    assert.equal(draft.date, "2026-09-11");
+    assert.equal(draft.startTime, "20:00");
+    assert.equal(draft.city, "Inglewood");
+    assert.equal(draft.venueName, "YouTube Theater");
+  });
 });
