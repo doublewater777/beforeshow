@@ -52,6 +52,13 @@ final class NavigationTests: XCTestCase {
         )
     }
 
+    func testShowDetailExperienceOffersCompanionAndMemoryEntries() {
+        XCTAssertEqual(
+            ShowDetailExperienceAction.allCases.map(\.rawValue),
+            ["同行", "记忆碎片"]
+        )
+    }
+
     /// 设置不是主导航项；当前现场主海报也不承载溢出菜单。
     func testSettingsIsNotAMainTab() {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })

@@ -975,7 +975,7 @@ enum CompanionSheetPresentationPolicy {
     }
 }
 
-private struct CurrentShowCompanionSheet: View {
+struct CurrentShowCompanionSheet: View {
     let show: Show
     let sharedHistory: [Show]
     let isEnded: Bool

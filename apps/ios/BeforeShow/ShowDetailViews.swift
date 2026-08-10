@@ -9,6 +9,18 @@ enum ShowDetailInformationPolicy {
     }
 }
 
+enum ShowDetailExperienceAction: String, CaseIterable {
+    case companion = "同行"
+    case memoryFragments = "记忆碎片"
+
+    var iconName: String {
+        switch self {
+        case .companion: return "person.2"
+        case .memoryFragments: return "photo.on.rectangle.angled"
+        }
+    }
+}
+
 struct PostponeShowSheet: View {
     @Binding var newDate: Date
     let onUndated: () -> Void
@@ -141,16 +153,19 @@ private struct ShowDetailMoreActionsSheet: View {
 struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var showAssets: [ShowAsset]
+    @Query private var memoryFragments: [MemoryFragment]
     let show: Show
     var startsEditing = false
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @State private var isEditing = false
     @State private var isEditingConfirmedEnd = false
+    @State private var isShowingCompanion = false
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingMoreActions = false
     @State private var isShowingDeleteConfirmation = false
@@ -174,6 +189,11 @@ struct ShowDetailView: View {
         _showAssets = Query(
             filter: #Predicate<ShowAsset> { asset in
                 asset.showID == showID
+            }
+        )
+        _memoryFragments = Query(
+            filter: #Predicate<MemoryFragment> { fragment in
+                fragment.showID == showID
             }
         )
     }
@@ -203,6 +223,7 @@ struct ShowDetailView: View {
                         showInformationSection
                         currentDisplaySection
                         eventStatusSection
+                        experienceSection
                         assetManagementSection
                         confirmedEndSection
                     }
@@ -247,6 +268,15 @@ struct ShowDetailView: View {
                 kind: kind,
                 onDetailVisibilityChange: onDetailVisibilityChange,
                 keepsParentDetailHidden: true
+            )
+        }
+        .sheet(isPresented: $isShowingCompanion) {
+            CurrentShowCompanionSheet(
+                show: show,
+                sharedHistory: companionHistory,
+                isEnded: HomeShowPhase(timeState: timeState) == .ended,
+                coordinator: companionCoordinator,
+                onDismiss: { isShowingCompanion = false }
             )
         }
         .sheet(isPresented: $isShowingMoreActions) {
@@ -594,6 +624,67 @@ struct ShowDetailView: View {
                 }
             }
         }
+    }
+
+    private var experienceSection: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            Text("现场体验")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.foreground)
+
+            HStack(spacing: BSSpacing.sm) {
+                Button {
+                    isShowingCompanion = true
+                } label: {
+                    ShowDetailExperienceTile(
+                        action: .companion,
+                        title: companionPresentation.title,
+                        subtitle: companionPresentationSubtitle
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(companionPresentation.accessibilityLabel)
+
+                NavigationLink {
+                    MemoryFragmentsView(show: show)
+                        .onAppear { onDetailVisibilityChange(true) }
+                        .onDisappear { onDetailVisibilityChange(false) }
+                } label: {
+                    ShowDetailExperienceTile(
+                        action: .memoryFragments,
+                        title: ShowDetailExperienceAction.memoryFragments.rawValue,
+                        subtitle: memoryFragmentsSubtitle
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("记忆碎片，\(memoryFragmentsSubtitle)")
+            }
+        }
+    }
+
+    private var companionPresentation: CompanionQuickActionPresentation {
+        CompanionQuickActionPresentation(
+            status: show.companionStatus,
+            companionName: show.companionName,
+            isEnded: HomeShowPhase(timeState: timeState) == .ended
+        )
+    }
+
+    private var memoryFragmentsSubtitle: String {
+        memoryFragments.isEmpty ? "记录这一刻" : "\(memoryFragments.count) 条"
+    }
+
+    private var companionPresentationSubtitle: String {
+        switch show.companionStatus {
+        case .none: return "邀请一位朋友"
+        case .pending: return "等待确认"
+        case .confirmed: return companionPresentation.companionName.map { "与\($0)同行" } ?? "已确认同行"
+        case .canceled: return "重新邀请"
+        }
+    }
+
+    private var companionHistory: [Show] {
+        CompanionSharedHistory.shows(matching: show, from: shows)
     }
 
     @ViewBuilder
@@ -997,6 +1088,38 @@ struct ShowDetailView: View {
             notificationStates: notificationStates,
             in: modelContext,
             session: session
+        )
+    }
+}
+
+private struct ShowDetailExperienceTile: View {
+    let action: ShowDetailExperienceAction
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            Image(systemName: action.iconName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(BSColor.Stage.accent)
+
+            Text(title)
+                .font(BSFont.V3.small.weight(.medium))
+                .foregroundColor(BSColor.Stage.foreground)
+                .lineLimit(1)
+
+            Text(subtitle)
+                .font(BSFont.V3.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(BSSpacing.compact)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+        .overlay(
+            RoundedRectangle(cornerRadius: BSRadius.v3Medium)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
         )
     }
 }
