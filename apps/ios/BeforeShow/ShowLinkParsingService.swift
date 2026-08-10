@@ -99,6 +99,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         let decoded = try JSONDecoder().decode(ParseResponse.self, from: data)
 
         guard decoded.ok, let draft = decoded.draft else {
+            if decoded.error?.code == "UNSUPPORTED_PLATFORM" {
+                throw ShowLinkParsingError.unsupportedSource
+            }
             let message = decoded.error?.message ?? "Unknown error"
             throw ShowLinkParsingError.parseFailed(message)
         }
