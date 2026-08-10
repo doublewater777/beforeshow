@@ -22,6 +22,25 @@ describe("international visible ticket page fallback", () => {
     assert.match(draft.venueAddr, /2014 Sycamore Street/);
   });
 
+  it("parses the current AXS expanded month format", () => {
+    const html = `<!doctype html>
+      <html><head><title>LE SSERAFIM Tickets - AXS</title></head><body>
+        <div>Wed (Wednesday) Sep (September) 16, 2026 - 7:30 PM AEG</div>
+        <h1>LE SSERAFIM</h1>
+        <div>2026 LE SSERAFIM 'PUREFLOW' TOUR IN LOS ANGELES</div>
+        <div>Crypto.com Arena, Los Angeles, CA, United States Ages: All Ages</div>
+        <div>1111 S. Figueroa, Los Angeles, CA, 90015</div>
+      </body></html>`;
+
+    const draft = parseVisibleEventPage(html, { source: "axs" });
+    assert.equal(draft.name, "LE SSERAFIM");
+    assert.equal(draft.date, "2026-09-16");
+    assert.equal(draft.startTime, "19:30");
+    assert.equal(draft.city, "Los Angeles");
+    assert.equal(draft.venueName, "Crypto.com Arena");
+    assert.match(draft.venueAddr, /1111 S\. Figueroa/);
+  });
+
   it("parses a DICE-style day-month line using a full date elsewhere on page", () => {
     const html = `<!doctype html>
       <html><head><title>Greg Mendez Tickets | DICE</title></head><body>
