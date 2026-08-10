@@ -3,14 +3,14 @@ import { describe, it } from "node:test";
 import { normalizeUrl } from "../src/functions/parseShowLink/platformDetector.js";
 
 describe("real-world domestic ticket share URLs", () => {
-  it("extracts Maoyan project ID from the qqw hash-route share URL", () => {
+  it("extracts Maoyan performance ID from the qqw hash-route share URL", () => {
     const normalized = normalizeUrl(
       "https://show.maoyan.com/qqw?nonce=574a3351686368637548454253394c4c35316e3541773d3d#/detail/381177"
     );
 
     assert.equal(normalized.platform, "maoyan");
     assert.equal(normalized.eventId, "381177");
-    assert.equal(normalized.canonicalUrl, "https://show.maoyan.com/detail/381177");
+    assert.equal(normalized.canonicalUrl, "https://show.maoyan.com/qqw#/detail/381177");
   });
 
   it("extracts Ticket Planet show ID from the mobile content share URL", () => {
