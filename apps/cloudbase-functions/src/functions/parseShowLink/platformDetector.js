@@ -1,3 +1,27 @@
+const TICKETMASTER_DOMAINS = [
+  "ticketmaster.com",
+  "ticketmaster.ca",
+  "ticketmaster.co.uk",
+  "ticketmaster.ie",
+  "ticketmaster.com.au",
+  "ticketmaster.co.nz",
+  "ticketmaster.com.mx",
+  "ticketmaster.at",
+  "ticketmaster.be",
+  "ticketmaster.ch",
+  "ticketmaster.cz",
+  "ticketmaster.de",
+  "ticketmaster.dk",
+  "ticketmaster.es",
+  "ticketmaster.fi",
+  "ticketmaster.fr",
+  "ticketmaster.it",
+  "ticketmaster.nl",
+  "ticketmaster.no",
+  "ticketmaster.pl",
+  "ticketmaster.se"
+];
+
 export class UnsupportedPlatformError extends Error {
   constructor(url) {
     super(`Unsupported show link platform: ${url}`);
@@ -8,7 +32,8 @@ export class UnsupportedPlatformError extends Error {
 
 /**
  * 基于 hostname 严格识别平台，拒绝仿冒域名与查询参数里的关键字误报。
- * 只认官方域及其子域：damai.cn / *.damai.cn、showstart.com / *.showstart.com。
+ * 国内：大麦、秀动、猫眼、票星球、纷玩岛。
+ * 海外：Ticketmaster、DICE、AXS。
  */
 export function detectPlatform(urlString) {
   const host = hostnameOf(urlString);
@@ -16,13 +41,14 @@ export function detectPlatform(urlString) {
     throw new UnsupportedPlatformError(urlString);
   }
 
-  if (host === "damai.cn" || host.endsWith(".damai.cn")) {
-    return "damai";
-  }
-
-  if (host === "showstart.com" || host.endsWith(".showstart.com")) {
-    return "showstart";
-  }
+  if (matchesDomain(host, "damai.cn")) return "damai";
+  if (matchesDomain(host, "showstart.com")) return "showstart";
+  if (matchesDomain(host, "maoyan.com")) return "maoyan";
+  if (matchesDomain(host, "piaoxingqiu.com")) return "piaoxingqiu";
+  if (matchesDomain(host, "livelab.com.cn")) return "fenwandao";
+  if (TICKETMASTER_DOMAINS.some((domain) => matchesDomain(host, domain))) return "ticketmaster";
+  if (matchesDomain(host, "dice.fm")) return "dice";
+  if (matchesDomain(host, "axs.com")) return "axs";
 
   throw new UnsupportedPlatformError(urlString);
 }
@@ -66,6 +92,63 @@ export function normalizeUrl(urlString) {
     };
   }
 
+  if (platform === "maoyan") {
+    const eventId = url.pathname.match(/\/detail\/(\d+)/i)?.[1]
+      ?? url.searchParams.get("id")
+      ?? url.searchParams.get("projectId");
+
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: eventId
+        ? `https://show.maoyan.com/detail/${eventId}`
+        : httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "piaoxingqiu") {
+    const shareToken = url.searchParams.get("lssId");
+    return {
+      platform,
+      ...(shareToken ? { shareToken } : {}),
+      canonicalUrl: shareToken
+        ? `https://e.piaoxingqiu.com/?lssId=${encodeURIComponent(shareToken)}`
+        : httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "fenwandao") {
+    return {
+      platform,
+      canonicalUrl: httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "ticketmaster") {
+    const eventId = url.pathname.match(/\/event\/([^/?#]+)/i)?.[1];
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "dice") {
+    return {
+      platform,
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "axs") {
+    const eventId = url.pathname.match(/\/events\/(\d+)/i)?.[1];
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
   throw new UnsupportedPlatformError(urlString);
 }
 
@@ -86,6 +169,18 @@ function hostnameOf(urlString) {
   } catch {
     return null;
   }
+}
+
+function matchesDomain(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+function httpsUrlWithoutQuery(url) {
+  return `https://${url.host}${url.pathname}`;
+}
+
+function httpsUrlWithoutHash(url) {
+  return `https://${url.host}${url.pathname}${url.search}`;
 }
 
 function ensureAbsoluteUrl(urlString) {
