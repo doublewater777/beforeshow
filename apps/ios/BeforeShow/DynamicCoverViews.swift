@@ -442,6 +442,7 @@ enum DynamicCoverImportCoordinator {
                 showID: show.id,
                 video: staged
             )
+            try Task.checkCancellation()
             committedPath = committed.relativePath
             let oldCover = show.dynamicCover
             let oldPath = oldCover?.relativePath
