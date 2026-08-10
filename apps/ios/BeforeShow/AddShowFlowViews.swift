@@ -1772,7 +1772,7 @@ private struct ShowDraftFormFields: View {
     @State private var selectedCoverItem: PhotosPickerItem?
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
-    @State private var showsCoverLinkField = false
+    @State private var showsLinkField = false
 
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
     private var nameRecognized: Bool {
