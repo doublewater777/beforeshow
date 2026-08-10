@@ -171,6 +171,137 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertTrue(venue.contains("奥体 1 场"))
     }
 
+    func testDetailIdentityDynamicallyRanksShowCityAndConfirmedCompanion() throws {
+        let backfilled = try makeShow("更早补录", year: 2023, artist: "A", city: "杭州", venue: "A")
+        let firstTogether = try makeShow("第一次同行", year: 2024, artist: "B", city: "上海", venue: "B")
+        let target = try makeShow("目标现场", year: 2025, artist: "C", city: "上海", venue: "C")
+
+        try firstTogether.markCompanionInvitationSent(name: " 林嘉 ")
+        try firstTogether.markCompanionConfirmed(name: firstTogether.companionName)
+        firstTogether.markEnded(at: date(2024, 6, 1, 22))
+        try target.markCompanionInvitationSent(name: "林嘉")
+        try target.markCompanionConfirmed(name: target.companionName)
+        target.markEnded(at: date(2025, 6, 1, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [target, firstTogether, backfilled],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+        let identity = FootprintDetailIdentityBuilder.make(
+            show: target,
+            archive: archive,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(identity.showOrdinal, 3)
+        XCTAssertEqual(identity.cityOrdinal, 2)
+        XCTAssertEqual(identity.companionOrdinal, 2)
+        XCTAssertEqual(identity.companionName, "林嘉")
+    }
+
+    func testDetailIdentityHidesMissingCityAndUnnamedCompanion() throws {
+        let target = try makeShow("缺失身份资料", year: 2025, artist: "A", city: " ", venue: "A")
+        try target.markCompanionInvitationSent(name: " ")
+        try target.markCompanionConfirmed(name: target.companionName)
+        target.markEnded(at: date(2025, 6, 1, 22))
+        let archive = FootprintArchiveBuilder.make(
+            shows: [target],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        let identity = FootprintDetailIdentityBuilder.make(
+            show: target,
+            archive: archive,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(identity.showOrdinal, 1)
+        XCTAssertNil(identity.cityOrdinal)
+        XCTAssertNil(identity.companionName)
+        XCTAssertNil(identity.companionOrdinal)
+    }
+
+    func testShareDefaultsPreferChronologicalPhotosOverVideosAndKeepsakes() {
+        let video = UUID()
+        let firstPhoto = UUID()
+        let secondPhoto = UUID()
+        let thirdPhoto = UUID()
+        let ticket = UUID()
+        let candidates = [
+            FootprintShareCandidate(id: ticket, kind: .ticket, recordedAt: date(2025, 6, 1, 17)),
+            FootprintShareCandidate(id: video, kind: .videoCover, recordedAt: date(2025, 6, 1, 18)),
+            FootprintShareCandidate(id: secondPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 20)),
+            FootprintShareCandidate(id: thirdPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 21)),
+            FootprintShareCandidate(id: firstPhoto, kind: .photo, recordedAt: date(2025, 6, 1, 19))
+        ]
+
+        XCTAssertEqual(
+            FootprintShareSelectionPolicy.defaultSelection(from: candidates),
+            [firstPhoto, secondPhoto, thirdPhoto]
+        )
+    }
+
+    func testShareDefaultsUseVideosOnlyAfterAvailablePhotos() {
+        let photo = FootprintShareCandidate(id: UUID(), kind: .photo, recordedAt: date(2025, 6, 1, 20))
+        let earlyVideo = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2025, 6, 1, 18))
+        let lateVideo = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2025, 6, 1, 21))
+        let ticket = FootprintShareCandidate(id: UUID(), kind: .ticket, recordedAt: date(2025, 6, 1, 17))
+
+        XCTAssertEqual(
+            FootprintShareSelectionPolicy.defaultSelection(
+                from: [ticket, lateVideo, photo, earlyVideo]
+            ),
+            [photo.id, earlyVideo.id, lateVideo.id]
+        )
+    }
+
+    func testShareSelectionRejectsAFourthMaterialAcrossAllKinds() {
+        let selected = Set([UUID(), UUID(), UUID()])
+
+        XCTAssertNil(
+            FootprintShareSelectionPolicy.selectionByAdding(UUID(), to: selected)
+        )
+        XCTAssertEqual(selected.count, 3)
+    }
+
+    func testShareOutputOrdersMemoriesBeforeTicketAndTimetable() {
+        let photo = FootprintShareCandidate(id: UUID(), kind: .photo, recordedAt: date(2026, 1, 2))
+        let video = FootprintShareCandidate(id: UUID(), kind: .videoCover, recordedAt: date(2026, 1, 1))
+        let ticket = FootprintShareCandidate(id: UUID(), kind: .ticket, recordedAt: date(2025, 1, 1))
+        let timetable = FootprintShareCandidate(id: UUID(), kind: .timetable, recordedAt: date(2024, 1, 1))
+
+        XCTAssertEqual(
+            FootprintShareSelectionPolicy.outputOrder(
+                selected: Set([photo.id, video.id, ticket.id, timetable.id]),
+                from: [ticket, photo, timetable, video]
+            ),
+            [video.id, photo.id, ticket.id, timetable.id]
+        )
+    }
+
+    func testShareMaterialBuilderFiltersTextAndMapsEveryShareableKind() {
+        let imageURL = URL(fileURLWithPath: "/tmp/share-source.jpg")
+        let kinds: [FootprintShareSourceKind] = [
+            .text, .photo, .videoCover, .ticket, .timetable
+        ]
+        let sources = kinds.enumerated().map { index, kind in
+            FootprintShareSource(
+                id: UUID(),
+                kind: kind,
+                recordedAt: date(2026, 1, index + 1),
+                imageURL: kind == .text ? nil : imageURL
+            )
+        }
+
+        let materials = FootprintShareMaterialBuilder.make(from: sources)
+
+        XCTAssertEqual(materials.map(\.kind), [.photo, .videoCover, .ticket, .timetable])
+        XCTAssertEqual(materials.map(\.title), ["照片", "视频封面", "票根", "时刻表"])
+        XCTAssertFalse(materials.contains { $0.id == sources[0].id })
+    }
+
     private func makeShow(
         _ name: String,
         year: Int,

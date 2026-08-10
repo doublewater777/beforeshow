@@ -24,14 +24,6 @@ struct FootprintYearGroup: Identifiable {
     var id: Int { year }
 }
 
-private struct FootprintActionAnchorKey: PreferenceKey {
-    static let defaultValue: [UUID: Anchor<CGRect>] = [:]
-
-    static func reduce(value: inout [UUID: Anchor<CGRect>], nextValue: () -> [UUID: Anchor<CGRect>]) {
-        value.merge(nextValue(), uniquingKeysWith: { _, latest in latest })
-    }
-}
-
 struct FootprintArchiveSnapshot {
     let shows: [Show]
     let artists: [FootprintRankItem]
@@ -78,9 +70,8 @@ enum FootprintEmptyStateCopy {
 
 private struct FootprintDetailDestination: Identifiable, Hashable {
     let show: Show
-    let startsEditing: Bool
 
-    var id: String { "\(show.id.uuidString)-\(startsEditing)" }
+    var id: UUID { show.id }
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 
@@ -300,17 +291,13 @@ enum FootprintArchiveBuilder {
 
 struct FootprintsView: View {
     var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
-    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
-    @Query private var notificationStates: [NotificationSchedulingState]
     @State private var isAddingShow = false
     @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
-    @State private var deleteTarget: Show?
-    @State private var actionTarget: Show?
     private let currentShowSession = CurrentShowSession()
 
     var body: some View {
@@ -345,9 +332,9 @@ struct FootprintsView: View {
         }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $detailTarget) { target in
-                ShowDetailView(
+                FootprintDetailView(
                     show: target.show,
-                    startsEditing: target.startsEditing,
+                    archive: archive,
                     onDetailVisibilityChange: onArchiveVisibilityChange
                 )
             }
@@ -361,7 +348,7 @@ struct FootprintsView: View {
                         activeSheet = nil
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(280))
-                            detailTarget = .init(show: show, startsEditing: false)
+                            detailTarget = .init(show: show)
                         }
                     }
                     .presentationDetents([.large])
@@ -382,15 +369,6 @@ struct FootprintsView: View {
                 }
             }
             .bsToastOverlay(toast, bottomPadding: 100)
-            .alert("删除这场现场？", isPresented: Binding(
-                get: { deleteTarget != nil },
-                set: { if !$0 { deleteTarget = nil } }
-            ), presenting: deleteTarget) { show in
-                Button("删除记录", role: .destructive) { delete(show) }
-                Button("取消", role: .cancel) { deleteTarget = nil }
-            } message: { _ in
-                Text("删除后将无法恢复，这场现场也会从足迹统计中移除。")
-            }
     }
 
     private func content(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -427,31 +405,6 @@ struct FootprintsView: View {
         }
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
-        .overlayPreferenceValue(FootprintActionAnchorKey.self) { anchors in
-            GeometryReader { proxy in
-                if let show = actionTarget, let anchor = anchors[show.id] {
-                    let buttonFrame = proxy[anchor]
-                    let popupSize = CGSize(width: 188, height: 126)
-                    let below = buttonFrame.maxY + 6
-                    let popupTop = below + popupSize.height <= proxy.size.height - 16
-                        ? below
-                        : buttonFrame.minY - popupSize.height - 6
-                    let centerX = min(
-                        proxy.size.width - popupSize.width / 2 - 16,
-                        max(popupSize.width / 2 + 16, buttonFrame.maxX - popupSize.width / 2)
-                    )
-
-                    FootprintRowActions(
-                        onView: { actionTarget = nil; detailTarget = .init(show: show, startsEditing: false) },
-                        onEdit: { actionTarget = nil; detailTarget = .init(show: show, startsEditing: true) },
-                        onDelete: { actionTarget = nil; deleteTarget = show }
-                    )
-                    .position(x: centerX, y: popupTop + popupSize.height / 2)
-                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .topTrailing)))
-                }
-            }
-            .animation(.easeOut(duration: 0.16), value: actionTarget?.id)
-        }
     }
 
     private func header(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -738,54 +691,34 @@ struct FootprintsView: View {
     }
 
     private func showRow(_ show: Show) -> some View {
-        ZStack(alignment: .topTrailing) {
+        Button {
+            detailTarget = .init(show: show)
+        } label: {
             HStack(spacing: 11) {
-                Button {
-                    actionTarget = nil
-                    detailTarget = .init(show: show, startsEditing: false)
-                } label: {
-                HStack(spacing: 11) {
-                    AsyncImage(url: URL(string: show.coverImageURL ?? "")) { phase in
-                        if let image = phase.image { image.resizable().scaledToFill() }
-                        else {
-                            LinearGradient(colors: [BSColor.Stage.glowBlue, BSColor.Stage.prepare], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                .overlay(Image(systemName: "music.note").foregroundColor(.white.opacity(0.72)))
-                        }
-                    }
-                    .frame(width: 46, height: 60).clipShape(RoundedRectangle(cornerRadius: 10)).saturation(0.75)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(show.name).font(.system(size: 13.5, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
-                        Text([show.city, show.venueName].compactMap { value in
-                            guard let value, !value.isEmpty else { return nil }; return value
-                        }.joined(separator: " · "))
-                            .font(.system(size: 11.8)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
-                    }
-                    Spacer(minLength: 0)
-                }
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(footprintDayText(show.effectiveDate))
-                        .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
-                    Button {
-                        actionTarget = actionTarget?.id == show.id ? nil : show
-                    } label: {
-                        VStack(spacing: 3) {
-                            Circle().frame(width: 3, height: 3)
-                            Circle().frame(width: 3, height: 3)
-                            Circle().frame(width: 3, height: 3)
-                        }
-                            .foregroundColor(BSColor.Stage.dim)
-                            .frame(width: 36, height: 36)
-                    }
-                    .accessibilityLabel("更多操作")
-                    .anchorPreference(key: FootprintActionAnchorKey.self, value: .bounds) {
-                        [show.id: $0]
+                AsyncImage(url: URL(string: show.coverImageURL ?? "")) { phase in
+                    if let image = phase.image { image.resizable().scaledToFill() }
+                    else {
+                        LinearGradient(colors: [BSColor.Stage.glowBlue, BSColor.Stage.prepare], startPoint: .topLeading, endPoint: .bottomTrailing)
+                            .overlay(Image(systemName: "music.note").foregroundColor(.white.opacity(0.72)))
                     }
                 }
+                .frame(width: 46, height: 60).clipShape(RoundedRectangle(cornerRadius: 10)).saturation(0.75)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(show.name).font(.system(size: 13.5, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                    Text([show.city, show.venueName].compactMap { value in
+                        guard let value, !value.isEmpty else { return nil }; return value
+                    }.joined(separator: " · "))
+                        .font(.system(size: 11.8)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Text(footprintDayText(show.effectiveDate))
+                    .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
+                Image(systemName: "chevron.right")
+                    .font(BSFont.V3.caption.weight(.semibold))
+                    .foregroundColor(BSColor.Stage.dim)
             }
         }
+        .buttonStyle(.plain)
         .padding(10)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
@@ -807,29 +740,6 @@ struct FootprintsView: View {
         }
     }
 
-    private func delete(_ show: Show) {
-        deleteTarget = nil
-        Task { @MainActor in
-            do {
-                let result = try await ShowDeletionCoordinator.delete(
-                    show,
-                    from: shows,
-                    selections: selections,
-                    notificationStates: notificationStates,
-                    in: modelContext
-                )
-                presentToast(
-                    result == .mediaCleanupPending
-                        ? "足迹记录已删除，部分本地副本将在下次启动继续清理"
-                        : "已删除足迹记录"
-                )
-            } catch {
-                modelContext.rollback()
-                let payload = BSToastPayload(tone: .failure, message: "删除失败，请重试")
-                toast = payload
-            }
-        }
-    }
 }
 
 private enum FootprintSheet: String, Identifiable {
@@ -1304,51 +1214,6 @@ private struct FootprintMiniPoster: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 9))
-    }
-}
-
-private struct FootprintRowActions: View {
-    let onView: () -> Void
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        VStack(spacing: 2) {
-            action("查看详情", icon: "eye", color: BSColor.Stage.accent, highlighted: true, onView)
-            action("编辑记录", icon: "pencil", onEdit)
-            action("删除记录", icon: "trash", color: BSColor.Stage.danger, onDelete)
-        }
-        .padding(6)
-        .frame(width: 188)
-        .background(BSColor.Stage.surfaceRaised, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Color.white.opacity(0.12))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.5), radius: 19, y: 10)
-    }
-
-    private func action(
-        _ title: String,
-        icon: String,
-        color: Color = BSColor.Stage.foreground,
-        highlighted: Bool = false,
-        _ action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .medium))
-                    .frame(width: 17)
-                Text(title).font(.system(size: 12.5))
-                Spacer(minLength: 0)
-            }
-                .foregroundColor(color)
-                .padding(.horizontal, 11).frame(height: 38)
-                .background(highlighted ? BSColor.Stage.accent.opacity(0.08) : Color.clear, in: RoundedRectangle(cornerRadius: 10))
-        }
-        .buttonStyle(.plain)
     }
 }
 
