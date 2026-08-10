@@ -28,6 +28,8 @@ private enum FootprintDetailTokens {
     static let sectionFont = BSFont.headline
     static let memoryPlayFont = BSFont.heroTitle.weight(.semibold)
     static let memoryBadgeFont = BSFont.V3.caption.weight(.semibold)
+    static let memoryMetadataColor = Color.white.opacity(0.68)
+    static let memoryDurationColor = Color.white.opacity(0.74)
 
     static let backgroundGlow = BSColor.Stage.glowBlue.opacity(0.14)
     static let backgroundAccent = BSColor.Stage.accent.opacity(0.08)
@@ -523,10 +525,10 @@ private struct FootprintMemoryTile: View {
                                 .foregroundColor(.white)
                             Text(durationText(media.videoDuration))
                                 .font(FootprintDetailTokens.memoryBadgeFont)
-                                .foregroundColor(.white)
+                                .foregroundColor(FootprintDetailTokens.memoryDurationColor)
                                 .padding(.horizontal, BSSpacing.sm)
                                 .padding(.vertical, BSSpacing.xs)
-                                .background(Color.black.opacity(0.52), in: Capsule())
+                                .background(Color.black.opacity(0.34), in: Capsule())
                                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                                 .padding(BSSpacing.sm)
                         }
@@ -546,7 +548,7 @@ private struct FootprintMemoryTile: View {
                         }
                     }
                     .font(FootprintDetailTokens.memoryBadgeFont)
-                    .foregroundColor(.white)
+                    .foregroundColor(FootprintDetailTokens.memoryMetadataColor)
                     .padding(.horizontal, BSSpacing.compact)
                     .frame(maxWidth: .infinity)
                     .frame(height: FootprintDetailTokens.memoryInfoHeight, alignment: .center)
@@ -569,7 +571,7 @@ private struct FootprintMemoryTile: View {
                         Text(timeText(fragment.createdAt))
                     }
                     .font(FootprintDetailTokens.memoryBadgeFont)
-                    .foregroundColor(BSColor.Stage.dim)
+                    .foregroundColor(FootprintDetailTokens.memoryMetadataColor)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .padding(BSSpacing.compact)
@@ -630,9 +632,11 @@ private struct FootprintKeepsakeTile: View {
                 Text(kind.title)
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text(asset == nil ? "点击添加" : "查看或更换")
-                    .font(BSFont.V3.caption)
-                    .foregroundColor(asset == nil ? BSColor.Stage.muted : FootprintDetailTokens.savedKeepsakeText)
+                if asset == nil {
+                    Text("点击添加")
+                        .font(BSFont.V3.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, BSSpacing.compact)
