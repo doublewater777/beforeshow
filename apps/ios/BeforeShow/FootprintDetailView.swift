@@ -600,7 +600,9 @@ private struct FootprintKeepsakeTile: View {
                     .font(BSFont.V3.caption)
                     .foregroundColor(asset == nil ? BSColor.Stage.muted : FootprintDetailTokens.savedKeepsakeText)
             }
-            .padding(BSSpacing.compact)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.horizontal, BSSpacing.compact)
+            .padding(.bottom, BSSpacing.md)
         }
         .frame(maxWidth: .infinity)
         .frame(height: FootprintDetailTokens.keepsakeTileHeight)
