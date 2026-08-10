@@ -272,7 +272,7 @@ struct FootprintDetailView: View {
     private var identityGrid: some View {
         let values = identityValues
         return HStack(spacing: BSSpacing.sm) {
-            ForEach(values, id: \.headline) { item in
+            ForEach(Array(values.enumerated()), id: \.offset) { _, item in
                 VStack(alignment: .leading, spacing: 4) {
                     Text(item.headline)
                         .font(BSFont.headline)

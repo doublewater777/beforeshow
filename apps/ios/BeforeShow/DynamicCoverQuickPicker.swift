@@ -9,6 +9,7 @@ struct DynamicCoverQuickPicker: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var isPickerPresented = false
     @State private var isImporting = false
+    @State private var importTask: Task<Void, Never>?
     @State private var errorMessage: String?
 
     var body: some View {
@@ -31,6 +32,7 @@ struct DynamicCoverQuickPicker: View {
             }
             .buttonStyle(.plain)
             .photosPicker(isPresented: $isPickerPresented, selection: $selectedItem, matching: .videos)
+            .disabled(isImporting)
             if isImporting { ProgressView().tint(BSColor.Stage.accent) }
         }
         .padding(BSSpacing.roomy)
@@ -38,7 +40,7 @@ struct DynamicCoverQuickPicker: View {
         .onChange(of: selectedItem) { _, item in
             guard let item, !isImporting else { return }
             isImporting = true
-            Task { @MainActor in
+            importTask = Task { @MainActor in
                 defer { isImporting = false; selectedItem = nil }
                 do {
                     try await DynamicCoverImportCoordinator.importVideo(item, for: show, in: modelContext)
@@ -47,6 +49,11 @@ struct DynamicCoverQuickPicker: View {
                     errorMessage = "视频没有载入，请重试。"
                 }
             }
+        }
+        .interactiveDismissDisabled(isImporting)
+        .onDisappear {
+            importTask?.cancel()
+            importTask = nil
         }
         .alert("动态封面没有更新", isPresented: Binding(
             get: { errorMessage != nil },

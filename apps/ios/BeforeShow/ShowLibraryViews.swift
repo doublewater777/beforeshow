@@ -38,7 +38,6 @@ enum ShowDeletionCoordinator {
                 modelContext.delete(asset)
             }
             modelContext.delete(show)
-            DynamicCoverFaceStore.clear(showID: showID)
             let nextCurrentShow = CurrentShowSession().selectCurrentShow(
                 from: remainingShows,
                 manualSelection: selections.first
@@ -50,6 +49,7 @@ enum ShowDeletionCoordinator {
             )
 
             try modelContext.save()
+            DynamicCoverFaceStore.clear(showID: showID)
             try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
             var cleanupPending = false
             if let dynamicCoverPath {
@@ -63,7 +63,6 @@ enum ShowDeletionCoordinator {
                     cleanupPending = true
                 }
             }
-            DynamicCoverFaceStore.clear(showID: showID)
             ShowAssetCleanupRetry.markShowCleanupPending(showID)
             do {
                 try await ShowAssetMediaStore.shared.deleteShow(showID)

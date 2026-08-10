@@ -58,8 +58,13 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         _isDynamicFace = State(initialValue: dynamicCover != nil && DynamicCoverFaceStore.isDynamicFace(for: showID))
     }
 
-    private var canFlip: Bool { dynamicCover == nil || mediaURL != nil }
+    private var canFlip: Bool { dynamicCover != nil && mediaURL != nil }
     private var faceDescription: String { isDynamicFace ? "动态封面" : "静态封面" }
+
+    private func chooseVideoFromAccessibility() {
+        guard dynamicCover == nil else { return }
+        onChooseVideo?()
+    }
 
     var body: some View {
         ZStack {
@@ -147,6 +152,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
             withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = true }
             DynamicCoverFaceStore.setDynamicFace(true, for: showID)
         }
+        .accessibilityAction(named: "添加动态封面视频", chooseVideoFromAccessibility)
     }
 
     @ViewBuilder
@@ -244,10 +250,12 @@ struct DynamicCoverManagementSection: View {
                         coverActionButton("更换视频", icon: "arrow.triangle.2.circlepath") {
                             isPickerPresented = true
                         }
+                        .disabled(isImporting)
                         coverActionButton("删除", icon: "trash", tint: BSColor.Stage.danger) {
                             coverPendingDeletion = cover
                             isShowingDeleteConfirmation = true
                         }
+                        .disabled(isImporting)
                     }
                 } else {
                     HStack(spacing: BSSpacing.compact) {
@@ -303,7 +311,9 @@ struct DynamicCoverManagementSection: View {
         }
         .alert("删除动态封面？", isPresented: $isShowingDeleteConfirmation) {
             Button("删除", role: .destructive) {
-                if let coverPendingDeletion { deleteCover(coverPendingDeletion) }
+                if let coverPendingDeletion {
+                    Task { @MainActor in await deleteCover(coverPendingDeletion) }
+                }
                 coverPendingDeletion = nil
             }
             Button("取消", role: .cancel) { coverPendingDeletion = nil }
@@ -359,20 +369,31 @@ struct DynamicCoverManagementSection: View {
     }
 
     @MainActor
-    private func deleteCover(_ cover: DynamicCover) {
+    private func deleteCover(_ cover: DynamicCover) async {
+        await LocalMediaCommitGate.shared.acquire()
         let relativePath = cover.relativePath
-        modelContext.delete(cover)
-        show.dynamicCover = nil
         do {
+            guard show.dynamicCover?.id == cover.id else {
+                await LocalMediaCommitGate.shared.release()
+                return
+            }
+            modelContext.delete(cover)
+            show.dynamicCover = nil
             try modelContext.save()
             DynamicCoverFaceStore.clear(showID: show.id)
-            Task {
-                try? await DynamicCoverMediaStore.shared.delete(relativePath: relativePath, showID: show.id)
+            do {
+                try await DynamicCoverMediaStore.shared.delete(relativePath: relativePath, showID: show.id)
+            } catch {
+                ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
+                    showID: show.id,
+                    relativePath: relativePath
+                )
             }
         } catch {
             modelContext.rollback()
             errorMessage = "动态封面没有删除，请重试。"
         }
+        await LocalMediaCommitGate.shared.release()
     }
 
     private static func message(for error: DynamicCoverMediaStoreError) -> String {

@@ -295,6 +295,35 @@ actor DynamicCoverMediaStore {
         try removeIfPresent(location.rootDirectory)
     }
 
+    func cleanupStaging(olderThan cutoff: Date) throws {
+        let staging = location.url(for: "Staging")
+        guard fileManager.fileExists(atPath: staging.path) else { return }
+        for directory in try fileManager.contentsOfDirectory(
+            at: staging,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) {
+            let values = try directory.resourceValues(forKeys: [.contentModificationDateKey])
+            if values.contentModificationDate.map({ $0 < cutoff }) ?? true {
+                try removeIfPresent(directory)
+            }
+        }
+    }
+
+    func cleanupImportTemp(olderThan cutoff: Date) throws {
+        let directory = fileManager.temporaryDirectory
+            .appendingPathComponent("BeforeShowDynamicCoverImports", isDirectory: true)
+        guard fileManager.fileExists(atPath: directory.path) else { return }
+        for fileURL in try fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        ) {
+            let values = try fileURL.resourceValues(forKeys: [.contentModificationDateKey])
+            if values.contentModificationDate.map({ $0 < cutoff }) ?? true {
+                try removeIfPresent(fileURL)
+            }
+        }
+    }
+
     /// Keeps only paths referenced by valid `DynamicCover` records.
     func verifiedExistingRelativePaths() throws -> Set<String> {
         try ensureStorageAvailable()
