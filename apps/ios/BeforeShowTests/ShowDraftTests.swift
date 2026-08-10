@@ -443,7 +443,10 @@ final class ShowDraftTests: XCTestCase {
             ("www.ticketmaster.com", "Ticketmaster"),
             ("www.ticketmaster.co.uk", "Ticketmaster"),
             ("dice.fm", "DICE"),
-            ("www.axs.com", "AXS")
+            ("www.axs.com", "AXS"),
+            ("www.livenation.cn", "Live Nation"),
+            ("www.livenation.co.uk", "Live Nation"),
+            ("livenation.app.link", "Live Nation")
         ]
 
         for (host, expected) in supported {
@@ -458,7 +461,8 @@ final class ShowDraftTests: XCTestCase {
             "livelab.com.cn.evil.example",
             "ticketmaster.com.evil.example",
             "dice.fm.evil.example",
-            "axs.com.evil.example"
+            "axs.com.evil.example",
+            "livenation.com.evil.example"
         ]
         for host in lookalikes {
             XCTAssertNil(ShowLinkPlatformCatalog.displayName(forHost: host), host)
@@ -469,14 +473,14 @@ final class ShowDraftTests: XCTestCase {
         let unsupported = AddShowLinkFailurePresentation.resolve(
             ShowLinkParsingError.unsupportedSource
         )
-        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "Ticketmaster", "DICE", "AXS"]
+        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "Ticketmaster", "DICE", "AXS", "Live Nation"]
 
         for name in names {
             XCTAssertTrue(unsupported.message.contains(name), name)
         }
         XCTAssertEqual(
             ShowLinkPlatformCatalog.supportSummary,
-            "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS"
+            "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
         )
         XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
     }
