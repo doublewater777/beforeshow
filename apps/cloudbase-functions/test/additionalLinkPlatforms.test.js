@@ -11,7 +11,7 @@ import { parsePublicEventPage } from "../src/functions/parseShowLink/publicEvent
 const PLATFORM_CASES = [
   {
     platform: "maoyan",
-    url: "https://show.maoyan.com/detail/316942?fromTag=share",
+    url: "https://show.maoyan.com/qqw#/detail/316942",
     source: "maoyan"
   },
   {
@@ -40,6 +40,8 @@ const PLATFORM_CASES = [
     source: "axs"
   }
 ];
+
+const PUBLIC_PAGE_CASES = PLATFORM_CASES.filter(({ platform }) => platform !== "maoyan");
 
 const JSON_LD_HTML = `<!doctype html>
 <html>
@@ -94,7 +96,7 @@ describe("additional ticket platform detection", () => {
 
   it("rejects lookalike domains for every newly supported platform", () => {
     const spoofed = [
-      "https://show.maoyan.com.evil.example/detail/316942",
+      "https://show.maoyan.com.evil.example/qqw#/detail/316942",
       "https://piaoxingqiu.com.evil.example/?lssId=x",
       "https://livelab.com.cn.evil.example/show/1",
       "https://ticketmaster.com.evil.example/event/ABC",
@@ -145,19 +147,44 @@ describe("public event page parser", () => {
       }
       </script>`;
 
-    const draft = parsePublicEventPage(html, { source: "maoyan" });
+    const draft = parsePublicEventPage(html, { source: "piaoxingqiu" });
     assert.equal(draft.name, "测试巡回演唱会");
     assert.equal(draft.date, "2026-08-22");
     assert.equal(draft.startTime, "19:30");
     assert.equal(draft.city, "杭州");
     assert.equal(draft.venueName, "杭州奥体中心体育馆");
     assert.equal(draft.artist, "测试艺人");
-    assert.equal(draft.source, "maoyan");
+    assert.equal(draft.source, "piaoxingqiu");
   });
 });
 
 describe("additional platform dispatch", () => {
-  for (const { platform, url, source } of PLATFORM_CASES) {
+  it("parses Maoyan through the performance adapter", async () => {
+    const fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        code: 0,
+        data: {
+          performanceId: 316942,
+          name: "猫眼测试现场",
+          shopName: "测试场馆",
+          address: "测试地址",
+          posterUrl: "https://example.com/maoyan.jpg",
+          showTimeRange: "2026.09.16 19:00",
+          cityName: "上海",
+          lowestPrice: "380"
+        }
+      })
+    });
+
+    const draft = await parseShowLink(PLATFORM_CASES[0].url, { fetch });
+    assert.equal(draft.source, "maoyan");
+    assert.equal(draft.date, "2026-09-16");
+    assert.equal(draft.name, "猫眼测试现场");
+  });
+
+  for (const { platform, url, source } of PUBLIC_PAGE_CASES) {
     it(`parses ${platform} through the public-page adapter`, async () => {
       let requestedUrl;
       const fetch = async (requestUrl) => {
