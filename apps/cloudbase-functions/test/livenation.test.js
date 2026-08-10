@@ -6,7 +6,7 @@ import {
   normalizeUrl,
   UnsupportedPlatformError
 } from "../src/functions/parseShowLink/platformDetector.js";
-import { parseVisibleEventPage } from "../src/functions/parseShowLink/ticketPageParser.js";
+import { parseLiveNationVisiblePage } from "../src/functions/parseShowLink/liveNationParser.js";
 
 const OFFICIAL_LIVE_NATION_DOMAINS = [
   "livenation.com",
@@ -102,7 +102,7 @@ describe("Live Nation visible-page fallback", () => {
         </body>
       </html>`;
 
-    const draft = parseVisibleEventPage(html, { source: "livenation" });
+    const draft = parseLiveNationVisiblePage(html);
     assert.equal(draft.name, "Lil Wayne: Tha Carter VI Tour");
     assert.equal(draft.date, "2026-09-12");
     assert.equal(draft.startTime, "20:00");
@@ -125,7 +125,7 @@ describe("Live Nation visible-page fallback", () => {
         </body>
       </html>`;
 
-    const draft = parseVisibleEventPage(html, { source: "livenation" });
+    const draft = parseLiveNationVisiblePage(html);
     assert.equal(draft.name, "LANY: soft world tour");
     assert.equal(draft.date, "2026-09-20");
     assert.equal(draft.venueName, "蛙厂RMMF·798店");
@@ -133,10 +133,30 @@ describe("Live Nation visible-page fallback", () => {
     assert.equal(draft.artist, "LANY");
     assert.equal(draft.source, "livenation");
   });
+
+  it("parses the current China Chinese-month date-range shape", () => {
+    const html = `
+      <html>
+        <body>
+          <h1>Chris James \"LET THE LIGHT IN!\" TOUR 2026</h1>
+          <div>12 八月 - 13 八月 2026</div>
+          <div>星在文化中心 梦想剧场, Shanghai</div>
+          <h2>主要演出</h2>
+          <div>Chris James</div>
+        </body>
+      </html>`;
+
+    const draft = parseLiveNationVisiblePage(html);
+    assert.equal(draft.date, "2026-08-12");
+    assert.equal(draft.endDate, "2026-08-13");
+    assert.equal(draft.venueName, "星在文化中心 梦想剧场");
+    assert.equal(draft.city, "Shanghai");
+    assert.equal(draft.artist, "Chris James");
+  });
 });
 
 describe("Live Nation dispatch", () => {
-  it("uses the shared public-page adapter without following Buy Tickets links", async () => {
+  it("uses the public-page adapter without following Buy Tickets links", async () => {
     let requestedUrl = "";
     const fetch = async (requestUrl) => {
       requestedUrl = requestUrl;
