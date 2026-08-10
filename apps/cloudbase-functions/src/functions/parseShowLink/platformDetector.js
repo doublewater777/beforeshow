@@ -94,6 +94,7 @@ export function normalizeUrl(urlString) {
 
   if (platform === "maoyan") {
     const eventId = url.pathname.match(/\/detail\/(\d+)/i)?.[1]
+      ?? url.hash.match(/\/detail\/(\d+)/i)?.[1]
       ?? url.searchParams.get("id")
       ?? url.searchParams.get("projectId");
 
@@ -107,7 +108,18 @@ export function normalizeUrl(urlString) {
   }
 
   if (platform === "piaoxingqiu") {
+    const pathEventId = url.pathname.match(/\/content\/([a-f0-9]{16,32})\/?$/i)?.[1];
+    const eventId = url.searchParams.get("showId") ?? pathEventId;
     const shareToken = url.searchParams.get("lssId");
+
+    if (eventId) {
+      return {
+        platform,
+        eventId,
+        canonicalUrl: `https://m.piaoxingqiu.com/content/${encodeURIComponent(eventId)}?showId=${encodeURIComponent(eventId)}`
+      };
+    }
+
     return {
       platform,
       ...(shareToken ? { shareToken } : {}),
@@ -118,8 +130,22 @@ export function normalizeUrl(urlString) {
   }
 
   if (platform === "fenwandao") {
+    const eventId = url.searchParams.get("id") ?? url.searchParams.get("project_id") ?? url.searchParams.get("projectId");
+
+    if (eventId && /\/buyTickets\/step1\/?$/i.test(url.pathname)) {
+      const type = url.searchParams.get("type");
+      const params = new URLSearchParams({ id: eventId });
+      if (type) params.set("type", type);
+      return {
+        platform,
+        eventId,
+        canonicalUrl: `https://mobile.livelab.com.cn${url.pathname}?${params.toString()}`
+      };
+    }
+
     return {
       platform,
+      ...(eventId ? { eventId } : {}),
       canonicalUrl: httpsUrlWithoutHash(url)
     };
   }
