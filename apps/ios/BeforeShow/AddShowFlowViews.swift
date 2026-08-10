@@ -343,6 +343,7 @@ struct AddShowFlowView: View {
     @State private var showsManualFallback = false
     @State private var showsProMembership = false
     @State private var showsProSaveLimit = false
+    @State private var showsLinkHelp = false
     @State private var toast: BSToastPayload?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
@@ -462,6 +463,9 @@ struct AddShowFlowView: View {
             } onSecondary: {
                 showsProSaveLimit = false
             }
+        }
+        .sheet(isPresented: $showsLinkHelp) {
+            ShowLinkHelpView()
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
@@ -608,6 +612,27 @@ struct AddShowFlowView: View {
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        dismissKeyboard()
+                        showsLinkHelp = true
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("如何获取链接？")
+                                .font(.system(size: 13, weight: .semibold))
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(BSColor.Accent.violet)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("查看如何获取票务链接")
                 }
 
                 if let linkFailure, !isParsingLink {
@@ -1062,6 +1087,204 @@ struct AddShowFlowView: View {
                 toast = nil
             }
         }
+    }
+}
+
+private struct ShowLinkHelpPlatform: Identifiable {
+    let id: String
+    let name: String
+    let domainHint: String
+    let steps: [String]
+}
+
+private enum ShowLinkHelpGuide {
+    static let domestic: [ShowLinkHelpPlatform] = [
+        platform("damai", "大麦", "damai.cn"),
+        platform("showstart", "秀动", "showstart.com"),
+        platform("maoyan", "猫眼", "maoyan.com"),
+        platform("piaoxingqiu", "票星球", "piaoxingqiu.com"),
+        platform("fenwandao", "纷玩岛", "livelab.com.cn")
+    ]
+
+    static let international: [ShowLinkHelpPlatform] = [
+        platform("ticketmaster", "Ticketmaster", "ticketmaster.*"),
+        platform("dice", "DICE", "dice.fm"),
+        platform("axs", "AXS", "axs.com")
+    ]
+
+    private static func platform(_ id: String, _ name: String, _ domain: String) -> ShowLinkHelpPlatform {
+        ShowLinkHelpPlatform(
+            id: id,
+            name: name,
+            domainHint: domain,
+            steps: [
+                "在 App 或网页里打开要添加的演出详情页。",
+                "找到「分享」并选择「复制链接」；网页端也可以直接复制地址栏。",
+                "确认复制的是演出详情链接，域名应包含 \(domain)。"
+            ]
+        )
+    }
+}
+
+private struct ShowLinkHelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            CurrentShowStageBackground()
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                navigationBar
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        introCard
+                        cautionCard
+                        platformSection(title: "国内平台", platforms: ShowLinkHelpGuide.domestic)
+                        platformSection(title: "海外平台", platforms: ShowLinkHelpGuide.international)
+                        finishCard
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 32)
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
+    }
+
+    private var navigationBar: some View {
+        ZStack {
+            Text("如何获取票务链接")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+
+            HStack {
+                Spacer(minLength: 0)
+                Button("完成") {
+                    dismiss()
+                }
+                .font(BSFont.body)
+                .foregroundColor(BSColor.Accent.violet)
+                .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭获取链接教程")
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 4)
+    }
+
+    private var introCard: some View {
+        EditShowFormCard(
+            title: "先做这 3 步",
+            icon: "link",
+            tint: BSColor.Stage.accent
+        ) {
+            numberedStep(1, "打开你要添加的那一场演出的详情页。")
+            numberedStep(2, "点「分享」→「复制链接」；网页端直接复制地址栏也可以。")
+            numberedStep(3, "回到 BeforeShow，粘贴链接；整段带链接的分享文案也可以直接粘贴。")
+        }
+    }
+
+    private var cautionCard: some View {
+        HStack(alignment: .top, spacing: 11) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: 20, height: 20)
+
+            Text("请复制演出详情链接，不要复制首页、搜索结果、订单、选座或付款页。短链解析失败时，先在浏览器打开，再复制展开后的详情地址。")
+                .font(.system(size: 12.5))
+                .foregroundColor(BSColor.textTertiary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .background(BSColor.Stage.accent.opacity(0.07))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(BSColor.Stage.accent.opacity(0.24), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private func platformSection(title: String, platforms: [ShowLinkHelpPlatform]) -> some View {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+
+            ForEach(platforms) { platform in
+                EditShowFormCard(
+                    title: platform.name,
+                    icon: "ticket",
+                    tint: BSColor.Accent.prepare,
+                    pillText: platform.domainHint,
+                    pillTint: BSColor.Accent.prepare
+                ) {
+                    ForEach(Array(platform.steps.enumerated()), id: \.offset) { index, step in
+                        numberedStep(index + 1, step)
+                    }
+                }
+            }
+        }
+    }
+
+    private var finishCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("复制好以后")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+
+            Text("回到链接解析页直接粘贴即可。当前支持：\(ShowLinkPlatformCatalog.supportSummary)。")
+                .font(.system(size: 12.5))
+                .foregroundColor(BSColor.textTertiary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                dismiss()
+            } label: {
+                Text("返回粘贴链接")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(EditShowSaveButtonStyle())
+            .accessibilityLabel("返回链接解析页")
+        }
+        .padding(16)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+    }
+
+    private func numberedStep(_ number: Int, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 11) {
+            Text("\(number)")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: 24, height: 24)
+                .background(BSColor.Stage.accent.opacity(0.12))
+                .clipShape(Circle())
+
+            Text(text)
+                .font(.system(size: 12.5))
+                .foregroundColor(BSColor.textSecondary)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 2)
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
