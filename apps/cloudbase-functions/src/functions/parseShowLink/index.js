@@ -1,7 +1,7 @@
 import { normalizeUrl, UnsupportedPlatformError } from "./platformDetector.js";
 import { fetchDamaiDetail, parseDamaiDetail } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
-import { fetchAndParsePublicEvent } from "./publicEventParser.js";
+import { fetchAndParseTicketPage } from "./ticketPageParser.js";
 
 const PUBLIC_PAGE_PLATFORMS = new Set([
   "maoyan",
@@ -34,7 +34,7 @@ export async function parseShowLink(url, options = {}) {
   }
 
   if (PUBLIC_PAGE_PLATFORMS.has(normalized.platform)) {
-    return fetchAndParsePublicEvent({
+    return fetchAndParseTicketPage({
       url: normalized.canonicalUrl,
       source: normalized.platform,
       fetch: options.fetch
