@@ -1,22 +1,228 @@
 #if DEBUG
 import SwiftData
 import Foundation
+import UIKit
 
 @MainActor
 enum FootprintDebugSeeder {
     static func seedIfRequested(in modelContext: ModelContext) {
-        guard ProcessInfo.processInfo.arguments.contains("--seed-footprints-samples") else { return }
+        let arguments = ProcessInfo.processInfo.arguments
+        guard arguments.contains("--seed-footprints-samples")
+                || arguments.contains("--seed-footprint-detail-v41") else { return }
 
         do {
             let existing = try modelContext.fetch(FetchDescriptor<Show>())
             let existingNames = Set(existing.map(\.name))
-            for sample in samples where !existingNames.contains(sample.name) {
-                modelContext.insert(try sample.makeShow())
+            if arguments.contains("--seed-footprints-samples") {
+                for sample in samples where !existingNames.contains(sample.name) {
+                    modelContext.insert(try sample.makeShow())
+                }
+            }
+            if arguments.contains("--seed-footprint-detail-v41"),
+               !existingNames.contains(detailSampleName) {
+                try seedDetailSamples(in: modelContext)
             }
             try modelContext.save()
         } catch {
             assertionFailure("Failed to seed footprint samples: \(error)")
         }
+    }
+
+    private static let detailSampleName = "落日飞车 · 夏夜回忆现场"
+
+    private static func seedDetailSamples(in modelContext: ModelContext) throws {
+        let earlier = try sample(
+            "落日飞车 · 第一次同行",
+            2025, 9, 6,
+            "杭州", "MAO Livehouse", "落日飞车"
+        ).makeShow()
+        earlier.markEnded(at: date(2025, 9, 6, 22, 10))
+        try earlier.markCompanionInvitationSent(name: "林嘉")
+        try earlier.markCompanionConfirmed(name: earlier.companionName)
+
+        let full = try sample(
+            detailSampleName,
+            2026, 7, 12,
+            "杭州", "杭州奥体中心体育馆", "落日飞车"
+        ).makeShow()
+        full.markEnded(at: date(2026, 7, 12, 22, 20))
+        try full.markCompanionInvitationSent(name: "林嘉")
+        try full.markCompanionConfirmed(name: full.companionName)
+
+        let empty = try sample(
+            "安静的一夜 · 空记忆样本",
+            2026, 6, 20,
+            "台北", "Legacy Taipei", "陈绮贞"
+        ).makeShow()
+        empty.markEnded(at: date(2026, 6, 20, 22, 0))
+
+        modelContext.insert(earlier)
+        modelContext.insert(full)
+        modelContext.insert(empty)
+        try addMemorySamples(to: full, in: modelContext)
+        try addAssetSample(to: full, kind: .ticket, title: "SUMMER TOUR\nTICKET", in: modelContext)
+        try addAssetSample(to: full, kind: .timetable, title: "19:30 DOORS\n20:00 LIVE", in: modelContext)
+    }
+
+    private static func addMemorySamples(to show: Show, in modelContext: ModelContext) throws {
+        let photoFragment = try MemoryFragment(
+            showID: show.id,
+            text: "灯亮起来时，整片人群像海浪一样向前。",
+            createdAt: date(2026, 7, 12, 20, 18),
+            updatedAt: date(2026, 7, 12, 20, 18),
+            phase: .live
+        )
+        photoFragment.show = show
+        try appendSampleMedia(
+            to: photoFragment,
+            showID: show.id,
+            kind: .photo,
+            title: "GOLDEN HOUR",
+            accent: UIColor(red: 0.88, green: 0.55, blue: 0.28, alpha: 1),
+            createdAt: date(2026, 7, 12, 20, 18)
+        )
+        try appendSampleMedia(
+            to: photoFragment,
+            showID: show.id,
+            kind: .photo,
+            title: "ENCORE",
+            accent: UIColor(red: 0.33, green: 0.47, blue: 0.78, alpha: 1),
+            createdAt: date(2026, 7, 12, 21, 42)
+        )
+        modelContext.insert(photoFragment)
+
+        let textFragment = try MemoryFragment(
+            showID: show.id,
+            text: "最后一首歌结束以后，大家都没有马上离开。",
+            createdAt: date(2026, 7, 12, 21, 56),
+            updatedAt: date(2026, 7, 12, 21, 56),
+            phase: .after
+        )
+        textFragment.show = show
+        modelContext.insert(textFragment)
+
+        let videoFragment = try MemoryFragment(
+            showID: show.id,
+            text: "返场的那一分钟。",
+            createdAt: date(2026, 7, 12, 22, 4),
+            updatedAt: date(2026, 7, 12, 22, 4),
+            phase: .after
+        )
+        videoFragment.show = show
+        try appendSampleMedia(
+            to: videoFragment,
+            showID: show.id,
+            kind: .video,
+            title: "00:24\nENCORE",
+            accent: UIColor(red: 0.38, green: 0.28, blue: 0.55, alpha: 1),
+            createdAt: date(2026, 7, 12, 22, 4),
+            duration: 24
+        )
+        modelContext.insert(videoFragment)
+    }
+
+    private static func appendSampleMedia(
+        to fragment: MemoryFragment,
+        showID: UUID,
+        kind: MemoryMediaKind,
+        title: String,
+        accent: UIColor,
+        createdAt: Date,
+        duration: TimeInterval? = nil
+    ) throws {
+        let mediaID = UUID()
+        let directory = "\(showID.uuidString)/\(fragment.id.uuidString)"
+        let thumbnailPath = "\(directory)/\(mediaID.uuidString)-thumbnail.jpg"
+        let originalPath = kind == .video
+            ? "\(directory)/\(mediaID.uuidString).mp4"
+            : "\(directory)/\(mediaID.uuidString).jpg"
+        let location = MemoryMediaLocation.applicationSupport()
+        let thumbnailURL = location.url(for: thumbnailPath)
+        try FileManager.default.createDirectory(
+            at: thumbnailURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = sampleImageData(title: title, accent: accent)
+        try data.write(to: thumbnailURL, options: .atomic)
+        if kind == .video {
+            try Data().write(to: location.url(for: originalPath), options: .atomic)
+        } else {
+            try data.write(to: location.url(for: originalPath), options: .atomic)
+        }
+        try fragment.appendMedia(MemoryMediaItem(
+            id: mediaID,
+            kind: kind,
+            relativePath: originalPath,
+            thumbnailRelativePath: thumbnailPath,
+            contentTypeIdentifier: kind == .video ? "public.mpeg-4" : "public.jpeg",
+            videoDuration: duration,
+            sortOrder: fragment.mediaItems.count,
+            createdAt: createdAt
+        ))
+    }
+
+    private static func addAssetSample(
+        to show: Show,
+        kind: ShowAssetKind,
+        title: String,
+        in modelContext: ModelContext
+    ) throws {
+        let assetID = UUID()
+        let relativePath = "\(show.id.uuidString)/\(kind.directoryName)/\(assetID.uuidString)-sample.jpg"
+        let location = try ShowAssetMediaLocation.applicationSupport()
+        let url = location.rootDirectory.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let accent = kind == .ticket
+            ? UIColor(red: 0.76, green: 0.43, blue: 0.30, alpha: 1)
+            : UIColor(red: 0.24, green: 0.43, blue: 0.65, alpha: 1)
+        try sampleImageData(title: title, accent: accent).write(to: url, options: .atomic)
+        let asset = ShowAsset(
+            id: assetID,
+            showID: show.id,
+            kind: kind,
+            relativePath: relativePath,
+            createdAt: date(2026, 7, 12, 18, kind == .ticket ? 30 : 35),
+            updatedAt: date(2026, 7, 12, 18, kind == .ticket ? 30 : 35)
+        )
+        asset.show = show
+        modelContext.insert(asset)
+    }
+
+    private static func sampleImageData(title: String, accent: UIColor) -> Data {
+        let size = CGSize(width: 900, height: 1125)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor(red: 0.035, green: 0.045, blue: 0.075, alpha: 1).setFill()
+            context.fill(CGRect(origin: .zero, size: size))
+            accent.withAlphaComponent(0.78).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: 420))
+            accent.withAlphaComponent(0.32).setFill()
+            context.fill(CGRect(x: 0, y: 760, width: size.width, height: 365))
+
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 68, weight: .semibold),
+                .foregroundColor: UIColor.white,
+                .paragraphStyle: style
+            ]
+            NSString(string: title).draw(
+                in: CGRect(x: 70, y: 470, width: 760, height: 220),
+                withAttributes: attributes
+            )
+            NSString(string: "BEFORESHOW · 2026.07.12").draw(
+                in: CGRect(x: 70, y: 1010, width: 760, height: 40),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 25, weight: .medium),
+                    .foregroundColor: UIColor.white.withAlphaComponent(0.64),
+                    .paragraphStyle: style
+                ]
+            )
+        }
+        return image.jpegData(compressionQuality: 0.88) ?? Data()
     }
 
     private static var samples: [ShowDraft] {

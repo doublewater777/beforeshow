@@ -23,6 +23,7 @@ enum ShowDeletionCoordinator {
             }
 
             let showID = show.id
+            let dynamicCoverPath = show.dynamicCover?.relativePath
             let remainingShows = shows.filter { $0.id != showID }
             let fragments = try modelContext.fetch(
                 FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
@@ -48,9 +49,21 @@ enum ShowDeletionCoordinator {
             )
 
             try modelContext.save()
+            DynamicCoverFaceStore.clear(showID: showID)
             try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
-            ShowAssetCleanupRetry.markShowCleanupPending(showID)
             var cleanupPending = false
+            if let dynamicCoverPath {
+                do {
+                    try await DynamicCoverMediaStore.shared.deleteShow(showID)
+                } catch {
+                    ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
+                        showID: showID,
+                        relativePath: dynamicCoverPath
+                    )
+                    cleanupPending = true
+                }
+            }
+            ShowAssetCleanupRetry.markShowCleanupPending(showID)
             do {
                 try await ShowAssetMediaStore.shared.deleteShow(showID)
             } catch {

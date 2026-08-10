@@ -149,6 +149,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("SwiftData") }))
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("记忆碎片") }))
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("照片和视频副本") }))
+        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("动态封面") && $0.contains("正反面偏好") }))
         XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("临时缓存") }))
         XCTAssertTrue(plan.preservesSystemData.contains(where: { $0.contains("系统相册中的原始图片和视频") }))
     }

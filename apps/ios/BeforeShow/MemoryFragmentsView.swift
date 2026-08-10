@@ -783,9 +783,41 @@ struct MemoryFragmentsView: View {
         additions: [MemoryDraftMedia],
         draftID: UUID
     ) async throws {
-        // Validate the post-edit content shape *before* mutating SwiftData or copying files.
-        // Otherwise a failed save can leave partial in-memory model changes (text update /
-        // media removals) that still render until the next refresh.
+        try await MemoryFragmentEditCoordinator.save(
+            fragment,
+            showID: show.id,
+            fullOrder: fullOrder,
+            caption: caption,
+            removedIDs: removedIDs,
+            additions: additions,
+            draftID: draftID,
+            modelContext: modelContext
+        )
+        presentToast(.success, "已保存修改")
+    }
+
+    private func presentToast(_ tone: BSToastTone, _ message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.2))
+            if toast == payload { toast = nil }
+        }
+    }
+}
+
+@MainActor
+enum MemoryFragmentEditCoordinator {
+    static func save(
+        _ fragment: MemoryFragment,
+        showID: UUID,
+        fullOrder: [UUID],
+        caption: String,
+        removedIDs: Set<UUID>,
+        additions: [MemoryDraftMedia],
+        draftID: UUID,
+        modelContext: ModelContext
+    ) async throws {
         let normalizedCaption = try MemoryFragment.normalized(caption)
         let remainingExisting = fragment.orderedMediaItems.filter { !removedIDs.contains($0.id) }
         if remainingExisting.isEmpty && additions.isEmpty {
@@ -795,13 +827,10 @@ struct MemoryFragmentsView: View {
             throw MemoryFragmentValidationError.mediaLimitExceeded
         }
 
-        // Capture file paths to delete only after a successful model save.
         let removedPaths = fragment.orderedMediaItems
             .filter { removedIDs.contains($0.id) }
             .flatMap { item in [item.relativePath, item.thumbnailRelativePath].compactMap { $0 } }
 
-        // Commit new files first so model mutations can stay one transactional unit:
-        // either all model edits save, or we roll back the context *and* any newly copied files.
         var committed: [MemoryCommittedMedia] = []
         var committedPaths: [String] = []
         if !additions.isEmpty {
@@ -809,7 +838,7 @@ struct MemoryFragmentsView: View {
             do {
                 committed = try await MemoryFragmentMediaStore.shared.commitAdditions(
                     draftID: draftID,
-                    showID: show.id,
+                    showID: showID,
                     fragmentID: fragment.id,
                     media: additions
                 )
@@ -824,7 +853,6 @@ struct MemoryFragmentsView: View {
 
         do {
             try fragment.updateText(caption)
-
             let additionItems = committed.map { item in
                 MemoryMediaItem(
                     id: item.id,
@@ -861,19 +889,8 @@ struct MemoryFragmentsView: View {
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
             try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
         }
-
         if !removedPaths.isEmpty {
             Task { try? await MemoryFragmentMediaStore.shared.deleteFiles(relativePaths: removedPaths) }
-        }
-        presentToast(.success, "已保存修改")
-    }
-
-    private func presentToast(_ tone: BSToastTone, _ message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.2))
-            if toast == payload { toast = nil }
         }
     }
 }
@@ -975,11 +992,12 @@ private struct MemoryCreateSourceView: View {
 
 private struct MemoryManagementSheet: View {
     let isTextOnly: Bool
+    var fitsContent = true
     let onEdit: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(286), fitsContent: true) {
+        BSDrawerSheet(detent: .height(286), fitsContent: fitsContent) {
             VStack(alignment: .leading, spacing: 0) {
                 Text("管理这条记忆")
                     .font(.system(size: 18, weight: .semibold))
@@ -1284,7 +1302,7 @@ private struct MemoryMediaCarousel: View {
     }
 }
 
-private struct MemoryThumbnail: View {
+struct MemoryThumbnail: View {
     let relativePath: String
     @State private var image: UIImage?
 
@@ -1314,11 +1332,193 @@ private struct MemoryThumbnail: View {
     }
 }
 
+// MARK: - Shared review flow
+
+/// Read/edit/delete flow shared by the memory timeline and the read-only footprint detail.
+/// Creation stays owned by `MemoryFragmentsView`.
+struct MemoryFragmentReviewView: View {
+    let showID: UUID
+    let fragment: MemoryFragment
+    let initialIndex: Int
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @State private var editorLaunch: MemoryEditorLaunch?
+    @State private var deleteConfirmationTarget: MemoryFragment?
+    @State private var toast: BSToastPayload?
+
+    var body: some View {
+        Group {
+            if fragment.orderedMediaItems.isEmpty {
+                MemoryTextFragmentViewer(
+                    fragment: fragment,
+                    onEdit: { presentEditorAfterManagementDismisses() },
+                    onDelete: { presentDeleteAfterManagementDismisses() }
+                )
+            } else {
+                MemoryMediaViewer(
+                    fragment: fragment,
+                    initialIndex: initialIndex,
+                    managementFitsContent: false,
+                    onEdit: { presentEditorAfterManagementDismisses() },
+                    onDelete: { presentDeleteAfterManagementDismisses() }
+                )
+            }
+        }
+        .bsToastOverlay(toast, bottomPadding: 36)
+        .fullScreenCover(item: $editorLaunch) { launch in
+            MemoryUnifiedEditorView(
+                launch: launch,
+                onSaveCreate: { _, _, _ in },
+                onSaveEdit: { fragment, fullOrder, caption, removedIDs, additions, draftID in
+                    try await MemoryFragmentEditCoordinator.save(
+                        fragment,
+                        showID: showID,
+                        fullOrder: fullOrder,
+                        caption: caption,
+                        removedIDs: removedIDs,
+                        additions: additions,
+                        draftID: draftID,
+                        modelContext: modelContext
+                    )
+                    presentToast(.success, "已保存修改")
+                }
+            )
+        }
+        .sheet(item: $deleteConfirmationTarget) { target in
+            MemoryDeleteConfirmationSheet {
+                deleteConfirmationTarget = nil
+                delete(target)
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func presentEditorAfterManagementDismisses() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
+        }
+    }
+
+    private func presentDeleteAfterManagementDismisses() {
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            deleteConfirmationTarget = fragment
+        }
+    }
+
+    private func delete(_ fragment: MemoryFragment) {
+        let fragmentID = fragment.id
+        modelContext.delete(fragment)
+        do {
+            try modelContext.save()
+            Task {
+                try? await MemoryFragmentMediaStore.shared.deleteFragment(
+                    showID: showID,
+                    fragmentID: fragmentID
+                )
+            }
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            presentToast(.failure, "删除失败，请重试")
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, _ message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.2))
+            if toast == payload { toast = nil }
+        }
+    }
+}
+
+private struct MemoryTextFragmentViewer: View {
+    let fragment: MemoryFragment
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var isShowingManagement = false
+
+    var body: some View {
+        ZStack {
+            BSColor.Stage.background.ignoresSafeArea()
+            VStack(spacing: 0) {
+                HStack {
+                    Button { dismiss() } label: {
+                        Image(systemName: "chevron.left")
+                            .font(BSFont.headline)
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                            .background(BSColor.Stage.surfaceRaised, in: Circle())
+                            .overlay(Circle().stroke(BSColor.Stage.border))
+                    }
+                    Spacer()
+                    Text("记忆碎片")
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Spacer()
+                    Button { isShowingManagement = true } label: {
+                        Image(systemName: "ellipsis")
+                            .font(BSFont.headline)
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                            .background(BSColor.Stage.surfaceRaised, in: Circle())
+                            .overlay(Circle().stroke(BSColor.Stage.border))
+                    }
+                    .accessibilityLabel("管理这条记忆")
+                }
+                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.top, BSSpacing.sm)
+
+                VStack(alignment: .leading, spacing: BSSpacing.roomy) {
+                    Image(systemName: "quote.opening")
+                        .font(BSFont.V3.title2.weight(.light))
+                        .foregroundColor(BSColor.Stage.accent)
+                    Text(fragment.text ?? "")
+                        .font(BSFont.V3.title2.weight(.regular))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .lineSpacing(BSSpacing.sm)
+                    Text(fragment.createdAt.formatted(date: .abbreviated, time: .shortened))
+                        .font(BSFont.V3.caption)
+                        .foregroundColor(BSColor.Stage.dim)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(BSSpacing.roomy)
+                .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.lg))
+                .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.Stage.border))
+                .padding(BSSpacing.roomy)
+
+                Spacer()
+            }
+        }
+        .sheet(isPresented: $isShowingManagement) {
+            MemoryManagementSheet(
+                isTextOnly: true,
+                fitsContent: false,
+                onEdit: {
+                    isShowingManagement = false
+                    onEdit()
+                },
+                onDelete: {
+                    isShowingManagement = false
+                    onDelete()
+                }
+            )
+        }
+    }
+}
+
 // MARK: - Viewer
 
 private struct MemoryMediaViewer: View {
     let fragment: MemoryFragment
     let initialIndex: Int
+    let managementFitsContent: Bool
     let onEdit: () -> Void
     let onDelete: () -> Void
 
@@ -1329,11 +1529,13 @@ private struct MemoryMediaViewer: View {
     init(
         fragment: MemoryFragment,
         initialIndex: Int,
+        managementFitsContent: Bool = true,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.fragment = fragment
         self.initialIndex = initialIndex
+        self.managementFitsContent = managementFitsContent
         self.onEdit = onEdit
         self.onDelete = onDelete
         _index = State(initialValue: max(0, min(initialIndex, max(0, fragment.orderedMediaItems.count - 1))))
@@ -1413,6 +1615,7 @@ private struct MemoryMediaViewer: View {
         .sheet(isPresented: $isShowingManagement) {
             MemoryManagementSheet(
                 isTextOnly: false,
+                fitsContent: managementFitsContent,
                 onEdit: {
                     isShowingManagement = false
                     onEdit()

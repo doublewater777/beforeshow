@@ -18,6 +18,13 @@ apps/ios/BeforeShow/prototypes
 .omo
 # Agent / process screenshot dumps (curate finals only under docs/screenshots/)
 docs
+!/docs/
+/docs/*
+!/docs/adr/
+/docs/adr/*
+!/docs/adr/0026-keep-one-companion-per-show.md
+!/docs/adr/0027-match-companion-history-by-name.md
+!/docs/footprint-detail-v4.1.md
 docs/screenshots/**/route-v3/
 docs/screenshots/**/*-verification/
 docs/screenshots/**/*verification*/
