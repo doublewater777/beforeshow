@@ -351,14 +351,21 @@ struct FootprintDetailView: View {
                     columns: [GridItem(.flexible(), spacing: BSSpacing.sm), GridItem(.flexible())],
                     spacing: BSSpacing.sm
                 ) {
-                    ForEach(fragments) { fragment in
+                    ForEach(Array(fragments.enumerated()), id: \.element.id) { index, fragment in
                         Button {
                             memoryTarget = FootprintMemoryTarget(fragment: fragment, initialIndex: 0)
                         } label: {
                             FootprintMemoryTile(fragment: fragment)
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel("打开记忆碎片")
+                        .accessibilityLabel(
+                            FootprintAccessibilityPolicy.memoryLabel(
+                                ordinal: index + 1,
+                                kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? "视频" : "照片" } ?? "文字",
+                                recordedAt: fragment.createdAt,
+                                text: fragment.text
+                            )
+                        )
                     }
                 }
             }

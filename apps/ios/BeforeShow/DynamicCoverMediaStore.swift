@@ -69,6 +69,20 @@ enum DynamicCoverMediaStoreError: Error, Equatable {
     }
 }
 
+enum DynamicCoverErrorMessagePolicy {
+    static func message(for error: DynamicCoverMediaStoreError) -> String {
+        switch error {
+        case .fileTooLarge: return "视频太大，最多支持 100 MB。"
+        case .invalidDuration: return "视频不能超过 15 秒。"
+        case .unsupportedVideo, .missingVideoTrack: return "这个文件不是可用的视频。"
+        case .insufficientDiskSpace: return "设备存储空间不足。"
+        case .staleReplacement: return "现场信息已变化，请重新选择视频。"
+        case .importCancelled: return "视频导入已取消，请重新选择。"
+        default: return "视频没有载入，请重试。"
+        }
+    }
+}
+
 /// Non-isolated disk-capacity checks used before a picker transfer is copied.
 enum DynamicCoverCapacity {
     static func availableBytes(at url: URL, fileManager: FileManager = .default) -> Int64? {

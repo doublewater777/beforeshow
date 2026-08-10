@@ -74,6 +74,41 @@ enum FootprintTextNormalizer {
     }
 }
 
+enum FootprintAccessibilityPolicy {
+    static func memoryLabel(
+        ordinal: Int,
+        kind: String,
+        recordedAt: Date,
+        text: String? = nil
+    ) -> String {
+        var parts = ["打开记忆碎片", "第 \(ordinal) 条", kind, timeText(recordedAt)]
+        if let summary = summary(from: text) {
+            parts.append("内容：\(summary)")
+        }
+        return parts.joined(separator: "，")
+    }
+
+    static func shareMaterialLabel(
+        title: String,
+        ordinal: Int,
+        recordedAt: Date,
+        isSelected: Bool
+    ) -> String {
+        "\(title)，第 \(ordinal) 项，\(timeText(recordedAt))，\(isSelected ? "已选择" : "未选择")"
+    }
+
+    private static func timeText(_ date: Date) -> String {
+        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
+    private static func summary(from text: String?) -> String? {
+        guard let text = FootprintTextNormalizer.nonEmptyTrimmed(text) else { return nil }
+        let summary = String(text.prefix(24))
+        return summary.count < text.count ? "\(summary)…" : summary
+    }
+}
+
 enum FootprintShareMaterialKind: Equatable {
     case photo
     case videoCover

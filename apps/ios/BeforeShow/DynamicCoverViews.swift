@@ -424,7 +424,7 @@ struct DynamicCoverManagementSection: View {
         } catch is CancellationError {
             return
         } catch let error as DynamicCoverMediaStoreError {
-            errorMessage = Self.message(for: error)
+            errorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
         } catch {
             errorMessage = "视频没有载入，请重试。"
         }
@@ -458,16 +458,6 @@ struct DynamicCoverManagementSection: View {
         await LocalMediaCommitGate.shared.release()
     }
 
-    private static func message(for error: DynamicCoverMediaStoreError) -> String {
-        switch error {
-        case .fileTooLarge: return "视频太大，最多支持 100 MB。"
-        case .invalidDuration: return "视频需要短于 15 秒。"
-        case .unsupportedVideo, .missingVideoTrack: return "这个文件不是可用的视频。"
-        case .insufficientDiskSpace: return "设备存储空间不足。"
-        case .staleReplacement: return "现场信息已变化，请重新选择视频。"
-        default: return "视频没有载入，请重试。"
-        }
-    }
 }
 
 @MainActor

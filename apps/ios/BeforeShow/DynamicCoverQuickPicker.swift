@@ -45,6 +45,10 @@ struct DynamicCoverQuickPicker: View {
                 do {
                     try await DynamicCoverImportCoordinator.importVideo(item, for: show, in: modelContext)
                     dismiss()
+                } catch let error as DynamicCoverMediaStoreError {
+                    errorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
+                } catch is CancellationError {
+                    return
                 } catch {
                     errorMessage = "视频没有载入，请重试。"
                 }

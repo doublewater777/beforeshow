@@ -63,6 +63,21 @@ final class DynamicCoverTests: XCTestCase {
         XCTAssertFalse(DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: false))
     }
 
+    func testDynamicCoverErrorsUseActionablePickerMessages() {
+        XCTAssertEqual(
+            DynamicCoverErrorMessagePolicy.message(for: .invalidDuration),
+            "视频不能超过 15 秒。"
+        )
+        XCTAssertEqual(
+            DynamicCoverErrorMessagePolicy.message(for: .fileTooLarge),
+            "视频太大，最多支持 100 MB。"
+        )
+        XCTAssertEqual(
+            DynamicCoverErrorMessagePolicy.message(for: .unsupportedVideo),
+            "这个文件不是可用的视频。"
+        )
+    }
+
     func testFootprintPlaybackPolicyStopsForAnyOverlayOrInactiveScene() {
         XCTAssertTrue(
             FootprintPlaybackPolicy.isActive(

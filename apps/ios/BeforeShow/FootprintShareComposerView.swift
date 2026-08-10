@@ -151,8 +151,8 @@ struct FootprintShareComposerView: View {
                 ],
                 spacing: BSSpacing.sm
             ) {
-                ForEach(materials) { material in
-                    materialButton(material)
+                ForEach(Array(materials.enumerated()), id: \.element.id) { index, material in
+                    materialButton(material, ordinal: index + 1)
                 }
             }
 
@@ -162,7 +162,7 @@ struct FootprintShareComposerView: View {
         }
     }
 
-    private func materialButton(_ material: FootprintShareMaterial) -> some View {
+    private func materialButton(_ material: FootprintShareMaterial, ordinal: Int) -> some View {
         let isSelected = selected.contains(material.id)
         return Button { toggle(material) } label: {
             ZStack(alignment: .topTrailing) {
@@ -208,7 +208,14 @@ struct FootprintShareComposerView: View {
             )
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(material.title)，\(isSelected ? "已选择" : "未选择")")
+        .accessibilityLabel(
+            FootprintAccessibilityPolicy.shareMaterialLabel(
+                title: material.title,
+                ordinal: ordinal,
+                recordedAt: material.candidate.recordedAt,
+                isSelected: isSelected
+            )
+        )
     }
 
     private var selectedContainsTicket: Bool {

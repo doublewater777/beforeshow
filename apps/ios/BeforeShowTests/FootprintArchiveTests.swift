@@ -302,6 +302,24 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertFalse(materials.contains { $0.id == sources[0].id })
     }
 
+    func testAccessibilityLabelsDistinguishMemoryAndShareItems() {
+        let memoryLabel = FootprintAccessibilityPolicy.memoryLabel(
+            ordinal: 2,
+            kind: "照片",
+            recordedAt: date(2026, 8, 1, 20).addingTimeInterval(18 * 60),
+            text: "舞台灯光亮起来了"
+        )
+        let shareLabel = FootprintAccessibilityPolicy.shareMaterialLabel(
+            title: "照片",
+            ordinal: 3,
+            recordedAt: date(2026, 8, 1, 20).addingTimeInterval(18 * 60),
+            isSelected: false
+        )
+
+        XCTAssertEqual(memoryLabel, "打开记忆碎片，第 2 条，照片，20:18，内容：舞台灯光亮起来了")
+        XCTAssertEqual(shareLabel, "照片，第 3 项，20:18，未选择")
+    }
+
     private func makeShow(
         _ name: String,
         year: Int,
