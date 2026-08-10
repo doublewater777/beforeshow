@@ -24,4 +24,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-      - run: npm test
+      - name: Run tests
+        run: npm test 2>&1 | tee test-output.txt
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cloudbase-test-output
+          path: apps/cloudbase-functions/test-output.txt
