@@ -9,7 +9,8 @@ const PUBLIC_PAGE_PLATFORMS = new Set([
   "fenwandao",
   "ticketmaster",
   "dice",
-  "axs"
+  "axs",
+  "livenation"
 ]);
 
 export { UnsupportedPlatformError };
