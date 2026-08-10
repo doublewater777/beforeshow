@@ -131,6 +131,25 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testLinkCatalogIncludesLiveNationAndRejectsLookalikes() {
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "www.livenation.cn"),
+            "Live Nation"
+        )
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "www.livenation.co.uk"),
+            "Live Nation"
+        )
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "livenation.app.link"),
+            "Live Nation"
+        )
+        XCTAssertNil(
+            ShowLinkPlatformCatalog.displayName(forHost: "livenation.com.evil.example")
+        )
+        XCTAssertTrue(ShowLinkPlatformCatalog.supportSummary.contains("Live Nation"))
+    }
+
     func testRemoteLinkParserMapsUnsupportedBackendCode() async {
         let json = """
         {
