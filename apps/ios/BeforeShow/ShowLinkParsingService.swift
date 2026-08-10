@@ -1,5 +1,47 @@
 import Foundation
 
+enum ShowLinkPlatformCatalog {
+    private static let domainEntries: [(domain: String, displayName: String)] = [
+        ("damai.cn", "大麦"),
+        ("showstart.com", "秀动"),
+        ("maoyan.com", "猫眼"),
+        ("piaoxingqiu.com", "票星球"),
+        ("livelab.com.cn", "纷玩岛"),
+        ("ticketmaster.com", "Ticketmaster"),
+        ("ticketmaster.ca", "Ticketmaster"),
+        ("ticketmaster.co.uk", "Ticketmaster"),
+        ("ticketmaster.ie", "Ticketmaster"),
+        ("ticketmaster.com.au", "Ticketmaster"),
+        ("ticketmaster.co.nz", "Ticketmaster"),
+        ("ticketmaster.com.mx", "Ticketmaster"),
+        ("ticketmaster.at", "Ticketmaster"),
+        ("ticketmaster.be", "Ticketmaster"),
+        ("ticketmaster.ch", "Ticketmaster"),
+        ("ticketmaster.cz", "Ticketmaster"),
+        ("ticketmaster.de", "Ticketmaster"),
+        ("ticketmaster.dk", "Ticketmaster"),
+        ("ticketmaster.es", "Ticketmaster"),
+        ("ticketmaster.fi", "Ticketmaster"),
+        ("ticketmaster.fr", "Ticketmaster"),
+        ("ticketmaster.it", "Ticketmaster"),
+        ("ticketmaster.nl", "Ticketmaster"),
+        ("ticketmaster.no", "Ticketmaster"),
+        ("ticketmaster.pl", "Ticketmaster"),
+        ("ticketmaster.se", "Ticketmaster"),
+        ("dice.fm", "DICE"),
+        ("axs.com", "AXS")
+    ]
+
+    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS"
+
+    static func displayName(forHost host: String) -> String? {
+        let normalizedHost = host.lowercased()
+        return domainEntries.first { entry in
+            normalizedHost == entry.domain || normalizedHost.hasSuffix(".\(entry.domain)")
+        }?.displayName
+    }
+}
+
 enum ShowLinkParsingError: Error, Equatable {
     case unsupportedSource
     case networkFailure
