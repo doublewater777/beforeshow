@@ -8,18 +8,28 @@ const TICKETMASTER_DOMAINS = [
   "ticketmaster.com.mx",
   "ticketmaster.at",
   "ticketmaster.be",
+  "ticketmaster.com.br",
   "ticketmaster.ch",
+  "ticketmaster.cl",
+  "ticketmaster.co",
+  "ticketmaster.cy",
   "ticketmaster.cz",
   "ticketmaster.de",
   "ticketmaster.dk",
   "ticketmaster.es",
   "ticketmaster.fi",
   "ticketmaster.fr",
+  "ticketmaster.gr",
   "ticketmaster.it",
   "ticketmaster.nl",
   "ticketmaster.no",
+  "ticketmaster.pe",
+  "ticketmaster.ph",
   "ticketmaster.pl",
-  "ticketmaster.se"
+  "ticketmaster.se",
+  "ticketmaster.sg",
+  "ticketmaster.co.za",
+  "ticketmaster.ae"
 ];
 
 export class UnsupportedPlatformError extends Error {
