@@ -137,7 +137,7 @@ function attribute(tag, name) {
 function containsFullDate(line) {
   return /(20\d{2})[.\/-年](\d{1,2})[.\/-月](\d{1,2})(?:日)?/.test(line)
     || /\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{1,2},\s*20\d{2}\b/i.test(line)
-    || /\b\d{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?),?\s+20\d{2}\b/i.test(line)
+    || /\b\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t|tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?),?\s+20\d{2}\b/i.test(line)
     || /\b\d{1,2}\/\d{1,2}\/20\d{2}\b/.test(line);
 }
 
@@ -163,7 +163,7 @@ function parseDateRange(line) {
     };
   }
 
-  const dayFirst = line.match(/\b(\d{1,2})\s+([A-Za-z]+),?\s+(20\d{2})\b/i);
+  const dayFirst = line.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]+),?\s+(20\d{2})\b/i);
   if (dayFirst) {
     const month = monthNumber(dayFirst[2]);
     return {
@@ -227,6 +227,28 @@ function firstClock(line) {
 }
 
 function parseVenue(lines, dateLineIndex, name) {
+  const dateLine = lines[dateLineIndex] ?? "";
+  const ticketmasterInline = dateLine.match(/\b(?:AM|PM)\s*(.+?),\s*([^,]+),\s*([A-Z]{2})(?:\b|$)/i);
+  if (ticketmasterInline && looksLikeVenue(ticketmasterInline[1])) {
+    return {
+      city: ticketmasterInline[2].trim(),
+      name: ticketmasterInline[1].trim(),
+      address: ""
+    };
+  }
+
+  const venueLabelIndex = lines.findIndex((line) => /^venue\s*:?$/i.test(line));
+  if (venueLabelIndex >= 0) {
+    const venueName = lines[venueLabelIndex + 1]?.trim() ?? "";
+    if (venueName && !containsFullDate(venueName) && !looksLikePrice(venueName)) {
+      return {
+        city: "",
+        name: venueName,
+        address: nearbyAddress(lines, venueLabelIndex + 1, venueName)
+      };
+    }
+  }
+
   const pipeCandidate = lines
     .map((line, index) => ({ line, index, match: line.match(/^([^|｜]{1,16})\s*[|｜]\s*(.+)$/) }))
     .find(({ match }) => match && inferCity(match[1]));
@@ -243,7 +265,8 @@ function parseVenue(lines, dateLineIndex, name) {
   const candidates = [
     lines[dateLineIndex - 1],
     lines[dateLineIndex + 1],
-    ...lines.slice(Math.max(0, dateLineIndex - 5), dateLineIndex + 7)
+    ...lines.slice(Math.max(0, dateLineIndex - 5), dateLineIndex + 7),
+    ...lines.slice(0, 6)
   ].filter(Boolean);
 
   for (const candidate of candidates) {
