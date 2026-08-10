@@ -191,7 +191,7 @@ export function extractShowUrl(input) {
 
 function hostnameOf(urlString) {
   try {
-    return new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowercased?.() ?? new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowerCase();
+    return new URL(ensureAbsoluteUrl(extractShowUrl(urlString))).hostname.toLowerCase();
   } catch {
     return null;
   }
