@@ -1,3 +1,5 @@
+import { isLiveNationHost, liveNationEventId } from "./liveNationDomains.js";
+
 const TICKETMASTER_DOMAINS = [
   "ticketmaster.com",
   "ticketmaster.ca",
@@ -43,7 +45,7 @@ export class UnsupportedPlatformError extends Error {
 /**
  * 基于 hostname 严格识别平台，拒绝仿冒域名与查询参数里的关键字误报。
  * 国内：大麦、秀动、猫眼、票星球、纷玩岛。
- * 海外：Ticketmaster、DICE、AXS。
+ * 海外：Ticketmaster、DICE、AXS、Live Nation。
  */
 export function detectPlatform(urlString) {
   const host = hostnameOf(urlString);
@@ -59,6 +61,7 @@ export function detectPlatform(urlString) {
   if (TICKETMASTER_DOMAINS.some((domain) => matchesDomain(host, domain))) return "ticketmaster";
   if (matchesDomain(host, "dice.fm")) return "dice";
   if (matchesDomain(host, "axs.com")) return "axs";
+  if (isLiveNationHost(host)) return "livenation";
 
   throw new UnsupportedPlatformError(urlString);
 }
@@ -178,6 +181,15 @@ export function normalizeUrl(urlString) {
 
   if (platform === "axs") {
     const eventId = url.pathname.match(/\/events\/(\d+)/i)?.[1];
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "livenation") {
+    const eventId = liveNationEventId(url.pathname);
     return {
       platform,
       ...(eventId ? { eventId } : {}),
