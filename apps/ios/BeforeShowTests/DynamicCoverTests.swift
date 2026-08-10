@@ -58,6 +58,54 @@ final class DynamicCoverTests: XCTestCase {
         )
     }
 
+    func testDynamicCoverAccessibilityOnlyExposesFaceActionsWhenFlipIsAvailable() {
+        XCTAssertTrue(DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: true))
+        XCTAssertFalse(DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: false))
+    }
+
+    func testFootprintPlaybackPolicyStopsForAnyOverlayOrInactiveScene() {
+        XCTAssertTrue(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: true,
+                hasMemoryOverlay: false,
+                hasAssetOverlay: false,
+                hasShareOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: false,
+                hasMemoryOverlay: false,
+                hasAssetOverlay: false,
+                hasShareOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: true,
+                hasMemoryOverlay: true,
+                hasAssetOverlay: false,
+                hasShareOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: true,
+                hasMemoryOverlay: false,
+                hasAssetOverlay: true,
+                hasShareOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            FootprintPlaybackPolicy.isActive(
+                sceneIsActive: true,
+                hasMemoryOverlay: false,
+                hasAssetOverlay: false,
+                hasShareOverlay: true
+            )
+        )
+    }
+
     func testCurrentShowPlaybackPolicyRequiresForegroundWithoutOverlay() {
         XCTAssertTrue(
             CurrentShowPlaybackPolicy.isActive(

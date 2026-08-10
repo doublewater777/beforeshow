@@ -33,6 +33,10 @@ enum DynamicCoverAccessibilityPolicy {
     ) -> Bool {
         !hasDynamicCover && hasChooseVideoAction
     }
+
+    static func shouldExposeFaceActions(canFlip: Bool) -> Bool {
+        canFlip
+    }
 }
 
 private struct DynamicCoverAddVideoAccessibilityModifier: ViewModifier {
@@ -43,6 +47,23 @@ private struct DynamicCoverAddVideoAccessibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isAvailable {
             content.accessibilityAction(named: "添加动态封面视频", action)
+        } else {
+            content
+        }
+    }
+}
+
+private struct DynamicCoverFaceAccessibilityModifier: ViewModifier {
+    let isAvailable: Bool
+    let showStaticFace: () -> Void
+    let showDynamicFace: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isAvailable {
+            content
+                .accessibilityAction(named: "显示静态封面") { showStaticFace() }
+                .accessibilityAction(named: "显示动态封面") { showDynamicFace() }
         } else {
             content
         }
@@ -129,6 +150,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                         .background(.black.opacity(0.48), in: Capsule())
                 }
                 .buttonStyle(.plain)
+                .frame(minHeight: BSLayout.minTouchTarget)
                 .accessibilityLabel("添加动态封面视频")
             }
         }
@@ -171,16 +193,19 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("现场封面，当前为\(faceDescription)")
         .accessibilityHint(canFlip ? "长按翻转动态封面" : "暂无动态封面")
-        .accessibilityAction(named: "显示静态封面") {
-            guard canFlip else { return }
-            withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = false }
-            DynamicCoverFaceStore.setDynamicFace(false, for: showID)
-        }
-        .accessibilityAction(named: "显示动态封面") {
-            guard canFlip else { return }
-            withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = true }
-            DynamicCoverFaceStore.setDynamicFace(true, for: showID)
-        }
+        .modifier(
+            DynamicCoverFaceAccessibilityModifier(
+                isAvailable: DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: canFlip),
+                showStaticFace: {
+                    withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = false }
+                    DynamicCoverFaceStore.setDynamicFace(false, for: showID)
+                },
+                showDynamicFace: {
+                    withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = true }
+                    DynamicCoverFaceStore.setDynamicFace(true, for: showID)
+                }
+            )
+        )
         .modifier(
             DynamicCoverAddVideoAccessibilityModifier(
                 isAvailable: DynamicCoverAccessibilityPolicy.shouldExposeAddVideoAction(
@@ -537,8 +562,13 @@ enum DynamicCoverImportCoordinator {
 
 struct FootprintDynamicCoverSection: View {
     let show: Show
+    let isPlaybackActive: Bool
     @Environment(\.scenePhase) private var scenePhase
     @State private var isPlaying = false
+
+    private var effectiveIsPlaying: Bool {
+        isPlaying && isPlaybackActive && scenePhase == .active
+    }
 
     var body: some View {
         if let cover = show.dynamicCover {
@@ -548,7 +578,7 @@ struct FootprintDynamicCoverSection: View {
                         .font(BSFont.headline)
                         .foregroundColor(BSColor.Stage.foreground)
                     Spacer()
-                    Text(isPlaying ? "播放中" : "已暂停")
+                    Text(effectiveIsPlaying ? "播放中" : "已暂停")
                         .font(BSFont.V3.caption)
                         .foregroundColor(BSColor.Stage.dim)
                 }
@@ -560,14 +590,14 @@ struct FootprintDynamicCoverSection: View {
                         DynamicCoverVideoPreviewView(
                             showID: show.id,
                             cover: cover,
-                            isPlaying: isPlaying && scenePhase == .active
+                            isPlaying: effectiveIsPlaying
                         )
                         LinearGradient(
                             colors: [.clear, .black.opacity(0.42)],
                             startPoint: .center,
                             endPoint: .bottom
                         )
-                        Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle.fill")
+                        Image(systemName: effectiveIsPlaying ? "pause.circle.fill" : "play.circle.fill")
                             .font(BSFont.heroTitle.weight(.semibold))
                             .foregroundColor(.white.opacity(0.92))
                             .shadow(color: .black.opacity(0.35), radius: 8)
@@ -577,7 +607,7 @@ struct FootprintDynamicCoverSection: View {
                     .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isPlaying ? "暂停动态封面" : "播放动态封面")
+                .accessibilityLabel(effectiveIsPlaying ? "暂停动态封面" : "播放动态封面")
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active { isPlaying = false }

@@ -55,12 +55,24 @@ private struct FootprintMemoryTarget: Identifiable {
     var id: UUID { fragment.id }
 }
 
+enum FootprintPlaybackPolicy {
+    static func isActive(
+        sceneIsActive: Bool,
+        hasMemoryOverlay: Bool,
+        hasAssetOverlay: Bool,
+        hasShareOverlay: Bool
+    ) -> Bool {
+        sceneIsActive && !hasMemoryOverlay && !hasAssetOverlay && !hasShareOverlay
+    }
+}
+
 struct FootprintDetailView: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
     @State private var memoryTarget: FootprintMemoryTarget?
@@ -93,6 +105,15 @@ struct FootprintDetailView: View {
 
     private var identity: FootprintDetailIdentity {
         FootprintDetailIdentityBuilder.make(show: show, archive: archive)
+    }
+
+    private var isDynamicCoverPlaybackActive: Bool {
+        FootprintPlaybackPolicy.isActive(
+            sceneIsActive: scenePhase == .active,
+            hasMemoryOverlay: memoryTarget != nil,
+            hasAssetOverlay: showingAssetKind != nil,
+            hasShareOverlay: isShowingShareComposer
+        )
     }
 
     private var shareMaterials: [FootprintShareMaterial] {
@@ -136,7 +157,10 @@ struct FootprintDetailView: View {
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                         hero
-                        FootprintDynamicCoverSection(show: show)
+                        FootprintDynamicCoverSection(
+                            show: show,
+                            isPlaybackActive: isDynamicCoverPlaybackActive
+                        )
                         memorySection
                         keepsakesSection
                         if show.companionStatus == .confirmed {
