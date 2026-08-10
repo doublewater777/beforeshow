@@ -63,13 +63,13 @@ describe("Live Nation platform detection", () => {
     );
 
     const us = normalizeUrl(
-      "https://www.livenation.com/event/G5eYZblQoH8xr/lil-wayne-tha-carter-vi-tour?utm_source=share"
+      "https://www.livenation.com/event/G5vYZ_kMttMwl/lil-wayne-20-years-of-carter-classics-with-the-game?utm_source=share"
     );
     assert.equal(us.platform, "livenation");
-    assert.equal(us.eventId, "G5eYZblQoH8xr");
+    assert.equal(us.eventId, "G5vYZ_kMttMwl");
     assert.equal(
       us.canonicalUrl,
-      "https://www.livenation.com/event/G5eYZblQoH8xr/lil-wayne-tha-carter-vi-tour"
+      "https://www.livenation.com/event/G5vYZ_kMttMwl/lil-wayne-20-years-of-carter-classics-with-the-game"
     );
   });
 
@@ -88,28 +88,56 @@ describe("Live Nation platform detection", () => {
 });
 
 describe("Live Nation visible-page fallback", () => {
-  it("parses the current US event-page shape including hour-only PM time", () => {
+  it("parses the current US page where the year is in the title and venue/city are separate lines", () => {
     const html = `
       <html>
-        <head><title>Lil Wayne: Tha Carter VI Tour - Live Nation</title></head>
+        <head>
+          <title>LIL WAYNE: 20 YEARS OF CARTER CLASSICS WITH THE GAME at Save Mart Center on Fri, Aug 28, 2026, 8:30 PM - Live Nation</title>
+        </head>
         <body>
-          <h1>Lil Wayne: Tha Carter VI Tour</h1>
-          <div>Fri Sep 12, 2026 ▪︎ 8PM</div>
-          <div>Crypto.com Arena</div>
-          <div>Los Angeles, CA</div>
+          <div>Fri, Aug 28 ▪︎ 8:30 PM</div>
+          <h1>LIL WAYNE: 20 YEARS OF CARTER CLASSICS WITH THE GAME</h1>
+          <div>Save Mart Center</div>
+          <div>Fresno, CA</div>
+          <h2>Lineup</h2>
+          <div>Lil Wayne</div>
+          <div>The Game</div>
+        </body>
+      </html>`;
+
+    const draft = parseLiveNationVisiblePage(html);
+    assert.equal(draft.name, "LIL WAYNE: 20 YEARS OF CARTER CLASSICS WITH THE GAME");
+    assert.equal(draft.date, "2026-08-28");
+    assert.equal(draft.startTime, "20:30");
+    assert.equal(draft.venueName, "Save Mart Center");
+    assert.equal(draft.city, "Fresno");
+    assert.equal(draft.artist, "Lil Wayne");
+    assert.equal(draft.source, "livenation");
+  });
+
+  it("parses the current US hour-only PM page shape", () => {
+    const html = `
+      <html>
+        <head>
+          <title>LIL WAYNE: 20 YEARS OF CARTER CLASSICS at Brandon Amphitheater on Sat, Aug 15, 2026, 8:00 PM - Live Nation</title>
+        </head>
+        <body>
+          <div>Sat, Aug 15 ▪︎ 8 PM</div>
+          <h1>LIL WAYNE: 20 YEARS OF CARTER CLASSICS</h1>
+          <div>Brandon Amphitheater</div>
+          <div>Brandon, MS</div>
           <h2>Lineup</h2>
           <div>Lil Wayne</div>
         </body>
       </html>`;
 
     const draft = parseLiveNationVisiblePage(html);
-    assert.equal(draft.name, "Lil Wayne: Tha Carter VI Tour");
-    assert.equal(draft.date, "2026-09-12");
+    assert.equal(draft.name, "LIL WAYNE: 20 YEARS OF CARTER CLASSICS");
+    assert.equal(draft.date, "2026-08-15");
     assert.equal(draft.startTime, "20:00");
-    assert.equal(draft.venueName, "Crypto.com Arena");
-    assert.equal(draft.city, "Los Angeles");
+    assert.equal(draft.venueName, "Brandon Amphitheater");
+    assert.equal(draft.city, "Brandon");
     assert.equal(draft.artist, "Lil Wayne");
-    assert.equal(draft.source, "livenation");
   });
 
   it("parses the current China day-month-year and venue-city shape", () => {
