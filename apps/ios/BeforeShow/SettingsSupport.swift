@@ -123,6 +123,7 @@ enum LocalDataClearancePolicy {
             "记忆碎片文字与元数据",
             "BeforeShow 沙盒中的票根和时刻表图片",
             "BeforeShow 沙盒中保存的记忆照片和视频副本",
+            "动态封面的人脸偏好",
             "BeforeShow 沙盒中的临时缓存"
         ],
         preservesSystemData: [

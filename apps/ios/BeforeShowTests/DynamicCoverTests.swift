@@ -18,6 +18,77 @@ final class DynamicCoverTests: XCTestCase {
         defaults.removePersistentDomain(forName: #file)
     }
 
+    func testDynamicFaceStoreClearsAllShowPreferences() {
+        let suiteName = #file + ".clear-all"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        let first = UUID()
+        let second = UUID()
+
+        DynamicCoverFaceStore.setDynamicFace(true, for: first, defaults: defaults)
+        DynamicCoverFaceStore.setDynamicFace(false, for: second, defaults: defaults)
+        defaults.set(true, forKey: "unrelated-setting")
+
+        DynamicCoverFaceStore.clearAll(defaults: defaults)
+
+        XCTAssertNil(defaults.object(forKey: "dynamic-cover-face-v1-\(first.uuidString)"))
+        XCTAssertNil(defaults.object(forKey: "dynamic-cover-face-v1-\(second.uuidString)"))
+        XCTAssertTrue(defaults.bool(forKey: "unrelated-setting"))
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func testDynamicCoverAccessibilityOnlyExposesAddActionWhenAvailable() {
+        XCTAssertTrue(
+            DynamicCoverAccessibilityPolicy.shouldExposeAddVideoAction(
+                hasDynamicCover: false,
+                hasChooseVideoAction: true
+            )
+        )
+        XCTAssertFalse(
+            DynamicCoverAccessibilityPolicy.shouldExposeAddVideoAction(
+                hasDynamicCover: true,
+                hasChooseVideoAction: true
+            )
+        )
+        XCTAssertFalse(
+            DynamicCoverAccessibilityPolicy.shouldExposeAddVideoAction(
+                hasDynamicCover: false,
+                hasChooseVideoAction: false
+            )
+        )
+    }
+
+    func testCurrentShowPlaybackPolicyRequiresForegroundWithoutOverlay() {
+        XCTAssertTrue(
+            CurrentShowPlaybackPolicy.isActive(
+                baseIsActive: true,
+                sceneIsActive: true,
+                hasOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            CurrentShowPlaybackPolicy.isActive(
+                baseIsActive: false,
+                sceneIsActive: true,
+                hasOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            CurrentShowPlaybackPolicy.isActive(
+                baseIsActive: true,
+                sceneIsActive: false,
+                hasOverlay: false
+            )
+        )
+        XCTAssertFalse(
+            CurrentShowPlaybackPolicy.isActive(
+                baseIsActive: true,
+                sceneIsActive: true,
+                hasOverlay: true
+            )
+        )
+    }
+
     func testDynamicCoverPathStaysBoundToShowDirectory() {
         let showID = UUID()
         XCTAssertTrue(DynamicCover.isValidRelativePath("\(showID.uuidString)/video.mov", showID: showID))

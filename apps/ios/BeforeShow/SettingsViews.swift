@@ -652,6 +652,7 @@ private struct PrivacyLocalDataView: View {
                     context.rollback()
                     throw error
                 }
+                DynamicCoverFaceStore.clearAll()
                 ShowAssetCleanupRetry.markFullCleanupPending()
                 ShowAssetCleanupRetry.clearFullCleanupPrepared()
 

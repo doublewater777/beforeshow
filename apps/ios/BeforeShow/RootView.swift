@@ -109,6 +109,16 @@ struct RootView: View {
     }
 }
 
+enum CurrentShowPlaybackPolicy {
+    static func isActive(
+        baseIsActive: Bool,
+        sceneIsActive: Bool,
+        hasOverlay: Bool
+    ) -> Bool {
+        baseIsActive && sceneIsActive && !hasOverlay
+    }
+}
+
 // MARK: - Onboarding Placeholder
 
 private struct OnboardingPlaceholderView: View {
@@ -202,7 +212,8 @@ private struct CurrentShowHomeView: View {
                             && !isDetailVisible
                             && !isShowingSettings
                             && !isShowingShowLibrary
-                            && !isShowingDynamicCoverPicker,
+                            && !isShowingDynamicCoverPicker
+                            && !isShowingAddShowCoordinator,
                         candidateShows: shows,
                         onDetailVisibilityChange: { isVisible in
                             isDetailVisible = isVisible
@@ -381,6 +392,7 @@ struct CurrentShowManagementSection: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var memoryFragments: [MemoryFragment]
     @Query private var showAssets: [ShowAsset]
     @State private var isShowingEndConfirmation = false
@@ -395,6 +407,19 @@ struct CurrentShowManagementSection: View {
 
     private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
     private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
+
+    private var isHeroPlaybackActive: Bool {
+        CurrentShowPlaybackPolicy.isActive(
+            baseIsActive: isPlaybackActive,
+            sceneIsActive: scenePhase == .active,
+            hasOverlay: isShowingEndConfirmation
+                || isShowingMapChooser
+                || isShowingCompanion
+                || isShowingMemoryFragments
+                || showingAssetKind != nil
+                || companionErrorMessage != nil
+        )
+    }
 
     var body: some View {
         GeometryReader { geometry in
@@ -500,7 +525,7 @@ struct CurrentShowManagementSection: View {
                         show: show,
                         snapshot: snapshot,
                         coverWidth: coverWidth,
-                        isPlaybackActive: isPlaybackActive,
+                        isPlaybackActive: isHeroPlaybackActive,
                         reduceMotion: reduceMotion,
                         onChooseVideo: onChooseDynamicCover
                     )

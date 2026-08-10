@@ -105,6 +105,7 @@ private func retryPendingShowAssetCleanupIfNeeded(in context: ModelContext) asyn
         }
     }
     if ShowAssetCleanupRetry.isFullCleanupPending {
+        DynamicCoverFaceStore.clearAll()
         await retryPendingFullCleanup(
             deleteShowAssets: {
                 try await ShowAssetMediaStore.shared.deleteAll()

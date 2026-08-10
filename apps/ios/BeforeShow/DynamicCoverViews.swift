@@ -18,6 +18,35 @@ enum DynamicCoverFaceStore {
     static func clear(showID: UUID, defaults: UserDefaults = .standard) {
         defaults.removeObject(forKey: keyPrefix + showID.uuidString)
     }
+
+    static func clearAll(defaults: UserDefaults = .standard) {
+        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
+            defaults.removeObject(forKey: key)
+        }
+    }
+}
+
+enum DynamicCoverAccessibilityPolicy {
+    static func shouldExposeAddVideoAction(
+        hasDynamicCover: Bool,
+        hasChooseVideoAction: Bool
+    ) -> Bool {
+        !hasDynamicCover && hasChooseVideoAction
+    }
+}
+
+private struct DynamicCoverAddVideoAccessibilityModifier: ViewModifier {
+    let isAvailable: Bool
+    let action: () -> Void
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isAvailable {
+            content.accessibilityAction(named: "添加动态封面视频", action)
+        } else {
+            content
+        }
+    }
 }
 
 // MARK: - Cover faces
@@ -152,7 +181,15 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
             withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = true }
             DynamicCoverFaceStore.setDynamicFace(true, for: showID)
         }
-        .accessibilityAction(named: "添加动态封面视频", chooseVideoFromAccessibility)
+        .modifier(
+            DynamicCoverAddVideoAccessibilityModifier(
+                isAvailable: DynamicCoverAccessibilityPolicy.shouldExposeAddVideoAction(
+                    hasDynamicCover: dynamicCover != nil,
+                    hasChooseVideoAction: onChooseVideo != nil
+                ),
+                action: chooseVideoFromAccessibility
+            )
+        )
     }
 
     @ViewBuilder
