@@ -3,14 +3,14 @@ import { fetchDamaiDetail, parseDamaiDetail } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
 import { fetchMaoyanPerformance, parseMaoyanPerformance } from "./maoyanParser.js";
 import { fetchAndParseTicketPage } from "./ticketPageParser.js";
+import { fetchAndParseLiveNationPage } from "./liveNationParser.js";
 
 const PUBLIC_PAGE_PLATFORMS = new Set([
   "piaoxingqiu",
   "fenwandao",
   "ticketmaster",
   "dice",
-  "axs",
-  "livenation"
+  "axs"
 ]);
 
 export { UnsupportedPlatformError };
@@ -43,6 +43,13 @@ export async function parseShowLink(url, options = {}) {
       fetch: options.fetch
     });
     return parseMaoyanPerformance(detail);
+  }
+
+  if (normalized.platform === "livenation") {
+    return fetchAndParseLiveNationPage({
+      url: normalized.canonicalUrl,
+      fetch: options.fetch
+    });
   }
 
   if (PUBLIC_PAGE_PLATFORMS.has(normalized.platform)) {
