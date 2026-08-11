@@ -265,7 +265,7 @@ struct ShowDetailView: View {
                     for: show,
                     calendar: show.timingCalendar()
                 ),
-                calendar: show.timingCalendar(),
+                calendar: show.endTimingCalendar(),
                 hasConfirmedEnd: show.endedAt != nil,
                 endTime: $confirmedEndDraft,
                 onSave: saveConfirmedEnd,
@@ -746,7 +746,11 @@ struct ShowDetailView: View {
         if let endedAt = show.endedAt {
             confirmedEndButton(
                 title: "修改散场时间",
-                value: formattedDate(endedAt, format: "M月d日 HH:mm"),
+                value: formattedDate(
+                    endedAt,
+                    format: "M月d日 HH:mm",
+                    calendar: show.endTimingCalendar()
+                ),
                 icon: "clock.arrow.circlepath"
             ) {
                 confirmedEndDraft = endedAt
@@ -808,10 +812,10 @@ struct ShowDetailView: View {
 
     private var endTimeDescription: String? {
         if let endedAt = show.endedAt {
-            return "已于 \(formattedDate(endedAt, format: "M月d日 HH:mm")) 结束"
+            return "已于 \(formattedDate(endedAt, format: "M月d日 HH:mm", calendar: show.endTimingCalendar())) 结束"
         }
         if let endTime = timeState.effectiveEndTime {
-            return "预计 \(formattedDate(endTime, format: "HH:mm")) 结束"
+            return "预计 \(formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar())) 结束"
         }
         return nil
     }
@@ -885,11 +889,11 @@ struct ShowDetailView: View {
         }
     }
 
-    private func formattedDate(_ date: Date, format: String) -> String {
+    private func formattedDate(_ date: Date, format: String, calendar: Calendar? = nil) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_Hans_CN")
         formatter.dateFormat = format
-        formatter.timeZone = show.timingCalendar().timeZone
+        formatter.timeZone = (calendar ?? show.timingCalendar()).timeZone
         return formatter.string(from: date)
     }
 
