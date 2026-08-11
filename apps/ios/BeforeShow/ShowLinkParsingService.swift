@@ -1,5 +1,90 @@
 import Foundation
 
+enum ShowLinkPlatformCatalog {
+    private static let domainEntries: [(domain: String, displayName: String)] = [
+        ("damai.cn", "大麦"),
+        ("showstart.com", "秀动"),
+        ("maoyan.com", "猫眼"),
+        ("piaoxingqiu.com", "票星球"),
+        ("livelab.com.cn", "纷玩岛"),
+        ("ticketmaster.com", "Ticketmaster"),
+        ("ticketmaster.ca", "Ticketmaster"),
+        ("ticketmaster.co.uk", "Ticketmaster"),
+        ("ticketmaster.ie", "Ticketmaster"),
+        ("ticketmaster.com.au", "Ticketmaster"),
+        ("ticketmaster.co.nz", "Ticketmaster"),
+        ("ticketmaster.com.mx", "Ticketmaster"),
+        ("ticketmaster.at", "Ticketmaster"),
+        ("ticketmaster.be", "Ticketmaster"),
+        ("ticketmaster.com.br", "Ticketmaster"),
+        ("ticketmaster.ch", "Ticketmaster"),
+        ("ticketmaster.cl", "Ticketmaster"),
+        ("ticketmaster.co", "Ticketmaster"),
+        ("ticketmaster.cy", "Ticketmaster"),
+        ("ticketmaster.cz", "Ticketmaster"),
+        ("ticketmaster.de", "Ticketmaster"),
+        ("ticketmaster.dk", "Ticketmaster"),
+        ("ticketmaster.es", "Ticketmaster"),
+        ("ticketmaster.fi", "Ticketmaster"),
+        ("ticketmaster.fr", "Ticketmaster"),
+        ("ticketmaster.gr", "Ticketmaster"),
+        ("ticketmaster.it", "Ticketmaster"),
+        ("ticketmaster.nl", "Ticketmaster"),
+        ("ticketmaster.no", "Ticketmaster"),
+        ("ticketmaster.pe", "Ticketmaster"),
+        ("ticketmaster.ph", "Ticketmaster"),
+        ("ticketmaster.pl", "Ticketmaster"),
+        ("ticketmaster.se", "Ticketmaster"),
+        ("ticketmaster.sg", "Ticketmaster"),
+        ("ticketmaster.co.za", "Ticketmaster"),
+        ("ticketmaster.ae", "Ticketmaster"),
+        ("dice.fm", "DICE"),
+        ("axs.com", "AXS"),
+        ("livenation.com", "Live Nation"),
+        ("livenation.asia", "Live Nation"),
+        ("livenation.com.au", "Live Nation"),
+        ("livenation.be", "Live Nation"),
+        ("livenation.ca", "Live Nation"),
+        ("livenation.cn", "Live Nation"),
+        ("livenation.cz", "Live Nation"),
+        ("livenation.dk", "Live Nation"),
+        ("livenation.ee", "Live Nation"),
+        ("livenation.fi", "Live Nation"),
+        ("livenation.fr", "Live Nation"),
+        ("livenation.de", "Live Nation"),
+        ("livenation.hk", "Live Nation"),
+        ("livenation.hu", "Live Nation"),
+        ("livenation.co.il", "Live Nation"),
+        ("livenation.it", "Live Nation"),
+        ("livenation.co.jp", "Live Nation"),
+        ("livenation.lt", "Live Nation"),
+        ("livenation.nl", "Live Nation"),
+        ("livenation.co.nz", "Live Nation"),
+        ("livenation.no", "Live Nation"),
+        ("livenation.pl", "Live Nation"),
+        ("livenation.qa", "Live Nation"),
+        ("livenation.sg", "Live Nation"),
+        ("livenation.co.za", "Live Nation"),
+        ("livenation.kr", "Live Nation"),
+        ("livenation.es", "Live Nation"),
+        ("livenation.se", "Live Nation"),
+        ("livenation.com.tw", "Live Nation"),
+        ("livenation.co.th", "Live Nation"),
+        ("livenation.ae", "Live Nation"),
+        ("livenation.co.uk", "Live Nation"),
+        ("livenation.app.link", "Live Nation")
+    ]
+
+    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
+
+    static func displayName(forHost host: String) -> String? {
+        let normalizedHost = host.lowercased()
+        return domainEntries.first { entry in
+            normalizedHost == entry.domain || normalizedHost.hasSuffix(".\(entry.domain)")
+        }?.displayName
+    }
+}
+
 enum ShowLinkParsingError: Error, Equatable {
     case unsupportedSource
     case networkFailure
@@ -47,6 +132,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         let decoded = try JSONDecoder().decode(ParseResponse.self, from: data)
 
         guard decoded.ok, let draft = decoded.draft else {
+            if decoded.error?.code == "UNSUPPORTED_PLATFORM" {
+                throw ShowLinkParsingError.unsupportedSource
+            }
             let message = decoded.error?.message ?? "Unknown error"
             throw ShowLinkParsingError.parseFailed(message)
         }

@@ -82,6 +82,134 @@ enum HomeCountdownPresentationPolicy {
     }
 }
 
+enum HomeShowIdentityPresentation {
+    static func statusPillText(
+        for timeState: CurrentShowTimeState,
+        city: String?,
+        now: Date
+    ) -> String {
+        switch timeState.kind {
+        case .before:
+            return timeState.isDatedPostponement ? "新日期" : "下一场"
+        case .today:
+            guard let start = timeState.effectiveStartTime, now >= start else {
+                return citySiteText("今天开场", city: city)
+            }
+            return "LIVE · 开场中"
+        case .dayEnded:
+            return citySiteText("已落幕", city: city)
+        case .postShow:
+            return citySiteText("已落幕", city: city)
+        case .ended:
+            return citySiteText("已落幕", city: city)
+        case .canceled:
+            return "已取消"
+        case .postponed:
+            return "延期 · 时间待定"
+        }
+    }
+
+    static func statusText(
+        for timeState: CurrentShowTimeState,
+        now: Date
+    ) -> String {
+        switch timeState.kind {
+        case .before: return "开场前"
+        case .today:
+            guard let start = timeState.effectiveStartTime, now >= start else {
+                return "今天开场"
+            }
+            return "正在现场"
+        case .dayEnded: return "今日已落幕"
+        case .postShow: return "散场后"
+        case .ended: return "已结束"
+        case .canceled: return "已取消"
+        case .postponed: return "时间待定"
+        }
+    }
+
+    private static func citySiteText(_ prefix: String, city: String?) -> String {
+        let city = city?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let city, !city.isEmpty else { return prefix }
+        return "\(prefix) · \(city)站"
+    }
+
+    static func venueSummary(venue: String?, city: String?) -> String? {
+        let venue = trimmed(venue)
+        let city = trimmed(city)
+        let cityText = {
+            guard let city else { return nil as String? }
+            guard let venue else { return city }
+            guard !venue.localizedCaseInsensitiveContains(city) else { return nil }
+            return city
+        }()
+
+        let summary = [venue, cityText].compactMap { $0 }.joined(separator: " · ")
+        return summary.isEmpty ? nil : summary
+    }
+
+    static func dateText(
+        for show: Show,
+        timeState: CurrentShowTimeState,
+        calendar: Calendar = .current
+    ) -> String? {
+        guard timeState.hasKnownEffectiveDate else { return nil }
+
+        let dayFormatter = DateFormatter()
+        dayFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        dayFormatter.calendar = calendar
+        dayFormatter.timeZone = calendar.timeZone
+        dayFormatter.dateFormat = "yyyy.MM.dd E"
+
+        let timeFormatter = DateFormatter()
+        timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        timeFormatter.calendar = calendar
+        timeFormatter.timeZone = calendar.timeZone
+        timeFormatter.dateFormat = "HH:mm"
+
+        if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
+           let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
+            var daily = timeFormatter.string(from: show.startTime)
+            if let endTime = show.endTime {
+                daily += "-\(timeFormatter.string(from: endTime))"
+            }
+            let year = calendar.component(.year, from: show.effectiveDate)
+            return "\(year).\(monthDayText(show.effectiveDate, calendar: calendar))-\(monthDayText(endDay, calendar: calendar)) · 每日 \(daily)"
+        }
+
+        let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
+        guard let start = timeState.effectiveStartTime,
+              let end = timeState.effectiveEndTime,
+              end > start else {
+            return base
+        }
+
+        let minutes = Int(end.timeIntervalSince(start)) / 60
+        let hours = minutes / 60
+        let rest = minutes % 60
+        let duration: String
+        if hours > 0 && rest > 0 {
+            duration = "\(hours) 小时 \(rest) 分"
+        } else if hours > 0 {
+            duration = "\(hours) 小时"
+        } else {
+            duration = "\(max(1, rest)) 分钟"
+        }
+        return "\(base) · 预计演出 \(duration)"
+    }
+
+    private static func trimmed(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func monthDayText(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.month, .day], from: date)
+        return String(format: "%02d.%02d", components.month ?? 0, components.day ?? 0)
+    }
+}
+
 /// V4 首页倒计时卡片:封面之后的深色卡片。
 /// pre 远场超大天数、当天秒级时钟、临近 1 小时金色时钟;
 /// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
@@ -104,36 +232,52 @@ struct HomeCountdownLockup: View {
     @ViewBuilder
     private func lockup(phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(label(for: phase, timeState: timeState, now: now))
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
-                if let badge = badge(for: phase, timeState: timeState) {
-                    Text("· \(badge)")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .tracking(1.6)
-                        .foregroundColor(badgeColor(for: phase, timeState: timeState))
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.bottom, 6)
+            statusRow(phase: phase, timeState: timeState, now: now)
+                .padding(.bottom, 8)
 
-            switch phase {
-            case .pre:
-                preCountdown(timeState: timeState, now: now)
-            case .live:
-                liveStatus(timeState: timeState, now: now)
-            case .ended:
-                if timeState.kind == .dayEnded {
-                    endedStatus(timeState: timeState)
-                } else if show.endedAt == nil {
-                    askingEndStatus
-                } else {
-                    endedStatus(timeState: timeState)
-                }
-            case .inactive:
-                inactiveStatus(timeState: timeState)
+            Text(show.name)
+                .font(.system(size: 22, weight: .semibold))
+                .tracking(-0.45)
+                .foregroundColor(BSColor.Stage.foreground)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+
+            let dateText = HomeShowIdentityPresentation.dateText(for: show, timeState: timeState)
+
+            let venueSummary = HomeShowIdentityPresentation.venueSummary(
+                venue: show.venueName,
+                city: show.city
+            )
+
+            if dateText != nil || venueSummary != nil {
+                Text([dateText, venueSummary].compactMap { $0 }.joined(separator: " · "))
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(BSColor.Stage.muted)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 5)
             }
+
+            VStack(alignment: .leading, spacing: 0) {
+                switch phase {
+                case .pre:
+                    preCountdown(timeState: timeState, now: now)
+                case .live:
+                    liveStatus(timeState: timeState, now: now)
+                case .ended:
+                    if timeState.kind == .dayEnded {
+                        endedStatus(timeState: timeState)
+                    } else if show.endedAt == nil {
+                        askingEndStatus
+                    } else {
+                        endedStatus(timeState: timeState)
+                    }
+                case .inactive:
+                    inactiveStatus(timeState: timeState)
+                }
+            }
+            .padding(.top, 10)
 
             if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
                 primaryActionButton(action)
@@ -141,8 +285,8 @@ struct HomeCountdownLockup: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 12)
+        .padding(.top, 9)
+        .padding(.bottom, 9)
         .background(
             RoundedRectangle(cornerRadius: 20)
                 .fill(BSColor.Stage.surface)
@@ -162,6 +306,101 @@ struct HomeCountdownLockup: View {
                 .stroke(BSColor.Stage.border, lineWidth: 1)
         )
         .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
+    }
+
+    private func statusRow(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        now: Date
+    ) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            HStack(spacing: 7) {
+                Circle()
+                    .fill(statusColor(for: phase, timeState: timeState))
+                    .frame(width: 6, height: 6)
+
+                Text(HomeShowIdentityPresentation.statusPillText(
+                    for: timeState,
+                    city: show.city,
+                    now: now
+                ))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .tracking(0.65)
+                    .foregroundColor(statusColor(for: phase, timeState: timeState))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.03))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(statusBorderColor(for: phase, timeState: timeState), lineWidth: 1)
+            )
+
+            Spacer(minLength: 0)
+
+            Text(modeLabel(for: phase, timeState: timeState))
+                .font(.system(size: 9.5, weight: .semibold))
+                .tracking(1.45)
+                .foregroundColor(modeLabelColor(for: phase))
+                .lineLimit(1)
+        }
+    }
+
+    private func statusColor(
+        for phase: HomeShowPhase,
+        timeState: CurrentShowTimeState
+    ) -> Color {
+        switch phase {
+        case .pre: return timeState.isDatedPostponement ? BSColor.Accent.warm : BSColor.Stage.accent
+        case .live: return BSColor.Stage.liveTitle
+        case .ended: return Color.white.opacity(0.70)
+        case .inactive:
+            return timeState.kind == .canceled ? Color.white.opacity(0.70) : BSColor.Accent.warm
+        }
+    }
+
+    private func statusBorderColor(
+        for phase: HomeShowPhase,
+        timeState: CurrentShowTimeState
+    ) -> Color {
+        switch phase {
+        case .pre:
+            return (timeState.isDatedPostponement ? BSColor.Accent.warm : BSColor.Stage.accent).opacity(0.24)
+        case .live: return BSColor.Stage.live.opacity(0.32)
+        case .ended: return Color.white.opacity(0.11)
+        case .inactive:
+            return timeState.kind == .canceled
+                ? Color.white.opacity(0.11)
+                : BSColor.Accent.warm.opacity(0.30)
+        }
+    }
+
+    private func modeLabel(
+        for phase: HomeShowPhase,
+        timeState: CurrentShowTimeState
+    ) -> String {
+        switch phase {
+        case .pre:
+            return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
+        case .live:
+            return "ON STAGE"
+        case .ended:
+            return "ENDED"
+        case .inactive:
+            return "TBD"
+        }
+    }
+
+    private func modeLabelColor(for phase: HomeShowPhase) -> Color {
+        switch phase {
+        case .pre: return BSColor.Stage.accent.opacity(0.58)
+        case .live: return BSColor.Stage.liveTitle.opacity(0.72)
+        case .ended, .inactive: return BSColor.Stage.dim
+        }
     }
 
     // MARK: pre:渐进精度倒计时
@@ -236,7 +475,7 @@ struct HomeCountdownLockup: View {
                         .foregroundColor(BSColor.Stage.dim)
                 }
             }
-            .padding(.vertical, 8)
+            .padding(.vertical, 4)
 
         }
     }
@@ -301,7 +540,7 @@ struct HomeCountdownLockup: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint(accessibilityHint(for: action))
-        .padding(.top, 12)
+        .padding(.top, 8)
     }
 
     private func primaryActionTitle(_ action: PrimaryAction) -> String {
@@ -396,50 +635,6 @@ struct HomeCountdownLockup: View {
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
-        }
-    }
-
-    // MARK: 文案与样式
-
-    private func label(for phase: HomeShowPhase, timeState: CurrentShowTimeState, now: Date) -> String {
-        switch phase {
-        case .pre:
-            if timeState.isDatedPostponement { return "离开场还有" }
-            if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now), total < 3_600 {
-                return "马上开场"
-            }
-            return "离开场还有"
-        case .live: return "开场了"
-        case .ended:
-            switch timeState.kind {
-            case .dayEnded: return "今天"
-            case .postShow, .ended:
-                return "今晚"
-            default: return "今晚"
-            }
-        case .inactive: return timeState.kind == .canceled ? "这场取消了" : "延期"
-        }
-    }
-
-    private func badge(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> String? {
-        switch phase {
-        case .pre:
-            if timeState.isDatedPostponement { return "新日期" }
-            return timeState.kind == .today ? "今晚" : nil
-        case .live: return "LIVE"
-        case .ended: return nil
-        case .inactive: return nil
-        }
-    }
-
-    private func badgeColor(for phase: HomeShowPhase, timeState: CurrentShowTimeState) -> Color {
-        if phase == .ended && show.endedAt == nil {
-            return BSColor.Stage.liveTitle
-        }
-        switch phase {
-        case .pre: return BSColor.Stage.accent
-        case .live: return BSColor.Stage.liveTitle
-        case .ended, .inactive: return BSColor.Stage.dim
         }
     }
 

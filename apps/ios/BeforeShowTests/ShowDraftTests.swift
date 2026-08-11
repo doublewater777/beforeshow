@@ -433,6 +433,58 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNotEqual(network, unsupported)
     }
 
+    func testShowLinkPlatformCatalogRecognizesSupportedHostsAndRejectsLookalikes() {
+        let supported: [(String, String)] = [
+            ("m.damai.cn", "大麦"),
+            ("wap.showstart.com", "秀动"),
+            ("show.maoyan.com", "猫眼"),
+            ("m.piaoxingqiu.com", "票星球"),
+            ("mobile.livelab.com.cn", "纷玩岛"),
+            ("www.ticketmaster.com", "Ticketmaster"),
+            ("www.ticketmaster.co.uk", "Ticketmaster"),
+            ("dice.fm", "DICE"),
+            ("www.axs.com", "AXS"),
+            ("www.livenation.cn", "Live Nation"),
+            ("www.livenation.co.uk", "Live Nation"),
+            ("livenation.app.link", "Live Nation")
+        ]
+
+        for (host, expected) in supported {
+            XCTAssertEqual(ShowLinkPlatformCatalog.displayName(forHost: host), expected, host)
+        }
+
+        let lookalikes = [
+            "damai.cn.evil.example",
+            "showstart.com.evil.example",
+            "maoyan.com.evil.example",
+            "piaoxingqiu.com.evil.example",
+            "livelab.com.cn.evil.example",
+            "ticketmaster.com.evil.example",
+            "dice.fm.evil.example",
+            "axs.com.evil.example",
+            "livenation.com.evil.example"
+        ]
+        for host in lookalikes {
+            XCTAssertNil(ShowLinkPlatformCatalog.displayName(forHost: host), host)
+        }
+    }
+
+    func testLinkUICopyListsAllSupportedPlatforms() {
+        let unsupported = AddShowLinkFailurePresentation.resolve(
+            ShowLinkParsingError.unsupportedSource
+        )
+        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "Ticketmaster", "DICE", "AXS", "Live Nation"]
+
+        for name in names {
+            XCTAssertTrue(unsupported.message.contains(name), name)
+        }
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.supportSummary,
+            "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
+        )
+        XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
+    }
+
     func testLocalLinkParserOnlySupportsDamaiAndShowstart() throws {
         let parser = ShowLinkDraftParser(calendar: calendar)
 

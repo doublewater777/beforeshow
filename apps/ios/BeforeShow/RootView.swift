@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftData
 import SwiftUI
 import UIKit
@@ -179,6 +180,10 @@ private struct CurrentShowHomeView: View {
     @State private var isShowingSettings = false
     @State private var isShowingShowLibrary = false
     @State private var isShowingDynamicCoverPicker = false
+    @State private var selectedDynamicCoverItem: PhotosPickerItem?
+    @State private var dynamicCoverImportTask: Task<Void, Never>?
+    @State private var isImportingDynamicCover = false
+    @State private var dynamicCoverErrorMessage: String?
     @State private var isDetailVisible = false
 
     private let session = CurrentShowSession()
@@ -212,7 +217,7 @@ private struct CurrentShowHomeView: View {
                             && !isDetailVisible
                             && !isShowingSettings
                             && !isShowingShowLibrary
-                            && !isShowingDynamicCoverPicker
+                            && !isImportingDynamicCover
                             && !isShowingAddShowCoordinator,
                         candidateShows: shows,
                         onDetailVisibilityChange: { isVisible in
@@ -222,7 +227,7 @@ private struct CurrentShowHomeView: View {
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
-                        onChooseDynamicCover: { isShowingDynamicCoverPicker = true },
+                        onChooseDynamicCover: presentDynamicCoverPicker,
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         }
@@ -238,10 +243,29 @@ private struct CurrentShowHomeView: View {
             .frame(maxWidth: UIScreen.main.bounds.width)
             .bsToastOverlay(toast, bottomPadding: 90)
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $isShowingDynamicCoverPicker) {
-                if let show = currentShow {
-                    DynamicCoverQuickPicker(show: show)
+            .photosPicker(
+                isPresented: $isShowingDynamicCoverPicker,
+                selection: $selectedDynamicCoverItem,
+                matching: .videos
+            )
+            .onChange(of: selectedDynamicCoverItem) { _, item in
+                guard let item, !isImportingDynamicCover, let show = currentShow else { return }
+                dynamicCoverImportTask?.cancel()
+                isImportingDynamicCover = true
+                dynamicCoverImportTask = Task { @MainActor in
+                    await importDynamicCover(item, for: show)
                 }
+            }
+            .alert(
+                "动态封面没有更新",
+                isPresented: Binding(
+                    get: { dynamicCoverErrorMessage != nil },
+                    set: { if !$0 { dynamicCoverErrorMessage = nil } }
+                )
+            ) {
+                Button("知道了", role: .cancel) { dynamicCoverErrorMessage = nil }
+            } message: {
+                Text(dynamicCoverErrorMessage ?? "请重试")
             }
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
@@ -274,6 +298,29 @@ private struct CurrentShowHomeView: View {
                 }
             }
             #endif
+        }
+    }
+
+    private func presentDynamicCoverPicker() {
+        guard !isImportingDynamicCover else { return }
+        isShowingDynamicCoverPicker = true
+    }
+
+    @MainActor
+    private func importDynamicCover(_ item: PhotosPickerItem, for show: Show) async {
+        defer {
+            selectedDynamicCoverItem = nil
+            isImportingDynamicCover = false
+            dynamicCoverImportTask = nil
+        }
+        do {
+            try await DynamicCoverImportCoordinator.importVideo(item, for: show, in: modelContext)
+        } catch is CancellationError {
+            return
+        } catch let error as DynamicCoverMediaStoreError {
+            dynamicCoverErrorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
+        } catch {
+            dynamicCoverErrorMessage = "视频没有载入，请重试。"
         }
     }
 

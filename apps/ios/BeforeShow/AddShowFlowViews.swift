@@ -14,7 +14,7 @@ struct AddShowLinkFailurePresentation: Equatable {
             case .unsupportedSource:
                 return Self(
                     title: "这个链接暂不支持",
-                    message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+                    message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
                 )
             case .missingDate:
                 return Self(
@@ -35,7 +35,7 @@ struct AddShowLinkFailurePresentation: Equatable {
         case .unsupportedSource:
             return Self(
                 title: "这个链接暂不支持",
-                message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+                message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
             )
         case .networkFailure:
             return Self(
@@ -82,7 +82,7 @@ enum AddShowMethodCopy {
         case .screenshot:
             return "选择票务截图，仅在本机识别，图片不会上传。"
         case .link:
-            return "粘贴大麦或秀动的链接，需要联网解析。"
+            return "粘贴支持平台的票务链接，需要联网解析。"
         }
     }
 }
@@ -319,6 +319,7 @@ private struct AddShowEntryView: View {
 
 struct AddShowFlowView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -509,9 +510,7 @@ struct AddShowFlowView: View {
         let candidate = ShowLinkDraftParser.normalizedLink(linkText)
         guard !candidate.isEmpty,
               let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
-        if host == "damai.cn" || host.hasSuffix(".damai.cn") { return "大麦" }
-        if host == "showstart.com" || host.hasSuffix(".showstart.com") { return "秀动" }
-        return nil
+        return ShowLinkPlatformCatalog.displayName(forHost: host)
     }
 
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
@@ -606,10 +605,32 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
 
-                    Text("目前支持：大麦、秀动")
+                    Text("目前支持：\(ShowLinkPlatformCatalog.supportSummary)")
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        dismissKeyboard()
+                        guard let url = URL(string: "https://beforeshow.doublewaterapps.com/link-guide/") else { return }
+                        openURL(url)
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("如何获取链接？")
+                                .font(.system(size: 13, weight: .semibold))
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(BSColor.Accent.violet)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("查看如何获取票务链接")
                 }
 
                 if let linkFailure, !isParsingLink {
@@ -1774,7 +1795,7 @@ private struct ShowDraftFormFields: View {
     @State private var selectedCoverItem: PhotosPickerItem?
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
-    @State private var showsCoverLinkField = false
+    @State private var showsLinkField = false
 
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
     private var nameRecognized: Bool {
@@ -1979,12 +2000,12 @@ private struct ShowDraftFormFields: View {
 
                 AddShowCoverActions(
                     selectedItem: $selectedCoverItem,
-                    showsLinkField: $showsCoverLinkField,
+                    showsLinkField: $showsLinkField,
                     isImporting: isImportingCover,
                     message: coverImportMessage
                 )
 
-                if showsCoverLinkField {
+                if showsLinkField {
                     AddShowLabeledTextField(
                         title: "图片链接",
                         placeholder: "https://...",

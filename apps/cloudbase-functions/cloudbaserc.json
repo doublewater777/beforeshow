@@ -11,7 +11,10 @@
       "timeout": 60,
       "runtime": "Nodejs18.15",
       "memorySize": 256,
-      "installDependency": false
+      "installDependency": false,
+      "envVariables": {
+        "TICKETMASTER_API_KEY": "{{env.TICKETMASTER_API_KEY}}"
+      }
     }
   ]
 }
