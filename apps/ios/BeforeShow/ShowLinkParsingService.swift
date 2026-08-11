@@ -144,20 +144,19 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
 
     private func mapDraft(_ draft: LinkParsedDraft) throws -> ShowDraft {
         let parsedStart = parseISODateTime(draft.startDateTime)
-        guard let date = parsedStart?.date ?? parseDate(draft.date, using: calendar) else {
+        let eventCalendar = calendar(
+            identifier: draft.timeZoneIdentifier,
+            offsetSeconds: parsedStart?.offsetSeconds
+        )
+        guard let date = parsedStart?.date ?? parseDate(draft.date, using: eventCalendar) else {
             throw ShowLinkParsingError.invalidResponse
         }
 
         let parsedEnd = parseISODateTime(draft.endDateTime)
-        let eventCalendar = parsedStart.flatMap { parsedStart in
-            guard let offsetSeconds = parsedStart.offsetSeconds,
-                  let timeZone = TimeZone(secondsFromGMT: offsetSeconds) else {
-                return nil
-            }
-            var calendar = self.calendar
-            calendar.timeZone = timeZone
-            return calendar
-        } ?? calendar
+        let endCalendar = calendar(
+            identifier: draft.endTimeZoneIdentifier ?? draft.timeZoneIdentifier,
+            offsetSeconds: parsedEnd?.offsetSeconds ?? parsedStart?.offsetSeconds
+        )
 
         var showDraft = ShowDraft(
             name: draft.name,
@@ -174,7 +173,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if let parsedStart {
             showDraft.startTime = parsedStart.date
         } else if let startTime = draft.startTime, !startTime.isEmpty {
-            guard let parsedStartTime = parseTime(startTime, on: date, using: calendar) else {
+            guard let parsedStartTime = parseTime(startTime, on: date, using: eventCalendar) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.startTime = parsedStartTime
@@ -184,7 +183,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if let parsedEnd {
             showDraft.endDate = parsedEnd.date
         } else if let endDate = draft.endDate, !endDate.isEmpty {
-            guard let parsedEndDate = parseDate(endDate, using: eventCalendar) else {
+            guard let parsedEndDate = parseDate(endDate, using: endCalendar) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endDate = parsedEndDate
@@ -195,7 +194,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             guard let parsedEndTime = parseTime(
                 endTime,
                 on: showDraft.endDate ?? date,
-                using: eventCalendar
+                using: endCalendar
             ) else {
                 throw ShowLinkParsingError.invalidResponse
             }
@@ -226,6 +225,22 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         showDraft.recognizedFields = recognizedFields
 
         return showDraft
+    }
+
+    private func calendar(identifier: String?, offsetSeconds: Int?) -> Calendar {
+        if let identifier,
+           let timeZone = TimeZone(identifier: identifier) {
+            var calendar = self.calendar
+            calendar.timeZone = timeZone
+            return calendar
+        }
+        if let offsetSeconds,
+           let timeZone = TimeZone(secondsFromGMT: offsetSeconds) {
+            var calendar = self.calendar
+            calendar.timeZone = timeZone
+            return calendar
+        }
+        return calendar
     }
 
     private func parseDate(_ string: String, using calendar: Calendar) -> Date? {

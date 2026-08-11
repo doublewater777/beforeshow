@@ -672,6 +672,53 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(try draft.makeShow().endTime, expectedEndTime)
     }
 
+    func testRemoteLocalDateTimesUseProviderIANAZoneWhenISOInstantsAreMissing() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "洛杉矶本地时间现场",
+                "city": "Los Angeles",
+                "date": "2026-09-16",
+                "startTime": "19:00",
+                "startDateTime": null,
+                "endDate": "2026-09-16",
+                "endTime": "22:00",
+                "endDateTime": null,
+                "timeZoneIdentifier": "America/Los_Angeles",
+                "venueName": "Crypto.com Arena",
+                "venueAddr": "Los Angeles",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "ticketmaster"
+            }
+        }
+        """
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: shanghaiCalendar
+        )
+
+        let draft = try await service.parse(link: "https://www.ticketmaster.com/event/example")
+
+        XCTAssertEqual(draft.date, ISO8601DateFormatter().date(from: "2026-09-16T07:00:00Z")!)
+        XCTAssertEqual(draft.startTime, ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!)
+        XCTAssertEqual(draft.endTime, ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!)
+        XCTAssertEqual(draft.timeZoneIdentifier, "America/Los_Angeles")
+        XCTAssertEqual(try draft.makeShow().startTime, draft.startTime)
+    }
+
     func testDraftTimeEditsUseVenueCalendarAndNormalizePostponedDays() throws {
         let draft = ShowDraft(
             name: "洛杉矶现场",
