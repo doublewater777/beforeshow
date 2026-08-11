@@ -167,12 +167,17 @@ enum HomeShowIdentityPresentation {
         timeFormatter.calendar = calendar
         timeFormatter.timeZone = calendar.timeZone
         timeFormatter.dateFormat = "HH:mm"
+        let endTimeFormatter = DateFormatter()
+        endTimeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        endTimeFormatter.calendar = show.endTimingCalendar(fallback: calendar)
+        endTimeFormatter.timeZone = show.endTimingCalendar(fallback: calendar).timeZone
+        endTimeFormatter.dateFormat = "HH:mm"
 
         if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
            let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar) {
             var daily = timeFormatter.string(from: show.startTime)
             if let endTime = show.endTime {
-                daily += "-\(timeFormatter.string(from: endTime))"
+                daily += "-\(endTimeFormatter.string(from: endTime))"
             }
             let startYear = calendar.component(.year, from: show.effectiveDate)
             let endYear = calendar.component(.year, from: endDay)

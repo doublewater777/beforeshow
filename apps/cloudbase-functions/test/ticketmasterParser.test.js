@@ -92,6 +92,13 @@ describe("Ticketmaster Discovery API parser", () => {
     assert.equal(draft.endDateTime, "2026-09-19T22:30:00-07:00");
   });
 
+  it("preserves the IANA timezone when the API provides it", () => {
+    const event = structuredClone(EVENT);
+    event.dates.timezone = "America/Los_Angeles";
+
+    assert.equal(parseTicketmasterEvent(event).timeZoneIdentifier, "America/Los_Angeles");
+  });
+
   it("uses injected fetch and validates the response", async () => {
     let requestedUrl = "";
     let requestedOptions;

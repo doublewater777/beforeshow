@@ -34,6 +34,8 @@ struct ShowDraft: Equatable {
     var endTime: Date?
     var timeZoneSecondsFromGMT: Int?
     var endTimeZoneSecondsFromGMT: Int?
+    var timeZoneIdentifier: String?
+    var endTimeZoneIdentifier: String?
     var city: String
     var venueName: String
     var venueAddress: String
@@ -52,6 +54,8 @@ struct ShowDraft: Equatable {
         endTime: Date? = nil,
         timeZoneSecondsFromGMT: Int? = nil,
         endTimeZoneSecondsFromGMT: Int? = nil,
+        timeZoneIdentifier: String? = nil,
+        endTimeZoneIdentifier: String? = nil,
         city: String = "",
         venueName: String = "",
         venueAddress: String = "",
@@ -68,6 +72,8 @@ struct ShowDraft: Equatable {
         self.endTime = endTime
         self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
         self.endTimeZoneSecondsFromGMT = endTimeZoneSecondsFromGMT
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.endTimeZoneIdentifier = endTimeZoneIdentifier
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -87,6 +93,8 @@ struct ShowDraft: Equatable {
             endTime: show.endTime,
             timeZoneSecondsFromGMT: show.timeZoneSecondsFromGMT,
             endTimeZoneSecondsFromGMT: show.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: show.timeZoneIdentifier,
+            endTimeZoneIdentifier: show.endTimeZoneIdentifier,
             city: show.city ?? "",
             venueName: show.venueName ?? "",
             venueAddress: show.venueAddress ?? "",
@@ -107,6 +115,8 @@ struct ShowDraft: Equatable {
             endTime: prepared.endTime,
             timeZoneSecondsFromGMT: prepared.timeZoneSecondsFromGMT,
             endTimeZoneSecondsFromGMT: prepared.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: prepared.timeZoneIdentifier,
+            endTimeZoneIdentifier: prepared.endTimeZoneIdentifier,
             city: prepared.city,
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
@@ -130,6 +140,12 @@ struct ShowDraft: Equatable {
     }
 
     func timingCalendar(fallback: Calendar = .current) -> Calendar {
+        if let timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            var calendar = fallback
+            calendar.timeZone = timeZone
+            return calendar
+        }
         guard let timeZoneSecondsFromGMT,
               let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
             return fallback
@@ -141,6 +157,7 @@ struct ShowDraft: Equatable {
 
     func endTimingCalendar(fallback: Calendar = .current) -> Calendar {
         Show.timingCalendar(
+            timeZoneIdentifier: endTimeZoneIdentifier ?? timeZoneIdentifier,
             timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
             fallback: fallback
         )

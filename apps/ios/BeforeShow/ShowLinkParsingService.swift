@@ -144,11 +144,20 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
 
     private func mapDraft(_ draft: LinkParsedDraft) throws -> ShowDraft {
         let parsedStart = parseISODateTime(draft.startDateTime)
-        guard let date = parsedStart?.date ?? parseDate(draft.date) else {
+        guard let date = parsedStart?.date ?? parseDate(draft.date, using: calendar) else {
             throw ShowLinkParsingError.invalidResponse
         }
 
         let parsedEnd = parseISODateTime(draft.endDateTime)
+        let eventCalendar = parsedStart.flatMap { parsedStart in
+            guard let offsetSeconds = parsedStart.offsetSeconds,
+                  let timeZone = TimeZone(secondsFromGMT: offsetSeconds) else {
+                return nil
+            }
+            var calendar = self.calendar
+            calendar.timeZone = timeZone
+            return calendar
+        } ?? calendar
 
         var showDraft = ShowDraft(
             name: draft.name,
@@ -165,7 +174,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if let parsedStart {
             showDraft.startTime = parsedStart.date
         } else if let startTime = draft.startTime, !startTime.isEmpty {
-            guard let parsedStartTime = parseTime(startTime, on: date) else {
+            guard let parsedStartTime = parseTime(startTime, on: date, using: calendar) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.startTime = parsedStartTime
@@ -175,7 +184,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if let parsedEnd {
             showDraft.endDate = parsedEnd.date
         } else if let endDate = draft.endDate, !endDate.isEmpty {
-            guard let parsedEndDate = parseDate(endDate) else {
+            guard let parsedEndDate = parseDate(endDate, using: eventCalendar) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endDate = parsedEndDate
@@ -183,13 +192,19 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if let parsedEnd {
             showDraft.endTime = parsedEnd.date
         } else if let endTime = draft.endTime, !endTime.isEmpty {
-            guard let parsedEndTime = parseTime(endTime, on: showDraft.endDate ?? date) else {
+            guard let parsedEndTime = parseTime(
+                endTime,
+                on: showDraft.endDate ?? date,
+                using: eventCalendar
+            ) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endTime = parsedEndTime
         }
         showDraft.timeZoneSecondsFromGMT = parsedStart?.offsetSeconds
         showDraft.endTimeZoneSecondsFromGMT = parsedEnd?.offsetSeconds
+        showDraft.timeZoneIdentifier = draft.timeZoneIdentifier
+        showDraft.endTimeZoneIdentifier = draft.endTimeZoneIdentifier
 
         // 字段级 provenance：日期无效时已在上方抛 invalidResponse，始终可计入。
         var recognizedFields: Set<ShowDraftField> = [.date]
@@ -213,7 +228,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         return showDraft
     }
 
-    private func parseDate(_ string: String) -> Date? {
+    private func parseDate(_ string: String, using calendar: Calendar) -> Date? {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
         guard let date = DateComponents(
@@ -230,7 +245,11 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         return date
     }
 
-    private func parseTime(_ string: String, on date: Date) -> Date? {
+    private func parseTime(
+        _ string: String,
+        on date: Date,
+        using calendar: Calendar
+    ) -> Date? {
         let parts = string.split(separator: ":").compactMap { Int($0) }
         guard parts.count == 2,
               (0...23).contains(parts[0]),
@@ -293,6 +312,8 @@ struct LinkParsedDraft: Decodable {
     let endDate: String?
     let endTime: String?
     let endDateTime: String?
+    let timeZoneIdentifier: String?
+    let endTimeZoneIdentifier: String?
     let venueName: String
     let venueAddr: String
     let artist: String

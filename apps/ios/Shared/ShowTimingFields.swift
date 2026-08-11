@@ -19,6 +19,9 @@ struct ShowTimingFields: Equatable, Codable {
     var timeZoneSecondsFromGMT: Int? = nil
     /// The end instant may carry a different fixed offset across a DST boundary.
     var endTimeZoneSecondsFromGMT: Int? = nil
+    /// IANA timezone identifiers preserve DST rules when the source provides them.
+    var timeZoneIdentifier: String? = nil
+    var endTimeZoneIdentifier: String? = nil
     var endedAt: Date? = nil
     var postponedDate: Date?
     var changeStatus: ShowChangeStatus
@@ -28,6 +31,12 @@ struct ShowTimingFields: Equatable, Codable {
     }
 
     func eventCalendar(fallback: Calendar) -> Calendar {
+        if let timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            var calendar = fallback
+            calendar.timeZone = timeZone
+            return calendar
+        }
         guard let timeZoneSecondsFromGMT,
               let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
             return fallback
@@ -38,6 +47,12 @@ struct ShowTimingFields: Equatable, Codable {
     }
 
     func endEventCalendar(fallback: Calendar) -> Calendar {
+        if let timeZoneIdentifier = endTimeZoneIdentifier ?? timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            var calendar = fallback
+            calendar.timeZone = timeZone
+            return calendar
+        }
         guard let offset = endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
               let timeZone = TimeZone(secondsFromGMT: offset) else {
             return fallback

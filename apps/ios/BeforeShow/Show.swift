@@ -41,14 +41,14 @@ struct ShowDisplayFormatter {
         // 多日每日循环：共用 startTime / endTime 钟点，展示「日期区间 · 每日 HH:mm[-HH:mm]」。
         if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
            let endDay {
-            let range = dayRangeText(from: startDay, to: endDay)
+            let range = dayRangeText(from: startDay, to: endDay, calendar: calendar)
             if let endTime = show.endTime {
                 return "\(range) · 每日 \(timeText(startClock, calendar: calendar))-\(timeText(endTime, calendar: endCalendar))"
             }
             return "\(range) · 每日 \(timeText(startClock, calendar: calendar))"
         }
 
-        var text = dateText(startDay)
+        var text = dateText(startDay, calendar: calendar)
         text += " \(timeText(startClock, calendar: calendar))"
 
         if let endClock {
@@ -61,13 +61,13 @@ struct ShowDisplayFormatter {
             text += " - \(formattedEnd)"
         } else if let endDay,
                   calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay) {
-            text += " - \(shortDateText(endDay))"
+            text += " - \(shortDateText(endDay, calendar: endCalendar))"
         }
 
         return text
     }
 
-    private func dayRangeText(from start: Date, to end: Date) -> String {
+    private func dayRangeText(from start: Date, to end: Date, calendar: Calendar) -> String {
         let startComponents = calendar.dateComponents([.year, .month, .day], from: start)
         let endComponents = calendar.dateComponents([.year, .month, .day], from: end)
         let year = startComponents.year ?? calendar.component(.year, from: start)
@@ -82,7 +82,7 @@ struct ShowDisplayFormatter {
         return "\(year)年\(startMonth)月\(startDay)日-\(endMonth)月\(endDay)日"
     }
 
-    private func dateText(_ date: Date) -> String {
+    private func dateText(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
         return "\(components.year ?? 0)年\(components.month ?? 1)月\(components.day ?? 1)日"
     }
@@ -120,6 +120,8 @@ final class Show {
     var endTime: Date?
     var timeZoneSecondsFromGMT: Int?
     var endTimeZoneSecondsFromGMT: Int?
+    var timeZoneIdentifier: String?
+    var endTimeZoneIdentifier: String?
     var city: String?
     var venueName: String?
     var venueAddress: String?
@@ -194,6 +196,7 @@ final class Show {
 
     func timingCalendar(fallback: Calendar = .current) -> Calendar {
         Self.timingCalendar(
+            timeZoneIdentifier: timeZoneIdentifier,
             timeZoneSecondsFromGMT: timeZoneSecondsFromGMT,
             fallback: fallback
         )
@@ -201,6 +204,7 @@ final class Show {
 
     func endTimingCalendar(fallback: Calendar = .current) -> Calendar {
         Self.timingCalendar(
+            timeZoneIdentifier: endTimeZoneIdentifier ?? timeZoneIdentifier,
             timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
             fallback: fallback
         )
@@ -215,6 +219,8 @@ final class Show {
         endTime: Date? = nil,
         timeZoneSecondsFromGMT: Int? = nil,
         endTimeZoneSecondsFromGMT: Int? = nil,
+        timeZoneIdentifier: String? = nil,
+        endTimeZoneIdentifier: String? = nil,
         city: String? = nil,
         venueName: String? = nil,
         venueAddress: String? = nil,
@@ -244,8 +250,12 @@ final class Show {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
-            calendar: Self.timingCalendar(timeZoneSecondsFromGMT: timeZoneSecondsFromGMT),
+            calendar: Self.timingCalendar(
+                timeZoneIdentifier: timeZoneIdentifier,
+                timeZoneSecondsFromGMT: timeZoneSecondsFromGMT
+            ),
             endCalendar: Self.timingCalendar(
+                timeZoneIdentifier: endTimeZoneIdentifier ?? timeZoneIdentifier,
                 timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT
             )
         ) else {
@@ -260,6 +270,8 @@ final class Show {
         self.endTime = endTime
         self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
         self.endTimeZoneSecondsFromGMT = endTimeZoneSecondsFromGMT
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.endTimeZoneIdentifier = endTimeZoneIdentifier
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -369,6 +381,8 @@ final class Show {
         endTime = prepared.endTime
         timeZoneSecondsFromGMT = prepared.timeZoneSecondsFromGMT
         endTimeZoneSecondsFromGMT = prepared.endTimeZoneSecondsFromGMT
+        timeZoneIdentifier = prepared.timeZoneIdentifier
+        endTimeZoneIdentifier = prepared.endTimeZoneIdentifier
         city = prepared.city
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
@@ -418,6 +432,8 @@ final class Show {
             endTime: draft.endTime,
             timeZoneSecondsFromGMT: draft.timeZoneSecondsFromGMT,
             endTimeZoneSecondsFromGMT: draft.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: draft.timeZoneIdentifier,
+            endTimeZoneIdentifier: draft.endTimeZoneIdentifier,
             city: trimmedOptional(draft.city),
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
@@ -438,9 +454,16 @@ final class Show {
     }
 
     static func timingCalendar(
+        timeZoneIdentifier: String? = nil,
         timeZoneSecondsFromGMT: Int?,
         fallback: Calendar = .current
     ) -> Calendar {
+        if let timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            var calendar = fallback
+            calendar.timeZone = timeZone
+            return calendar
+        }
         guard let timeZoneSecondsFromGMT,
               let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
             return fallback
@@ -508,6 +531,8 @@ struct PreparedShowDraft: Equatable {
     let endTime: Date?
     let timeZoneSecondsFromGMT: Int?
     let endTimeZoneSecondsFromGMT: Int?
+    let timeZoneIdentifier: String?
+    let endTimeZoneIdentifier: String?
     let city: String?
     let venueName: String?
     let venueAddress: String?

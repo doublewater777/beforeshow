@@ -1435,14 +1435,17 @@ struct ShowDraftEditorView: View {
     }
 
     private var summaryDateText: String {
+        let calendar = draft.timingCalendar()
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "zh_Hans_CN")
         dateFormatter.dateFormat = "M月d日"
+        dateFormatter.timeZone = calendar.timeZone
         var text = (isPostponed ? "原定 " : "") + dateFormatter.string(from: draft.date)
         if let startTime = draft.startTime {
             let timeFormatter = DateFormatter()
             timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
             timeFormatter.dateFormat = "HH:mm"
+            timeFormatter.timeZone = calendar.timeZone
             text += " " + timeFormatter.string(from: startTime)
         }
         let venue = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)

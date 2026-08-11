@@ -327,9 +327,12 @@ struct CurrentShowTimeState: Equatable {
     static func dailyEndTime(on day: Date, timing: ShowTimingFields, calendar: Calendar) -> Date {
         let dayStart = dailyStartTime(on: day, timing: timing, calendar: calendar)
         if let endTime = timing.endTime {
-            var merged = merge(time: endTime, into: day, calendar: calendar) ?? endTime
+            let endCalendar = timing.endEventCalendar(fallback: calendar)
+            let dayComponents = calendar.dateComponents([.year, .month, .day], from: day)
+            let endDay = endCalendar.date(from: dayComponents) ?? day
+            var merged = merge(time: endTime, into: endDay, calendar: endCalendar) ?? endTime
             if merged <= dayStart {
-                merged = calendar.date(byAdding: .day, value: 1, to: merged) ?? merged
+                merged = endCalendar.date(byAdding: .day, value: 1, to: merged) ?? merged
             }
             return merged
         }

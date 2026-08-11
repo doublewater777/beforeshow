@@ -11,6 +11,8 @@ extension Show {
             endTime: endTime,
             timeZoneSecondsFromGMT: timeZoneSecondsFromGMT,
             endTimeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: timeZoneIdentifier,
+            endTimeZoneIdentifier: endTimeZoneIdentifier,
             endedAt: endedAt,
             postponedDate: postponedDate,
             changeStatus: changeStatus

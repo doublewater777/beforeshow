@@ -171,6 +171,7 @@ function draftFromCandidate(object, source) {
   const address = firstObject(location?.address, object.address);
   const start = parseDateTime(firstTemporalValue(object, START_KEYS));
   const end = parseDateTime(firstTemporalValue(object, END_KEYS));
+  const timeZoneIdentifier = firstString(object, ["timeZone", "timezone"]);
   const inlineRangeEnd = parseSecondDateTime(firstTemporalValue(object, START_KEYS));
 
   if (!start.time) {
@@ -205,6 +206,7 @@ function draftFromCandidate(object, source) {
     date: start.date ?? "",
     startTime: start.time ?? "",
     ...(start.dateTime ? { startDateTime: start.dateTime } : {}),
+    ...(timeZoneIdentifier ? { timeZoneIdentifier } : {}),
     ...(finalEnd.date ? { endDate: finalEnd.date } : {}),
     ...(finalEnd.time ? { endTime: finalEnd.time } : {}),
     ...(finalEnd.dateTime ? { endDateTime: finalEnd.dateTime } : {}),

@@ -163,6 +163,7 @@ export function parseTicketmasterEvent(event) {
   const end = event.dates?.end ?? {};
   const startDateTime = normalizeISODateTime(start.dateTime);
   const endDateTime = normalizeISODateTime(end.dateTime);
+  const timeZoneIdentifier = stringValue(event.dates?.timezone);
   const venue = event._embedded?.venues?.[0] ?? event.venues?.[0] ?? {};
   const attractions = event._embedded?.attractions ?? event.attractions ?? [];
   const artists = uniqueStrings(
@@ -179,6 +180,7 @@ export function parseTicketmasterEvent(event) {
     date: normalizeDate(start.localDate),
     startTime: normalizeTime(start.localTime),
     ...(startDateTime ? { startDateTime } : {}),
+    ...(timeZoneIdentifier ? { timeZoneIdentifier } : {}),
     ...(normalizeDate(end.localDate) ? { endDate: normalizeDate(end.localDate) } : {}),
     ...(normalizeTime(end.localTime) ? { endTime: normalizeTime(end.localTime) } : {}),
     ...(endDateTime ? { endDateTime } : {}),
