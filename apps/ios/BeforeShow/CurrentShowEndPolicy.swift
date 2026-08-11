@@ -9,7 +9,8 @@ enum CurrentShowEndPolicy {
         now: Date = Date(),
         calendar: Calendar = .current
     ) -> Bool {
-        date >= CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: calendar)
+        let eventCalendar = show.timingCalendar(fallback: calendar)
+        return date >= CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: eventCalendar)
             && date <= now
     }
 
@@ -19,17 +20,18 @@ enum CurrentShowEndPolicy {
         now: Date,
         calendar: Calendar = .current
     ) -> Bool {
+        let eventCalendar = show.timingCalendar(fallback: calendar)
         let phase = HomeShowPhase(timeState: timeState, now: now)
         guard show.endedAt == nil else { return false }
         guard phase == .live || timeState.kind == .postShow || timeState.kind == .ended else {
             return false
         }
-        guard CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar) else {
+        guard CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: eventCalendar) else {
             return true
         }
         guard phase == .live else { return true }
         guard let finalDay = timeState.effectiveEndDate else { return false }
         guard let activeStart = timeState.effectiveStartTime else { return false }
-        return calendar.isDate(activeStart, inSameDayAs: finalDay)
+        return eventCalendar.isDate(activeStart, inSameDayAs: finalDay)
     }
 }

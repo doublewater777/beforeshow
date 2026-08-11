@@ -250,6 +250,35 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(attributes.showID, "id-1")
     }
 
+    func testLiveActivityContentStateCarriesEventCalendars() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = WidgetShowSnapshot(
+            showID: UUID(),
+            name: "异地现场",
+            city: "洛杉矶",
+            venueName: "场馆",
+            coverImageURL: nil,
+            timing: ShowTimingFields(
+                date: now.addingTimeInterval(2 * 3_600),
+                startTime: now.addingTimeInterval(2 * 3_600),
+                endDate: nil,
+                endTime: nil,
+                timeZoneSecondsFromGMT: -7 * 3_600,
+                endTimeZoneSecondsFromGMT: -8 * 3_600,
+                postponedDate: nil,
+                changeStatus: .scheduled
+            ),
+            generatedAt: now
+        )
+
+        let state = try! XCTUnwrap(
+            LiveActivityPlanner.desiredState(snapshot: snapshot, now: now, coverFilename: nil)?.state
+        )
+
+        XCTAssertEqual(state.startCalendar.timeZone.secondsFromGMT(for: state.startDate), -7 * 3_600)
+        XCTAssertEqual(state.endCalendar.timeZone.secondsFromGMT(for: state.startDate), -8 * 3_600)
+    }
+
     func testNilCityAndVenueSnapshotRoundTrip() throws {
         let snapshot = WidgetShowSnapshot(
             showID: UUID(),

@@ -336,7 +336,11 @@ private struct CurrentShowHomeView: View {
     }
 
     private func confirmEnd(_ show: Show, at date: Date) {
-        guard CurrentShowEndPolicy.isValidConfirmedEnd(date, for: show) else {
+        guard CurrentShowEndPolicy.isValidConfirmedEnd(
+            date,
+            for: show,
+            calendar: show.timingCalendar()
+        ) else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return
         }
@@ -478,8 +482,16 @@ struct CurrentShowManagementSection: View {
         .sheet(isPresented: $isShowingEndConfirmation) {
             CurrentShowEndConfirmationSheet(
                 showName: show.name,
-                showStart: CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
-                suggestedEnd: currentTimeState.endBoundary ?? CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current),
+                showStart: CurrentShowTimeState.minimumConfirmableEnd(
+                    for: show,
+                    calendar: show.timingCalendar()
+                ),
+                suggestedEnd: currentTimeState.endBoundary
+                    ?? CurrentShowTimeState.effectiveStartTime(
+                        for: show,
+                        calendar: show.timingCalendar()
+                    ),
+                calendar: show.endTimingCalendar(),
                 allowsJustEnded: currentPhase == .live,
                 onConfirm: { date in
                     isShowingEndConfirmation = false
@@ -553,7 +565,8 @@ struct CurrentShowManagementSection: View {
         let canRecordEnd = CurrentShowEndPolicy.canRecordEnd(
             show: show,
             timeState: timeState,
-            now: now
+            now: now,
+            calendar: show.timingCalendar()
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
         // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,

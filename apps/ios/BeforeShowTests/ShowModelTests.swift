@@ -448,6 +448,39 @@ final class ShowModelTests: XCTestCase {
         )
     }
 
+    func testFixedOffsetEndDateUsesEndLocalDayForMultiDayCycle() throws {
+        var startCalendar = Calendar(identifier: .gregorian)
+        startCalendar.timeZone = TimeZone(secondsFromGMT: -8 * 3_600)!
+        var endCalendar = Calendar(identifier: .gregorian)
+        endCalendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
+        let date = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31))!
+        let start = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 19))!
+        let endDate = endCalendar.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let endTime = endCalendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 23, minute: 30))!
+        let show = try Show(
+            name: "固定时区跨日现场",
+            date: date,
+            startTime: start,
+            endDate: endDate,
+            endTime: endTime,
+            timeZoneSecondsFromGMT: -8 * 3_600,
+            endTimeZoneSecondsFromGMT: -7 * 3_600
+        )
+
+        let state = CurrentShowTimeState(show: show, calendar: startCalendar, now: endTime.addingTimeInterval(-30 * 60))
+
+        XCTAssertTrue(CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: startCalendar))
+        XCTAssertEqual(startCalendar.component(.day, from: try XCTUnwrap(state.effectiveEndDate)), 1)
+        XCTAssertTrue(
+            CurrentShowEndPolicy.canRecordEnd(
+                show: show,
+                timeState: state,
+                now: endTime.addingTimeInterval(-30 * 60),
+                calendar: Calendar(identifier: .gregorian)
+            )
+        )
+    }
+
     func testMultiDayOvernightSessionsKeepPreviousDayAcrossMidnightAndAnchorConfirmedEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

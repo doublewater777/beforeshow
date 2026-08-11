@@ -74,7 +74,7 @@ struct ShowLiveActivity: Widget {
         let city = state.city.flatMap { $0.isEmpty ? nil : $0 }
         let place = [city, venue].compactMap { $0 }.joined(separator: " · ")
         if let end = state.endDate {
-            let components = Calendar.current.dateComponents([.hour, .minute], from: end)
+            let components = state.endCalendar.dateComponents([.hour, .minute], from: end)
             let endText = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
             return place.isEmpty ? "预计 \(endText) 谢幕" : "\(place) · 预计 \(endText) 谢幕"
         }
@@ -105,7 +105,7 @@ private struct LiveActivityBannerView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(1)
-                    Text("\(clockText(state.startDate)) 开场")
+                    Text("\(clockText(state.startDate, calendar: state.startCalendar)) 开场")
                         .font(.system(size: 11))
                         .foregroundStyle(WidgetTheme.accent)
                         .monospacedDigit()
@@ -126,9 +126,9 @@ private struct LiveActivityBannerView: View {
                     ProgressView(timerInterval: state.startDate...end)
                         .tint(WidgetTheme.accent)
                     HStack {
-                        Text("\(clockText(state.startDate)) 开场")
+                        Text("\(clockText(state.startDate, calendar: state.startCalendar)) 开场")
                         Spacer(minLength: 0)
-                        Text("预计 \(clockText(end)) 谢幕")
+                        Text("预计 \(clockText(end, calendar: state.endCalendar)) 谢幕")
                     }
                     .font(.system(size: 9))
                     .foregroundStyle(WidgetTheme.dim)
@@ -167,8 +167,8 @@ private struct LiveActivityBannerView: View {
         }
     }
 
-    private func clockText(_ date: Date) -> String {
-        let components = Calendar.current.dateComponents([.hour, .minute], from: date)
+    private func clockText(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 }

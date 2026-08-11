@@ -923,7 +923,7 @@ struct ShowDetailView: View {
 
     private func beginPostpone() {
         postponeDraft = show.postponedDate
-            ?? Calendar.current.date(byAdding: .day, value: 7, to: show.effectiveDate)
+            ?? show.timingCalendar().date(byAdding: .day, value: 7, to: show.effectiveDate)
             ?? show.effectiveDate
         isShowingPostpone = true
     }

@@ -430,7 +430,7 @@ struct HomeCountdownLockup: View {
                             .foregroundColor(BSColor.Stage.muted)
                     }
                     if timeState.isDatedPostponement {
-                        Text("原定 \(Self.originalDateText(for: show))")
+                        Text("原定 \(Self.originalDateText(for: show, calendar: show.timingCalendar()))")
                             .font(.system(size: 12.5, weight: .regular))
                             .foregroundColor(BSColor.Stage.dim)
                             .padding(.top, 10)
@@ -686,8 +686,8 @@ struct HomeCountdownLockup: View {
         return String(format: "%02d:%02d", minutes, seconds)
     }
 
-    private static func originalDateText(for show: Show) -> String {
-        let components = Calendar.current.dateComponents([.month, .day], from: show.date)
+    private static func originalDateText(for show: Show, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.month, .day], from: show.date)
         return "\(components.month ?? 0)月\(components.day ?? 0)日"
     }
 }

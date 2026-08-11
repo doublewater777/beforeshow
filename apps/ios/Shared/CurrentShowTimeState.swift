@@ -275,14 +275,19 @@ struct CurrentShowTimeState: Equatable {
         guard let endDate = timing.endDate else {
             return nil
         }
+        let endCalendar = timing.endEventCalendar(fallback: calendar)
+        let endDayComponents = endCalendar.dateComponents([.year, .month, .day], from: endDate)
+        let comparableEndDay = calendar.date(from: endDayComponents) ?? calendar.startOfDay(for: endDate)
         guard let postponedDate = timing.postponedDate else {
-            return endDate
+            return comparableEndDay
         }
 
         let originalStartDay = calendar.startOfDay(for: timing.date)
-        let originalEndDay = calendar.startOfDay(for: endDate)
-        let dayOffset = calendar.dateComponents([.day], from: originalStartDay, to: originalEndDay).day ?? 0
-        return calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: postponedDate)) ?? endDate
+        let dayOffset = calendar.dateComponents([.day], from: originalStartDay, to: comparableEndDay).day ?? 0
+        let postponedStartDay = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: postponedDate))
+            ?? calendar.startOfDay(for: postponedDate)
+        let postponedComponents = calendar.dateComponents([.year, .month, .day], from: postponedStartDay)
+        return calendar.date(from: postponedComponents) ?? comparableEndDay
     }
 
     static func effectiveEndTime(
@@ -302,7 +307,9 @@ struct CurrentShowTimeState: Equatable {
 
         let endCalendar = timing.endEventCalendar(fallback: calendar)
         let endDay = Self.effectiveEndDate(timing: timing, calendar: calendar) ?? effectiveDate
-        var merged = merge(time: endTime, into: endDay, calendar: endCalendar)
+        let endDayComponents = calendar.dateComponents([.year, .month, .day], from: endDay)
+        let endDayInEndCalendar = endCalendar.date(from: endDayComponents) ?? endDay
+        var merged = merge(time: endTime, into: endDayInEndCalendar, calendar: endCalendar)
 
         if timing.endDate == nil,
            let startTime = effectiveStartTime,
@@ -353,7 +360,10 @@ struct CurrentShowTimeState: Equatable {
 
         // Explicit end day without clock (non daily-cycle path): last day ends at next midnight.
         if let effectiveEndDate {
-            return calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: effectiveEndDate))
+            let endCalendar = timing.endEventCalendar(fallback: calendar)
+            let endDayComponents = calendar.dateComponents([.year, .month, .day], from: effectiveEndDate)
+            let endDay = endCalendar.date(from: endDayComponents) ?? effectiveEndDate
+            return endCalendar.date(byAdding: .day, value: 1, to: endCalendar.startOfDay(for: endDay))
         }
 
         // Default: start + fixed duration (no user-filled end).

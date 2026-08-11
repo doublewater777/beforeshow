@@ -6,6 +6,7 @@ struct CurrentShowEndConfirmationSheet: View {
     let showName: String
     let showStart: Date
     let suggestedEnd: Date
+    let calendar: Calendar
     let allowsJustEnded: Bool
     let onConfirm: (Date) -> Void
 
@@ -17,12 +18,14 @@ struct CurrentShowEndConfirmationSheet: View {
         showName: String,
         showStart: Date,
         suggestedEnd: Date,
+        calendar: Calendar,
         allowsJustEnded: Bool,
         onConfirm: @escaping (Date) -> Void
     ) {
         self.showName = showName
         self.showStart = showStart
         self.suggestedEnd = suggestedEnd
+        self.calendar = calendar
         self.allowsJustEnded = allowsJustEnded
         self.onConfirm = onConfirm
         let suggested = min(Date(), suggestedEnd)
@@ -95,6 +98,8 @@ struct CurrentShowEndConfirmationSheet: View {
                     )
                 }
                 .tint(BSColor.Stage.accent)
+                .environment(\.calendar, calendar)
+                .environment(\.timeZone, calendar.timeZone)
             }
 
             HStack {

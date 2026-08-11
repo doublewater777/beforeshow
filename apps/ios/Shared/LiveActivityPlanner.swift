@@ -68,6 +68,10 @@ enum LiveActivityPlanner {
                 venueName: snapshot.venueName,
                 startDate: start,
                 endDate: timeState.endBoundary,
+                timeZoneSecondsFromGMT: snapshot.timing.timeZoneSecondsFromGMT,
+                endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
+                timeZoneIdentifier: snapshot.timing.timeZoneIdentifier,
+                endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
                 coverImageFilename: coverFilename
             ),
             activityEnd
