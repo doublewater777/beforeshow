@@ -257,7 +257,8 @@ struct CurrentShowTimeState: Equatable {
         let span = calendar.dateComponents([.day], from: startDay, to: endDay).day ?? 0
         // 跨午夜单场：仅 +1 日，且结束钟点 ≤ 开场钟点（如 23:00–01:00）。
         if span == 1, let endTime = timing.endTime {
-            if minutesOfDay(endTime, calendar: calendar) <= minutesOfDay(timing.startTime, calendar: calendar) {
+            let endCalendar = timing.endEventCalendar(fallback: calendar)
+            if minutesOfDay(endTime, calendar: endCalendar) <= minutesOfDay(timing.startTime, calendar: calendar) {
                 return false
             }
         }

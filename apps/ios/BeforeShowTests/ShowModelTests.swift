@@ -450,9 +450,9 @@ final class ShowModelTests: XCTestCase {
 
     func testFixedOffsetEndDateUsesEndLocalDayForMultiDayCycle() throws {
         var startCalendar = Calendar(identifier: .gregorian)
-        startCalendar.timeZone = TimeZone(secondsFromGMT: -8 * 3_600)!
+        startCalendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
         var endCalendar = Calendar(identifier: .gregorian)
-        endCalendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
+        endCalendar.timeZone = TimeZone(secondsFromGMT: -8 * 3_600)!
         let date = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31))!
         let start = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 19))!
         let endDate = endCalendar.date(from: DateComponents(year: 2026, month: 11, day: 1))!
@@ -463,8 +463,8 @@ final class ShowModelTests: XCTestCase {
             startTime: start,
             endDate: endDate,
             endTime: endTime,
-            timeZoneSecondsFromGMT: -8 * 3_600,
-            endTimeZoneSecondsFromGMT: -7 * 3_600
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -8 * 3_600
         )
 
         let state = CurrentShowTimeState(show: show, calendar: startCalendar, now: endTime.addingTimeInterval(-30 * 60))
