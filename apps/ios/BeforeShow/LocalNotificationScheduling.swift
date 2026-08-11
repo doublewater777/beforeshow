@@ -372,10 +372,13 @@ extension ScheduledShowNotification {
         content.body = body
         content.sound = .default
         content.userInfo = userInfo
-        let components = Calendar.current.dateComponents(
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute],
             from: fireDate
         )
+        components.timeZone = calendar.timeZone
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         return UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
     }
