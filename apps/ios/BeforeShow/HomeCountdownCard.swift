@@ -2,10 +2,10 @@ import SwiftUI
 
 // MARK: - Lineup Parser
 
-/// 音乐节阵容解析:艺人字段按 ASCII 逗号 / 中文全角逗号 / 顿号 / 斜杠拆分;
+/// 音乐节阵容解析:艺人字段按 ASCII 逗号 / 中文全角逗号 / 顿号拆分;
 /// 拆出 ≥ 3 个名字才视为音乐节阵容(只读展示,不做交互)。
 enum HomeLineupParser {
-    static let separators = CharacterSet(charactersIn: ",，、/")
+    static let separators = CharacterSet(charactersIn: ",，、")
 
     static func names(from artist: String?) -> [String] {
         guard let artist else { return [] }
@@ -173,8 +173,12 @@ enum HomeShowIdentityPresentation {
             if let endTime = show.endTime {
                 daily += "-\(timeFormatter.string(from: endTime))"
             }
-            let year = calendar.component(.year, from: show.effectiveDate)
-            return "\(year).\(monthDayText(show.effectiveDate, calendar: calendar))-\(monthDayText(endDay, calendar: calendar)) · 每日 \(daily)"
+            let startYear = calendar.component(.year, from: show.effectiveDate)
+            let endYear = calendar.component(.year, from: endDay)
+            let endDateText = startYear == endYear
+                ? monthDayText(endDay, calendar: calendar)
+                : "\(endYear).\(monthDayText(endDay, calendar: calendar))"
+            return "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))-\(endDateText) · 每日 \(daily)"
         }
 
         let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
@@ -319,11 +323,7 @@ struct HomeCountdownLockup: View {
                     .fill(statusColor(for: phase, timeState: timeState))
                     .frame(width: 6, height: 6)
 
-                Text(HomeShowIdentityPresentation.statusPillText(
-                    for: timeState,
-                    city: show.city,
-                    now: now
-                ))
+                Text(HomeShowIdentityPresentation.statusText(for: timeState, now: now))
                     .font(.system(size: 10.5, weight: .semibold))
                     .tracking(0.65)
                     .foregroundColor(statusColor(for: phase, timeState: timeState))

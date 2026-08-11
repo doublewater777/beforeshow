@@ -160,15 +160,24 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         )
 
         if let startTime = draft.startTime, !startTime.isEmpty {
-            showDraft.startTime = parseTime(startTime, on: date)
+            guard let parsedStartTime = parseTime(startTime, on: date) else {
+                throw ShowLinkParsingError.invalidResponse
+            }
+            showDraft.startTime = parsedStartTime
         } else {
             showDraft.startTime = nil
         }
         if let endDate = draft.endDate, !endDate.isEmpty {
-            showDraft.endDate = parseDate(endDate)
+            guard let parsedEndDate = parseDate(endDate) else {
+                throw ShowLinkParsingError.invalidResponse
+            }
+            showDraft.endDate = parsedEndDate
         }
         if let endTime = draft.endTime, !endTime.isEmpty {
-            showDraft.endTime = parseTime(endTime, on: showDraft.endDate ?? date)
+            guard let parsedEndTime = parseTime(endTime, on: showDraft.endDate ?? date) else {
+                throw ShowLinkParsingError.invalidResponse
+            }
+            showDraft.endTime = parsedEndTime
         }
 
         // 字段级 provenance：日期无效时已在上方抛 invalidResponse，始终可计入。
@@ -196,18 +205,25 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
     private func parseDate(_ string: String) -> Date? {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
-        return DateComponents(
+        guard let date = DateComponents(
             calendar: calendar,
             timeZone: calendar.timeZone,
             year: parts[0],
             month: parts[1],
             day: parts[2]
-        ).date
+        ).date else { return nil }
+        let result = calendar.dateComponents([.year, .month, .day], from: date)
+        guard result.year == parts[0], result.month == parts[1], result.day == parts[2] else {
+            return nil
+        }
+        return date
     }
 
     private func parseTime(_ string: String, on date: Date) -> Date? {
         let parts = string.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return nil }
+        guard parts.count == 2,
+              (0...23).contains(parts[0]),
+              (0...59).contains(parts[1]) else { return nil }
         return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: date)
     }
 }

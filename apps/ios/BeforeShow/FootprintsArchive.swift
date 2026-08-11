@@ -263,11 +263,6 @@ enum FootprintArchiveBuilder {
         var seen = Set<String>()
         let commaParts = value.components(separatedBy: CharacterSet(charactersIn: ",，、"))
         return commaParts
-            .flatMap { part in
-                // A slash is only a multi-artist separator when it is written as
-                // a spaced delimiter. Names such as AC/DC remain intact.
-                part.components(separatedBy: " / ")
-            }
             .compactMap(normalized)
             .filter { seen.insert($0).inserted }
     }

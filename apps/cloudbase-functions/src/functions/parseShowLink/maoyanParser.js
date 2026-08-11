@@ -1,4 +1,5 @@
 const MAOYAN_PERFORMANCE_API = "https://wx.maoyan.com/maoyansh/myshow/ajax/v2/performance";
+import { formatDateParts, formatTimeParts } from "./dateTime.js";
 
 export async function fetchMaoyanPerformance({
   performanceId,
@@ -68,14 +69,11 @@ function parseShowTimeRange(value) {
 }
 
 function formatDate(match) {
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  return formatDateParts(match[1], match[2], match[3]) ?? "";
 }
 
 function formatTime(match) {
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return "";
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return formatTimeParts(match[1], match[2]) ?? "";
 }
 
 function stringValue(value) {

@@ -64,7 +64,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(archive.shows.map(\.name), ["延期后实际演出"])
     }
 
-    func testArtistRankingPreservesSlashNamesAndDeduplicatesWithinOneShow() throws {
+    func testArtistRankingTreatsSlashAsPartOfTheNameAndDeduplicatesWithinOneShow() throws {
         let show = try makeShow("艺人拆分边界", year: 2024, artist: "AC/DC、A / B、A", city: "上海", venue: "MAO")
         show.markEnded(at: date(2024, 7, 2))
 
@@ -76,7 +76,7 @@ final class FootprintArchiveTests: XCTestCase {
 
         XCTAssertEqual(Set(archive.artists), Set([
             FootprintRankItem(name: "A", count: 1),
-            FootprintRankItem(name: "B", count: 1),
+            FootprintRankItem(name: "A / B", count: 1),
             FootprintRankItem(name: "AC/DC", count: 1)
         ]))
     }

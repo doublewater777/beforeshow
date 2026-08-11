@@ -603,6 +603,14 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertThrowsError(try draft.makeShow())
     }
 
+    func testLocalLinkParserRejectsDatesAndTimesThatFoundationWouldNormalize() {
+        let parser = ShowLinkDraftParser(calendar: calendar)
+
+        XCTAssertThrowsError(try parser.draft(
+            from: "https://detail.damai.cn/item.htm?date=2026-02-31&time=24:60"
+        ))
+    }
+
     func testDraftWithoutStartTimeCannotCreateShow() {
         let draft = ShowDraft(
             name: "缺少时间的现场",

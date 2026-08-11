@@ -1,4 +1,5 @@
 const EVENT_TYPE_PATTERN = /event|musicevent|festival|concert/i;
+import { formatDateParts, formatTimeParts } from "./dateTime.js";
 
 const NAME_KEYS = [
   "name",
@@ -275,12 +276,8 @@ function parseDateTime(value) {
     ?? text.match(/(\d{1,2})[:：](\d{2})/);
 
   return {
-    date: dateMatch
-      ? `${dateMatch[1]}-${dateMatch[2].padStart(2, "0")}-${dateMatch[3].padStart(2, "0")}`
-      : null,
-    time: timeMatch
-      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`
-      : null
+    date: dateMatch ? formatDateParts(dateMatch[1], dateMatch[2], dateMatch[3]) : null,
+    time: timeMatch ? formatTimeParts(timeMatch[1], timeMatch[2]) : null
   };
 }
 
@@ -296,8 +293,8 @@ function parseSecondDateTime(value) {
   const tail = text.slice(second.index ?? 0);
   const time = tail.match(/(\d{1,2})[:：](\d{2})/);
   return {
-    date: `${second[1]}-${second[2].padStart(2, "0")}-${second[3].padStart(2, "0")}`,
-    time: time ? `${time[1].padStart(2, "0")}:${time[2]}` : null
+    date: formatDateParts(second[1], second[2], second[3]),
+    time: time ? formatTimeParts(time[1], time[2]) : null
   };
 }
 
@@ -307,7 +304,8 @@ function firstClockValue(object, keys) {
     const text = temporalString(value);
     if (!text) continue;
     const match = text.match(/(\d{1,2})[:：](\d{2})/);
-    if (match) return `${match[1].padStart(2, "0")}:${match[2]}`;
+    const formatted = match ? formatTimeParts(match[1], match[2]) : null;
+    if (formatted) return formatted;
   }
   return null;
 }

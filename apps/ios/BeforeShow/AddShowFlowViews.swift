@@ -1914,9 +1914,10 @@ private struct ShowDraftFormFields: View {
 
                 AddShowLabeledTextField(
                     title: "艺人 / 阵容",
-                    placeholder: "五月天",
+                    placeholder: "五月天、陈绮贞",
                     text: $draft.artist,
-                    isRecognized: artistRecognized
+                    isRecognized: artistRecognized,
+                    helperText: "多位艺人请用逗号或顿号分隔；名称中的斜杠会保留，例如 AC/DC"
                 )
 
                 if !draft.artistAvatarURLs.isEmpty {
@@ -2133,6 +2134,7 @@ private struct AddShowLabeledTextField: View {
     var isRequired = false
     var isRecognized = false
     var keyboardType: UIKeyboardType = .default
+    var helperText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -2153,6 +2155,13 @@ private struct AddShowLabeledTextField: View {
                             .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
                     }
                 }
+
+            if let helperText {
+                Text(helperText)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

@@ -54,8 +54,7 @@ export function buildTicketmasterEventUrl({ eventId, apiKey, canonicalUrl = "" }
   }
 
   const params = new URLSearchParams({ apikey: key });
-  const regionalOrigin = ticketmasterApiOrigin(canonicalUrl);
-  return `${regionalOrigin}/discovery/v2/events/${encodeURIComponent(id)}.json?${params}`;
+  return `${TICKETMASTER_API_ORIGIN}/discovery/v2/events/${encodeURIComponent(id)}.json?${params}`;
 }
 
 async function searchTicketmasterEvent({ eventId, canonicalUrl, apiKey, fetch }) {
@@ -153,19 +152,6 @@ function parseTicketmasterResponse(body) {
     throw new Error("Ticketmaster API response is missing event data");
   }
   return event;
-}
-
-function ticketmasterApiOrigin(canonicalUrl) {
-  try {
-    const host = new URL(canonicalUrl).hostname.toLowerCase().replace(/^www\./, "");
-    if (host === "ticketmaster.com") {
-      return TICKETMASTER_API_ORIGIN;
-    }
-
-    return `https://app.${host}`;
-  } catch {
-    return TICKETMASTER_API_ORIGIN;
-  }
 }
 
 export function parseTicketmasterEvent(event) {

@@ -207,8 +207,36 @@ export function normalizeUrl(urlString) {
 export function extractShowUrl(input) {
   const trimmed = normalizeFullWidthAscii(input).trim();
   const match = trimmed.match(/https?:\/\/[^\s【】"'<>]+/i);
-  const raw = match?.[0] ?? trimmed;
+  const raw = stripNaturalLanguageTerminator(match?.[0] ?? trimmed);
   return ensureAbsoluteUrl(raw);
+}
+
+function stripNaturalLanguageTerminator(value) {
+  let result = value;
+  const naturalPunctuation = /[.,;:!?，。；：！？、]/u;
+  for (let index = 0; index < result.length; index += 1) {
+    if (!naturalPunctuation.test(result[index])) continue;
+    const next = result[index + 1] ?? "";
+    if (!next || /[\u3400-\u9fff]/u.test(next)) {
+      result = result.slice(0, index);
+      break;
+    }
+  }
+  result = result.replace(/[.,;:!?，。；：！？、]+$/u, "");
+  while (result.endsWith(")") && !hasBalancedParentheses(result)) {
+    result = result.slice(0, -1);
+  }
+  return result;
+}
+
+function hasBalancedParentheses(value) {
+  let depth = 0;
+  for (const character of value) {
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (depth < 0) return false;
+  }
+  return depth === 0;
 }
 
 function hostnameOf(urlString) {

@@ -71,6 +71,16 @@ describe("fenwandao project-info API parser", () => {
     assert.equal(parseFenwandaoProject(payload.data).priceRange, "380");
   });
 
+  it("drops malformed dates and clocks instead of normalizing them", () => {
+    const payload = structuredClone(PROJECT_RESPONSE);
+    payload.data.projectStartDate = "2026-02-31";
+    payload.data.timeDisplay = "24:60";
+
+    const draft = parseFenwandaoProject(payload.data);
+    assert.equal(draft.date, "");
+    assert.equal(draft.startTime, "");
+  });
+
   it("uses nameDisplay when projectName is missing", () => {
     const payload = structuredClone(PROJECT_RESPONSE);
     delete payload.data.projectName;

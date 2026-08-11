@@ -601,6 +601,20 @@ final class NavigationTests: XCTestCase {
         )
     }
 
+    func testHomeIdentityDateTextKeepsEndYearAcrossNewYear() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 12, day: 31, hour: 19, minute: 0, calendar: calendar)
+        let end = makeDate(year: 2027, month: 1, day: 1, hour: 21, minute: 0, calendar: calendar)
+        let show = try Show(name: "跨年现场", date: start, startTime: start, endDate: end, endTime: end)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            "2026.12.31-2027.01.01 · 每日 19:00-21:00"
+        )
+    }
+
     private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {
         DateComponents(calendar: calendar, timeZone: calendar.timeZone, year: year, month: month, day: day, hour: hour, minute: minute).date!
     }

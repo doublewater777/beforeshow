@@ -1,5 +1,6 @@
 const FENWANDAO_PROJECT_API =
   "https://mobile.livelab.com.cn/api/performance/app/project/h5/get_project_info";
+import { formatDateParts, formatTimeParts } from "./dateTime.js";
 
 export async function fetchFenwandaoProjectInfo({
   projectId,
@@ -71,14 +72,11 @@ function formatDate(value) {
   const text = stringValue(value);
   const match = text.match(/(20\d{2})[.\/年\-](\d{1,2})[.\/月\-](\d{1,2})(?:日)?/);
   if (!match) return "";
-  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  return formatDateParts(match[1], match[2], match[3]) ?? "";
 }
 
 function formatTime(match) {
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  if (hour > 23 || minute > 59) return "";
-  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return formatTimeParts(match[1], match[2]) ?? "";
 }
 
 function formatPriceRange(low, high) {

@@ -167,6 +167,21 @@ describe("public event page parser", () => {
     assert.equal(draft.artist, "测试艺人");
     assert.equal(draft.source, "piaoxingqiu");
   });
+
+  it("rejects invalid dates and times in structured event data", () => {
+    const html = `<script type="application/ld+json">
+      ${JSON.stringify({
+        "@type": "MusicEvent",
+        name: "Malformed event",
+        startDate: "2026-02-31T24:60:00+08:00"
+      })}
+    </script>`;
+
+    assert.throws(
+      () => parsePublicEventPage(html, { source: "ticketmaster" }),
+      /missing a name or date/
+    );
+  });
 });
 
 describe("additional platform dispatch", () => {

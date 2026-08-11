@@ -40,7 +40,6 @@ struct HomeHeroStage: View {
 
     var body: some View {
         heroVisual(width: coverWidth, height: coverHeight)
-        .accessibilityLabel("现场封面，\(show.name)")
         .accessibilityAddTraits(.isImage)
         .frame(width: coverWidth, height: coverHeight)
     }
@@ -53,7 +52,8 @@ struct HomeHeroStage: View {
             height: height,
             isPlaybackActive: isPlaybackActive && phase != .inactive,
             reduceMotion: reduceMotion,
-            onChooseVideo: onChooseVideo
+            onChooseVideo: onChooseVideo,
+            accessibilityName: show.name
         ) {
             ShowCoverImageView(
                 urlString: show.coverImageURL,

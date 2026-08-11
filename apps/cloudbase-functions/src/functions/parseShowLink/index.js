@@ -6,7 +6,6 @@ import { fetchAndParseTicketPage } from "./ticketPageParser.js";
 import { fetchAndParseLiveNationPage } from "./liveNationParser.js";
 import { fetchAndParsePiaoxingqiu } from "./piaoxingqiuParser.js";
 import { fetchFenwandaoProjectInfo, parseFenwandaoProject } from "./fenwandaoParser.js";
-import { fetchTicketmasterEvent, parseTicketmasterEvent } from "./ticketmasterParser.js";
 
 const PUBLIC_PAGE_PLATFORMS = new Set([
   "fenwandao",
@@ -55,17 +54,11 @@ export async function parseShowLink(url, options = {}) {
   }
 
   if (normalized.platform === "ticketmaster") {
-    if (!normalized.eventId) {
-      throw new UnsupportedPlatformError(url);
-    }
-
-    const event = await fetchTicketmasterEvent({
-      eventId: normalized.eventId,
-      canonicalUrl: normalized.canonicalUrl,
-      apiKey: options.ticketmasterApiKey,
+    return fetchAndParseTicketPage({
+      url: normalized.canonicalUrl,
+      source: normalized.platform,
       fetch: options.fetch
     });
-    return parseTicketmasterEvent(event);
   }
 
   if (normalized.platform === "piaoxingqiu" && normalized.eventId) {

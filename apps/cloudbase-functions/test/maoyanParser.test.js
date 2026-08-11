@@ -70,4 +70,15 @@ describe("Maoyan performance adapter", () => {
       /Maoyan API error/
     );
   });
+
+  it("drops malformed dates and clocks instead of normalizing them", () => {
+    const draft = parseMaoyanPerformance({
+      name: "Malformed",
+      showTimeRange: "2026.02.31 24:60",
+      cityName: "上海"
+    });
+
+    assert.equal(draft.date, "");
+    assert.equal(draft.startTime, "");
+  });
 });

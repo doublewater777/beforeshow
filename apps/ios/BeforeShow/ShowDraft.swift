@@ -753,18 +753,25 @@ struct ShowLinkDraftParser {
     private func parseDate(_ string: String) -> Date? {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
-        return DateComponents(
+        guard let date = DateComponents(
             calendar: calendar,
             timeZone: calendar.timeZone,
             year: parts[0],
             month: parts[1],
             day: parts[2]
-        ).date
+        ).date else { return nil }
+        let result = calendar.dateComponents([.year, .month, .day], from: date)
+        guard result.year == parts[0], result.month == parts[1], result.day == parts[2] else {
+            return nil
+        }
+        return date
     }
 
     private func parseTime(_ string: String, on date: Date) -> Date? {
         let parts = string.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return nil }
+        guard parts.count == 2,
+              (0...23).contains(parts[0]),
+              (0...59).contains(parts[1]) else { return nil }
         return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: date)
     }
 }

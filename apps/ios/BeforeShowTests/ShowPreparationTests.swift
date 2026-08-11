@@ -51,13 +51,13 @@ final class HomeLineupParserTests: XCTestCase {
         XCTAssertEqual(HomeLineupParser.names(from: "艺人 A、艺人 B、艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
     }
 
-    func testSlashSeparatesNames() {
-        XCTAssertEqual(HomeLineupParser.names(from: "艺人 A/艺人 B/艺人 C"), ["艺人 A", "艺人 B", "艺人 C"])
+    func testSlashStaysInsideAnArtistName() {
+        XCTAssertEqual(HomeLineupParser.names(from: "AC/DC"), ["AC/DC"])
     }
 
     func testMixedSeparatorsAndWhitespace() {
         XCTAssertEqual(
-            HomeLineupParser.names(from: " 艺人 A，艺人 B 、 艺人 C /艺人 D "),
+            HomeLineupParser.names(from: " 艺人 A，艺人 B 、 艺人 C,艺人 D "),
             ["艺人 A", "艺人 B", "艺人 C", "艺人 D"]
         )
     }
@@ -70,6 +70,6 @@ final class HomeLineupParserTests: XCTestCase {
     func testEmptyAndNilArtistProduceNoNames() {
         XCTAssertEqual(HomeLineupParser.names(from: nil), [])
         XCTAssertEqual(HomeLineupParser.names(from: ""), [])
-        XCTAssertEqual(HomeLineupParser.names(from: " ,、/ "), [])
+        XCTAssertEqual(HomeLineupParser.names(from: " ,、 "), [])
     }
 }
