@@ -300,14 +300,15 @@ struct CurrentShowTimeState: Equatable {
             return dailyEndTime(on: calendar.startOfDay(for: effectiveDate), timing: timing, calendar: calendar)
         }
 
+        let endCalendar = timing.endEventCalendar(fallback: calendar)
         let endDay = Self.effectiveEndDate(timing: timing, calendar: calendar) ?? effectiveDate
-        var merged = merge(time: endTime, into: endDay, calendar: calendar)
+        var merged = merge(time: endTime, into: endDay, calendar: endCalendar)
 
         if timing.endDate == nil,
            let startTime = effectiveStartTime,
            let candidate = merged,
            candidate <= startTime {
-            merged = calendar.date(byAdding: .day, value: 1, to: candidate)
+            merged = endCalendar.date(byAdding: .day, value: 1, to: candidate)
         }
 
         return merged

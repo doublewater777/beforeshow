@@ -33,6 +33,7 @@ struct ShowDraft: Equatable {
     var endDate: Date?
     var endTime: Date?
     var timeZoneSecondsFromGMT: Int?
+    var endTimeZoneSecondsFromGMT: Int?
     var city: String
     var venueName: String
     var venueAddress: String
@@ -50,6 +51,7 @@ struct ShowDraft: Equatable {
         endDate: Date? = nil,
         endTime: Date? = nil,
         timeZoneSecondsFromGMT: Int? = nil,
+        endTimeZoneSecondsFromGMT: Int? = nil,
         city: String = "",
         venueName: String = "",
         venueAddress: String = "",
@@ -65,6 +67,7 @@ struct ShowDraft: Equatable {
         self.endDate = endDate
         self.endTime = endTime
         self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
+        self.endTimeZoneSecondsFromGMT = endTimeZoneSecondsFromGMT
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -83,6 +86,7 @@ struct ShowDraft: Equatable {
             endDate: show.endDate,
             endTime: show.endTime,
             timeZoneSecondsFromGMT: show.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: show.endTimeZoneSecondsFromGMT,
             city: show.city ?? "",
             venueName: show.venueName ?? "",
             venueAddress: show.venueAddress ?? "",
@@ -102,6 +106,7 @@ struct ShowDraft: Equatable {
             endDate: prepared.endDate,
             endTime: prepared.endTime,
             timeZoneSecondsFromGMT: prepared.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: prepared.endTimeZoneSecondsFromGMT,
             city: prepared.city,
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
@@ -119,7 +124,8 @@ struct ShowDraft: Equatable {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
-            calendar: eventCalendar
+            calendar: eventCalendar,
+            endCalendar: endTimingCalendar(fallback: calendar)
         )
     }
 
@@ -131,6 +137,23 @@ struct ShowDraft: Equatable {
         var calendar = fallback
         calendar.timeZone = timeZone
         return calendar
+    }
+
+    func endTimingCalendar(fallback: Calendar = .current) -> Calendar {
+        Show.timingCalendar(
+            timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
+            fallback: fallback
+        )
+    }
+
+    func mergedTime(_ time: Date, into day: Date, calendar: Calendar) -> Date {
+        let components = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: time)
+        return calendar.date(
+            bySettingHour: components.hour ?? 0,
+            minute: components.minute ?? 0,
+            second: components.second ?? 0,
+            of: calendar.startOfDay(for: day)
+        ) ?? day
     }
 }
 

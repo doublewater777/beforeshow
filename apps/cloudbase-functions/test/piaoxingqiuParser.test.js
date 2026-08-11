@@ -145,6 +145,32 @@ describe("piaoxingqiu static API parser", () => {
     assert.equal(draft.startDateTime, "2026-09-16T19:00:00-07:00");
   });
 
+  it("falls back when the static API returns an unusable event draft", async () => {
+    let requests = 0;
+    const payload = structuredClone(STATIC_RESPONSE);
+    payload.data.basicInfo.showDate = "TBD";
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "MusicEvent",
+      name: "语义回退现场",
+      startDate: "2026-09-16T19:00:00-07:00",
+      location: { "@type": "Place", name: "Fallback Arena" }
+    })}</script>`;
+
+    const draft = await parseShowLink(CONTENT_URL, {
+      fetch: async () => {
+        requests += 1;
+        if (requests === 1) {
+          return { ok: true, status: 200, json: async () => payload };
+        }
+        return { ok: true, status: 200, text: async () => html };
+      }
+    });
+
+    assert.equal(requests, 2);
+    assert.equal(draft.name, "语义回退现场");
+    assert.equal(draft.date, "2026-09-16");
+  });
+
   it("keeps a single price when the endpoints are equal", () => {
     const payload = structuredClone(STATIC_RESPONSE);
     payload.data.basicInfo.maxOriginalPriceInfo = { yuanNum: "380", centNum: "" };

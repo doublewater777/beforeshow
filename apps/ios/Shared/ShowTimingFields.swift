@@ -17,6 +17,8 @@ struct ShowTimingFields: Equatable, Codable {
     /// The Date values remain absolute instants; this offset preserves the
     /// venue-local calendar and clock when timing is displayed or recomputed.
     var timeZoneSecondsFromGMT: Int? = nil
+    /// The end instant may carry a different fixed offset across a DST boundary.
+    var endTimeZoneSecondsFromGMT: Int? = nil
     var endedAt: Date? = nil
     var postponedDate: Date?
     var changeStatus: ShowChangeStatus
@@ -33,5 +35,21 @@ struct ShowTimingFields: Equatable, Codable {
         var calendar = fallback
         calendar.timeZone = timeZone
         return calendar
+    }
+
+    func endEventCalendar(fallback: Calendar) -> Calendar {
+        guard let offset = endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
+              let timeZone = TimeZone(secondsFromGMT: offset) else {
+            return fallback
+        }
+        var calendar = fallback
+        calendar.timeZone = timeZone
+        return calendar
+    }
+}
+
+enum ShowDateSelectionPolicy {
+    static func normalizedDay(_ date: Date, calendar: Calendar) -> Date {
+        calendar.startOfDay(for: date)
     }
 }

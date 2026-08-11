@@ -142,7 +142,9 @@ enum FootprintArchiveShareCopy {
                 "\(archive.shows.count) 场现场 · \(archive.artists.count) 位艺人 · \(archive.cities.count) 座城市 · \(archive.venues.count) 个场馆"
             ]
             if let top = archive.artists.first { lines.append("最常看：\(top.name) · \(top.count) 场") }
-            if let first = archive.firstShow { lines.append("第一场：\(footprintMonthText(first.effectiveDate)) · \(first.name)") }
+            if let first = archive.firstShow {
+                lines.append("第一场：\(footprintMonthText(first.effectiveDate, calendar: first.timingCalendar())) · \(first.name)")
+            }
             return lines.joined(separator: "\n")
         case .artist:
             return [
@@ -243,7 +245,7 @@ enum FootprintArchiveBuilder {
             }
             .sorted { $0.effectiveDate > $1.effectiveDate }
         let grouped = Dictionary(grouping: archived) {
-            calendar.component(.year, from: $0.effectiveDate)
+            $0.timingCalendar(fallback: calendar).component(.year, from: $0.effectiveDate)
         }
 
         return FootprintArchiveSnapshot(
@@ -460,7 +462,7 @@ struct FootprintsView: View {
                 .padding(.bottom, 11)
             }
             if let first = archive.firstShow {
-                Text("第一场现场：\(footprintMonthText(first.effectiveDate)) · \(first.name)")
+                Text("第一场现场：\(footprintMonthText(first.effectiveDate, calendar: first.timingCalendar())) · \(first.name)")
                     .font(BSFont.tag)
                     .foregroundColor(BSColor.Stage.dim)
                     .lineLimit(2)
@@ -706,7 +708,7 @@ struct FootprintsView: View {
                         .font(.system(size: 11.8)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Text(footprintDayText(show.effectiveDate))
+                Text(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))
                     .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
                 Image(systemName: "chevron.right")
                     .font(BSFont.V3.caption.weight(.semibold))
@@ -760,7 +762,7 @@ private struct FootprintSearchSheet: View {
 
     private var results: [Show] {
         archive.shows.filter { show in
-            let searchable = [show.name, show.artist, show.city, show.venueName, String(Calendar.current.component(.year, from: show.effectiveDate))]
+            let searchable = [show.name, show.artist, show.city, show.venueName, String(show.timingCalendar().component(.year, from: show.effectiveDate))]
                 .compactMap { $0 }.joined(separator: " ")
             let matchesQuery = query.isEmpty || searchable.localizedCaseInsensitiveContains(query)
             let matchesFilter: Bool
@@ -768,7 +770,7 @@ private struct FootprintSearchSheet: View {
             case .all:
                 matchesFilter = true
             case let .year(year):
-                matchesFilter = Calendar.current.component(.year, from: show.effectiveDate) == year
+                matchesFilter = show.timingCalendar().component(.year, from: show.effectiveDate) == year
             case let .city(city):
                 matchesFilter = show.city?.trimmingCharacters(in: .whitespacesAndNewlines) == city
             }
@@ -814,7 +816,7 @@ private struct FootprintSearchSheet: View {
                                 FootprintMiniPoster(show: show).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(show.name).font(BSFont.caption).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
-                                    Text("\([show.city, show.venueName].compactMap { $0 }.joined(separator: " · ")) · \(footprintDayText(show.effectiveDate))")
+                                    Text("\([show.city, show.venueName].compactMap { $0 }.joined(separator: " · ")) · \(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))")
                                         .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
                                 }
                                 Spacer()
@@ -988,7 +990,7 @@ private struct FootprintSharePreview: View {
                     .padding(.top, 28 * scale)
                     Text("\(archive.cities.count) 座城市 · \(archive.venues.count) 个场馆")
                         .font(.system(size: 17 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-                    Text("最常看：\(archive.artists.first?.name ?? "—")\n第一场：\(archive.firstShow.map { footprintMonthText($0.effectiveDate) } ?? "—")")
+                    Text("最常看：\(archive.artists.first?.name ?? "—")\n第一场：\(archive.firstShow.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")")
                         .font(.system(size: 12 * scale)).foregroundColor(BSColor.Stage.muted).lineSpacing(5 * scale).padding(.top, 7 * scale)
                     Spacer()
                     HStack {
@@ -1423,7 +1425,7 @@ private struct FootprintArchiveDetailView: View {
                 HStack(spacing: 12) {
                     FootprintMiniPoster(show: first).frame(width: 47, height: 62).clipShape(RoundedRectangle(cornerRadius: 11))
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(footprintMonthText(first.effectiveDate)).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.dim)
+                        Text(footprintMonthText(first.effectiveDate, calendar: first.timingCalendar())).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.dim)
                         Text(first.name).font(.system(size: 13, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(2)
                         Text("这是整份现场档案开始生长的地方").font(.system(size: 11)).foregroundColor(BSColor.Stage.muted)
                     }
@@ -1563,11 +1565,11 @@ private struct FootprintArchiveDetailView: View {
         switch category {
         case .artist:
             let cities = Set(related.compactMap(\.city)).prefix(2).joined(separator: "、")
-            return "\(cities.isEmpty ? "现场记录" : cities) · 最近 \(related.first.map { footprintMonthText($0.effectiveDate) } ?? "—")"
+            return "\(cities.isEmpty ? "现场记录" : cities) · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
         case .city:
-            return "\(Set(related.compactMap(\.venueName)).count) 个场馆 · 最近 \(related.first.map { footprintMonthText($0.effectiveDate) } ?? "—")"
+            return "\(Set(related.compactMap(\.venueName)).count) 个场馆 · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
         case .venue:
-            return "\(related.first?.city ?? "现场") · 最近 \(related.first.map { footprintMonthText($0.effectiveDate) } ?? "—")"
+            return "\(related.first?.city ?? "现场") · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
         case .overview: return ""
         }
     }

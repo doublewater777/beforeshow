@@ -576,7 +576,7 @@ final class ShowDraftTests: XCTestCase {
                 "startDateTime": "2026-09-16T19:00:00-07:00",
                 "endDate": "2026-09-16",
                 "endTime": "22:00",
-                "endDateTime": "2026-09-16T22:00:00-07:00",
+                "endDateTime": "2026-09-16T22:00:00-08:00",
                 "venueName": "Crypto.com Arena",
                 "venueAddr": "Los Angeles",
                 "artist": "测试艺人",
@@ -603,18 +603,63 @@ final class ShowDraftTests: XCTestCase {
 
         let draft = try await service.parse(link: "https://dice.fm/event/example")
         let expectedStart = ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!
-        let expectedEnd = ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!
+        let expectedEnd = ISO8601DateFormatter().date(from: "2026-09-17T06:00:00Z")!
 
         XCTAssertEqual(draft.date, expectedStart)
         XCTAssertEqual(draft.startTime, expectedStart)
         XCTAssertEqual(draft.endDate, expectedEnd)
         XCTAssertEqual(draft.endTime, expectedEnd)
         XCTAssertEqual(draft.timeZoneSecondsFromGMT, -7 * 3_600)
+        XCTAssertEqual(draft.endTimeZoneSecondsFromGMT, -8 * 3_600)
 
         let show = try draft.makeShow()
         XCTAssertEqual(show.timeZoneSecondsFromGMT, -7 * 3_600)
+        XCTAssertEqual(show.endTimeZoneSecondsFromGMT, -8 * 3_600)
         XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: shanghaiCalendar), expectedStart)
+        XCTAssertEqual(CurrentShowTimeState.effectiveEndTime(
+            for: show,
+            calendar: shanghaiCalendar,
+            effectiveDate: show.effectiveDate,
+            effectiveStartTime: expectedStart
+        ), expectedEnd)
         XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: Calendar(identifier: .gregorian)), expectedStart)
+    }
+
+    func testDraftTimeEditsUseVenueCalendarAndNormalizePostponedDays() throws {
+        let draft = ShowDraft(
+            name: "洛杉矶现场",
+            date: ISO8601DateFormatter().date(from: "2026-09-16T19:00:00-07:00")!,
+            startTime: ISO8601DateFormatter().date(from: "2026-09-16T19:00:00-07:00")!,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            source: .link
+        )
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let editedClock = draft.timingCalendar(fallback: shanghaiCalendar).date(
+            from: DateComponents(year: 2026, month: 9, day: 16, hour: 20)
+        )!
+
+        let merged = draft.mergedTime(
+            editedClock,
+            into: draft.date,
+            calendar: draft.timingCalendar(fallback: shanghaiCalendar)
+        )
+        XCTAssertEqual(
+            merged,
+            ISO8601DateFormatter().date(from: "2026-09-17T03:00:00Z")
+        )
+
+        let selectedByVenuePicker = draft.timingCalendar(fallback: shanghaiCalendar).date(
+            from: DateComponents(year: 2026, month: 9, day: 20, hour: 10)
+        )!
+        let normalized = ShowDateSelectionPolicy.normalizedDay(
+            selectedByVenuePicker,
+            calendar: draft.timingCalendar(fallback: shanghaiCalendar)
+        )
+        XCTAssertEqual(
+            normalized,
+            ISO8601DateFormatter().date(from: "2026-09-20T07:00:00Z")
+        )
     }
 
     func testRemoteShowLinkParsingServiceKeepsMissingStartTimeUnconfirmed() async throws {

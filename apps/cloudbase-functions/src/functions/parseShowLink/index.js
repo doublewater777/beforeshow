@@ -103,7 +103,11 @@ export async function parseShowLink(url, options = {}) {
 
 async function apiThenPublicPage({ api, page }) {
   try {
-    return await api();
+    const draft = await api();
+    if (!isUsableDraft(draft)) {
+      throw new Error("Ticket API returned an unusable event draft");
+    }
+    return draft;
   } catch (apiError) {
     try {
       return await page();
@@ -114,4 +118,14 @@ async function apiThenPublicPage({ api, page }) {
       throw error;
     }
   }
+}
+
+function isUsableDraft(draft) {
+  return Boolean(
+    draft
+      && typeof draft.name === "string"
+      && draft.name.trim()
+      && typeof draft.date === "string"
+      && draft.date.trim()
+  );
 }

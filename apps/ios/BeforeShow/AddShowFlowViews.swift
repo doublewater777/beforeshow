@@ -1296,6 +1296,7 @@ struct ShowDraftEditorView: View {
         .sheet(isPresented: $showsPostponeSheet) {
             PostponeShowSheet(
                 newDate: $postponeDate,
+                calendar: draft.timingCalendar(),
                 onUndated: {
                     showsPostponeSheet = false
                     Task { @MainActor in
@@ -1304,7 +1305,10 @@ struct ShowDraftEditorView: View {
                 },
                 onDated: {
                     showsPostponeSheet = false
-                    let newDate = postponeDate
+                    let newDate = ShowDateSelectionPolicy.normalizedDay(
+                        postponeDate,
+                        calendar: draft.timingCalendar()
+                    )
                     Task { @MainActor in
                         await applyStatusAction { await statusEditing?.onPostpone(newDate) }
                     }
@@ -1826,14 +1830,15 @@ private struct ShowDraftFormFields: View {
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
-        let fallbackStart = Calendar.current.date(
+        let eventCalendar = initialDraft.timingCalendar()
+        let fallbackStart = eventCalendar.date(
             bySettingHour: 19,
             minute: 30,
             second: 0,
             of: initialDraft.date
         ) ?? initialDraft.date
         let initialEndDate = initialDraft.endDate ?? initialDraft.date
-        let fallbackEnd = Calendar.current.date(
+        let fallbackEnd = initialDraft.endTimingCalendar().date(
             bySettingHour: 23,
             minute: 55,
             second: 0,
@@ -1856,6 +1861,8 @@ private struct ShowDraftFormFields: View {
 
     var body: some View {
         formCards
+        .environment(\.calendar, draft.timingCalendar())
+        .environment(\.timeZone, draft.timingCalendar().timeZone)
         .onChange(of: hasEndTime) { _, newValue in
             syncEndTimeToDraft(isEnabled: newValue)
         }
@@ -1875,8 +1882,9 @@ private struct ShowDraftFormFields: View {
         }
         .onChange(of: endDate) { _, _ in
             if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
+                let startDay = draft.timingCalendar().startOfDay(for: draft.date)
+                if draft.endTimingCalendar().startOfDay(for: endDate) < startDay {
+                    endDate = startDay
                 }
                 syncEndTimeToDraft(isEnabled: true)
             }
@@ -1886,8 +1894,9 @@ private struct ShowDraftFormFields: View {
                 draft.startTime = mergedStartTime()
             }
             if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
+                let startDay = draft.timingCalendar().startOfDay(for: draft.date)
+                if draft.endTimingCalendar().startOfDay(for: endDate) < startDay {
+                    endDate = startDay
                 }
                 syncEndTimeToDraft(isEnabled: true)
             }
@@ -2019,7 +2028,7 @@ private struct ShowDraftFormFields: View {
     }
 
     private func mergedStartTime() -> Date {
-        mergedTime(on: draft.date, time: startTime)
+        draft.mergedTime(startTime, into: draft.date, calendar: draft.timingCalendar())
     }
 
     private func syncEndTimeToDraft(isEnabled: Bool) {
@@ -2029,17 +2038,17 @@ private struct ShowDraftFormFields: View {
             return
         }
 
-        let resolvedEndDay = max(endDate, draft.date)
+        let resolvedEndDay = max(
+            draft.endTimingCalendar().startOfDay(for: endDate),
+            draft.timingCalendar().startOfDay(for: draft.date)
+        )
         endDate = resolvedEndDay
         draft.endDate = resolvedEndDay
-        draft.endTime = mergedTime(on: resolvedEndDay, time: endTime)
-    }
-
-    private func mergedTime(on date: Date, time: Date) -> Date {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: time)
-        let minute = calendar.component(.minute, from: time)
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+        draft.endTime = draft.mergedTime(
+            endTime,
+            into: resolvedEndDay,
+            calendar: draft.endTimingCalendar()
+        )
     }
 
     @MainActor
@@ -2186,6 +2195,9 @@ private struct AddShowScheduleFields: View {
     /// 两列瓷贴中间固定间距，不被中文长日期挤没。
     private static let columnSpacing: CGFloat = 14
 
+    private var eventCalendar: Calendar { draft.timingCalendar() }
+    private var endCalendar: Calendar { draft.endTimingCalendar() }
+
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             HStack(alignment: .top, spacing: Self.columnSpacing) {
@@ -2193,6 +2205,7 @@ private struct AddShowScheduleFields: View {
                     title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date,
+                    calendar: eventCalendar,
                     isRecognized: dateRecognized,
                     isNeeded: dateNeeded,
                     onConfirmNeeded: onConfirmFallbackDate
@@ -2201,6 +2214,7 @@ private struct AddShowScheduleFields: View {
                 AddShowStartTimeField(
                     title: "开场时间",
                     startTime: $startTime,
+                    calendar: eventCalendar,
                     isConfirmed: isStartTimeConfirmed,
                     onConfirm: onConfirmStartTime,
                     isRecognized: startTimeRecognized
@@ -2210,7 +2224,8 @@ private struct AddShowScheduleFields: View {
             AddShowEndTimeField(
                 hasEndTime: $hasEndTime,
                 endDate: $endDate,
-                endTime: $endTime
+                endTime: $endTime,
+                calendar: endCalendar
             )
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -2223,12 +2238,15 @@ private struct AddShowScheduleFields: View {
 private struct AddShowConstrainedDatePicker: View {
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
+    let calendar: Calendar
     var borderColor: Color? = nil
 
     var body: some View {
         HStack(spacing: 0) {
             DatePicker("", selection: $selection, displayedComponents: displayedComponents)
                 .labelsHidden()
+                .environment(\.calendar, calendar)
+                .environment(\.timeZone, calendar.timeZone)
                 .tint(BSColor.Accent.violet)
                 .datePickerStyle(.compact)
                 .fixedSize(horizontal: true, vertical: false)
@@ -2252,6 +2270,7 @@ private struct AddShowDatePickerField: View {
     let title: String
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
+    let calendar: Calendar
     var isRequired = true
     var isRecognized = false
     var isNeeded = false
@@ -2275,6 +2294,7 @@ private struct AddShowDatePickerField: View {
             AddShowConstrainedDatePicker(
                 selection: $selection,
                 displayedComponents: displayedComponents,
+                calendar: calendar,
                 borderColor: borderColor
             )
             .onChange(of: selection) { _, _ in
@@ -2297,6 +2317,7 @@ private struct AddShowDatePickerField: View {
 private struct AddShowStartTimeField: View {
     let title: String
     @Binding var startTime: Date
+    let calendar: Calendar
     let isConfirmed: Bool
     let onConfirm: () -> Void
     var isRecognized = false
@@ -2318,6 +2339,7 @@ private struct AddShowStartTimeField: View {
             AddShowConstrainedDatePicker(
                 selection: $startTime,
                 displayedComponents: .hourAndMinute,
+                calendar: calendar,
                 borderColor: borderColor
             )
             if !isConfirmed {
@@ -2336,6 +2358,7 @@ private struct AddShowEndTimeField: View {
     @Binding var hasEndTime: Bool
     @Binding var endDate: Date
     @Binding var endTime: Date
+    let calendar: Calendar
 
     private static let columnSpacing: CGFloat = 14
 
@@ -2358,6 +2381,7 @@ private struct AddShowEndTimeField: View {
                         title: "结束日期",
                         selection: $endDate,
                         displayedComponents: .date,
+                        calendar: calendar,
                         isRequired: false
                     )
 
@@ -2365,7 +2389,8 @@ private struct AddShowEndTimeField: View {
                         AddShowFieldLabel(title: "结束时间", isRequired: false)
                         AddShowConstrainedDatePicker(
                             selection: $endTime,
-                            displayedComponents: .hourAndMinute
+                            displayedComponents: .hourAndMinute,
+                            calendar: calendar
                         )
                     }
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)

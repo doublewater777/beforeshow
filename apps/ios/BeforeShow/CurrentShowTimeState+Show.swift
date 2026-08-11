@@ -10,6 +10,7 @@ extension Show {
             endDate: endDate,
             endTime: endTime,
             timeZoneSecondsFromGMT: timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT,
             endedAt: endedAt,
             postponedDate: postponedDate,
             changeStatus: changeStatus

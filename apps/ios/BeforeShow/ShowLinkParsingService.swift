@@ -148,7 +148,7 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             throw ShowLinkParsingError.invalidResponse
         }
 
-        let eventOffset = parsedStart?.offsetSeconds
+        let parsedEnd = parseISODateTime(draft.endDateTime)
 
         var showDraft = ShowDraft(
             name: draft.name,
@@ -172,23 +172,24 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         } else {
             showDraft.startTime = nil
         }
-        if let endDateTime = parseISODateTime(draft.endDateTime) {
-            showDraft.endDate = endDateTime.date
+        if let parsedEnd {
+            showDraft.endDate = parsedEnd.date
         } else if let endDate = draft.endDate, !endDate.isEmpty {
             guard let parsedEndDate = parseDate(endDate) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endDate = parsedEndDate
         }
-        if let endDateTime = parseISODateTime(draft.endDateTime) {
-            showDraft.endTime = endDateTime.date
+        if let parsedEnd {
+            showDraft.endTime = parsedEnd.date
         } else if let endTime = draft.endTime, !endTime.isEmpty {
             guard let parsedEndTime = parseTime(endTime, on: showDraft.endDate ?? date) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endTime = parsedEndTime
         }
-        showDraft.timeZoneSecondsFromGMT = eventOffset
+        showDraft.timeZoneSecondsFromGMT = parsedStart?.offsetSeconds
+        showDraft.endTimeZoneSecondsFromGMT = parsedEnd?.offsetSeconds
 
         // 字段级 provenance：日期无效时已在上方抛 invalidResponse，始终可计入。
         var recognizedFields: Set<ShowDraftField> = [.date]

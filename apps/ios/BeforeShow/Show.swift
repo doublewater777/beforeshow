@@ -27,6 +27,7 @@ struct ShowDisplayFormatter {
 
     func dateText(for show: Show) -> String {
         let calendar = show.timingCalendar(fallback: calendar)
+        let endCalendar = show.endTimingCalendar(fallback: calendar)
         let startDay = show.effectiveDate
         let startClock = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
         let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar)
@@ -42,16 +43,22 @@ struct ShowDisplayFormatter {
            let endDay {
             let range = dayRangeText(from: startDay, to: endDay)
             if let endTime = show.endTime {
-                return "\(range) · 每日 \(timeText(startClock))-\(timeText(endTime))"
+                return "\(range) · 每日 \(timeText(startClock, calendar: calendar))-\(timeText(endTime, calendar: endCalendar))"
             }
-            return "\(range) · 每日 \(timeText(startClock))"
+            return "\(range) · 每日 \(timeText(startClock, calendar: calendar))"
         }
 
         var text = dateText(startDay)
-        text += " \(timeText(startClock))"
+        text += " \(timeText(startClock, calendar: calendar))"
 
         if let endClock {
-            text += " - \(shortDateTimeText(endClock, includeDateWhenSameDayAs: startDay))"
+            let formattedEnd = shortDateTimeText(
+                endClock,
+                includeDateWhenSameDayAs: startDay,
+                calendar: endCalendar,
+                sameDayCalendar: calendar
+            )
+            text += " - \(formattedEnd)"
         } else if let endDay,
                   calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay) {
             text += " - \(shortDateText(endDay))"
@@ -80,19 +87,24 @@ struct ShowDisplayFormatter {
         return "\(components.year ?? 0)年\(components.month ?? 1)月\(components.day ?? 1)日"
     }
 
-    private func shortDateText(_ date: Date) -> String {
-        let components = calendar.dateComponents([.month, .day], from: date)
+    private func shortDateText(_ date: Date, calendar: Calendar? = nil) -> String {
+        let components = (calendar ?? self.calendar).dateComponents([.month, .day], from: date)
         return "\(components.month ?? 1)月\(components.day ?? 1)日"
     }
 
-    private func shortDateTimeText(_ date: Date, includeDateWhenSameDayAs startDay: Date) -> String {
-        if calendar.isDate(date, inSameDayAs: startDay) {
-            return timeText(date)
+    private func shortDateTimeText(
+        _ date: Date,
+        includeDateWhenSameDayAs startDay: Date,
+        calendar: Calendar,
+        sameDayCalendar: Calendar
+    ) -> String {
+        if sameDayCalendar.isDate(date, inSameDayAs: startDay) {
+            return timeText(date, calendar: calendar)
         }
-        return "\(shortDateText(date)) \(timeText(date))"
+        return "\(shortDateText(date, calendar: calendar)) \(timeText(date, calendar: calendar))"
     }
 
-    private func timeText(_ date: Date) -> String {
+    private func timeText(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
@@ -107,6 +119,7 @@ final class Show {
     var endDate: Date?
     var endTime: Date?
     var timeZoneSecondsFromGMT: Int?
+    var endTimeZoneSecondsFromGMT: Int?
     var city: String?
     var venueName: String?
     var venueAddress: String?
@@ -186,6 +199,13 @@ final class Show {
         )
     }
 
+    func endTimingCalendar(fallback: Calendar = .current) -> Calendar {
+        Self.timingCalendar(
+            timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
+            fallback: fallback
+        )
+    }
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -194,6 +214,7 @@ final class Show {
         endDate: Date? = nil,
         endTime: Date? = nil,
         timeZoneSecondsFromGMT: Int? = nil,
+        endTimeZoneSecondsFromGMT: Int? = nil,
         city: String? = nil,
         venueName: String? = nil,
         venueAddress: String? = nil,
@@ -223,7 +244,10 @@ final class Show {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
-            calendar: Self.timingCalendar(timeZoneSecondsFromGMT: timeZoneSecondsFromGMT)
+            calendar: Self.timingCalendar(timeZoneSecondsFromGMT: timeZoneSecondsFromGMT),
+            endCalendar: Self.timingCalendar(
+                timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT
+            )
         ) else {
             throw ShowValidationError.invalidEndTime
         }
@@ -235,6 +259,7 @@ final class Show {
         self.endDate = endDate
         self.endTime = endTime
         self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
+        self.endTimeZoneSecondsFromGMT = endTimeZoneSecondsFromGMT
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -343,6 +368,7 @@ final class Show {
         endDate = prepared.endDate
         endTime = prepared.endTime
         timeZoneSecondsFromGMT = prepared.timeZoneSecondsFromGMT
+        endTimeZoneSecondsFromGMT = prepared.endTimeZoneSecondsFromGMT
         city = prepared.city
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
@@ -378,7 +404,8 @@ final class Show {
             startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime,
-            calendar: draft.timingCalendar()
+            calendar: draft.timingCalendar(),
+            endCalendar: draft.endTimingCalendar()
         ) else {
             throw ShowValidationError.invalidEndTime
         }
@@ -390,6 +417,7 @@ final class Show {
             endDate: draft.endDate,
             endTime: draft.endTime,
             timeZoneSecondsFromGMT: draft.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: draft.endTimeZoneSecondsFromGMT,
             city: trimmedOptional(draft.city),
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
@@ -427,8 +455,10 @@ final class Show {
         startTime: Date,
         endDate: Date?,
         endTime: Date?,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        endCalendar: Calendar? = nil
     ) -> Bool {
+        let endCalendar = endCalendar ?? calendar
         if let endDate,
            calendar.startOfDay(for: endDate) < calendar.startOfDay(for: date) {
             return false
@@ -439,9 +469,9 @@ final class Show {
         }
 
         let startDay = calendar.startOfDay(for: date)
-        let endDay = calendar.startOfDay(for: endDate ?? date)
-        let endComponents = calendar.dateComponents([.hour, .minute, .second], from: endTime)
-        guard let effectiveEnd = calendar.date(
+        let endDay = endCalendar.startOfDay(for: endDate ?? date)
+        let endComponents = endCalendar.dateComponents([.hour, .minute, .second], from: endTime)
+        guard let effectiveEnd = endCalendar.date(
             bySettingHour: endComponents.hour ?? 0,
             minute: endComponents.minute ?? 0,
             second: endComponents.second ?? 0,
@@ -477,6 +507,7 @@ struct PreparedShowDraft: Equatable {
     let endDate: Date?
     let endTime: Date?
     let timeZoneSecondsFromGMT: Int?
+    let endTimeZoneSecondsFromGMT: Int?
     let city: String?
     let venueName: String?
     let venueAddress: String?

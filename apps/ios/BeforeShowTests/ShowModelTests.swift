@@ -358,6 +358,28 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 
+    func testShowDisplayFormatterUsesEndOffsetAcrossDSTBoundary() throws {
+        var pacific = Calendar(identifier: .gregorian)
+        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let startDay = pacific.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let start = pacific.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 1, minute: 30))!
+        let end = ISO8601DateFormatter().date(from: "2026-11-01T02:30:00-08:00")!
+        let show = try Show(
+            name: "DST 边界现场",
+            date: startDay,
+            startTime: start,
+            endDate: end,
+            endTime: end,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -8 * 3_600
+        )
+
+        XCTAssertEqual(
+            ShowDisplayFormatter(calendar: pacific).dateText(for: show),
+            "2026年11月1日 01:30 - 02:30"
+        )
+    }
+
     func testMultiDayOvernightSessionsKeepPreviousDayAcrossMidnightAndAnchorConfirmedEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

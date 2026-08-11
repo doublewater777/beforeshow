@@ -34,6 +34,30 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(archive.artists, [FootprintRankItem(name: "落日飞车", count: 1)])
     }
 
+    func testArchiveGroupsShowsByVenueLocalYear() throws {
+        var venueCalendar = Calendar(identifier: .gregorian)
+        venueCalendar.timeZone = TimeZone(secondsFromGMT: -8 * 3_600)!
+        let show = try Show(
+            name: "洛杉矶跨年现场",
+            date: venueCalendar.date(from: DateComponents(year: 2026, month: 12, day: 31))!,
+            startTime: venueCalendar.date(from: DateComponents(year: 2026, month: 12, day: 31, hour: 20))!,
+            endTime: venueCalendar.date(from: DateComponents(year: 2026, month: 12, day: 31, hour: 23))!,
+            timeZoneSecondsFromGMT: -8 * 3_600,
+            city: "Los Angeles",
+            venueName: "跨年场馆"
+        )
+        show.markEnded(at: venueCalendar.date(from: DateComponents(year: 2027, month: 1, day: 1, hour: 1))!)
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [show],
+            now: date(2027, 1, 2, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.years.map(\.year), [2026])
+        XCTAssertEqual(archive.years.first?.shows.map(\.name), ["洛杉矶跨年现场"])
+    }
+
     func testArchiveRanksArtistsCitiesVenuesAndSplitsFestivalLineup() throws {
         let first = try makeShow("第一场", year: 2024, artist: "落日飞车、陈绮贞", city: " 上海 ", venue: "MAO")
         let second = try makeShow("第二场", year: 2025, artist: "落日飞车", city: "上海", venue: "梅奔")

@@ -852,6 +852,34 @@ final class MemoryFragmentTests: XCTestCase {
         XCTAssertEqual(MemoryFragmentPhase.resolved(at: at(day: 17, hour: 22, minute: 1), timing: timing, calendar: calendar), .after)
     }
 
+    func testMultiDayPhaseUsesEventCalendarWhenDeviceIsInAnotherTimeZone() {
+        var venueCalendar = Calendar(identifier: .gregorian)
+        venueCalendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let start = venueCalendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 23, minute: 30))!
+        let endDate = venueCalendar.date(from: DateComponents(year: 2026, month: 9, day: 18))!
+        let endClock = venueCalendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 1))!
+        let timing = ShowTimingFields(
+            date: start,
+            startTime: start,
+            endDate: endDate,
+            endTime: endClock,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endedAt: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+        let finalSession = venueCalendar.date(
+            from: DateComponents(year: 2026, month: 9, day: 19, hour: 0)
+        )!
+
+        XCTAssertEqual(
+            MemoryFragmentPhase.resolved(at: finalSession, timing: timing, calendar: deviceCalendar),
+            .live
+        )
+    }
+
     func testPhaseResolutionUsesShowTimingBoundaries() {
         let calendar = Calendar(identifier: .gregorian)
         var components = DateComponents(calendar: calendar, year: 2026, month: 8, day: 4, hour: 19, minute: 30)

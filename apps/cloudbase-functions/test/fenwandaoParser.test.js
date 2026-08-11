@@ -162,4 +162,30 @@ describe("fenwandao project-info API parser", () => {
     assert.equal(draft.name, "纷玩岛页面回退");
     assert.equal(draft.startDateTime, "2026-09-16T19:00:00+08:00");
   });
+
+  it("falls back when the project API returns an unusable event draft", async () => {
+    let requests = 0;
+    const payload = structuredClone(PROJECT_RESPONSE);
+    payload.data.projectStartDate = "TBD";
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "MusicEvent",
+      name: "纷玩岛语义回退",
+      startDate: "2026-09-16T19:00:00+08:00",
+      location: { "@type": "Place", name: "Fallback Hall" }
+    })}</script>`;
+
+    const draft = await parseShowLink(SHARE_URL, {
+      fetch: async () => {
+        requests += 1;
+        if (requests === 1) {
+          return { ok: true, status: 200, json: async () => payload };
+        }
+        return { ok: true, status: 200, text: async () => html };
+      }
+    });
+
+    assert.equal(requests, 2);
+    assert.equal(draft.name, "纷玩岛语义回退");
+    assert.equal(draft.date, "2026-09-16");
+  });
 });

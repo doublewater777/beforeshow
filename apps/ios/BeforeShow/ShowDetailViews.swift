@@ -23,6 +23,7 @@ enum ShowDetailExperienceAction: String, CaseIterable {
 
 struct PostponeShowSheet: View {
     @Binding var newDate: Date
+    let calendar: Calendar
     let onUndated: () -> Void
     let onDated: () -> Void
 
@@ -39,6 +40,8 @@ struct PostponeShowSheet: View {
                 DatePicker("新日期", selection: $newDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .tint(BSColor.Accent.violet)
+                    .environment(\.calendar, calendar)
+                    .environment(\.timeZone, calendar.timeZone)
             }
 
             VStack(spacing: BSSpacing.sm) {
@@ -299,6 +302,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isShowingPostpone) {
             PostponeShowSheet(
                 newDate: $postponeDraft,
+                calendar: show.timingCalendar(),
                 onUndated: {
                     isShowingPostpone = false
                     applyStatus(message: "已记录延期，日期待定") {
@@ -306,7 +310,10 @@ struct ShowDetailView: View {
                     }
                 },
                 onDated: {
-                    let newDate = postponeDraft
+                    let newDate = ShowDateSelectionPolicy.normalizedDay(
+                        postponeDraft,
+                        calendar: show.timingCalendar()
+                    )
                     isShowingPostpone = false
                     applyStatus(message: "延期日期已更新") {
                         show.markPostponed(newDate: newDate)
