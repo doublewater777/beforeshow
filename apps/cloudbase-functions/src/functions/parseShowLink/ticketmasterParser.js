@@ -161,6 +161,8 @@ export function parseTicketmasterEvent(event) {
 
   const start = event.dates?.start ?? {};
   const end = event.dates?.end ?? {};
+  const startDateTime = normalizeISODateTime(start.dateTime);
+  const endDateTime = normalizeISODateTime(end.dateTime);
   const venue = event._embedded?.venues?.[0] ?? event.venues?.[0] ?? {};
   const attractions = event._embedded?.attractions ?? event.attractions ?? [];
   const artists = uniqueStrings(
@@ -176,8 +178,10 @@ export function parseTicketmasterEvent(event) {
     city: stringValue(venue.city?.name ?? venue.city),
     date: normalizeDate(start.localDate),
     startTime: normalizeTime(start.localTime),
+    ...(startDateTime ? { startDateTime } : {}),
     ...(normalizeDate(end.localDate) ? { endDate: normalizeDate(end.localDate) } : {}),
     ...(normalizeTime(end.localTime) ? { endTime: normalizeTime(end.localTime) } : {}),
+    ...(endDateTime ? { endDateTime } : {}),
     venueName: stringValue(venue.name),
     venueAddr: formatVenueAddress(venue),
     artist: artists.join(", "),
@@ -264,6 +268,24 @@ function normalizeTime(value) {
   const match = stringValue(value).match(/^(\d{1,2}):(\d{2})/);
   if (!match || Number(match[1]) > 23 || Number(match[2]) > 59) return "";
   return `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
+}
+
+function normalizeISODateTime(value) {
+  const text = stringValue(value);
+  const match = text.match(
+    /^(20\d{2})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/
+  );
+  if (!match) return "";
+
+  const date = normalizeDate(`${match[1]}-${match[2]}-${match[3]}`);
+  const time = normalizeTime(`${match[4]}:${match[5]}`);
+  const seconds = Number(match[6] ?? 0);
+  const offset = match[8];
+  if (!date || !time || seconds > 59) return "";
+  if (offset !== "Z" && (Number(offset.slice(1, 3)) > 23 || Number(offset.slice(4, 6)) > 59)) {
+    return "";
+  }
+  return `${date}T${time}:${String(seconds).padStart(2, "0")}${match[7] ? `.${match[7]}` : ""}${offset}`;
 }
 
 function formatAmount(value) {

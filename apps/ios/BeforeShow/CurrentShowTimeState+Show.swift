@@ -9,6 +9,7 @@ extension Show {
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
+            timeZoneSecondsFromGMT: timeZoneSecondsFromGMT,
             endedAt: endedAt,
             postponedDate: postponedDate,
             changeStatus: changeStatus
@@ -27,25 +28,26 @@ extension CurrentShowTimeState {
     }
 
     static func isMultiDayDailyCycle(for show: Show, calendar: Calendar) -> Bool {
-        isMultiDayDailyCycle(timing: show.timingFields, calendar: calendar)
+        isMultiDayDailyCycle(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
     }
 
     static func effectiveStartTime(for show: Show, calendar: Calendar) -> Date {
-        effectiveStartTime(timing: show.timingFields, calendar: calendar)
+        effectiveStartTime(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
     }
 
     /// Earliest user-confirmable end: the final daily session start for a
     /// multi-day cycle, otherwise the show's effective start.
     static func minimumConfirmableEnd(for show: Show, calendar: Calendar) -> Date {
-        guard isMultiDayDailyCycle(for: show, calendar: calendar),
-              let finalDay = effectiveEndDate(for: show, calendar: calendar) else {
-            return effectiveStartTime(for: show, calendar: calendar)
+        let eventCalendar = show.timingCalendar(fallback: calendar)
+        guard isMultiDayDailyCycle(for: show, calendar: eventCalendar),
+              let finalDay = effectiveEndDate(for: show, calendar: eventCalendar) else {
+            return effectiveStartTime(for: show, calendar: eventCalendar)
         }
-        return dailyStartTime(on: finalDay, show: show, calendar: calendar)
+        return dailyStartTime(on: finalDay, show: show, calendar: eventCalendar)
     }
 
     static func effectiveEndDate(for show: Show, calendar: Calendar) -> Date? {
-        effectiveEndDate(timing: show.timingFields, calendar: calendar)
+        effectiveEndDate(timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
     }
 
     static func effectiveEndTime(
@@ -56,17 +58,17 @@ extension CurrentShowTimeState {
     ) -> Date? {
         effectiveEndTime(
             timing: show.timingFields,
-            calendar: calendar,
+            calendar: show.timingCalendar(fallback: calendar),
             effectiveDate: effectiveDate,
             effectiveStartTime: effectiveStartTime
         )
     }
 
     static func dailyStartTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        dailyStartTime(on: day, timing: show.timingFields, calendar: calendar)
+        dailyStartTime(on: day, timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
     }
 
     static func dailyEndTime(on day: Date, show: Show, calendar: Calendar) -> Date {
-        dailyEndTime(on: day, timing: show.timingFields, calendar: calendar)
+        dailyEndTime(on: day, timing: show.timingFields, calendar: show.timingCalendar(fallback: calendar))
     }
 }

@@ -564,6 +564,59 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.source, .link)
     }
 
+    func testRemoteInternationalLinkPreservesEventInstantAcrossDeviceTimeZones() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "洛杉矶现场",
+                "city": "Los Angeles",
+                "date": "2026-09-16",
+                "startTime": "19:00",
+                "startDateTime": "2026-09-16T19:00:00-07:00",
+                "endDate": "2026-09-16",
+                "endTime": "22:00",
+                "endDateTime": "2026-09-16T22:00:00-07:00",
+                "venueName": "Crypto.com Arena",
+                "venueAddr": "Los Angeles",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "dice"
+            }
+        }
+        """
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: shanghaiCalendar
+        )
+
+        let draft = try await service.parse(link: "https://dice.fm/event/example")
+        let expectedStart = ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!
+        let expectedEnd = ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!
+
+        XCTAssertEqual(draft.date, expectedStart)
+        XCTAssertEqual(draft.startTime, expectedStart)
+        XCTAssertEqual(draft.endDate, expectedEnd)
+        XCTAssertEqual(draft.endTime, expectedEnd)
+        XCTAssertEqual(draft.timeZoneSecondsFromGMT, -7 * 3_600)
+
+        let show = try draft.makeShow()
+        XCTAssertEqual(show.timeZoneSecondsFromGMT, -7 * 3_600)
+        XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: shanghaiCalendar), expectedStart)
+        XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: Calendar(identifier: .gregorian)), expectedStart)
+    }
+
     func testRemoteShowLinkParsingServiceKeepsMissingStartTimeUnconfirmed() async throws {
         let json = """
         {

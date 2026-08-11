@@ -62,19 +62,32 @@ export async function parseShowLink(url, options = {}) {
   }
 
   if (normalized.platform === "piaoxingqiu" && normalized.eventId) {
-    return fetchAndParsePiaoxingqiu({
-      eventId: normalized.eventId,
-      canonicalUrl: normalized.canonicalUrl,
-      fetch: options.fetch
+    return apiThenPublicPage({
+      api: () => fetchAndParsePiaoxingqiu({
+        eventId: normalized.eventId,
+        canonicalUrl: normalized.canonicalUrl,
+        fetch: options.fetch
+      }),
+      page: () => fetchAndParseTicketPage({
+        url: normalized.canonicalUrl,
+        source: normalized.platform,
+        fetch: options.fetch
+      })
     });
   }
 
   if (normalized.platform === "fenwandao" && normalized.eventId) {
-    const detail = await fetchFenwandaoProjectInfo({
-      projectId: normalized.eventId,
-      fetch: options.fetch
+    return apiThenPublicPage({
+      api: async () => parseFenwandaoProject(await fetchFenwandaoProjectInfo({
+        projectId: normalized.eventId,
+        fetch: options.fetch
+      })),
+      page: () => fetchAndParseTicketPage({
+        url: normalized.canonicalUrl,
+        source: normalized.platform,
+        fetch: options.fetch
+      })
     });
-    return parseFenwandaoProject(detail);
   }
 
   if (normalized.platform === "piaoxingqiu" || PUBLIC_PAGE_PLATFORMS.has(normalized.platform)) {
@@ -86,4 +99,19 @@ export async function parseShowLink(url, options = {}) {
   }
 
   throw new UnsupportedPlatformError(url);
+}
+
+async function apiThenPublicPage({ api, page }) {
+  try {
+    return await api();
+  } catch (apiError) {
+    try {
+      return await page();
+    } catch (pageError) {
+      const error = new Error(pageError?.message ?? "Public event page parsing failed");
+      error.cause = apiError;
+      error.pageCause = pageError;
+      throw error;
+    }
+  }
 }

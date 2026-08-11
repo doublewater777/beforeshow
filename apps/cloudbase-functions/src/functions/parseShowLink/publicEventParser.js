@@ -204,8 +204,10 @@ function draftFromCandidate(object, source) {
     city,
     date: start.date ?? "",
     startTime: start.time ?? "",
+    ...(start.dateTime ? { startDateTime: start.dateTime } : {}),
     ...(finalEnd.date ? { endDate: finalEnd.date } : {}),
     ...(finalEnd.time ? { endTime: finalEnd.time } : {}),
+    ...(finalEnd.dateTime ? { endDateTime: finalEnd.dateTime } : {}),
     venueName,
     venueAddr,
     artist: artists.map((artist) => artist.name).filter(Boolean).join(", "),
@@ -226,8 +228,10 @@ function draftFromMeta(meta, source) {
     city: meta["event:location:locality"] ?? "",
     date: start.date ?? "",
     startTime: start.time ?? "",
+    ...(start.dateTime ? { startDateTime: start.dateTime } : {}),
     ...(end.date ? { endDate: end.date } : {}),
     ...(end.time ? { endTime: end.time } : {}),
+    ...(end.dateTime ? { endDateTime: end.dateTime } : {}),
     venueName: meta["event:location"] ?? "",
     venueAddr: meta["event:location:address"] ?? "",
     artist: "",
@@ -275,10 +279,13 @@ function parseDateTime(value) {
   const timeMatch = text.match(/(?:T|\s|周[^\s]*\s*)(\d{1,2})[:：](\d{2})/)
     ?? text.match(/(\d{1,2})[:：](\d{2})/);
 
-  return {
-    date: dateMatch ? formatDateParts(dateMatch[1], dateMatch[2], dateMatch[3]) : null,
-    time: timeMatch ? formatTimeParts(timeMatch[1], timeMatch[2]) : null
-  };
+  const date = dateMatch
+    ? formatDateParts(dateMatch[1], dateMatch[2], dateMatch[3])
+    : null;
+  const time = timeMatch ? formatTimeParts(timeMatch[1], timeMatch[2]) : null;
+  const dateTime = isoDateTime(text, date, time);
+
+  return { date, time, dateTime };
 }
 
 function parseSecondDateTime(value) {
@@ -294,8 +301,33 @@ function parseSecondDateTime(value) {
   const time = tail.match(/(\d{1,2})[:：](\d{2})/);
   return {
     date: formatDateParts(second[1], second[2], second[3]),
-    time: time ? formatTimeParts(time[1], time[2]) : null
+    time: time ? formatTimeParts(time[1], time[2]) : null,
+    dateTime: null
   };
+}
+
+function isoDateTime(value, date, time) {
+  if (!date || !time) return null;
+
+  const match = String(value).match(
+    /^(?:\s*)(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})(?:\s*)$/
+  );
+  if (!match || date !== `${match[1]}-${match[2]}-${match[3]}`
+    || time !== `${match[4]}:${match[5]}`) {
+    return null;
+  }
+
+  const offset = match[8];
+  if (offset !== "Z") {
+    const offsetHour = Number(offset.slice(1, 3));
+    const offsetMinute = Number(offset.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return null;
+  }
+
+  const seconds = match[6] ?? "00";
+  if (Number(seconds) > 59) return null;
+  const fraction = match[7] ? `.${match[7]}` : "";
+  return `${date}T${time}:${seconds}${fraction}${offset}`;
 }
 
 function firstClockValue(object, keys) {

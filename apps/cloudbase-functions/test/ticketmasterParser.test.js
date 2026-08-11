@@ -81,6 +81,17 @@ describe("Ticketmaster Discovery API parser", () => {
     });
   });
 
+  it("preserves Discovery event instants when the API provides dateTime", () => {
+    const event = structuredClone(EVENT);
+    event.dates.start.dateTime = "2026-09-19T20:00:00-07:00";
+    event.dates.end.dateTime = "2026-09-19T22:30:00-07:00";
+
+    const draft = parseTicketmasterEvent(event);
+
+    assert.equal(draft.startDateTime, "2026-09-19T20:00:00-07:00");
+    assert.equal(draft.endDateTime, "2026-09-19T22:30:00-07:00");
+  });
+
   it("uses injected fetch and validates the response", async () => {
     let requestedUrl = "";
     let requestedOptions;

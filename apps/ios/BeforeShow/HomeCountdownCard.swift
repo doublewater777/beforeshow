@@ -154,6 +154,7 @@ enum HomeShowIdentityPresentation {
         calendar: Calendar = .current
     ) -> String? {
         guard timeState.hasKnownEffectiveDate else { return nil }
+        let calendar = show.timingCalendar(fallback: calendar)
 
         let dayFormatter = DateFormatter()
         dayFormatter.locale = Locale(identifier: "zh_Hans_CN")

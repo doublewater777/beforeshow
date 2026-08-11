@@ -26,6 +26,7 @@ struct ShowDisplayFormatter {
     }
 
     func dateText(for show: Show) -> String {
+        let calendar = show.timingCalendar(fallback: calendar)
         let startDay = show.effectiveDate
         let startClock = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
         let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar)
@@ -105,6 +106,7 @@ final class Show {
     var startTime: Date
     var endDate: Date?
     var endTime: Date?
+    var timeZoneSecondsFromGMT: Int?
     var city: String?
     var venueName: String?
     var venueAddress: String?
@@ -177,6 +179,13 @@ final class Show {
         postponedDate ?? date
     }
 
+    func timingCalendar(fallback: Calendar = .current) -> Calendar {
+        Self.timingCalendar(
+            timeZoneSecondsFromGMT: timeZoneSecondsFromGMT,
+            fallback: fallback
+        )
+    }
+
     init(
         id: UUID = UUID(),
         name: String,
@@ -184,6 +193,7 @@ final class Show {
         startTime: Date,
         endDate: Date? = nil,
         endTime: Date? = nil,
+        timeZoneSecondsFromGMT: Int? = nil,
         city: String? = nil,
         venueName: String? = nil,
         venueAddress: String? = nil,
@@ -212,7 +222,8 @@ final class Show {
             date: date,
             startTime: startTime,
             endDate: endDate,
-            endTime: endTime
+            endTime: endTime,
+            calendar: Self.timingCalendar(timeZoneSecondsFromGMT: timeZoneSecondsFromGMT)
         ) else {
             throw ShowValidationError.invalidEndTime
         }
@@ -223,6 +234,7 @@ final class Show {
         self.startTime = startTime
         self.endDate = endDate
         self.endTime = endTime
+        self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -330,6 +342,7 @@ final class Show {
         startTime = prepared.startTime
         endDate = prepared.endDate
         endTime = prepared.endTime
+        timeZoneSecondsFromGMT = prepared.timeZoneSecondsFromGMT
         city = prepared.city
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
@@ -364,7 +377,8 @@ final class Show {
             date: draft.date,
             startTime: startTime,
             endDate: draft.endDate,
-            endTime: draft.endTime
+            endTime: draft.endTime,
+            calendar: draft.timingCalendar()
         ) else {
             throw ShowValidationError.invalidEndTime
         }
@@ -375,6 +389,7 @@ final class Show {
             startTime: startTime,
             endDate: draft.endDate,
             endTime: draft.endTime,
+            timeZoneSecondsFromGMT: draft.timeZoneSecondsFromGMT,
             city: trimmedOptional(draft.city),
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
@@ -392,6 +407,19 @@ final class Show {
         guard let value else { return nil }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func timingCalendar(
+        timeZoneSecondsFromGMT: Int?,
+        fallback: Calendar = .current
+    ) -> Calendar {
+        guard let timeZoneSecondsFromGMT,
+              let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
+            return fallback
+        }
+        var calendar = fallback
+        calendar.timeZone = timeZone
+        return calendar
     }
 
     static func hasValidEndTime(
@@ -448,6 +476,7 @@ struct PreparedShowDraft: Equatable {
     let startTime: Date
     let endDate: Date?
     let endTime: Date?
+    let timeZoneSecondsFromGMT: Int?
     let city: String?
     let venueName: String?
     let venueAddress: String?

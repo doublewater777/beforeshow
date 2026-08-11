@@ -143,9 +143,12 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
     }
 
     private func mapDraft(_ draft: LinkParsedDraft) throws -> ShowDraft {
-        guard let date = parseDate(draft.date) else {
+        let parsedStart = parseISODateTime(draft.startDateTime)
+        guard let date = parsedStart?.date ?? parseDate(draft.date) else {
             throw ShowLinkParsingError.invalidResponse
         }
+
+        let eventOffset = parsedStart?.offsetSeconds
 
         var showDraft = ShowDraft(
             name: draft.name,
@@ -159,7 +162,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             source: .link
         )
 
-        if let startTime = draft.startTime, !startTime.isEmpty {
+        if let parsedStart {
+            showDraft.startTime = parsedStart.date
+        } else if let startTime = draft.startTime, !startTime.isEmpty {
             guard let parsedStartTime = parseTime(startTime, on: date) else {
                 throw ShowLinkParsingError.invalidResponse
             }
@@ -167,18 +172,23 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         } else {
             showDraft.startTime = nil
         }
-        if let endDate = draft.endDate, !endDate.isEmpty {
+        if let endDateTime = parseISODateTime(draft.endDateTime) {
+            showDraft.endDate = endDateTime.date
+        } else if let endDate = draft.endDate, !endDate.isEmpty {
             guard let parsedEndDate = parseDate(endDate) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endDate = parsedEndDate
         }
-        if let endTime = draft.endTime, !endTime.isEmpty {
+        if let endDateTime = parseISODateTime(draft.endDateTime) {
+            showDraft.endTime = endDateTime.date
+        } else if let endTime = draft.endTime, !endTime.isEmpty {
             guard let parsedEndTime = parseTime(endTime, on: showDraft.endDate ?? date) else {
                 throw ShowLinkParsingError.invalidResponse
             }
             showDraft.endTime = parsedEndTime
         }
+        showDraft.timeZoneSecondsFromGMT = eventOffset
 
         // 字段级 provenance：日期无效时已在上方抛 invalidResponse，始终可计入。
         var recognizedFields: Set<ShowDraftField> = [.date]
@@ -226,6 +236,34 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
               (0...59).contains(parts[1]) else { return nil }
         return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: date)
     }
+
+    private func parseISODateTime(_ string: String?) -> (date: Date, offsetSeconds: Int?)? {
+        guard let string, !string.isEmpty else { return nil }
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        guard let date = formatter.date(from: string) ?? {
+            formatter.formatOptions = [.withInternetDateTime]
+            return formatter.date(from: string)
+        }() else {
+            return nil
+        }
+
+        let offsetSeconds: Int?
+        if string.hasSuffix("Z") {
+            offsetSeconds = 0
+        } else if let match = string.range(of: #"([+-])(\d{2}):(\d{2})$"#, options: .regularExpression) {
+            let suffix = String(string[match])
+            let sign = suffix.first == "-" ? -1 : 1
+            let hour = Int(suffix.dropFirst().prefix(2)) ?? 0
+            let minute = Int(suffix.dropFirst(4).prefix(2)) ?? 0
+            offsetSeconds = sign * (hour * 3_600 + minute * 60)
+        } else {
+            offsetSeconds = nil
+        }
+
+        return (date, offsetSeconds)
+    }
 }
 
 private struct RequestBody: Encodable {
@@ -250,8 +288,10 @@ struct LinkParsedDraft: Decodable {
     let city: String
     let date: String
     let startTime: String?
+    let startDateTime: String?
     let endDate: String?
     let endTime: String?
+    let endDateTime: String?
     let venueName: String
     let venueAddr: String
     let artist: String

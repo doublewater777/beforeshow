@@ -121,8 +121,10 @@ describe("public event page parser", () => {
     assert.equal(draft.city, "Los Angeles");
     assert.equal(draft.date, "2026-09-16");
     assert.equal(draft.startTime, "19:00");
+    assert.equal(draft.startDateTime, "2026-09-16T19:00:00-07:00");
     assert.equal(draft.endDate, "2026-09-16");
     assert.equal(draft.endTime, "21:30");
+    assert.equal(draft.endDateTime, "2026-09-16T21:30:00-07:00");
     assert.equal(draft.venueName, "Crypto.com Arena");
     assert.match(draft.venueAddr, /1111 S Figueroa St/);
     assert.equal(draft.artist, "LE SSERAFIM");

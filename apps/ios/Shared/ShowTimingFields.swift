@@ -13,11 +13,25 @@ struct ShowTimingFields: Equatable, Codable {
     var startTime: Date
     var endDate: Date?
     var endTime: Date?
+    /// Fixed UTC offset reported by an external event page, when available.
+    /// The Date values remain absolute instants; this offset preserves the
+    /// venue-local calendar and clock when timing is displayed or recomputed.
+    var timeZoneSecondsFromGMT: Int? = nil
     var endedAt: Date? = nil
     var postponedDate: Date?
     var changeStatus: ShowChangeStatus
 
     var effectiveDate: Date {
         postponedDate ?? date
+    }
+
+    func eventCalendar(fallback: Calendar) -> Calendar {
+        guard let timeZoneSecondsFromGMT,
+              let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
+            return fallback
+        }
+        var calendar = fallback
+        calendar.timeZone = timeZone
+        return calendar
     }
 }

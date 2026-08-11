@@ -140,4 +140,26 @@ describe("fenwandao project-info API parser", () => {
     assert.equal(draft.city, "深圳");
     assert.match(requestedUrl, /get_project_info\?project_id=271$/);
   });
+
+  it("falls back to the canonical page when project info is unavailable", async () => {
+    let requests = 0;
+    const html = `<script type="application/ld+json">${JSON.stringify({
+      "@type": "MusicEvent",
+      name: "纷玩岛页面回退",
+      startDate: "2026-09-16T19:00:00+08:00",
+      location: { "@type": "Place", name: "Fallback Hall" }
+    })}</script>`;
+
+    const draft = await parseShowLink(SHARE_URL, {
+      fetch: async () => {
+        requests += 1;
+        if (requests === 1) return { ok: false, status: 503 };
+        return { ok: true, status: 200, text: async () => html };
+      }
+    });
+
+    assert.equal(requests, 2);
+    assert.equal(draft.name, "纷玩岛页面回退");
+    assert.equal(draft.startDateTime, "2026-09-16T19:00:00+08:00");
+  });
 });

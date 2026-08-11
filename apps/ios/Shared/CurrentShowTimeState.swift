@@ -40,23 +40,24 @@ struct CurrentShowTimeState: Equatable {
         now: Date = Date(),
         retentionDays: Int = Self.defaultRetentionDays
     ) {
+        let eventCalendar = timing.eventCalendar(fallback: calendar)
         self.retentionDays = retentionDays
         self.hasKnownEffectiveDate = !(timing.changeStatus == .postponed && timing.postponedDate == nil)
         self.isDatedPostponement = timing.changeStatus == .postponed && timing.postponedDate != nil
         self.effectiveDate = timing.effectiveDate
 
         let resolvedEndDate = hasKnownEffectiveDate
-            ? Self.effectiveEndDate(timing: timing, calendar: calendar)
+            ? Self.effectiveEndDate(timing: timing, calendar: eventCalendar)
             : nil
         self.effectiveEndDate = resolvedEndDate
 
-        let today = calendar.startOfDay(for: now)
-        let showDay = calendar.startOfDay(for: effectiveDate)
-        let daysToFirst = calendar.dateComponents([.day], from: today, to: showDay).day ?? 0
+        let today = eventCalendar.startOfDay(for: now)
+        let showDay = eventCalendar.startOfDay(for: effectiveDate)
+        let daysToFirst = eventCalendar.dateComponents([.day], from: today, to: showDay).day ?? 0
         self.dayDistance = daysToFirst
 
         let multiDayDaily = hasKnownEffectiveDate
-            && Self.isMultiDayDailyCycle(timing: timing, calendar: calendar)
+            && Self.isMultiDayDailyCycle(timing: timing, calendar: eventCalendar)
 
         let resolvedStart: Date?
         let resolvedEnd: Date?
@@ -65,7 +66,7 @@ struct CurrentShowTimeState: Equatable {
 
         if timing.changeStatus == .canceled {
             resolvedStart = hasKnownEffectiveDate
-                ? Self.effectiveStartTime(timing: timing, calendar: calendar)
+                ? Self.effectiveStartTime(timing: timing, calendar: eventCalendar)
                 : nil
             resolvedEnd = nil
             resolvedBoundary = nil
@@ -77,48 +78,48 @@ struct CurrentShowTimeState: Equatable {
             resolvedKind = .postponed
         } else if let endedAt = timing.endedAt {
             if multiDayDaily {
-                let endedDay = calendar.startOfDay(for: endedAt)
-                let endedDayStart = Self.dailyStartTime(on: endedDay, timing: timing, calendar: calendar)
+                let endedDay = eventCalendar.startOfDay(for: endedAt)
+                let endedDayStart = Self.dailyStartTime(on: endedDay, timing: timing, calendar: eventCalendar)
                 let candidateSessionDay: Date
                 if endedAt < endedDayStart,
-                   let previousDay = calendar.date(byAdding: .day, value: -1, to: endedDay) {
+                   let previousDay = eventCalendar.date(byAdding: .day, value: -1, to: endedDay) {
                     candidateSessionDay = previousDay
                 } else {
                     candidateSessionDay = endedDay
                 }
-                let finalDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
+                let finalDay = eventCalendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
                 let sessionDay = min(candidateSessionDay, finalDay)
-                resolvedStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: calendar)
+                resolvedStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: eventCalendar)
             } else {
-                resolvedStart = Self.effectiveStartTime(timing: timing, calendar: calendar)
+                resolvedStart = Self.effectiveStartTime(timing: timing, calendar: eventCalendar)
             }
             resolvedEnd = endedAt
             resolvedBoundary = endedAt
 
             if now < endedAt {
                 resolvedKind = .today
-            } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: endedAt),
+            } else if let retentionEnd = eventCalendar.date(byAdding: .day, value: retentionDays, to: endedAt),
                       now < retentionEnd {
                 resolvedKind = .postShow
             } else {
                 resolvedKind = .ended
             }
         } else if multiDayDaily {
-            let lastDay = calendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
-            let finalEnd = Self.dailyEndTime(on: lastDay, timing: timing, calendar: calendar)
+            let lastDay = eventCalendar.startOfDay(for: resolvedEndDate ?? effectiveDate)
+            let finalEnd = Self.dailyEndTime(on: lastDay, timing: timing, calendar: eventCalendar)
             // 跨午夜时，凌晨仍属于前一天的场次（例如 22:00–01:00）。
             let sessionDay: Date = {
                 if today < showDay { return showDay }
                 if today > lastDay { return lastDay }
                 guard today > showDay,
-                      let previousDay = calendar.date(byAdding: .day, value: -1, to: today),
+                      let previousDay = eventCalendar.date(byAdding: .day, value: -1, to: today),
                       previousDay >= showDay else { return today }
-                let previousStart = Self.dailyStartTime(on: previousDay, timing: timing, calendar: calendar)
-                let previousEnd = Self.dailyEndTime(on: previousDay, timing: timing, calendar: calendar)
+                let previousStart = Self.dailyStartTime(on: previousDay, timing: timing, calendar: eventCalendar)
+                let previousEnd = Self.dailyEndTime(on: previousDay, timing: timing, calendar: eventCalendar)
                 return now >= previousStart && now < previousEnd ? previousDay : today
             }()
-            let dayStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: calendar)
-            let dayEnd = Self.dailyEndTime(on: sessionDay, timing: timing, calendar: calendar)
+            let dayStart = Self.dailyStartTime(on: sessionDay, timing: timing, calendar: eventCalendar)
+            let dayEnd = Self.dailyEndTime(on: sessionDay, timing: timing, calendar: eventCalendar)
             resolvedStart = dayStart
             resolvedEnd = dayEnd
             resolvedBoundary = today < showDay ? finalEnd : dayEnd
@@ -131,23 +132,23 @@ struct CurrentShowTimeState: Equatable {
                 resolvedKind = .today
             } else if sessionDay < lastDay {
                 resolvedKind = .dayEnded
-            } else if let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: dayEnd),
+            } else if let retentionEnd = eventCalendar.date(byAdding: .day, value: retentionDays, to: dayEnd),
                       now < retentionEnd {
                 resolvedKind = .postShow
             } else {
                 resolvedKind = .ended
             }
         } else {
-            let firstStart = Self.effectiveStartTime(timing: timing, calendar: calendar)
+            let firstStart = Self.effectiveStartTime(timing: timing, calendar: eventCalendar)
             let wholeEnd = Self.effectiveEndTime(
                 timing: timing,
-                calendar: calendar,
+                calendar: eventCalendar,
                 effectiveDate: timing.effectiveDate,
                 effectiveStartTime: firstStart
             )
             let boundary = Self.effectiveEndBoundary(
                 timing: timing,
-                calendar: calendar,
+                calendar: eventCalendar,
                 effectiveDate: effectiveDate,
                 effectiveEndDate: resolvedEndDate,
                 effectiveEndTime: wholeEnd
@@ -161,7 +162,7 @@ struct CurrentShowTimeState: Equatable {
             } else if let boundary, now < boundary {
                 resolvedKind = .today
             } else if let boundary,
-                      let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: boundary),
+                      let retentionEnd = eventCalendar.date(byAdding: .day, value: retentionDays, to: boundary),
                       now < retentionEnd {
                 resolvedKind = .postShow
             } else {
@@ -181,7 +182,7 @@ struct CurrentShowTimeState: Equatable {
             endBoundary: resolvedBoundary,
             now: now,
             retentionDays: retentionDays,
-            calendar: calendar
+            calendar: eventCalendar
         )
         self.countdownText = countdown.text
         self.countdownNumber = countdown.number
