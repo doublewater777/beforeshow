@@ -32,6 +32,10 @@ struct ShowDraft: Equatable {
     var startTime: Date?
     var endDate: Date?
     var endTime: Date?
+    var timeZoneSecondsFromGMT: Int?
+    var endTimeZoneSecondsFromGMT: Int?
+    var timeZoneIdentifier: String?
+    var endTimeZoneIdentifier: String?
     var city: String
     var venueName: String
     var venueAddress: String
@@ -48,6 +52,10 @@ struct ShowDraft: Equatable {
         startTime: Date? = nil,
         endDate: Date? = nil,
         endTime: Date? = nil,
+        timeZoneSecondsFromGMT: Int? = nil,
+        endTimeZoneSecondsFromGMT: Int? = nil,
+        timeZoneIdentifier: String? = nil,
+        endTimeZoneIdentifier: String? = nil,
         city: String = "",
         venueName: String = "",
         venueAddress: String = "",
@@ -62,6 +70,10 @@ struct ShowDraft: Equatable {
         self.startTime = startTime
         self.endDate = endDate
         self.endTime = endTime
+        self.timeZoneSecondsFromGMT = timeZoneSecondsFromGMT
+        self.endTimeZoneSecondsFromGMT = endTimeZoneSecondsFromGMT
+        self.timeZoneIdentifier = timeZoneIdentifier
+        self.endTimeZoneIdentifier = endTimeZoneIdentifier
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
@@ -79,6 +91,10 @@ struct ShowDraft: Equatable {
             startTime: show.startTime,
             endDate: show.endDate,
             endTime: show.endTime,
+            timeZoneSecondsFromGMT: show.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: show.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: show.timeZoneIdentifier,
+            endTimeZoneIdentifier: show.endTimeZoneIdentifier,
             city: show.city ?? "",
             venueName: show.venueName ?? "",
             venueAddress: show.venueAddress ?? "",
@@ -97,6 +113,10 @@ struct ShowDraft: Equatable {
             startTime: prepared.startTime,
             endDate: prepared.endDate,
             endTime: prepared.endTime,
+            timeZoneSecondsFromGMT: prepared.timeZoneSecondsFromGMT,
+            endTimeZoneSecondsFromGMT: prepared.endTimeZoneSecondsFromGMT,
+            timeZoneIdentifier: prepared.timeZoneIdentifier,
+            endTimeZoneIdentifier: prepared.endTimeZoneIdentifier,
             city: prepared.city,
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
@@ -108,13 +128,49 @@ struct ShowDraft: Equatable {
 
     func hasValidEndTime(calendar: Calendar = .current) -> Bool {
         guard let startTime else { return false }
+        let eventCalendar = timingCalendar(fallback: calendar)
         return Show.hasValidEndTime(
             date: date,
             startTime: startTime,
             endDate: endDate,
             endTime: endTime,
-            calendar: calendar
+            calendar: eventCalendar,
+            endCalendar: endTimingCalendar(fallback: calendar)
         )
+    }
+
+    func timingCalendar(fallback: Calendar = .current) -> Calendar {
+        if let timeZoneIdentifier,
+           let timeZone = TimeZone(identifier: timeZoneIdentifier) {
+            var calendar = fallback
+            calendar.timeZone = timeZone
+            return calendar
+        }
+        guard let timeZoneSecondsFromGMT,
+              let timeZone = TimeZone(secondsFromGMT: timeZoneSecondsFromGMT) else {
+            return fallback
+        }
+        var calendar = fallback
+        calendar.timeZone = timeZone
+        return calendar
+    }
+
+    func endTimingCalendar(fallback: Calendar = .current) -> Calendar {
+        Show.timingCalendar(
+            timeZoneIdentifier: endTimeZoneIdentifier ?? timeZoneIdentifier,
+            timeZoneSecondsFromGMT: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT,
+            fallback: fallback
+        )
+    }
+
+    func mergedTime(_ time: Date, into day: Date, calendar: Calendar) -> Date {
+        let components = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: time)
+        return calendar.date(
+            bySettingHour: components.hour ?? 0,
+            minute: components.minute ?? 0,
+            second: components.second ?? 0,
+            of: calendar.startOfDay(for: day)
+        ) ?? day
     }
 }
 
@@ -753,18 +809,25 @@ struct ShowLinkDraftParser {
     private func parseDate(_ string: String) -> Date? {
         let parts = string.split(separator: "-").compactMap { Int($0) }
         guard parts.count == 3 else { return nil }
-        return DateComponents(
+        guard let date = DateComponents(
             calendar: calendar,
             timeZone: calendar.timeZone,
             year: parts[0],
             month: parts[1],
             day: parts[2]
-        ).date
+        ).date else { return nil }
+        let result = calendar.dateComponents([.year, .month, .day], from: date)
+        guard result.year == parts[0], result.month == parts[1], result.day == parts[2] else {
+            return nil
+        }
+        return date
     }
 
     private func parseTime(_ string: String, on date: Date) -> Date? {
         let parts = string.split(separator: ":").compactMap { Int($0) }
-        guard parts.count == 2 else { return nil }
+        guard parts.count == 2,
+              (0...23).contains(parts[0]),
+              (0...59).contains(parts[1]) else { return nil }
         return calendar.date(bySettingHour: parts[0], minute: parts[1], second: 0, of: date)
     }
 }

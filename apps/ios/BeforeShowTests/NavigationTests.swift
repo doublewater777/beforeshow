@@ -22,7 +22,7 @@ final class NavigationTests: XCTestCase {
         )
         XCTAssertEqual(
             AddShowMethodCopy.link.subtitle,
-            "粘贴大麦或秀动的链接，需要联网解析。"
+            "粘贴支持平台的票务链接，需要联网解析。"
         )
     }
 
@@ -555,6 +555,64 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(state.kind, .today)
         XCTAssertEqual(phase, .live)
         XCTAssertTrue(CurrentShowEndPolicy.canRecordEnd(show: show, timeState: state, now: finalOvernight, calendar: calendar))
+    }
+
+    func testHomeIdentityStatusUsesCurrentLifecycleCopy() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let show = try Show(name: "状态现场", date: start, startTime: start)
+
+        let before = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-3_600))
+        XCTAssertEqual(HomeShowIdentityPresentation.statusText(for: before, now: start.addingTimeInterval(-3_600)), "今天开场")
+
+        let live = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(60))
+        XCTAssertEqual(HomeShowIdentityPresentation.statusText(for: live, now: start.addingTimeInterval(60)), "正在现场")
+
+        show.markCanceled()
+        let canceled = CurrentShowTimeState(show: show, calendar: calendar, now: start)
+        XCTAssertEqual(HomeShowIdentityPresentation.statusText(for: canceled, now: start), "已取消")
+    }
+
+    func testHomeIdentityVenueSummaryAvoidsDuplicateCity() {
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.venueSummary(venue: "上海梅赛德斯-奔驰文化中心", city: "上海"),
+            "上海梅赛德斯-奔驰文化中心"
+        )
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.venueSummary(venue: "梅赛德斯-奔驰文化中心", city: "上海"),
+            "梅赛德斯-奔驰文化中心 · 上海"
+        )
+        XCTAssertEqual(HomeShowIdentityPresentation.venueSummary(venue: nil, city: "上海"), "上海")
+        XCTAssertNil(HomeShowIdentityPresentation.venueSummary(venue: "  ", city: " "))
+    }
+
+    func testHomeIdentityDateTextKeepsSingleDayTimeAndDuration() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let end = makeDate(year: 2026, month: 8, day: 8, hour: 21, minute: 30, calendar: calendar)
+        let show = try Show(name: "日期现场", date: start, startTime: start, endTime: end)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            "2026.08.08 周六 19:00 · 预计演出 2 小时 30 分"
+        )
+    }
+
+    func testHomeIdentityDateTextKeepsEndYearAcrossNewYear() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 12, day: 31, hour: 19, minute: 0, calendar: calendar)
+        let end = makeDate(year: 2027, month: 1, day: 1, hour: 21, minute: 0, calendar: calendar)
+        let show = try Show(name: "跨年现场", date: start, startTime: start, endDate: end, endTime: end)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            "2026.12.31-2027.01.01 · 每日 19:00-21:00"
+        )
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int, minute: Int, calendar: Calendar) -> Date {

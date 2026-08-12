@@ -1,6 +1,7 @@
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UIKit
 
 // MARK: - Face state
 
@@ -95,6 +96,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         isPlaybackActive: Bool,
         reduceMotion: Bool,
         onChooseVideo: (() -> Void)? = nil,
+        accessibilityName: String? = nil,
         @ViewBuilder staticFace: @escaping () -> StaticFace
     ) {
         self.showID = showID
@@ -104,11 +106,15 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         self.isPlaybackActive = isPlaybackActive
         self.reduceMotion = reduceMotion
         self.onChooseVideo = onChooseVideo
+        self.accessibilityName = accessibilityName
         self.staticFace = staticFace
         _isDynamicFace = State(initialValue: dynamicCover != nil && DynamicCoverFaceStore.isDynamicFace(for: showID))
     }
 
-    private var canFlip: Bool { dynamicCover != nil && mediaURL != nil }
+    private let accessibilityName: String?
+
+    /// 已上传视频时翻向播放面；未上传时翻向带「选择视频」入口的空状态背面。
+    private var canFlip: Bool { mediaURL != nil || (dynamicCover == nil && onChooseVideo != nil) }
     private var faceDescription: String { isDynamicFace ? "动态封面" : "静态封面" }
 
     private func chooseVideoFromAccessibility() {
@@ -140,35 +146,27 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                     .opacity(isDynamicFace ? 1 : 0)
             }
 
-            if dynamicCover == nil, let onChooseVideo {
-                Button(action: onChooseVideo) {
-                    Label("添加动态封面", systemImage: "plus.circle.fill")
-                        .font(BSFont.V3.caption.weight(.semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, BSSpacing.compact)
-                        .padding(.vertical, BSSpacing.sm)
-                        .background(.black.opacity(0.48), in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .frame(minHeight: BSLayout.minTouchTarget)
-                .accessibilityLabel("添加动态封面视频")
-            }
         }
         .frame(width: width, height: height)
         .clipped()
         .contentShape(Rectangle())
-        .simultaneousGesture(
+        .gesture(
             LongPressGesture(minimumDuration: 0.45)
-                .onEnded { _ in
-                    guard canFlip else { return }
-                    let nextFace = !isDynamicFace
-                    withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) {
-                        isDynamicFace = nextFace
+                .exclusively(before: TapGesture())
+                .onEnded { result in
+                    switch result {
+                    case .first(true):
+                        guard canFlip else { return }
+                        flip(to: !isDynamicFace, haptic: true)
+                    case .second:
+                        guard isDynamicFace else { return }
+                        flip(to: false, haptic: false)
+                    default:
+                        break
                     }
-                    DynamicCoverFaceStore.setDynamicFace(nextFace, for: showID)
                 }
         )
-        .task(id: dynamicCover?.relativePath) {
+        .task(id: dynamicCoverRevision) {
             guard let dynamicCover else {
                 mediaURL = nil
                 isDynamicFace = false
@@ -188,22 +186,27 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                 DynamicCoverFaceStore.clear(showID: showID)
                 return
             }
-            isDynamicFace = DynamicCoverFaceStore.isDynamicFace(for: showID)
+            // A newly imported/replaced video is the user's explicit request to
+            // see the dynamic side. Update local state immediately; the persisted
+            // preference is written by the import transaction as well.
+            isDynamicFace = true
+            DynamicCoverFaceStore.setDynamicFace(true, for: showID)
+        }
+        .onChange(of: dynamicCover?.relativePath) { oldPath, newPath in
+            guard oldPath != nil, newPath != nil, oldPath != newPath else { return }
+            flip(to: true, haptic: false)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("现场封面，当前为\(faceDescription)")
-        .accessibilityHint(canFlip ? "长按翻转动态封面" : "暂无动态封面")
+        .accessibilityLabel(
+            [accessibilityName.map { "现场封面，\($0)" } ?? "现场封面", "当前为\(faceDescription)"]
+                .joined(separator: "，")
+        )
+        .accessibilityHint(canFlip ? "长按翻转动态封面，轻点返回静态封面" : "暂无动态封面")
         .modifier(
             DynamicCoverFaceAccessibilityModifier(
                 isAvailable: DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: canFlip),
-                showStaticFace: {
-                    withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = false }
-                    DynamicCoverFaceStore.setDynamicFace(false, for: showID)
-                },
-                showDynamicFace: {
-                    withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) { isDynamicFace = true }
-                    DynamicCoverFaceStore.setDynamicFace(true, for: showID)
-                }
+                showStaticFace: { flip(to: false, haptic: false) },
+                showDynamicFace: { flip(to: true, haptic: false) }
             )
         )
         .modifier(
@@ -217,6 +220,22 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         )
     }
 
+    private var dynamicCoverRevision: String? {
+        guard let dynamicCover else { return nil }
+        return "\(dynamicCover.id.uuidString)|\(dynamicCover.relativePath)|\(dynamicCover.updatedAt.timeIntervalSince1970)"
+    }
+
+    private func flip(to dynamicFace: Bool, haptic: Bool) {
+        guard dynamicFace != isDynamicFace else { return }
+        if haptic {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
+        withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) {
+            isDynamicFace = dynamicFace
+        }
+        DynamicCoverFaceStore.setDynamicFace(dynamicFace, for: showID)
+    }
+
     @ViewBuilder
     private var dynamicFace: some View {
         if let mediaURL {
@@ -224,12 +243,51 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                 url: mediaURL,
                 isPlaying: isDynamicFace && isPlaybackActive
             )
+        } else if dynamicCover == nil, let onChooseVideo {
+            emptyDynamicFace(onChooseVideo: onChooseVideo)
         } else {
             ZStack {
                 BSColor.Stage.surfaceRaised
                 Image(systemName: "play.rectangle")
                     .font(BSFont.heroTitle.weight(.light))
                     .foregroundColor(BSColor.Stage.dim)
+            }
+        }
+    }
+
+    /// 未上传视频时延续静态封面的色彩与氛围，只保留一个选择视频入口。
+    private func emptyDynamicFace(onChooseVideo: @escaping () -> Void) -> some View {
+        ZStack {
+            staticFace()
+                .scaleEffect(1.08)
+                .blur(radius: 18)
+                .saturation(0.82)
+                .brightness(-0.30)
+                .allowsHitTesting(false)
+
+            LinearGradient(
+                colors: [
+                    BSColor.Stage.background.opacity(0.48),
+                    BSColor.Stage.background.opacity(0.72)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(spacing: BSSpacing.sm) {
+                Button(action: onChooseVideo) {
+                    Image(systemName: "video.badge.plus")
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundColor(.white.opacity(0.78))
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("添加动态封面视频")
+                .padding(.bottom, BSSpacing.xs)
+                Text("添加动态封面")
+                    .font(BSFont.caption.weight(.medium))
+                    .foregroundColor(.white)
             }
         }
     }
@@ -291,6 +349,11 @@ struct DynamicCoverManagementSection: View {
                         .foregroundColor(BSColor.Stage.accent)
                 }
             }
+
+            Text("在“当前”页长按主封面，可切换静态面与动态面。")
+                .font(BSFont.V3.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: BSSpacing.compact) {
                 if let cover = show.dynamicCover {
@@ -421,6 +484,7 @@ struct DynamicCoverManagementSection: View {
         }
         do {
             try await DynamicCoverImportCoordinator.importVideo(item, for: show, in: modelContext)
+            // The coordinator has completed the durable save before exposing the new face.
         } catch is CancellationError {
             return
         } catch let error as DynamicCoverMediaStoreError {
@@ -538,6 +602,8 @@ enum DynamicCoverImportCoordinator {
                     )
                 }
             }
+            // Only reveal the dynamic face after both media and SwiftData are committed.
+            DynamicCoverFaceStore.setDynamicFace(true, for: show.id)
         } catch {
             try? await DynamicCoverMediaStore.shared.discardDraft(draftID)
             if let committedPath, !modelSaveCompleted {

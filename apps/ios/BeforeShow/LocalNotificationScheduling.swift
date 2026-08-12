@@ -186,12 +186,13 @@ struct LocalNotificationScheduler {
     }
 
     func futureRequests(for show: Show, now: Date = Date()) -> [ScheduledShowNotification] {
-        let timeState = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+        let eventCalendar = show.timingCalendar(fallback: calendar)
+        let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
         guard timeState.canScheduleNotifications else {
             return []
         }
 
-        return milestoneDates(for: timeState)
+        return milestoneDates(for: timeState, calendar: eventCalendar)
             .filter { $0.fireDate > now }
             .map {
                 ScheduledShowNotification(
@@ -218,18 +219,24 @@ struct LocalNotificationScheduler {
     }
 
     private func milestoneDates(
-        for timeState: CurrentShowTimeState
+        for timeState: CurrentShowTimeState,
+        calendar: Calendar
     ) -> [(milestone: ShowNotificationMilestone, fireDate: Date)] {
         [
-            (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20)),
-            (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20)),
-            (.showDay, showDayReminderDate(for: timeState))
+            (.fourteenDaysBefore, dayRelativeToShow(timeState, offset: -14, hour: 20, calendar: calendar)),
+            (.oneDayBefore, dayRelativeToShow(timeState, offset: -1, hour: 20, calendar: calendar)),
+            (.showDay, showDayReminderDate(for: timeState, calendar: calendar))
         ].compactMap { milestone, fireDate in
             fireDate.map { (milestone, $0) }
         }
     }
 
-    private func dayRelativeToShow(_ timeState: CurrentShowTimeState, offset: Int, hour: Int) -> Date? {
+    private func dayRelativeToShow(
+        _ timeState: CurrentShowTimeState,
+        offset: Int,
+        hour: Int,
+        calendar: Calendar
+    ) -> Date? {
         let showDay = calendar.startOfDay(for: timeState.effectiveDate)
         guard let targetDay = calendar.date(byAdding: .day, value: offset, to: showDay) else {
             return nil
@@ -243,7 +250,7 @@ struct LocalNotificationScheduler {
         )
     }
 
-    private func showDayReminderDate(for timeState: CurrentShowTimeState) -> Date? {
+    private func showDayReminderDate(for timeState: CurrentShowTimeState, calendar: Calendar) -> Date? {
         if let startTime = timeState.effectiveStartTime {
             return calendar.date(byAdding: .hour, value: -3, to: startTime)
         }
@@ -365,10 +372,13 @@ extension ScheduledShowNotification {
         content.body = body
         content.sound = .default
         content.userInfo = userInfo
-        let components = Calendar.current.dateComponents(
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        var components = calendar.dateComponents(
             [.year, .month, .day, .hour, .minute],
             from: fireDate
         )
+        components.timeZone = calendar.timeZone
         let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
         return UNNotificationRequest(identifier: requestIdentifier, content: content, trigger: trigger)
     }

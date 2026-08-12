@@ -358,6 +358,129 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(formatter.dateText(for: noEndTime), "2026年9月12日 19:30")
     }
 
+    func testShowDisplayFormatterUsesEndOffsetAcrossDSTBoundary() throws {
+        var pacific = Calendar(identifier: .gregorian)
+        pacific.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let startDay = pacific.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let start = pacific.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 1, minute: 30))!
+        let end = ISO8601DateFormatter().date(from: "2026-11-01T02:30:00-08:00")!
+        let show = try Show(
+            name: "DST 边界现场",
+            date: startDay,
+            startTime: start,
+            endDate: end,
+            endTime: end,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -8 * 3_600
+        )
+
+        XCTAssertEqual(
+            ShowDisplayFormatter(calendar: pacific).dateText(for: show),
+            "2026年11月1日 01:30 - 02:30"
+        )
+    }
+
+    func testShowDisplayFormatterUsesVenueLocalDateOnDeviceInAnotherTimeZone() throws {
+        var deviceCalendar = Calendar(identifier: .gregorian)
+        deviceCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let start = ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!
+        let end = ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!
+        let show = try Show(
+            name: "异地现场",
+            date: start,
+            startTime: start,
+            endDate: end,
+            endTime: end,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -7 * 3_600
+        )
+
+        XCTAssertEqual(
+            ShowDisplayFormatter(calendar: deviceCalendar).dateText(for: show),
+            "2026年9月16日 19:00 - 22:00"
+        )
+    }
+
+    func testIANAEventTimeZoneKeepsPostponedClockAcrossDST() throws {
+        var losAngeles = Calendar(identifier: .gregorian)
+        losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let originalDate = losAngeles.date(from: DateComponents(year: 2026, month: 9, day: 16))!
+        let originalStart = ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!
+        let postponedDate = losAngeles.date(from: DateComponents(year: 2026, month: 12, day: 16))!
+        let show = try Show(
+            name: "跨夏令时延期现场",
+            date: originalDate,
+            startTime: originalStart,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            timeZoneIdentifier: "America/Los_Angeles"
+        )
+
+        show.markPostponed(newDate: postponedDate)
+
+        XCTAssertEqual(
+            CurrentShowTimeState.effectiveStartTime(for: show, calendar: Calendar(identifier: .gregorian)),
+            ISO8601DateFormatter().date(from: "2026-12-17T03:00:00Z")!
+        )
+    }
+
+    func testMultiDayEndClockUsesEndEventCalendarAcrossDSTBoundary() throws {
+        var losAngeles = Calendar(identifier: .gregorian)
+        losAngeles.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let date = losAngeles.date(from: DateComponents(year: 2026, month: 10, day: 31))!
+        let start = ISO8601DateFormatter().date(from: "2026-11-01T02:00:00Z")!
+        let endDate = losAngeles.date(from: DateComponents(year: 2026, month: 11, day: 2))!
+        let endTime = ISO8601DateFormatter().date(from: "2026-11-03T06:00:00Z")!
+        let show = try Show(
+            name: "跨夏令时多日现场",
+            date: date,
+            startTime: start,
+            endDate: endDate,
+            endTime: endTime,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -8 * 3_600,
+            timeZoneIdentifier: "America/Los_Angeles",
+            endTimeZoneIdentifier: "America/Los_Angeles"
+        )
+
+        XCTAssertEqual(
+            CurrentShowTimeState.dailyEndTime(on: endDate, show: show, calendar: Calendar(identifier: .gregorian)),
+            endTime
+        )
+    }
+
+    func testFixedOffsetEndDateUsesEndLocalDayForMultiDayCycle() throws {
+        var startCalendar = Calendar(identifier: .gregorian)
+        startCalendar.timeZone = TimeZone(secondsFromGMT: -7 * 3_600)!
+        var endCalendar = Calendar(identifier: .gregorian)
+        endCalendar.timeZone = TimeZone(secondsFromGMT: -8 * 3_600)!
+        let date = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31))!
+        let start = startCalendar.date(from: DateComponents(year: 2026, month: 10, day: 31, hour: 19))!
+        let endDate = endCalendar.date(from: DateComponents(year: 2026, month: 11, day: 1))!
+        let endTime = endCalendar.date(from: DateComponents(year: 2026, month: 11, day: 1, hour: 23, minute: 30))!
+        let show = try Show(
+            name: "固定时区跨日现场",
+            date: date,
+            startTime: start,
+            endDate: endDate,
+            endTime: endTime,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            endTimeZoneSecondsFromGMT: -8 * 3_600
+        )
+
+        let state = CurrentShowTimeState(show: show, calendar: startCalendar, now: endTime.addingTimeInterval(-30 * 60))
+
+        XCTAssertTrue(CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: startCalendar))
+        XCTAssertEqual(startCalendar.component(.day, from: try XCTUnwrap(state.effectiveEndDate)), 1)
+        XCTAssertTrue(
+            CurrentShowEndPolicy.canRecordEnd(
+                show: show,
+                timeState: state,
+                now: endTime.addingTimeInterval(-30 * 60),
+                calendar: Calendar(identifier: .gregorian)
+            )
+        )
+    }
+
     func testMultiDayOvernightSessionsKeepPreviousDayAcrossMidnightAndAnchorConfirmedEnd() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

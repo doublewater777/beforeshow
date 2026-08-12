@@ -23,6 +23,7 @@ enum ShowDetailExperienceAction: String, CaseIterable {
 
 struct PostponeShowSheet: View {
     @Binding var newDate: Date
+    let calendar: Calendar
     let onUndated: () -> Void
     let onDated: () -> Void
 
@@ -39,6 +40,8 @@ struct PostponeShowSheet: View {
                 DatePicker("新日期", selection: $newDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .tint(BSColor.Accent.violet)
+                    .environment(\.calendar, calendar)
+                    .environment(\.timeZone, calendar.timeZone)
             }
 
             VStack(spacing: BSSpacing.sm) {
@@ -54,6 +57,7 @@ struct PostponeShowSheet: View {
 private struct ConfirmedEndTimeEditorSheet: View {
     let showName: String
     let showStart: Date
+    let calendar: Calendar
     let hasConfirmedEnd: Bool
     @Binding var endTime: Date
     let onSave: () -> Void
@@ -93,6 +97,8 @@ private struct ConfirmedEndTimeEditorSheet: View {
                     )
                 }
                 .tint(BSColor.Stage.accent)
+                .environment(\.calendar, calendar)
+                .environment(\.timeZone, calendar.timeZone)
             }
 
             VStack(spacing: BSSpacing.sm) {
@@ -255,7 +261,11 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isEditingConfirmedEnd) {
             ConfirmedEndTimeEditorSheet(
                 showName: show.name,
-                showStart: CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current),
+                showStart: CurrentShowTimeState.minimumConfirmableEnd(
+                    for: show,
+                    calendar: show.timingCalendar()
+                ),
+                calendar: show.endTimingCalendar(),
                 hasConfirmedEnd: show.endedAt != nil,
                 endTime: $confirmedEndDraft,
                 onSave: saveConfirmedEnd,
@@ -299,6 +309,7 @@ struct ShowDetailView: View {
         .sheet(isPresented: $isShowingPostpone) {
             PostponeShowSheet(
                 newDate: $postponeDraft,
+                calendar: show.timingCalendar(),
                 onUndated: {
                     isShowingPostpone = false
                     applyStatus(message: "已记录延期，日期待定") {
@@ -306,7 +317,10 @@ struct ShowDetailView: View {
                     }
                 },
                 onDated: {
-                    let newDate = postponeDraft
+                    let newDate = ShowDateSelectionPolicy.normalizedDay(
+                        postponeDraft,
+                        calendar: show.timingCalendar()
+                    )
                     isShowingPostpone = false
                     applyStatus(message: "延期日期已更新") {
                         show.markPostponed(newDate: newDate)
@@ -732,7 +746,11 @@ struct ShowDetailView: View {
         if let endedAt = show.endedAt {
             confirmedEndButton(
                 title: "修改散场时间",
-                value: Self.confirmedEndFormatter.string(from: endedAt),
+                value: formattedDate(
+                    endedAt,
+                    format: "M月d日 HH:mm",
+                    calendar: show.endTimingCalendar()
+                ),
                 icon: "clock.arrow.circlepath"
             ) {
                 confirmedEndDraft = endedAt
@@ -794,10 +812,10 @@ struct ShowDetailView: View {
 
     private var endTimeDescription: String? {
         if let endedAt = show.endedAt {
-            return "已于 \(Self.confirmedEndFormatter.string(from: endedAt)) 结束"
+            return "已于 \(formattedDate(endedAt, format: "M月d日 HH:mm", calendar: show.endTimingCalendar())) 结束"
         }
         if let endTime = timeState.effectiveEndTime {
-            return "预计 \(Self.clockFormatter.string(from: endTime)) 结束"
+            return "预计 \(formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar())) 结束"
         }
         return nil
     }
@@ -857,50 +875,30 @@ struct ShowDetailView: View {
         case .postponed:
             return .init(
                 title: "已延期",
-                trailingValue: Self.monthDayFormatter.string(from: show.effectiveDate),
+                trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
                 trailingLabel: "新日期",
                 tint: BSColor.Accent.warm
             )
         case .scheduled:
             return .init(
                 title: timeState.countdownText,
-                trailingValue: Self.monthDayFormatter.string(from: show.effectiveDate),
-                trailingLabel: Self.weekdayFormatter.string(from: show.effectiveDate),
+                trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
+                trailingLabel: formattedDate(show.effectiveDate, format: "EEE"),
                 tint: BSColor.Stage.accent
             )
         }
     }
 
-    private static let confirmedEndFormatter: DateFormatter = {
+    private func formattedDate(_ date: Date, format: String, calendar: Calendar? = nil) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "M月d日 HH:mm"
-        return formatter
-    }()
-
-    private static let clockFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "HH:mm"
-        return formatter
-    }()
-
-    private static let monthDayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "MM.dd"
-        return formatter
-    }()
-
-    private static let weekdayFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
-        formatter.dateFormat = "EEE"
-        return formatter
-    }()
+        formatter.dateFormat = format
+        formatter.timeZone = (calendar ?? show.timingCalendar()).timeZone
+        return formatter.string(from: date)
+    }
 
     private var suggestedConfirmedEnd: Date {
-        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
+        let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar())
         return min(Date(), timeState.endBoundary ?? start)
     }
 
@@ -925,7 +923,7 @@ struct ShowDetailView: View {
 
     private func beginPostpone() {
         postponeDraft = show.postponedDate
-            ?? Calendar.current.date(byAdding: .day, value: 7, to: show.effectiveDate)
+            ?? show.timingCalendar().date(byAdding: .day, value: 7, to: show.effectiveDate)
             ?? show.effectiveDate
         isShowingPostpone = true
     }
@@ -976,7 +974,6 @@ struct ShowDetailView: View {
     }
 
     private func saveConfirmedEnd() {
-        let start = CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: .current)
         guard CurrentShowEndPolicy.isValidConfirmedEnd(confirmedEndDraft, for: show) else {
             presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
             return

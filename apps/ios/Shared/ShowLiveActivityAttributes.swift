@@ -19,8 +19,35 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var startDate: Date
         /// 预计谢幕(endBoundary);nil 时不画进度条
         var endDate: Date?
+        var timeZoneSecondsFromGMT: Int? = nil
+        var endTimeZoneSecondsFromGMT: Int? = nil
+        var timeZoneIdentifier: String? = nil
+        var endTimeZoneIdentifier: String? = nil
         /// App Group 容器内的封面缓存文件名(Live Activity 小图规格);nil 用占位
         var coverImageFilename: String?
+
+        var startCalendar: Calendar {
+            calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)
+        }
+
+        var endCalendar: Calendar {
+            calendar(
+                identifier: endTimeZoneIdentifier ?? timeZoneIdentifier,
+                offsetSeconds: endTimeZoneSecondsFromGMT ?? timeZoneSecondsFromGMT
+            )
+        }
+
+        private func calendar(identifier: String?, offsetSeconds: Int?) -> Calendar {
+            var calendar = Calendar(identifier: .gregorian)
+            if let identifier,
+               let timeZone = TimeZone(identifier: identifier) {
+                calendar.timeZone = timeZone
+            } else if let offsetSeconds,
+                      let timeZone = TimeZone(secondsFromGMT: offsetSeconds) {
+                calendar.timeZone = timeZone
+            }
+            return calendar
+        }
     }
 
     /// 现场身份(app 侧判断是否同一场,决定更新还是重启)

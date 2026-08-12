@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>如何获取票务链接 — 开场前 BeforeShow</title>
+    <meta
+      name="description"
+      content="了解如何从大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS 和 Live Nation 复制演出详情链接。"
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://beforeshow.doublewaterapps.com/link-guide/" />
+    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #050508;
+        --surface: rgba(245, 241, 233, 0.06);
+        --surface-strong: rgba(245, 241, 233, 0.09);
+        --border: rgba(245, 241, 233, 0.12);
+        --text: #f5f1e9;
+        --text-soft: #aaa5af;
+        --text-faint: #85808c;
+        --accent: #84bfff;
+        --accent-warm: #ffb36b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          radial-gradient(ellipse 70% 45% at 50% 0%, rgba(132, 191, 255, 0.14), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+        line-height: 1.8;
+      }
+
+      a { color: inherit; text-decoration: none; }
+
+      .wrap {
+        width: min(760px, 100%);
+        margin: 0 auto;
+        padding: 48px 20px 88px;
+      }
+
+      .back {
+        display: inline-block;
+        margin-bottom: 42px;
+        color: var(--text-soft);
+        font-size: 14px;
+      }
+
+      .back:hover, .back:focus-visible { color: var(--accent); }
+
+      h1 {
+        max-width: 620px;
+        margin: 0;
+        font-size: clamp(34px, 7vw, 58px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .lede {
+        max-width: 620px;
+        margin: 20px 0 0;
+        color: var(--text-soft);
+        font-size: 17px;
+      }
+
+      .quick-start {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin: 40px 0 54px;
+      }
+
+      .quick-step, .platform {
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--surface);
+      }
+
+      .quick-step { padding: 18px; }
+
+      .step-number {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        margin-bottom: 13px;
+        border-radius: 50%;
+        background: rgba(132, 191, 255, 0.14);
+        color: var(--accent);
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .quick-step strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 15px;
+      }
+
+      .quick-step span { color: var(--text-soft); font-size: 13px; }
+
+      h2 {
+        margin: 46px 0 14px;
+        font-size: 24px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+
+      .section-note {
+        margin: 0 0 18px;
+        color: var(--text-soft);
+        font-size: 14px;
+      }
+
+      .platform-list {
+        display: grid;
+        gap: 14px;
+      }
+
+      .platform { padding: 20px; }
+
+      .platform-header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+
+      .platform h3 { margin: 0; font-size: 18px; }
+
+      .platform h3 a {
+        text-decoration: underline;
+        text-decoration-color: rgba(132, 191, 255, 0.45);
+        text-underline-offset: 4px;
+      }
+
+      .platform h3 a:hover, .platform h3 a:focus-visible { color: var(--accent); }
+
+      .domain {
+        color: var(--accent-warm);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+
+      .platform ol {
+        margin: 0;
+        padding-left: 22px;
+        color: var(--text-soft);
+        font-size: 14px;
+      }
+
+      .platform li { padding-left: 4px; margin: 5px 0; }
+
+      .notice {
+        margin-top: 42px;
+        padding: 20px;
+        border: 1px solid rgba(255, 179, 107, 0.28);
+        border-radius: 20px;
+        background: rgba(255, 179, 107, 0.07);
+      }
+
+      .notice strong { display: block; margin-bottom: 6px; color: var(--accent-warm); }
+      .notice p { margin: 0; color: var(--text-soft); font-size: 14px; }
+
+      .footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 20px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--text-faint);
+        font-size: 13px;
+      }
+
+      .footer-link { color: var(--accent); }
+
+      @media (max-width: 560px) {
+        .wrap { padding-top: 32px; }
+        .back { margin-bottom: 34px; }
+        .quick-start { grid-template-columns: 1fr; margin: 32px 0 44px; }
+        .quick-step { display: grid; grid-template-columns: 28px 1fr; column-gap: 12px; align-items: center; }
+        .step-number { grid-row: span 2; margin: 0; }
+        .quick-step strong { margin: 0; }
+        .platform-header { display: block; }
+        .domain { display: block; margin-top: 3px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <a class="back" href="/">← 返回首页</a>
+
+      <h1>如何获取票务链接</h1>
+      <p class="lede">
+        BeforeShow 需要演出详情页的链接来读取名称、日期、场馆等信息。先打开对应平台的总览页，再搜索演出、进入详情页，最后复制此时浏览器里的页面地址。
+      </p>
+
+      <section class="quick-start" aria-label="复制链接的三个步骤">
+        <div class="quick-step">
+          <span class="step-number">1</span>
+          <strong>打开平台总览页</strong>
+          <span>从下面的官方入口进入平台。</span>
+        </div>
+        <div class="quick-step">
+          <span class="step-number">2</span>
+          <strong>搜索并进入详情</strong>
+          <span>用平台搜索找到演出，再点进对应详情页。</span>
+        </div>
+        <div class="quick-step">
+          <span class="step-number">3</span>
+          <strong>复制当前地址</strong>
+          <span>复制详情页此时的地址栏内容，粘贴到 BeforeShow。</span>
+        </div>
+      </section>
+
+      <h2>国内平台</h2>
+      <p class="section-note">点击平台名称打开总览页，然后搜索演出并进入详情页。</p>
+      <div class="platform-list">
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://m.damai.cn/shows/home.html" target="_blank" rel="noreferrer">大麦</a></h3><span class="domain">m.damai.cn</span></div>
+          <ol><li>打开大麦总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://showstart.com/" target="_blank" rel="noreferrer">秀动</a></h3><span class="domain">showstart.com</span></div>
+          <ol><li>打开秀动总览页，搜索你要添加的演出或 Livehouse 活动。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://show.maoyan.com/" target="_blank" rel="noreferrer">猫眼</a></h3><span class="domain">maoyan.com</span></div>
+          <ol><li>打开猫眼演出总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://e.piaoxingqiu.com/" target="_blank" rel="noreferrer">票星球</a></h3><span class="domain">e.piaoxingqiu.com</span></div>
+          <ol><li>打开票星球总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://www.livelab.com.cn/" target="_blank" rel="noreferrer">纷玩岛</a></h3><span class="domain">livelab.com.cn</span></div>
+          <ol><li>打开纷玩岛总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+      </div>
+
+      <h2>海外平台</h2>
+      <p class="section-note">点击平台名称打开总览页，然后搜索演出并进入详情页。</p>
+      <div class="platform-list">
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://www.ticketmaster.com/" target="_blank" rel="noreferrer">Ticketmaster</a></h3><span class="domain">ticketmaster.*</span></div>
+          <ol><li>打开 Ticketmaster 总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://dice.fm/" target="_blank" rel="noreferrer">DICE</a></h3><span class="domain">dice.fm</span></div>
+          <ol><li>打开 DICE 总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://www.axs.com/" target="_blank" rel="noreferrer">AXS</a></h3><span class="domain">axs.com</span></div>
+          <ol><li>打开 AXS 总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+        <article class="platform">
+          <div class="platform-header"><h3><a href="https://www.livenation.com/" target="_blank" rel="noreferrer">Live Nation</a></h3><span class="domain">livenation.com / 区域站点</span></div>
+          <ol><li>打开 Live Nation 总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+        </article>
+      </div>
+
+      <aside class="notice">
+        <strong>解析失败时</strong>
+        <p>请确认你已经从平台总览页搜索并进入了正确的演出详情页，再复制当前地址栏。不要复制平台首页、搜索结果、订单、选座或付款页；如果打开的是短链，先让浏览器展开后再复制。</p>
+      </aside>
+
+      <footer class="footer">
+        <span>© 2026 开场前 BeforeShow</span>
+        <a class="footer-link" href="/privacy">隐私政策</a>
+        <a class="footer-link" href="/terms">用户协议</a>
+        <a class="footer-link" href="/">返回首页</a>
+      </footer>
+    </main>
+  </body>
+</html>

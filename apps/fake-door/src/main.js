@@ -452,6 +452,7 @@ function renderFooter() {
     <footer class="footer">
       <span>开场前 · BeforeShow</span>
       <span>给买了票、正在等开场的人。</span>
+      <a class="footer-link" href="/link-guide/">如何获取票务链接</a>
     </footer>
   `;
 }

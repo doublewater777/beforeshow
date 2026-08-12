@@ -208,6 +208,28 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(NotificationDeepLink(userInfo: showDay.userInfo)?.destination, .home)
     }
 
+    func testNotificationRequestKeepsAbsoluteFireDateAcrossDeviceTimeZones() throws {
+        let fireDate = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 9,
+            day: 16,
+            hour: 23
+        ).date!
+        let request = ScheduledShowNotification(
+            showID: UUID(),
+            milestone: .showDay,
+            fireDate: fireDate,
+            title: "提醒",
+            body: "现场快开场了"
+        ).makeNotificationRequest()
+
+        let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
+        XCTAssertEqual(trigger.dateComponents.timeZone, TimeZone(secondsFromGMT: 0))
+        XCTAssertEqual(trigger.nextTriggerDate(), fireDate)
+    }
+
     func testDeepLinkParseRejectsInvalidUserInfo() {
         XCTAssertNil(NotificationDeepLink(userInfo: [:]))
         XCTAssertNil(NotificationDeepLink(userInfo: ["showID": "not-a-uuid", "destination": "home"]))

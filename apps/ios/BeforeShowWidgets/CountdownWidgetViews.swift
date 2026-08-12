@@ -65,6 +65,7 @@ struct CountdownPresentation {
     let venueName: String?
     let startDate: Date?
     let endBoundary: Date?
+    let calendar: Calendar
     /// 距开场的秒数(entry 时刻),给圆形进度环用
     let remainingSeconds: Int
 
@@ -78,6 +79,7 @@ struct CountdownPresentation {
             venueName = nil
             startDate = nil
             endBoundary = nil
+            calendar = .current
             remainingSeconds = 0
             return
         }
@@ -87,6 +89,7 @@ struct CountdownPresentation {
         venueName = snapshot.venueName
 
         let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
+        calendar = snapshot.timing.eventCalendar(fallback: .current)
         startDate = state.effectiveStartTime
         endBoundary = state.endBoundary
         let remaining = state.effectiveStartTime
@@ -125,7 +128,7 @@ struct CountdownPresentation {
 
     var dateLine: String {
         guard let startDate else { return "" }
-        let components = Calendar.current.dateComponents([.month, .day, .hour, .minute], from: startDate)
+        let components = calendar.dateComponents([.month, .day, .hour, .minute], from: startDate)
         return String(
             format: "%d月%d日 %02d:%02d",
             components.month ?? 0, components.day ?? 0, components.hour ?? 0, components.minute ?? 0
@@ -135,7 +138,7 @@ struct CountdownPresentation {
     /// 「今晚」仅当日开场;`<24h` 但跨日用「即将」,避免今晚看明天场仍写今晚。
     var isStartTonight: Bool {
         guard let startDate else { return false }
-        return Calendar.current.isDateInToday(startDate)
+        return calendar.isDateInToday(startDate)
     }
 
     var nearKickerText: String {

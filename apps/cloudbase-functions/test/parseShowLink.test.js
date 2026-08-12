@@ -115,6 +115,17 @@ describe("parseShowLink platform detection", () => {
     assert.equal(normalized.platform, "damai");
     assert.equal(normalized.itemId, "1054603723374");
   });
+
+  it("stops extracted URLs at sentence punctuation and following Chinese text", () => {
+    assert.equal(
+      extractShowUrl("https://dice.fm/event/foo。回到开场前"),
+      "https://dice.fm/event/foo"
+    );
+    assert.equal(
+      extractShowUrl("https://dice.fm/event/foo, please open it"),
+      "https://dice.fm/event/foo"
+    );
+  });
 });
 
 describe("Damai mtop parser", () => {

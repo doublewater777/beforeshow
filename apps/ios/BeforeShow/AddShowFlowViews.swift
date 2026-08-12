@@ -14,7 +14,7 @@ struct AddShowLinkFailurePresentation: Equatable {
             case .unsupportedSource:
                 return Self(
                     title: "这个链接暂不支持",
-                    message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+                    message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
                 )
             case .missingDate:
                 return Self(
@@ -35,7 +35,7 @@ struct AddShowLinkFailurePresentation: Equatable {
         case .unsupportedSource:
             return Self(
                 title: "这个链接暂不支持",
-                message: "目前支持大麦、秀动。你可以继续在下方手动填写。"
+                message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
             )
         case .networkFailure:
             return Self(
@@ -82,7 +82,7 @@ enum AddShowMethodCopy {
         case .screenshot:
             return "选择票务截图，仅在本机识别，图片不会上传。"
         case .link:
-            return "粘贴大麦或秀动的链接，需要联网解析。"
+            return "粘贴支持平台的票务链接，需要联网解析。"
         }
     }
 }
@@ -319,6 +319,7 @@ private struct AddShowEntryView: View {
 
 struct AddShowFlowView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -509,9 +510,7 @@ struct AddShowFlowView: View {
         let candidate = ShowLinkDraftParser.normalizedLink(linkText)
         guard !candidate.isEmpty,
               let host = URL(string: candidate)?.host()?.lowercased() else { return nil }
-        if host == "damai.cn" || host.hasSuffix(".damai.cn") { return "大麦" }
-        if host == "showstart.com" || host.hasSuffix(".showstart.com") { return "秀动" }
-        return nil
+        return ShowLinkPlatformCatalog.displayName(forHost: host)
     }
 
     /// OCR 没识别到日期（回退为今天）且用户尚未确认：金色「待确认」，并挡住保存。
@@ -606,10 +605,32 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
 
-                    Text("目前支持：大麦、秀动")
+                    Text("目前支持：\(ShowLinkPlatformCatalog.supportSummary)")
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
+
+                    Button {
+                        dismissKeyboard()
+                        guard let url = URL(string: "https://beforeshow.doublewaterapps.com/link-guide/") else { return }
+                        openURL(url)
+                    } label: {
+                        HStack(spacing: 7) {
+                            Image(systemName: "questionmark.circle")
+                                .font(.system(size: 13, weight: .semibold))
+                            Text("如何获取链接？")
+                                .font(.system(size: 13, weight: .semibold))
+                            Spacer(minLength: 0)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(BSColor.Accent.violet)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("查看如何获取票务链接")
                 }
 
                 if let linkFailure, !isParsingLink {
@@ -1275,6 +1296,7 @@ struct ShowDraftEditorView: View {
         .sheet(isPresented: $showsPostponeSheet) {
             PostponeShowSheet(
                 newDate: $postponeDate,
+                calendar: draft.timingCalendar(),
                 onUndated: {
                     showsPostponeSheet = false
                     Task { @MainActor in
@@ -1283,7 +1305,10 @@ struct ShowDraftEditorView: View {
                 },
                 onDated: {
                     showsPostponeSheet = false
-                    let newDate = postponeDate
+                    let newDate = ShowDateSelectionPolicy.normalizedDay(
+                        postponeDate,
+                        calendar: draft.timingCalendar()
+                    )
                     Task { @MainActor in
                         await applyStatusAction { await statusEditing?.onPostpone(newDate) }
                     }
@@ -1410,14 +1435,17 @@ struct ShowDraftEditorView: View {
     }
 
     private var summaryDateText: String {
+        let calendar = draft.timingCalendar()
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "zh_Hans_CN")
         dateFormatter.dateFormat = "M月d日"
+        dateFormatter.timeZone = calendar.timeZone
         var text = (isPostponed ? "原定 " : "") + dateFormatter.string(from: draft.date)
         if let startTime = draft.startTime {
             let timeFormatter = DateFormatter()
             timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
             timeFormatter.dateFormat = "HH:mm"
+            timeFormatter.timeZone = calendar.timeZone
             text += " " + timeFormatter.string(from: startTime)
         }
         let venue = draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1774,7 +1802,7 @@ private struct ShowDraftFormFields: View {
     @State private var selectedCoverItem: PhotosPickerItem?
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
-    @State private var showsCoverLinkField = false
+    @State private var showsLinkField = false
 
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
     private var nameRecognized: Bool {
@@ -1805,14 +1833,15 @@ private struct ShowDraftFormFields: View {
         onCoverImported: @escaping (String, String) -> Void = { _, _ in }
     ) {
         let initialDraft = draft.wrappedValue
-        let fallbackStart = Calendar.current.date(
+        let eventCalendar = initialDraft.timingCalendar()
+        let fallbackStart = eventCalendar.date(
             bySettingHour: 19,
             minute: 30,
             second: 0,
             of: initialDraft.date
         ) ?? initialDraft.date
         let initialEndDate = initialDraft.endDate ?? initialDraft.date
-        let fallbackEnd = Calendar.current.date(
+        let fallbackEnd = initialDraft.endTimingCalendar().date(
             bySettingHour: 23,
             minute: 55,
             second: 0,
@@ -1835,6 +1864,8 @@ private struct ShowDraftFormFields: View {
 
     var body: some View {
         formCards
+        .environment(\.calendar, draft.timingCalendar())
+        .environment(\.timeZone, draft.timingCalendar().timeZone)
         .onChange(of: hasEndTime) { _, newValue in
             syncEndTimeToDraft(isEnabled: newValue)
         }
@@ -1854,8 +1885,9 @@ private struct ShowDraftFormFields: View {
         }
         .onChange(of: endDate) { _, _ in
             if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
+                let startDay = draft.timingCalendar().startOfDay(for: draft.date)
+                if draft.endTimingCalendar().startOfDay(for: endDate) < startDay {
+                    endDate = startDay
                 }
                 syncEndTimeToDraft(isEnabled: true)
             }
@@ -1865,8 +1897,9 @@ private struct ShowDraftFormFields: View {
                 draft.startTime = mergedStartTime()
             }
             if hasEndTime {
-                if endDate < draft.date {
-                    endDate = draft.date
+                let startDay = draft.timingCalendar().startOfDay(for: draft.date)
+                if draft.endTimingCalendar().startOfDay(for: endDate) < startDay {
+                    endDate = startDay
                 }
                 syncEndTimeToDraft(isEnabled: true)
             }
@@ -1893,9 +1926,10 @@ private struct ShowDraftFormFields: View {
 
                 AddShowLabeledTextField(
                     title: "艺人 / 阵容",
-                    placeholder: "五月天",
+                    placeholder: "五月天、陈绮贞",
                     text: $draft.artist,
-                    isRecognized: artistRecognized
+                    isRecognized: artistRecognized,
+                    helperText: "多位艺人请用逗号或顿号分隔；名称中的斜杠会保留，例如 AC/DC"
                 )
 
                 if !draft.artistAvatarURLs.isEmpty {
@@ -1979,12 +2013,12 @@ private struct ShowDraftFormFields: View {
 
                 AddShowCoverActions(
                     selectedItem: $selectedCoverItem,
-                    showsLinkField: $showsCoverLinkField,
+                    showsLinkField: $showsLinkField,
                     isImporting: isImportingCover,
                     message: coverImportMessage
                 )
 
-                if showsCoverLinkField {
+                if showsLinkField {
                     AddShowLabeledTextField(
                         title: "图片链接",
                         placeholder: "https://...",
@@ -1997,7 +2031,7 @@ private struct ShowDraftFormFields: View {
     }
 
     private func mergedStartTime() -> Date {
-        mergedTime(on: draft.date, time: startTime)
+        draft.mergedTime(startTime, into: draft.date, calendar: draft.timingCalendar())
     }
 
     private func syncEndTimeToDraft(isEnabled: Bool) {
@@ -2007,17 +2041,17 @@ private struct ShowDraftFormFields: View {
             return
         }
 
-        let resolvedEndDay = max(endDate, draft.date)
+        let resolvedEndDay = max(
+            draft.endTimingCalendar().startOfDay(for: endDate),
+            draft.timingCalendar().startOfDay(for: draft.date)
+        )
         endDate = resolvedEndDay
         draft.endDate = resolvedEndDay
-        draft.endTime = mergedTime(on: resolvedEndDay, time: endTime)
-    }
-
-    private func mergedTime(on date: Date, time: Date) -> Date {
-        let calendar = Calendar.current
-        let hour = calendar.component(.hour, from: time)
-        let minute = calendar.component(.minute, from: time)
-        return calendar.date(bySettingHour: hour, minute: minute, second: 0, of: date) ?? date
+        draft.endTime = draft.mergedTime(
+            endTime,
+            into: resolvedEndDay,
+            calendar: draft.endTimingCalendar()
+        )
     }
 
     @MainActor
@@ -2112,6 +2146,7 @@ private struct AddShowLabeledTextField: View {
     var isRequired = false
     var isRecognized = false
     var keyboardType: UIKeyboardType = .default
+    var helperText: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -2132,6 +2167,13 @@ private struct AddShowLabeledTextField: View {
                             .stroke(BSColor.Accent.prepare.opacity(0.30), lineWidth: 1)
                     }
                 }
+
+            if let helperText {
+                Text(helperText)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -2156,6 +2198,9 @@ private struct AddShowScheduleFields: View {
     /// 两列瓷贴中间固定间距，不被中文长日期挤没。
     private static let columnSpacing: CGFloat = 14
 
+    private var eventCalendar: Calendar { draft.timingCalendar() }
+    private var endCalendar: Calendar { draft.endTimingCalendar() }
+
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             HStack(alignment: .top, spacing: Self.columnSpacing) {
@@ -2163,6 +2208,7 @@ private struct AddShowScheduleFields: View {
                     title: "开场日期",
                     selection: $draft.date,
                     displayedComponents: .date,
+                    calendar: eventCalendar,
                     isRecognized: dateRecognized,
                     isNeeded: dateNeeded,
                     onConfirmNeeded: onConfirmFallbackDate
@@ -2171,6 +2217,7 @@ private struct AddShowScheduleFields: View {
                 AddShowStartTimeField(
                     title: "开场时间",
                     startTime: $startTime,
+                    calendar: eventCalendar,
                     isConfirmed: isStartTimeConfirmed,
                     onConfirm: onConfirmStartTime,
                     isRecognized: startTimeRecognized
@@ -2180,7 +2227,8 @@ private struct AddShowScheduleFields: View {
             AddShowEndTimeField(
                 hasEndTime: $hasEndTime,
                 endDate: $endDate,
-                endTime: $endTime
+                endTime: $endTime,
+                calendar: endCalendar
             )
         }
         .frame(maxWidth: .infinity, alignment: .top)
@@ -2193,12 +2241,15 @@ private struct AddShowScheduleFields: View {
 private struct AddShowConstrainedDatePicker: View {
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
+    let calendar: Calendar
     var borderColor: Color? = nil
 
     var body: some View {
         HStack(spacing: 0) {
             DatePicker("", selection: $selection, displayedComponents: displayedComponents)
                 .labelsHidden()
+                .environment(\.calendar, calendar)
+                .environment(\.timeZone, calendar.timeZone)
                 .tint(BSColor.Accent.violet)
                 .datePickerStyle(.compact)
                 .fixedSize(horizontal: true, vertical: false)
@@ -2222,6 +2273,7 @@ private struct AddShowDatePickerField: View {
     let title: String
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
+    let calendar: Calendar
     var isRequired = true
     var isRecognized = false
     var isNeeded = false
@@ -2245,6 +2297,7 @@ private struct AddShowDatePickerField: View {
             AddShowConstrainedDatePicker(
                 selection: $selection,
                 displayedComponents: displayedComponents,
+                calendar: calendar,
                 borderColor: borderColor
             )
             .onChange(of: selection) { _, _ in
@@ -2267,6 +2320,7 @@ private struct AddShowDatePickerField: View {
 private struct AddShowStartTimeField: View {
     let title: String
     @Binding var startTime: Date
+    let calendar: Calendar
     let isConfirmed: Bool
     let onConfirm: () -> Void
     var isRecognized = false
@@ -2288,6 +2342,7 @@ private struct AddShowStartTimeField: View {
             AddShowConstrainedDatePicker(
                 selection: $startTime,
                 displayedComponents: .hourAndMinute,
+                calendar: calendar,
                 borderColor: borderColor
             )
             if !isConfirmed {
@@ -2306,6 +2361,7 @@ private struct AddShowEndTimeField: View {
     @Binding var hasEndTime: Bool
     @Binding var endDate: Date
     @Binding var endTime: Date
+    let calendar: Calendar
 
     private static let columnSpacing: CGFloat = 14
 
@@ -2328,6 +2384,7 @@ private struct AddShowEndTimeField: View {
                         title: "结束日期",
                         selection: $endDate,
                         displayedComponents: .date,
+                        calendar: calendar,
                         isRequired: false
                     )
 
@@ -2335,7 +2392,8 @@ private struct AddShowEndTimeField: View {
                         AddShowFieldLabel(title: "结束时间", isRequired: false)
                         AddShowConstrainedDatePicker(
                             selection: $endTime,
-                            displayedComponents: .hourAndMinute
+                            displayedComponents: .hourAndMinute,
+                            calendar: calendar
                         )
                     }
                     .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)

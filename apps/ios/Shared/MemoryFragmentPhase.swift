@@ -34,15 +34,16 @@ enum MemoryFragmentPhase: String, Codable, CaseIterable, Equatable, Sendable {
             return .live
         }
 
-        let state = CurrentShowTimeState(timing: timing, calendar: calendar, now: createdAt)
+        let eventCalendar = timing.eventCalendar(fallback: calendar)
+        let state = CurrentShowTimeState(timing: timing, calendar: eventCalendar, now: createdAt)
 
         // Manual end: anything at/after endedAt is after.
         if let endedAt = timing.endedAt, createdAt >= endedAt {
             return .after
         }
 
-        if CurrentShowTimeState.isMultiDayDailyCycle(timing: timing, calendar: calendar) {
-            return resolveMultiDay(at: createdAt, timing: timing, calendar: calendar)
+        if CurrentShowTimeState.isMultiDayDailyCycle(timing: timing, calendar: eventCalendar) {
+            return resolveMultiDay(at: createdAt, timing: timing, calendar: eventCalendar)
         }
 
         guard let start = state.effectiveStartTime else {

@@ -841,8 +841,17 @@ struct CurrentShowLibraryManagementView: View {
         .sheet(item: $postponeTarget) { show in
             PostponeShowSheet(
                 newDate: $postponeDate,
+                calendar: show.timingCalendar(),
                 onUndated: { applyPostponement(to: show, newDate: nil) },
-                onDated: { applyPostponement(to: show, newDate: postponeDate) }
+                onDated: {
+                    applyPostponement(
+                        to: show,
+                        newDate: ShowDateSelectionPolicy.normalizedDay(
+                            postponeDate,
+                            calendar: show.timingCalendar()
+                        )
+                    )
+                }
             )
         }
         .sheet(item: $cancelTarget) { show in

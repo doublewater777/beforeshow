@@ -1,3 +1,39 @@
+import { isLiveNationHost, liveNationEventId } from "./liveNationDomains.js";
+
+const TICKETMASTER_DOMAINS = [
+  "ticketmaster.com",
+  "ticketmaster.ca",
+  "ticketmaster.co.uk",
+  "ticketmaster.ie",
+  "ticketmaster.com.au",
+  "ticketmaster.co.nz",
+  "ticketmaster.com.mx",
+  "ticketmaster.at",
+  "ticketmaster.be",
+  "ticketmaster.com.br",
+  "ticketmaster.ch",
+  "ticketmaster.cl",
+  "ticketmaster.co",
+  "ticketmaster.cy",
+  "ticketmaster.cz",
+  "ticketmaster.de",
+  "ticketmaster.dk",
+  "ticketmaster.es",
+  "ticketmaster.fi",
+  "ticketmaster.fr",
+  "ticketmaster.gr",
+  "ticketmaster.it",
+  "ticketmaster.nl",
+  "ticketmaster.no",
+  "ticketmaster.pe",
+  "ticketmaster.ph",
+  "ticketmaster.pl",
+  "ticketmaster.se",
+  "ticketmaster.sg",
+  "ticketmaster.co.za",
+  "ticketmaster.ae"
+];
+
 export class UnsupportedPlatformError extends Error {
   constructor(url) {
     super(`Unsupported show link platform: ${url}`);
@@ -8,7 +44,8 @@ export class UnsupportedPlatformError extends Error {
 
 /**
  * 基于 hostname 严格识别平台，拒绝仿冒域名与查询参数里的关键字误报。
- * 只认官方域及其子域：damai.cn / *.damai.cn、showstart.com / *.showstart.com。
+ * 国内：大麦、秀动、猫眼、票星球、纷玩岛。
+ * 海外：Ticketmaster、DICE、AXS、Live Nation。
  */
 export function detectPlatform(urlString) {
   const host = hostnameOf(urlString);
@@ -16,13 +53,15 @@ export function detectPlatform(urlString) {
     throw new UnsupportedPlatformError(urlString);
   }
 
-  if (host === "damai.cn" || host.endsWith(".damai.cn")) {
-    return "damai";
-  }
-
-  if (host === "showstart.com" || host.endsWith(".showstart.com")) {
-    return "showstart";
-  }
+  if (matchesDomain(host, "damai.cn")) return "damai";
+  if (matchesDomain(host, "showstart.com")) return "showstart";
+  if (matchesDomain(host, "maoyan.com")) return "maoyan";
+  if (matchesDomain(host, "piaoxingqiu.com")) return "piaoxingqiu";
+  if (matchesDomain(host, "livelab.com.cn")) return "fenwandao";
+  if (TICKETMASTER_DOMAINS.some((domain) => matchesDomain(host, domain))) return "ticketmaster";
+  if (matchesDomain(host, "dice.fm")) return "dice";
+  if (matchesDomain(host, "axs.com")) return "axs";
+  if (isLiveNationHost(host)) return "livenation";
 
   throw new UnsupportedPlatformError(urlString);
 }
@@ -66,6 +105,98 @@ export function normalizeUrl(urlString) {
     };
   }
 
+  if (platform === "maoyan") {
+    const eventId = url.pathname.match(/\/detail\/(\d+)/i)?.[1]
+      ?? url.hash.match(/\/detail\/(\d+)/i)?.[1]
+      ?? url.searchParams.get("id")
+      ?? url.searchParams.get("projectId");
+
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: eventId
+        ? `https://show.maoyan.com/qqw#/detail/${eventId}`
+        : httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "piaoxingqiu") {
+    const pathEventId = url.pathname.match(/\/content\/([a-f0-9]{16,32})\/?$/i)?.[1];
+    const eventId = url.searchParams.get("showId") ?? pathEventId;
+    const shareToken = url.searchParams.get("lssId");
+
+    if (eventId) {
+      return {
+        platform,
+        eventId,
+        canonicalUrl: `https://m.piaoxingqiu.com/content/${encodeURIComponent(eventId)}?showId=${encodeURIComponent(eventId)}`
+      };
+    }
+
+    return {
+      platform,
+      ...(shareToken ? { shareToken } : {}),
+      canonicalUrl: shareToken
+        ? `https://e.piaoxingqiu.com/?lssId=${encodeURIComponent(shareToken)}`
+        : httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "fenwandao") {
+    const eventId = url.searchParams.get("id") ?? url.searchParams.get("project_id") ?? url.searchParams.get("projectId");
+
+    if (eventId && /\/buyTickets\/step1\/?$/i.test(url.pathname)) {
+      const type = url.searchParams.get("type");
+      const params = new URLSearchParams({ id: eventId });
+      if (type) params.set("type", type);
+      return {
+        platform,
+        eventId,
+        canonicalUrl: `https://mobile.livelab.com.cn${url.pathname}?${params.toString()}`
+      };
+    }
+
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "ticketmaster") {
+    const eventId = url.pathname.match(/\/event\/([^/?#]+)/i)?.[1];
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "dice") {
+    return {
+      platform,
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "axs") {
+    const eventId = url.pathname.match(/\/events\/(\d+)/i)?.[1];
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
+  if (platform === "livenation") {
+    const eventId = liveNationEventId(url.pathname);
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: httpsUrlWithoutQuery(url)
+    };
+  }
+
   throw new UnsupportedPlatformError(urlString);
 }
 
@@ -76,8 +207,36 @@ export function normalizeUrl(urlString) {
 export function extractShowUrl(input) {
   const trimmed = normalizeFullWidthAscii(input).trim();
   const match = trimmed.match(/https?:\/\/[^\s【】"'<>]+/i);
-  const raw = match?.[0] ?? trimmed;
+  const raw = stripNaturalLanguageTerminator(match?.[0] ?? trimmed);
   return ensureAbsoluteUrl(raw);
+}
+
+function stripNaturalLanguageTerminator(value) {
+  let result = value;
+  const naturalPunctuation = /[.,;:!?，。；：！？、]/u;
+  for (let index = 0; index < result.length; index += 1) {
+    if (!naturalPunctuation.test(result[index])) continue;
+    const next = result[index + 1] ?? "";
+    if (!next || /[\u3400-\u9fff]/u.test(next)) {
+      result = result.slice(0, index);
+      break;
+    }
+  }
+  result = result.replace(/[.,;:!?，。；：！？、]+$/u, "");
+  while (result.endsWith(")") && !hasBalancedParentheses(result)) {
+    result = result.slice(0, -1);
+  }
+  return result;
+}
+
+function hasBalancedParentheses(value) {
+  let depth = 0;
+  for (const character of value) {
+    if (character === "(") depth += 1;
+    if (character === ")") depth -= 1;
+    if (depth < 0) return false;
+  }
+  return depth === 0;
 }
 
 function hostnameOf(urlString) {
@@ -86,6 +245,18 @@ function hostnameOf(urlString) {
   } catch {
     return null;
   }
+}
+
+function matchesDomain(host, domain) {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+function httpsUrlWithoutQuery(url) {
+  return `https://${url.host}${url.pathname}`;
+}
+
+function httpsUrlWithoutHash(url) {
+  return `https://${url.host}${url.pathname}${url.search}`;
 }
 
 function ensureAbsoluteUrl(urlString) {

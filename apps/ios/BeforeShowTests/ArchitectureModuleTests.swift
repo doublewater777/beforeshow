@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import BeforeShow
 
@@ -128,5 +129,67 @@ final class ArchitectureModuleTests: XCTestCase {
             ),
             "新地址 1 号"
         )
+    }
+
+    func testLinkCatalogIncludesLiveNationAndRejectsLookalikes() {
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "www.livenation.cn"),
+            "Live Nation"
+        )
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "www.livenation.co.uk"),
+            "Live Nation"
+        )
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.displayName(forHost: "livenation.app.link"),
+            "Live Nation"
+        )
+        XCTAssertNil(
+            ShowLinkPlatformCatalog.displayName(forHost: "livenation.com.evil.example")
+        )
+        XCTAssertTrue(ShowLinkPlatformCatalog.supportSummary.contains("Live Nation"))
+    }
+
+    func testRemoteLinkParserMapsUnsupportedBackendCode() async {
+        let json = """
+        {
+            "ok": false,
+            "error": {
+                "code": "UNSUPPORTED_PLATFORM",
+                "message": "Unsupported show link platform"
+            }
+        }
+        """
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: ArchitectureMockURLSession(data: Data(json.utf8))
+            )
+        )
+
+        do {
+            _ = try await service.parse(link: "https://example.com/show/123")
+            XCTFail("Expected unsupported-source error")
+        } catch {
+            XCTAssertEqual(error as? ShowLinkParsingError, .unsupportedSource)
+        }
+    }
+}
+
+private struct ArchitectureMockURLSession: URLSessionProtocol {
+    let data: Data
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://example.com")!,
+            statusCode: 200,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
     }
 }

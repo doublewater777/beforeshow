@@ -1,6 +1,18 @@
 import { normalizeUrl, UnsupportedPlatformError } from "./platformDetector.js";
 import { fetchDamaiDetail, parseDamaiDetail } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
+import { fetchMaoyanPerformance, parseMaoyanPerformance } from "./maoyanParser.js";
+import { fetchAndParseTicketPage } from "./ticketPageParser.js";
+import { fetchAndParseLiveNationPage } from "./liveNationParser.js";
+import { fetchAndParsePiaoxingqiu } from "./piaoxingqiuParser.js";
+import { fetchFenwandaoProjectInfo, parseFenwandaoProject } from "./fenwandaoParser.js";
+
+const PUBLIC_PAGE_PLATFORMS = new Set([
+  "fenwandao",
+  "ticketmaster",
+  "dice",
+  "axs"
+]);
 
 export { UnsupportedPlatformError };
 
@@ -23,5 +35,97 @@ export async function parseShowLink(url, options = {}) {
     return parseShowStartDetail(detail);
   }
 
+  if (normalized.platform === "maoyan") {
+    if (!normalized.eventId) {
+      throw new UnsupportedPlatformError(url);
+    }
+    const detail = await fetchMaoyanPerformance({
+      performanceId: normalized.eventId,
+      fetch: options.fetch
+    });
+    return parseMaoyanPerformance(detail);
+  }
+
+  if (normalized.platform === "livenation") {
+    return fetchAndParseLiveNationPage({
+      url: normalized.canonicalUrl,
+      fetch: options.fetch
+    });
+  }
+
+  if (normalized.platform === "ticketmaster") {
+    return fetchAndParseTicketPage({
+      url: normalized.canonicalUrl,
+      source: normalized.platform,
+      fetch: options.fetch
+    });
+  }
+
+  if (normalized.platform === "piaoxingqiu" && normalized.eventId) {
+    return apiThenPublicPage({
+      api: () => fetchAndParsePiaoxingqiu({
+        eventId: normalized.eventId,
+        canonicalUrl: normalized.canonicalUrl,
+        fetch: options.fetch
+      }),
+      page: () => fetchAndParseTicketPage({
+        url: normalized.canonicalUrl,
+        source: normalized.platform,
+        fetch: options.fetch
+      })
+    });
+  }
+
+  if (normalized.platform === "fenwandao" && normalized.eventId) {
+    return apiThenPublicPage({
+      api: async () => parseFenwandaoProject(await fetchFenwandaoProjectInfo({
+        projectId: normalized.eventId,
+        fetch: options.fetch
+      })),
+      page: () => fetchAndParseTicketPage({
+        url: normalized.canonicalUrl,
+        source: normalized.platform,
+        fetch: options.fetch
+      })
+    });
+  }
+
+  if (normalized.platform === "piaoxingqiu" || PUBLIC_PAGE_PLATFORMS.has(normalized.platform)) {
+    return fetchAndParseTicketPage({
+      url: normalized.canonicalUrl,
+      source: normalized.platform,
+      fetch: options.fetch
+    });
+  }
+
   throw new UnsupportedPlatformError(url);
+}
+
+async function apiThenPublicPage({ api, page }) {
+  try {
+    const draft = await api();
+    if (!isUsableDraft(draft)) {
+      throw new Error("Ticket API returned an unusable event draft");
+    }
+    return draft;
+  } catch (apiError) {
+    try {
+      return await page();
+    } catch (pageError) {
+      const error = new Error(pageError?.message ?? "Public event page parsing failed");
+      error.cause = apiError;
+      error.pageCause = pageError;
+      throw error;
+    }
+  }
+}
+
+function isUsableDraft(draft) {
+  return Boolean(
+    draft
+      && typeof draft.name === "string"
+      && draft.name.trim()
+      && typeof draft.date === "string"
+      && draft.date.trim()
+  );
 }

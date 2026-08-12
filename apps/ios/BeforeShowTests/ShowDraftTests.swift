@@ -433,6 +433,58 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNotEqual(network, unsupported)
     }
 
+    func testShowLinkPlatformCatalogRecognizesSupportedHostsAndRejectsLookalikes() {
+        let supported: [(String, String)] = [
+            ("m.damai.cn", "大麦"),
+            ("wap.showstart.com", "秀动"),
+            ("show.maoyan.com", "猫眼"),
+            ("m.piaoxingqiu.com", "票星球"),
+            ("mobile.livelab.com.cn", "纷玩岛"),
+            ("www.ticketmaster.com", "Ticketmaster"),
+            ("www.ticketmaster.co.uk", "Ticketmaster"),
+            ("dice.fm", "DICE"),
+            ("www.axs.com", "AXS"),
+            ("www.livenation.cn", "Live Nation"),
+            ("www.livenation.co.uk", "Live Nation"),
+            ("livenation.app.link", "Live Nation")
+        ]
+
+        for (host, expected) in supported {
+            XCTAssertEqual(ShowLinkPlatformCatalog.displayName(forHost: host), expected, host)
+        }
+
+        let lookalikes = [
+            "damai.cn.evil.example",
+            "showstart.com.evil.example",
+            "maoyan.com.evil.example",
+            "piaoxingqiu.com.evil.example",
+            "livelab.com.cn.evil.example",
+            "ticketmaster.com.evil.example",
+            "dice.fm.evil.example",
+            "axs.com.evil.example",
+            "livenation.com.evil.example"
+        ]
+        for host in lookalikes {
+            XCTAssertNil(ShowLinkPlatformCatalog.displayName(forHost: host), host)
+        }
+    }
+
+    func testLinkUICopyListsAllSupportedPlatforms() {
+        let unsupported = AddShowLinkFailurePresentation.resolve(
+            ShowLinkParsingError.unsupportedSource
+        )
+        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "Ticketmaster", "DICE", "AXS", "Live Nation"]
+
+        for name in names {
+            XCTAssertTrue(unsupported.message.contains(name), name)
+        }
+        XCTAssertEqual(
+            ShowLinkPlatformCatalog.supportSummary,
+            "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
+        )
+        XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
+    }
+
     func testLocalLinkParserOnlySupportsDamaiAndShowstart() throws {
         let parser = ShowLinkDraftParser(calendar: calendar)
 
@@ -512,6 +564,198 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.source, .link)
     }
 
+    func testRemoteInternationalLinkPreservesEventInstantAcrossDeviceTimeZones() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "洛杉矶现场",
+                "city": "Los Angeles",
+                "date": "2026-09-16",
+                "startTime": "19:00",
+                "startDateTime": "2026-09-16T19:00:00-07:00",
+                "endDate": "2026-09-16",
+                "endTime": "22:00",
+                "endDateTime": "2026-09-16T22:00:00-08:00",
+                "venueName": "Crypto.com Arena",
+                "venueAddr": "Los Angeles",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "dice"
+            }
+        }
+        """
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: shanghaiCalendar
+        )
+
+        let draft = try await service.parse(link: "https://dice.fm/event/example")
+        let expectedStart = ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!
+        let expectedEnd = ISO8601DateFormatter().date(from: "2026-09-17T06:00:00Z")!
+
+        XCTAssertEqual(draft.date, expectedStart)
+        XCTAssertEqual(draft.startTime, expectedStart)
+        XCTAssertEqual(draft.endDate, expectedEnd)
+        XCTAssertEqual(draft.endTime, expectedEnd)
+        XCTAssertEqual(draft.timeZoneSecondsFromGMT, -7 * 3_600)
+        XCTAssertEqual(draft.endTimeZoneSecondsFromGMT, -8 * 3_600)
+
+        let show = try draft.makeShow()
+        XCTAssertEqual(show.timeZoneSecondsFromGMT, -7 * 3_600)
+        XCTAssertEqual(show.endTimeZoneSecondsFromGMT, -8 * 3_600)
+        XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: shanghaiCalendar), expectedStart)
+        XCTAssertEqual(CurrentShowTimeState.effectiveEndTime(
+            for: show,
+            calendar: shanghaiCalendar,
+            effectiveDate: show.effectiveDate,
+            effectiveStartTime: expectedStart
+        ), expectedEnd)
+        XCTAssertEqual(CurrentShowTimeState.effectiveStartTime(for: show, calendar: Calendar(identifier: .gregorian)), expectedStart)
+    }
+
+    func testRemoteDateOnlyEndFieldsUseStartEventOffsetWhenEndDateTimeIsMissing() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "洛杉矶现场",
+                "city": "Los Angeles",
+                "date": "2026-09-16",
+                "startTime": "19:00",
+                "startDateTime": "2026-09-16T19:00:00-07:00",
+                "endDate": "2026-09-16",
+                "endTime": "22:00",
+                "endDateTime": null,
+                "venueName": "Crypto.com Arena",
+                "venueAddr": "Los Angeles",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "dice"
+            }
+        }
+        """
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: shanghaiCalendar
+        )
+
+        let draft = try await service.parse(link: "https://dice.fm/event/example")
+        let expectedEndDate = ISO8601DateFormatter().date(from: "2026-09-16T07:00:00Z")!
+        let expectedEndTime = ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!
+
+        XCTAssertEqual(draft.endDate, expectedEndDate)
+        XCTAssertEqual(draft.endTime, expectedEndTime)
+        XCTAssertNil(draft.endTimeZoneSecondsFromGMT)
+        XCTAssertEqual(try draft.makeShow().endTime, expectedEndTime)
+    }
+
+    func testRemoteLocalDateTimesUseProviderIANAZoneWhenISOInstantsAreMissing() async throws {
+        let json = """
+        {
+            "ok": true,
+            "draft": {
+                "name": "洛杉矶本地时间现场",
+                "city": "Los Angeles",
+                "date": "2026-09-16",
+                "startTime": "19:00",
+                "startDateTime": null,
+                "endDate": "2026-09-16",
+                "endTime": "22:00",
+                "endDateTime": null,
+                "timeZoneIdentifier": "America/Los_Angeles",
+                "venueName": "Crypto.com Arena",
+                "venueAddr": "Los Angeles",
+                "artist": "测试艺人",
+                "coverImageURL": null,
+                "artistAvatarURLs": [],
+                "priceRange": "",
+                "source": "ticketmaster"
+            }
+        }
+        """
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: MockURLSession(data: json.data(using: .utf8)!, statusCode: 200)
+            ),
+            calendar: shanghaiCalendar
+        )
+
+        let draft = try await service.parse(link: "https://www.ticketmaster.com/event/example")
+
+        XCTAssertEqual(draft.date, ISO8601DateFormatter().date(from: "2026-09-16T07:00:00Z")!)
+        XCTAssertEqual(draft.startTime, ISO8601DateFormatter().date(from: "2026-09-17T02:00:00Z")!)
+        XCTAssertEqual(draft.endTime, ISO8601DateFormatter().date(from: "2026-09-17T05:00:00Z")!)
+        XCTAssertEqual(draft.timeZoneIdentifier, "America/Los_Angeles")
+        XCTAssertEqual(try draft.makeShow().startTime, draft.startTime)
+    }
+
+    func testDraftTimeEditsUseVenueCalendarAndNormalizePostponedDays() throws {
+        let draft = ShowDraft(
+            name: "洛杉矶现场",
+            date: ISO8601DateFormatter().date(from: "2026-09-16T19:00:00-07:00")!,
+            startTime: ISO8601DateFormatter().date(from: "2026-09-16T19:00:00-07:00")!,
+            timeZoneSecondsFromGMT: -7 * 3_600,
+            source: .link
+        )
+        var shanghaiCalendar = Calendar(identifier: .gregorian)
+        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let editedClock = draft.timingCalendar(fallback: shanghaiCalendar).date(
+            from: DateComponents(year: 2026, month: 9, day: 16, hour: 20)
+        )!
+
+        let merged = draft.mergedTime(
+            editedClock,
+            into: draft.date,
+            calendar: draft.timingCalendar(fallback: shanghaiCalendar)
+        )
+        XCTAssertEqual(
+            merged,
+            ISO8601DateFormatter().date(from: "2026-09-17T03:00:00Z")
+        )
+
+        let selectedByVenuePicker = draft.timingCalendar(fallback: shanghaiCalendar).date(
+            from: DateComponents(year: 2026, month: 9, day: 20, hour: 10)
+        )!
+        let normalized = ShowDateSelectionPolicy.normalizedDay(
+            selectedByVenuePicker,
+            calendar: draft.timingCalendar(fallback: shanghaiCalendar)
+        )
+        XCTAssertEqual(
+            normalized,
+            ISO8601DateFormatter().date(from: "2026-09-20T07:00:00Z")
+        )
+    }
+
     func testRemoteShowLinkParsingServiceKeepsMissingStartTimeUnconfirmed() async throws {
         let json = """
         {
@@ -549,6 +793,14 @@ final class ShowDraftTests: XCTestCase {
 
         XCTAssertNil(draft.startTime)
         XCTAssertThrowsError(try draft.makeShow())
+    }
+
+    func testLocalLinkParserRejectsDatesAndTimesThatFoundationWouldNormalize() {
+        let parser = ShowLinkDraftParser(calendar: calendar)
+
+        XCTAssertThrowsError(try parser.draft(
+            from: "https://detail.damai.cn/item.htm?date=2026-02-31&time=24:60"
+        ))
     }
 
     func testDraftWithoutStartTimeCannotCreateShow() {
