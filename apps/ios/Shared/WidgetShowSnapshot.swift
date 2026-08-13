@@ -64,24 +64,32 @@ enum WidgetSnapshotStore {
         }
     }
 
-    static func write(_ snapshot: WidgetShowSnapshot?) {
+    @discardableResult
+    static func write(_ snapshot: WidgetShowSnapshot?) -> Bool {
         guard let url = snapshotURL else {
             #if DEBUG
             print("[WidgetSnapshotStore] missing App Group container")
             #endif
-            return
+            return false
         }
         guard let snapshot else {
-            try? FileManager.default.removeItem(at: url)
-            return
+            guard FileManager.default.fileExists(atPath: url.path) else { return true }
+            do {
+                try FileManager.default.removeItem(at: url)
+                return true
+            } catch {
+                return false
+            }
         }
         do {
             let data = try JSONEncoder().encode(snapshot)
             try data.write(to: url, options: .atomic)
+            return true
         } catch {
             #if DEBUG
             print("[WidgetSnapshotStore] write failed: \(error)")
             #endif
+            return false
         }
     }
 }

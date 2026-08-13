@@ -345,25 +345,26 @@ private struct CurrentShowHomeView: View {
             return
         }
 
-        show.markEnded(at: date)
-        do {
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            presentToast(.failure, message: "散场时间没有保存，请重试")
-            return
-        }
-
-        presentToast(.success, message: "已落幕，散场时间已计入现场记录")
         Task { @MainActor in
-            _ = await ShowMutationCoordinator.syncNotifications(
-                shows: shows,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext,
-                session: session
-            )
-            WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+            do {
+                let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                ) {
+                    show.markEnded(at: date)
+                }
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: didSync
+                        ? "已落幕，散场时间已计入现场记录"
+                        : "散场时间已保存，同步暂未更新"
+                )
+            } catch {
+                presentToast(.failure, message: "散场时间没有保存，请重试")
+            }
         }
     }
 

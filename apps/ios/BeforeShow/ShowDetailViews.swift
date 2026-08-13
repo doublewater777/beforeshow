@@ -950,21 +950,18 @@ struct ShowDetailView: View {
         }
 
         Task { @MainActor in
-            ShowMutationCoordinator.updateCurrentShowFocus(
-                showID: show.id,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext
-            )
             do {
-                try modelContext.save()
-                let didSyncNotifications = await LocalNotificationCenter.shared.applyFocusChange(
-                    to: show,
-                    in: modelContext
+                let didSync = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: show.id,
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
                 )
                 presentToast(
-                    didSyncNotifications ? .success : .neutral,
-                    message: didSyncNotifications ? "已设为当前现场" : "已切换现场，通知暂未更新"
+                    didSync ? .success : .neutral,
+                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
                 )
             } catch {
                 modelContext.rollback()
@@ -979,35 +976,50 @@ struct ShowDetailView: View {
             return
         }
 
-        show.markEnded(at: confirmedEndDraft)
-        do {
-            try modelContext.save()
-            isEditingConfirmedEnd = false
-            presentToast(.success, message: "散场时间已更新")
-            syncAfterConfirmedEndChange()
-        } catch {
-            modelContext.rollback()
-            presentToast(.failure, message: "散场时间没有保存，请重试")
+        Task { @MainActor in
+            do {
+                let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                ) {
+                    show.markEnded(at: confirmedEndDraft)
+                }
+                isEditingConfirmedEnd = false
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: didSync ? "散场时间已更新" : "散场时间已保存，同步暂未更新"
+                )
+            } catch {
+                presentToast(.failure, message: "散场时间没有保存，请重试")
+            }
         }
     }
 
     private func undoConfirmedEnd() {
-        show.clearEnded()
-        do {
-            try modelContext.save()
-            isEditingConfirmedEnd = false
-            presentToast(.neutral, message: "已撤销结束，继续按现场时间计时")
-            syncAfterConfirmedEndChange()
-        } catch {
-            modelContext.rollback()
-            presentToast(.failure, message: "没有撤销成功，请重试")
-        }
-    }
-
-    private func syncAfterConfirmedEndChange() {
         Task { @MainActor in
-            _ = await syncNotificationsToCurrentShow()
-            WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+            do {
+                let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                ) {
+                    show.clearEnded()
+                }
+                isEditingConfirmedEnd = false
+                presentToast(
+                    .neutral,
+                    message: didSync
+                        ? "已撤销结束，继续按现场时间计时"
+                        : "已撤销结束，同步暂未更新"
+                )
+            } catch {
+                presentToast(.failure, message: "没有撤销成功，请重试")
+            }
         }
     }
 
@@ -1024,7 +1036,7 @@ struct ShowDetailView: View {
 
     @MainActor
     private func apply(_ draft: ShowDraft) async throws {
-        let didSyncNotifications = try await ShowMutationCoordinator.applyDraft(
+        let didSync = try await ShowMutationCoordinator.applyDraft(
             draft,
             to: show,
             shows: shows,
@@ -1034,8 +1046,8 @@ struct ShowDetailView: View {
             session: session
         )
         presentToast(
-            didSyncNotifications ? .success : .neutral,
-            message: didSyncNotifications ? "现场信息已更新" : "信息已保存，通知暂未更新"
+            didSync ? .success : .neutral,
+            message: didSync ? "现场信息已更新" : "信息已保存，同步暂未更新"
         )
     }
 
@@ -1068,8 +1080,15 @@ struct ShowDetailView: View {
                 notificationStates: notificationStates,
                 in: modelContext
             )
-            if result == .mediaCleanupPending {
-                presentToast(.neutral, message: "现场记录已删除，部分本地副本将在下次启动继续清理")
+            if result.hasPendingMediaCleanup {
+                presentToast(
+                    .neutral,
+                    message: result.didSync
+                        ? "现场记录已删除，部分本地副本将在下次启动继续清理"
+                        : "现场记录已删除，本地副本与同步将在稍后继续"
+                )
+            } else if !result.didSync {
+                presentToast(.neutral, message: "现场记录已删除，同步暂未更新")
             }
             dismiss()
         } catch {
@@ -1078,16 +1097,6 @@ struct ShowDetailView: View {
         }
     }
 
-    @MainActor
-    private func syncNotificationsToCurrentShow() async -> Bool {
-        await ShowMutationCoordinator.syncNotifications(
-            shows: shows,
-            selections: selections,
-            notificationStates: notificationStates,
-            in: modelContext,
-            session: session
-        )
-    }
 }
 
 private struct ShowDetailExperienceTile: View {

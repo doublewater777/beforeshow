@@ -20,7 +20,12 @@ enum WidgetDataSync {
     @MainActor private static var syncGeneration: UInt64 = 0
 
     @MainActor
-    static func sync(shows: [Show], manualSelection: CurrentShowSelection?, now: Date = Date()) {
+    @discardableResult
+    static func sync(
+        shows: [Show],
+        manualSelection: CurrentShowSelection?,
+        now: Date = Date()
+    ) -> Bool {
         syncGeneration &+= 1
         let generation = syncGeneration
 
@@ -29,9 +34,12 @@ enum WidgetDataSync {
         let snapshot = show.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
 
         let previous = WidgetSnapshotStore.read()
+        var didStoreSnapshot = true
         if contentChanged(from: previous, to: snapshot) {
-            WidgetSnapshotStore.write(snapshot)
-            WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+            didStoreSnapshot = WidgetSnapshotStore.write(snapshot)
+            if didStoreSnapshot {
+                WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+            }
         }
 
         // Show 是 SwiftData @Model(非 Sendable),跨并发边界只传值类型快照
@@ -42,6 +50,7 @@ enum WidgetDataSync {
                 generation: generation
             )
         }
+        return didStoreSnapshot
     }
 
     private static func contentChanged(

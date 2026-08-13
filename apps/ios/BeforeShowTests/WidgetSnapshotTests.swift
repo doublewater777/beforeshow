@@ -91,6 +91,36 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(WidgetSnapshotStore.read())
     }
 
+    func testAppGroupStoreReportsWriteFailure() throws {
+        let containerFile = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-store-file-\(UUID().uuidString)")
+        try Data().write(to: containerFile)
+        WidgetSnapshotStore.overrideContainerURL = containerFile
+        defer {
+            WidgetSnapshotStore.overrideContainerURL = nil
+            try? FileManager.default.removeItem(at: containerFile)
+        }
+
+        let snapshot = WidgetShowSnapshot(
+            showID: UUID(),
+            name: "无法写入的现场",
+            city: nil,
+            venueName: nil,
+            coverImageURL: nil,
+            timing: ShowTimingFields(
+                date: Date(timeIntervalSince1970: 1_800_000_000),
+                startTime: Date(timeIntervalSince1970: 1_800_000_000),
+                endDate: nil,
+                endTime: nil,
+                postponedDate: nil,
+                changeStatus: .scheduled
+            ),
+            generatedAt: Date()
+        )
+
+        XCTAssertFalse(WidgetSnapshotStore.write(snapshot))
+    }
+
     /// 跨午夜但不足 24h:日历日差为 1,实际应按秒数进 near 态。
     func testRemainingSecondsCrossMidnightIsUnderOneDay() {
         var calendar = Calendar(identifier: .gregorian)

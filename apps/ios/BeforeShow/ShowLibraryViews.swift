@@ -1,99 +1,6 @@
 import SwiftData
 import SwiftUI
 
-enum ShowDeletionResult: Equatable {
-    case complete
-    case mediaCleanupPending
-}
-
-@MainActor
-enum ShowDeletionCoordinator {
-    static func delete(
-        _ show: Show,
-        from shows: [Show],
-        selections: [CurrentShowSelection],
-        notificationStates: [NotificationSchedulingState],
-        in modelContext: ModelContext
-    ) async throws -> ShowDeletionResult {
-        await ShowAssetMediaStore.shared.acquireCommitGate()
-        do {
-            let coverImageURL = show.coverImageURL
-            if selections.first?.selectedShowID == show.id {
-                selections.first?.clearManualSelection()
-            }
-
-            let showID = show.id
-            let dynamicCoverPath = show.dynamicCover?.relativePath
-            let remainingShows = shows.filter { $0.id != showID }
-            let fragments = try modelContext.fetch(
-                FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
-            )
-            for fragment in fragments {
-                modelContext.delete(fragment)
-            }
-            let assets = try modelContext.fetch(
-                FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
-            )
-            for asset in assets {
-                modelContext.delete(asset)
-            }
-            modelContext.delete(show)
-            let nextCurrentShow = CurrentShowSession().selectCurrentShow(
-                from: remainingShows,
-                manualSelection: selections.first
-            )
-            ShowMutationCoordinator.updateNotificationFocus(
-                showID: nextCurrentShow?.id,
-                notificationStates: notificationStates,
-                in: modelContext
-            )
-
-            try modelContext.save()
-            DynamicCoverFaceStore.clear(showID: showID)
-            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
-            var cleanupPending = false
-            if let dynamicCoverPath {
-                do {
-                    try await DynamicCoverMediaStore.shared.deleteShow(showID)
-                } catch {
-                    ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
-                        showID: showID,
-                        relativePath: dynamicCoverPath
-                    )
-                    cleanupPending = true
-                }
-            }
-            ShowAssetCleanupRetry.markShowCleanupPending(showID)
-            do {
-                try await ShowAssetMediaStore.shared.deleteShow(showID)
-            } catch {
-                cleanupPending = true
-            }
-            if cleanupPending {
-                ShowAssetCleanupRetry.markShowCleanupPending(showID)
-            } else {
-                ShowAssetCleanupRetry.clearShowCleanupPending(showID)
-            }
-
-            if let coverImageURL,
-               !remainingShows.contains(where: { $0.coverImageURL == coverImageURL }) {
-                ShowCoverLocalImageStore.removeManagedLocalImage(at: coverImageURL)
-            }
-            _ = await LocalNotificationCenter.shared.applyFocusChange(
-                to: nextCurrentShow,
-                in: modelContext
-            )
-            WidgetDataSync.sync(shows: remainingShows, manualSelection: selections.first)
-            await ShowAssetMediaStore.shared.releaseCommitGate()
-            return cleanupPending ? .mediaCleanupPending : .complete
-        } catch {
-            modelContext.rollback()
-            await ShowAssetMediaStore.shared.releaseCommitGate()
-            throw error
-        }
-    }
-}
-
 // MARK: - My Shows List View
 
 struct MyShowsListView: View {
@@ -358,22 +265,18 @@ struct MyShowsListView: View {
         }
 
         Task { @MainActor in
-            ShowMutationCoordinator.updateCurrentShowFocus(
-                showID: show.id,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext
-            )
-
             do {
-                try modelContext.save()
-                let didSyncNotifications = await LocalNotificationCenter.shared.applyFocusChange(
-                    to: show,
-                    in: modelContext
+                let didSync = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: show.id,
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
                 )
                 presentToast(
-                    didSyncNotifications ? .success : .neutral,
-                    message: didSyncNotifications ? "已设为当前现场" : "已切换现场，通知暂未更新"
+                    didSync ? .success : .neutral,
+                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
                 )
             } catch {
                 modelContext.rollback()
@@ -1114,12 +1017,19 @@ struct CurrentShowLibraryManagementView: View {
             return
         }
         Task { @MainActor in
-            ShowMutationCoordinator.updateCurrentShowFocus(showID: show.id, selections: selections, notificationStates: notificationStates, in: modelContext)
             do {
-                try modelContext.save()
-                _ = await LocalNotificationCenter.shared.applyFocusChange(to: show, in: modelContext)
-                WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
-                presentToast(.success, message: "已设为当前现场")
+                let didSync = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: show.id,
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                )
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
+                )
             } catch {
                 modelContext.rollback()
                 presentToast(.failure, message: "切换失败，请重试")
@@ -1159,10 +1069,12 @@ struct CurrentShowLibraryManagementView: View {
                     in: modelContext
                 )
                 presentToast(
-                    result == .mediaCleanupPending ? .neutral : .success,
-                    message: result == .mediaCleanupPending
-                        ? "现场记录已删除，部分本地副本将在下次启动继续清理"
-                        : "已删除现场"
+                    result.hasPendingMediaCleanup || !result.didSync ? .neutral : .success,
+                    message: result.hasPendingMediaCleanup
+                        ? (result.didSync
+                            ? "现场记录已删除，部分本地副本将在下次启动继续清理"
+                            : "现场记录已删除，本地副本与同步将在稍后继续")
+                        : (result.didSync ? "已删除现场" : "现场记录已删除，同步暂未更新")
                 )
             } catch {
                 modelContext.rollback()
