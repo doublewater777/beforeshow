@@ -1,0 +1,7 @@
+/* Generated Info.plist localization. */
+
+"CFBundleDisplayName" = "開場前";
+"CFBundleName" = "BeforeShow";
+"NSCameraUsageDescription" = "用於拍攝並保存目前現場的記憶碎片。";
+"NSMicrophoneUsageDescription" = "用於錄製目前現場記憶碎片中的影片聲音。";
+"NSPhotoLibraryAddUsageDescription" = "用於將你的現場足跡卡保存到照片。";

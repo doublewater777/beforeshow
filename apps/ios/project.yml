@@ -9,6 +9,7 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     MARKETING_VERSION: 1.0
     SWIFT_VERSION: 6.0
+    DEVELOPMENT_LANGUAGE: zh-Hans
     DEVELOPMENT_TEAM: 29C8MS76CZ
     CODE_SIGN_STYLE: Automatic
 targets:
@@ -45,6 +46,8 @@ targets:
     sources:
       - path: BeforeShowWidgets
       - path: Shared
+    resources:
+      - path: BeforeShowWidgets/Resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.doublewaterapps.beforeshow.widgets

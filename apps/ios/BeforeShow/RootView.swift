@@ -394,7 +394,7 @@ private struct HomeFloatingTabBar: View {
                     HStack(spacing: 7) {
                         Image(systemName: tab.iconName)
                             .font(.system(size: 14, weight: .medium))
-                        Text(tab.rawValue)
+                        Text(tab.localizedTitle)
                             .font(.system(size: 12.5, weight: .medium))
                     }
                         .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
@@ -407,7 +407,7 @@ private struct HomeFloatingTabBar: View {
                         )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(tab.rawValue)
+                .accessibilityLabel(tab.localizedTitle)
                 .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
             }
         }

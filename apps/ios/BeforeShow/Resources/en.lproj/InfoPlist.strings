@@ -1,0 +1,7 @@
+/* Generated Info.plist localization. */
+
+"CFBundleDisplayName" = "BeforeShow";
+"CFBundleName" = "BeforeShow";
+"NSCameraUsageDescription" = "Used to capture and save memory fragments from your show.";
+"NSMicrophoneUsageDescription" = "Used to record audio for videos in your show memory fragments.";
+"NSPhotoLibraryAddUsageDescription" = "Used to save your show footprint card to Photos.";

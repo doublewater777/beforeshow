@@ -205,40 +205,40 @@ struct CurrentShowTimeState: Equatable {
 
     var title: String {
         switch kind {
-        case .before: return "开场前"
-        case .today: return "今天开场"
-        case .dayEnded: return "今日已落幕"
-        case .postShow: return "散场后"
-        case .ended: return "已结束"
-        case .canceled: return "已取消"
-        case .postponed: return "时间待定"
+        case .before: return BSLocalization.text("开场前")
+        case .today: return BSLocalization.text("今天开场")
+        case .dayEnded: return BSLocalization.text("今日已落幕")
+        case .postShow: return BSLocalization.text("散场后")
+        case .ended: return BSLocalization.text("已结束")
+        case .canceled: return BSLocalization.text("已取消")
+        case .postponed: return BSLocalization.text("时间待定")
         }
     }
 
     var statusText: String {
         if kind == .canceled {
-            return "已取消"
+            return BSLocalization.text("已取消")
         }
         if !hasKnownEffectiveDate {
-            return "已延期，时间待定"
+            return BSLocalization.text("已延期，时间待定")
         }
         if isDatedPostponement {
-            return "已延期"
+            return BSLocalization.text("已延期")
         }
 
         switch kind {
         case .today:
-            return "当天"
+            return BSLocalization.text("当天")
         case .dayEnded:
-            return "今日已落幕"
+            return BSLocalization.text("今日已落幕")
         case .postShow, .ended:
-            return "已结束"
+            return BSLocalization.text("已结束")
         case .before:
-            return "开场前"
+            return BSLocalization.text("开场前")
         case .canceled:
-            return "已取消"
+            return BSLocalization.text("已取消")
         case .postponed:
-            return "已延期，时间待定"
+            return BSLocalization.text("已延期，时间待定")
         }
     }
 
@@ -412,31 +412,57 @@ struct CurrentShowTimeState: Equatable {
         case .canceled:
             return ("这场现场已取消，记录仍会留在我的现场。", "-", "已取消", "这场现场已取消，记录仍会留在我的现场。")
         case .postponed:
-            return ("新的日期还没确定，倒计时先暂停。", "-", "待定", "新的日期还没确定，倒计时先暂停。")
+            let copy = BSLocalization.text("新的日期还没确定，倒计时先暂停。")
+            return (copy, "-", BSLocalization.text("待定"), copy)
         case .before:
-            return ("还有 \(dayDistance) 天", "\(dayDistance)", "天", "慢慢进入状态")
+            return (
+                BSLocalization.format("还有 %lld 天", Int64(dayDistance)),
+                "\(dayDistance)",
+                BSLocalization.text("天"),
+                BSLocalization.text("慢慢进入状态")
+            )
         case .today:
             if let startTime, now < startTime {
                 let parts = positiveTimeParts(from: now, to: startTime, calendar: calendar)
-                return ("还有 \(parts.value) \(parts.unit)", "\(parts.value)", parts.unit, "出门之前，再确认一下")
+                return (
+                    BSLocalization.format("还有 %lld %@", Int64(parts.value), parts.unit),
+                    "\(parts.value)",
+                    parts.unit,
+                    BSLocalization.text("出门之前，再确认一下")
+                )
             }
 
             if let endBoundary, now < endBoundary, startTime != nil {
-                return ("正在现场", "正在", "现场", "这场还没有真正结束")
+                return (
+                    BSLocalization.text("正在现场"),
+                    BSLocalization.text("正在"),
+                    BSLocalization.text("现场"),
+                    BSLocalization.text("这场还没有真正结束")
+                )
             }
 
-            return ("今天开场", "0", "今天", "出门之前，再确认一下")
+            return (
+                BSLocalization.text("今天开场"),
+                "0",
+                BSLocalization.text("今天"),
+                BSLocalization.text("出门之前，再确认一下")
+            )
         case .dayEnded:
             let helper: String
             if let startTime,
                let nextStart = calendar.date(byAdding: .day, value: 1, to: startTime) {
                 let components = calendar.dateComponents([.hour, .minute], from: nextStart)
                 let clock = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-                helper = "明天 \(clock) 再开"
+                helper = BSLocalization.format("明天 %@ 再开", clock)
             } else {
-                helper = "明天再开"
+                helper = BSLocalization.text("明天再开")
             }
-            return ("今日已落幕", "今日", "已落幕", helper)
+            return (
+                BSLocalization.text("今日已落幕"),
+                BSLocalization.text("今日"),
+                BSLocalization.text("已落幕"),
+                helper
+            )
         case .postShow:
             let elapsedParts = endBoundary.map {
                 positiveTimeParts(from: $0, to: now, calendar: calendar)
@@ -444,26 +470,49 @@ struct CurrentShowTimeState: Equatable {
             let remainingText: String
             if let endBoundary,
                let retentionEnd = calendar.date(byAdding: .day, value: retentionDays, to: endBoundary) {
-                remainingText = "停留期还剩 \(remainingTimeText(from: now, to: retentionEnd, calendar: calendar))"
+                remainingText = BSLocalization.format(
+                    "停留期还剩 %@",
+                    remainingTimeText(from: now, to: retentionEnd, calendar: calendar)
+                )
             } else {
-                remainingText = "这场还会在这里停留"
+                remainingText = BSLocalization.text("这场还会在这里停留")
             }
             let helper = endBoundary.map {
                 "\(endBoundaryText(for: $0, calendar: calendar)) · \(remainingText)"
             } ?? remainingText
 
             if let elapsedParts, elapsedParts.totalHours < 1 {
-                return ("散场后停留期", "刚", "散场", helper)
+                return (
+                    BSLocalization.text("散场后停留期"),
+                    BSLocalization.text("刚"),
+                    BSLocalization.text("散场"),
+                    helper
+                )
             }
 
             if let elapsedParts, elapsedParts.totalHours < 24 {
-                return ("散场后停留期", "\(elapsedParts.totalHours)", "小时前", helper)
+                return (
+                    BSLocalization.text("散场后停留期"),
+                    "\(elapsedParts.totalHours)",
+                    BSLocalization.text("小时前"),
+                    helper
+                )
             }
 
             let elapsedDays = max(0, calendar.dateComponents([.day], from: endBoundary ?? now, to: now).day ?? 0)
-            return ("散场后停留期", "\(elapsedDays)", "天前", helper)
+            return (
+                BSLocalization.text("散场后停留期"),
+                "\(elapsedDays)",
+                BSLocalization.text("天前"),
+                helper
+            )
         case .ended:
-            return ("已结束", "-", "已结束", "这场已结束")
+            return (
+                BSLocalization.text("已结束"),
+                "-",
+                BSLocalization.text("已结束"),
+                BSLocalization.text("这场已结束")
+            )
         }
     }
 
@@ -473,7 +522,12 @@ struct CurrentShowTimeState: Equatable {
         let day = components.day ?? 1
         let hour = components.hour ?? 0
         let minute = components.minute ?? 0
-        return "\(month)月\(day)日 \(String(format: "%02d:%02d", hour, minute)) 结束"
+        return BSLocalization.format(
+            "%lld月%lld日 %@ 结束",
+            Int64(month),
+            Int64(day),
+            String(format: "%02d:%02d", hour, minute)
+        )
     }
 
     private static func positiveTimeParts(
@@ -484,10 +538,10 @@ struct CurrentShowTimeState: Equatable {
         let seconds = max(0, Int(end.timeIntervalSince(start)))
         let totalHours = seconds / 3_600
         if totalHours >= 1 {
-            return (totalHours, "小时", totalHours)
+            return (totalHours, BSLocalization.text("小时"), totalHours)
         }
 
-        return (max(1, seconds / 60), "分钟", totalHours)
+        return (max(1, seconds / 60), BSLocalization.text("分钟"), totalHours)
     }
 
     private static func remainingTimeText(from start: Date, to end: Date, calendar: Calendar) -> String {
@@ -495,11 +549,11 @@ struct CurrentShowTimeState: Equatable {
         let days = seconds / 86_400
         let hours = (seconds % 86_400) / 3_600
         if days > 0 {
-            return "\(days) 天 \(hours) 小时"
+            return BSLocalization.format("%lld 天 %lld 小时", Int64(days), Int64(hours))
         }
         if hours > 0 {
-            return "\(hours) 小时"
+            return BSLocalization.format("%lld 小时", Int64(hours))
         }
-        return "不到 1 小时"
+        return BSLocalization.text("不到 1 小时")
     }
 }

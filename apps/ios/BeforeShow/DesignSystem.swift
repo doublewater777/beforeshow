@@ -388,7 +388,7 @@ struct BSFloatingGlassTabBar: View {
                         Image(systemName: tab.iconName)
                             .font(.system(size: 28, weight: selection == tab ? .semibold : .regular))
                             .symbolVariant(selection == tab ? .fill : .none)
-                        Text(tab.rawValue)
+                        Text(tab.localizedTitle)
                             .font(.system(size: 13, weight: selection == tab ? .semibold : .medium))
                     }
                     .foregroundStyle(selection == tab ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.white.opacity(0.42)))

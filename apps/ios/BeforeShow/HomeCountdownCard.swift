@@ -616,12 +616,6 @@ struct HomeCountdownLockup: View {
                 .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
 
-            Text("如果已经结束，可以在这里确认")
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
         }
     }
 

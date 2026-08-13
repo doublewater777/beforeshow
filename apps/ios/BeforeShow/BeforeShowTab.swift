@@ -6,6 +6,10 @@ enum BeforeShowTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
+    var localizedTitle: String {
+        BSLocalization.text(rawValue)
+    }
+
     var iconName: String {
         switch self {
         case .current: return "sparkles"

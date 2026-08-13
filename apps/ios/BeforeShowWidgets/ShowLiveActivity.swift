@@ -22,7 +22,7 @@ struct ShowLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.leading) {
                     HStack(spacing: 6) {
                         accentDot
-                        Text("开场前")
+                        Text(BSLocalization.text("开场前"))
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(WidgetTheme.accent)
                     }
@@ -32,7 +32,7 @@ struct ShowLiveActivity: Widget {
                         .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.accent)
-                        .accessibilityLabel("开场计时")
+                        .accessibilityLabel(BSLocalization.text("开场计时"))
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -76,9 +76,10 @@ struct ShowLiveActivity: Widget {
         if let end = state.endDate {
             let components = state.endCalendar.dateComponents([.hour, .minute], from: end)
             let endText = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-            return place.isEmpty ? "预计 \(endText) 谢幕" : "\(place) · 预计 \(endText) 谢幕"
+            let endLine = BSLocalization.format("预计 %@ 谢幕", endText)
+            return place.isEmpty ? endLine : "\(place) · \(endLine)"
         }
-        return place.isEmpty ? "灯亮之前,先进入状态" : place
+        return place.isEmpty ? BSLocalization.text("灯亮之前,先进入状态") : place
     }
 }
 
@@ -105,7 +106,7 @@ private struct LiveActivityBannerView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(1)
-                    Text("\(clockText(state.startDate, calendar: state.startCalendar)) 开场")
+                    Text(BSLocalization.format("%@ 开场", clockText(state.startDate, calendar: state.startCalendar)))
                         .font(.system(size: 11))
                         .foregroundStyle(WidgetTheme.accent)
                         .monospacedDigit()
@@ -117,7 +118,7 @@ private struct LiveActivityBannerView: View {
                     .font(.system(size: 20, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.accent)
-                    .accessibilityLabel("开场计时")
+                    .accessibilityLabel(BSLocalization.text("开场计时"))
             }
 
             // 进度条系统自驱:开场前为 0、live 推进、谢幕时满,全程无需 update
@@ -126,9 +127,9 @@ private struct LiveActivityBannerView: View {
                     ProgressView(timerInterval: state.startDate...end)
                         .tint(WidgetTheme.accent)
                     HStack {
-                        Text("\(clockText(state.startDate, calendar: state.startCalendar)) 开场")
+                        Text(BSLocalization.format("%@ 开场", clockText(state.startDate, calendar: state.startCalendar)))
                         Spacer(minLength: 0)
-                        Text("预计 \(clockText(end, calendar: state.endCalendar)) 谢幕")
+                        Text(BSLocalization.format("预计 %@ 谢幕", clockText(end, calendar: state.endCalendar)))
                     }
                     .font(.system(size: 9))
                     .foregroundStyle(WidgetTheme.dim)

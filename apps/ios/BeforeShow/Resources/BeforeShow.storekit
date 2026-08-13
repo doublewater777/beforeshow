@@ -22,6 +22,11 @@
           "description": "开场前 Pro 订阅",
           "displayName": "Pro会员",
           "locale": "zh_CN"
+        },
+        {
+          "description": "開場前 Pro 訂閱",
+          "displayName": "Pro 會員",
+          "locale": "zh_TW"
         }
       ],
       "name": "BeforeShow Pro",
@@ -43,6 +48,11 @@
               "description": "按月解锁无限添加现场和重复生成。",
               "displayName": "BeforeShow Pro 月度",
               "locale": "zh_CN"
+            },
+            {
+              "description": "按月解鎖無限新增現場與重複產生。",
+              "displayName": "BeforeShow Pro 月訂閱",
+              "locale": "zh_TW"
             }
           ],
           "productID": "com.doublewaterapps.beforeshow.pro.monthly",
@@ -68,6 +78,11 @@
               "description": "按年解锁无限添加现场和重复生成。",
               "displayName": "BeforeShow Pro 年度",
               "locale": "zh_CN"
+            },
+            {
+              "description": "按年解鎖無限新增現場與重複產生。",
+              "displayName": "BeforeShow Pro 年訂閱",
+              "locale": "zh_TW"
             }
           ],
           "productID": "com.doublewaterapps.beforeshow.pro.yearly",

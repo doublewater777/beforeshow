@@ -35,17 +35,19 @@ enum HomeShowPhase: Equatable {
     /// 多日中间日落幕请传 `timeState`，优先显示「今日已落幕」。
     func kickerText(city: String?, timeState: CurrentShowTimeState? = nil) -> String {
         if timeState?.kind == .dayEnded {
-            return "今日已落幕"
+            return BSLocalization.text("今日已落幕")
         }
         let trimmed = city?.trimmingCharacters(in: .whitespacesAndNewlines)
         let stop = trimmed.flatMap { $0.isEmpty ? nil : $0 }
         switch self {
         case .pre:
-            return stop.map { "即将开场 · \($0)站" } ?? "即将开场"
+            return stop.map { BSLocalization.format("即将开场 · %@站", $0) }
+                ?? BSLocalization.text("即将开场")
         case .live:
-            return "LIVE · 开场中"
+            return BSLocalization.text("LIVE · 开场中")
         case .ended:
-            return stop.map { "已落幕 · \($0)站" } ?? "已落幕"
+            return stop.map { BSLocalization.format("已落幕 · %@站", $0) }
+                ?? BSLocalization.text("已落幕")
         case .inactive:
             return ""
         }

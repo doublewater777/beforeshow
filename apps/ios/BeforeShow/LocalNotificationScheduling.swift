@@ -29,33 +29,33 @@ struct ShowPreparationSuggestion: Equatable, Identifiable {
 struct ShowPreparationGuide {
     func sections(for show: Show) -> [ShowPreparationSection] {
         var comfort = [
-            ShowPreparationSuggestion(text: "按当天温度留一件好收纳的外套，排队和散场时会更从容。"),
-            ShowPreparationSuggestion(text: "提前确认场馆对水杯、雨具和大件包的规则，少带难处理的东西。")
+            ShowPreparationSuggestion(text: BSLocalization.text("按当天温度留一件好收纳的外套，排队和散场时会更从容。")),
+            ShowPreparationSuggestion(text: BSLocalization.text("提前确认场馆对水杯、雨具和大件包的规则，少带难处理的东西。"))
         ]
 
         if isMultiDay(show) {
             comfort.append(
-                ShowPreparationSuggestion(text: "跨天停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。")
+                ShowPreparationSuggestion(text: BSLocalization.text("跨天停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。"))
             )
         }
 
         return [
             ShowPreparationSection(
-                title: "天气和体感",
+                title: BSLocalization.text("天气和体感"),
                 suggestions: comfort
             ),
             ShowPreparationSection(
-                title: "现场礼仪",
+                title: BSLocalization.text("现场礼仪"),
                 suggestions: [
-                    ShowPreparationSuggestion(text: "拍摄时留意身后视线，想记录也别挡住别人看向舞台。"),
-                    ShowPreparationSuggestion(text: "散场人多时慢一点，先和同行的人约好汇合点。")
+                    ShowPreparationSuggestion(text: BSLocalization.text("拍摄时留意身后视线，想记录也别挡住别人看向舞台。")),
+                    ShowPreparationSuggestion(text: BSLocalization.text("散场人多时慢一点，先和同行的人约好汇合点。"))
                 ]
             ),
             ShowPreparationSection(
-                title: "注意事项",
+                title: BSLocalization.text("注意事项"),
                 suggestions: [
-                    ShowPreparationSuggestion(text: "把入场凭证、身份证件和必要电量提前确认好，到了门口就不用慌。"),
-                    ShowPreparationSuggestion(text: "如果散场后人多，提前和同行的人约好集合点。")
+                    ShowPreparationSuggestion(text: BSLocalization.text("把入场凭证、身份证件和必要电量提前确认好，到了门口就不用慌。")),
+                    ShowPreparationSuggestion(text: BSLocalization.text("如果散场后人多，提前和同行的人约好集合点。"))
                 ]
             )
         ]
@@ -266,34 +266,34 @@ struct LocalNotificationScheduler {
     private func notificationBody(for milestone: ShowNotificationMilestone, showName: String) -> String {
         switch milestone {
         case .fourteenDaysBefore:
-            return "\(showName) 还有两周，期待已经开始了"
+            return BSLocalization.format("%@ 还有两周，期待已经开始了", showName)
         case .sevenDaysBefore:
-            return "\(showName) 还有 7 天，提前确认场馆对水杯、雨具和大件包的规则"
+            return BSLocalization.format("%@ 还有 7 天，提前确认场馆对水杯、雨具和大件包的规则", showName)
         case .threeDaysBefore:
-            return "\(showName) 还有 3 天，把入场凭证、身份证件和必要电量提前确认好"
+            return BSLocalization.format("%@ 还有 3 天，把入场凭证、身份证件和必要电量提前确认好", showName)
         case .twoDaysBefore:
-            return "\(showName) 后天开场，按当天温度留一件好收纳的外套，排队散场更从容"
+            return BSLocalization.format("%@ 后天开场，按当天温度留一件好收纳的外套，排队散场更从容", showName)
         case .oneDayBefore:
-            return "\(showName) 明天见，拍摄时留意身后视线，散场先和同行的人约好汇合点"
+            return BSLocalization.format("%@ 明天见，拍摄时留意身后视线，散场先和同行的人约好汇合点", showName)
         case .showDay:
-            return "\(showName) 快开场了，凭证电量再确认一遍，出门别慌"
+            return BSLocalization.format("%@ 快开场了，凭证电量再确认一遍，出门别慌", showName)
         }
     }
 
     private func notificationTitle(for milestone: ShowNotificationMilestone) -> String {
         switch milestone {
         case .fourteenDaysBefore:
-            return "开场之前，先进入状态"
+            return BSLocalization.text("开场之前，先进入状态")
         case .sevenDaysBefore:
-            return "该想想带什么了"
+            return BSLocalization.text("该想想带什么了")
         case .threeDaysBefore:
-            return "票证装备确认"
+            return BSLocalization.text("票证装备确认")
         case .twoDaysBefore:
-            return "出门前清单"
+            return BSLocalization.text("出门前清单")
         case .oneDayBefore:
-            return "明天见，最后看一眼"
+            return BSLocalization.text("明天见，最后看一眼")
         case .showDay:
-            return "快开场了"
+            return BSLocalization.text("快开场了")
         }
     }
 }
