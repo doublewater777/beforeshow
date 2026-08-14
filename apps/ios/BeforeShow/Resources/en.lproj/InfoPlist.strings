@@ -4,4 +4,5 @@
 "CFBundleName" = "BeforeShow";
 "NSCameraUsageDescription" = "Used to capture and save memory fragments from your show.";
 "NSMicrophoneUsageDescription" = "Used to record audio for videos in your show memory fragments.";
+"NSAppleMusicUsageDescription" = "Used to confirm show artists and browse or play their music with Apple Music.";
 "NSPhotoLibraryAddUsageDescription" = "Used to save your show footprint card to Photos.";

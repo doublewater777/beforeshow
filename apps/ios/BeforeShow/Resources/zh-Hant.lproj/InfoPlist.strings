@@ -4,4 +4,5 @@
 "CFBundleName" = "BeforeShow";
 "NSCameraUsageDescription" = "用於拍攝並保存目前現場的記憶碎片。";
 "NSMicrophoneUsageDescription" = "用於錄製目前現場記憶碎片中的影片聲音。";
+"NSAppleMusicUsageDescription" = "用於確認現場藝人，並透過 Apple Music 瀏覽和播放他們的歌曲。";
 "NSPhotoLibraryAddUsageDescription" = "用於將你的現場足跡卡保存到照片。";

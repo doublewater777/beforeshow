@@ -50,6 +50,8 @@ enum ShowDeletionCoordinator {
             for asset in assets {
                 modelContext.delete(asset)
             }
+            try ArtistWarmupSnapshotService(context: modelContext)
+                .deleteShowLocalWarmupRecords(for: showID)
             modelContext.delete(show)
             let committedState = try ShowMutationCoordinator.commitCurrentShowState(
                 shows: remainingShows,

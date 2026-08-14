@@ -89,6 +89,9 @@ struct CurrentShowSelector {
 
     func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
         let state = timeState(for: show, now: now)
+        if state.kind == .postponed {
+            return true
+        }
         return isAutomaticallySelectable(show, state: state)
     }
 

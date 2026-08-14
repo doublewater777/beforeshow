@@ -24,6 +24,8 @@ docs
 /docs/adr/*
 !/docs/adr/0026-keep-one-companion-per-show.md
 !/docs/adr/0027-match-companion-history-by-name.md
+!/docs/adr/0031-artist-warm-up-is-not-a-general-music-player.md
+!/docs/adr/0033-defer-blind-listening.md
 !/docs/footprint-detail-v4.1.md
 docs/screenshots/**/route-v3/
 docs/screenshots/**/*-verification/

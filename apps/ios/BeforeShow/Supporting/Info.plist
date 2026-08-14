@@ -64,6 +64,8 @@
 	<string>用于拍摄并保存当前现场的记忆碎片。</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>用于录制当前现场记忆碎片中的视频声音。</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>用于确认现场艺人，并通过 Apple Music 浏览和播放他们的歌曲。</string>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

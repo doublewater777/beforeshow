@@ -1,3 +1,3 @@
 # Do not display lyrics
 
-BeforeShow does not display lyrics on the home screen, in screenshots, or in marketing. This keeps the countdown product clear of unnecessary copyright risk.
+BeforeShow does not display lyrics, including single lyric lines. Apple Music exposes whether a song has lyrics but does not provide the lyric content to BeforeShow, and the app does not use another lyrics source.

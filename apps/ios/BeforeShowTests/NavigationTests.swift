@@ -6,13 +6,22 @@ import XCTest
 final class NavigationTests: XCTestCase {
     func testTabEnumExposesMainProductSurfaces() {
         let tabs = BeforeShowTab.allCases
-        XCTAssertEqual(tabs.count, 2)
-        XCTAssertEqual(tabs, [.current, .footprints])
+        XCTAssertEqual(tabs.count, 3)
+        XCTAssertEqual(tabs, [.current, .warmup, .footprints])
     }
 
     func testTabRawValuesAndLabelsUseCorrectDomainLanguage() {
         XCTAssertEqual(BeforeShowTab.current.rawValue, "当前")
+        XCTAssertEqual(BeforeShowTab.warmup.rawValue, "预热")
         XCTAssertEqual(BeforeShowTab.footprints.rawValue, "足迹")
+    }
+
+    func testAppleMusicUsageDescriptionIsConfigured() {
+        let description = Bundle.main.object(
+            forInfoDictionaryKey: "NSAppleMusicUsageDescription"
+        ) as? String
+
+        XCTAssertFalse(description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
     }
 
     func testAddShowEntryCopyStatesSupportedLinkPlatformsAndPrivacyBoundary() {
@@ -867,5 +876,13 @@ final class WidgetRuntimeRegressionTests: XCTestCase {
             ),
             "first-show-1"
         )
+    }
+
+    func testWarmupFixtureSkipsSplashOverlay() {
+        XCTAssertTrue(ArtistWarmupDebugFixture.State.parseLaunchArguments([
+            "BeforeShow",
+            "--artist-warmup-fixture",
+            "pre-show-single"
+        ]) != nil)
     }
 }

@@ -639,6 +639,13 @@ private struct PrivacyLocalDataView: View {
                 await ShowAssetMediaStore.shared.acquireCommitGate()
                 ShowAssetCleanupRetry.markFullCleanupPrepared()
                 do {
+                    try context.delete(model: ShowArtist.self)
+                    try context.delete(model: ArtistCatalogSnapshot.self)
+                    try context.delete(model: CatalogSong.self)
+                    try context.delete(model: SongFamiliarityRecord.self)
+                    try context.delete(model: ShowSongImpression.self)
+                    try context.delete(model: ShowArtistFamiliaritySnapshot.self)
+                    try context.delete(model: ShowSetlistMemory.self)
                     try context.delete(model: Show.self)
                     try context.delete(model: CurrentShowSelection.self)
                     try context.delete(model: NotificationSchedulingState.self)

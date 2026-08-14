@@ -22,6 +22,13 @@ struct BeforeShowApp: App {
                 MemoryMediaItem.self,
                 ShowAsset.self,
                 DynamicCover.self,
+                ShowArtist.self,
+                ArtistCatalogSnapshot.self,
+                CatalogSong.self,
+                SongFamiliarityRecord.self,
+                ShowSongImpression.self,
+                ShowArtistFamiliaritySnapshot.self,
+                ShowSetlistMemory.self,
                 configurations: configuration
             )
         } catch {

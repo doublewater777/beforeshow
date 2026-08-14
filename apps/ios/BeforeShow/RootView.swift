@@ -26,7 +26,7 @@ struct RootView: View {
                     .opacity(hasFinishedSplash ? 1 : 0)
             }
 
-            if !hasFinishedSplash {
+            if !hasFinishedSplash && !Self.shouldSkipSplash {
                 SplashView {
                     withAnimation(.easeInOut(duration: 0.3)) {
                         hasFinishedSplash = true
@@ -50,6 +50,11 @@ struct RootView: View {
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
+            if ArtistWarmupDebugFixture.requestedState != nil {
+                hasCompletedOnboarding = true
+                selectedTab = .warmup
+                hasFinishedSplash = true
+            }
             if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
                 hasCompletedOnboarding = true
                 selectedTab = .footprints
@@ -85,8 +90,16 @@ struct RootView: View {
         }
     }
 
+    private static var shouldSkipSplash: Bool {
+        #if DEBUG
+        ArtistWarmupDebugFixture.requestedState != nil
+        #else
+        false
+        #endif
+    }
+
     /// V4:系统 TabView 换成浮动玻璃 Tab,内容可滚动到 Tab 上方透出,而不是被贴边条带切断。
-    /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
+    /// 三个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
     private var mainTabView: some View {
         ZStack(alignment: .bottom) {
             CurrentShowHomeView(
@@ -96,6 +109,11 @@ struct RootView: View {
                 .opacity(selectedTab == .current ? 1 : 0)
                 .allowsHitTesting(selectedTab == .current)
                 .accessibilityHidden(selectedTab != .current)
+
+            ArtistWarmupRootView(onDetailVisibilityChange: { isTabBarHidden = $0 })
+                .opacity(selectedTab == .warmup ? 1 : 0)
+                .allowsHitTesting(selectedTab == .warmup)
+                .accessibilityHidden(selectedTab != .warmup)
 
             FootprintsView(onArchiveVisibilityChange: { isTabBarHidden = $0 })
                 .opacity(selectedTab == .footprints ? 1 : 0)
@@ -280,6 +298,9 @@ private struct CurrentShowHomeView: View {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
                 }
             }
+            .onChange(of: isShowingSettings) { _, isVisible in
+                onDetailVisibilityChange(isVisible)
+            }
             .navigationDestination(isPresented: $isShowingSettings) {
                 SettingsView()
             }
@@ -401,6 +422,7 @@ private struct HomeFloatingTabBar: View {
                         .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 9)
+                        .frame(minHeight: BSLayout.minTouchTarget)
                         .background(
                             Capsule().fill(
                                 selectedTab == tab ? BSColor.Stage.accent.opacity(0.14) : .clear

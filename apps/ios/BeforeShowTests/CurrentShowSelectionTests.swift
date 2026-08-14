@@ -102,7 +102,7 @@ final class CurrentShowSelectionTests: XCTestCase {
         XCTAssertEqual(selected?.id, futureShow.id)
     }
 
-    func testUndatedPostponedManualSelectionFallsBackToNearestRelevantShow() throws {
+    func testUndatedPostponedManualSelectionRemainsCurrent() throws {
         let postponedShow = try makeShow(name: "未定延期现场", day: 16)
         postponedShow.markPostponed(newDate: nil)
         let futureShow = try makeShow(name: "仍可准备的现场", day: 20)
@@ -114,7 +114,7 @@ final class CurrentShowSelectionTests: XCTestCase {
             now: now
         )
 
-        XCTAssertEqual(selected?.id, futureShow.id)
+        XCTAssertEqual(selected?.id, postponedShow.id)
     }
 
     func testDatedPostponedManualSelectionRemainsEligibleBeforeItsNewDate() throws {
