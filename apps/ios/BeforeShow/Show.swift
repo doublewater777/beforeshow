@@ -110,6 +110,13 @@ struct ShowDisplayFormatter {
     }
 }
 
+/// 艺名 + 头像 URL 的最小单元。`avatarURL == nil` 表示该 slot 未识别。
+/// SwiftData 直接把 `[ArtistSlot]` 存进 `Show.artists`,`ShowDraft` 也用同一形态。
+struct ArtistSlot: Codable, Hashable, Equatable {
+    var name: String
+    var avatarURL: String?
+}
+
 @Model
 final class Show {
     var id: UUID
@@ -125,9 +132,10 @@ final class Show {
     var city: String?
     var venueName: String?
     var venueAddress: String?
-    var artist: String?
     var coverImageURL: String?
-    private var artistAvatarURLStorage: [String]?
+    /// 多个艺名按用户填入顺序存放,空 / 纯空白会被 `init` / `apply` 过滤掉。
+    /// 每行带自己的头像 URL(`nil` 表示未识别),省去并行数组的对齐逻辑。
+    var artists: [ArtistSlot] = []
     var createdAt: Date
     var updatedAt: Date
     var postponedDate: Date?
@@ -182,13 +190,14 @@ final class Show {
         }
     }
 
-    var artistAvatarURLs: [String] {
-        get { artistAvatarURLStorage ?? [] }
-        set {
-            artistAvatarURLStorage = newValue
-            touch()
-        }
+    /// 已识别艺人头像(任意 slot 非空)对应的 URL,列表行 / 详情页用。
+    /// 多艺人时取第一个;form 头像按 slot 自己的字段渲染。
+    var firstRecognizedArtistAvatarURL: String? {
+        artists.compactMap { $0.avatarURL?.isEmpty == false ? $0.avatarURL : nil }.first
     }
+
+    /// 仅艺人姓名的便捷视图,首页阵容条 / 搜索索引用。
+    var artistNames: [String] { artists.map(\.name) }
 
     var effectiveDate: Date {
         postponedDate ?? date
@@ -224,9 +233,8 @@ final class Show {
         city: String? = nil,
         venueName: String? = nil,
         venueAddress: String? = nil,
-        artist: String? = nil,
+        artists: [ArtistSlot] = [],
         coverImageURL: String? = nil,
-        artistAvatarURLs: [String] = [],
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
         companionStatus: ShowCompanionStatus = .none,
@@ -275,9 +283,8 @@ final class Show {
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
-        self.artist = artist
+        self.artists = Self.normalizedArtistSlots(artists)
         self.coverImageURL = coverImageURL
-        self.artistAvatarURLStorage = artistAvatarURLs
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
         self.companionStatusRawValue = companionStatus.rawValue
@@ -374,6 +381,14 @@ final class Show {
     /// `changeStatus` / `postponedDate` — those stay on mark* paths.
     func apply(_ draft: ShowDraft) throws {
         let prepared = try Self.prepared(from: draft)
+        // 按 index 比对,只清发生变化的 slot 的头像:换名后该 slot 让 form 重新识别,
+        // 未变 slot 的头像保留,新增 slot 的 avatar 仍由 draft 携带。
+        let oldSlots = self.artists
+        var newSlots = prepared.artists
+        let common = min(oldSlots.count, newSlots.count)
+        for index in 0..<common where oldSlots[index].name != newSlots[index].name {
+            newSlots[index].avatarURL = nil
+        }
         name = prepared.name
         date = prepared.date
         startTime = prepared.startTime
@@ -386,9 +401,8 @@ final class Show {
         city = prepared.city
         venueName = prepared.venueName
         venueAddress = prepared.venueAddress
-        artist = prepared.artist
+        artists = newSlots
         coverImageURL = prepared.coverImageURL
-        artistAvatarURLs = prepared.artistAvatarURLs
         discardConfirmedEndBeforeEffectiveStart()
         touch()
     }
@@ -437,14 +451,24 @@ final class Show {
             city: trimmedOptional(draft.city),
             venueName: trimmedOptional(draft.venueName),
             venueAddress: trimmedOptional(draft.venueAddress),
-            artist: trimmedOptional(draft.artist),
-            coverImageURL: trimmedOptional(draft.coverImageURL),
-            artistAvatarURLs: draft.artistAvatarURLs
+            artists: Self.normalizedArtistSlots(draft.artists),
+            coverImageURL: trimmedOptional(draft.coverImageURL)
         )
     }
 
     private func touch() {
         updatedAt = Date()
+    }
+
+    /// 入口处统一 trim+filter:丢掉空名,头像若是纯空白视为未识别(`nil`)。
+    static func normalizedArtistSlots(_ slots: [ArtistSlot]) -> [ArtistSlot] {
+        slots.compactMap { slot in
+            let name = slot.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            let trimmedURL = slot.avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let avatar = (trimmedURL?.isEmpty ?? true) ? nil : trimmedURL
+            return ArtistSlot(name: name, avatarURL: avatar)
+        }
     }
 
     private static func trimmedOptional(_ value: String?) -> String? {
@@ -536,7 +560,6 @@ struct PreparedShowDraft: Equatable {
     let city: String?
     let venueName: String?
     let venueAddress: String?
-    let artist: String?
+    let artists: [ArtistSlot]
     let coverImageURL: String?
-    let artistAvatarURLs: [String]
 }

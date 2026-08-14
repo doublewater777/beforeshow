@@ -1,7 +1,7 @@
 name: beforeshow
 current_stage: business-model
-active_cycle: 2026-08-03-current-show-memory-fragments
-updated_at: 2026-08-03
+active_cycle: 2026-08-14-ios27-system-chrome
+updated_at: 2026-08-14
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -19,3 +19,4 @@ links:
   companion_icon_states_cycle: .builder/cycles/2026-08-02-companion-icon-states/
   current_show_memory_fragments_cycle: .builder/cycles/2026-08-03-current-show-memory-fragments/
   ticket_timetable_assets_cycle: .builder/cycles/2026-08-04-ticket-timetable-assets/
+  ios27_system_chrome_cycle: .builder/cycles/2026-08-14-ios27-system-chrome/

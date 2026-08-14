@@ -56,18 +56,12 @@ struct AddShowLinkFailurePresentation: Equatable {
     }
 }
 
-enum AddShowSheet: Identifiable {
+enum AddShowSheet: String, Identifiable, Hashable {
     case manual
     case screenshot
     case link
 
-    var id: String {
-        switch self {
-        case .manual: return "manual"
-        case .screenshot: return "screenshot"
-        case .link: return "link"
-        }
-    }
+    var id: String { rawValue }
 }
 
 enum AddShowMethodCopy {
@@ -114,30 +108,24 @@ struct AddShowCoordinatorSheet: View {
     }
 
     var body: some View {
-        Group {
-            if let selectedSheet {
+        NavigationStack {
+            AddShowEntryView { sheet in
+                selectedSheet = sheet
+            }
+            .navigationTitle("添加现场")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+            }
+            .navigationDestination(item: $selectedSheet) { sheet in
                 AddShowFlowView(
-                    sheet: selectedSheet,
+                    sheet: sheet,
                     intent: intent,
                     onSaved: {
                         dismiss()
                         onShowAdded()
-                    },
-                    onBack: {
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            self.selectedSheet = nil
-                        }
-                    }
-                )
-            } else {
-                AddShowEntryView(
-                    onDismiss: {
-                        dismiss()
-                    },
-                    onSelect: { sheet in
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            selectedSheet = sheet
-                        }
                     }
                 )
             }
@@ -234,7 +222,6 @@ struct AddShowMethodButtons: View {
 }
 
 private struct AddShowEntryView: View {
-    let onDismiss: () -> Void
     let onSelect: (AddShowSheet) -> Void
 
     var body: some View {
@@ -243,38 +230,12 @@ private struct AddShowEntryView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                ZStack {
-                    Text("添加现场")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(BSColor.textPrimary)
-
-                    HStack {
-                        Button {
-                            onDismiss()
-                        } label: {
-                            Text("取消")
-                                .font(BSFont.body)
-                                .foregroundColor(BSColor.textSecondary)
-                                .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                                .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("取消添加现场")
-
-                        Spacer(minLength: 0)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 20)
-                .padding(.vertical, 4)
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                            Text("选择添加方式")
-                                .font(BSFont.title)
-                                .foregroundColor(BSColor.textPrimary)
-                        }
+                        Text("三种方式任选，识别出的内容保存前都能改。")
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.textTertiary)
+                            .lineSpacing(3)
 
                         VStack(spacing: BSSpacing.md) {
                             AddShowMethodCard(
@@ -330,7 +291,6 @@ struct AddShowFlowView: View {
     let intent: AddShowIntent
     let linkParser: ShowLinkDraftParser
     private let onSaved: (() -> Void)?
-    private let onBack: (() -> Void)?
 
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
@@ -342,8 +302,7 @@ struct AddShowFlowView: View {
     @State private var isSaving = false
     @State private var hasImportedDraft = false
     @State private var showsManualFallback = false
-    @State private var showsProMembership = false
-    @State private var showsProSaveLimit = false
+    @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
@@ -353,6 +312,11 @@ struct AddShowFlowView: View {
     @State private var importRevision = 0
     /// 每次发起解析 / 识别 +1；返回时若 revision 已过期则丢弃结果，避免旧请求覆盖新请求。
     @State private var importRequestRevision = 0
+    /// 用户自上次 import 后手改过的字段;下次 import 时跳过这些字段,
+    /// 防止 OCR / link 解析偷偷覆盖用户输入。import 完成后清空。
+    @State private var userEditedFields: Set<ShowDraftField> = []
+    /// Apple Music 艺人搜索;可注入 Stub 跑测试。
+    private let artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
     /// 当前进行中的解析 / OCR 任务；关闭页面时取消，避免后台继续写回。
     @State private var importTask: Task<Void, Never>?
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
@@ -361,14 +325,12 @@ struct AddShowFlowView: View {
         sheet: AddShowSheet,
         intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
-        onSaved: (() -> Void)? = nil,
-        onBack: (() -> Void)? = nil
+        onSaved: (() -> Void)? = nil
     ) {
         self.sheet = sheet
         self.intent = intent
         self.linkParser = linkParser
         self.onSaved = onSaved
-        self.onBack = onBack
         var initialDraft = ShowDraft(source: sheet.draftSource)
         if sheet == .manual {
             initialDraft.startTime = Calendar.current.date(
@@ -391,8 +353,6 @@ struct AddShowFlowView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                flowNavBar
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         methodContent
@@ -410,7 +370,9 @@ struct AddShowFlowView: View {
                                 onConfirmFallbackDate: {
                                     fallbackDateConfirmed = true
                                 },
-                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
+                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                                artistSearch: artistSearch,
+                                userEditedFields: $userEditedFields
                             )
                             // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
                             .id(importRevision)
@@ -436,6 +398,8 @@ struct AddShowFlowView: View {
                 }
             }
         }
+        .navigationTitle(flowNavTitle)
+        .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
         .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
         .onChange(of: selectedScreenshotItem) { _, newItem in
@@ -450,57 +414,27 @@ struct AddShowFlowView: View {
             guard !didSave else { return }
             coverLifecycle.cancel()
         }
-        .sheet(isPresented: $showsProMembership) {
-            ProMembershipSheetView()
-        }
-        .sheet(isPresented: $showsProSaveLimit) {
-            BSProLimitSheet(
-                title: ProLimitReason.saveLimit.title,
-                message: ProLimitReason.saveLimit.message
-            ) {
-                showsProSaveLimit = false
-                showsProMembership = true
-            } onSecondary: {
-                showsProSaveLimit = false
+        .sheet(item: $paywallSheet) { sheet in
+            switch sheet {
+            case .limit:
+                BSProLimitSheet(
+                    title: ProLimitReason.saveLimit.title,
+                    message: ProLimitReason.saveLimit.message
+                ) {
+                    paywallSheet = .membership
+                } onSecondary: {
+                    paywallSheet = nil
+                }
+            case .membership:
+                ProMembershipSheetView()
             }
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
 
-    // MARK: - 顶部导航（与编辑现场同一 sheet 语言）
-
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
         didSwitchToManual ? "手动填写" : sheet.navigationTitle
-    }
-
-    private var flowNavBar: some View {
-        ZStack {
-            Text(flowNavTitle)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.textPrimary)
-
-            HStack {
-                if onBack != nil {
-                    Button {
-                        closeOrBack()
-                    } label: {
-                        Text("返回")
-                            .font(BSFont.body)
-                            .foregroundColor(BSColor.textSecondary)
-                            .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("返回")
-                }
-
-                Spacer(minLength: 0)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 4)
     }
 
     /// 粘贴即识别链接来源，不用等一次失败往返。
@@ -768,17 +702,7 @@ struct AddShowFlowView: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 10)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Rectangle().fill(Color.black.opacity(0.28)))
-                .ignoresSafeArea(edges: .bottom)
-        )
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(BSColor.Stage.border)
-                .frame(height: 1)
-        }
+        .background(.bar)
     }
 
     private func saveProgressSegment(filled: Bool) -> some View {
@@ -835,18 +759,6 @@ struct AddShowFlowView: View {
             text: "可以添加了 · 封面等可之后再补",
             tint: BSColor.Stage.dim
         )
-    }
-
-    private func closeOrBack() {
-        dismissKeyboard()
-        // 允许导入中返回/取消；先作废任务，再关页面
-        abandonInFlightImport()
-        coverLifecycle.cancel()
-        if let onBack {
-            onBack()
-        } else {
-            dismiss()
-        }
     }
 
     /// 启动解析 / OCR 任务；替换上一轮未完成的导入。
@@ -923,7 +835,10 @@ struct AddShowFlowView: View {
             try? await Task.sleep(nanoseconds: 450_000_000)
             guard isActiveImportRequest(requestRevision) else { return }
 
-            draft = recognized
+            // 用 merge 而非整段替换:用户已手改的字段（userEditedFields）保留原值,
+            // 避免 OCR 偷偷冲掉用户输入。import 完成后清空,下一轮 import 重新开始。
+            draft.mergeRespectingUserEdits(from: recognized, userEdited: userEditedFields)
+            userEditedFields = []
             hasImportedDraft = true
             showsManualFallback = false
             importRevision += 1
@@ -968,7 +883,9 @@ struct AddShowFlowView: View {
         do {
             let parsed = try await linkParser.draft(from: requestedLink)
             guard isActiveImportRequest(requestRevision) else { return }
-            draft = parsed
+            // 同上:merge 而非整段替换,保护用户已手改的字段。
+            draft.mergeRespectingUserEdits(from: parsed, userEdited: userEditedFields)
+            userEditedFields = []
             hasImportedDraft = true
             showsManualFallback = false
             linkFailure = nil
@@ -1004,7 +921,7 @@ struct AddShowFlowView: View {
         do {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             guard ProFeatureGate().canAddShow(savedShowCount: shows.count, entitlement: entitlement) else {
-                showsProSaveLimit = true
+                paywallSheet = .limit
                 presentToast(.neutral, message: "保存上限")
                 isSaving = false
                 return
@@ -1223,6 +1140,9 @@ struct ShowDraftEditorView: View {
     @State private var showsDeleteConfirm = false
     @State private var isApplyingStatus = false
     @State private var statusToast: BSToastPayload?
+    /// 编辑现场时无 import 流程,这个 binding 留空集合即可。
+    @State private var userEditedFields: Set<ShowDraftField> = []
+    private let artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
 
     init(
         title: String,
@@ -1253,13 +1173,12 @@ struct ShowDraftEditorView: View {
     }
 
     var body: some View {
+        NavigationStack {
         ZStack {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                editorNavBar
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.md) {
                         editorSummaryCard
@@ -1269,7 +1188,9 @@ struct ShowDraftEditorView: View {
 
                         ShowDraftFormFields(
                             draft: $draft,
-                            onCoverImported: { coverLifecycle.register(previous: $0, new: $1) }
+                            onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                            artistSearch: artistSearch,
+                            userEditedFields: $userEditedFields
                         )
 
                         if let statusEditing {
@@ -1315,31 +1236,31 @@ struct ShowDraftEditorView: View {
                 }
             )
         }
-        .sheet(isPresented: $showsCancelConfirm) {
-            BSDangerConfirmationSheet(
-                title: "记录取消",
-                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
-                destructiveTitle: "确认取消",
-                onConfirm: {
-                    showsCancelConfirm = false
-                    Task { @MainActor in
-                        await applyStatusAction { await statusEditing?.onCancel() }
-                    }
+        .confirmationDialog(
+            DangerConfirmation.cancelShowFromEditor.title,
+            isPresented: $showsCancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
+                Task { @MainActor in
+                    await applyStatusAction { await statusEditing?.onCancel() }
                 }
-            )
+            }
+        } message: {
+            Text(DangerConfirmation.cancelShowFromEditor.message)
         }
-        .sheet(isPresented: $showsDeleteConfirm) {
-            BSDangerConfirmationSheet(
-                title: "删除现场",
-                message: "删除后，这场现场将无法恢复，也会从足迹统计中移除。",
-                destructiveTitle: "删除",
-                onConfirm: {
-                    showsDeleteConfirm = false
-                    Task { @MainActor in
-                        await statusEditing?.onDelete()
-                    }
+        .confirmationDialog(
+            DangerConfirmation.deleteShowFromEditor.title,
+            isPresented: $showsDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(DangerConfirmation.deleteShowFromEditor.confirmTitle, role: .destructive) {
+                Task { @MainActor in
+                    await statusEditing?.onDelete()
                 }
-            )
+            }
+        } message: {
+            Text(DangerConfirmation.deleteShowFromEditor.message)
         }
         .bsToastOverlay(statusToast, bottomPadding: 96)
         .alert("放弃修改？", isPresented: $showsDiscardConfirmation) {
@@ -1355,34 +1276,15 @@ struct ShowDraftEditorView: View {
             guard !didSave else { return }
             coverLifecycle.cancel()
         }
-    }
-
-    // MARK: - 顶部导航
-
-    private var editorNavBar: some View {
-        ZStack {
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.textPrimary)
-
-            HStack {
-                Button {
-                    requestDismiss()
-                } label: {
-                    Text("取消")
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textSecondary)
-                        .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("取消编辑")
-
-                Spacer(minLength: 0)
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("取消") { requestDismiss() }
+                    .accessibilityLabel("取消编辑")
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 4)
+        }
     }
 
     private func requestDismiss() {
@@ -1724,17 +1626,7 @@ struct ShowDraftEditorView: View {
         .padding(.horizontal, 20)
         .padding(.top, 10)
         .padding(.bottom, 10)
-        .background(
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .overlay(Rectangle().fill(Color.black.opacity(0.28)))
-                .ignoresSafeArea(edges: .bottom)
-        )
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(BSColor.Stage.border)
-                .frame(height: 1)
-        }
+        .background(.bar)
     }
 
     @ViewBuilder
@@ -1795,6 +1687,11 @@ private struct ShowDraftFormFields: View {
     let requiresDateConfirmation: Bool
     let onConfirmFallbackDate: () -> Void
     let onCoverImported: (String, String) -> Void
+    /// Apple Music 艺人搜索;可注入 Stub 跑测试。Phase 5 加。
+    var artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService()
+    /// 用户自上次 import 后手改过的字段;下次 import 会跳过这些字段,
+    /// 防止 OCR / link 解析偷偷覆盖用户输入。
+    @Binding var userEditedFields: Set<ShowDraftField>
     @State private var startTime: Date
     @State private var hasEndTime: Bool
     @State private var endDate: Date
@@ -1807,9 +1704,6 @@ private struct ShowDraftFormFields: View {
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
     private var nameRecognized: Bool {
         recognizedHighlight && draft.recognizedFields.contains(.name)
-    }
-    private var artistRecognized: Bool {
-        recognizedHighlight && draft.recognizedFields.contains(.artist)
     }
     private var cityRecognized: Bool {
         recognizedHighlight && draft.recognizedFields.contains(.city)
@@ -1830,7 +1724,9 @@ private struct ShowDraftFormFields: View {
         coverEmptyPlaceholder: Bool = false,
         requiresDateConfirmation: Bool = false,
         onConfirmFallbackDate: @escaping () -> Void = {},
-        onCoverImported: @escaping (String, String) -> Void = { _, _ in }
+        onCoverImported: @escaping (String, String) -> Void = { _, _ in },
+        artistSearch: any ArtistSearchServicing = AppleMusicArtistSearchService(),
+        userEditedFields: Binding<Set<ShowDraftField>>
     ) {
         let initialDraft = draft.wrappedValue
         let eventCalendar = initialDraft.timingCalendar()
@@ -1854,6 +1750,8 @@ private struct ShowDraftFormFields: View {
         self.requiresDateConfirmation = requiresDateConfirmation
         self.onConfirmFallbackDate = onConfirmFallbackDate
         self.onCoverImported = onCoverImported
+        self.artistSearch = artistSearch
+        self._userEditedFields = userEditedFields
         // Picker display state may use a fallback clock; draft.startTime stays nil until confirmed.
         _startTime = State(initialValue: initialDraft.startTime ?? fallbackStart)
         // End section covers both end clock and multi-day end date.
@@ -1923,17 +1821,66 @@ private struct ShowDraftFormFields: View {
                     isRequired: true,
                     isRecognized: nameRecognized
                 )
+                .onChange(of: draft.name) { _, _ in
+                    userEditedFields.insert(.name)
+                }
 
-                AddShowLabeledTextField(
-                    title: "艺人 / 阵容",
-                    placeholder: "五月天、陈绮贞",
-                    text: $draft.artist,
-                    isRecognized: artistRecognized,
-                    helperText: "多位艺人请用逗号或顿号分隔；名称中的斜杠会保留，例如 AC/DC"
-                )
-
-                if !draft.artistAvatarURLs.isEmpty {
-                    ArtistAvatarStackView(urls: draft.artistAvatarURLs, size: 42)
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Text("艺人 / 阵容")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(BSColor.textSecondary)
+                        Spacer()
+                        if artistRowRecognized {
+                            Label("已识别", systemImage: "checkmark.seal.fill")
+                                .labelStyle(.titleAndIcon)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(BSColor.Accent.prepare)
+                        }
+                    }
+                    ForEach(Array(draft.artists.enumerated()), id: \.offset) { index, _ in
+                        ArtistInputRow(
+                            index: index,
+                            name: Binding(
+                                get: { draft.artists[safe: index]?.name ?? "" },
+                                set: { newValue in
+                                    ensureArtistSlot(at: index)
+                                    draft.artists[index].name = newValue
+                                }
+                            ),
+                            avatar: Binding(
+                                get: { draft.artists[safe: index]?.avatarURL ?? nil },
+                                set: { newValue in
+                                    ensureArtistSlot(at: index)
+                                    draft.artists[index].avatarURL = newValue
+                                }
+                            ),
+                            artistSearch: artistSearch,
+                            canDelete: draft.artists.count > 1,
+                            onPick: { recognition in
+                                ensureArtistSlot(at: index)
+                                draft.artists[index].name = recognition.canonicalName
+                                draft.artists[index].avatarURL = recognition.avatarURL?.absoluteString
+                                draft.recognizedFields.remove(.artist)
+                            },
+                            onDelete: { removeArtistRow(at: index) },
+                            onTextChange: { userEditedFields.insert(.artist) }
+                        )
+                    }
+                    Button {
+                        draft.artists.append(ArtistSlot(name: "", avatarURL: nil))
+                    } label: {
+                        Label("+ 新增艺人", systemImage: "plus.circle")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(BSColor.Accent.violet)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .onAppear {
+                    if draft.artists.isEmpty {
+                        draft.artists = [ArtistSlot(name: "", avatarURL: nil)]
+                    }
+                    Task { await artistSearch.requestAuthorizationIfNeeded() }
                 }
             }
 
@@ -1948,6 +1895,7 @@ private struct ShowDraftFormFields: View {
                     isStartTimeConfirmed: draft.startTime != nil,
                     onConfirmStartTime: {
                         draft.startTime = mergedStartTime()
+                        userEditedFields.insert(.startTime)
                     },
                     hasEndTime: $hasEndTime,
                     endDate: $endDate,
@@ -1957,6 +1905,9 @@ private struct ShowDraftFormFields: View {
                     startTimeRecognized: startTimeRecognized,
                     onConfirmFallbackDate: onConfirmFallbackDate
                 )
+                .onChange(of: draft.date) { _, _ in
+                    userEditedFields.insert(.date)
+                }
 
                 if draft.startTime != nil && !draft.hasValidEndTime() {
                     Label("结束时间需要晚于开始时间", systemImage: "exclamationmark.circle.fill")
@@ -1973,6 +1924,9 @@ private struct ShowDraftFormFields: View {
                     text: $draft.city,
                     isRecognized: cityRecognized
                 )
+                .onChange(of: draft.city) { _, _ in
+                    userEditedFields.insert(.city)
+                }
 
                 BSVenueField(
                     venueName: $draft.venueName,
@@ -1980,6 +1934,9 @@ private struct ShowDraftFormFields: View {
                     city: draft.city,
                     isRecognized: venueRecognized
                 )
+                .onChange(of: draft.venueName) { _, _ in
+                    userEditedFields.insert(.venueName)
+                }
             }
 
             EditShowFormCard(
@@ -2052,6 +2009,30 @@ private struct ShowDraftFormFields: View {
             into: resolvedEndDay,
             calendar: draft.endTimingCalendar()
         )
+    }
+
+    @MainActor
+    private func ensureArtistSlot(at index: Int) {
+        if draft.artists.count <= index {
+            while draft.artists.count <= index {
+                draft.artists.append(ArtistSlot(name: "", avatarURL: nil))
+            }
+        }
+    }
+
+    @MainActor
+    private func removeArtistRow(at index: Int) {
+        guard draft.artists.indices.contains(index) else { return }
+        draft.artists.remove(at: index)
+        if draft.artists.isEmpty {
+            draft.artists.append(ArtistSlot(name: "", avatarURL: nil))
+        }
+    }
+
+    private var artistRowRecognized: Bool {
+        recognizedHighlight
+            && draft.recognizedFields.contains(.artist)
+            && draft.artists.contains { $0.avatarURL != nil }
     }
 
     @MainActor
@@ -2970,6 +2951,202 @@ private struct AddShowInputChrome: ViewModifier {
 private extension View {
     func addShowInputChrome() -> some View {
         modifier(AddShowInputChrome())
+    }
+}
+
+/// Apple Music 艺人候选下拉;挂在艺人 input 下方,debounce 后实时刷新。
+/// 选中后回写 canonical name + 头像,「✓ 已识别」描边消失。
+private struct ArtistSearchPicker: View {
+    let options: [RecognizedArtist]
+    let isLoading: Bool
+    let onPick: (RecognizedArtist) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "music.note")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(BSColor.textTertiary)
+                Text("iTunes 候选")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(BSColor.textTertiary)
+                Spacer(minLength: 0)
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(BSColor.textTertiary)
+                }
+            }
+            .padding(.horizontal, 4)
+
+            if options.isEmpty && !isLoading {
+                Text("暂无匹配，可直接保存手输名字")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(BSColor.textTertiary)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 6)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                        if index > 0 {
+                            Divider()
+                                .background(BSColor.borderProminent.opacity(0.5))
+                                .padding(.leading, 44)
+                        }
+                        ArtistSearchRow(
+                            option: option,
+                            onPick: { onPick(option) }
+                        )
+                    }
+                }
+                .background(Color.white.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                .overlay(
+                    RoundedRectangle(cornerRadius: BSRadius.md)
+                        .stroke(BSColor.borderProminent, lineWidth: 1)
+                )
+            }
+        }
+        .padding(.top, 2)
+    }
+}
+
+private struct ArtistSearchRow: View {
+    let option: RecognizedArtist
+    let onPick: () -> Void
+
+    var body: some View {
+        Button(action: onPick) {
+            HStack(spacing: 10) {
+                Text(option.canonicalName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.textPrimary)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// 一行艺人输入:TextField + Apple Music 候选下拉 + 已识别头像 + × 删除。
+/// 每行自带 debounce Task,互不干扰。
+private struct ArtistInputRow: View {
+    let index: Int
+    @Binding var name: String
+    @Binding var avatar: String?
+    let artistSearch: any ArtistSearchServicing
+    let canDelete: Bool
+    let onPick: (RecognizedArtist) -> Void
+    let onDelete: () -> Void
+    let onTextChange: () -> Void
+
+    @State private var searchTask: Task<Void, Never>?
+    @State private var recognizedOptions: [RecognizedArtist] = []
+    @State private var isSearching = false
+    /// 选中候选项后,parent 通过 binding 写回新名字,onChange 会再次触发新一轮搜索。
+    /// 用这个 flag 吃掉那次多余的搜索,让 picker 真收起。
+    @State private var suppressNextSearch = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                TextField("艺人名称", text: $name)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(BSColor.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .fill(BSColor.surfaceElevated)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md)
+                            .stroke(BSColor.border, lineWidth: 1)
+                    )
+                    .onChange(of: name) { _, newValue in
+                        if suppressNextSearch {
+                            suppressNextSearch = false
+                            return
+                        }
+                        onTextChange()
+                        scheduleSearch(for: newValue)
+                    }
+
+                if let avatar, let url = URL(string: avatar) {
+                    ArtistAvatarThumb(url: url, size: 28)
+                }
+
+                Button(action: onDelete) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 18, weight: .regular))
+                        .foregroundStyle(BSColor.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .disabled(!canDelete)
+                .opacity(canDelete ? 1 : 0.35)
+            }
+
+            if isSearching || !recognizedOptions.isEmpty {
+                ArtistSearchPicker(
+                    options: recognizedOptions,
+                    isLoading: isSearching,
+                    onPick: handlePick
+                )
+            }
+        }
+        .onDisappear { searchTask?.cancel() }
+    }
+
+    @MainActor
+    private func handlePick(_ option: RecognizedArtist) {
+        searchTask?.cancel()
+        recognizedOptions = []
+        isSearching = false
+        suppressNextSearch = true
+        onPick(option)
+    }
+
+    @MainActor
+    private func scheduleSearch(for rawQuery: String) {
+        searchTask?.cancel()
+        let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            isSearching = false
+            recognizedOptions = []
+            return
+        }
+        isSearching = true
+        let service = artistSearch
+        searchTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            if Task.isCancelled { return }
+            do {
+                let results = try await service.searchArtists(query: trimmed)
+                if Task.isCancelled { return }
+                recognizedOptions = Array(results.prefix(5))
+                isSearching = false
+            } catch {
+                if Task.isCancelled { return }
+                recognizedOptions = []
+                isSearching = false
+            }
+        }
+    }
+}
+
+private extension Array {
+    /// 越界返回 nil,form 写入路径用,避免每次 append 后都要判 range。
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 

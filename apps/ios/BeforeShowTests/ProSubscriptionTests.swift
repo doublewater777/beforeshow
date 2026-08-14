@@ -95,6 +95,93 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(gate.canAddShow(savedShowCount: 1, entitlement: expired))
     }
 
+    func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
+        XCTAssertEqual(
+            SettingsMembershipSummary(entitlement: .free),
+            SettingsMembershipSummary(title: "免费版", subtitle: "可保存 1 场现场")
+        )
+        XCTAssertEqual(
+            SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
+            SettingsMembershipSummary(title: "Pro 已启用", subtitle: "可以无限添加现场")
+        )
+        XCTAssertEqual(
+            SettingsMembershipSummary(
+                entitlement: .expired(productID: "pro", expirationDate: Date(timeIntervalSince1970: 0))
+            ),
+            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有本地内容仍可查看和编辑")
+        )
+    }
+
+    func testNotificationSettingsPresentationChoosesPermissionOrSettingsAction() {
+        XCTAssertEqual(
+            NotificationSettingsPresentation(authorizationState: .notDetermined),
+            NotificationSettingsPresentation(
+                status: "尚未开启",
+                subtitle: "轻点开启开场提醒",
+                action: .requestPermission
+            )
+        )
+        XCTAssertEqual(
+            NotificationSettingsPresentation(authorizationState: .denied),
+            NotificationSettingsPresentation(
+                status: "未开启",
+                subtitle: "去系统设置开启通知",
+                action: .openSystemSettings
+            )
+        )
+        XCTAssertEqual(
+            NotificationSettingsPresentation(authorizationState: .authorized).action,
+            .openSystemSettings
+        )
+        XCTAssertEqual(
+            NotificationSettingsPresentation(authorizationState: .provisional).action,
+            .openSystemSettings
+        )
+    }
+
+    func testAppVersionInformationBuildsDisplayCopyFromInfoDictionary() {
+        let version = AppVersionInformation(infoDictionary: [
+            "CFBundleShortVersionString": "2.3",
+            "CFBundleVersion": "42"
+        ])
+
+        XCTAssertEqual(version.compactCopy, "v2.3")
+        XCTAssertEqual(version.fullCopy, "版本 2.3（构建 42）")
+        XCTAssertEqual(
+            AppVersionInformation(infoDictionary: [:]),
+            AppVersionInformation(marketingVersion: "未知版本", buildNumber: "未知构建")
+        )
+    }
+
+    func testFeedbackPayloadBuilderUsesCurrentBundleVersionByDefault() throws {
+        let payload = try FeedbackPayloadBuilder().build(from: FeedbackDraft(
+            category: .bug,
+            message: "通知没有出现",
+            includesDiagnostics: true
+        ))
+
+        XCTAssertEqual(payload.diagnostics?.appVersion, AppVersionInformation.current.marketingVersion)
+    }
+
+    func testFeedbackShareTextIncludesDiagnosticsOnlyWhenUserOptedIn() {
+        let withoutDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
+            category: .product,
+            message: "希望更快进入状态",
+            diagnostics: nil
+        ))
+        XCTAssertEqual(withoutDiagnostics, "类型：使用感受\n反馈：希望更快进入状态")
+
+        let withDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
+            category: .bug,
+            message: "设置页卡住",
+            diagnostics: FeedbackDiagnostics(appVersion: "2.3", osVersion: "iOS 26.5")
+        ))
+        XCTAssertEqual(
+            withDiagnostics,
+            "类型：问题反馈\n反馈：设置页卡住\n\n诊断信息\nApp 版本：2.3\n系统版本：iOS 26.5"
+        )
+    }
+
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
         XCTAssertEqual(SettingsInformation.orderedEntries, [
             .proMembership,

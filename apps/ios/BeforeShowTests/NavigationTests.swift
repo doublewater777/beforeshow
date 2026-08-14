@@ -64,13 +64,6 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(BeforeShowTab.allCases.contains { $0.rawValue == "设置" })
     }
 
-    func testCompanionSheetHidesCompletionBeforeInvitation() {
-        XCTAssertFalse(CompanionSheetPresentationPolicy.showsDismissalButton(for: .none))
-        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .pending))
-        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .confirmed))
-        XCTAssertTrue(CompanionSheetPresentationPolicy.showsDismissalButton(for: .canceled))
-    }
-
     func testPassiveHomeReturnDoesNotPresentBackgroundCompanionError() {
         XCTAssertNil(
             CompanionHomeMessagePolicy.message(
@@ -168,6 +161,29 @@ final class NavigationTests: XCTestCase {
         )
     }
 
+    func testMemoryCreateSourceUsesDialogCopy() {
+        XCTAssertEqual(MemoryCreateSourcePresentation.title, "新增记忆")
+        XCTAssertEqual(
+            MemoryCreateSourceOption.allCases.map(\.rawValue),
+            ["相机", "图库", "文字"]
+        )
+        XCTAssertEqual(
+            MemoryCreateSourceOption.allCases.map(\.iconName),
+            ["camera", "photo.on.rectangle", "text.alignleft"]
+        )
+        XCTAssertEqual(
+            MemoryCreateSourceOption.allCases.map(\.subtitle),
+            ["打开系统相机", "照片或视频", "写一句话"]
+        )
+    }
+
+    func testAssetsAndMemoryOpenAsSheets() {
+        XCTAssertEqual(ShowAssetPresentationStyle.style(hasSavedAsset: false), .sheet)
+        XCTAssertEqual(ShowAssetPresentationStyle.style(hasSavedAsset: true), .sheet)
+        XCTAssertEqual(CurrentShowPresentedSheet.memory.id, "memory")
+        XCTAssertEqual(ShowDetailPresentedSheet.memory.id, "memory")
+    }
+
     func testAssetSheetUsesDetailVisibilityHandoff() {
         XCTAssertTrue(
             DetailVisibilityHandoff.tabBarHidden(after: .assetSheetPresented)
@@ -175,6 +191,93 @@ final class NavigationTests: XCTestCase {
         XCTAssertFalse(
             DetailVisibilityHandoff.tabBarHidden(after: .assetSheetDismissed)
         )
+    }
+
+    func testHomeAndDetailSheetsReplaceInsteadOfStacking() {
+        var home: CurrentShowPresentedSheet? = .companion
+        home = .endConfirmation
+        XCTAssertEqual(home, .endConfirmation)
+
+        var detail: ShowDetailPresentedSheet? = .editor
+        detail = .postpone
+        XCTAssertEqual(detail, .postpone)
+
+        var paywall: AddShowPaywallSheet? = .limit
+        paywall = .membership
+        XCTAssertEqual(paywall, .membership)
+    }
+
+    func testMapChooserDialogHidesAppsWithoutADestination() {
+        let installed: [ExternalMapApp] = [.apple, .amap]
+        XCTAssertTrue(
+            MapChooserPresentation.visibleApps(hasDestination: false, installed: installed).isEmpty
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.visibleApps(hasDestination: true, installed: installed),
+            installed
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.message(
+                hasDestination: false,
+                destinationLabel: "南京奥体中心体育场",
+                installed: installed
+            ),
+            "补充场馆或地址后，就能跳到地图 App。"
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.message(
+                hasDestination: true,
+                destinationLabel: "南京奥体中心体育场",
+                installed: installed
+            ),
+            "南京奥体中心体育场"
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.message(
+                hasDestination: true,
+                destinationLabel: "南京奥体中心体育场",
+                installed: []
+            ),
+            "没有检测到可用的地图 App。"
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.resolution(hasDestination: true, installed: [.apple]),
+            .pick([.apple])
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.resolution(hasDestination: true, installed: installed),
+            .pick(installed)
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.resolution(hasDestination: false, installed: installed),
+            .missingDestination
+        )
+        XCTAssertEqual(
+            MapChooserPresentation.resolution(hasDestination: true, installed: []),
+            .noneInstalled
+        )
+    }
+
+    func testLibraryMenuMarksCancelAndDeleteDestructive() {
+        XCTAssertTrue(CurrentShowLibraryMenuAction.delete.isDestructive)
+        XCTAssertTrue(CurrentShowLibraryMenuAction.cancel.isDestructive)
+        XCTAssertFalse(CurrentShowLibraryMenuAction.edit.isDestructive)
+        XCTAssertFalse(CurrentShowLibraryMenuAction.view.isDestructive)
+    }
+
+    func testAddShowSheetCanDriveNavigationStack() {
+        let sheets: [AddShowSheet] = [.manual, .screenshot, .link]
+        XCTAssertEqual(Set(sheets.map(\.id)).count, 3)
+        XCTAssertEqual(AddShowSheet.manual, AddShowSheet.manual)
+    }
+
+    func testDangerConfirmationsKeepTheExistingCopy() {
+        XCTAssertEqual(DangerConfirmation.deleteShow.title, "删除这条现场记录？")
+        XCTAssertEqual(DangerConfirmation.deleteShow.confirmTitle, "确认删除")
+        XCTAssertEqual(DangerConfirmation.cancelShow.title, "取消这场演出？")
+        XCTAssertEqual(DangerConfirmation.clearLocalData.confirmTitle, "清除")
+        XCTAssertEqual(DangerConfirmation.deleteAsset(.ticket).title, "删除票根？")
+        XCTAssertEqual(DangerConfirmation.deleteMemory.title, "删除这条记忆？")
     }
 
     func testCanceledAndEndedShowsKeepAssetManagementEntries() throws {

@@ -39,9 +39,9 @@ struct ShowDraft: Equatable {
     var city: String
     var venueName: String
     var venueAddress: String
-    var artist: String
+    /// 多个艺人槽位,每行带自己的头像 URL(`nil` 表示未识别)。
+    var artists: [ArtistSlot] = []
     var coverImageURL: String
-    var artistAvatarURLs: [String]
     var source: ShowDraftSource
     /// 识别导入成功写入的字段（仅 screenshotOCR / link 来源有意义，手动与编辑流为空）。
     var recognizedFields: Set<ShowDraftField>
@@ -59,9 +59,8 @@ struct ShowDraft: Equatable {
         city: String = "",
         venueName: String = "",
         venueAddress: String = "",
-        artist: String = "",
+        artists: [ArtistSlot] = [],
         coverImageURL: String = "",
-        artistAvatarURLs: [String] = [],
         source: ShowDraftSource = .manual,
         recognizedFields: Set<ShowDraftField> = []
     ) {
@@ -77,9 +76,8 @@ struct ShowDraft: Equatable {
         self.city = city
         self.venueName = venueName
         self.venueAddress = venueAddress
-        self.artist = artist
+        self.artists = Show.normalizedArtistSlots(artists)
         self.coverImageURL = coverImageURL
-        self.artistAvatarURLs = artistAvatarURLs
         self.source = source
         self.recognizedFields = recognizedFields
     }
@@ -98,9 +96,8 @@ struct ShowDraft: Equatable {
             city: show.city ?? "",
             venueName: show.venueName ?? "",
             venueAddress: show.venueAddress ?? "",
-            artist: show.artist ?? "",
+            artists: show.artists,
             coverImageURL: show.coverImageURL ?? "",
-            artistAvatarURLs: show.artistAvatarURLs,
             source: .manual
         )
     }
@@ -120,9 +117,8 @@ struct ShowDraft: Equatable {
             city: prepared.city,
             venueName: prepared.venueName,
             venueAddress: prepared.venueAddress,
-            artist: prepared.artist,
-            coverImageURL: prepared.coverImageURL,
-            artistAvatarURLs: prepared.artistAvatarURLs
+            artists: prepared.artists,
+            coverImageURL: prepared.coverImageURL
         )
     }
 
@@ -174,6 +170,53 @@ struct ShowDraft: Equatable {
     }
 }
 
+extension ShowDraft {
+    /// 把识别 / 链接解析的 `incoming` 草稿合并进 `self`,跳过用户已手改的字段。
+    /// 首次 import（`userEdited` 为空）等价于旧的 `draft = incoming` 整段替换;
+    /// 二次 import 时用户已手改的部分会被保护,避免 OCR / link 偷偷冲掉输入。
+    /// `recognizedFields` 取并集后减去 `userEdited` —— 用户接管后「已识别」描边消失。
+    mutating func mergeRespectingUserEdits(
+        from incoming: ShowDraft,
+        userEdited: Set<ShowDraftField>
+    ) {
+        if !userEdited.contains(.name), !incoming.name.isEmpty {
+            name = incoming.name
+        }
+        if !userEdited.contains(.date) {
+            date = incoming.date
+        }
+        if !userEdited.contains(.startTime) {
+            startTime = incoming.startTime
+        }
+        if !userEdited.contains(.city), !incoming.city.isEmpty {
+            city = incoming.city
+        }
+        if !userEdited.contains(.venueName), !incoming.venueName.isEmpty {
+            venueName = incoming.venueName
+        }
+        if !userEdited.contains(.artist) {
+            // OCR / link 没识别出艺人时保留本地已有艺人数组,只在识别出艺人时整段覆盖。
+            if !incoming.artists.isEmpty {
+                artists = incoming.artists
+            }
+        }
+        // 时间字段不直接对应 ShowDraftField,跟着 startTime / date 走同样的开关。
+        if !userEdited.contains(.startTime) {
+            endDate = incoming.endDate
+            endTime = incoming.endTime
+            timeZoneSecondsFromGMT = incoming.timeZoneSecondsFromGMT
+            endTimeZoneSecondsFromGMT = incoming.endTimeZoneSecondsFromGMT
+            timeZoneIdentifier = incoming.timeZoneIdentifier
+            endTimeZoneIdentifier = incoming.endTimeZoneIdentifier
+        }
+        venueAddress = incoming.venueAddress
+        coverImageURL = incoming.coverImageURL
+        if source == .manual { source = incoming.source }
+        recognizedFields.formUnion(incoming.recognizedFields)
+        recognizedFields.subtract(userEdited)
+    }
+}
+
 struct ShowScreenshotRecognitionService {
     var calendar: Calendar = .current
 
@@ -205,21 +248,13 @@ struct ShowScreenshotRecognitionService {
             "Venue",
             "VENUE"
         ], in: lines) ?? inferredVenue(from: lines)
-        let artist = value(afterAnyPrefix: [
-            "演出艺人",
-            "艺人",
-            "阵容",
-            "Artist",
-            "Artists",
-            "ARTIST",
-            "ARTISTS"
-        ], in: lines) ?? ""
+        let artistNames = artists(in: lines)
         let recognizedDate = firstDate(in: lines)
         guard recognizedDate != nil
                 || !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || !city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 || !venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                || !artistNames.isEmpty else {
             return nil
         }
 
@@ -228,7 +263,7 @@ struct ShowScreenshotRecognitionService {
         draft.startTime = recognizedDate.flatMap { firstTime(on: $0, in: lines) }
         draft.city = city
         draft.venueName = venueName
-        draft.artist = artist
+        draft.artists = artistNames.map { ArtistSlot(name: $0, avatarURL: nil) }
 
         // 字段级 provenance：日期回退为当天时不得计入「已识别」。
         var recognizedFields = Set<ShowDraftField>()
@@ -247,7 +282,7 @@ struct ShowScreenshotRecognitionService {
         if !venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             recognizedFields.insert(.venueName)
         }
-        if !artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !draft.artists.isEmpty {
             recognizedFields.insert(.artist)
         }
         draft.recognizedFields = recognizedFields
@@ -418,6 +453,56 @@ struct ShowScreenshotRecognitionService {
         }
 
         return nil
+    }
+
+    /// 从 OCR 文本里拆出多个艺名:遇到「演出艺人 / 艺人 / 阵容 / Artist(s)」标签时,
+    /// inline 段取一段(不再用 `,、` 拆),随后连续 append 后续非标签 / 非日期 / 非元数据的行。
+    /// 单行整串(如「阵容：落日飞车 / deca joins」)保留为单个艺人,留给 form 用 + 按钮拆。
+    private func artists(in lines: [String]) -> [String] {
+        let prefixes = [
+            "演出艺人",
+            "艺人",
+            "阵容",
+            "Artist",
+            "Artists",
+            "ARTIST",
+            "ARTISTS"
+        ]
+        var result: [String] = []
+        var index = 0
+        while index < lines.count {
+            let line = lines[index]
+            let compactLine = compacted(line)
+            let matchedPrefix = prefixes.first { prefix in
+                compactLine.localizedCaseInsensitiveContains(compacted(prefix))
+            }
+            guard let prefix = matchedPrefix else {
+                index += 1
+                continue
+            }
+
+            if let inline = valueFromInlineField(line, prefix: prefix) {
+                let cleaned = cleanedFieldValue(inline)
+                if !cleaned.isEmpty {
+                    result.append(cleaned)
+                }
+            }
+            for next in lines[(index + 1)...].prefix(10) {
+                let value = cleanedFieldValue(next)
+                guard !value.isEmpty,
+                      !isFieldLabelOnly(value),
+                      !isLikelyMetadataLine(value),
+                      firstDate(in: [value]) == nil else {
+                    break
+                }
+                if prefixes.contains(where: { compacted(value).localizedCaseInsensitiveContains(compacted($0)) }) {
+                    break
+                }
+                result.append(value)
+            }
+            index += 1
+        }
+        return result
     }
 
     private func inferredName(from lines: [String]) -> String {
@@ -742,6 +827,18 @@ struct ShowLinkDraftParser {
         return "https://" + trimmed
     }
 
+    /// URL query 里的单串艺名 → `[ArtistSlot]` 数组:先按换行,再按 `,，、` 拆,trim 后丢空。
+    /// local parser 没有后端头像,所有 slot 的 avatarURL 留 `nil`。
+    private static func splitLinkArtist(_ raw: String) -> [ArtistSlot] {
+        let separators = CharacterSet(charactersIn: ",，、")
+        let names = raw
+            .components(separatedBy: .newlines)
+            .flatMap { $0.components(separatedBy: separators) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return names.map { ArtistSlot(name: $0, avatarURL: nil) }
+    }
+
     private func localDraft(from urlString: String) throws -> ShowDraft {
         guard let host = URL(string: urlString.trimmingCharacters(in: .whitespacesAndNewlines))?.host()?.lowercased(),
               isSupportedHost(host) else {
@@ -764,7 +861,7 @@ struct ShowLinkDraftParser {
             date: date,
             city: query["city"] ?? "",
             venueName: query["venue"] ?? "",
-            artist: query["artist"] ?? "",
+            artists: Self.splitLinkArtist(query["artist"] ?? ""),
             source: .link
         )
 
@@ -792,7 +889,7 @@ struct ShowLinkDraftParser {
         if !draft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             recognizedFields.insert(.venueName)
         }
-        if !draft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !draft.artists.isEmpty {
             recognizedFields.insert(.artist)
         }
         draft.recognizedFields = recognizedFields

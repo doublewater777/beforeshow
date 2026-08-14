@@ -9,30 +9,73 @@ enum CloudSharingControllerEvent: Equatable {
     case failedToSave
 }
 
-/// Presents system `UICloudSharingController` for an already-prepared `CKShare`.
-struct CloudSharingView: UIViewControllerRepresentable {
-    let share: CKShare
-    let container: CKContainer
-    var onEvent: (CloudSharingControllerEvent, CKShare?, Error?) -> Void
-    var onDismiss: () -> Void
+enum CompanionInviteGate {
+    /// Discovery / refresh errors must not block a brand-new invite, except missing iCloud.
+    static func blocksNewInvite(_ error: CompanionSharingError?) -> Bool {
+        error == .iCloudAccountUnavailable
+    }
+}
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(onEvent: onEvent, onDismiss: onDismiss)
+/// Presents `UICloudSharingController` from the top UIKit controller.
+/// Embedding it as a SwiftUI `fullScreenCover` root dismisses the share sheet as soon
+/// as the system presents its own activity UI.
+@MainActor
+enum SystemCloudSharePresenter {
+    private static var activeSession: Session?
+
+    @discardableResult
+    static func present(
+        shareData: Data,
+        containerIdentifier: String,
+        onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
+        onDismiss: @escaping () -> Void
+    ) -> Bool {
+        guard let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) else {
+            return false
+        }
+        return present(
+            share: share,
+            container: CKContainer(identifier: containerIdentifier),
+            onEvent: onEvent,
+            onDismiss: onDismiss
+        )
     }
 
-    func makeUIViewController(context: Context) -> UICloudSharingController {
+    @discardableResult
+    static func present(
+        share: CKShare,
+        container: CKContainer,
+        onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
+        onDismiss: @escaping () -> Void
+    ) -> Bool {
+        guard let presenter = SystemPNGSharePresenter.topViewController() else {
+            return false
+        }
+        if presenter is UICloudSharingController {
+            return false
+        }
+
+        let session = Session(onEvent: onEvent, onDismiss: onDismiss)
+        activeSession = session
+
         let controller = UICloudSharingController(share: share, container: container)
-        controller.delegate = context.coordinator
+        controller.delegate = session
         controller.availablePermissions = [.allowReadWrite, .allowPrivate]
-        return controller
+        controller.presentationController?.delegate = session
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = presenter.view
+            popover.sourceRect = CGRect(
+                x: presenter.view.bounds.midX,
+                y: presenter.view.bounds.maxY - 20,
+                width: 1,
+                height: 1
+            )
+        }
+        presenter.present(controller, animated: true)
+        return true
     }
 
-    func updateUIViewController(_ uiViewController: UICloudSharingController, context: Context) {
-        context.coordinator.onEvent = onEvent
-        context.coordinator.onDismiss = onDismiss
-    }
-
-    final class Coordinator: NSObject, UICloudSharingControllerDelegate {
+    private final class Session: NSObject, UICloudSharingControllerDelegate, UIAdaptivePresentationControllerDelegate {
         var onEvent: (CloudSharingControllerEvent, CKShare?, Error?) -> Void
         var onDismiss: () -> Void
 
@@ -50,7 +93,7 @@ struct CloudSharingView: UIViewControllerRepresentable {
 
         func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
             onEvent(.didStopSharing, csc.share, nil)
-            onDismiss()
+            finish()
         }
 
         func cloudSharingController(
@@ -60,59 +103,22 @@ struct CloudSharingView: UIViewControllerRepresentable {
             onEvent(.failedToSave, csc.share, error)
         }
 
+        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+            finish()
+        }
+
         func itemThumbnailData(for csc: UICloudSharingController) -> Data? { nil }
 
         func itemTitle(for csc: UICloudSharingController) -> String? {
             csc.share?[CKShare.SystemFieldKey.title] as? String
         }
-    }
-}
 
-/// Full-screen cover host so SwiftUI can present `UICloudSharingController` modally.
-struct CloudSharingPresenter: View {
-    let shareData: Data
-    let containerIdentifier: String
-    let show: Show
-    let coordinator: CompanionSharingCoordinator
-    var onFinished: () -> Void
-
-    @Environment(\.modelContext) private var modelContext
-
-    var body: some View {
-        Group {
-            if let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) {
-                CloudSharingView(
-                    share: share,
-                    container: CKContainer(identifier: containerIdentifier),
-                    onEvent: { event, share, error in
-                        Task { @MainActor in
-                            switch event {
-                            case .didSave:
-                                await coordinator.handleShareControllerDidSave(
-                                    share: share,
-                                    for: show,
-                                    in: modelContext
-                                )
-                            case .didStopSharing:
-                                await coordinator.handleShareControllerDidStopSharing(
-                                    for: show,
-                                    in: modelContext
-                                )
-                            case .failedToSave:
-                                if let error {
-                                    coordinator.handleShareControllerFailure(error)
-                                }
-                            }
-                        }
-                    },
-                    onDismiss: onFinished
-                )
-                .ignoresSafeArea()
-            } else {
-                Color.clear
-                    .onAppear(perform: onFinished)
-            }
+        private func finish() {
+            let dismiss = onDismiss
+            onEvent = { _, _, _ in }
+            onDismiss = {}
+            SystemCloudSharePresenter.activeSession = nil
+            dismiss()
         }
-        .onDisappear(perform: onFinished)
     }
 }

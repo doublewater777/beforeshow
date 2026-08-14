@@ -34,6 +34,7 @@ struct HomeHeroStage: View {
     var isPlaybackActive = true
     var reduceMotion: Bool = false
     var onChooseVideo: (() -> Void)? = nil
+    var opensDetail = false
 
     private var coverHeight: CGFloat { coverWidth * 4.0 / 3.0 }
     private var phase: HomeShowPhase { snapshot.phase }
@@ -53,6 +54,7 @@ struct HomeHeroStage: View {
             isPlaybackActive: isPlaybackActive && phase != .inactive,
             reduceMotion: reduceMotion,
             onChooseVideo: onChooseVideo,
+            opensDetail: opensDetail,
             accessibilityName: show.name
         ) {
             ShowCoverImageView(

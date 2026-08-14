@@ -22,13 +22,13 @@ final class ShowDraftTests: XCTestCase {
 
         draft.name = "用户改好的现场"
         draft.venueName = "用户确认的场馆"
-        draft.artist = "用户确认的艺人"
+        draft.artists = [ArtistSlot(name: "用户确认的艺人")]
 
         let show = try draft.makeShow()
 
         XCTAssertEqual(show.name, "用户改好的现场")
         XCTAssertEqual(show.venueName, "用户确认的场馆")
-        XCTAssertEqual(show.artist, "用户确认的艺人")
+        XCTAssertEqual(show.artistNames, ["用户确认的艺人"])
     }
 
     func testDraftPassesEndDateAndEndTimeIntoShow() throws {
@@ -105,7 +105,7 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.startTime, makeDate(year: 2026, month: 7, day: 3, hour: 19, minute: 30))
         XCTAssertEqual(draft.city, "上海")
         XCTAssertEqual(draft.venueName, "春浪草地")
-        XCTAssertEqual(draft.artist, "落日飞车 / deca joins")
+        XCTAssertEqual(draft.artists, [ArtistSlot(name: "落日飞车 / deca joins")])
         XCTAssertFalse(draft.name.contains("SECRET"))
     }
 
@@ -502,7 +502,7 @@ final class ShowDraftTests: XCTestCase {
             endDate: makeDate(year: 2026, month: 6, day: 27),
             city: "杭州",
             venueName: "酒球会",
-            artist: "硬鸡乐队, 开膛RIPPER",
+            artists: [ArtistSlot(name: "硬鸡乐队"), ArtistSlot(name: "开膛RIPPER")],
             coverImageURL: "https://example.com/showstart-cover.jpg",
             source: .link
         )
@@ -555,12 +555,10 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(draft.endTime, makeDate(year: 2026, month: 7, day: 16, hour: 0, minute: 30))
         XCTAssertEqual(draft.venueName, "测试场馆")
         XCTAssertEqual(draft.venueAddress, "测试地址")
-        XCTAssertEqual(draft.artist, "测试艺人")
-        XCTAssertEqual(draft.coverImageURL, "https://example.com/show-cover.jpg")
-        XCTAssertEqual(draft.artistAvatarURLs, [
-            "https://example.com/artist-a.jpg",
-            "https://example.com/artist-b.jpg"
+        XCTAssertEqual(draft.artists, [
+            ArtistSlot(name: "测试艺人", avatarURL: "https://example.com/artist-a.jpg")
         ])
+        XCTAssertEqual(draft.coverImageURL, "https://example.com/show-cover.jpg")
         XCTAssertEqual(draft.source, .link)
     }
 
@@ -827,7 +825,7 @@ final class ShowDraftTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 8, day: 2, hour: 19, minute: 30),
             city: "  杭州  ",
             venueName: "   ",
-            artist: "艺人",
+            artists: [ArtistSlot(name: "艺人")],
             coverImageURL: "https://example.com/c.jpg",
             source: .manual
         )
@@ -839,7 +837,7 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(show.startTime, makeDate(year: 2026, month: 8, day: 2, hour: 19, minute: 30))
         XCTAssertEqual(show.city, "杭州")
         XCTAssertNil(show.venueName)
-        XCTAssertEqual(show.artist, "艺人")
+        XCTAssertEqual(show.artistNames, ["艺人"])
         XCTAssertEqual(show.coverImageURL, "https://example.com/c.jpg")
         // Edit must not clear 现场变更
         XCTAssertEqual(show.changeStatus, .postponed)

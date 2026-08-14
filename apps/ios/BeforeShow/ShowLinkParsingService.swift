@@ -164,9 +164,8 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
             city: draft.city,
             venueName: draft.venueName,
             venueAddress: draft.venueAddr,
-            artist: draft.artist,
+            artists: Self.splitLinkArtist(draft.artist, avatars: draft.artistAvatarURLs ?? []),
             coverImageURL: draft.coverImageURL ?? "",
-            artistAvatarURLs: draft.artistAvatarURLs ?? [],
             source: .link
         )
 
@@ -219,12 +218,28 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         if !showDraft.venueName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             recognizedFields.insert(.venueName)
         }
-        if !showDraft.artist.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        if !showDraft.artists.isEmpty {
             recognizedFields.insert(.artist)
         }
         showDraft.recognizedFields = recognizedFields
 
         return showDraft
+    }
+
+    /// URL query 里的单串艺名 → `[ArtistSlot]` 数组:先按换行,再按 `,，、` 拆,trim 后丢空。
+    /// 与后端返回的 `artistAvatarURLs` 按 index 对齐:多出的 slot 没头像置 `nil`,少则补空 slot。
+    private static func splitLinkArtist(_ raw: String, avatars: [String] = []) -> [ArtistSlot] {
+        let separators = CharacterSet(charactersIn: ",，、")
+        let names = raw
+            .components(separatedBy: .newlines)
+            .flatMap { $0.components(separatedBy: separators) }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        return names.enumerated().map { index, name in
+            let avatar = index < avatars.count ? avatars[index] : nil
+            let cleaned = avatar?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return ArtistSlot(name: name, avatarURL: (cleaned?.isEmpty ?? true) ? nil : cleaned)
+        }
     }
 
     private func calendar(identifier: String?, offsetSeconds: Int?) -> Calendar {

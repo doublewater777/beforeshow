@@ -36,7 +36,7 @@ struct PostponeShowSheet: View {
                 tint: BSColor.Accent.warm
             )
 
-            BSGlassPanel {
+            BSSurfacePanel {
                 DatePicker("新日期", selection: $newDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .tint(BSColor.Accent.violet)
@@ -81,7 +81,7 @@ private struct ConfirmedEndTimeEditorSheet: View {
                     .lineLimit(1)
             }
 
-            BSGlassPanel {
+            BSSurfacePanel {
                 VStack(spacing: BSSpacing.sm) {
                     DatePicker(
                         "散场日期",
@@ -118,44 +118,6 @@ private struct ConfirmedEndTimeEditorSheet: View {
     }
 }
 
-private struct ShowDetailMoreActionsSheet: View {
-    let onDelete: () -> Void
-
-    var body: some View {
-        BSDrawerSheet(
-            detents: [.height(232)],
-            background: BSColor.Stage.surfaceRaised,
-            fitsContent: true
-        ) {
-            Text("更多操作")
-                .font(BSFont.headline)
-                .foregroundColor(BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Button(action: onDelete) {
-                HStack(spacing: BSSpacing.compact) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 15, weight: .medium))
-                        .frame(width: 36, height: 36)
-                        .background(BSColor.Stage.danger.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text("删除记录")
-                            .font(BSFont.V3.small.weight(.medium))
-                        Text("永久移除这条现场记录")
-                            .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                    Spacer()
-                }
-                .foregroundColor(BSColor.Stage.danger)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(minHeight: 52)
-            }
-            .buttonStyle(.plain)
-        }
-    }
-}
-
 struct ShowDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
@@ -169,13 +131,8 @@ struct ShowDetailView: View {
     var startsEditing = false
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
-    @State private var isEditing = false
-    @State private var isEditingConfirmedEnd = false
-    @State private var isShowingCompanion = false
-    @State private var showingAssetKind: ShowAssetKind?
-    @State private var isShowingMoreActions = false
+    @State private var presentedSheet: ShowDetailPresentedSheet?
     @State private var isShowingDeleteConfirmation = false
-    @State private var isShowingPostpone = false
     @State private var isShowingCancelConfirmation = false
     @State private var confirmedEndDraft = Date()
     @State private var postponeDraft = Date()
@@ -220,8 +177,6 @@ struct ShowDetailView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                detailNavigationBar
-
                 ScrollView {
                     VStack(alignment: .leading, spacing: BSSpacing.lg) {
                         detailSummaryCard
@@ -239,149 +194,122 @@ struct ShowDetailView: View {
                     .padding(.bottom, BSLayout.tabBarContentInset)
                 }
                 .scrollIndicators(.hidden)
+                .bsNavigationScrollEdge()
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
-        .navigationTitle("")
+        .navigationTitle("现场详情")
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonHidden(true)
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .navigationBar)
-        .sheet(isPresented: $isEditing) {
-            ShowDraftEditorView(
-                title: "编辑现场",
-                draft: ShowDraft(show: show),
-                saveTitle: "保存",
-                statusPillText: session.phase(for: show, now: Date()).statusText,
-                isPostponed: show.changeStatus == .postponed
-            ) { draft in
-                try await apply(draft)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("编辑", systemImage: "square.and.pencil") {
+                        presentedSheet = .editor
+                    }
+                    Button("删除", systemImage: "trash", role: .destructive) {
+                        isShowingDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("更多操作")
             }
         }
-        .sheet(isPresented: $isEditingConfirmedEnd) {
-            ConfirmedEndTimeEditorSheet(
-                showName: show.name,
-                showStart: CurrentShowTimeState.minimumConfirmableEnd(
-                    for: show,
-                    calendar: show.timingCalendar()
-                ),
-                calendar: show.endTimingCalendar(),
-                hasConfirmedEnd: show.endedAt != nil,
-                endTime: $confirmedEndDraft,
-                onSave: saveConfirmedEnd,
-                onUndo: undoConfirmedEnd
-            )
-        }
-        .sheet(item: $showingAssetKind) { kind in
-            ShowAssetSheet(
-                showID: show.id,
-                showName: show.name,
-                kind: kind,
-                onDetailVisibilityChange: onDetailVisibilityChange,
-                keepsParentDetailHidden: true
-            )
-        }
-        .sheet(isPresented: $isShowingCompanion) {
-            CurrentShowCompanionSheet(
-                show: show,
-                sharedHistory: companionHistory,
-                isEnded: HomeShowPhase(timeState: timeState) == .ended,
-                coordinator: companionCoordinator,
-                onDismiss: { isShowingCompanion = false }
-            )
-        }
-        .sheet(isPresented: $isShowingMoreActions) {
-            ShowDetailMoreActionsSheet(
-                onDelete: showDeleteConfirmation
-            )
-        }
-        .sheet(isPresented: $isShowingDeleteConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "删除这条现场记录？",
-                message: "删除后不会出现在“我的现场”和足迹中，此操作无法恢复。",
-                destructiveTitle: "确认删除",
-                onConfirm: {
-                    isShowingDeleteConfirmation = false
-                    Task { @MainActor in await deleteShow() }
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .editor:
+                ShowDraftEditorView(
+                    title: "编辑现场",
+                    draft: ShowDraft(show: show),
+                    saveTitle: "保存",
+                    statusPillText: session.phase(for: show, now: Date()).statusText,
+                    isPostponed: show.changeStatus == .postponed
+                ) { draft in
+                    try await apply(draft)
                 }
-            )
-        }
-        .sheet(isPresented: $isShowingPostpone) {
-            PostponeShowSheet(
-                newDate: $postponeDraft,
-                calendar: show.timingCalendar(),
-                onUndated: {
-                    isShowingPostpone = false
-                    applyStatus(message: "已记录延期，日期待定") {
-                        show.markPostponed(newDate: nil)
-                    }
-                },
-                onDated: {
-                    let newDate = ShowDateSelectionPolicy.normalizedDay(
-                        postponeDraft,
+            case .confirmedEnd:
+                ConfirmedEndTimeEditorSheet(
+                    showName: show.name,
+                    showStart: CurrentShowTimeState.minimumConfirmableEnd(
+                        for: show,
                         calendar: show.timingCalendar()
-                    )
-                    isShowingPostpone = false
-                    applyStatus(message: "延期日期已更新") {
-                        show.markPostponed(newDate: newDate)
+                    ),
+                    calendar: show.endTimingCalendar(),
+                    hasConfirmedEnd: show.endedAt != nil,
+                    endTime: $confirmedEndDraft,
+                    onSave: saveConfirmedEnd,
+                    onUndo: undoConfirmedEnd
+                )
+            case .asset(let kind):
+                ShowAssetSheet(
+                    showID: show.id,
+                    showName: show.name,
+                    kind: kind,
+                    onDetailVisibilityChange: onDetailVisibilityChange,
+                    keepsParentDetailHidden: true
+                )
+            case .memory:
+                MemoryFragmentsSheet(show: show)
+            case .companion:
+                CurrentShowCompanionSheet(
+                    show: show,
+                    sharedHistory: companionHistory,
+                    isEnded: HomeShowPhase(timeState: timeState) == .ended,
+                    coordinator: companionCoordinator
+                )
+            case .postpone:
+                PostponeShowSheet(
+                    newDate: $postponeDraft,
+                    calendar: show.timingCalendar(),
+                    onUndated: {
+                        presentedSheet = nil
+                        applyStatus(message: "已记录延期，日期待定") {
+                            show.markPostponed(newDate: nil)
+                        }
+                    },
+                    onDated: {
+                        let newDate = ShowDateSelectionPolicy.normalizedDay(
+                            postponeDraft,
+                            calendar: show.timingCalendar()
+                        )
+                        presentedSheet = nil
+                        applyStatus(message: "延期日期已更新") {
+                            show.markPostponed(newDate: newDate)
+                        }
                     }
-                }
-            )
+                )
+            }
         }
-        .sheet(isPresented: $isShowingCancelConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "取消这场演出？",
-                message: "取消后会停止倒计时和提醒，这场仍会保留在“我的现场”。",
-                destructiveTitle: "确认取消演出",
-                onConfirm: {
-                    isShowingCancelConfirmation = false
-                    applyStatus(message: "已记录取消") { show.markCanceled() }
-                }
-            )
+        .alert(
+            DangerConfirmation.deleteShow.title,
+            isPresented: $isShowingDeleteConfirmation
+        ) {
+            Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
+                Task { @MainActor in await deleteShow() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(DangerConfirmation.deleteShow.message)
+        }
+        .confirmationDialog(
+            DangerConfirmation.cancelShow.title,
+            isPresented: $isShowingCancelConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(DangerConfirmation.cancelShow.confirmTitle, role: .destructive) {
+                applyStatus(message: "已记录取消") { show.markCanceled() }
+            }
+        } message: {
+            Text(DangerConfirmation.cancelShow.message)
         }
         .task {
             if startsEditing {
-                isEditing = true
+                presentedSheet = .editor
             }
         }
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
-    }
-
-    private var detailNavigationBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("返回")
-
-            Spacer()
-
-            Text("现场详情")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-
-            Spacer()
-
-            Button { isShowingMoreActions = true } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("更多操作")
-        }
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.vertical, BSSpacing.xs)
     }
 
     private var detailSummaryCard: some View {
@@ -463,17 +391,9 @@ struct ShowDetailView: View {
 
     private var showInformationSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("演出信息")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Spacer()
-                Button("编辑") { isEditing = true }
-                    .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
-                    .accessibilityLabel("编辑演出信息")
-            }
+            Text("演出信息")
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.foreground)
 
             VStack(spacing: 0) {
                 detailInfoRow(
@@ -490,8 +410,9 @@ struct ShowDetailView: View {
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "music.note",
-                    title: show.artist ?? "未填写艺人",
-                    subtitle: nil
+                    title: show.artistNames.isEmpty ? "未填写艺人" : show.artistNames.joined(separator: "、"),
+                    subtitle: nil,
+                    trailing: avatarLeading
                 )
             }
             .background(BSColor.Stage.surface)
@@ -500,7 +421,7 @@ struct ShowDetailView: View {
         }
     }
 
-    private func detailInfoRow(icon: String, title: String, subtitle: String?) -> some View {
+    private func detailInfoRow(icon: String, title: String, subtitle: String?, trailing: AnyView? = nil) -> some View {
         HStack(spacing: BSSpacing.compact) {
             Image(systemName: icon)
                 .font(.system(size: 14, weight: .medium))
@@ -523,10 +444,21 @@ struct ShowDetailView: View {
             }
 
             Spacer(minLength: 0)
+
+            if let trailing {
+                trailing
+            }
         }
         .padding(.horizontal, BSSpacing.compact)
         .frame(minHeight: 58)
         .accessibilityElement(children: .combine)
+    }
+
+    /// 详情页艺人行右侧贴一个 40pt Apple Music 头像;没有头像就 nil,保持行高一致。
+    private var avatarLeading: AnyView? {
+        guard let urlString = show.firstRecognizedArtistAvatarURL,
+              let url = URL(string: urlString) else { return nil }
+        return AnyView(ArtistAvatarThumb(url: url, size: 40))
     }
 
     private var currentDisplaySection: some View {
@@ -613,7 +545,7 @@ struct ShowDetailView: View {
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetManagementPolicy.entries(for: show, assets: showAssets)) { entry in
                     Button {
-                        showingAssetKind = entry.kind
+                        presentedSheet = .asset(entry.kind)
                     } label: {
                         VStack(alignment: .leading, spacing: BSSpacing.xs) {
                             Image(systemName: entry.kind.iconName)
@@ -649,7 +581,7 @@ struct ShowDetailView: View {
 
             HStack(spacing: BSSpacing.sm) {
                 Button {
-                    isShowingCompanion = true
+                    presentedSheet = .companion
                 } label: {
                     ShowDetailExperienceTile(
                         action: .companion,
@@ -660,10 +592,8 @@ struct ShowDetailView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(companionPresentation.accessibilityLabel)
 
-                NavigationLink {
-                    MemoryFragmentsView(show: show)
-                        .onAppear { onDetailVisibilityChange(true) }
-                        .onDisappear { onDetailVisibilityChange(false) }
+                Button {
+                    presentedSheet = .memory
                 } label: {
                     ShowDetailExperienceTile(
                         action: .memoryFragments,
@@ -754,7 +684,7 @@ struct ShowDetailView: View {
                 icon: "clock.arrow.circlepath"
             ) {
                 confirmedEndDraft = endedAt
-                isEditingConfirmedEnd = true
+                presentedSheet = .confirmedEnd
             }
         } else if timeState.kind == .postShow || timeState.kind == .ended {
             confirmedEndButton(
@@ -763,7 +693,7 @@ struct ShowDetailView: View {
                 icon: "clock.badge.checkmark"
             ) {
                 confirmedEndDraft = suggestedConfirmedEnd
-                isEditingConfirmedEnd = true
+                presentedSheet = .confirmedEnd
             }
         }
     }
@@ -925,15 +855,7 @@ struct ShowDetailView: View {
         postponeDraft = show.postponedDate
             ?? show.timingCalendar().date(byAdding: .day, value: 7, to: show.effectiveDate)
             ?? show.effectiveDate
-        isShowingPostpone = true
-    }
-
-    private func showDeleteConfirmation() {
-        isShowingMoreActions = false
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 240_000_000)
-            isShowingDeleteConfirmation = true
-        }
+        presentedSheet = .postpone
     }
 
     private func applyStatus(message: String, mutation: @escaping () -> Void) {
@@ -987,7 +909,7 @@ struct ShowDetailView: View {
                 ) {
                     show.markEnded(at: confirmedEndDraft)
                 }
-                isEditingConfirmedEnd = false
+                presentedSheet = nil
                 presentToast(
                     didSync ? .success : .neutral,
                     message: didSync ? "散场时间已更新" : "散场时间已保存，同步暂未更新"
@@ -1010,7 +932,7 @@ struct ShowDetailView: View {
                 ) {
                     show.clearEnded()
                 }
-                isEditingConfirmedEnd = false
+                presentedSheet = nil
                 presentToast(
                     .neutral,
                     message: didSync

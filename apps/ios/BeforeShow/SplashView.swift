@@ -67,31 +67,22 @@ struct SplashView: View {
     }
 
     private func startAnimation() {
+        // First-launch brand beat only. Returning users bypass this view
+        // entirely (see RootView.init), so the chain here is intentionally
+        // short — DESIGN.md calls for a fast neutral bridge, not a
+        // multi-second marketing reveal.
         Task { @MainActor in
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeOut(duration: 0.8)) {
+            withAnimation(.easeOut(duration: 0.4)) {
                 backgroundOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.8))
-            withAnimation(.easeInOut(duration: 0.4)) {
                 titleOpacity = 1
             }
-
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeInOut(duration: 0.4)) {
+            try? await Task.sleep(for: .seconds(0.1))
+            withAnimation(.easeInOut(duration: 0.3)) {
                 englishNameOpacity = 1
-            }
-
-            try? await Task.sleep(for: .seconds(0.3))
-            withAnimation(.easeInOut(duration: 0.4)) {
                 sloganOpacity = 1
             }
-
-            try? await Task.sleep(for: .seconds(0.2))
             canAccelerate = true
-
-            try? await Task.sleep(for: .seconds(0.4))
+            try? await Task.sleep(for: .seconds(0.2))
             finish()
         }
     }

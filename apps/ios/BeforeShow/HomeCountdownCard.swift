@@ -1,26 +1,5 @@
 import SwiftUI
 
-// MARK: - Lineup Parser
-
-/// 音乐节阵容解析:艺人字段按 ASCII 逗号 / 中文全角逗号 / 顿号拆分;
-/// 拆出 ≥ 3 个名字才视为音乐节阵容(只读展示,不做交互)。
-enum HomeLineupParser {
-    static let separators = CharacterSet(charactersIn: ",，、")
-
-    static func names(from artist: String?) -> [String] {
-        guard let artist else { return [] }
-        return artist
-            .components(separatedBy: separators)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-    }
-
-    static func lineup(from artist: String?) -> [String] {
-        let parsed = names(from: artist)
-        return parsed.count >= 3 ? parsed : []
-    }
-}
-
 // HomeShowPhase 已移至 Shared/HomeShowPhase.swift（app 与 widget 共用；含 dayEnded 文案）。
 
 // MARK: - Home Countdown Lockup
@@ -231,12 +210,20 @@ struct HomeCountdownLockup: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    // The countdown is the visual hero. Respect the user's Dynamic Type
+    // setting so accessibility readers get the same weight, but cap at
+    // .accessibility2 — above that, a 3-digit day number at 1.85× scale
+    // would push the HStack past the safe area and break the card.
+    @ScaledMetric(relativeTo: .largeTitle) private var dayNumber: CGFloat = 72
+    @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 54
+
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             let timeState = CurrentShowTimeState(show: show, now: context.date)
             let phase = HomeShowPhase(timeState: timeState, now: context.date)
             lockup(phase: phase, timeState: timeState, now: context.date)
         }
+        .dynamicTypeSize(.large ... .accessibility2)
     }
 
     @ViewBuilder
@@ -419,9 +406,10 @@ struct HomeCountdownLockup: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: 10) {
                         Text("\(total / 86_400)")
-                            .font(.system(size: 72, weight: .thin))
+                            .font(.system(size: dayNumber, weight: .thin))
                             .tracking(-2.5)
                             .monospacedDigit()
+                            .lineLimit(1)
                             .foregroundStyle(Self.heroNumberGradient)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
                             .padding(.vertical, -9)
@@ -438,20 +426,20 @@ struct HomeCountdownLockup: View {
                 }
             } else if total >= 3_600 {
                 Text(Self.clockText(total, forceHours: true))
-                    .font(.system(size: 54, weight: .thin))
+                    .font(.system(size: clockNumber, weight: .thin))
                     .tracking(-1)
                     .monospacedDigit()
                     .foregroundColor(BSColor.Stage.foreground)
             } else {
                 Text(Self.clockText(total, forceHours: false))
-                    .font(.system(size: 54, weight: .thin))
+                    .font(.system(size: clockNumber, weight: .thin))
                     .tracking(-1)
                     .monospacedDigit()
                     .foregroundStyle(Self.heroNumberGradient)
             }
         } else {
             Text("--")
-                .font(.system(size: 54, weight: .thin))
+                .font(.system(size: clockNumber, weight: .thin))
                 .monospacedDigit()
                 .foregroundColor(BSColor.Stage.dim)
         }
@@ -729,7 +717,7 @@ struct HomeTipCard: View {
 
     /// 艺人字段里名字 ≥ 3 个时视为音乐节阵容(只读展示,不做交互)。
     private var lineup: [String] {
-        HomeLineupParser.lineup(from: show.artist)
+        show.artistNames.count >= 3 ? Array(show.artistNames.prefix(8)) : []
     }
 
     private var content: Content? {

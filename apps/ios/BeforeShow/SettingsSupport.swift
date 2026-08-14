@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 
 enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
@@ -48,6 +49,87 @@ enum ProMembershipCopy {
     ]
 }
 
+struct SettingsMembershipSummary: Equatable {
+    let title: String
+    let subtitle: String
+
+    init(entitlement: ProEntitlementState) {
+        switch entitlement {
+        case .free:
+            self.init(title: "免费版", subtitle: "可保存 1 场现场")
+        case .active:
+            self.init(title: "Pro 已启用", subtitle: "可以无限添加现场")
+        case .expired:
+            self.init(title: "Pro 已过期", subtitle: "已有本地内容仍可查看和编辑")
+        }
+    }
+
+    init(title: String, subtitle: String) {
+        self.title = title
+        self.subtitle = subtitle
+    }
+}
+
+enum NotificationSettingsAction: Equatable {
+    case requestPermission
+    case openSystemSettings
+}
+
+struct NotificationSettingsPresentation: Equatable {
+    let status: String
+    let subtitle: String
+    let action: NotificationSettingsAction
+
+    init(authorizationState: NotificationAuthorizationState) {
+        switch authorizationState {
+        case .notDetermined:
+            self.init(
+                status: "尚未开启",
+                subtitle: "轻点开启开场提醒",
+                action: .requestPermission
+            )
+        case .denied:
+            self.init(
+                status: "未开启",
+                subtitle: "去系统设置开启通知",
+                action: .openSystemSettings
+            )
+        case .authorized, .provisional:
+            self.init(status: "已开启", subtitle: "可在系统设置中调整", action: .openSystemSettings)
+        }
+    }
+
+    init(status: String, subtitle: String, action: NotificationSettingsAction) {
+        self.status = status
+        self.subtitle = subtitle
+        self.action = action
+    }
+}
+
+struct AppVersionInformation: Equatable {
+    let marketingVersion: String
+    let buildNumber: String
+
+    init(infoDictionary: [String: Any]) {
+        self.init(
+            marketingVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? "未知版本",
+            buildNumber: infoDictionary["CFBundleVersion"] as? String ?? "未知构建"
+        )
+    }
+
+    init(marketingVersion: String, buildNumber: String) {
+        self.marketingVersion = marketingVersion
+        self.buildNumber = buildNumber
+    }
+
+    static var current: AppVersionInformation {
+        AppVersionInformation(infoDictionary: Bundle.main.infoDictionary ?? [:])
+    }
+
+    var compactCopy: String { "v\(marketingVersion)" }
+    var fullCopy: String { "版本 \(marketingVersion)（构建 \(buildNumber)）" }
+}
+
 enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
     case product = "使用感受"
     case bug = "问题反馈"
@@ -78,11 +160,21 @@ enum FeedbackValidationError: Error, Equatable {
 }
 
 struct FeedbackPayloadBuilder {
-    var diagnosticsProvider: () -> FeedbackDiagnostics = {
+    var diagnosticsProvider: () -> FeedbackDiagnostics
+
+    init(diagnosticsProvider: @escaping () -> FeedbackDiagnostics = {
         FeedbackDiagnostics(
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.1",
+            appVersion: AppVersionInformation.current.marketingVersion,
             osVersion: ProcessInfo.processInfo.operatingSystemVersionString
         )
+    }) {
+        self.diagnosticsProvider = diagnosticsProvider
+    }
+
+    init(appVersion: AppVersionInformation, osVersion: String) {
+        self.init {
+            FeedbackDiagnostics(appVersion: appVersion.marketingVersion, osVersion: osVersion)
+        }
     }
 
     func build(from draft: FeedbackDraft) throws -> FeedbackPayload {
@@ -99,15 +191,19 @@ struct FeedbackPayloadBuilder {
     }
 }
 
-protocol FeedbackSubmitting {
-    func submit(_ payload: FeedbackPayload) async throws
-}
+struct FeedbackShareTextBuilder {
+    func build(from payload: FeedbackPayload) -> String {
+        var text = [
+            "类型：\(payload.category.rawValue)",
+            "反馈：\(payload.message)"
+        ].joined(separator: "\n")
 
-actor LocalFeedbackSubmitter: FeedbackSubmitting {
-    private(set) var submittedPayloads: [FeedbackPayload] = []
+        if let diagnostics = payload.diagnostics {
+            text += "\n\n" +
+                "诊断信息\nApp 版本：\(diagnostics.appVersion)\n系统版本：\(diagnostics.osVersion)"
+        }
 
-    func submit(_ payload: FeedbackPayload) async throws {
-        submittedPayloads.append(payload)
+        return text
     }
 }
 
@@ -265,6 +361,38 @@ enum ShowAssetCleanupRetry {
         }
         if let data = try? JSONEncoder().encode(values) {
             UserDefaults.standard.set(data, forKey: pendingAssetCleanupKey)
+        }
+    }
+}
+
+/// 真实反馈渠道：`mailto:` 邮件收件人。RELEASE/DEBUG 共用同一地址。
+/// `mailto:` 是系统 URL scheme，不需要 `LSApplicationQueriesSchemes` 声明。
+enum FeedbackDestination {
+    /// 反馈收件邮箱。占位待用户替换为实际网易 163 邮箱。
+    static let address = "feedback@163.com"
+
+    static func mailtoURL(prefilledBody: String) -> URL? {
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = address
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "BeforeShow 反馈"),
+            URLQueryItem(name: "body", value: prefilledBody)
+        ]
+        return components.url
+    }
+}
+
+/// 调起邮件 app 的薄包装。`@Environment(\.openURL)` 不提供 completion，
+/// 改用 UIKit 的 `UIApplication.shared.open(_:options:completionHandler:)` 才能区分
+/// "用户接受了跳转" / "未配邮件账户被系统拒绝"——避免假阳性"已发送 ✓"。
+@MainActor
+enum FeedbackMailOpener {
+    static func open(url: URL) async -> Bool {
+        await withCheckedContinuation { continuation in
+            UIApplication.shared.open(url, options: [:]) { accepted in
+                continuation.resume(returning: accepted)
+            }
         }
     }
 }

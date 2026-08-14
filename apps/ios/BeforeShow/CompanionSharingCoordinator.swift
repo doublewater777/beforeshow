@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import os
 import Security
 import SwiftData
 import UIKit
@@ -465,6 +466,7 @@ final class CompanionSharingCoordinator {
     }
 
     func handleShareControllerFailure(_ error: Error) {
+        CompanionDebugLog.write("Share controller failed: \(error)")
         lastErrorMessage = Self.userMessage(for: error)
         lastErrorKind = error as? CompanionSharingError
     }
@@ -635,7 +637,29 @@ final class CompanionSharingCoordinator {
         if error is ShowCompanionMutationError {
             return "同行状态无法更新"
         }
-        return "同行操作失败，请稍后重试"
+        if let ck = error as? CKError {
+            return message(forCloudKit: ck)
+        }
+        return "同行操作失败：\(error.localizedDescription)"
+    }
+
+    private static func message(forCloudKit error: CKError) -> String {
+        switch error.code {
+        case .notAuthenticated, .managedAccountRestricted:
+            return "需要登录 iCloud 才能邀请同行"
+        case .networkUnavailable, .networkFailure, .serviceUnavailable, .zoneBusy, .requestRateLimited:
+            return "网络不可用，请稍后重试"
+        case .permissionFailure:
+            return "没有权限创建同行邀请，请确认 iCloud 云盘已打开"
+        case .quotaExceeded:
+            return "iCloud 空间不足，无法创建同行邀请"
+        case .invalidArguments, .constraintViolation:
+            return "邀请创建失败：CloudKit 拒绝了这次请求"
+        case .serverRejectedRequest:
+            return "邀请创建失败：CloudKit 容器未就绪，请在 Xcode 打开 iCloud 能力并确认 Development 环境可用"
+        default:
+            return "邀请创建失败：\(error.localizedDescription)"
+        }
     }
 }
 

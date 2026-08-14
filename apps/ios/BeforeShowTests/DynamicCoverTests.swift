@@ -63,6 +63,25 @@ final class DynamicCoverTests: XCTestCase {
         XCTAssertFalse(DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: false))
     }
 
+    func testDynamicCoverHintDescribesDetailTapAndFlip() {
+        XCTAssertEqual(
+            DynamicCoverAccessibilityPolicy.hint(canFlip: true, opensDetail: true),
+            "轻点查看现场详情，长按翻转动态封面"
+        )
+        XCTAssertEqual(
+            DynamicCoverAccessibilityPolicy.hint(canFlip: false, opensDetail: true),
+            "轻点查看现场详情"
+        )
+        XCTAssertEqual(
+            DynamicCoverAccessibilityPolicy.hint(canFlip: true, opensDetail: false),
+            "长按翻转动态封面，轻点返回静态封面"
+        )
+        XCTAssertEqual(
+            DynamicCoverAccessibilityPolicy.hint(canFlip: false, opensDetail: false),
+            "暂无动态封面"
+        )
+    }
+
     func testDynamicCoverErrorsUseActionablePickerMessages() {
         XCTAssertEqual(
             DynamicCoverErrorMessagePolicy.message(for: .invalidDuration),

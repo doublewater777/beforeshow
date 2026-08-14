@@ -351,14 +351,20 @@ final class FootprintArchiveTests: XCTestCase {
         city: String,
         venue: String
     ) throws -> Show {
-        try Show(
+        // 测试 fixture 允许写 `"落日飞车、陈绮贞"`,内部分隔符后用 slot 数组。
+        let slots = artist
+            .components(separatedBy: CharacterSet(charactersIn: ",，、"))
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map { ArtistSlot(name: $0, avatarURL: nil) }
+        return try Show(
             name: name,
             date: date(year, 6, 1),
             startTime: date(year, 6, 1, 19),
             endTime: date(year, 6, 1, 22),
             city: city,
             venueName: venue,
-            artist: artist
+            artists: slots
         )
     }
 

@@ -8,7 +8,7 @@ import UIKit
 
 // MARK: - Presentation models
 
-private struct MemoryEditorLaunch: Identifiable {
+private struct MemoryEditorLaunch: Identifiable, Hashable {
     enum Kind {
         case createText
         case createMedia(draftID: UUID, media: [MemoryDraftMedia])
@@ -17,12 +17,126 @@ private struct MemoryEditorLaunch: Identifiable {
 
     let id = UUID()
     let kind: Kind
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-private struct MemoryViewerTarget: Identifiable {
+private struct MemoryViewerTarget: Identifiable, Hashable {
     let id = UUID()
     let fragment: MemoryFragment
     let initialIndex: Int
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
+/// Scoped memory task: sheet for the list, push for viewer / editor.
+struct MemoryFragmentsSheet: View {
+    let show: Show
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            MemoryFragmentsView(show: show)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") { dismiss() }
+                    }
+                }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+        .preferredColorScheme(.dark)
+    }
+}
+
+private struct MemoryCreateSourceSheet: View {
+    let onSelect: (MemoryCreateSourceOption) -> Void
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(MemoryCreateSourcePresentation.title)
+                    .font(.system(size: 18, weight: .semibold))
+                Text(MemoryCreateSourcePresentation.message)
+                    .font(.system(size: 12))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .padding(.top, 6)
+
+                HStack(spacing: 10) {
+                    ForEach(MemoryCreateSourceOption.allCases, id: \.self) { option in
+                        MemorySourceOptionCard(
+                            title: option.rawValue,
+                            subtitle: option.subtitle,
+                            icon: option.iconName,
+                            action: { onSelect(option) }
+                        )
+                    }
+                }
+                .padding(.top, 17)
+            }
+        }
+    }
+}
+
+private struct MemoryInternalPushes: ViewModifier {
+    @Binding var editorLaunch: MemoryEditorLaunch?
+    @Binding var viewerTarget: MemoryViewerTarget?
+    let onCreate: @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void
+    let onEdit: @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void
+    let onViewerEdit: (MemoryFragment) -> Void
+    let onViewerDelete: (MemoryFragment) -> Void
+    let onViewerDismissed: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .navigationDestination(item: $editorLaunch) { launch in
+                MemoryUnifiedEditorView(
+                    launch: launch,
+                    onSaveCreate: onCreate,
+                    onSaveEdit: onEdit
+                )
+            }
+            .navigationDestination(item: $viewerTarget) { target in
+                MemoryMediaViewer(
+                    fragment: target.fragment,
+                    initialIndex: target.initialIndex,
+                    onEdit: { onViewerEdit(target.fragment) },
+                    onDelete: { onViewerDelete(target.fragment) }
+                )
+            }
+            .onChange(of: viewerTarget) { oldTarget, newTarget in
+                if oldTarget != nil, newTarget == nil {
+                    onViewerDismissed()
+                }
+            }
+    }
+}
+
+private extension View {
+    func memoryInternalPushes(
+        editorLaunch: Binding<MemoryEditorLaunch?>,
+        viewerTarget: Binding<MemoryViewerTarget?>,
+        onCreate: @escaping @MainActor (UUID, [MemoryDraftMedia], String) async throws -> Void,
+        onEdit: @escaping @MainActor (MemoryFragment, [UUID], String, Set<UUID>, [MemoryDraftMedia], UUID) async throws -> Void,
+        onViewerEdit: @escaping (MemoryFragment) -> Void,
+        onViewerDelete: @escaping (MemoryFragment) -> Void,
+        onViewerDismissed: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            MemoryInternalPushes(
+                editorLaunch: editorLaunch,
+                viewerTarget: viewerTarget,
+                onCreate: onCreate,
+                onEdit: onEdit,
+                onViewerEdit: onViewerEdit,
+                onViewerDelete: onViewerDelete,
+                onViewerDismissed: onViewerDismissed
+            )
+        )
+    }
 }
 
 private enum MemoryPendingPresentation {
@@ -90,7 +204,6 @@ private struct MemoryEditorItem: Identifiable, Equatable {
 struct MemoryFragmentsView: View {
     let show: Show
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
     @State private var isShowingCreateOptions = false
@@ -107,7 +220,7 @@ struct MemoryFragmentsView: View {
     @State private var pendingDelete: MemoryFragment?
     @State private var pendingDeleteTask: Task<Void, Never>?
     @State private var viewerTarget: MemoryViewerTarget?
-    @State private var managementTarget: MemoryFragment?
+
     @State private var deleteConfirmationTarget: MemoryFragment?
     @State private var toast: BSToastPayload?
 
@@ -130,7 +243,6 @@ struct MemoryFragmentsView: View {
             ScrollViewReader { proxy in
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        timelineNavigation
                         header
                             .padding(.top, 4)
 
@@ -141,57 +253,41 @@ struct MemoryFragmentsView: View {
                                 MemoryTimelineSection(
                                     phase: section.phase,
                                     fragments: section.fragments,
-                                    onManage: {
-                                        guard directImportTask == nil else { return }
-                                        managementTarget = $0
-                                    },
-                                    onOpenMedia: { fragment, index in
-                                        guard directImportTask == nil else { return }
-                                        viewerTarget = MemoryViewerTarget(fragment: fragment, initialIndex: index)
-                                    }
+                                    onEdit: openExistingEditor,
+                                    onDelete: confirmDeleteFragment,
+                                    onOpenMedia: openViewer
                                 )
                                 .id(section.phase)
                                 }
                         }
 
                     }
-                    .padding(.bottom, 104)
+                    .padding(.bottom, 24)
                 }
+                .bsNavigationScrollEdge()
                 .onChange(of: fragments.count) { oldCount, newCount in
                     guard newCount > oldCount, let firstID = fragments.first?.id else { return }
                     withAnimation { proxy.scrollTo(firstID, anchor: .top) }
                 }
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .bottom) {
-            HStack {
-                Button {
-                    guard directImportTask == nil else { return }
-                    isShowingCreateOptions = true
-                } label: {
-                    Text("＋ 新增记忆")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(BSColor.Stage.accent.opacity(0.12), in: RoundedRectangle(cornerRadius: 15))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 15)
-                                .stroke(BSColor.Stage.accent.opacity(0.24), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
-                .disabled(directImportTask != nil)
+        .navigationTitle("记忆碎片")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                guard directImportTask == nil else { return }
+                isShowingCreateOptions = true
+            } label: {
+                Label("新增记忆", systemImage: "plus")
             }
-            .padding(6)
-            .background(BSColor.Stage.surface.opacity(0.90), in: RoundedRectangle(cornerRadius: 22))
-            .overlay(RoundedRectangle(cornerRadius: 22).stroke(Color.white.opacity(0.11), lineWidth: 1))
-            .shadow(color: .black.opacity(0.5), radius: 18, y: 10)
-            .padding(.horizontal, 15)
-            .padding(.bottom, 18)
+            .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(directImportTask != nil)
+            .padding(.horizontal, BSSpacing.lg)
+            .padding(.top, BSSpacing.sm)
+            .padding(.bottom, BSSpacing.md)
         }
-        .bsToastOverlay(toast, bottomPadding: 92)
+        .bsToastOverlay(toast, bottomPadding: 80)
         .overlay(alignment: .bottom) {
             if pendingDelete != nil {
                 HStack(spacing: BSSpacing.md) {
@@ -206,18 +302,20 @@ struct MemoryFragmentsView: View {
                 .padding(.vertical, BSSpacing.compact)
                 .background(Color.black.opacity(0.86), in: Capsule())
                 .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
-                .padding(.bottom, 92)
+                .padding(.bottom, 80)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: pendingDelete?.id)
-        .fullScreenCover(isPresented: $isShowingCreateOptions, onDismiss: performPendingCreateDestination) {
-            MemoryCreateSourceView(
-                onCamera: { openCameraDirectly() },
-                onPhotoLibrary: { openPhotoLibraryDirectly() },
-                onText: { launchTextEditor() },
-                onCancel: { isShowingCreateOptions = false }
-            )
+        .sheet(isPresented: $isShowingCreateOptions) {
+            MemoryCreateSourceSheet { option in
+                beginCreate(from: option)
+            }
+        }
+        .onChange(of: isShowingCreateOptions) { _, isShowing in
+            if !isShowing {
+                performPendingCreateDestination()
+            }
         }
         .photosPicker(
             isPresented: $isPhotoPickerPresented,
@@ -256,59 +354,38 @@ struct MemoryFragmentsView: View {
         } message: {
             Text(createSourceError ?? "请稍后重试。")
         }
-        .fullScreenCover(item: $editorLaunch) { launch in
-            MemoryUnifiedEditorView(
-                launch: launch,
-                onSaveCreate: { draftID, media, caption in
-                    try await createFragment(draftID: draftID, media: media, caption: caption)
-                },
-                onSaveEdit: { fragment, fullOrder, caption, removedIDs, additions, draftID in
-                    try await saveEditedFragment(
-                        fragment,
-                        fullOrder: fullOrder,
-                        caption: caption,
-                        removedIDs: removedIDs,
-                        additions: additions,
-                        draftID: draftID
-                    )
-                }
-            )
+        .memoryInternalPushes(
+            editorLaunch: $editorLaunch,
+            viewerTarget: $viewerTarget,
+            onCreate: createFragment,
+            onEdit: saveEditedFragment,
+            onViewerEdit: { fragment in
+                pendingPresentation = .edit(fragment)
+                viewerTarget = nil
+            },
+            onViewerDelete: { fragment in
+                pendingPresentation = .delete(fragment)
+                viewerTarget = nil
+            },
+            onViewerDismissed: performPendingPresentation
+        )
+        .confirmationDialog(
+            DangerConfirmation.deleteMemory.title,
+            isPresented: Binding(
+                get: { deleteConfirmationTarget != nil },
+                set: { if !$0 { deleteConfirmationTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deleteConfirmationTarget
+        ) { fragment in
+            Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) {
+                deleteConfirmationTarget = nil
+                stageDelete(fragment)
+            }
+        } message: { _ in
+            Text(DangerConfirmation.deleteMemory.message)
         }
-        .sheet(item: $managementTarget, onDismiss: performPendingPresentation) { fragment in
-            MemoryManagementSheet(
-                isTextOnly: fragment.mediaItems.isEmpty,
-                onEdit: {
-                    pendingPresentation = .edit(fragment)
-                    managementTarget = nil
-                },
-                onDelete: {
-                    pendingPresentation = .delete(fragment)
-                    managementTarget = nil
-                }
-            )
-        }
-        .sheet(item: $deleteConfirmationTarget) { fragment in
-            MemoryDeleteConfirmationSheet(
-                onDelete: {
-                    deleteConfirmationTarget = nil
-                    stageDelete(fragment)
-                }
-            )
-        }
-        .fullScreenCover(item: $viewerTarget, onDismiss: performPendingPresentation) { target in
-            MemoryMediaViewer(
-                fragment: target.fragment,
-                initialIndex: target.initialIndex,
-                onEdit: {
-                    pendingPresentation = .edit(target.fragment)
-                    viewerTarget = nil
-                },
-                onDelete: {
-                    pendingPresentation = .delete(target.fragment)
-                    viewerTarget = nil
-                }
-            )
-        }
+
         .onDisappear {
             cancelDirectImport()
             if let pendingDelete {
@@ -339,41 +416,6 @@ struct MemoryFragmentsView: View {
             )
             await MemoryFragmentMediaStore.shared.releaseCommitGate()
         }
-    }
-
-    private var timelineNavigation: some View {
-        HStack(spacing: 10) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: 41, height: 41)
-                    .background(Color.white.opacity(0.06), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("返回")
-
-            VStack(spacing: 2) {
-                Text("记忆碎片")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-            }
-            .frame(maxWidth: .infinity)
-
-            HStack {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: 41, height: 41)
-                    .background(Color.white.opacity(0.06), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            }
-            .accessibilityHidden(true)
-        }
-        .padding(.horizontal, 17)
-        .frame(height: 58)
-        .padding(.top, 4)
     }
 
     private var header: some View {
@@ -452,21 +494,23 @@ struct MemoryFragmentsView: View {
         .padding(.bottom, 18)
     }
 
-    private func launchTextEditor() {
-        pendingCreateDestination = .text
-        isShowingCreateOptions = false
+    private func createDestination(for option: MemoryCreateSourceOption) -> MemoryCreateDestination {
+        switch option {
+        case .camera: return .camera
+        case .library: return .library
+        case .text: return .text
+        }
     }
 
-    private func openPhotoLibraryDirectly() {
-        guard directImportTask == nil else { return }
-        pendingCreateDestination = .library
-        isShowingCreateOptions = false
-    }
-
-    private func openCameraDirectly() {
-        guard directImportTask == nil else { return }
-        pendingCreateDestination = .camera
-        isShowingCreateOptions = false
+    private func beginCreate(from option: MemoryCreateSourceOption) {
+        switch option {
+        case .text:
+            editorLaunch = MemoryEditorLaunch(kind: .createText)
+            isShowingCreateOptions = false
+        case .library, .camera:
+            pendingCreateDestination = createDestination(for: option)
+            isShowingCreateOptions = false
+        }
     }
 
     private func performPendingCreateDestination() {
@@ -476,9 +520,11 @@ struct MemoryFragmentsView: View {
         case .text:
             editorLaunch = MemoryEditorLaunch(kind: .createText)
         case .library:
+            guard directImportTask == nil else { return }
             selectedCreateMedia = []
             isPhotoPickerPresented = true
         case .camera:
+            guard directImportTask == nil else { return }
             Task { @MainActor in
             guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
                 createSourceError = "当前设备无法使用相机。"
@@ -590,6 +636,21 @@ struct MemoryFragmentsView: View {
                 try? await MemoryFragmentMediaStore.shared.discardDraft(draftID)
             }
         }
+    }
+
+    private func openExistingEditor(_ fragment: MemoryFragment) {
+        guard directImportTask == nil else { return }
+        editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
+    }
+
+    private func confirmDeleteFragment(_ fragment: MemoryFragment) {
+        guard directImportTask == nil else { return }
+        deleteConfirmationTarget = fragment
+    }
+
+    private func openViewer(_ fragment: MemoryFragment, index: Int) {
+        guard directImportTask == nil else { return }
+        viewerTarget = MemoryViewerTarget(fragment: fragment, initialIndex: index)
     }
 
     private func performPendingPresentation() {
@@ -895,163 +956,6 @@ enum MemoryFragmentEditCoordinator {
     }
 }
 
-// MARK: - Create source
-
-private struct MemoryCreateSourceView: View {
-    let onCamera: () -> Void
-    let onPhotoLibrary: () -> Void
-    let onText: () -> Void
-    let onCancel: () -> Void
-
-    var body: some View {
-        ZStack {
-            BSColor.Stage.background.ignoresSafeArea()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(spacing: 10) {
-                    Button(action: onCancel) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 16, weight: .semibold))
-                            .frame(width: 41, height: 41)
-                            .background(Color.white.opacity(0.06), in: Circle())
-                            .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("返回")
-                    VStack(spacing: 2) {
-                        Text("新增记忆")
-                            .font(.system(size: 15, weight: .semibold))
-                        Text("选择一种方式开始")
-                            .font(.system(size: 11))
-                            .foregroundColor(BSColor.Stage.dim)
-                    }
-                    .frame(maxWidth: .infinity)
-                    Color.clear.frame(width: 41, height: 41)
-                }
-                .padding(.horizontal, 17)
-                .frame(height: 58)
-
-                Text("记录这一刻")
-                    .font(.system(size: 23, weight: .bold))
-                    .padding(.top, 12)
-                Text("照片、图库媒体或一段文字，都可以成为一条记忆。")
-                    .font(.system(size: 12.5))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineSpacing(5)
-                    .padding(.top, 7)
-
-                HStack(spacing: 10) {
-                    createButton("相机", subtitle: "打开系统相机", icon: "camera", action: onCamera)
-                    createButton("图库", subtitle: "多选照片或视频", icon: "photo.on.rectangle", action: onPhotoLibrary)
-                    createButton("文字", subtitle: "写一段现场小记", icon: "text.alignleft", action: onText)
-                }
-                .padding(.top, 20)
-                Spacer()
-            }
-            .padding(.horizontal, 20)
-        }
-        .preferredColorScheme(.dark)
-    }
-
-    private func createButton(
-        _ title: String,
-        subtitle: String,
-        icon: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 9) {
-                Image(systemName: icon)
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 48, height: 48)
-                    .background(
-                        LinearGradient(
-                            colors: [BSColor.Stage.accent.opacity(0.16), BSColor.Stage.glowBlue.opacity(0.11)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        in: Circle()
-                    )
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(subtitle)
-                    .font(.system(size: 10))
-                    .foregroundColor(BSColor.Stage.dim)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 132)
-            .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 21))
-            .overlay(RoundedRectangle(cornerRadius: 21).stroke(BSColor.Stage.border, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-private struct MemoryManagementSheet: View {
-    let isTextOnly: Bool
-    var fitsContent = true
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        BSDrawerSheet(detent: .height(286), fitsContent: fitsContent) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("管理这条记忆")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .padding(.bottom, 8)
-                managementButton(
-                    "编辑记忆",
-                    subtitle: isTextOnly ? "修改这段现场小记" : "修改媒体顺序或文字",
-                    icon: "pencil",
-                    tint: BSColor.Stage.foreground,
-                    action: onEdit
-                )
-                Divider().overlay(BSColor.Stage.border)
-                managementButton(
-                    "删除这条记忆",
-                    subtitle: "从本地时间流中移除",
-                    icon: "trash",
-                    tint: BSColor.Stage.danger,
-                    action: onDelete
-                )
-            }
-        }
-    }
-
-    private func managementButton(
-        _ title: String,
-        subtitle: String,
-        icon: String,
-        tint: Color,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack(spacing: 11) {
-                Image(systemName: icon)
-                    .font(.system(size: 16))
-                    .foregroundColor(tint)
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 12))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(tint)
-                    Text(subtitle)
-                        .font(.system(size: 11))
-                        .foregroundColor(BSColor.Stage.muted)
-                }
-                Spacer()
-            }
-            .frame(minHeight: 56)
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 private struct MemoryAddMediaSheet: View {
     let onCamera: () -> Void
     let onLibrary: () -> Void
@@ -1066,15 +970,33 @@ private struct MemoryAddMediaSheet: View {
                     .foregroundColor(BSColor.Stage.muted)
                     .padding(.top, 6)
                 HStack(spacing: 10) {
-                    sourceButton("继续拍照", subtitle: "打开系统相机", icon: "camera", action: onCamera)
-                    sourceButton("从图库选择", subtitle: "照片或视频", icon: "photo.on.rectangle", action: onLibrary)
+                    MemorySourceOptionCard(
+                        title: "继续拍照",
+                        subtitle: "打开系统相机",
+                        icon: "camera",
+                        action: onCamera
+                    )
+                    MemorySourceOptionCard(
+                        title: "从图库选择",
+                        subtitle: "照片或视频",
+                        icon: "photo.on.rectangle",
+                        action: onLibrary
+                    )
                 }
                 .padding(.top, 17)
             }
         }
     }
+}
 
-    private func sourceButton(_ title: String, subtitle: String, icon: String, action: @escaping () -> Void) -> some View {
+private struct MemorySourceOptionCard: View {
+    let title: String
+    let subtitle: String
+    let icon: String
+    var height: CGFloat = 105
+    let action: () -> Void
+
+    var body: some View {
         Button(action: action) {
             VStack(spacing: 7) {
                 Image(systemName: icon)
@@ -1086,36 +1008,11 @@ private struct MemoryAddMediaSheet: View {
                 Text(subtitle).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 105)
+            .frame(height: height)
             .background(Color.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 18))
             .overlay(RoundedRectangle(cornerRadius: 18).stroke(BSColor.Stage.border, lineWidth: 1))
         }
         .buttonStyle(.plain)
-    }
-}
-
-private struct MemoryDeleteConfirmationSheet: View {
-    let onDelete: () -> Void
-
-    var body: some View {
-        BSDrawerSheet(detent: .height(220), fitsContent: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("删除这条记忆？")
-                    .font(.system(size: 18, weight: .semibold))
-                Text("照片、视频和文字都会从本地时间流中移除。")
-                    .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineSpacing(4)
-                    .padding(.top, 6)
-                Button("删除", role: .destructive, action: onDelete)
-                    .foregroundColor(Color(red: 0.10, green: 0.03, blue: 0.04))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 43)
-                    .background(BSColor.Stage.danger, in: RoundedRectangle(cornerRadius: 14))
-                    .buttonStyle(.plain)
-                    .padding(.top, 15)
-            }
-        }
     }
 }
 
@@ -1124,7 +1021,8 @@ private struct MemoryDeleteConfirmationSheet: View {
 private struct MemoryTimelineSection: View {
     let phase: MemoryFragmentPhase
     let fragments: [MemoryFragment]
-    let onManage: (MemoryFragment) -> Void
+    let onEdit: (MemoryFragment) -> Void
+    let onDelete: (MemoryFragment) -> Void
     let onOpenMedia: (MemoryFragment, Int) -> Void
 
     var body: some View {
@@ -1148,7 +1046,8 @@ private struct MemoryTimelineSection: View {
                 ForEach(fragments) { fragment in
                     MemoryTimelinePost(
                         fragment: fragment,
-                        onManage: { onManage(fragment) },
+                        onEdit: { onEdit(fragment) },
+                        onDelete: { onDelete(fragment) },
                         onOpenMedia: { onOpenMedia(fragment, $0) }
                     )
                     .id(fragment.id)
@@ -1170,7 +1069,8 @@ private struct MemoryTimelineSection: View {
 
 private struct MemoryTimelinePost: View {
     let fragment: MemoryFragment
-    let onManage: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
     let onOpenMedia: (Int) -> Void
 
     var body: some View {
@@ -1203,13 +1103,15 @@ private struct MemoryTimelinePost: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(BSColor.Stage.foreground)
                     Spacer()
-                    Button(action: onManage) {
+                    Menu {
+                        Button("编辑记忆", action: onEdit)
+                        Button("删除这条记忆", role: .destructive, action: onDelete)
+                    } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(BSColor.Stage.dim)
                             .frame(width: 32, height: 28)
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("管理这条记忆")
                 }
 
@@ -1359,7 +1261,6 @@ struct MemoryFragmentReviewView: View {
                 MemoryMediaViewer(
                     fragment: fragment,
                     initialIndex: initialIndex,
-                    managementFitsContent: false,
                     onEdit: { presentEditorAfterManagementDismisses() },
                     onDelete: { presentDeleteAfterManagementDismisses() }
                 )
@@ -1385,27 +1286,31 @@ struct MemoryFragmentReviewView: View {
                 }
             )
         }
-        .sheet(item: $deleteConfirmationTarget) { target in
-            MemoryDeleteConfirmationSheet {
+        .confirmationDialog(
+            DangerConfirmation.deleteMemory.title,
+            isPresented: Binding(
+                get: { deleteConfirmationTarget != nil },
+                set: { if !$0 { deleteConfirmationTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: deleteConfirmationTarget
+        ) { target in
+            Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) {
                 deleteConfirmationTarget = nil
                 delete(target)
             }
+        } message: { _ in
+            Text(DangerConfirmation.deleteMemory.message)
         }
         .preferredColorScheme(.dark)
     }
 
     private func presentEditorAfterManagementDismisses() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(220))
-            editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
-        }
+        editorLaunch = MemoryEditorLaunch(kind: .edit(fragment))
     }
 
     private func presentDeleteAfterManagementDismisses() {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(220))
-            deleteConfirmationTarget = fragment
-        }
+        deleteConfirmationTarget = fragment
     }
 
     private func delete(_ fragment: MemoryFragment) {
@@ -1442,7 +1347,6 @@ private struct MemoryTextFragmentViewer: View {
     let onDelete: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var isShowingManagement = false
 
     var body: some View {
         ZStack {
@@ -1462,7 +1366,10 @@ private struct MemoryTextFragmentViewer: View {
                         .font(BSFont.headline)
                         .foregroundColor(BSColor.Stage.foreground)
                     Spacer()
-                    Button { isShowingManagement = true } label: {
+                    Menu {
+                        Button("编辑记忆", action: onEdit)
+                        Button("删除这条记忆", role: .destructive, action: onDelete)
+                    } label: {
                         Image(systemName: "ellipsis")
                             .font(BSFont.headline)
                             .foregroundColor(BSColor.Stage.foreground)
@@ -1496,20 +1403,7 @@ private struct MemoryTextFragmentViewer: View {
                 Spacer()
             }
         }
-        .sheet(isPresented: $isShowingManagement) {
-            MemoryManagementSheet(
-                isTextOnly: true,
-                fitsContent: false,
-                onEdit: {
-                    isShowingManagement = false
-                    onEdit()
-                },
-                onDelete: {
-                    isShowingManagement = false
-                    onDelete()
-                }
-            )
-        }
+
     }
 }
 
@@ -1518,24 +1412,20 @@ private struct MemoryTextFragmentViewer: View {
 private struct MemoryMediaViewer: View {
     let fragment: MemoryFragment
     let initialIndex: Int
-    let managementFitsContent: Bool
     let onEdit: () -> Void
     let onDelete: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var index: Int
-    @State private var isShowingManagement = false
 
     init(
         fragment: MemoryFragment,
         initialIndex: Int,
-        managementFitsContent: Bool = true,
         onEdit: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.fragment = fragment
         self.initialIndex = initialIndex
-        self.managementFitsContent = managementFitsContent
         self.onEdit = onEdit
         self.onDelete = onDelete
         _index = State(initialValue: max(0, min(initialIndex, max(0, fragment.orderedMediaItems.count - 1))))
@@ -1561,7 +1451,10 @@ private struct MemoryMediaViewer: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                     Spacer()
-                    Button { isShowingManagement = true } label: {
+                    Menu {
+                        Button("编辑记忆", action: onEdit)
+                        Button("删除这条记忆", role: .destructive, action: onDelete)
+                    } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.white)
@@ -1569,7 +1462,6 @@ private struct MemoryMediaViewer: View {
                             .background(Color.white.opacity(0.12))
                             .clipShape(Circle())
                     }
-                    .buttonStyle(.plain)
                     .accessibilityLabel("管理这条记忆")
                 }
                 .padding(.horizontal, 18)
@@ -1611,20 +1503,6 @@ private struct MemoryMediaViewer: View {
                 .padding(.horizontal, 18)
                 .padding(.vertical, 16)
             }
-        }
-        .sheet(isPresented: $isShowingManagement) {
-            MemoryManagementSheet(
-                isTextOnly: false,
-                fitsContent: managementFitsContent,
-                onEdit: {
-                    isShowingManagement = false
-                    onEdit()
-                },
-                onDelete: {
-                    isShowingManagement = false
-                    onDelete()
-                }
-            )
         }
     }
 }
@@ -1721,34 +1599,8 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     var body: some View {
-        ZStack {
-            BSColor.Stage.background.ignoresSafeArea()
-            GeometryReader { geometry in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        // The editor fills the screen, then puts back the actual
-                        // container inset so the header sits below the status bar.
-                        Color.clear
-                            .frame(height: geometry.safeAreaInsets.top)
-                        HStack(spacing: 10) {
-                            Button(isImporting ? "停止" : "取消") { cancel() }
-                                .font(.system(size: 13))
-                                .foregroundColor(BSColor.Stage.muted)
-                                .disabled(isSaving)
-                                .frame(width: 52, alignment: .leading)
-                            Spacer()
-                            VStack(spacing: 2) {
-                                Text(editorTitle)
-                                    .font(.system(size: 16, weight: .semibold))
-                                Text(items.isEmpty ? "纯文字" : "\(items.count) 项媒体")
-                                    .font(.system(size: 10.5))
-                                    .foregroundColor(BSColor.Stage.dim)
-                            }
-                            Spacer()
-                            Color.clear.frame(width: 52, height: 1)
-                        }
-                        .frame(height: 58)
-
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 0) {
                         if isMediaComposer {
                             if !items.isEmpty {
                                 draftPreview
@@ -1800,8 +1652,15 @@ private struct MemoryUnifiedEditorView: View {
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 34)
-                }
-                .ignoresSafeArea(.container, edges: .top)
+        }
+        .background(BSColor.Stage.background.ignoresSafeArea())
+        .navigationTitle(editorTitle)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(true)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(isImporting ? "停止" : "取消") { cancel() }
+                    .disabled(isSaving && !isImporting)
             }
         }
         .preferredColorScheme(.dark)

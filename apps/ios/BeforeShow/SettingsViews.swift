@@ -5,74 +5,389 @@ import UIKit
 // MARK: - Settings View
 
 struct SettingsView: View {
-    /// 不再自带 NavigationStack:设置已迁入首页溢出菜单,
-    /// 始终由外层(首页 / 我的现场)的导航栈 push,避免嵌套导航容器。
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
+    @Environment(\.dismiss) private var dismiss
+
+    /// 设置以 sheet 形式呈现，自带 NavigationStack 容纳内层子页面。
     var body: some View {
-        BSStageScaffold(title: "设置", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(
+            title: "",
+            subtitle: "管理你的方案、开场提醒与本地数据",
+            bottomPadding: BSSpacing.xl
+        ) {
             NavigationLink {
                 ProMembershipView()
             } label: {
-                SettingsProMembershipCard {
-                    SettingsRowContent(
-                        iconName: "crown.fill",
-                        title: "Pro 会员",
-                        subtitle: "重复生成与无限保存现场",
-                        value: nil,
-                        tint: BSColor.Accent.warm,
-                        titleUsesGradient: true
-                    )
-                }
+                SettingsMembershipCard(summary: membershipSummary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SettingsPressButtonStyle())
 
-            SettingsGroup(title: "隐私与支持") {
+            SettingsGroup(title: "通知与数据") {
                 NotificationSettingsRow()
 
-                Divider().overlay(BSColor.border)
+                SettingsDivider()
 
                 NavigationLink {
                     PrivacyLocalDataView()
                 } label: {
-                    SettingsRowContent(iconName: "lock.fill", title: SettingsEntry.privacyAndLocalData.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.info)
+                    SettingsRowContent(
+                        iconName: "lock.fill",
+                        title: SettingsEntry.privacyAndLocalData.rawValue,
+                        subtitle: "查看保存范围或清除本地副本",
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SettingsPressButtonStyle())
+            }
 
-                Divider().overlay(BSColor.border)
-
+            SettingsGroup(title: "支持") {
                 NavigationLink {
                     FeedbackView()
                 } label: {
-                    SettingsRowContent(iconName: "bubble.left.and.bubble.right.fill", title: SettingsEntry.feedback.rawValue, subtitle: nil, value: nil, tint: BSColor.Accent.violet)
+                    SettingsRowContent(
+                        iconName: "bubble.left.and.bubble.right.fill",
+                        title: SettingsEntry.feedback.rawValue,
+                        subtitle: "分享使用感受、问题或隐私建议",
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SettingsPressButtonStyle())
             }
 
             SettingsGroup(title: "关于") {
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
-                    SettingsRowContent(iconName: "info.circle.fill", title: SettingsEntry.about.rawValue, subtitle: nil, value: "v2.1", tint: BSColor.textSecondary)
+                    SettingsRowContent(
+                        iconName: "info.circle.fill",
+                        title: SettingsEntry.about.rawValue,
+                        subtitle: "开场之前，先进入状态",
+                        value: AppVersionInformation.current.compactCopy,
+                        tint: BSColor.Stage.muted
+                    )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SettingsPressButtonStyle())
             }
-
-            Text("开场之前，先进入状态")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-                .frame(maxWidth: .infinity)
 
             #if DEBUG
             SettingsGroup(title: "调试") {
                 ProEntitlementDebugPicker()
 
-                Divider().overlay(BSColor.border)
+                SettingsDivider()
 
                 DebugPrintPendingNotificationsRow()
             }
             #endif
         }
-        .navigationTitle("")
+        .navigationTitle("设置")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(BSFont.caption.weight(.semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .background(Color.white.opacity(0.07), in: Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭")
+            }
+        }
+    }
+
+    private var membershipSummary: SettingsMembershipSummary {
+        SettingsMembershipSummary(entitlement: ProEntitlementStorage.decode(entitlementRawValue))
+    }
+}
+
+private struct SettingsMembershipCard: View {
+    let summary: SettingsMembershipSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            HStack(alignment: .top, spacing: BSSpacing.md) {
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    Text("当前方案")
+                        .font(BSFont.tag)
+                        .foregroundColor(BSColor.Stage.dim)
+
+                    Text(summary.title)
+                        .font(BSFont.V3.title2)
+                        .foregroundColor(BSColor.Stage.foreground)
+
+                    Text(summary.subtitle)
+                        .font(BSFont.V3.body)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: BSSpacing.sm)
+
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                    .background(BSColor.Stage.accent.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    .accessibilityHidden(true)
+            }
+
+            Divider()
+                .overlay(BSColor.Stage.border)
+
+            HStack(spacing: BSSpacing.sm) {
+                Text("查看会员方案与购买")
+                    .font(BSFont.V3.body.weight(.medium))
+                    .foregroundColor(BSColor.Stage.accent)
+
+                Spacer(minLength: BSSpacing.sm)
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(BSSpacing.roomy)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BSColor.Stage.surface)
+        .background(alignment: .topTrailing) {
+            RadialGradient(
+                colors: [BSColor.Stage.accent.opacity(BSSettingsStyle.membershipGlowOpacity), .clear],
+                center: .topTrailing,
+                startRadius: 0,
+                endRadius: BSSettingsStyle.membershipGlowRadius
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: BSRadius.lg)
+                .stroke(BSColor.Stage.accent.opacity(BSSettingsStyle.membershipBorderOpacity), lineWidth: 1)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+        .accessibilityElement(children: .combine)
+        .accessibilityHint("打开 Pro 会员方案")
+    }
+}
+
+private struct SettingsPressButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? BSSettingsStyle.pressedOpacity : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: BSMotion.micro), value: configuration.isPressed)
+    }
+}
+
+private struct SettingsDivider: View {
+    var body: some View {
+        Divider()
+            .overlay(BSColor.Stage.border)
+            .padding(.leading, BSSettingsStyle.rowDividerInset)
+    }
+}
+
+private struct SettingsGroup<Content: View>: View {
+    let title: String
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            Text(title)
+                .font(BSFont.tag)
+                .foregroundColor(BSColor.Stage.dim)
+                .padding(.horizontal, BSSpacing.xs)
+
+            BSSettingsSurface {
+                VStack(alignment: .leading, spacing: 0) {
+                    content
+                }
+            }
+        }
+    }
+}
+
+private struct SettingsRowContent: View {
+    let iconName: String
+    let title: String
+    let subtitle: String?
+    let value: String?
+    let tint: Color
+    var valueTint: Color = BSColor.Stage.muted
+    var trailingIconName = "chevron.right"
+
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: BSSpacing.compact) {
+                    HStack(spacing: BSSpacing.compact) {
+                        icon
+                        Text(title)
+                            .font(BSFont.V3.body.weight(.semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+
+                        Spacer(minLength: BSSpacing.sm)
+                        trailingIcon
+                    }
+
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(BSFont.V3.body)
+                            .foregroundColor(BSColor.Stage.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let value {
+                        Text(value)
+                            .font(BSFont.V3.body.weight(.medium))
+                            .foregroundColor(valueTint)
+                    }
+                }
+            } else {
+                HStack(spacing: BSSpacing.compact) {
+                    icon
+
+                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                        Text(title)
+                            .font(BSFont.V3.body.weight(.semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+                        if let subtitle {
+                            Text(subtitle)
+                                .font(BSFont.V3.body)
+                                .foregroundColor(BSColor.Stage.muted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .layoutPriority(1)
+
+                    Spacer(minLength: BSSpacing.sm)
+
+                    if let value {
+                        Text(value)
+                            .font(BSFont.V3.small.weight(.semibold))
+                            .foregroundColor(valueTint)
+                            .lineLimit(1)
+                    }
+
+                    trailingIcon
+                }
+            }
+        }
+        .padding(.horizontal, BSSpacing.md)
+        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+        .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private var icon: some View {
+        Image(systemName: iconName)
+            .font(.system(size: BSSettingsStyle.iconSize, weight: .semibold))
+            .foregroundColor(tint)
+            .frame(width: BSSettingsStyle.iconContainerSize, height: BSSettingsStyle.iconContainerSize)
+            .background(tint.opacity(BSSettingsStyle.iconSurfaceOpacity))
+            .clipShape(RoundedRectangle(cornerRadius: BSSettingsStyle.iconCornerRadius))
+            .accessibilityHidden(true)
+    }
+
+    private var trailingIcon: some View {
+        Image(systemName: trailingIconName)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(BSColor.Stage.dim)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct NotificationSettingsRow: View {
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var authorizationState: NotificationAuthorizationState = .notDetermined
+    @State private var isPerformingAction = false
+
+    var body: some View {
+        Button(action: performAction) {
+            SettingsRowContent(
+                iconName: "bell.fill",
+                title: "开场提醒",
+                subtitle: presentation.subtitle,
+                value: isPerformingAction ? nil : presentation.status,
+                tint: statusTint,
+                valueTint: statusTint,
+                trailingIconName: presentation.action == .openSystemSettings
+                    ? "arrow.up.right.square"
+                    : "chevron.right"
+            )
+            .overlay(alignment: .trailing) {
+                if isPerformingAction {
+                    ProgressView()
+                        .tint(BSColor.Stage.foreground)
+                        .padding(.trailing, BSSpacing.md)
+                }
+            }
+        }
+        .buttonStyle(SettingsPressButtonStyle())
+        .disabled(isPerformingAction)
+        .accessibilityLabel("开场提醒，\(presentation.status)")
+        .accessibilityHint(
+            presentation.action == .requestPermission
+                ? "轻点请求通知权限"
+                : "轻点前往系统设置管理通知"
+        )
+        .task {
+            await refreshAuthorizationState()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active else { return }
+            Task {
+                await refreshAuthorizationState()
+            }
+        }
+    }
+
+    private var presentation: NotificationSettingsPresentation {
+        NotificationSettingsPresentation(authorizationState: authorizationState)
+    }
+
+    private var statusTint: Color {
+        switch authorizationState {
+        case .authorized, .provisional:
+            return BSColor.Stage.success
+        case .denied:
+            return BSColor.Stage.danger
+        case .notDetermined:
+            return BSColor.Stage.muted
+        }
+    }
+
+    private func performAction() {
+        guard !isPerformingAction else { return }
+        isPerformingAction = true
+
+        Task { @MainActor in
+            switch presentation.action {
+            case .requestPermission:
+                _ = await LocalNotificationCenter.shared.requestAuthorization()
+                await refreshAuthorizationState()
+            case .openSystemSettings:
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    await UIApplication.shared.open(url)
+                }
+            }
+            isPerformingAction = false
+        }
+    }
+
+    @MainActor
+    private func refreshAuthorizationState() async {
+        authorizationState = await LocalNotificationCenter.shared.authorizationState()
     }
 }
 
@@ -120,11 +435,11 @@ private struct ProEntitlementDebugPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text("Pro 状态测试")
-                .font(BSFont.body.weight(.semibold))
-                .foregroundColor(BSColor.textPrimary)
+                .font(BSFont.V3.body.weight(.semibold))
+                .foregroundColor(BSColor.Stage.foreground)
             Text("切换后立即生效，仅调试构建可见。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
+                .font(BSFont.V3.body)
+                .foregroundColor(BSColor.Stage.muted)
 
             Picker("Pro 状态", selection: Binding(get: { selectedOption }, set: { selectedOption = $0 })) {
                 ForEach(DebugProEntitlementOption.allCases, id: \.self) { option in
@@ -133,8 +448,7 @@ private struct ProEntitlementDebugPicker: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 14)
+        .padding(BSSpacing.md)
     }
 }
 
@@ -162,18 +476,19 @@ private struct DebugPrintPendingNotificationsRow: View {
             HStack(spacing: BSSpacing.md) {
                 Image(systemName: "bell.badge")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.prepare)
+                    .foregroundColor(BSColor.Stage.muted)
                     .frame(width: 34, height: 34)
-                    .background(BSColor.Accent.prepare.opacity(0.13))
+                    .background(BSColor.Stage.muted.opacity(0.12))
                     .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
                     Text("打印待发通知")
-                        .font(BSFont.body.weight(.semibold))
-                        .foregroundColor(BSColor.textPrimary)
+                        .font(BSFont.V3.body.weight(.semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
                     Text("输出当前现场已排程的本地通知到控制台")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                        .font(BSFont.V3.body)
+                        .foregroundColor(BSColor.Stage.muted)
                 }
 
                 Spacer()
@@ -182,135 +497,12 @@ private struct DebugPrintPendingNotificationsRow: View {
                     ProgressView()
                 }
             }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, 14)
+            .padding(BSSpacing.md)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsPressButtonStyle())
     }
 }
 #endif
-
-private struct SettingsProMembershipCard<Content: View>: View {
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        content
-            .background(
-                LinearGradient(
-                    colors: [
-                        BSColor.Accent.violet.opacity(0.12),
-                        BSColor.Accent.warm.opacity(0.08)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .background(Color.white.opacity(0.045))
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.lg)
-                    .stroke(BSColor.borderProminent, lineWidth: 1)
-            )
-    }
-}
-
-private struct SettingsGroup<Content: View>: View {
-    let title: String
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        BSGlassPanel(padding: 0) {
-            VStack(alignment: .leading, spacing: 0) {
-                BSSectionHeader(title: title)
-                    .padding(.horizontal, BSSpacing.md)
-                    .padding(.top, 14)
-                    .padding(.bottom, BSSpacing.xs)
-                content
-            }
-        }
-    }
-}
-
-private struct SettingsRowContent: View {
-    let iconName: String
-    let title: String
-    let subtitle: String?
-    let value: String?
-    let tint: Color
-    var titleUsesGradient = false
-
-    var body: some View {
-        HStack(spacing: BSSpacing.md) {
-            Image(systemName: iconName)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(tint)
-                .frame(width: 34, height: 34)
-                .background(tint.opacity(0.13))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
-
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text(title)
-                    .font(BSFont.body.weight(.semibold))
-                    .foregroundStyle(titleUsesGradient ? AnyShapeStyle(BSColor.brandGradient) : AnyShapeStyle(BSColor.textPrimary))
-                if let subtitle {
-                    Text(subtitle)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                }
-            }
-
-            Spacer()
-
-            if let value {
-                Text(value)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(BSColor.textTertiary)
-        }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 14)
-    }
-}
-
-/// Notification permission status + jump to system settings when not enabled.
-private struct NotificationSettingsRow: View {
-    @State private var authorizationState: NotificationAuthorizationState = .notDetermined
-
-    var body: some View {
-        Button {
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
-        } label: {
-            SettingsRowContent(
-                iconName: "bell.fill",
-                title: "通知",
-                subtitle: subtitle,
-                value: nil,
-                tint: BSColor.Accent.prepare
-            )
-        }
-        .buttonStyle(.plain)
-        .task {
-            authorizationState = await LocalNotificationCenter.shared.authorizationState()
-        }
-    }
-
-    private var subtitle: String {
-        switch authorizationState {
-        case .authorized, .provisional:
-            return "已开启"
-        case .denied:
-            return "去系统设置开启通知"
-        case .notDetermined:
-            return "添加现场后会请求开启"
-        }
-    }
-}
 
 struct ProMembershipView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
@@ -327,14 +519,14 @@ struct ProMembershipView: View {
 
     var body: some View {
         BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场", bottomPadding: BSLayout.tabBarContentInset) {
-            BSGlassPanel {
+            BSSurfacePanel {
                 Text(statusText)
                     .font(BSFont.body)
                     .foregroundColor(BSColor.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            BSGlassPanel {
+            BSSurfacePanel {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
                     Text(ProMembershipCopy.summary)
                         .font(BSFont.caption)
@@ -394,7 +586,7 @@ struct ProMembershipView: View {
     }
 
     private func proProductCard(_ product: ProSubscriptionProduct) -> some View {
-        BSGlassPanel {
+        BSSurfacePanel {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
@@ -564,7 +756,7 @@ private struct PrivacyLocalDataView: View {
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
             .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.borderProminent, lineWidth: 1))
 
-            BSGlassPanel {
+            BSSurfacePanel {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
                     Text("清除本地数据")
                         .font(BSFont.headline)
@@ -584,7 +776,7 @@ private struct PrivacyLocalDataView: View {
                         Text("清除 BeforeShow 本地数据")
                     }
                 }
-                .buttonStyle(BSSecondaryButtonStyle())
+                .buttonStyle(BSDangerButtonStyle())
                 .disabled(isClearing)
 
                 if let clearResult {
@@ -617,16 +809,16 @@ private struct PrivacyLocalDataView: View {
                 }
             }
         }
-        .sheet(isPresented: $showsClearConfirmation) {
-            BSDangerConfirmationSheet(
-                title: "清除本地数据",
-                message: "这会删除 BeforeShow 管理的本地记录和副本，且无法恢复；系统相册原图不会删除。",
-                destructiveTitle: "清除",
-                onConfirm: {
-                    showsClearConfirmation = false
-                    clearLocalData()
-                }
-            )
+        .confirmationDialog(
+            DangerConfirmation.clearLocalData.title,
+            isPresented: $showsClearConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button(DangerConfirmation.clearLocalData.confirmTitle, role: .destructive) {
+                clearLocalData()
+            }
+        } message: {
+            Text(DangerConfirmation.clearLocalData.message)
         }
     }
 
@@ -695,15 +887,25 @@ private struct FeedbackView: View {
     @State private var category: FeedbackCategory = .product
     @State private var message = ""
     @State private var includesDiagnostics = false
-    @State private var submissionStateText: String?
+    @State private var validationMessage: String?
+    @State private var sendState: FeedbackSendState = .idle
+    @FocusState private var isMessageFocused: Bool
 
     private let payloadBuilder = FeedbackPayloadBuilder()
-    private let submitter = LocalFeedbackSubmitter()
+    private let shareTextBuilder = FeedbackShareTextBuilder()
 
     var body: some View {
-        BSStageScaffold(title: "意见反馈", subtitle: "告诉我哪里不顺手，或哪里值得保留", bottomPadding: BSLayout.tabBarContentInset) {
-            BSGlassPanel {
+        BSStageScaffold(
+            title: "意见反馈",
+            subtitle: "整理成一段最小反馈，由 app 唤起系统邮件完成发送",
+            bottomPadding: BSSpacing.xl
+        ) {
+            BSSettingsSurface(padding: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
+                    Text("反馈类型")
+                        .font(BSFont.V3.body.weight(.semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+
                     Picker("类型", selection: $category) {
                         ForEach(FeedbackCategory.allCases) { category in
                             Text(category.rawValue).tag(category)
@@ -711,58 +913,127 @@ private struct FeedbackView: View {
                     }
                     .pickerStyle(.segmented)
 
-                    TextEditor(text: $message)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 140)
-                        .bsInputField()
+                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                        Text("反馈内容")
+                            .font(BSFont.V3.body.weight(.semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+
+                        ZStack(alignment: .topLeading) {
+                            if message.isEmpty {
+                                Text("例如：在哪一步遇到了什么，期待结果是什么")
+                                    .font(BSFont.V3.body)
+                                    .foregroundColor(BSColor.Stage.dim)
+                                    .padding(.horizontal, 19)
+                                    .padding(.vertical, 20)
+                                    .allowsHitTesting(false)
+                            }
+
+                            TextEditor(text: $message)
+                                .font(BSFont.V3.body)
+                                .scrollContentBackground(.hidden)
+                                .frame(minHeight: 150)
+                                .bsInputField()
+                                .focused($isMessageFocused)
+                                .accessibilityLabel("反馈内容，必填")
+                                .accessibilityHint("请说明遇到的问题或建议")
+                                .onChange(of: message) {
+                                    if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        validationMessage = nil
+                                    }
+                                }
+                        }
+
+                        if let validationMessage {
+                            Label(validationMessage, systemImage: "exclamationmark.circle.fill")
+                                .font(BSFont.V3.body)
+                                .foregroundColor(BSColor.Stage.danger)
+                                .accessibilityAddTraits(.isStaticText)
+                        }
+                    }
 
                     Toggle("附上 App 版本与系统版本", isOn: $includesDiagnostics)
-                        .tint(BSColor.Accent.violet)
-                        .foregroundColor(BSColor.textSecondary)
-                        .font(BSFont.caption)
+                        .tint(BSColor.Stage.accent)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .font(BSFont.V3.body)
 
-                    Text("不会自动包含现场内容、截图、照片、视频、语音或生成结果。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                    Text("不会自动包含现场内容、截图、照片或视频。邮件 app 打开后，发送仍由你确认。")
+                        .font(BSFont.V3.body)
+                        .foregroundColor(BSColor.Stage.muted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
-            Button("发送反馈") {
-                submitFeedback()
+            Button {
+                prepareFeedback()
+            } label: {
+                Label(
+                    sendState == .sent ? "已唤起邮件 app" : "通过邮件发送反馈",
+                    systemImage: sendState == .sent ? "checkmark.circle.fill" : "envelope.fill"
+                )
             }
             .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(sendState == .sending || sendState == .sent)
+            .accessibilityHint("打开系统邮件 app，并预填反馈内容")
 
-            if let submissionStateText {
-                Text(submissionStateText)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
+            if case .failed(let reason) = sendState {
+                Label(reason, systemImage: "exclamationmark.circle.fill")
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(BSColor.Stage.danger)
+                    .accessibilityAddTraits(.isStaticText)
+                    .padding(.top, BSSpacing.xs)
+            }
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("完成") {
+                    isMessageFocused = false
+                }
             }
         }
     }
 
-    private func submitFeedback() {
-        Task { @MainActor in
-            do {
-                let payload = try payloadBuilder.build(from: FeedbackDraft(
-                    category: category,
-                    message: message,
-                    includesDiagnostics: includesDiagnostics
-                ))
-                try await submitter.submit(payload)
-                submissionStateText = "已保存待发送的最小反馈内容"
-                message = ""
-            } catch {
-                submissionStateText = "请先填写反馈内容"
+    private func prepareFeedback() {
+        do {
+            let payload = try payloadBuilder.build(from: FeedbackDraft(
+                category: category,
+                message: message,
+                includesDiagnostics: includesDiagnostics
+            ))
+            validationMessage = nil
+            Task { @MainActor in
+                await presentMailto(shareTextBuilder.build(from: payload))
             }
+        } catch {
+            validationMessage = "请先填写反馈内容"
         }
     }
+
+    @MainActor
+    private func presentMailto(_ text: String) async {
+        sendState = .sending
+        guard let url = FeedbackDestination.mailtoURL(prefilledBody: text) else {
+            sendState = .failed("无法生成邮件链接")
+            return
+        }
+        let accepted = await FeedbackMailOpener.open(url: url)
+        // 两种 accepted=false 场景：设备没装邮件 app / 装但未配账户。`open(mailto:)`
+        // 对两者都返回 false，文案上给出唯一可执行的引导（去系统设置查看账户/添加 app）。
+        sendState = accepted ? .sent : .failed("无法唤起邮件 app，请检查系统邮件账户或 App Store 安装")
+    }
+}
+
+enum FeedbackSendState: Equatable {
+    case idle
+    case sending
+    case sent
+    case failed(String)
 }
 
 private struct AboutBeforeShowView: View {
     var body: some View {
         BSStageScaffold(title: "关于开场前", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
-            BSGlassPanel {
+            BSSurfacePanel {
                 VStack(spacing: BSSpacing.md) {
                     Text("开场前")
                         .font(.system(size: 44, weight: .light))
@@ -778,9 +1049,9 @@ private struct AboutBeforeShowView: View {
                         .font(BSFont.body)
                         .foregroundColor(BSColor.textSecondary)
 
-                    Text("版本 2.1")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
+                    Text(AppVersionInformation.current.fullCopy)
+                        .font(.subheadline)
+                        .foregroundColor(BSColor.Stage.muted)
                 }
                 .frame(maxWidth: .infinity)
             }

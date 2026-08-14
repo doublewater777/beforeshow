@@ -13,6 +13,15 @@ struct RootView: View {
     @State private var addShowToast: BSToastPayload?
     @State private var isTabBarHidden = false
 
+    // Returning users must see the home tab on the first frame, not a
+    // SplashView that then has to fade out. Pre-seed hasFinishedSplash
+    // from the same store @AppStorage reads so the splash branch in body
+    // is never taken for users who have already finished onboarding.
+    init() {
+        let isReturning = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
+        _hasFinishedSplash = State(initialValue: isReturning)
+    }
+
     var body: some View {
         ZStack {
             if !hasCompletedOnboarding && shows.isEmpty {
@@ -76,6 +85,9 @@ struct RootView: View {
 
     private func presentAddShowSuccess() {
         let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        // Apple §13 Multimodal feedback — fire the success haptic on the same
+        // frame as the toast so causality reads as one beat, not a delayed echo.
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
         addShowToast = payload
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_200_000_000)
@@ -85,27 +97,32 @@ struct RootView: View {
         }
     }
 
-    /// V4:系统 TabView 换成浮动玻璃 Tab,内容可滚动到 Tab 上方透出,而不是被贴边条带切断。
-    /// 两个 Tab root 常驻挂载(透明度切换),避免切换时丢掉导航栈、sheet、滚动等本地状态。
+    /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
+    /// Both tabs stay mounted; hiding the bar uses the system toolbar API.
     private var mainTabView: some View {
-        ZStack(alignment: .bottom) {
+        TabView(selection: $selectedTab) {
             CurrentShowHomeView(
                 isPlaybackActive: selectedTab == .current,
                 onDetailVisibilityChange: { isTabBarHidden = $0 }
             )
-                .opacity(selectedTab == .current ? 1 : 0)
-                .allowsHitTesting(selectedTab == .current)
-                .accessibilityHidden(selectedTab != .current)
+            .tabItem {
+                Label(
+                    BeforeShowTab.current.localizedTitle,
+                    systemImage: BeforeShowTab.current.iconName
+                )
+            }
+            .tag(BeforeShowTab.current)
+            .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
 
             FootprintsView(onArchiveVisibilityChange: { isTabBarHidden = $0 })
-                .opacity(selectedTab == .footprints ? 1 : 0)
-                .allowsHitTesting(selectedTab == .footprints)
-                .accessibilityHidden(selectedTab != .footprints)
-
-            if !isTabBarHidden {
-                HomeFloatingTabBar(selectedTab: $selectedTab)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            .tabItem {
+                Label(
+                    BeforeShowTab.footprints.localizedTitle,
+                    systemImage: BeforeShowTab.footprints.iconName
+                )
             }
+            .tag(BeforeShowTab.footprints)
+            .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
         }
     }
 }
@@ -204,8 +221,7 @@ private struct CurrentShowHomeView: View {
 
     var body: some View {
         NavigationStack {
-            // AmbientBackground 的理想宽度可能超过屏幕（见 homeContent 的 UIScreen 封顶注释），
-            // 这里一并封顶，避免内容被顶出屏幕。
+            // AmbientBackground 的理想宽度可能超过屏幕，这里封顶以免内容被顶出。
             ZStack {
                 CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
 
@@ -280,16 +296,20 @@ private struct CurrentShowHomeView: View {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
                 }
             }
-            .navigationDestination(isPresented: $isShowingSettings) {
-                SettingsView()
+            .sheet(isPresented: $isShowingSettings) {
+                NavigationStack {
+                    SettingsView()
+                }
             }
-            .navigationDestination(isPresented: $isShowingShowLibrary) {
-                CurrentShowLibraryManagementView(
-                    onDetailVisibilityChange: { isVisible in
-                        isDetailVisible = isVisible
-                        onDetailVisibilityChange(isVisible)
-                    }
-                )
+            .sheet(isPresented: $isShowingShowLibrary) {
+                NavigationStack {
+                    CurrentShowLibraryManagementView(
+                        onDetailVisibilityChange: { isVisible in
+                            isDetailVisible = isVisible
+                            onDetailVisibilityChange(isVisible)
+                        }
+                    )
+                }
             }
             #if DEBUG
             .task {
@@ -380,50 +400,6 @@ private struct CurrentShowHomeView: View {
     }
 }
 
-// MARK: - Floating Tab Bar
-
-/// V4:浮动玻璃 Tab。玻璃态透出下方内容;各页用 tabBarContentInset 预留滚动空间。
-private struct HomeFloatingTabBar: View {
-    @Binding var selectedTab: BeforeShowTab
-
-    var body: some View {
-        HStack(spacing: 4) {
-            ForEach(BeforeShowTab.allCases) { tab in
-                Button {
-                    selectedTab = tab
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: tab.iconName)
-                            .font(.system(size: 14, weight: .medium))
-                        Text(tab.localizedTitle)
-                            .font(.system(size: 12.5, weight: .medium))
-                    }
-                        .foregroundColor(selectedTab == tab ? BSColor.Stage.accent : BSColor.Stage.muted)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 9)
-                        .background(
-                            Capsule().fill(
-                                selectedTab == tab ? BSColor.Stage.accent.opacity(0.14) : .clear
-                            )
-                        )
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(tab.localizedTitle)
-                .accessibilityAddTraits(selectedTab == tab ? .isSelected : [])
-            }
-        }
-        .padding(5)
-        .background {
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(Capsule().fill(BSColor.Stage.surface.opacity(0.52)))
-        }
-        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
-        .shadow(color: .black.opacity(0.45), radius: 17, y: 7)
-        .padding(.bottom, 22)
-    }
-}
-
 // MARK: - Current Show Management
 
 /// 当前现场从页头、海报到阶段快捷功能的可复用管理区。
@@ -445,14 +421,10 @@ struct CurrentShowManagementSection: View {
     @Environment(\.openURL) private var openURL
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Environment(\.scenePhase) private var scenePhase
-    @Query private var memoryFragments: [MemoryFragment]
-    @Query private var showAssets: [ShowAsset]
-    @State private var isShowingEndConfirmation = false
-    @State private var isShowingMapChooser = false
-    @State private var isShowingCompanion = false
-    @State private var isShowingMemoryFragments = false
-    @State private var showingAssetKind: ShowAssetKind?
+    @State private var presentedSheet: CurrentShowPresentedSheet?
+    @State private var installedMapApps: [ExternalMapApp] = []
     @State private var companionErrorMessage: String?
+    @State private var isHeaderOverContent = false
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -464,75 +436,67 @@ struct CurrentShowManagementSection: View {
         CurrentShowPlaybackPolicy.isActive(
             baseIsActive: isPlaybackActive,
             sceneIsActive: scenePhase == .active,
-            hasOverlay: isShowingEndConfirmation
-                || isShowingMapChooser
-                || isShowingCompanion
-                || isShowingMemoryFragments
-                || showingAssetKind != nil
+            hasOverlay: presentedSheet != nil
                 || companionErrorMessage != nil
         )
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            TimelineView(.everyMinute) { context in
-                homeContent(geometry: geometry, now: context.date)
-            }
-        }
-        .id(show.updatedAt)
-        .sheet(isPresented: $isShowingEndConfirmation) {
-            CurrentShowEndConfirmationSheet(
-                showName: show.name,
-                showStart: CurrentShowTimeState.minimumConfirmableEnd(
-                    for: show,
-                    calendar: show.timingCalendar()
-                ),
-                suggestedEnd: currentTimeState.endBoundary
-                    ?? CurrentShowTimeState.effectiveStartTime(
+        homeContent(now: Date())
+        .sheet(item: $presentedSheet) { sheet in
+            switch sheet {
+            case .endConfirmation:
+                CurrentShowEndConfirmationSheet(
+                    showName: show.name,
+                    showStart: CurrentShowTimeState.minimumConfirmableEnd(
                         for: show,
                         calendar: show.timingCalendar()
                     ),
-                calendar: show.endTimingCalendar(),
-                allowsJustEnded: currentPhase == .live,
-                onConfirm: { date in
-                    isShowingEndConfirmation = false
-                    onConfirmEnd(date)
-                }
-            )
-        }
-        .sheet(isPresented: $isShowingMapChooser) {
-            CurrentShowMapChooserSheet(
-                destinationQuery: routeQuery,
-                destinationLabel: mapDestinationLabel,
-                onSelect: { app in
-                    openMapApp(app)
-                    isShowingMapChooser = false
-                }
-            )
-        }
-        .sheet(isPresented: $isShowingCompanion) {
-            CurrentShowCompanionSheet(
-                show: show,
-                sharedHistory: companionHistory,
-                isEnded: currentPhase == .ended,
-                coordinator: companionCoordinator,
-                onDismiss: { isShowingCompanion = false }
-            )
-        }
-        .sheet(isPresented: $isShowingMemoryFragments) {
-            NavigationStack {
-                MemoryFragmentsView(show: show)
-                    .onAppear { onDetailVisibilityChange(true) }
-                    .onDisappear { onDetailVisibilityChange(false) }
+                    suggestedEnd: currentTimeState.endBoundary
+                        ?? CurrentShowTimeState.effectiveStartTime(
+                            for: show,
+                            calendar: show.timingCalendar()
+                        ),
+                    calendar: show.endTimingCalendar(),
+                    allowsJustEnded: currentPhase == .live,
+                    onConfirm: { date in
+                        presentedSheet = nil
+                        onConfirmEnd(date)
+                    }
+                )
+            case .companion:
+                CurrentShowCompanionSheet(
+                    show: show,
+                    sharedHistory: companionHistory,
+                    isEnded: currentPhase == .ended,
+                    coordinator: companionCoordinator
+                )
+            case .asset(let kind):
+                ShowAssetSheet(
+                    showID: show.id,
+                    showName: show.name,
+                    kind: kind,
+                    onDetailVisibilityChange: onDetailVisibilityChange
+                )
+            case .memory:
+                MemoryFragmentsSheet(show: show)
+            case .mapChooser:
+                MapChooserSheet(
+                    hasDestination: hasMapDestination,
+                    destinationLabel: mapDestinationLabel,
+                    apps: MapChooserPresentation.visibleApps(
+                        hasDestination: hasMapDestination,
+                        installed: installedMapApps
+                    ),
+                    onSelect: { app in
+                        presentedSheet = nil
+                        openMapApp(app)
+                    }
+                )
             }
         }
-        .sheet(item: $showingAssetKind) { kind in
-            ShowAssetSheet(
-                showID: show.id,
-                showName: show.name,
-                kind: kind,
-                onDetailVisibilityChange: onDetailVisibilityChange
-            )
+        .onAppear {
+            installedMapApps = ExternalMapApp.installed
         }
         .alert(
             "同行",
@@ -555,7 +519,7 @@ struct CurrentShowManagementSection: View {
     }
 
     @ViewBuilder
-    private func homeContent(geometry: GeometryProxy, now: Date) -> some View {
+    private func homeContent(now: Date) -> some View {
         let snapshot = HomeHeroSnapshot(show: show, now: now)
         let timeState = snapshot.timeState
         let followUpShows = CurrentShowFollowUpPolicy.laterShows(
@@ -570,11 +534,8 @@ struct CurrentShowManagementSection: View {
             calendar: show.timingCalendar()
         )
         let phase = HomeShowPhase(timeState: timeState, now: now)
-        // GeometryReader 受同层 AmbientBackground 影响可能宽于屏幕,
-        // 与旧版 HomeLayoutMetrics 一样用 UIScreen 宽度封顶(内容列居中回落到真实视口)。
-        let viewportWidth = min(geometry.size.width, UIScreen.main.bounds.width)
         // V4 封面为居中立起的 3:4 对象(原型 352pt 宽,窄机退回屏宽 - 40)。
-        let coverWidth = min(352, max(0, viewportWidth - 40))
+        let coverWidth = min(352, max(0, UIScreen.main.bounds.width - 40))
 
         ZStack(alignment: .top) {
             ScrollView(.vertical, showsIndicators: false) {
@@ -582,23 +543,29 @@ struct CurrentShowManagementSection: View {
                     Color.clear
                         .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
-                    HomeHeroStage(
-                        show: show,
-                        snapshot: snapshot,
-                        coverWidth: coverWidth,
-                        isPlaybackActive: isHeroPlaybackActive,
-                        reduceMotion: reduceMotion,
-                        onChooseVideo: onChooseDynamicCover
-                    )
-                        .padding(.top, 18)
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        HomeHeroStage(
+                            show: show,
+                            snapshot: snapshot,
+                            coverWidth: coverWidth,
+                            isPlaybackActive: isHeroPlaybackActive,
+                            reduceMotion: reduceMotion,
+                            onChooseVideo: onChooseDynamicCover,
+                            opensDetail: true
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 18)
 
                     HomeCountdownLockup(
                         show: show,
                         onEndShow: canRecordEnd
-                            ? { isShowingEndConfirmation = true }
+                            ? { presentedSheet = .endConfirmation }
                             : nil,
-                        onCompanion: { isShowingCompanion = true },
-                        onMemoryFragments: { isShowingMemoryFragments = true }
+                        onCompanion: { presentedSheet = .companion },
+                        onMemoryFragments: { presentedSheet = .memory }
                     )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
@@ -619,9 +586,24 @@ struct CurrentShowManagementSection: View {
                     }
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
-                .frame(width: viewportWidth)
-                .frame(width: geometry.size.width, alignment: .center)
-                .frame(minHeight: geometry.size.height, alignment: .top)
+                .frame(maxWidth: .infinity)
+            }
+            .modifier(HomeHeaderScrollObserver(isOverContent: $isHeaderOverContent))
+
+            if isHeaderOverContent {
+                LinearGradient(
+                    stops: [
+                        .init(color: Color.black.opacity(0.88), location: 0),
+                        .init(color: Color.black.opacity(0.58), location: 0.52),
+                        .init(color: Color.black.opacity(0), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 136)
+                .frame(maxWidth: .infinity)
+                .ignoresSafeArea(edges: .top)
+                .allowsHitTesting(false)
             }
 
             managementHeader
@@ -693,6 +675,11 @@ struct CurrentShowManagementSection: View {
         )
     }
 
+    private var hasMapDestination: Bool {
+        guard let routeQuery else { return false }
+        return !routeQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// 弹窗副标题：优先场馆名，其次城市 / 演出名。
     private var mapDestinationLabel: String {
         let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -703,69 +690,54 @@ struct CurrentShowManagementSection: View {
     }
 
     private func quickActionRow(_ actions: [CurrentShowQuickAction]) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 9) {
-                ForEach(actions, id: \.self) { action in
-                    switch action {
-                    case .route:
-                        Button { isShowingMapChooser = true } label: {
-                            CurrentShowQuickActionTile(action: action)
-                        }
-                        .buttonStyle(.plain)
-                        .frame(width: 86)
-                    case .companion:
-                        Button { isShowingCompanion = true } label: {
-                            CurrentShowQuickActionTile(
-                                action: action,
-                                companion: CompanionQuickActionPresentation(
-                                    status: show.companionStatus,
-                                    companionName: show.companionName,
-                                    isEnded: currentPhase == .ended
-                                )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .frame(width: 86)
-                    case .ticket, .timetable:
-                        let kind: ShowAssetKind = action == .ticket ? .ticket : .timetable
-                        Button {
-                            showingAssetKind = kind
-                        } label: {
-                            CurrentShowQuickActionTile(
-                                action: action,
-                                subtitle: assetSubtitle(for: kind)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .frame(width: 86)
-                    case .memoryFragments:
-                        NavigationLink {
-                            MemoryFragmentsView(show: show)
-                                .onAppear { onDetailVisibilityChange(true) }
-                                .onDisappear { onDetailVisibilityChange(false) }
-                        } label: {
-                            CurrentShowQuickActionTile(
-                                action: action,
-                                subtitle: memoryFragmentCount == 0 ? "记录这一刻" : "\(memoryFragmentCount) 条"
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .frame(width: 86)
-                    }
+        HStack(spacing: 8) {
+            ForEach(actions, id: \.self) { action in
+                Button {
+                    performQuickAction(action)
+                } label: {
+                    quickActionTile(action)
                 }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
-            .padding(.trailing, 4)
         }
     }
 
-    private var memoryFragmentCount: Int {
-        memoryFragments.lazy.filter { $0.showID == show.id }.count
+    @ViewBuilder
+    private func quickActionTile(_ action: CurrentShowQuickAction) -> some View {
+        switch action {
+        case .companion:
+            CurrentShowQuickActionTile(
+                action: action,
+                companion: CompanionQuickActionPresentation(
+                    status: show.companionStatus,
+                    companionName: show.companionName,
+                    isEnded: currentPhase == .ended
+                )
+            )
+        default:
+            CurrentShowQuickActionTile(action: action)
+        }
     }
 
-    private func assetSubtitle(for kind: ShowAssetKind) -> String {
-        showAssets.contains { $0.showID == show.id && $0.kind == kind }
-            ? kind.savedSubtitle
-            : kind.emptySubtitle
+    private func performQuickAction(_ action: CurrentShowQuickAction) {
+        switch action {
+        case .route:
+            installedMapApps = ExternalMapApp.installed
+            presentedSheet = .mapChooser
+        case .companion:
+            presentedSheet = .companion
+        case .ticket:
+            openAsset(.ticket)
+        case .timetable:
+            openAsset(.timetable)
+        case .memoryFragments:
+            presentedSheet = .memory
+        }
+    }
+
+    private func openAsset(_ kind: ShowAssetKind) {
+        presentedSheet = .asset(kind)
     }
 
     private func openMapApp(_ app: ExternalMapApp) {
@@ -781,6 +753,25 @@ struct CurrentShowManagementSection: View {
         )
     }
 
+}
+
+private struct HomeHeaderScrollObserver: ViewModifier {
+    @Binding var isOverContent: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
+                geometry.contentOffset.y
+            } action: { _, y in
+                let next = y > 10
+                if isOverContent != next {
+                    isOverContent = next
+                }
+            }
+        } else {
+            content
+        }
+    }
 }
 
 enum CompanionSharedHistory {
@@ -1009,7 +1000,6 @@ struct CompanionQuickActionPresentation: Equatable {
 private struct CurrentShowQuickActionTile: View {
     let action: CurrentShowQuickAction
     var companion: CompanionQuickActionPresentation?
-    var subtitle: String?
 
     var body: some View {
         VStack(spacing: 7) {
@@ -1020,18 +1010,11 @@ private struct CurrentShowQuickActionTile: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(BSColor.Stage.accent)
             }
-            Text(companion?.title ?? action.title)
+            Text(action.title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
-            if let subtitle {
-                Text(subtitle)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-            }
         }
         .frame(maxWidth: .infinity)
         .frame(minHeight: 72)
@@ -1084,9 +1067,40 @@ private struct CompanionAvatarStack: View {
     }
 }
 
-enum CompanionSheetPresentationPolicy {
-    static func showsDismissalButton(for status: ShowCompanionStatus) -> Bool {
-        status != .none
+private struct MapChooserSheet: View {
+    let hasDestination: Bool
+    let destinationLabel: String
+    let apps: [ExternalMapApp]
+    let onSelect: (ExternalMapApp) -> Void
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+            VStack(spacing: BSSpacing.md) {
+                BSStageSheetHeader(
+                    icon: "map",
+                    title: MapChooserPresentation.title(hasDestination: hasDestination),
+                    subtitle: MapChooserPresentation.message(
+                        hasDestination: hasDestination,
+                        destinationLabel: destinationLabel,
+                        installed: apps
+                    )
+                )
+
+                ForEach(Array(apps.enumerated()), id: \.element.id) { index, app in
+                    if index == 0 {
+                        Button { onSelect(app) } label: {
+                            Label(app.title, systemImage: app.iconName)
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                    } else {
+                        Button { onSelect(app) } label: {
+                            Label(app.title, systemImage: app.iconName)
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1095,34 +1109,29 @@ struct CurrentShowCompanionSheet: View {
     let sharedHistory: [Show]
     let isEnded: Bool
     let coordinator: CompanionSharingCoordinator
-    let onDismiss: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var isShowingHistory = false
     @State private var isPreparingInvite = false
     @State private var isRefreshing = false
     @State private var isCanceling = false
-    @State private var cloudShareData: IdentifiableShareData?
     @State private var errorMessage: String?
 
     init(
         show: Show,
         sharedHistory: [Show],
         isEnded: Bool,
-        coordinator: CompanionSharingCoordinator,
-        onDismiss: @escaping () -> Void
+        coordinator: CompanionSharingCoordinator
     ) {
         self.show = show
         self.sharedHistory = sharedHistory
         self.isEnded = isEnded
         self.coordinator = coordinator
-        self.onDismiss = onDismiss
     }
 
     var body: some View {
         BSDrawerSheet(
             detents: [.medium, .large],
-            background: BSColor.Stage.surfaceRaised,
             fitsContent: true
         ) {
             ScrollView {
@@ -1137,28 +1146,9 @@ struct CurrentShowCompanionSheet: View {
                     case .canceled:
                         invitationContent(isRetry: true)
                     }
-
-                    if CompanionSheetPresentationPolicy.showsDismissalButton(for: show.companionStatus) {
-                        Button("完成", action: onDismiss)
-                            .buttonStyle(BSSecondaryButtonStyle())
-                    }
                 }
             }
             .scrollIndicators(.hidden)
-        }
-        .fullScreenCover(item: $cloudShareData) { item in
-            CloudSharingPresenter(
-                shareData: item.data,
-                containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
-                show: show,
-                coordinator: coordinator,
-                onFinished: {
-                    cloudShareData = nil
-                    if let error = coordinator.consumeLastErrorMessage() {
-                        errorMessage = error
-                    }
-                }
-            )
         }
         .alert(
             "同行邀请",
@@ -1186,8 +1176,8 @@ struct CurrentShowCompanionSheet: View {
                 icon: "person.2",
                 title: isRetry ? "邀请未接受" : "邀请同行",
                 subtitle: isRetry
-                    ? "可以通过 iCloud 重新发送邀请，对方点开链接后双方都会确认。"
-                    : "通过 iCloud 邀请一位朋友。对方接受后，双方同步为已确认同行。"
+                    ? "可以通过系统分享重新发送邀请，对方点开链接后双方都会确认。"
+                    : "通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。"
             )
 
             Button {
@@ -1210,7 +1200,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "hourglass",
                 title: "等待\(displayName)确认",
-                subtitle: "已通过 iCloud 发出邀请。对方点开链接并接受后，这里会自动变成已确认。"
+                subtitle: "已通过系统分享发出邀请。对方点开链接并接受后，这里会自动变成已确认。"
             )
 
             Button {
@@ -1275,10 +1265,12 @@ struct CurrentShowCompanionSheet: View {
                 if isShowingHistory {
                     historyList
                 } else {
-                    Button("查看共同足迹") {
+                    Button {
                         withAnimation(.easeInOut(duration: 0.2)) {
                             isShowingHistory = true
                         }
+                    } label: {
+                        Label("查看共同足迹", systemImage: "clock.arrow.circlepath")
                     }
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
@@ -1418,11 +1410,19 @@ struct CurrentShowCompanionSheet: View {
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext)
-        if let error = coordinator.consumeLastErrorMessage() {
-            errorMessage = error
+        if CompanionInviteGate.blocksNewInvite(coordinator.lastErrorKind) {
+            errorMessage = coordinator.consumeLastErrorMessage()
             return
         }
-        guard show.companionCloudRecordName == nil else { return }
+        _ = coordinator.consumeLastErrorMessage()
+        if show.companionShareLocator != nil {
+            await resendInvitation()
+            return
+        }
+        guard show.companionCloudRecordName == nil else {
+            errorMessage = "这场现场已有同行邀请，请先刷新状态"
+            return
+        }
         do {
             let prepared = try await coordinator.prepareInvitation(
                 for: show,
@@ -1430,8 +1430,9 @@ struct CurrentShowCompanionSheet: View {
                 ownerDisplayName: nil,
                 in: modelContext
             )
-            cloudShareData = IdentifiableShareData(data: prepared.shareSystemFields)
+            presentPreparedShare(prepared.shareSystemFields)
         } catch {
+            CompanionDebugLog.write("sendInvitation failed: \(error)")
             errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
@@ -1442,12 +1443,50 @@ struct CurrentShowCompanionSheet: View {
         defer { isPreparingInvite = false }
         do {
             let data = try await coordinator.shareSystemFieldsForResend(show: show)
-            cloudShareData = IdentifiableShareData(data: data)
+            presentPreparedShare(data)
         } catch let error as CompanionSharingError where error == .sessionNotFound {
             // Only recreate when CloudKit positively reports the share is gone.
             await sendInvitation(isRetry: true)
         } catch {
             errorMessage = CompanionSharingCoordinator.userMessage(for: error)
+        }
+    }
+
+    @MainActor
+    private func presentPreparedShare(_ data: Data) {
+        let presented = SystemCloudSharePresenter.present(
+            shareData: data,
+            containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
+            onEvent: { event, share, error in
+                Task { @MainActor in
+                    switch event {
+                    case .didSave:
+                        await coordinator.handleShareControllerDidSave(
+                            share: share,
+                            for: show,
+                            in: modelContext
+                        )
+                    case .didStopSharing:
+                        await coordinator.handleShareControllerDidStopSharing(
+                            for: show,
+                            in: modelContext
+                        )
+                    case .failedToSave:
+                        if let error {
+                            coordinator.handleShareControllerFailure(error)
+                            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
+                        }
+                    }
+                }
+            },
+            onDismiss: {
+                if let error = coordinator.consumeLastErrorMessage() {
+                    errorMessage = error
+                }
+            }
+        )
+        if !presented {
+            errorMessage = "无法打开系统分享"
         }
     }
 
@@ -1469,99 +1508,6 @@ struct CurrentShowCompanionSheet: View {
             try await coordinator.cancelCompanion(for: show, in: modelContext)
         } catch {
             errorMessage = CompanionSharingCoordinator.userMessage(for: error)
-        }
-    }
-}
-
-/// Wrapper so CloudKit share blobs can drive `fullScreenCover(item:)`.
-private struct IdentifiableShareData: Identifiable {
-    let id = UUID()
-    let data: Data
-}
-
-private struct CurrentShowMapChooserSheet: View {
-    let destinationQuery: String?
-    let destinationLabel: String
-    let onSelect: (ExternalMapApp) -> Void
-
-    /// 仅展示本机已安装的地图；在 `onAppear` 用 `canOpenURL` 刷新。
-    @State private var installedApps: [ExternalMapApp] = ExternalMapApp.installed
-
-    private var hasDestination: Bool {
-        guard let destinationQuery else { return false }
-        return !destinationQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private var sheetHeight: CGFloat {
-        if !hasDestination { return 280 }
-        if installedApps.isEmpty { return 300 }
-        // 标题区 + 行高 + 内边距
-        return 200 + CGFloat(installedApps.count) * 62
-    }
-
-    var body: some View {
-        BSDrawerSheet(
-            detent: .height(sheetHeight),
-            background: BSColor.Stage.surfaceRaised,
-            fitsContent: true
-        ) {
-            BSStageSheetHeader(
-                icon: "map",
-                title: "在地图中打开",
-                subtitle: hasDestination ? destinationLabel : "还没有可打开的位置"
-            )
-
-            if hasDestination {
-                if installedApps.isEmpty {
-                    Text("没有检测到可用的地图 App。")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    VStack(spacing: 9) {
-                        ForEach(installedApps) { app in
-                            Button {
-                                onSelect(app)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: app.iconName)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(BSColor.Stage.accent)
-                                        .frame(width: 28)
-                                    Text(app.title)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(BSColor.Stage.foreground)
-                                    Spacer(minLength: 8)
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundColor(BSColor.Stage.dim)
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 14)
-                                .background(BSColor.Stage.surface.opacity(0.92))
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 14)
-                                        .stroke(Color.white.opacity(0.09), lineWidth: 1)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(app.title)
-                        }
-                    }
-                }
-            } else {
-                Text("补充场馆或地址后，就能跳到地图 App。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-            }
-
-        }
-        .onAppear {
-            installedApps = ExternalMapApp.installed
         }
     }
 }
@@ -1702,7 +1648,7 @@ private enum DebugSampleShowSeeder {
             city: "台北",
             venueName: "台北流行音乐中心",
             venueAddress: "台北市信义区松寿路 20 号",
-            artist: "夏夜乐队",
+            artists: [ArtistSlot(name: "夏夜乐队", avatarURL: nil)],
             coverImageURL: "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=900&q=85",
             source: .manual
         )
@@ -1720,9 +1666,9 @@ private enum DebugSampleShowSeeder {
             }
 
             let verificationDrafts = [
-                ShowDraft(name: "海风音乐祭", date: now.addingTimeInterval(5 * 86_400), startTime: now.addingTimeInterval(5 * 86_400), city: "新北", venueName: "Zepp New Taipei", artist: "海岸线", source: .manual),
-                ShowDraft(name: "城市声浪", date: now.addingTimeInterval(18 * 86_400), startTime: now.addingTimeInterval(18 * 86_400), city: "台中", venueName: "台中 Legacy", artist: "午夜电台", source: .manual),
-                ShowDraft(name: "南方夏夜", date: now.addingTimeInterval(42 * 86_400), startTime: now.addingTimeInterval(42 * 86_400), city: "高雄", venueName: "LIVE WAREHOUSE", artist: "落日之后", source: .manual)
+                ShowDraft(name: "海风音乐祭", date: now.addingTimeInterval(5 * 86_400), startTime: now.addingTimeInterval(5 * 86_400), city: "新北", venueName: "Zepp New Taipei", artists: [ArtistSlot(name: "海岸线", avatarURL: nil)], source: .manual),
+                ShowDraft(name: "城市声浪", date: now.addingTimeInterval(18 * 86_400), startTime: now.addingTimeInterval(18 * 86_400), city: "台中", venueName: "台中 Legacy", artists: [ArtistSlot(name: "午夜电台", avatarURL: nil)], source: .manual),
+                ShowDraft(name: "南方夏夜", date: now.addingTimeInterval(42 * 86_400), startTime: now.addingTimeInterval(42 * 86_400), city: "高雄", venueName: "LIVE WAREHOUSE", artists: [ArtistSlot(name: "落日之后", avatarURL: nil)], source: .manual)
             ]
             for draft in verificationDrafts {
                 if let existing = existingShows.first(where: { $0.name == draft.name }) {
@@ -1734,7 +1680,7 @@ private enum DebugSampleShowSeeder {
                 }
             }
 
-            let endedDraft = ShowDraft(name: "冬日回声", date: now.addingTimeInterval(-10 * 86_400), startTime: now.addingTimeInterval(-10 * 86_400), city: "台北", venueName: "The Wall", artist: "微光乐团", source: .manual)
+            let endedDraft = ShowDraft(name: "冬日回声", date: now.addingTimeInterval(-10 * 86_400), startTime: now.addingTimeInterval(-10 * 86_400), city: "台北", venueName: "The Wall", artists: [ArtistSlot(name: "微光乐团", avatarURL: nil)], source: .manual)
             if let existing = existingShows.first(where: { $0.name == endedDraft.name }) {
                 try existing.apply(endedDraft)
                 existing.markEnded(at: now.addingTimeInterval(-10 * 86_400 + 7_200))
@@ -1744,7 +1690,7 @@ private enum DebugSampleShowSeeder {
                 modelContext.insert(ended)
             }
 
-            let canceledDraft = ShowDraft(name: "雨季来信", date: now.addingTimeInterval(28 * 86_400), startTime: now.addingTimeInterval(28 * 86_400), city: "台南", venueName: "漂丿白鹭", artist: "海岸信号", source: .manual)
+            let canceledDraft = ShowDraft(name: "雨季来信", date: now.addingTimeInterval(28 * 86_400), startTime: now.addingTimeInterval(28 * 86_400), city: "台南", venueName: "漂丿白鹭", artists: [ArtistSlot(name: "海岸信号", avatarURL: nil)], source: .manual)
             if let existing = existingShows.first(where: { $0.name == canceledDraft.name }) {
                 try existing.apply(canceledDraft)
                 existing.markCanceled()
@@ -1827,7 +1773,7 @@ private enum DebugSampleShowSeeder {
                 startTime: time(2026, 9, 24, 19, 30),
                 city: "南京",
                 venueName: "南京奥体中心体育场",
-                artist: "周杰伦",
+                artists: [ArtistSlot(name: "周杰伦", avatarURL: nil)],
                 coverImageURL: "https://img.alicdn.com/bao/uploaded/https://img.alicdn.com/imgextra/i2/2251059038/O1CN01nWPQm82GdSnG5tWAW_!!2251059038.jpg_q60.jpg_.webp",
                 source: .link
             ),
@@ -1837,7 +1783,8 @@ private enum DebugSampleShowSeeder {
                 startTime: time(2026, 6, 27, 14, 0),
                 city: "湖州",
                 venueName: "吴乐湾音乐广场",
-                artist: "刘雨昕, 姚琛, 二手玫瑰, DOUDOU, 椿乐队, 裁缝铺, 麻园诗人, 梅卡德尔, 石岩, 声音碎片, 声音玩具",
+                artists: ["刘雨昕", "姚琛", "二手玫瑰", "DOUDOU", "椿乐队", "裁缝铺", "麻园诗人", "梅卡德尔", "石岩", "声音碎片", "声音玩具"]
+                    .map { ArtistSlot(name: $0, avatarURL: nil) },
                 source: .link
             )
         ]

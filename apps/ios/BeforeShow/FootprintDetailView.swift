@@ -383,7 +383,9 @@ struct FootprintDetailView: View {
             sectionHeader("留下的东西")
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetKind.allCases) { kind in
-                    Button { showingAssetKind = kind } label: {
+                    Button {
+                        showingAssetKind = kind
+                    } label: {
                         FootprintKeepsakeTile(kind: kind, asset: asset(for: kind))
                     }
                     .buttonStyle(.plain)
@@ -463,7 +465,7 @@ struct FootprintDetailView: View {
                 infoRow(
                     icon: "music.note",
                     title: "艺人",
-                    value: FootprintTextNormalizer.nonEmptyTrimmed(show.artist) ?? "未填写艺人"
+                    value: show.artistNames.isEmpty ? "未填写艺人" : show.artistNames.joined(separator: "、")
                 )
             }
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))

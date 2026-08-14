@@ -5,6 +5,14 @@ import XCTest
 @testable import BeforeShow
 
 final class CompanionSharingTests: XCTestCase {
+    func testNewInviteIsOnlyBlockedByMissingICloud() {
+        XCTAssertTrue(CompanionInviteGate.blocksNewInvite(.iCloudAccountUnavailable))
+        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.networkFailure))
+        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.sharePreparationFailed))
+        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(.conflict))
+        XCTAssertFalse(CompanionInviteGate.blocksNewInvite(nil))
+    }
+
     func testCloudStatusMapsToLocalStatus() {
         XCTAssertEqual(CompanionCloudStatus.pending.localStatus, .pending)
         XCTAssertEqual(CompanionCloudStatus.accepted.localStatus, .confirmed)

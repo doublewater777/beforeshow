@@ -632,6 +632,10 @@ enum CurrentShowLibraryMenuAction: String, Hashable {
     case restoreCanceled = "恢复演出"
     case cancel = "取消演出"
     case delete = "删除"
+
+    var isDestructive: Bool {
+        self == .cancel || self == .delete
+    }
 }
 
 enum CurrentShowLibraryMenuPolicy {
@@ -676,15 +680,14 @@ private struct CurrentShowLibraryDestination: Identifiable, Hashable {
 /// 从“当前”页进入的完整管理页。刻意与底部“我的现场”Tab 分离，避免改变其现有结构与状态。
 struct CurrentShowLibraryManagementView: View {
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
 
     @State private var searchText = ""
     @State private var filter: CurrentShowLibraryFilter = .upcoming
-    @State private var actionTarget: Show?
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
     @State private var postponeTarget: Show?
@@ -702,7 +705,6 @@ struct CurrentShowLibraryManagementView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    header
                     searchField.padding(.top, 18)
                     filterBar.padding(.top, 12)
 
@@ -725,20 +727,40 @@ struct CurrentShowLibraryManagementView: View {
                 .padding(.bottom, 40)
             }
             .scrollIndicators(.hidden)
+            .bsNavigationScrollEdge()
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle("我的现场")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(BSFont.caption.weight(.semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .background(Color.white.opacity(0.07), in: Circle())
+                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("关闭")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingAdd = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel("添加现场")
+            }
+        }
         .navigationDestination(item: $destination) { target in
             ShowDetailView(
                 show: target.show,
                 startsEditing: target.startsEditing,
                 onDetailVisibilityChange: onDetailVisibilityChange
-            )
-        }
-        .sheet(item: $actionTarget) { show in
-            CurrentShowLibraryActionSheet(
-                show: show,
-                actions: menuActions(for: show),
-                onAction: { action in handle(action, for: show) }
             )
         }
         .sheet(item: $postponeTarget) { show in
@@ -757,16 +779,21 @@ struct CurrentShowLibraryManagementView: View {
                 }
             )
         }
-        .sheet(item: $cancelTarget) { show in
-            BSDangerConfirmationSheet(
-                title: "取消演出",
-                message: "记录为取消后，这场现场仍会保留在“我的现场”中，但不会出现在当前现场。",
-                destructiveTitle: "确认取消",
-                onConfirm: {
-                    cancelTarget = nil
-                    updateStatus(show, message: "已记录取消") { show.markCanceled() }
-                }
-            )
+        .confirmationDialog(
+            DangerConfirmation.cancelShowFromEditor.title,
+            isPresented: Binding(
+                get: { cancelTarget != nil },
+                set: { if !$0 { cancelTarget = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: cancelTarget
+        ) { show in
+            Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
+                updateStatus(show, message: "已记录取消") { show.markCanceled() }
+                cancelTarget = nil
+            }
+        } message: { _ in
+            Text(DangerConfirmation.cancelShowFromEditor.message)
         }
         .sheet(isPresented: $isShowingAdd) {
             AddShowCoordinatorSheet {
@@ -780,34 +807,6 @@ struct CurrentShowLibraryManagementView: View {
             Text("“\(show.name)”删除后无法恢复，也会从足迹统计中移除。")
         }
         .bsToastOverlay(toast, bottomPadding: 28)
-    }
-
-    private var header: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.075), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("返回")
-
-            Spacer()
-            Text("我的现场")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-            Spacer()
-
-            Button { isShowingAdd = true } label: {
-                Image(systemName: "plus")
-                    .font(.system(size: 16, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.075), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("添加现场")
-        }
     }
 
     private var searchField: some View {
@@ -864,8 +863,9 @@ struct CurrentShowLibraryManagementView: View {
                     show: show,
                     isCurrent: selectedShowID == show.id,
                     formatter: formatter,
+                    actions: menuActions(for: show),
                     onOpen: { destination = .init(show: show, startsEditing: false) },
-                    onMore: { actionTarget = show }
+                    onAction: { action in handle(action, for: show) }
                 )
             }
         }
@@ -922,10 +922,10 @@ struct CurrentShowLibraryManagementView: View {
     private func matchesSearch(_ show: Show) -> Bool {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return true }
-        return [show.name, show.artist, show.city, show.venueName, show.venueAddress]
-            .compactMap { $0 }
+        let haystack = ([show.name] + show.artistNames
+            + [show.city, show.venueName, show.venueAddress].compactMap { $0 })
             .joined(separator: " ")
-            .localizedCaseInsensitiveContains(query)
+        return haystack.localizedCaseInsensitiveContains(query)
     }
 
     private func count(for filter: CurrentShowLibraryFilter) -> Int {
@@ -955,10 +955,8 @@ struct CurrentShowLibraryManagementView: View {
         case .postpone, .editPostponedDate:
             presentPostpone(for: show)
         case .restoreScheduled:
-            actionTarget = nil
             updateStatus(show, message: "已恢复原定日期") { show.markScheduled() }
         case .restoreCanceled:
-            actionTarget = nil
             updateStatus(show, message: "已撤销取消") { show.markScheduled() }
         case .cancel:
             presentCancel(for: show)
@@ -968,20 +966,12 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private func present(_ show: Show, editing: Bool) {
-        actionTarget = nil
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            destination = .init(show: show, startsEditing: editing)
-        }
+        destination = .init(show: show, startsEditing: editing)
     }
 
     private func presentPostpone(for show: Show) {
-        actionTarget = nil
         postponeDate = show.postponedDate ?? show.date
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            postponeTarget = show
-        }
+        postponeTarget = show
     }
 
     private func applyPostponement(to show: Show, newDate: Date?) {
@@ -991,19 +981,11 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private func presentCancel(for show: Show) {
-        actionTarget = nil
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            cancelTarget = show
-        }
+        cancelTarget = show
     }
 
     private func presentDelete(_ show: Show) {
-        actionTarget = nil
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 260_000_000)
-            deleteTarget = show
-        }
+        deleteTarget = show
     }
 
     private var deleteAlertBinding: Binding<Bool> {
@@ -1011,7 +993,6 @@ struct CurrentShowLibraryManagementView: View {
     }
 
     private func selectCurrent(_ show: Show) {
-        actionTarget = nil
         guard session.isManuallySelectable(show) else {
             presentToast(.neutral, message: "当前状态不能设为当前现场")
             return
@@ -1097,8 +1078,9 @@ private struct CurrentShowLibraryRow: View {
     let show: Show
     let isCurrent: Bool
     let formatter: ShowDisplayFormatter
+    let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
-    let onMore: () -> Void
+    let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -1122,6 +1104,11 @@ private struct CurrentShowLibraryRow: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
+                    if let urlString = show.firstRecognizedArtistAvatarURL,
+                       let url = URL(string: urlString) {
+                        ArtistAvatarThumb(url: url, size: 28)
+                            .padding(.trailing, 4)
+                    }
                 }
                 .padding(11)
                 .contentShape(Rectangle())
@@ -1129,14 +1116,21 @@ private struct CurrentShowLibraryRow: View {
             .buttonStyle(.plain)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            Button(action: onMore) {
+            Menu {
+                ForEach(actions, id: \.self) { action in
+                    Button(role: action.isDestructive ? .destructive : nil) {
+                        onAction(action)
+                    } label: {
+                        Label(action.rawValue, systemImage: action.icon)
+                    }
+                }
+            } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(BSColor.Stage.muted)
                     .frame(width: 38, height: 38)
                     .background(Color.white.opacity(0.055), in: Circle())
             }
-            .buttonStyle(.plain)
             .accessibilityLabel("管理 \(show.name)")
             .padding(.trailing, 11)
         }
@@ -1154,46 +1148,6 @@ private struct CurrentShowLibraryRow: View {
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .overlay(Capsule().stroke(color.opacity(0.35), lineWidth: 1))
-    }
-}
-
-private struct CurrentShowLibraryActionSheet: View {
-    let show: Show
-    let actions: [CurrentShowLibraryMenuAction]
-    let onAction: (CurrentShowLibraryMenuAction) -> Void
-
-    private var detents: [PresentationDetent] {
-        let chromeHeight: CGFloat = 165
-        let actionRowHeight: CGFloat = 47
-        let preferredHeight = min(420, chromeHeight + actionRowHeight * CGFloat(actions.count))
-        return [.height(preferredHeight), .large]
-    }
-
-    var body: some View {
-        BSDrawerSheet(detents: detents, fitsContent: true) {
-            Text(show.name)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            VStack(spacing: 2) {
-                ForEach(actions, id: \.self) { item in
-                    action(item)
-                }
-            }
-        }
-    }
-
-    private func action(_ item: CurrentShowLibraryMenuAction) -> some View {
-        Button { onAction(item) } label: {
-            Label(item.rawValue, systemImage: item.icon)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(item == .delete ? BSColor.Stage.liveTitle : BSColor.Stage.foreground)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .frame(height: 47)
-        }
-        .buttonStyle(.plain)
     }
 }
 

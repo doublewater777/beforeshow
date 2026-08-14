@@ -38,6 +38,19 @@ enum DynamicCoverAccessibilityPolicy {
     static func shouldExposeFaceActions(canFlip: Bool) -> Bool {
         canFlip
     }
+
+    static func hint(canFlip: Bool, opensDetail: Bool) -> String {
+        switch (opensDetail, canFlip) {
+        case (true, true):
+            return "轻点查看现场详情，长按翻转动态封面"
+        case (true, false):
+            return "轻点查看现场详情"
+        case (false, true):
+            return "长按翻转动态封面，轻点返回静态封面"
+        case (false, false):
+            return "暂无动态封面"
+        }
+    }
 }
 
 private struct DynamicCoverAddVideoAccessibilityModifier: ViewModifier {
@@ -83,6 +96,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
     let isPlaybackActive: Bool
     let reduceMotion: Bool
     let onChooseVideo: (() -> Void)?
+    let opensDetail: Bool
     private let staticFace: () -> StaticFace
 
     @State private var isDynamicFace: Bool
@@ -96,6 +110,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         isPlaybackActive: Bool,
         reduceMotion: Bool,
         onChooseVideo: (() -> Void)? = nil,
+        opensDetail: Bool = false,
         accessibilityName: String? = nil,
         @ViewBuilder staticFace: @escaping () -> StaticFace
     ) {
@@ -106,6 +121,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         self.isPlaybackActive = isPlaybackActive
         self.reduceMotion = reduceMotion
         self.onChooseVideo = onChooseVideo
+        self.opensDetail = opensDetail
         self.accessibilityName = accessibilityName
         self.staticFace = staticFace
         _isDynamicFace = State(initialValue: dynamicCover != nil && DynamicCoverFaceStore.isDynamicFace(for: showID))
@@ -150,21 +166,11 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         .frame(width: width, height: height)
         .clipped()
         .contentShape(Rectangle())
-        .gesture(
-            LongPressGesture(minimumDuration: 0.45)
-                .exclusively(before: TapGesture())
-                .onEnded { result in
-                    switch result {
-                    case .first(true):
-                        guard canFlip else { return }
-                        flip(to: !isDynamicFace, haptic: true)
-                    case .second:
-                        guard isDynamicFace else { return }
-                        flip(to: false, haptic: false)
-                    default:
-                        break
-                    }
-                }
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.45).onEnded { _ in
+                guard canFlip else { return }
+                flip(to: !isDynamicFace, haptic: true)
+            }
         )
         .task(id: dynamicCoverRevision) {
             guard let dynamicCover else {
@@ -201,7 +207,8 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
             [accessibilityName.map { "现场封面，\($0)" } ?? "现场封面", "当前为\(faceDescription)"]
                 .joined(separator: "，")
         )
-        .accessibilityHint(canFlip ? "长按翻转动态封面，轻点返回静态封面" : "暂无动态封面")
+        .accessibilityAddTraits(opensDetail ? .isButton : [])
+        .accessibilityHint(DynamicCoverAccessibilityPolicy.hint(canFlip: canFlip, opensDetail: opensDetail))
         .modifier(
             DynamicCoverFaceAccessibilityModifier(
                 isAvailable: DynamicCoverAccessibilityPolicy.shouldExposeFaceActions(canFlip: canFlip),
@@ -230,7 +237,14 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         if haptic {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
-        withAnimation(.easeInOut(duration: reduceMotion ? 0.25 : 0.55)) {
+        // Spring instead of easeInOut so the user can grab the cover mid-flip
+        // and reverse it without a velocity discontinuity — Apple §3 Interruptibility,
+        // §4 Springs. reduceMotion keeps the same animation family but damps to
+        // 1.0 to drop the bounce rather than swapping in a different curve.
+        withAnimation(.spring(
+            response: 0.4,
+            dampingFraction: reduceMotion ? 1.0 : 0.85
+        )) {
             isDynamicFace = dynamicFace
         }
         DynamicCoverFaceStore.setDynamicFace(dynamicFace, for: showID)
@@ -350,7 +364,7 @@ struct DynamicCoverManagementSection: View {
                 }
             }
 
-            Text("在“当前”页长按主封面，可切换静态面与动态面。")
+            Text("轻点封面进入现场详情。长按主封面可切换静态面与动态面。")
                 .font(BSFont.V3.caption)
                 .foregroundColor(BSColor.Stage.muted)
                 .fixedSize(horizontal: false, vertical: true)

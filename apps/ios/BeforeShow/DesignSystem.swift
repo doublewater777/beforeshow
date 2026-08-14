@@ -159,14 +159,31 @@ enum BSMotion {
 enum BSLayout {
     /// Reserved space above the floating glass tab bar.
     static let floatingTabBarClearance: CGFloat = 108
-    /// Bottom content inset so the last row clears the system tab bar.
-    static let tabBarContentInset: CGFloat = 112
+    /// Extra scroll room so the last row clears the floating system tab bar.
+    static let tabBarContentInset: CGFloat = 96
     /// Minimum tap target edge per HIG.
     static let minTouchTarget: CGFloat = 44
     /// Shared top inset for primary page headers across the two root tabs.
     static let pageHeaderTopPadding: CGFloat = 4
     static let emptyStateActionWidth: CGFloat = 180
     static let emptyStateActionHeight: CGFloat = 49
+    /// Visible circle for sheet/page chrome (close, back). Hit target stays `minTouchTarget`.
+    static let chromeButtonSize: CGFloat = 32
+    static let chromeIconSize: CGFloat = 13
+}
+
+enum BSSettingsStyle {
+    static let rowMinimumHeight: CGFloat = 68
+    static let rowVerticalPadding: CGFloat = 14
+    static let rowDividerInset: CGFloat = 62
+    static let iconContainerSize: CGFloat = 34
+    static let iconSize: CGFloat = 15
+    static let iconCornerRadius: CGFloat = 10
+    static let iconSurfaceOpacity: Double = 0.12
+    static let pressedOpacity: Double = 0.72
+    static let membershipGlowRadius: CGFloat = 180
+    static let membershipGlowOpacity: Double = 0.13
+    static let membershipBorderOpacity: Double = 0.20
 }
 
 // MARK: - Reusable View Modifiers
@@ -188,9 +205,67 @@ extension View {
         self
             .foregroundStyle(BSColor.brandGradient)
     }
+
+    /// iOS 26 scroll-edge pocket so an inline navigation title stays readable.
+    @ViewBuilder
+    func bsNavigationScrollEdge() -> some View {
+        if #available(iOS 26.0, *) {
+            self.scrollEdgeEffectStyle(.hard, for: .top)
+        } else {
+            self
+        }
+    }
+
+    @ViewBuilder
+    func bsClearNavigationContainer() -> some View {
+        if #available(iOS 18.0, *) {
+            self.containerBackground(.clear, for: .navigation)
+        } else {
+            self
+        }
+    }
+
+    /// Let the system sheet material show through a NavigationStack.
+    /// Partial-height detents keep iOS 26 Liquid Glass; `.large` goes opaque.
+    @ViewBuilder
+    func bsSystemGlassSheet(
+        detents: Set<PresentationDetent> = [.medium, .large]
+    ) -> some View {
+        if #available(iOS 18.0, *) {
+            self
+                .containerBackground(.clear, for: .navigation)
+                .presentationDetents(detents)
+                .presentationDragIndicator(.visible)
+        } else {
+            self
+                .presentationDetents(detents)
+                .presentationDragIndicator(.visible)
+        }
+    }
 }
 
 // MARK: - Stage Components
+
+struct BSChromeIconButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: BSLayout.chromeIconSize, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+                .frame(width: BSLayout.chromeButtonSize, height: BSLayout.chromeButtonSize)
+                .background(Color.white.opacity(0.07), in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
 
 struct BSStageSheetHeader: View {
     let icon: String
@@ -288,42 +363,11 @@ private struct StageBackgroundGlow: View {
     }
 }
 
-private struct StageBeam: View {
-    let color: Color
-    let rotation: Double
-    let pulseDuration: TimeInterval
-    let pulseDelay: TimeInterval
-
-    @State private var isPulsing = false
-
-    var body: some View {
-        LinearGradient(
-            colors: [
-                color,
-                color.opacity(0.45),
-                .clear
-            ],
-            startPoint: .bottom,
-            endPoint: .top
-        )
-        .frame(width: 100, height: 420)
-        .blur(radius: 8)
-        .opacity(isPulsing ? 0.5 : 0.2)
-        .rotationEffect(.degrees(rotation), anchor: .bottom)
-        .onAppear {
-            DispatchQueue.main.asyncAfter(deadline: .now() + pulseDelay) {
-                withAnimation(.easeInOut(duration: pulseDuration).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
-        }
-    }
-}
-
 struct BSStageScaffold<Content: View>: View {
     let title: String
     var subtitle: String?
     var bottomPadding: CGFloat = 32
+    var topBarBackAction: (() -> Void)? = nil
     @ViewBuilder var content: Content
 
     var body: some View {
@@ -331,33 +375,67 @@ struct BSStageScaffold<Content: View>: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            VStack(spacing: 0) {
+                if let topBarBackAction {
+                    HStack(spacing: 12) {
+                        BSChromeIconButton(
+                            systemName: "chevron.left",
+                            accessibilityLabel: "返回",
+                            action: topBarBackAction
+                        )
+
                         Text(title)
                             .font(.system(size: 30, weight: .bold))
                             .foregroundColor(BSColor.textPrimary)
-                            .lineLimit(2)
+                            .lineLimit(1)
                             .minimumScaleFactor(0.82)
 
-                        if let subtitle {
-                            Text(subtitle)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textTertiary)
-                                .lineLimit(2)
-                        }
+                        Spacer(minLength: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    content
+                    .padding(.horizontal, BSSpacing.md)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.top, BSSpacing.lg)
-                .padding(.bottom, bottomPadding)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        if topBarBackAction == nil {
+                            if !title.isEmpty || subtitle != nil {
+                                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                                    if !title.isEmpty {
+                                        Text(title)
+                                            .font(.system(size: 30, weight: .bold))
+                                            .foregroundColor(BSColor.textPrimary)
+                                            .lineLimit(2)
+                                            .minimumScaleFactor(0.82)
+                                    }
+
+                                    if let subtitle {
+                                        subtitleText(subtitle)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        } else if let subtitle {
+                            subtitleText(subtitle)
+                        }
+
+                        content
+                    }
+                    .padding(.horizontal, BSSpacing.md)
+                    .padding(.top, topBarBackAction == nil ? BSSpacing.lg : 12)
+                    .padding(.bottom, bottomPadding)
+                }
+                .scrollIndicators(.hidden)
+                .bsNavigationScrollEdge()
             }
-            .scrollIndicators(.hidden)
         }
-        .toolbarBackground(.hidden, for: .navigationBar)
+    }
+
+    private func subtitleText(_ subtitle: String) -> some View {
+        Text(subtitle)
+            .font(BSFont.caption)
+            .foregroundColor(BSColor.textTertiary)
+            .lineLimit(2)
     }
 }
 
@@ -370,66 +448,6 @@ struct BSSectionHeader: View {
             .tracking(1.4)
             .foregroundColor(BSColor.textTertiary)
             .textCase(.uppercase)
-    }
-}
-
-struct BSFloatingGlassTabBar: View {
-    @Binding var selection: BeforeShowTab
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(BeforeShowTab.allCases) { tab in
-                Button {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        selection = tab
-                    }
-                } label: {
-                    VStack(spacing: 4) {
-                        Image(systemName: tab.iconName)
-                            .font(.system(size: 28, weight: selection == tab ? .semibold : .regular))
-                            .symbolVariant(selection == tab ? .fill : .none)
-                        Text(tab.localizedTitle)
-                            .font(.system(size: 13, weight: selection == tab ? .semibold : .medium))
-                    }
-                    .foregroundStyle(selection == tab ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.white.opacity(0.42)))
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 78)
-                    .background {
-                        if selection == tab {
-                            Capsule()
-                                .fill(Color.white.opacity(0.13))
-                                .overlay(
-                                    Capsule()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [
-                                                    Color(red: 0.31, green: 0.82, blue: 0.67).opacity(0.30),
-                                                    Color.white.opacity(0.06)
-                                                ],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                )
-                        }
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(selection == tab ? .isSelected : [])
-            }
-        }
-        .padding(6)
-        .frame(height: 92)
-        .background {
-            RoundedRectangle(cornerRadius: 28)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28)
-                        .stroke(BSColor.borderProminent, lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.42), radius: 24, x: 0, y: 10)
-        }
     }
 }
 
@@ -555,11 +573,15 @@ private extension UIColor {
     }
 }
 
-struct BSGlassPanel<Content: View>: View {
+struct BSSurfacePanel<Content: View>: View {
     var padding: CGFloat = BSSpacing.md
     @ViewBuilder var content: Content
 
     var body: some View {
+        // Intentionally a flat tonal panel — backdrop blur is reserved for
+        // overlays and the countdown bridge. If a future surface needs a real
+        // translucent material, reach for `.ultraThinMaterial` directly rather
+        // than reintroducing a "glass" surface here.
         content
             .padding(padding)
             .background(Color.white.opacity(0.045))
@@ -567,6 +589,22 @@ struct BSGlassPanel<Content: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: BSRadius.lg)
                     .stroke(BSColor.borderProminent, lineWidth: 1)
+            )
+    }
+}
+
+struct BSSettingsSurface<Content: View>: View {
+    var padding: CGFloat = 0
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        content
+            .padding(padding)
+            .background(BSColor.Stage.surface)
+            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.lg)
+                    .stroke(BSColor.Stage.border, lineWidth: 1)
             )
     }
 }
@@ -602,6 +640,11 @@ struct BSPrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 13)
             .background(Color.white.opacity(configuration.isPressed ? 0.78 : 1))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+            // Press-scale: 120ms is below the 160ms BSMotion.micro token, but
+            // matches DESIGN.md "PrimaryStageAction — 120ms press scale to 0.98"
+            // so the press reads as a single physical beat.
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -618,6 +661,26 @@ struct BSSecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: BSRadius.md)
                     .stroke(BSColor.borderProminent, lineWidth: 1)
             )
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+    }
+}
+
+struct BSDangerButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(BSFont.caption)
+            .foregroundColor(BSColor.Stage.danger)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 13)
+            .background(BSColor.Stage.danger.opacity(configuration.isPressed ? 0.18 : 0.12))
+            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.md)
+                    .stroke(BSColor.Stage.danger.opacity(0.30), lineWidth: 1)
+            )
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
     }
 }
 
@@ -696,7 +759,7 @@ struct BSLoadingStatePanel: View {
     let message: String
 
     var body: some View {
-        BSGlassPanel {
+        BSSurfacePanel {
             HStack(alignment: .center, spacing: BSSpacing.md) {
                 ProgressView()
                     .tint(BSColor.textPrimary)
@@ -726,7 +789,7 @@ struct BSEmptyPanel: View {
     var action: (() -> Void)?
 
     var body: some View {
-        BSGlassPanel {
+        BSSurfacePanel {
             VStack(spacing: BSSpacing.md) {
                 Image(systemName: iconName)
                     .font(.system(size: 30, weight: .light))
@@ -934,6 +997,44 @@ struct ArtistAvatarStackView: View {
     }
 }
 
+/// 单头像缩略;库行(28pt)、详情页(40pt)、搜索候选(28pt)共用。
+struct ArtistAvatarThumb: View {
+    let url: URL?
+    var size: CGFloat = 28
+
+    var body: some View {
+        if let url {
+            AsyncImage(url: url) { phase in
+                switch phase {
+                case .success(let image):
+                    image
+                        .resizable()
+                        .scaledToFill()
+                default:
+                    placeholder
+                }
+            }
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+            .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
+        } else {
+            placeholder
+                .frame(width: size, height: size)
+                .clipShape(Circle())
+        }
+    }
+
+    private var placeholder: some View {
+        Circle()
+            .fill(Color.white.opacity(0.12))
+            .overlay(
+                Image(systemName: "person.fill")
+                    .font(.system(size: size * 0.42, weight: .regular))
+                    .foregroundColor(.white.opacity(0.46))
+            )
+    }
+}
+
 private struct BSDrawerContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
 
@@ -944,7 +1045,6 @@ private struct BSDrawerContentHeightKey: PreferenceKey {
 
 struct BSDrawerSheet<Content: View>: View {
     let detents: [PresentationDetent]
-    let background: Color
     let contentInsets: EdgeInsets
     let fitsContent: Bool
     @ViewBuilder let content: Content
@@ -954,7 +1054,6 @@ struct BSDrawerSheet<Content: View>: View {
 
     init(
         detent: PresentationDetent,
-        background: Color = .black,
         fitsContent: Bool = false,
         contentInsets: EdgeInsets = EdgeInsets(
             top: BSSpacing.md,
@@ -965,7 +1064,6 @@ struct BSDrawerSheet<Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.detents = [detent]
-        self.background = background
         self.fitsContent = fitsContent
         self.contentInsets = contentInsets
         self.content = content()
@@ -973,7 +1071,6 @@ struct BSDrawerSheet<Content: View>: View {
 
     init(
         detents: [PresentationDetent],
-        background: Color = .black,
         fitsContent: Bool = false,
         contentInsets: EdgeInsets = EdgeInsets(
             top: BSSpacing.md,
@@ -984,7 +1081,6 @@ struct BSDrawerSheet<Content: View>: View {
         @ViewBuilder content: () -> Content
     ) {
         self.detents = detents
-        self.background = background
         self.fitsContent = fitsContent
         self.contentInsets = contentInsets
         self.content = content()
@@ -1030,9 +1126,7 @@ struct BSDrawerSheet<Content: View>: View {
             }
         }
         .presentationDragIndicator(.visible)
-        .presentationBackground(background)
         .preferredColorScheme(.dark)
-        .background(background)
     }
 
     private var drawerContent: some View {
@@ -1041,7 +1135,6 @@ struct BSDrawerSheet<Content: View>: View {
         }
         .frame(maxWidth: .infinity, alignment: .top)
         .padding(contentInsets)
-        .background(background)
     }
 
     private var maxFittedContentHeight: CGFloat {
@@ -1101,46 +1194,4 @@ struct BSProLimitSheet: View {
     }
 }
 
-struct BSDangerConfirmationSheet: View {
-    let title: String
-    let message: String
-    let destructiveTitle: String
-    var onConfirm: () -> Void
 
-    var body: some View {
-        BSDrawerSheet(detent: .height(292), fitsContent: true) {
-            VStack(spacing: BSSpacing.md) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(BSColor.Accent.danger)
-                    .frame(width: 58, height: 58)
-                    .background(BSColor.Accent.danger.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                VStack(spacing: BSSpacing.xs) {
-                    Text(title)
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                        .multilineTextAlignment(.center)
-                    Text(message)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Button(destructiveTitle, action: onConfirm)
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Accent.danger)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 13)
-                .background(BSColor.Accent.danger.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.md)
-                        .stroke(BSColor.Accent.danger.opacity(0.30), lineWidth: 1)
-                )
-        }
-    }
-}

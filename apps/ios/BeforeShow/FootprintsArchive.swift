@@ -250,7 +250,7 @@ enum FootprintArchiveBuilder {
 
         return FootprintArchiveSnapshot(
             shows: archived,
-            artists: rank(archived.flatMap { splitArtists($0.artist) }),
+            artists: rank(archived.flatMap { $0.artistNames }),
             cities: rank(archived.compactMap { normalized($0.city) }),
             venues: rank(archived.compactMap { normalized($0.venueName) }),
             years: grouped.keys.sorted(by: >).map {
@@ -258,15 +258,6 @@ enum FootprintArchiveBuilder {
             },
             currentYearCount: grouped[calendar.component(.year, from: now)]?.count ?? 0
         )
-    }
-
-    private static func splitArtists(_ value: String?) -> [String] {
-        guard let value else { return [] }
-        var seen = Set<String>()
-        let commaParts = value.components(separatedBy: CharacterSet(charactersIn: ",，、"))
-        return commaParts
-            .compactMap(normalized)
-            .filter { seen.insert($0).inserted }
     }
 
     private static func normalized(_ value: String?) -> String? {
@@ -350,8 +341,7 @@ struct FootprintsView: View {
                     }
                     .presentationDetents([.large])
                     .presentationCornerRadius(26)
-                    .presentationDragIndicator(.hidden)
-                    .presentationBackground(BSColor.Stage.surfaceRaised)
+                    .presentationDragIndicator(.visible)
                 case .share:
                     FootprintShareSheet(
                         archive: archive,
@@ -361,8 +351,7 @@ struct FootprintsView: View {
                     )
                     .presentationDetents([.height(555)])
                     .presentationCornerRadius(26)
-                    .presentationDragIndicator(.hidden)
-                    .presentationBackground(BSColor.Stage.surfaceRaised)
+                    .presentationDragIndicator(.visible)
                 }
             }
             .bsToastOverlay(toast, bottomPadding: 100)
@@ -762,8 +751,10 @@ private struct FootprintSearchSheet: View {
 
     private var results: [Show] {
         archive.shows.filter { show in
-            let searchable = [show.name, show.artist, show.city, show.venueName, String(show.timingCalendar().component(.year, from: show.effectiveDate))]
-                .compactMap { $0 }.joined(separator: " ")
+            let searchable = ([show.name] + show.artistNames
+                + [show.city, show.venueName, String(show.timingCalendar().component(.year, from: show.effectiveDate))]
+                    .compactMap { $0 })
+                .joined(separator: " ")
             let matchesQuery = query.isEmpty || searchable.localizedCaseInsensitiveContains(query)
             let matchesFilter: Bool
             switch filter {
@@ -1333,8 +1324,7 @@ private struct FootprintArchiveDetailView: View {
             FootprintArchiveShareSheet(archive: archive, category: category)
                 .presentationDetents([.height(620)])
                 .presentationCornerRadius(26)
-                .presentationDragIndicator(.hidden)
-                .presentationBackground(BSColor.Stage.surfaceRaised)
+                .presentationDragIndicator(.visible)
         }
     }
 
@@ -1557,7 +1547,7 @@ private struct FootprintArchiveDetailView: View {
         let related = archive.shows.filter { show in
             switch category {
             case .overview: return false
-            case .artist: return show.artist?.localizedCaseInsensitiveContains(item.name) == true
+            case .artist: return show.artistNames.contains { $0.localizedCaseInsensitiveContains(item.name) }
             case .city: return show.city?.trimmingCharacters(in: .whitespacesAndNewlines) == item.name
             case .venue: return show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines) == item.name
             }

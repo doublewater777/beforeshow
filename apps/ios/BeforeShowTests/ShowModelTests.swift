@@ -11,8 +11,8 @@ final class ShowModelTests: XCTestCase {
             name: "落日飞车 北京站",
             date: date,
             startTime: startTime,
-            coverImageURL: "https://example.com/cover.jpg",
-            artistAvatarURLs: ["https://example.com/artist.jpg"]
+            artists: [ArtistSlot(name: "落日飞车", avatarURL: "https://example.com/artist.jpg")],
+            coverImageURL: "https://example.com/cover.jpg"
         )
 
         let container = try ModelContainer(
@@ -29,7 +29,7 @@ final class ShowModelTests: XCTestCase {
         XCTAssertEqual(shows[0].startTime, startTime)
         XCTAssertNil(shows[0].venueName)
         XCTAssertEqual(shows[0].coverImageURL, "https://example.com/cover.jpg")
-        XCTAssertEqual(shows[0].artistAvatarURLs, ["https://example.com/artist.jpg"])
+        XCTAssertEqual(shows[0].artists, [ArtistSlot(name: "落日飞车", avatarURL: "https://example.com/artist.jpg")])
     }
 
     func testPostponedAndCanceledAreRepresentedWithoutGenericAbnormalStates() throws {

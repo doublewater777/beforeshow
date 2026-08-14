@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import os
 
 // MARK: - Domain
 
@@ -175,8 +176,17 @@ enum CompanionSessionRecord {
 
 // MARK: - CloudKit implementation
 
+enum CompanionDebugLog {
+    static func write(_ message: String) {
+        Logger(subsystem: "com.doublewaterapps.beforeshow", category: "companion")
+            .error("\(message, privacy: .public)")
+        print("COMPANION \(message)")
+    }
+}
+
 struct CloudKitCompanionSharingService: CompanionSharingService {
     let container: CKContainer
+    private static let log = Logger(subsystem: "com.doublewaterapps.beforeshow", category: "companion")
 
     static let defaultContainerIdentifier = "iCloud.com.doublewaterapps.beforeshow"
 
@@ -195,7 +205,9 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare {
         try await ensureAccountAvailable()
+        await debugProbeDefaultZone()
         let zone = try await ensureCompanionZone()
+        CompanionDebugLog.write("Preparing companion invite in zone \(zone.zoneID.zoneName)")
 
         let sessionID = CKRecord.ID(
             recordName: "session-\(UUID().uuidString)",
@@ -223,12 +235,19 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         share[CKShare.SystemFieldKey.title] = "一起去 \(show.showName)" as CKRecordValue
         share.publicPermission = .none
 
-        let saved = try await modifyRecords(in: privateDB, saving: [session, share])
+        let saved: [CKRecord]
+        do {
+            saved = try await modifyRecords(in: privateDB, saving: [session, share])
+        } catch {
+            CompanionDebugLog.write("Saving companion share failed: \(error)")
+            throw error
+        }
         guard
             let savedSession = saved.first(where: { $0.recordID.recordName == session.recordID.recordName }),
             let savedShare = saved.compactMap({ $0 as? CKShare }).first
                 ?? saved.first(where: { $0.recordID.recordName == share.recordID.recordName }) as? CKShare
         else {
+            CompanionDebugLog.write("Companion save succeeded without a CKShare payload")
             throw CompanionSharingError.sharePreparationFailed
         }
 
@@ -490,8 +509,21 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
 
     private func ensureAccountAvailable() async throws {
         let status = try await container.accountStatus()
+        CompanionDebugLog.write("iCloud account status: \(status.rawValue)")
         guard status == .available else {
             throw CompanionSharingError.iCloudAccountUnavailable
+        }
+    }
+
+    private func debugProbeDefaultZone() async {
+        do {
+            let record = CKRecord(recordType: "CompanionDebugProbe")
+            record["ok"] = "1" as CKRecordValue
+            _ = try await privateDB.save(record)
+            CompanionDebugLog.write("Default-zone probe save succeeded")
+        } catch {
+            let ns = error as NSError
+            CompanionDebugLog.write("Default-zone probe save failed: \(error) userInfo=\(ns.userInfo)")
         }
     }
 
@@ -508,18 +540,20 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 case .success(let zone):
                     return zone
                 case .failure(let error):
+                    CompanionDebugLog.write(
+                        "Creating companion zone returned: \(error) userInfo=\((error as NSError).userInfo)"
+                    )
                     // Zone already exists is fine — re-fetch.
                     if (error as? CKError)?.code == .serverRecordChanged
                         || (error as? CKError)?.code == .zoneNotFound
                         || (error as? CKError)?.code == .partialFailure {
                         break
                     }
-                    // "already exists" surfaces as various codes; fall through to fetch.
-                    break
+                    throw error
                 }
             }
         } catch {
-            // Fall through to fetch — create races are common on first invite.
+            CompanionDebugLog.write("Creating companion zone failed: \(error)")
         }
 
         do {
@@ -528,11 +562,12 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 return existing
             }
         } catch {
+            CompanionDebugLog.write("Fetching companion zone failed: \(error)")
             throw Self.mapError(error)
         }
 
-        // Last resort: return the in-memory zone definition for save attempts.
-        return zone
+        CompanionDebugLog.write("Companion zone is missing after create and fetch")
+        throw CompanionSharingError.sharePreparationFailed
     }
 
     private func cancelAsOwner(
@@ -713,6 +748,8 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             return .sessionNotFound
         case .serverRecordChanged, .batchRequestFailed:
             return .conflict
+        case .serverRejectedRequest:
+            return .sharePreparationFailed
         default:
             // partialFailure may wrap unknownItem or network errors.
             if let partial = ck?.partialErrorsByItemID?.values {

@@ -3,14 +3,25 @@ import UIKit
 @MainActor
 enum SystemPNGSharePresenter {
     static func present(url: URL) -> Bool {
-        guard let presenter = topViewController() else { return false }
-        let controller = UIActivityViewController(
-            activityItems: [url],
-            applicationActivities: nil
-        )
-        controller.completionWithItemsHandler = { _, _, _, _ in
+        present(items: [url]) { _, _, _, _ in
             try? FileManager.default.removeItem(at: url)
         }
+    }
+
+    static func present(items: [Any]) -> Bool {
+        present(items: items, completion: nil)
+    }
+
+    private static func present(
+        items: [Any],
+        completion: UIActivityViewController.CompletionWithItemsHandler?
+    ) -> Bool {
+        guard let presenter = topViewController() else { return false }
+        let controller = UIActivityViewController(
+            activityItems: items,
+            applicationActivities: nil
+        )
+        controller.completionWithItemsHandler = completion
         if let popover = controller.popoverPresentationController {
             popover.sourceView = presenter.view
             popover.sourceRect = CGRect(
@@ -24,7 +35,7 @@ enum SystemPNGSharePresenter {
         return true
     }
 
-    private static func topViewController() -> UIViewController? {
+    static func topViewController() -> UIViewController? {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first(where: { $0.activationState == .foregroundActive }),

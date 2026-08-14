@@ -82,7 +82,7 @@ struct CurrentShowEndConfirmationSheet: View {
                 tint: BSColor.Stage.accent
             )
 
-            BSGlassPanel {
+            BSSurfacePanel {
                 VStack(spacing: BSSpacing.sm) {
                     DatePicker(
                         "散场日期",

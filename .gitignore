@@ -11,6 +11,7 @@ xcuserdata/
 .playwright-mcp/
 .wrangler
 apps/ios/DerivedData
+apps/ios/DerivedData-device
 scripts
 apps/ios/design-exploration
 apps/ios/screenshots
@@ -39,3 +40,4 @@ apps/ios/build
 .builder
 tmp-screenshots
 .artifacts
+.codex

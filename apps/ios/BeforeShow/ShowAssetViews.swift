@@ -31,6 +31,7 @@ struct ShowAssetSheet: View {
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     var keepsParentDetailHidden = false
 
+    @Environment(\.dismiss) private var dismiss
     @Query private var assets: [ShowAsset]
 
     init(
@@ -45,7 +46,6 @@ struct ShowAssetSheet: View {
         self.kind = kind
         self.onDetailVisibilityChange = onDetailVisibilityChange
         self.keepsParentDetailHidden = keepsParentDetailHidden
-
         let kindRaw = kind.rawValue
         _assets = Query(
             filter: #Predicate<ShowAsset> { asset in
@@ -55,18 +55,34 @@ struct ShowAssetSheet: View {
     }
 
     var body: some View {
-        BSDrawerSheet(
-            detents: assets.isEmpty ? [.medium, .large] : [.large],
-            background: BSColor.Stage.surfaceRaised,
-            fitsContent: assets.isEmpty,
-            contentInsets: EdgeInsets()
-        ) {
-            ShowAssetEntryView(
-                showID: showID,
-                showName: showName,
-                kind: kind
-            )
+        Group {
+            if let asset = assets.first {
+                NavigationStack {
+                    ShowAssetViewerView(
+                        showID: showID,
+                        showName: showName,
+                        kind: kind,
+                        asset: asset
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("取消") { dismiss() }
+                        }
+                    }
+                    .bsClearNavigationContainer()
+                }
+                .bsSystemGlassSheet()
+            } else {
+                BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+                    ShowAssetUploadView(
+                        showID: showID,
+                        showName: showName,
+                        kind: kind
+                    )
+                }
+            }
         }
+        .preferredColorScheme(.dark)
         .onAppear {
             setDetailVisibility(for: .assetSheetPresented)
         }
@@ -108,22 +124,23 @@ struct ShowAssetEntryView: View {
     }
 
     var body: some View {
-        if let asset = assets.first {
-            NavigationStack {
+        Group {
+            if let asset = assets.first {
                 ShowAssetViewerView(
                     showID: showID,
                     showName: showName,
                     kind: kind,
                     asset: asset
                 )
+            } else {
+                ShowAssetUploadView(
+                    showID: showID,
+                    showName: showName,
+                    kind: kind
+                )
             }
-        } else {
-            ShowAssetUploadView(
-                showID: showID,
-                showName: showName,
-                kind: kind
-            )
         }
+        .bsClearNavigationContainer()
     }
 }
 
@@ -182,15 +199,13 @@ struct ShowAssetUploadView: View {
                 emptyUploadSection
             }
         }
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.top, BSSpacing.md)
-        .padding(.bottom, BSSpacing.lg)
         .frame(
             maxWidth: .infinity,
             maxHeight: replacingAsset == nil ? nil : .infinity,
             alignment: .top
         )
-        .background(BSColor.Stage.surfaceRaised)
+        .navigationTitle(replacingAsset == nil ? "" : editorTitle)
+        .navigationBarTitleDisplayMode(.inline)
         .bsToastOverlay(toast, bottomPadding: 36)
         .photosPicker(
             isPresented: $isPhotoPickerPresented,
@@ -251,8 +266,12 @@ struct ShowAssetUploadView: View {
             )
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                Text(isImporting ? "读取中…" : "选择图片")
-                    .frame(maxWidth: .infinity)
+                if isImporting {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("选择图片", systemImage: "photo")
+                }
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isImporting || isSaving)
@@ -279,8 +298,7 @@ struct ShowAssetUploadView: View {
 
             HStack(spacing: 10) {
                 PhotosPicker(selection: $selectedItem, matching: .images) {
-                    Text("重新选择")
-                        .frame(maxWidth: .infinity)
+                    Label("重新选择", systemImage: "photo")
                 }
                 .buttonStyle(BSSecondaryButtonStyle())
                 .disabled(isSaving || isImporting)
@@ -288,8 +306,12 @@ struct ShowAssetUploadView: View {
                 Button {
                     beginSave()
                 } label: {
-                    Text(isSaving ? "保存中…" : "保存\(kind.title)")
-                        .frame(maxWidth: .infinity)
+                    if isSaving {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Label("保存\(kind.title)", systemImage: "square.and.arrow.down")
+                    }
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
                 .disabled(!operation.canBeginSave(
@@ -530,7 +552,6 @@ struct ShowAssetViewerView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var image: UIImage?
-    @State private var isShowingManage = false
     @State private var isReplacing = false
     @State private var isConfirmingDelete = false
     @State private var toast: BSToastPayload?
@@ -540,56 +561,52 @@ struct ShowAssetViewerView: View {
     @State private var lastOffset: CGSize = .zero
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        VStack(spacing: 0) {
+            header
 
-            VStack(spacing: 0) {
-                header
-
-                ZStack {
-                    if let image {
-                        Image(uiImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(dragGesture)
-                            .gesture(magnifyGesture)
-                            .onTapGesture(count: 2) {
-                                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                                    if scale > 1.05 {
-                                        scale = 1
-                                        lastScale = 1
-                                        offset = .zero
-                                        lastOffset = .zero
-                                    } else {
-                                        scale = 2
-                                        lastScale = 2
-                                    }
+            ZStack {
+                if let image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .scaleEffect(scale)
+                        .offset(offset)
+                        .gesture(dragGesture)
+                        .gesture(magnifyGesture)
+                        .onTapGesture(count: 2) {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                if scale > 1.05 {
+                                    scale = 1
+                                    lastScale = 1
+                                    offset = .zero
+                                    lastOffset = .zero
+                                } else {
+                                    scale = 2
+                                    lastScale = 2
                                 }
                             }
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                            .padding(.horizontal, 12)
-                    } else {
-                        ProgressView()
-                            .tint(.white)
-                    }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(.horizontal, 12)
+                } else {
+                    ProgressView()
+                        .tint(.white)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                if let disclaimer = kind.viewerDisclaimer {
-                    Text(disclaimer)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(Color.white.opacity(0.45))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 8)
-                }
-                Text("双指缩放，拖动查看细节")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Color.white.opacity(0.55))
-                    .padding(.bottom, 28)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if let disclaimer = kind.viewerDisclaimer {
+                Text(disclaimer)
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(Color.white.opacity(0.45))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 8)
+            }
+            Text("双指缩放，拖动查看细节")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Color.white.opacity(0.55))
+                .padding(.bottom, 28)
         }
         .navigationBarHidden(true)
         .bsToastOverlay(toast, bottomPadding: 36)
@@ -601,25 +618,6 @@ struct ShowAssetViewerView: View {
             image = nil
             await loadImage()
         }
-        .sheet(isPresented: $isShowingManage) {
-            ShowAssetManageSheet(
-                kind: kind,
-                onReplace: {
-                    isShowingManage = false
-                    Task { @MainActor in
-                        await Task.yield()
-                        isReplacing = true
-                    }
-                },
-                onDelete: {
-                    isShowingManage = false
-                    Task { @MainActor in
-                        await Task.yield()
-                        isConfirmingDelete = true
-                    }
-                }
-            )
-        }
         .navigationDestination(isPresented: $isReplacing) {
             ShowAssetUploadView(
                 showID: showID,
@@ -628,16 +626,16 @@ struct ShowAssetViewerView: View {
                 replacingAsset: asset
             )
         }
-        .sheet(isPresented: $isConfirmingDelete) {
-            BSDangerConfirmationSheet(
-                title: "删除\(kind.title)？",
-                message: "删除后可以重新添加。App 内保存的图片会一起移除。",
-                destructiveTitle: "删除\(kind.title)",
-                onConfirm: {
-                    isConfirmingDelete = false
-                    deleteAsset()
-                }
-            )
+        .confirmationDialog(
+            DangerConfirmation.deleteAsset(kind).title,
+            isPresented: $isConfirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button(DangerConfirmation.deleteAsset(kind).confirmTitle, role: .destructive) {
+                deleteAsset()
+            }
+        } message: {
+            Text(DangerConfirmation.deleteAsset(kind).message)
         }
     }
 
@@ -664,8 +662,13 @@ struct ShowAssetViewerView: View {
 
             Spacer()
 
-            Button {
-                isShowingManage = true
+            Menu {
+                Button("替换图片") {
+                    isReplacing = true
+                }
+                Button("删除\(kind.title)", role: .destructive) {
+                    isConfirmingDelete = true
+                }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 15, weight: .semibold))
@@ -810,88 +813,5 @@ struct ShowAssetViewerView: View {
                 toast = nil
             }
         }
-    }
-}
-
-// MARK: - Manage sheet
-
-private struct ShowAssetManageSheet: View {
-    let kind: ShowAssetKind
-    let onReplace: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        BSDrawerSheet(detents: [.height(320), .medium], fitsContent: true) {
-            VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                Text("管理\(kind.title)")
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.textPrimary)
-                Text("你可以更换或删除这张图片。")
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            VStack(spacing: BSSpacing.sm) {
-                Button(action: onReplace) {
-                    manageRow(
-                        icon: "photo.on.rectangle",
-                        title: "替换图片",
-                        subtitle: "选择另一张图片",
-                        destructive: false
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Button(action: onDelete) {
-                    manageRow(
-                        icon: "trash",
-                        title: "删除\(kind.title)",
-                        subtitle: "删除后可以重新添加",
-                        destructive: true
-                    )
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func manageRow(
-        icon: String,
-        title: String,
-        subtitle: String,
-        destructive: Bool
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(destructive ? BSColor.Accent.danger : BSColor.Stage.accent)
-                .frame(width: 36, height: 36)
-                .background(
-                    (destructive ? BSColor.Accent.danger : BSColor.Stage.accent).opacity(0.12)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 11))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(destructive ? BSColor.Accent.danger : BSColor.textPrimary)
-                Text(subtitle)
-                    .font(.system(size: 11.5))
-                    .foregroundColor(BSColor.textTertiary)
-            }
-
-            Spacer()
-        }
-        .padding(14)
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(
-                    destructive ? BSColor.Accent.danger.opacity(0.22) : Color.white.opacity(0.08),
-                    lineWidth: 1
-                )
-        )
     }
 }

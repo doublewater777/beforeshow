@@ -34,7 +34,7 @@ enum FootprintDebugSeeder {
         let earlier = try sample(
             "落日飞车 · 第一次同行",
             2025, 9, 6,
-            "杭州", "MAO Livehouse", "落日飞车"
+            "杭州", "MAO Livehouse", [ArtistSlot(name: "落日飞车")]
         ).makeShow()
         earlier.markEnded(at: date(2025, 9, 6, 22, 10))
         try earlier.markCompanionInvitationSent(name: "林嘉")
@@ -43,7 +43,7 @@ enum FootprintDebugSeeder {
         let full = try sample(
             detailSampleName,
             2026, 7, 12,
-            "杭州", "杭州奥体中心体育馆", "落日飞车"
+            "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "落日飞车")]
         ).makeShow()
         full.markEnded(at: date(2026, 7, 12, 22, 20))
         try full.markCompanionInvitationSent(name: "林嘉")
@@ -52,7 +52,7 @@ enum FootprintDebugSeeder {
         let empty = try sample(
             "安静的一夜 · 空记忆样本",
             2026, 6, 20,
-            "台北", "Legacy Taipei", "陈绮贞"
+            "台北", "Legacy Taipei", [ArtistSlot(name: "陈绮贞")]
         ).makeShow()
         empty.markEnded(at: date(2026, 6, 20, 22, 0))
 
@@ -227,14 +227,14 @@ enum FootprintDebugSeeder {
 
     private static var samples: [ShowDraft] {
         [
-            sample("陈绮贞「漫漫长夜 Cheer20」", 2026, 7, 12, "杭州", "杭州奥体中心体育馆", "陈绮贞"),
-            sample("万能青年旅店 · 冀西南林路行", 2026, 5, 18, "北京", "国家奥林匹克体育中心", "万能青年旅店"),
-            sample("草东没有派对 · 如常", 2026, 4, 9, "上海", "梅赛德斯-奔驰文化中心", "草东没有派对"),
-            sample("落日飞车 · Q Tour", 2026, 2, 21, "上海", "MAO Livehouse", "落日飞车"),
-            sample("新裤子 · 北海怪兽", 2025, 11, 15, "南京", "南京奥体中心体育场", "新裤子"),
-            sample("落日飞车「夕阳无限好听」", 2025, 9, 6, "杭州", "MAO Livehouse", "落日飞车"),
-            sample("陈绮贞 · 房间里的音乐会", 2025, 5, 24, "上海", "梅赛德斯-奔驰文化中心", "陈绮贞"),
-            sample("落日飞车 · Soft Storm", 2024, 8, 17, "南京", "南京奥体中心体育场", "落日飞车")
+            sample("陈绮贞「漫漫长夜 Cheer20」", 2026, 7, 12, "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "陈绮贞", avatarURL: nil)]),
+            sample("万能青年旅店 · 冀西南林路行", 2026, 5, 18, "北京", "国家奥林匹克体育中心", [ArtistSlot(name: "万能青年旅店", avatarURL: nil)]),
+            sample("草东没有派对 · 如常", 2026, 4, 9, "上海", "梅赛德斯-奔驰文化中心", [ArtistSlot(name: "草东没有派对", avatarURL: nil)]),
+            sample("落日飞车 · Q Tour", 2026, 2, 21, "上海", "MAO Livehouse", [ArtistSlot(name: "落日飞车", avatarURL: nil)]),
+            sample("新裤子 · 北海怪兽", 2025, 11, 15, "南京", "南京奥体中心体育场", [ArtistSlot(name: "新裤子", avatarURL: nil)]),
+            sample("落日飞车「夕阳无限好听」", 2025, 9, 6, "杭州", "MAO Livehouse", [ArtistSlot(name: "落日飞车", avatarURL: nil)]),
+            sample("陈绮贞 · 房间里的音乐会", 2025, 5, 24, "上海", "梅赛德斯-奔驰文化中心", [ArtistSlot(name: "陈绮贞", avatarURL: nil)]),
+            sample("落日飞车 · Soft Storm", 2024, 8, 17, "南京", "南京奥体中心体育场", [ArtistSlot(name: "落日飞车", avatarURL: nil)])
         ]
     }
 
@@ -245,7 +245,7 @@ enum FootprintDebugSeeder {
         _ day: Int,
         _ city: String,
         _ venue: String,
-        _ artist: String
+        _ artist: [ArtistSlot]
     ) -> ShowDraft {
         ShowDraft(
             name: name,
@@ -254,7 +254,7 @@ enum FootprintDebugSeeder {
             endTime: date(year, month, day, 22, 0),
             city: city,
             venueName: venue,
-            artist: artist,
+            artists: artist,
             source: .manual
         )
     }
