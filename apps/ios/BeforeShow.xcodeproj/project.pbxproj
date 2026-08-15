@@ -114,6 +114,10 @@
 		F557084DF860A0A68B719BE9 /* CurrentShowSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1472DE4B09E75FD9393AFC21 /* CurrentShowSession.swift */; };
 		F738A9FA230B8101EE2FCAC3 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B829025F40E3B3F6C89F80E1 /* RootView.swift */; };
 		FD5DA7B7C313D0D3EFFEA326 /* WidgetShowSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 921D23A27473F26969BB142A /* WidgetShowSnapshot.swift */; };
+		AA02CECE1C1A000000000001 /* DispersalCeremony.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CECE1C1A000000000001 /* DispersalCeremony.swift */; };
+		AA02CECE1C1A000000000002 /* DispersalCeremonyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CECE1C1A000000000002 /* DispersalCeremonyViews.swift */; };
+		AA02CECE1C1A000000000003 /* DispersalCeremonyShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CECE1C1A000000000003 /* DispersalCeremonyShareCard.swift */; };
+		AA02CECE1C1A000000000004 /* DispersalCeremonyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA01CECE1C1A000000000004 /* DispersalCeremonyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -259,6 +263,10 @@
 		FB322889B3E6C99CC494F371 /* ShowLiveActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowLiveActivityAttributes.swift; sourceTree = "<group>"; };
 		FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetCoverCache.swift; sourceTree = "<group>"; };
 		FD402AA7F12E05E078FC4661 /* ShowDetailViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDetailViews.swift; sourceTree = "<group>"; };
+		AA01CECE1C1A000000000001 /* DispersalCeremony.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremony.swift; sourceTree = "<group>"; };
+		AA01CECE1C1A000000000002 /* DispersalCeremonyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyViews.swift; sourceTree = "<group>"; };
+		AA01CECE1C1A000000000003 /* DispersalCeremonyShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyShareCard.swift; sourceTree = "<group>"; };
+		AA01CECE1C1A000000000004 /* DispersalCeremonyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -327,6 +335,9 @@
 				91AA708A499F3DF83118C547 /* SystemPNGSharePresenter.swift */,
 				9542E99DA37DDB58B9023646 /* VenueAddressAutocomplete.swift */,
 				30700E5D0F3D1280A63391FD /* WidgetDataSync.swift */,
+				AA01CECE1C1A000000000001 /* DispersalCeremony.swift */,
+				AA01CECE1C1A000000000002 /* DispersalCeremonyViews.swift */,
+				AA01CECE1C1A000000000003 /* DispersalCeremonyShareCard.swift */,
 				599DD07D5DDD3CC7F7B1C5F6 /* Resources */,
 				2247F014724A1459EAA07D3B /* Supporting */,
 			);
@@ -416,6 +427,7 @@
 				85D3374BAAA8ECAB79C9E2E9 /* ShowPreparationTests.swift */,
 				E9FF563A82B32DE497937094 /* VenueAddressAutocompleteTests.swift */,
 				85A35737334710F22FC0B3BA /* WidgetSnapshotTests.swift */,
+				AA01CECE1C1A000000000004 /* DispersalCeremonyTests.swift */,
 			);
 			path = BeforeShowTests;
 			sourceTree = "<group>";
@@ -646,6 +658,9 @@
 				DECE494ED0475E5DCF8BF357 /* WidgetDataSync.swift in Sources */,
 				FD5DA7B7C313D0D3EFFEA326 /* WidgetShowSnapshot.swift in Sources */,
 				C332BC3929EFC7AF98DDEB54 /* WidgetTimelinePlanner.swift in Sources */,
+				AA02CECE1C1A000000000001 /* DispersalCeremony.swift in Sources */,
+				AA02CECE1C1A000000000002 /* DispersalCeremonyViews.swift in Sources */,
+				AA02CECE1C1A000000000003 /* DispersalCeremonyShareCard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -676,6 +691,7 @@
 				12DBB9D4A998EAE716094037 /* ShowPreparationTests.swift in Sources */,
 				7271D905B1F2AF6141262DE1 /* VenueAddressAutocompleteTests.swift in Sources */,
 				90262D5A64C22DAE56C48F2F /* WidgetSnapshotTests.swift in Sources */,
+				AA02CECE1C1A000000000004 /* DispersalCeremonyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

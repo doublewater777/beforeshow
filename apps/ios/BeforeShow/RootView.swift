@@ -4,6 +4,10 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+extension UUID: @retroactive Identifiable {
+    public var id: UUID { self }
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
@@ -12,6 +16,9 @@ struct RootView: View {
     @State private var isShowingFirstShowAdd = false
     @State private var addShowToast: BSToastPayload?
     @State private var isTabBarHidden = false
+    /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
+    /// 在 onChange 触发自己的 push。详见 `presentCeremonyMemoryNavigation`。
+    @State private var ceremonyPendingDetail: FootprintDetailDestination?
 
     // Returning users must see the home tab on the first frame, not a
     // SplashView that then has to fade out. Pre-seed hasFinishedSplash
@@ -103,7 +110,8 @@ struct RootView: View {
         TabView(selection: $selectedTab) {
             CurrentShowHomeView(
                 isPlaybackActive: selectedTab == .current,
-                onDetailVisibilityChange: { isTabBarHidden = $0 }
+                onDetailVisibilityChange: { isTabBarHidden = $0 },
+                ceremonyPendingDetail: $ceremonyPendingDetail
             )
             .tabItem {
                 Label(
@@ -114,7 +122,10 @@ struct RootView: View {
             .tag(BeforeShowTab.current)
             .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
 
-            FootprintsView(onArchiveVisibilityChange: { isTabBarHidden = $0 })
+            FootprintsView(
+                onArchiveVisibilityChange: { isTabBarHidden = $0 },
+                pendingDetailTarget: ceremonyPendingDetail
+            )
             .tabItem {
                 Label(
                     BeforeShowTab.footprints.localizedTitle,
@@ -123,6 +134,13 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
             .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
+        }
+        .onChange(of: ceremonyPendingDetail) { _, newValue in
+            // 仪式 sheet 关闭并要求跳到足迹时,切到 footprints tab。
+            // FootprintsView 自己的 onChange 监听同一值并触发 push。
+            if newValue != nil, selectedTab != .footprints {
+                selectedTab = .footprints
+            }
         }
     }
 }
@@ -186,6 +204,9 @@ private struct OnboardingPlaceholderView: View {
 private struct CurrentShowHomeView: View {
     var isPlaybackActive = true
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+    /// 仪式结束→现场回忆导航:子视图在 onCeremonySkipToMemory 写它,
+    /// RootView 监听后切到 .footprints tab。FootprintsView 自己也监听同一 binding。
+    @Binding var ceremonyPendingDetail: FootprintDetailDestination?
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -198,6 +219,11 @@ private struct CurrentShowHomeView: View {
     @State private var isShowingShowLibrary = false
     @State private var isShowingDynamicCoverPicker = false
     @State private var selectedDynamicCoverItem: PhotosPickerItem?
+    /// 仪式触发链:commit 成功后 → `ceremonyLightsOutShowID` 拉起 fullScreen 熄灯,
+    /// 0.6s 后清空前者并设置 `ceremonySheetShowID` 拉起三步 sheet。两份独立 state
+    /// 避免同一帧内 .sheet(nil → new) 丢片。两份均为 nil = 无仪式在播。
+    @State private var ceremonyLightsOutShowID: UUID?
+    @State private var ceremonySheetShowID: UUID?
     @State private var dynamicCoverImportTask: Task<Void, Never>?
     @State private var isImportingDynamicCover = false
     @State private var dynamicCoverErrorMessage: String?
@@ -246,6 +272,20 @@ private struct CurrentShowHomeView: View {
                         onChooseDynamicCover: presentDynamicCoverPicker,
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
+                        },
+                        ceremonyLightsOutShowID: $ceremonyLightsOutShowID,
+                        ceremonySheetShowID: $ceremonySheetShowID,
+                        onCeremonyCommit: { rating, note in
+                            await commitCeremonyData(
+                                show: show,
+                                rating: rating,
+                                note: note
+                            )
+                        },
+                        onCeremonySkipToMemory: { showID in
+                            if let show = shows.first(where: { $0.id == showID }) {
+                                ceremonyPendingDetail = FootprintDetailDestination(show: show)
+                            }
                         }
                     )
                 } else {
@@ -316,6 +356,14 @@ private struct CurrentShowHomeView: View {
                 if ProcessInfo.processInfo.arguments.contains("--open-settings") {
                     isShowingSettings = true
                 }
+                // 截图 / 验证用:对当前 live 现场直接拉起散场仪式,跳过手动点「结束现场」。
+                if ProcessInfo.processInfo.arguments.contains("--auto-fire-dispersal"),
+                   let live = shows.first(where: { $0.endedAt == nil }) {
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    live.markEnded(at: Date())
+                    try? modelContext.save()
+                    ceremonyLightsOutShowID = live.id
+                }
             }
             #endif
         }
@@ -355,6 +403,23 @@ private struct CurrentShowHomeView: View {
         }
     }
 
+    private func commitCeremonyData(show: Show, rating: Int?, note: String?) async {
+        do {
+            _ = try await ShowMutationCoordinator.commitClosingRitual(
+                rating: rating,
+                note: note,
+                show: show,
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session
+            )
+        } catch {
+            presentToast(.failure, message: "散场评价没有保存，请重试")
+        }
+    }
+
     private func confirmEnd(_ show: Show, at date: Date) {
         guard CurrentShowEndPolicy.isValidConfirmedEnd(
             date,
@@ -382,6 +447,11 @@ private struct CurrentShowHomeView: View {
                         ? "已落幕，散场时间已计入现场记录"
                         : "散场时间已保存，同步暂未更新"
                 )
+                // 仪式与结束现场解耦:即使 commit 同步未更新也已落库,
+                // 仍可升起仪式 sheet 让用户选择补写评价。
+                if show.endedAt != nil {
+                    ceremonyLightsOutShowID = show.id
+                }
             } catch {
                 presentToast(.failure, message: "散场时间没有保存，请重试")
             }
@@ -415,6 +485,11 @@ struct CurrentShowManagementSection: View {
     var onOpenShowLibrary: () -> Void
     var onChooseDynamicCover: () -> Void = {}
     var onConfirmEnd: (Date) -> Void
+    @Binding var ceremonyLightsOutShowID: UUID?
+    @Binding var ceremonySheetShowID: UUID?
+    var onCeremonyCommit: (_ rating: Int?, _ note: String?) async -> Void
+    /// 仪式 sheet 内部按 `×` / 「进入现场回忆」时回调,父视图负责切到足迹并 push 详情。
+    var onCeremonySkipToMemory: (UUID) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
@@ -431,6 +506,25 @@ struct CurrentShowManagementSection: View {
 
     private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
     private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
+
+    /// 给仪式 sheet 用的极简快照:只含 `shows`,足以让 `FootprintDetailIdentityBuilder`
+    /// 推导出「第 N 场现场」「与X第 N 次见面」。城市/艺人/年份在卡片里不显示,
+    /// 不需要完整 archive 统计。
+    private func footprintIdentityForCeremony() -> FootprintDetailIdentity {
+        let snapshot = FootprintArchiveSnapshot(
+            shows: candidateShows,
+            artists: [],
+            cities: [],
+            venues: [],
+            years: [],
+            currentYearCount: 0
+        )
+        return FootprintDetailIdentityBuilder.make(
+            show: show,
+            archive: snapshot,
+            calendar: show.timingCalendar()
+        )
+    }
 
     private var isHeroPlaybackActive: Bool {
         CurrentShowPlaybackPolicy.isActive(
@@ -493,6 +587,37 @@ struct CurrentShowManagementSection: View {
                         openMapApp(app)
                     }
                 )
+            }
+        }
+        .fullScreenCover(item: $ceremonyLightsOutShowID) { id in
+            DispersalLightsOutOverlay(
+                showName: show.name,
+                ordinal: footprintIdentityForCeremony().showOrdinal
+            ) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                    if ceremonyLightsOutShowID == id {
+                        ceremonyLightsOutShowID = nil
+                        ceremonySheetShowID = id
+                    }
+                }
+            }
+        }
+        .sheet(item: $ceremonySheetShowID) { id in
+            if id == show.id {
+                DispersalCeremonySheet(
+                    show: show,
+                    identity: footprintIdentityForCeremony(),
+                    calendar: show.timingCalendar(),
+                    onCommit: onCeremonyCommit,
+                    onSkipToMemory: {
+                        ceremonySheetShowID = nil
+                        onCeremonySkipToMemory(show.id)
+                    }
+                )
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .preferredColorScheme(.dark)
             }
         }
         .onAppear {

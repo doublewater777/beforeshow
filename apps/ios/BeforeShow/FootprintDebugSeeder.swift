@@ -8,7 +8,8 @@ enum FootprintDebugSeeder {
     static func seedIfRequested(in modelContext: ModelContext) {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("--seed-footprints-samples")
-                || arguments.contains("--seed-footprint-detail-v41") else { return }
+                || arguments.contains("--seed-footprint-detail-v41")
+                || arguments.contains("--seed-dispersal-live") else { return }
 
         do {
             let existing = try modelContext.fetch(FetchDescriptor<Show>())
@@ -21,6 +22,26 @@ enum FootprintDebugSeeder {
             if arguments.contains("--seed-footprint-detail-v41"),
                !existingNames.contains(detailSampleName) {
                 try seedDetailSamples(in: modelContext)
+            }
+            if arguments.contains("--seed-dispersal-live") {
+                let liveName = "草东没有派对 · 散场仪式 DEMO"
+                if !existingNames.contains(liveName) {
+                    let draft = sample(
+                        liveName, 2026, 8, 15,
+                        "上海", "梅赛德斯-奔驰文化中心",
+                        [ArtistSlot(name: "草东没有派对", avatarURL: nil)]
+                    )
+                    let live = try draft.makeShow()
+                    // 截图验证用：直接把评价写进 show，仪式 sheet 打开时
+                    // 评分步默认选中、文字步字段预填，可以只验证后续流程。
+                    if arguments.contains("--seed-dispersal-ritual") {
+                        try live.setClosingRitual(
+                            rating: 5,
+                            note: "最后一首歌结束的时候，灯亮得特别慢，舍不得走。"
+                        )
+                    }
+                    modelContext.insert(live)
+                }
             }
             try modelContext.save()
         } catch {
@@ -48,6 +69,10 @@ enum FootprintDebugSeeder {
         full.markEnded(at: date(2026, 7, 12, 22, 20))
         try full.markCompanionInvitationSent(name: "林嘉")
         try full.markCompanionConfirmed(name: full.companionName)
+        try full.setClosingRitual(
+            rating: 5,
+            note: "最后一首歌结束的时候，灯亮得特别慢。"
+        )
 
         let empty = try sample(
             "安静的一夜 · 空记忆样本",

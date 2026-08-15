@@ -85,20 +85,7 @@ struct SettingsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(BSFont.caption.weight(.semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        .background(Color.white.opacity(0.07), in: Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("关闭")
-            }
+            BSChromeToolbarCloseButton { dismiss() }
         }
     }
 

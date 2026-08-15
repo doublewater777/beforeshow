@@ -267,6 +267,22 @@ struct BSChromeIconButton: View {
     }
 }
 
+/// Toolbar leading close control. Uses the system toolbar icon style so it matches
+/// sibling items like the trailing `plus` (same Liquid Glass size, no double chrome).
+struct BSChromeToolbarCloseButton: ToolbarContent {
+    var accessibilityLabel: String = "关闭"
+    let action: () -> Void
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button(action: action) {
+                Image(systemName: "xmark")
+            }
+            .accessibilityLabel(accessibilityLabel)
+        }
+    }
+}
+
 struct BSStageSheetHeader: View {
     let icon: String
     let title: String

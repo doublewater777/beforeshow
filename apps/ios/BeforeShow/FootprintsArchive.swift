@@ -68,7 +68,7 @@ enum FootprintEmptyStateCopy {
     }
 }
 
-private struct FootprintDetailDestination: Identifiable, Hashable {
+struct FootprintDetailDestination: Identifiable, Hashable {
     let show: Show
 
     var id: UUID { show.id }
@@ -279,6 +279,10 @@ enum FootprintArchiveBuilder {
 
 struct FootprintsView: View {
     var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
+    /// 外部 push 入口：仪式结束（散场卡生成/跳过 share）后由 RootView 写入，
+    /// FootprintsView 在 onChange 时把它转成本地 `detailTarget` 触发 push。
+    /// 双向但只读外部更安全 —— 内部源仍是本视图状态。
+    var pendingDetailTarget: FootprintDetailDestination?
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var isAddingShow = false
@@ -299,6 +303,11 @@ struct FootprintsView: View {
                         now: context.date
                     ) != nil
                 )
+            }
+        }
+        .onChange(of: pendingDetailTarget) { _, newValue in
+            if let newValue, shows.contains(where: { $0.id == newValue.id }) {
+                detailTarget = newValue
             }
         }
     }
