@@ -5,6 +5,8 @@ enum ShowValidationError: Error, Equatable {
     case emptyName
     case missingStartTime
     case invalidEndTime
+    case ratingOutOfRange
+    case closingNoteTooLong
 }
 
 enum ShowCompanionStatus: String, CaseIterable, Codable {
@@ -141,6 +143,10 @@ final class Show {
     var postponedDate: Date?
     /// 用户确认的真实散场时刻。存在时高于录入的结束时间与默认时长估算。
     var endedAt: Date?
+    /// 「散场仪式」五档情绪评分，nil = 未评分或主动跳过。
+    var rating: Int? = nil
+    /// 散场后留下的私人感受，nil = 未填写或主动跳过。trim 后的纯空白视为未填。
+    var closingNote: String? = nil
 
     private var companionStatusRawValue: String?
     private(set) var companionName: String?
@@ -328,6 +334,35 @@ final class Show {
     func clearEnded() {
         endedAt = nil
         touch()
+    }
+
+    /// 写「散场仪式」评分与散场文字。`endedAt` 与生命期状态不受影响 ——
+    /// 仪式步骤与结束现场完全解耦,任一字段抛错都不会回滚已结束的现场。
+    ///
+    /// - rating: 1...5,`nil` = 清除或保持未评分
+    /// - note: 经 `normalizeClosingNote` trim + 长度校验,空字符串视为 `nil`
+    /// - 同值写入为幂等,不会更新 `updatedAt`
+    func setClosingRitual(rating: Int?, note: String?) throws {
+        if let rating, !(1...5).contains(rating) {
+            throw ShowValidationError.ratingOutOfRange
+        }
+        let normalized = try Self.normalizeClosingNote(note)
+        if self.rating == rating, self.closingNote == normalized { return }
+        self.rating = rating
+        self.closingNote = normalized
+        touch()
+    }
+
+    static func normalizeClosingNote(_ text: String?) throws -> String? {
+        guard let text else { return nil }
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard normalized.count <= 500 else {
+            throw ShowValidationError.closingNoteTooLong
+        }
+        return normalized
     }
 
     /// Valid transitions: `.none` / `.canceled` → `.pending`.

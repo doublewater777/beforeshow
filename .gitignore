@@ -41,3 +41,4 @@ apps/ios/build
 tmp-screenshots
 .artifacts
 .codex
+tmp-ui-verify

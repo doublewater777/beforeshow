@@ -161,6 +161,9 @@ struct FootprintDetailView: View {
                             show: show,
                             isPlaybackActive: isDynamicCoverPlaybackActive
                         )
+                        if show.rating != nil || (show.closingNote?.isEmpty == false) {
+                            dispersalRitualSection
+                        }
                         memorySection
                         keepsakesSection
                         if show.companionStatus == .confirmed {
@@ -393,6 +396,51 @@ struct FootprintDetailView: View {
                 }
             }
         }
+    }
+
+    /// 散场评价区。仅在用户填了评分或散场文字时显示。
+    /// 由外层 `if` 控制可见性;这里不重复判空,直接 trust `show.rating` / `closingNote`。
+    /// 构图对齐 V2 mini-share:标题与评分同一行,下面只留原话。
+    private var dispersalRitualSection: some View {
+        let node = show.rating.flatMap(DispersalRating.from(rawValue:))
+        let note = FootprintTextNormalizer.nonEmptyTrimmed(show.closingNote)
+        return VStack(alignment: .leading, spacing: BSSpacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("散场评价")
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.foreground)
+                Spacer()
+                if let node {
+                    Text(DispersalCeremonyCardCopy.ratingTitle(node))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(node.tint)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(
+                node.map(\.accessibilityLabel) ?? "散场评价"
+            )
+
+            if let note {
+                Text("\u{201C}\(note)\u{201D}")
+                    .font(.custom("Songti SC", size: 14, relativeTo: .body))
+                    .foregroundColor(Color.white.opacity(0.78))
+                    .lineSpacing(5)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(BSSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            BSColor.Stage.surface,
+            in: RoundedRectangle(cornerRadius: 18)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(
+                    node.map { $0.tint.opacity(0.22) } ?? BSColor.Stage.border
+                )
+        )
     }
 
     private var companionSection: some View {

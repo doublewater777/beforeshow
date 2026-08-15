@@ -179,6 +179,30 @@ enum ShowMutationCoordinator {
     /// Persist a manual current-show selection together with its notification focus,
     /// then refresh notification and widget surfaces from the committed state.
     @MainActor
+    static func commitClosingRitual(
+        rating: Int?,
+        note: String?,
+        show: Show,
+        shows: [Show],
+        selections: [CurrentShowSelection],
+        notificationStates: [NotificationSchedulingState],
+        in modelContext: ModelContext,
+        session: CurrentShowSession = CurrentShowSession(),
+        effects: CurrentShowPostCommitEffects = .live
+    ) async throws -> Bool {
+        try await commitCurrentShowChange(
+            shows: shows,
+            selections: selections,
+            notificationStates: notificationStates,
+            in: modelContext,
+            session: session,
+            effects: effects
+        ) {
+            try show.setClosingRitual(rating: rating, note: note)
+        }
+    }
+
+    @MainActor
     static func selectCurrentShow(
         showID: UUID?,
         shows: [Show],
