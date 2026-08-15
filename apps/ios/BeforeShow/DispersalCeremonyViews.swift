@@ -13,28 +13,25 @@ struct DispersalLightsOutOverlay: View {
     let onComplete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var startedAt = Date()
 
     var body: some View {
-        ZStack {
-            BSColor.Stage.background.ignoresSafeArea()
-
-            stageGlow
-
-            VStack(spacing: BSSpacing.md) {
-                Text("散场")
-                    .font(.system(size: 42, weight: .light))
-                    .tracking(5)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("这是你的第 \(ordinal) 场现场")
-                    .font(.system(size: 13, weight: .medium))
-                    .tracking(0.6)
-                    .foregroundColor(BSColor.Stage.accent)
+        Group {
+            if reduceMotion {
+                stage(progress: 0.5)
+                    .saturation(0.2)
+                    .brightness(-0.15)
+            } else {
+                TimelineView(.animation) { context in
+                    let elapsed = context.date.timeIntervalSince(startedAt)
+                    let progress = DispersalLightsOutMotion.progress(
+                        elapsed: elapsed,
+                        duration: DispersalCeremonyPolicy.lightsOutDuration
+                    )
+                    stage(progress: progress)
+                }
             }
-            .padding(.horizontal, BSSpacing.lg)
-            .opacity(reduceMotion ? 1 : animatedTitleOpacity)
         }
-        .saturation(reduceMotion ? 0.2 : 1.0)
-        .brightness(reduceMotion ? -0.15 : 0)
         .task {
             if reduceMotion {
                 onComplete()
@@ -49,43 +46,58 @@ struct DispersalLightsOutOverlay: View {
         .accessibilityLabel("散场，这是你的第 \(ordinal) 场现场")
     }
 
-    /// 标题在 [0, 25%] 渐入, [80%, 100%] 渐出,中段保持。3 段 0..1 keyTimes。
-    private var animatedTitleOpacity: Double {
-        let progress = timelineProgress
-        if progress < 0.25 {
-            return progress / 0.25
-        } else if progress < 0.80 {
-            return 1
-        } else {
-            return max(0, 1 - (progress - 0.80) / 0.20)
+    private func stage(progress: Double) -> some View {
+        ZStack {
+            BSColor.Stage.background.ignoresSafeArea()
+            stageGlow(progress: progress)
+            VStack(spacing: BSSpacing.md) {
+                Text("散场")
+                    .font(.system(size: 42, weight: .light))
+                    .tracking(5)
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text("这是你的第 \(ordinal) 场现场")
+                    .font(.system(size: 13, weight: .medium))
+                    .tracking(0.6)
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+            .padding(.horizontal, BSSpacing.lg)
+            .opacity(DispersalLightsOutMotion.titleOpacity(progress: progress))
         }
     }
 
-    private var timelineProgress: Double {
-        // 通过 `body` 重新计算耗时,避免在 reduceMotion 时拉起额外 state。
-        Date().timeIntervalSince1970.truncatingRemainder(
-            dividingBy: DispersalCeremonyPolicy.lightsOutDuration
-        ) / DispersalCeremonyPolicy.lightsOutDuration
-    }
-
-    private var stageGlow: some View {
+    private func stageGlow(progress: Double) -> some View {
         GeometryReader { proxy in
             ZStack {
-                beam(color: BSColor.Stage.glowBlue,
-                     x: proxy.size.width * 0.20,
-                     width: 170 * proxy.size.width / 393,
-                     height: proxy.size.height * 0.80,
-                     rotation: 14)
-                beam(color: BSColor.Stage.accent,
-                     x: proxy.size.width * 0.80,
-                     width: 170 * proxy.size.width / 393,
-                     height: proxy.size.height * 0.80,
-                     rotation: -12)
-                beam(color: BSColor.Accent.violet,
-                     x: proxy.size.width * 0.50,
-                     width: 150 * proxy.size.width / 393,
-                     height: proxy.size.height * 0.70,
-                     rotation: 0)
+                beam(
+                    color: BSColor.Stage.glowBlue,
+                    x: proxy.size.width * 0.20,
+                    width: 170 * proxy.size.width / 393,
+                    height: proxy.size.height * 0.80,
+                    startRotation: 16,
+                    endRotation: 8,
+                    peak: 0.90,
+                    progress: progress
+                )
+                beam(
+                    color: BSColor.Stage.accent,
+                    x: proxy.size.width * 0.80,
+                    width: 170 * proxy.size.width / 393,
+                    height: proxy.size.height * 0.80,
+                    startRotation: -16,
+                    endRotation: -7,
+                    peak: 0.85,
+                    progress: progress
+                )
+                beam(
+                    color: BSColor.Accent.violet,
+                    x: proxy.size.width * 0.50,
+                    width: 150 * proxy.size.width / 393,
+                    height: proxy.size.height * 0.70,
+                    startRotation: 0,
+                    endRotation: 0,
+                    peak: 0.70,
+                    progress: progress
+                )
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
             .blendMode(.screen)
@@ -93,8 +105,19 @@ struct DispersalLightsOutOverlay: View {
         }
     }
 
-    private func beam(color: Color, x: CGFloat, width: CGFloat, height: CGFloat, rotation: Double) -> some View {
-        Ellipse()
+    private func beam(
+        color: Color,
+        x: CGFloat,
+        width: CGFloat,
+        height: CGFloat,
+        startRotation: Double,
+        endRotation: Double,
+        peak: Double,
+        progress: Double
+    ) -> some View {
+        let rotation = startRotation + (endRotation - startRotation) * progress
+        let scaleY = 0.6 + 0.45 * progress
+        return Ellipse()
             .fill(
                 RadialGradient(
                     colors: [color.opacity(0.55), .clear],
@@ -104,7 +127,9 @@ struct DispersalLightsOutOverlay: View {
                 )
             )
             .frame(width: width, height: height)
+            .scaleEffect(x: 1, y: scaleY, anchor: .top)
             .rotationEffect(.degrees(rotation))
+            .opacity(DispersalLightsOutMotion.beamOpacity(progress: progress, peak: peak))
             .position(x: x, y: height * 0.4)
             .blur(radius: 22)
     }
@@ -123,7 +148,7 @@ struct DispersalCeremonySheet: View {
     let show: Show
     let identity: FootprintDetailIdentity
     let calendar: Calendar
-    let onCommit: (_ rating: Int?, _ note: String?) async -> Void
+    let onCommit: (_ rating: Int?, _ note: String?) async throws -> Void
     let onSkipToMemory: () -> Void
 
     enum Step: Equatable {
@@ -136,12 +161,13 @@ struct DispersalCeremonySheet: View {
     @State private var draftRating: Int?
     @State private var draftNote: String = ""
     @State private var saving = false
+    @State private var commitError: String?
 
     init(
         show: Show,
         identity: FootprintDetailIdentity,
         calendar: Calendar,
-        onCommit: @escaping (_ rating: Int?, _ note: String?) async -> Void,
+        onCommit: @escaping (_ rating: Int?, _ note: String?) async throws -> Void,
         onSkipToMemory: @escaping () -> Void = {}
     ) {
         self.show = show
@@ -161,6 +187,7 @@ struct DispersalCeremonySheet: View {
                     showName: show.name,
                     rating: $draftRating,
                     note: $draftNote,
+                    commitError: commitError,
                     onClose: { onSkipToMemory() },
                     onSkip: { Task { await advanceCombined(skip: true) } },
                     onGenerate: { Task { await advanceCombined(skip: false) } }
@@ -184,21 +211,27 @@ struct DispersalCeremonySheet: View {
     private func advanceCombined(skip: Bool) async {
         guard !saving else { return }
         saving = true
+        commitError = nil
         let noteToSave: String?
         if skip {
             noteToSave = nil
         } else {
             noteToSave = draftNote.isEmpty ? nil : draftNote
         }
-        await onCommit(draftRating, noteToSave)
-        step = .share
+        do {
+            try await onCommit(draftRating, noteToSave)
+            step = Self.nextStep(after: .combined, commitSucceeded: true)
+        } catch {
+            commitError = "散场评价没有保存，请重试"
+            step = Self.nextStep(after: .combined, commitSucceeded: false)
+        }
         saving = false
     }
 
-    /// 纯规则:把当前 step 推到下一步(测试用 seam)。
-    nonisolated static func nextStep(after current: Step) -> Step {
+    /// 纯规则:commit 成功才离开评级页,失败停在 combined。
+    nonisolated static func nextStep(after current: Step, commitSucceeded: Bool = true) -> Step {
         switch current {
-        case .combined: return .share
+        case .combined: return commitSucceeded ? .share : .combined
         case .share: return .share
         }
     }
@@ -212,6 +245,7 @@ struct DispersalCombinedStep: View {
     let showName: String
     @Binding var rating: Int?
     @Binding var note: String
+    var commitError: String? = nil
     let onClose: () -> Void
     let onSkip: () -> Void
     let onGenerate: () -> Void
@@ -232,6 +266,12 @@ struct DispersalCombinedStep: View {
                         .padding(.top, 18)
                     noteBlock
                         .padding(.top, 18)
+                    if let commitError {
+                        Text(commitError)
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.danger)
+                            .padding(.top, BSSpacing.sm)
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 6)

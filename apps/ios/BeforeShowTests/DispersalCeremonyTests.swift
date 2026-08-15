@@ -104,6 +104,35 @@ final class DispersalCeremonyTests: XCTestCase {
         XCTAssertEqual(DispersalCeremonyPolicy.lightsOutDuration, 2.8, accuracy: 0.001)
     }
 
+    func testLightsOutProgressClampsToUnitInterval() {
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: -1, duration: 2.8), 0)
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: 0, duration: 2.8), 0)
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: 1.4, duration: 2.8), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: 2.8, duration: 2.8), 1)
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: 9, duration: 2.8), 1)
+        XCTAssertEqual(DispersalLightsOutMotion.progress(elapsed: 1, duration: 0), 1)
+    }
+
+    func testLightsOutTitleOpacityFollowsKeyframeEnvelope() {
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0), 0, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.125), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.25), 1, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.5), 1, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.80), 1, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.90), 0.5, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 1), 0, accuracy: 0.0001)
+    }
+
+    func testLightsOutBeamOpacityPeaksThenFades() {
+        XCTAssertEqual(DispersalLightsOutMotion.beamOpacity(progress: 0, peak: 1), 0, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.beamOpacity(progress: 0.25, peak: 1), 1, accuracy: 0.0001)
+        let mid = DispersalLightsOutMotion.beamOpacity(progress: 0.55, peak: 1)
+        XCTAssertGreaterThan(mid, 0.35)
+        XCTAssertLessThan(mid, 1)
+        XCTAssertEqual(DispersalLightsOutMotion.beamOpacity(progress: 0.85, peak: 1), 0.35, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.beamOpacity(progress: 1, peak: 1), 0, accuracy: 0.0001)
+    }
+
     func testPolicyMaximumNoteLengthMatchesShowValidation() {
         XCTAssertEqual(DispersalCeremonyPolicy.maximumNoteLength, 500)
     }
@@ -143,6 +172,17 @@ final class DispersalCeremonyTests: XCTestCase {
         // 评级+文字 同页(V2 同款),所以 combined → share 是单步跨越。
         XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .share)
         XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .share), .share)
+    }
+
+    func testSheetStaysOnCombinedWhenCommitFails() {
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: false),
+            .combined
+        )
+        XCTAssertEqual(
+            DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: true),
+            .share
+        )
     }
 
     // MARK: - DispersalCeremonyPolicy.quickFillPresets

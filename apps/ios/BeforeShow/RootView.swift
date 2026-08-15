@@ -276,7 +276,7 @@ private struct CurrentShowHomeView: View {
                         ceremonyLightsOutShowID: $ceremonyLightsOutShowID,
                         ceremonySheetShowID: $ceremonySheetShowID,
                         onCeremonyCommit: { rating, note in
-                            await commitCeremonyData(
+                            try await commitCeremonyData(
                                 show: show,
                                 rating: rating,
                                 note: note
@@ -403,21 +403,17 @@ private struct CurrentShowHomeView: View {
         }
     }
 
-    private func commitCeremonyData(show: Show, rating: Int?, note: String?) async {
-        do {
-            _ = try await ShowMutationCoordinator.commitClosingRitual(
-                rating: rating,
-                note: note,
-                show: show,
-                shows: shows,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext,
-                session: session
-            )
-        } catch {
-            presentToast(.failure, message: "散场评价没有保存，请重试")
-        }
+    private func commitCeremonyData(show: Show, rating: Int?, note: String?) async throws {
+        _ = try await ShowMutationCoordinator.commitClosingRitual(
+            rating: rating,
+            note: note,
+            show: show,
+            shows: shows,
+            selections: selections,
+            notificationStates: notificationStates,
+            in: modelContext,
+            session: session
+        )
     }
 
     private func confirmEnd(_ show: Show, at date: Date) {
@@ -487,7 +483,7 @@ struct CurrentShowManagementSection: View {
     var onConfirmEnd: (Date) -> Void
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
-    var onCeremonyCommit: (_ rating: Int?, _ note: String?) async -> Void
+    var onCeremonyCommit: (_ rating: Int?, _ note: String?) async throws -> Void
     /// 仪式 sheet 内部按 `×` / 「进入现场回忆」时回调,父视图负责切到足迹并 push 详情。
     var onCeremonySkipToMemory: (UUID) -> Void = { _ in }
 

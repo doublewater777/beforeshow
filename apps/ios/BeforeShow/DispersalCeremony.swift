@@ -99,6 +99,37 @@ enum DispersalCeremonyPolicy {
     ]
 }
 
+/// 熄灯动画时间轴。视图用 `TimelineView` 每帧喂 elapsed,这里只算 0...1 进度与透明度。
+enum DispersalLightsOutMotion {
+    static func progress(elapsed: TimeInterval, duration: TimeInterval) -> Double {
+        guard duration > 0 else { return 1 }
+        return min(1, max(0, elapsed / duration))
+    }
+
+    /// 标题在 [0, 25%] 渐入, [80%, 100%] 渐出,中段保持。
+    static func titleOpacity(progress: Double) -> Double {
+        if progress < 0.25 {
+            return progress / 0.25
+        } else if progress < 0.80 {
+            return 1
+        } else {
+            return max(0, 1 - (progress - 0.80) / 0.20)
+        }
+    }
+
+    /// 光束:0 起、25% 到峰、85% 收到 35%、结束收光。
+    static func beamOpacity(progress: Double, peak: Double) -> Double {
+        if progress < 0.25 {
+            return peak * (progress / 0.25)
+        } else if progress < 0.85 {
+            let t = (progress - 0.25) / 0.60
+            return peak * (1 - 0.65 * t)
+        } else {
+            return peak * 0.35 * max(0, 1 - (progress - 0.85) / 0.15)
+        }
+    }
+}
+
 /// 散场卡上的可见文案。规则只有一份,视图与测试共用。
 enum DispersalCeremonyCardCopy {
     static let brand = "BEFORESHOW · 散场记录"
