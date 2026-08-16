@@ -6,6 +6,7 @@ import UserNotifications
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
 
     private let modelContainer: ModelContainer = {
@@ -30,6 +31,7 @@ struct BeforeShowApp: App {
     }()
 
     init() {
+        AppLanguageManager.apply(AppLanguageManager.persisted)
         #if DEBUG
         UserDefaults.standard.register(defaults: [
             ProEntitlementStorage.appStorageKey: ProEntitlementStorage.encode(
@@ -46,6 +48,8 @@ struct BeforeShowApp: App {
         WindowGroup {
             RootView()
                 .environment(companionCoordinator)
+                .id(languageController.language)
+                .environment(\.locale, languageController.language.locale)
                 .onAppear {
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer

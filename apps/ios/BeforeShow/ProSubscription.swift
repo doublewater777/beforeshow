@@ -3,9 +3,32 @@ import Foundation
 import StoreKit
 #endif
 
+@MainActor
+final class ProOfferDeepLinkRouter: ObservableObject {
+    static let shared = ProOfferDeepLinkRouter()
+
+    @Published var shouldPresentProSheet = false
+    @Published var shouldShowWinbackOffer = false
+
+    private init() {}
+
+    func routeToPro(showWinbackOffer: Bool = false) {
+        shouldShowWinbackOffer = showWinbackOffer
+        shouldPresentProSheet = true
+    }
+}
+
 enum ProSubscriptionPlan: String, CaseIterable, Equatable {
     case monthly
     case yearly
+    case lifetime
+    case yearlyDiscount
+    case lifetimeDiscount
+
+    /// 终身买断没有续订周期，购买/恢复后也不需要到期日语义。
+    var isLifetime: Bool {
+        self == .lifetime || self == .lifetimeDiscount
+    }
 }
 
 struct ProSubscriptionProduct: Equatable {
@@ -19,13 +42,21 @@ struct ProSubscriptionProduct: Equatable {
 enum ProSubscriptionCatalog {
     static let monthlyProductID = "com.doublewaterapps.beforeshow.pro.monthly"
     static let yearlyProductID = "com.doublewaterapps.beforeshow.pro.yearly"
+    static let lifetimeProductID = "com.doublewaterapps.beforeshow.pro.lifetime"
+    static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
+    static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
+
+    /// 标准在售方案：月度 / 年度 / 终身。
+    static let standardPlans: [ProSubscriptionPlan] = [.monthly, .yearly, .lifetime]
+    /// 挽回优惠方案：仅在挽留弹窗与长按图标入口展示。
+    static let winbackPlans: [ProSubscriptionPlan] = [.yearlyDiscount, .lifetimeDiscount]
 
     static let defaultProducts: [ProSubscriptionProduct] = [
         ProSubscriptionProduct(
             id: monthlyProductID,
             plan: .monthly,
             displayName: "BeforeShow Pro 月度",
-            priceText: "¥12/月",
+            priceText: "$1.49/月",
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -34,7 +65,34 @@ enum ProSubscriptionCatalog {
             id: yearlyProductID,
             plan: .yearly,
             displayName: "BeforeShow Pro 年度",
-            priceText: "¥68/年",
+            priceText: "$4.99/年",
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: lifetimeProductID,
+            plan: .lifetime,
+            displayName: "BeforeShow Pro 终身",
+            priceText: "$8.99",
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: yearlyDiscountProductID,
+            plan: .yearlyDiscount,
+            displayName: "BeforeShow Pro 特惠年度",
+            priceText: "$2.99/年",
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: lifetimeDiscountProductID,
+            plan: .lifetimeDiscount,
+            displayName: "BeforeShow Pro 特惠终身",
+            priceText: "$5.99",
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -191,7 +249,10 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
 struct StoreKitProSubscriptionStore: ProSubscriptionStore {
     var productIDs: [String] = [
         ProSubscriptionCatalog.monthlyProductID,
-        ProSubscriptionCatalog.yearlyProductID
+        ProSubscriptionCatalog.yearlyProductID,
+        ProSubscriptionCatalog.lifetimeProductID,
+        ProSubscriptionCatalog.yearlyDiscountProductID,
+        ProSubscriptionCatalog.lifetimeDiscountProductID
     ]
 
     func loadProducts() async throws -> [ProSubscriptionProduct] {
@@ -285,6 +346,12 @@ extension ProSubscriptionPlan {
             self = .monthly
         case ProSubscriptionCatalog.yearlyProductID:
             self = .yearly
+        case ProSubscriptionCatalog.lifetimeProductID:
+            self = .lifetime
+        case ProSubscriptionCatalog.yearlyDiscountProductID:
+            self = .yearlyDiscount
+        case ProSubscriptionCatalog.lifetimeDiscountProductID:
+            self = .lifetimeDiscount
         default:
             return nil
         }
@@ -298,14 +365,14 @@ enum ProLimitReason: Equatable {
     var title: String {
         switch self {
         case .saveLimit:
-            return "免费版可保存 1 场现场"
+            return BSLocalization.text("免费版可保存 20 场现场")
         }
     }
 
     var message: String {
         switch self {
         case .saveLimit:
-            return "开通 Pro 后可以无限保存现场。"
+            return BSLocalization.text("开通 Pro 后可以无限保存现场。")
         }
     }
 }
@@ -313,7 +380,7 @@ enum ProLimitReason: Equatable {
 struct ProFeatureGate {
     let freeSavedShowLimit: Int
 
-    init(freeSavedShowLimit: Int = 1) {
+    init(freeSavedShowLimit: Int = 20) {
         self.freeSavedShowLimit = freeSavedShowLimit
     }
 

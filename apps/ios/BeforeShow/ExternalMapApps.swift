@@ -78,7 +78,7 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
         case .amap:
             var components = URLComponents(string: "iosamap://path")
             components?.queryItems = [
-                URLQueryItem(name: "sourceApplication", value: "开场前"),
+                URLQueryItem(name: "sourceApplication", value: BSLocalization.text("开场前")),
                 URLQueryItem(name: "dname", value: query),
                 URLQueryItem(name: "dev", value: "0"),
                 URLQueryItem(name: "t", value: "0"),

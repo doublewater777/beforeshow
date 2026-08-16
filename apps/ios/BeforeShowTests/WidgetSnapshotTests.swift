@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import UIKit
 import XCTest
 @testable import BeforeShow
 
@@ -640,5 +642,29 @@ final class WidgetSnapshotTests: XCTestCase {
             canSchedule: true
         )
         XCTAssertEqual(action, .keep(desired.state))
+    }
+
+    func testAmbientColorReadsTopBandNotBottom() {
+        let size = CGSize(width: 40, height: 80)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.25))
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: size.height * 0.25, width: size.width, height: size.height * 0.75))
+        }
+
+        let color = try! XCTUnwrap(CoverAmbientColor.uiColor(from: image))
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        XCTAssertTrue(color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha))
+        XCTAssertLessThan(hue, 0.12, "top-band red should stay in the red/orange hue")
+        XCTAssertGreaterThan(saturation, 0.5)
+        XCTAssertGreaterThanOrEqual(brightness, 0.38)
+        XCTAssertLessThanOrEqual(brightness, 0.75)
+    }
+
+    func testAmbientColorFromMissingCoverPathIsNil() {
+        XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: nil))
+        XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: "/tmp/does-not-exist-\(UUID().uuidString).jpg"))
     }
 }

@@ -20,19 +20,14 @@ struct ShowLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    HStack(spacing: 6) {
-                        accentDot
-                        Text(BSLocalization.text("开场前"))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(WidgetTheme.accent)
-                    }
+                    LiveActivityMark(filename: context.state.coverImageFilename, size: 32)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.startDate, style: .timer)
                         .font(.system(size: 16, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.accent)
-                        .accessibilityLabel(BSLocalization.text("开场计时"))
+                        .accessibilityHidden(true)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -51,22 +46,24 @@ struct ShowLiveActivity: Widget {
                     .padding(.top, 2)
                 }
             } compactLeading: {
-                accentDot
+                LiveActivityMark(filename: context.state.coverImageFilename, size: 20)
             } compactTrailing: {
+                // style:.timer 中文会按「N小时 N分钟」抢理想宽度,把 compact 岛拉满整条顶栏。
+                // 定宽 + POSIX 数字,岛只包住镜头两侧一小截。
                 Text(context.state.startDate, style: .timer)
-                    .font(.system(size: 12, weight: .semibold))
+                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+                    .font(.system(size: 11, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.foreground)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+                    .frame(width: 48, alignment: .trailing)
+                    .clipped()
+                    .accessibilityHidden(true)
             } minimal: {
-                accentDot
+                LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
             }
         }
-    }
-
-    private var accentDot: some View {
-        Circle()
-            .fill(WidgetTheme.accent)
-            .frame(width: 7, height: 7)
     }
 
     private func bottomLine(state: ShowLiveActivityAttributes.ContentState) -> String {
@@ -80,6 +77,57 @@ struct ShowLiveActivity: Widget {
             return place.isEmpty ? endLine : "\(place) · \(endLine)"
         }
         return place.isEmpty ? BSLocalization.text("灯亮之前,先进入状态") : place
+    }
+}
+
+// MARK: - 封面 / App 图标
+// compact / minimal 空间只够一枚圆标;封面优先,读不到再回退宿主 App 图标。
+
+private struct LiveActivityMark: View {
+    let filename: String?
+    var size: CGFloat
+
+    var body: some View {
+        Group {
+            if let image = LiveActivityArtwork.image(filename: filename) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Circle().fill(WidgetTheme.surfaceRaised)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+    }
+}
+
+private enum LiveActivityArtwork {
+    static func image(filename: String?) -> UIImage? {
+        if let filename, !filename.isEmpty,
+           let container = WidgetSnapshotStore.containerURL {
+            let cover = UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
+            if let cover { return cover }
+        }
+        return appIcon()
+    }
+
+    /// 小组件包里没有 App Icon;从宿主 `.app` 根上的系统导出文件读。
+    static func appIcon() -> UIImage? {
+        let app = Bundle.main.bundleURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let names = [
+            "AppIcon60x60@3x.png",
+            "AppIcon60x60@2x.png",
+            "AppIcon76x76@2x~ipad.png",
+        ]
+        for name in names {
+            if let image = UIImage(contentsOfFile: app.appendingPathComponent(name).path) {
+                return image
+            }
+        }
+        return nil
     }
 }
 
@@ -98,7 +146,7 @@ private struct LiveActivityBannerView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
                 coverView
 
                 VStack(alignment: .leading, spacing: 1) {
@@ -114,20 +162,32 @@ private struct LiveActivityBannerView: View {
 
                 Spacer(minLength: 0)
 
-                Text(state.startDate, style: .timer)
-                    .font(.system(size: 20, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(WidgetTheme.accent)
-                    .accessibilityLabel(BSLocalization.text("开场计时"))
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(state.startDate, style: .timer)
+                        .font(.system(size: 20, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.accent)
+                        .accessibilityHidden(true)
+                    if state.hasStarted ?? (Date() >= state.startDate) {
+                        Text("已开场")
+                            .font(.system(size: 10))
+                            .foregroundStyle(WidgetTheme.dim)
+                    }
+                }
+                .fixedSize()
             }
 
-            // 进度条系统自驱:开场前为 0、live 推进、谢幕时满,全程无需 update
+            // 进度条系统自驱:countsDown false → 开场前为 0、live 往右填、谢幕时满
             if let end = state.endDate, end > state.startDate {
                 VStack(spacing: 4) {
-                    ProgressView(timerInterval: state.startDate...end)
-                        .tint(WidgetTheme.accent)
+                    ProgressView(timerInterval: state.startDate...end, countsDown: false) {
+                        EmptyView()
+                    } currentValueLabel: {
+                        EmptyView()
+                    }
+                    .tint(WidgetTheme.accent)
+                    .accessibilityHidden(true)
                     HStack {
-                        Text(BSLocalization.format("%@ 开场", clockText(state.startDate, calendar: state.startCalendar)))
                         Spacer(minLength: 0)
                         Text(BSLocalization.format("预计 %@ 谢幕", clockText(end, calendar: state.endCalendar)))
                     }

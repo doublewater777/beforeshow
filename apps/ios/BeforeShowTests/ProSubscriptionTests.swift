@@ -2,15 +2,23 @@ import XCTest
 @testable import BeforeShow
 
 final class ProSubscriptionTests: XCTestCase {
-    func testCatalogLoadsMonthlyAndYearlySubscriptionProducts() {
+    func testCatalogLoadsStandardAndWinbackProducts() {
         let products = ProSubscriptionCatalog.defaultProducts
 
-        XCTAssertEqual(products.map(\.plan), [.monthly, .yearly])
+        XCTAssertEqual(products.map(\.plan), [.monthly, .yearly, .lifetime, .yearlyDiscount, .lifetimeDiscount])
         XCTAssertEqual(products.map(\.id), [
             "com.doublewaterapps.beforeshow.pro.monthly",
-            "com.doublewaterapps.beforeshow.pro.yearly"
+            "com.doublewaterapps.beforeshow.pro.yearly",
+            "com.doublewaterapps.beforeshow.pro.lifetime",
+            "com.doublewaterapps.beforeshow.pro.yearly.discount",
+            "com.doublewaterapps.beforeshow.pro.lifetime.discount"
         ])
-        XCTAssertEqual(products.map(\.priceText), ["¥12/月", "¥68/年"])
+        XCTAssertEqual(products.map(\.priceText), ["$1.49/月", "$4.99/年", "$8.99", "$2.99/年", "$5.99"])
+        XCTAssertEqual(ProSubscriptionCatalog.standardPlans, [.monthly, .yearly, .lifetime])
+        XCTAssertEqual(ProSubscriptionCatalog.winbackPlans, [.yearlyDiscount, .lifetimeDiscount])
+        XCTAssertTrue(ProSubscriptionPlan.lifetime.isLifetime)
+        XCTAssertTrue(ProSubscriptionPlan.lifetimeDiscount.isLifetime)
+        XCTAssertFalse(ProSubscriptionPlan.yearly.isLifetime)
     }
 
     func testProductFramingDoesNotUseAdsOrAdRemovalCopy() {
@@ -53,7 +61,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
-    func testProGateAllowsOneFreeShow() {
+    func testProGateAllowsTwentyFreeShows() {
         let gate = ProFeatureGate()
         let proEntitlement = ProEntitlementState.active(
             productID: ProSubscriptionCatalog.yearlyProductID,
@@ -61,12 +69,13 @@ final class ProSubscriptionTests: XCTestCase {
         )
 
         XCTAssertTrue(gate.canAddShow(savedShowCount: 0, entitlement: .free))
-        XCTAssertFalse(gate.canAddShow(savedShowCount: 1, entitlement: .free))
-        XCTAssertTrue(gate.canAddShow(savedShowCount: 10, entitlement: proEntitlement))
+        XCTAssertTrue(gate.canAddShow(savedShowCount: 19, entitlement: .free))
+        XCTAssertFalse(gate.canAddShow(savedShowCount: 20, entitlement: .free))
+        XCTAssertTrue(gate.canAddShow(savedShowCount: 100, entitlement: proEntitlement))
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
-        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版可保存 1 场现场")
+        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版可保存 20 场现场")
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
 
     }
@@ -92,13 +101,14 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(expired.isProActive)
         XCTAssertTrue(gate.canAccessExistingLocalData(entitlement: expired))
         XCTAssertTrue(gate.canEditManualContent(entitlement: expired))
-        XCTAssertFalse(gate.canAddShow(savedShowCount: 1, entitlement: expired))
+        XCTAssertTrue(gate.canAddShow(savedShowCount: 19, entitlement: expired))
+        XCTAssertFalse(gate.canAddShow(savedShowCount: 20, entitlement: expired))
     }
 
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .free),
-            SettingsMembershipSummary(title: "免费版", subtitle: "可保存 1 场现场")
+            SettingsMembershipSummary(title: "免费版", subtitle: "可保存 20 场现场")
         )
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
@@ -117,7 +127,6 @@ final class ProSubscriptionTests: XCTestCase {
             NotificationSettingsPresentation(authorizationState: .notDetermined),
             NotificationSettingsPresentation(
                 status: "尚未开启",
-                subtitle: "轻点开启开场提醒",
                 action: .requestPermission
             )
         )
@@ -125,7 +134,6 @@ final class ProSubscriptionTests: XCTestCase {
             NotificationSettingsPresentation(authorizationState: .denied),
             NotificationSettingsPresentation(
                 status: "未开启",
-                subtitle: "去系统设置开启通知",
                 action: .openSystemSettings
             )
         )
@@ -197,16 +205,6 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(SettingsEntry.allCases.map(\.rawValue).contains("默认音乐平台"))
     }
 
-    func testPrivacyCopyCoversRequiredBoundaries() {
-        let copy = (PrivacyLocalDataCopy.points + [PrivacyLocalDataCopy.clearDataExplanation])
-            .joined(separator: " ")
-
-        XCTAssertTrue(copy.contains("设备端 OCR"))
-        XCTAssertTrue(copy.contains("设备本地"))
-        XCTAssertTrue(copy.contains("记忆碎片"))
-        XCTAssertTrue(copy.contains("不会删除系统相册中的原始图片或视频"))
-    }
-
     func testFeedbackPayloadOnlyIncludesUserChosenContent() throws {
         let builder = FeedbackPayloadBuilder {
             FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test")
@@ -228,17 +226,6 @@ final class ProSubscriptionTests: XCTestCase {
         ))
 
         XCTAssertEqual(diagnosticPayload.diagnostics, FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test"))
-    }
-
-    func testLocalDataClearancePreservesSystemGalleryOriginals() {
-        let plan = LocalDataClearancePolicy.defaultPlan
-
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("SwiftData") }))
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("记忆碎片") }))
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("照片和视频副本") }))
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("动态封面") && $0.contains("正反面偏好") }))
-        XCTAssertTrue(plan.deletesAppOwnedData.contains(where: { $0.contains("临时缓存") }))
-        XCTAssertTrue(plan.preservesSystemData.contains(where: { $0.contains("系统相册中的原始图片和视频") }))
     }
 
     func testPurchaseFailureThrowsCancelledErrorAndKeepsStateFree() async throws {

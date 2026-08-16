@@ -99,9 +99,28 @@ final class DispersalCeremonyTests: XCTestCase {
         XCTAssertEqual(DispersalCeremonyPolicy.snap(99.0), 5)
     }
 
+    func testSnapSliderTrackEndsOnFirstAndLastNodeCenters() {
+        let width: CGFloat = 320
+        let inset = DispersalSnapSliderLayout.trackInset(width: width, nodeCount: 5)
+        XCTAssertEqual(inset, 32, accuracy: 0.001)
+        XCTAssertEqual(inset, width * 0.10, accuracy: 0.001)
+        XCTAssertEqual(width - inset, width * 0.90, accuracy: 0.001)
+        let fillAtMax = width - inset * 2
+        XCTAssertEqual(inset + fillAtMax, width - inset, accuracy: 0.001)
+    }
+
     func testPolicyLightsOutDurationMatchesMotionEmphasis() {
-        // 2.8s 与 V2 原型 3 光束淡入淡出节奏对齐。reduceMotion 时跳过。
-        XCTAssertEqual(DispersalCeremonyPolicy.lightsOutDuration, 2.8, accuracy: 0.001)
+        // 「散场」至少停住 2 秒。2.8s 总长里标题满不透明只有 1.5s,会像闪一下。
+        XCTAssertEqual(DispersalCeremonyPolicy.lightsOutDuration, 4.2, accuracy: 0.001)
+    }
+
+    func testLightsOutTitleHoldLastsThroughTheCeremonyBeat() {
+        let duration = DispersalCeremonyPolicy.lightsOutDuration
+        let holdStart = 0.25 * duration
+        let holdEnd = 0.80 * duration
+        XCTAssertGreaterThanOrEqual(holdEnd - holdStart, 2.0)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.25), 1, accuracy: 0.0001)
+        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.80), 1, accuracy: 0.0001)
     }
 
     func testLightsOutProgressClampsToUnitInterval() {

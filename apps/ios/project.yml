@@ -6,7 +6,7 @@ options:
   xcodeVersion: "26.0"
 settings:
   base:
-    CURRENT_PROJECT_VERSION: 1
+    CURRENT_PROJECT_VERSION: 2
     MARKETING_VERSION: 1.0
     SWIFT_VERSION: 6.0
     DEVELOPMENT_LANGUAGE: zh-Hans
@@ -30,11 +30,6 @@ targets:
         PRODUCT_NAME: BeforeShow
         INFOPLIST_FILE: BeforeShow/Supporting/Info.plist
         CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
-      configs:
-        Debug:
-          CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.Debug.entitlements
-        Release:
-          CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: 1
@@ -42,6 +37,11 @@ targets:
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
         UILAUNCHSTORYBOARDNAME: LaunchScreen
         ENABLE_USER_SCRIPT_SANDBOXING: true
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.Debug.entitlements
+        Release:
+          CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
     scheme:
       testTargets:
         - BeforeShowTests

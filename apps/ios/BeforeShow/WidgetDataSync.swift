@@ -13,7 +13,8 @@ import WidgetKit
 //   UI 为中性文案,越过谢幕也不会显示「LIVE」
 
 enum WidgetDataSync {
-    static let widgetKind = "BeforeShowCountdownWidget"
+    static let widgetKind = BeforeShowWidgetKind.homeCountdown
+    static let lockScreenWidgetKind = BeforeShowWidgetKind.lockScreenCountdown
 
     /// generation 在 MainActor(SwiftUI 调用方所在隔离域)预分配,
     /// 保证多次连续 sync 的版本顺序 = 调用顺序;actor 只认最大版本。
@@ -38,7 +39,7 @@ enum WidgetDataSync {
         if contentChanged(from: previous, to: snapshot) {
             didStoreSnapshot = WidgetSnapshotStore.write(snapshot)
             if didStoreSnapshot {
-                WidgetCenter.shared.reloadTimelines(ofKind: widgetKind)
+                BeforeShowWidgetKind.reloadAllTimelines()
             }
         }
 
@@ -194,7 +195,7 @@ actor ShowLiveActivityController {
             let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             if !hadWidgetCover, hasWidgetCover {
                 await MainActor.run {
-                    WidgetCenter.shared.reloadTimelines(ofKind: WidgetDataSync.widgetKind)
+                    BeforeShowWidgetKind.reloadAllTimelines()
                 }
             }
         } else {

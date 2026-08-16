@@ -69,22 +69,22 @@ enum HomeShowIdentityPresentation {
     ) -> String {
         switch timeState.kind {
         case .before:
-            return timeState.isDatedPostponement ? "新日期" : "下一场"
+            return timeState.isDatedPostponement ? BSLocalization.text("新日期") : BSLocalization.text("下一场")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return citySiteText("今天开场", city: city)
+                return citySiteText("今天开场 · %@站", city: city, bare: "今天开场")
             }
-            return "LIVE · 开场中"
+            return BSLocalization.text("LIVE · 开场中")
         case .dayEnded:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .postShow:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .ended:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .canceled:
-            return "已取消"
+            return BSLocalization.text("已取消")
         case .postponed:
-            return "延期 · 时间待定"
+            return BSLocalization.text("延期 · 时间待定")
         }
     }
 
@@ -93,24 +93,24 @@ enum HomeShowIdentityPresentation {
         now: Date
     ) -> String {
         switch timeState.kind {
-        case .before: return "开场前"
+        case .before: return BSLocalization.text("开场前")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return "今天开场"
+                return BSLocalization.text("今天开场")
             }
-            return "正在现场"
-        case .dayEnded: return "今日已落幕"
-        case .postShow: return "散场后"
-        case .ended: return "已结束"
-        case .canceled: return "已取消"
-        case .postponed: return "时间待定"
+            return BSLocalization.text("正在现场")
+        case .dayEnded: return BSLocalization.text("今日已落幕")
+        case .postShow: return BSLocalization.text("散场后")
+        case .ended: return BSLocalization.text("已结束")
+        case .canceled: return BSLocalization.text("已取消")
+        case .postponed: return BSLocalization.text("时间待定")
         }
     }
 
-    private static func citySiteText(_ prefix: String, city: String?) -> String {
+    private static func citySiteText(_ formatKey: String, city: String?, bare: String) -> String {
         let city = city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let city, !city.isEmpty else { return prefix }
-        return "\(prefix) · \(city)站"
+        guard let city, !city.isEmpty else { return BSLocalization.text(bare) }
+        return BSLocalization.format(formatKey, city)
     }
 
     static func venueSummary(venue: String?, city: String?) -> String? {
@@ -163,28 +163,38 @@ enum HomeShowIdentityPresentation {
             let endDateText = startYear == endYear
                 ? monthDayText(endDay, calendar: calendar)
                 : "\(endYear).\(monthDayText(endDay, calendar: calendar))"
-            return "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))-\(endDateText) · 每日 \(daily)"
+            return BSLocalization.format("%@-%@ · 每日 %@", "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))", endDateText, daily)
         }
 
         let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
-        guard let start = timeState.effectiveStartTime,
-              let end = timeState.effectiveEndTime,
-              end > start else {
-            return base
+
+        // 已确认散场的现场展示实际时长(开场→散场),不再说「预计」。
+        if let endedAt = show.endedAt,
+           let actual = durationText(from: timeState.effectiveStartTime ?? show.startTime, to: endedAt) {
+            return BSLocalization.format("%@ · 实际演出 %@", base, actual)
         }
 
+        guard let start = timeState.effectiveStartTime,
+              let end = timeState.effectiveEndTime,
+              let duration = durationText(from: start, to: end) else {
+            return base
+        }
+        return BSLocalization.format("%@ · 预计演出 %@", base, duration)
+    }
+
+    /// 「X 小时 Y 分」时长文案,end <= start 时返回 nil 让上层回退到纯日期。
+    private static func durationText(from start: Date, to end: Date) -> String? {
+        guard end > start else { return nil }
         let minutes = Int(end.timeIntervalSince(start)) / 60
         let hours = minutes / 60
         let rest = minutes % 60
-        let duration: String
         if hours > 0 && rest > 0 {
-            duration = "\(hours) 小时 \(rest) 分"
+            return BSLocalization.format("%lld 小时 %lld 分", hours, rest)
         } else if hours > 0 {
-            duration = "\(hours) 小时"
+            return BSLocalization.format("%lld 小时", hours)
         } else {
-            duration = "\(max(1, rest)) 分钟"
+            return BSLocalization.format("%lld 分钟", max(1, rest))
         }
-        return "\(base) · 预计演出 \(duration)"
     }
 
     private static func trimmed(_ value: String?) -> String? {
@@ -539,10 +549,10 @@ struct HomeCountdownLockup: View {
 
     private func primaryActionTitle(_ action: PrimaryAction) -> String {
         switch action {
-        case .end(live: true): return "结束现场"
-        case .end(live: false): return "确认已结束"
-        case .companion: return "约人同行"
-        case .memoryFragments: return "记一段记忆"
+        case .end(live: true): return BSLocalization.text("结束现场")
+        case .end(live: false): return BSLocalization.text("确认已结束")
+        case .companion: return BSLocalization.text("约人同行")
+        case .memoryFragments: return BSLocalization.text("记一段记忆")
         }
     }
 
@@ -556,9 +566,9 @@ struct HomeCountdownLockup: View {
 
     private func accessibilityHint(for action: PrimaryAction) -> String {
         switch action {
-        case .end: return "打开结束现场确认"
-        case .companion: return "邀请一位朋友同行"
-        case .memoryFragments: return "打开记忆碎片"
+        case .end: return BSLocalization.text("打开结束现场确认")
+        case .companion: return BSLocalization.text("邀请一位朋友同行")
+        case .memoryFragments: return BSLocalization.text("打开记忆碎片")
         }
     }
 
@@ -670,7 +680,7 @@ struct HomeCountdownLockup: View {
 
     private static func originalDateText(for show: Show, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.month, .day], from: show.date)
-        return "\(components.month ?? 0)月\(components.day ?? 0)日"
+        return BSLocalization.format("%lld月%lld日", components.month ?? 0, components.day ?? 0)
     }
 }
 
@@ -725,65 +735,65 @@ struct HomeTipCard: View {
         case .pre:
             if timeState.isDatedPostponement {
                 return Content(
-                    badge: "现场变更",
-                    title: "等待被延长了",
-                    text: "新日期的倒计时和提醒已重新排好。",
+                    badge: BSLocalization.text("现场变更"),
+                    title: BSLocalization.text("等待被延长了"),
+                    text: BSLocalization.text("新日期的倒计时和提醒已重新排好。"),
                     tone: .violet
                 )
             }
             if !lineup.isEmpty {
                 return Content(
-                    badge: "现场准备",
-                    title: "草地、阳光和一整天的音乐",
-                    text: "野餐垫、防晒和充电宝,让这两天从容很多。",
+                    badge: BSLocalization.text("现场准备"),
+                    title: BSLocalization.text("草地、阳光和一整天的音乐"),
+                    text: BSLocalization.text("野餐垫、防晒和充电宝,让这两天从容很多。"),
                     tone: .violet,
                     showsLineup: true
                 )
             }
             if timeState.kind == .today {
                 return Content(
-                    badge: "现场准备",
-                    title: "今晚的事,白天就顺手办了",
-                    text: "出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。",
+                    badge: BSLocalization.text("现场准备"),
+                    title: BSLocalization.text("今晚的事,白天就顺手办了"),
+                    text: BSLocalization.text("出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。"),
                     tone: .blue
                 )
             }
             return Content(
-                badge: "进入状态",
-                title: "离开场又近了一天",
-                text: "把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。",
+                badge: BSLocalization.text("进入状态"),
+                title: BSLocalization.text("离开场又近了一天"),
+                text: BSLocalization.text("把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。"),
                 tone: .gold
             )
         case .live:
             return Content(
-                badge: "正在现场",
-                title: "享受这一晚",
-                text: "散场后人多,提前想好从哪个出口离开。",
+                badge: BSLocalization.text("正在现场"),
+                title: BSLocalization.text("享受这一晚"),
+                text: BSLocalization.text("散场后人多,提前想好从哪个出口离开。"),
                 tone: .gray
             )
         case .ended:
             if timeState.kind == .dayEnded {
                 return Content(
-                    badge: "今日已落幕",
-                    title: "今天先到这里",
+                    badge: BSLocalization.text("今日已落幕"),
+                    title: BSLocalization.text("今天先到这里"),
                     text: timeState.helperText,
                     tone: .gray
                 )
             }
             guard timeState.kind == .postShow else { return nil }
             return Content(
-                badge: "散场之后",
-                title: "余温还留在这里",
-                text: "这场的资料还会保留。想好下一场去哪了吗?",
+                badge: BSLocalization.text("散场之后"),
+                title: BSLocalization.text("余温还留在这里"),
+                text: BSLocalization.text("这场的资料还会保留。想好下一场去哪了吗?"),
                 tone: .gray,
-                quietAction: "添加下一场现场 →"
+                quietAction: BSLocalization.text("添加下一场现场 →")
             )
         case .inactive:
             guard timeState.kind == .postponed else { return nil }
             return Content(
-                badge: "现场变更",
-                title: "先把它放在这里",
-                text: "等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。",
+                badge: BSLocalization.text("现场变更"),
+                title: BSLocalization.text("先把它放在这里"),
+                text: BSLocalization.text("等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。"),
                 tone: .gray
             )
         }

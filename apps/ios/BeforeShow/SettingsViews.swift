@@ -7,22 +7,23 @@ import UIKit
 struct SettingsView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @Environment(\.dismiss) private var dismiss
+    @State private var isShowingProPaywall = false
 
     /// 设置以 sheet 形式呈现，自带 NavigationStack 容纳内层子页面。
     var body: some View {
         BSStageScaffold(
             title: "",
-            subtitle: "管理你的方案、开场提醒与本地数据",
+            subtitle: nil,
             bottomPadding: BSSpacing.xl
         ) {
-            NavigationLink {
-                ProMembershipView()
+            Button {
+                isShowingProPaywall = true
             } label: {
                 SettingsMembershipCard(summary: membershipSummary)
             }
             .buttonStyle(SettingsPressButtonStyle())
 
-            SettingsGroup(title: "通知与数据") {
+            SettingsGroup(title: BSLocalization.text("通知与数据")) {
                 NotificationSettingsRow()
 
                 SettingsDivider()
@@ -33,7 +34,7 @@ struct SettingsView: View {
                     SettingsRowContent(
                         iconName: "lock.fill",
                         title: SettingsEntry.privacyAndLocalData.rawValue,
-                        subtitle: "查看保存范围或清除本地副本",
+                        subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
                     )
@@ -41,14 +42,14 @@ struct SettingsView: View {
                 .buttonStyle(SettingsPressButtonStyle())
             }
 
-            SettingsGroup(title: "支持") {
+            SettingsGroup(title: BSLocalization.text("支持")) {
                 NavigationLink {
                     FeedbackView()
                 } label: {
                     SettingsRowContent(
                         iconName: "bubble.left.and.bubble.right.fill",
                         title: SettingsEntry.feedback.rawValue,
-                        subtitle: "分享使用感受、问题或隐私建议",
+                        subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
                     )
@@ -56,14 +57,29 @@ struct SettingsView: View {
                 .buttonStyle(SettingsPressButtonStyle())
             }
 
-            SettingsGroup(title: "关于") {
+            SettingsGroup(title: BSLocalization.text("语言")) {
+                NavigationLink {
+                    LanguageSettingsView()
+                } label: {
+                    SettingsRowContent(
+                        iconName: "globe",
+                        title: BSLocalization.text("App 语言"),
+                        subtitle: nil,
+                        value: AppLanguageController.shared.language.displayName,
+                        tint: BSColor.Stage.muted
+                    )
+                }
+                .buttonStyle(SettingsPressButtonStyle())
+            }
+
+            SettingsGroup(title: BSLocalization.text("关于")) {
                 NavigationLink {
                     AboutBeforeShowView()
                 } label: {
                     SettingsRowContent(
                         iconName: "info.circle.fill",
                         title: SettingsEntry.about.rawValue,
-                        subtitle: "开场之前，先进入状态",
+                        subtitle: nil,
                         value: AppVersionInformation.current.compactCopy,
                         tint: BSColor.Stage.muted
                     )
@@ -72,7 +88,7 @@ struct SettingsView: View {
             }
 
             #if DEBUG
-            SettingsGroup(title: "调试") {
+            SettingsGroup(title: BSLocalization.text("调试")) {
                 ProEntitlementDebugPicker()
 
                 SettingsDivider()
@@ -86,6 +102,9 @@ struct SettingsView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
+        }
+        .sheet(isPresented: $isShowingProPaywall) {
+            ProPaywallSheetView()
         }
     }
 
@@ -303,8 +322,8 @@ private struct NotificationSettingsRow: View {
         Button(action: performAction) {
             SettingsRowContent(
                 iconName: "bell.fill",
-                title: "开场提醒",
-                subtitle: presentation.subtitle,
+                title: BSLocalization.text("开场提醒"),
+                subtitle: nil,
                 value: isPerformingAction ? nil : presentation.status,
                 tint: statusTint,
                 valueTint: statusTint,
@@ -442,9 +461,9 @@ private struct ProEntitlementDebugPicker: View {
 extension DebugProEntitlementOption {
     var displayName: String {
         switch self {
-        case .free: return "免费版"
-        case .active: return "Pro 已启用"
-        case .expired: return "Pro 已过期"
+        case .free: return BSLocalization.text("免费版")
+        case .active: return BSLocalization.text("Pro 已启用")
+        case .expired: return BSLocalization.text("Pro 已过期")
         }
     }
 }
@@ -491,272 +510,44 @@ private struct DebugPrintPendingNotificationsRow: View {
 }
 #endif
 
-struct ProMembershipView: View {
-    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @State private var products = ProSubscriptionCatalog.defaultProducts
-    @State private var isLoadingProducts = false
-    @State private var purchasingProductID: String?
-    @State private var message: String?
-
-    private let store: any ProSubscriptionStore
-
-    init(store: any ProSubscriptionStore = ProMembershipView.defaultStore()) {
-        self.store = store
-    }
-
-    var body: some View {
-        BSStageScaffold(title: "Pro 会员", subtitle: "无限保存现场", bottomPadding: BSLayout.tabBarContentInset) {
-            BSSurfacePanel {
-                Text(statusText)
-                    .font(BSFont.body)
-                    .foregroundColor(BSColor.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            BSSurfacePanel {
-                VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    Text(ProMembershipCopy.summary)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    BSSectionHeader(title: "Pro 解锁")
-                    ForEach(ProMembershipCopy.unlockedPoints, id: \.self) { point in
-                        Label(point, systemImage: "checkmark")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textSecondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    BSSectionHeader(title: "不需要 Pro 也能用")
-                    ForEach(ProMembershipCopy.freePoints, id: \.self) { point in
-                        Label(point, systemImage: "checkmark.shield")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-
-            ForEach(products, id: \.id) { product in
-                proProductCard(product)
-            }
-
-            Button {
-                Task {
-                    await restore()
-                }
-            } label: {
-                HStack {
-                    if purchasingProductID == "restore" {
-                        ProgressView()
-                    }
-                    Text("恢复购买")
-                }
-            }
-            .buttonStyle(BSSecondaryButtonStyle())
-            .disabled(purchasingProductID != nil)
-
-            Text(isLoadingProducts ? "正在从 App Store 加载产品。" : "通过 App Store 订阅；V2.1 不提供免费试用。")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.textTertiary)
-
-            if let message {
-                Text(message)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textSecondary)
-            }
-        }
-        .task {
-            await loadProducts()
-        }
-    }
-
-    private func proProductCard(_ product: ProSubscriptionProduct) -> some View {
-        BSSurfacePanel {
-            VStack(alignment: .leading, spacing: BSSpacing.md) {
-                HStack(alignment: .firstTextBaseline) {
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        Text(product.plan == .monthly ? "月度 Pro" : "年度 Pro")
-                            .font(BSFont.headline)
-                            .foregroundColor(BSColor.textPrimary)
-                        Text(product.plan == .monthly ? "按月订阅，随时取消" : "更适合每年看很多现场")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textTertiary)
-                    }
-
-                    Spacer()
-
-                    Text(product.priceText)
-                        .font(.system(size: 22, weight: .bold))
-                        .bsGradientText()
-                }
-
-                VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                    ForEach(product.benefitCopy, id: \.self) { benefit in
-                        Label(benefit, systemImage: "checkmark")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.textSecondary)
-                    }
-                }
-
-                if product.plan == .monthly {
-                    subscriptionButton(for: product)
-                        .buttonStyle(BSPrimaryButtonStyle())
-                } else {
-                    subscriptionButton(for: product)
-                        .buttonStyle(BSSecondaryButtonStyle())
-                }
-            }
-        }
-    }
-
-    private func subscriptionButton(for product: ProSubscriptionProduct) -> some View {
-        Button {
-            Task {
-                await purchase(product)
-            }
-        } label: {
-            HStack {
-                if purchasingProductID == product.id {
-                    ProgressView()
-                        .tint(product.plan == .monthly ? .black : BSColor.textPrimary)
-                }
-                Text(product.plan == .monthly ? "订阅月度 Pro" : "订阅年度 Pro")
-            }
-        }
-        .disabled(purchasingProductID != nil)
-    }
-
-    private var entitlement: ProEntitlementState {
-        ProEntitlementStorage.decode(entitlementRawValue)
-    }
-
-    private var statusText: String {
-        switch entitlement {
-        case .active:
-            return "Pro 已启用，可以继续添加现场。"
-        case .expired:
-            return "Pro 已过期，已有本地内容仍可查看和编辑。"
-        case .free:
-            return "当前为免费版：可保存 1 场现场。"
-        }
-    }
-
-    @MainActor
-    private func loadProducts() async {
-        isLoadingProducts = true
-        defer { isLoadingProducts = false }
-
-        do {
-            let loadedProducts = try await store.loadProducts()
-            if !loadedProducts.isEmpty {
-                products = loadedProducts
-            }
-        } catch {
-            message = "暂时没有加载到 App Store 产品，先显示本地订阅信息。"
-        }
-    }
-
-    @MainActor
-    private func purchase(_ product: ProSubscriptionProduct) async {
-        purchasingProductID = product.id
-        defer { purchasingProductID = nil }
-
-        do {
-            let entitlement = try await store.purchase(productID: product.id)
-            entitlementRawValue = ProEntitlementStorage.encode(entitlement)
-            message = "Pro 已启用。"
-        } catch ProSubscriptionError.purchaseCancelled {
-            message = "已取消购买。"
-        } catch ProSubscriptionError.purchasePending {
-            message = "购买正在处理中。"
-        } catch {
-            message = "购买暂时没有完成。"
-        }
-    }
-
-    @MainActor
-    private func restore() async {
-        purchasingProductID = "restore"
-        defer { purchasingProductID = nil }
-
-        do {
-            let entitlement = try await store.restorePurchases()
-            entitlementRawValue = ProEntitlementStorage.encode(entitlement)
-            message = "已恢复 Pro。"
-        } catch ProSubscriptionError.nothingToRestore {
-            message = "没有找到可恢复的 Pro 订阅。"
-        } catch {
-            message = "恢复购买暂时没有完成。"
-        }
-    }
-
-    private static func defaultStore() -> any ProSubscriptionStore {
-        #if canImport(StoreKit)
-        return StoreKitProSubscriptionStore()
-        #else
-        return MockProSubscriptionStore()
-        #endif
-    }
-}
-
-struct ProMembershipSheetView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ProMembershipView()
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("关闭") {
-                            dismiss()
-                        }
-                    }
-                }
-        }
-    }
-}
-
 private struct PrivacyLocalDataView: View {
     @Environment(\.modelContext) private var modelContext
 
-    @State private var clearResult: LocalDataClearancePlan?
-    @State private var clearStatusText: String?
+    @State private var inventory: LocalDataInventory?
+    @State private var clearFeedback: ClearDataFeedback?
     @State private var isClearing = false
     @State private var showsClearConfirmation = false
-    private let clearer = LocalDataClearer()
 
     var body: some View {
-        BSStageScaffold(title: "隐私与本地数据", subtitle: "管理 BeforeShow 的本地记录和副本", bottomPadding: BSLayout.tabBarContentInset) {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                BSSectionHeader(title: "隐私说明")
-                ForEach(PrivacyLocalDataCopy.points, id: \.self) { point in
-                    Label(point, systemImage: "checkmark.shield")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
+        BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+            SettingsGroup(title: "本地数据") {
+                if let inventory {
+                    if inventory.isEmpty {
+                        settingsStatusRow("暂无本地数据")
+                    } else {
+                        inventoryRow("现场", value: "\(inventory.showCount) 场")
+                        SettingsDivider()
+                        inventoryRow("记忆碎片", value: "\(inventory.memoryFragmentCount) 条")
+                        SettingsDivider()
+                        inventoryRow("票根与时刻表", value: "\(inventory.assetCount) 个")
+                        SettingsDivider()
+                        inventoryRow("动态封面", value: "\(inventory.dynamicCoverCount) 个")
+                        SettingsDivider()
+                        inventoryRow("App 内占用", value: formattedBytes(inventory.appBytes))
+                    }
+                } else {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, BSSpacing.md)
+                        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
                 }
             }
-            .padding(BSSpacing.md)
-            .background(Color.white.opacity(0.045))
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.lg).stroke(BSColor.borderProminent, lineWidth: 1))
 
-            BSSurfacePanel {
-                VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    Text("清除本地数据")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                    Text(PrivacyLocalDataCopy.clearDataExplanation)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-
+            SettingsGroup(title: "清除本地数据") {
                 Button(role: .destructive) {
                     showsClearConfirmation = true
                 } label: {
-                    HStack {
+                    HStack(spacing: BSSpacing.sm) {
                         if isClearing {
                             ProgressView()
                         }
@@ -764,35 +555,23 @@ private struct PrivacyLocalDataView: View {
                     }
                 }
                 .buttonStyle(BSDangerButtonStyle())
-                .disabled(isClearing)
+                .disabled(isClearing || inventory?.isEmpty != false)
+                .opacity(isClearing || inventory?.isEmpty != false ? 0.35 : 1)
+                .padding(.horizontal, BSSpacing.md)
+                .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
 
-                if let clearResult {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("已清除")
-                            .font(BSFont.caption.weight(.semibold))
-                            .foregroundColor(BSColor.textPrimary)
-                        ForEach(clearResult.deletesAppOwnedData, id: \.self) { item in
-                            Text(item)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textTertiary)
-                        }
-                        Text("保留")
-                            .font(BSFont.caption.weight(.semibold))
-                            .foregroundColor(BSColor.textPrimary)
-                            .padding(.top, 4)
-                        ForEach(clearResult.preservesSystemData, id: \.self) { item in
-                            Text(item)
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.textTertiary)
-                        }
-                    }
-                }
-
-                if let clearStatusText {
-                    Text(clearStatusText)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textSecondary)
-                }
+                if let clearFeedback {
+                    SettingsDivider()
+                    Label(
+                        clearFeedback.text,
+                        systemImage: clearFeedback.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill"
+                    )
+                    .font(BSFont.V3.body)
+                    .foregroundColor(clearFeedback.isError ? BSColor.Stage.danger : BSColor.Stage.success)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, BSSpacing.md)
+                    .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
         }
@@ -807,11 +586,51 @@ private struct PrivacyLocalDataView: View {
         } message: {
             Text(DangerConfirmation.clearLocalData.message)
         }
+        .navigationTitle(BSLocalization.text("隐私与本地数据"))
+        .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await refreshInventory()
+        }
+    }
+
+    private func inventoryRow(_ label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(BSFont.V3.body)
+                .foregroundColor(BSColor.Stage.foreground)
+            Spacer()
+            Text(value)
+                .font(BSFont.V3.body.weight(.medium))
+                .foregroundColor(BSColor.Stage.muted)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, BSSpacing.md)
+        .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+        .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
+    }
+
+    private func settingsStatusRow(_ text: String) -> some View {
+        Text(text)
+            .font(BSFont.V3.body)
+            .foregroundColor(BSColor.Stage.muted)
+            .padding(.horizontal, BSSpacing.md)
+            .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+            .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+
+    @MainActor
+    private func refreshInventory() async {
+        inventory = await LocalDataInventoryService.compute(modelContext: modelContext)
     }
 
     private func clearLocalData() {
+        let before = inventory
         isClearing = true
-        clearStatusText = nil
+        clearFeedback = nil
         Task { @MainActor in
             do {
                 let context = modelContext
@@ -851,22 +670,41 @@ private struct PrivacyLocalDataView: View {
                     ShowAssetCleanupRetry.clearFullCleanupPending()
                 }
 
-                if cleanupFailures.isEmpty {
-                    clearResult = try await clearer.clearAppOwnedLocalData()
-                    clearStatusText = nil
-                } else {
-                    clearResult = nil
-                    clearStatusText = "部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。"
-                }
                 await ShowAssetMediaStore.shared.releaseCommitGate()
+
+                if cleanupFailures.isEmpty {
+                    let freedBytes = before?.mediaBytes ?? 0
+                    clearFeedback = .success(freedBytes > 0
+                        ? "已清除本地数据，释放 \(formattedBytes(freedBytes))。"
+                        : "已清除本地数据。")
+                } else {
+                    clearFeedback = .failure("部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。")
+                }
             } catch {
                 ShowAssetCleanupRetry.clearFullCleanupPrepared()
-                clearResult = nil
-                clearStatusText = "清除本地数据失败，请重试。"
+                clearFeedback = .failure("清除本地数据失败，请重试。")
                 await ShowAssetMediaStore.shared.releaseCommitGate()
             }
             isClearing = false
+            await refreshInventory()
         }
+    }
+}
+
+enum ClearDataFeedback: Equatable {
+    case success(String)
+    case failure(String)
+
+    var text: String {
+        switch self {
+        case .success(let text): return text
+        case .failure(let text): return text
+        }
+    }
+
+    var isError: Bool {
+        if case .failure = self { return true }
+        return false
     }
 }
 
@@ -883,8 +721,8 @@ private struct FeedbackView: View {
 
     var body: some View {
         BSStageScaffold(
-            title: "意见反馈",
-            subtitle: "整理成一段最小反馈，由 app 唤起系统邮件完成发送",
+            title: "",
+            subtitle: BSLocalization.text("整理成一段最小反馈，由 app 唤起系统邮件完成发送"),
             bottomPadding: BSSpacing.xl
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
@@ -970,14 +808,17 @@ private struct FeedbackView: View {
                     .padding(.top, BSSpacing.xs)
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
+       .toolbar {
+           ToolbarItemGroup(placement: .keyboard) {
+               Spacer()
+
                 Button("完成") {
                     isMessageFocused = false
                 }
             }
         }
+        .navigationTitle(BSLocalization.text("意见反馈"))
+        .navigationBarTitleDisplayMode(.inline)
     }
 
     private func prepareFeedback() {
@@ -1017,9 +858,56 @@ enum FeedbackSendState: Equatable {
     case failed(String)
 }
 
-private struct AboutBeforeShowView: View {
+private struct LanguageSettingsView: View {
+    @ObservedObject private var languageController = AppLanguageController.shared
+
     var body: some View {
-        BSStageScaffold(title: "关于开场前", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+        BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+            BSSettingsSurface {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(AppLanguage.allCases) { language in
+                        Button {
+                            languageController.select(language)
+                        } label: {
+                            HStack(spacing: BSSpacing.compact) {
+                                Text(language.displayName)
+                                    .font(BSFont.V3.body.weight(.semibold))
+                                    .foregroundColor(BSColor.Stage.foreground)
+                                Spacer(minLength: 0)
+                                if languageController.language == language {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(BSColor.Stage.accent)
+                                }
+                            }
+                            .padding(.horizontal, BSSpacing.md)
+                            .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                            .frame(maxWidth: .infinity, minHeight: BSSettingsStyle.rowMinimumHeight, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(SettingsPressButtonStyle())
+                        .accessibilityLabel(language.displayName)
+                        .accessibilityAddTraits(languageController.language == language ? .isSelected : [])
+
+                        if language != AppLanguage.allCases.last {
+                            SettingsDivider()
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle(BSLocalization.text("语言"))
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct AboutBeforeShowView: View {
+    private static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!
+    private static let termsURL = URL(string: "https://beforeshow.doublewaterapps.com/terms")!
+    @State private var legalPage: BSInAppBrowserPage?
+
+    var body: some View {
+        BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
             BSSurfacePanel {
                 VStack(spacing: BSSpacing.md) {
                     Text("开场前")
@@ -1032,9 +920,9 @@ private struct AboutBeforeShowView: View {
                         .tracking(4)
                         .foregroundColor(BSColor.textTertiary)
 
-                    Text("开场之前，先进入状态")
-                        .font(BSFont.body)
-                        .foregroundColor(BSColor.textSecondary)
+                   Text("开场之前，先进入状态")
+                       .font(BSFont.body)
+                       .foregroundColor(BSColor.textSecondary)
 
                     Text(AppVersionInformation.current.fullCopy)
                         .font(.subheadline)
@@ -1042,6 +930,41 @@ private struct AboutBeforeShowView: View {
                 }
                 .frame(maxWidth: .infinity)
             }
+
+            SettingsGroup(title: BSLocalization.text("查看隐私政策与用户协议")) {
+                Button {
+                    legalPage = BSInAppBrowserPage(url: localizedSiteURL(Self.privacyURL))
+                } label: {
+                    SettingsRowContent(
+                        iconName: "hand.raised.fill",
+                        title: BSLocalization.text("隐私政策"),
+                        subtitle: "beforeshow.doublewaterapps.com/privacy",
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
+                }
+                .buttonStyle(SettingsPressButtonStyle())
+
+                SettingsDivider()
+
+                Button {
+                    legalPage = BSInAppBrowserPage(url: localizedSiteURL(Self.termsURL))
+                } label: {
+                    SettingsRowContent(
+                        iconName: "doc.text.fill",
+                        title: BSLocalization.text("用户协议"),
+                        subtitle: "beforeshow.doublewaterapps.com/terms",
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
+                }
+                .buttonStyle(SettingsPressButtonStyle())
+            }
+        }
+        .navigationTitle(BSLocalization.text("关于开场前"))
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $legalPage) { page in
+            BSInAppBrowser(page: page)
         }
     }
 }

@@ -8,9 +8,9 @@ enum MemoryFragmentPhase: String, Codable, CaseIterable, Equatable, Sendable {
 
     var title: String {
         switch self {
-        case .before: return "开场前"
-        case .live: return "进行中"
-        case .after: return "散场后"
+        case .before: return BSLocalization.text("开场前")
+        case .live: return BSLocalization.text("进行中")
+        case .after: return BSLocalization.text("散场后")
         }
     }
 
@@ -103,16 +103,16 @@ enum MemoryFragmentRelativeTime {
     static func format(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
         let diff = max(0, now.timeIntervalSince(date))
         if calendar.isDate(date, inSameDayAs: now) {
-            if diff < 60 { return "刚刚" }
+            if diff < 60 { return BSLocalization.text("刚刚") }
             if diff < 3_600 {
-                return "\(max(1, Int(diff / 60))) 分钟前"
+                return BSLocalization.format("%lld 分钟前", Int64(max(1, Int(diff / 60))))
             }
-            return "\(max(1, Int(diff / 3_600))) 小时前"
+            return BSLocalization.format("%lld 小时前", Int64(max(1, Int(diff / 3_600))))
         }
 
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: now)),
            calendar.isDate(date, inSameDayAs: yesterday) {
-            return "昨天 \(clockText(date, calendar: calendar))"
+            return BSLocalization.format("昨天 %@", clockText(date, calendar: calendar))
         }
 
         return exact(date, now: now, calendar: calendar)
@@ -123,10 +123,10 @@ enum MemoryFragmentRelativeTime {
         let month = calendar.component(.month, from: date)
         let day = calendar.component(.day, from: date)
         if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
-            return "\(month)月\(day)日 \(time)"
+            return BSLocalization.format("%lld月%lld日 %@", Int64(month), Int64(day), time)
         }
         let year = calendar.component(.year, from: date)
-        return "\(year)年\(month)月\(day)日 \(time)"
+        return BSLocalization.format("%lld年%lld月%lld日 %@", Int64(year), Int64(month), Int64(day), time)
     }
 
     private static func clockText(_ date: Date, calendar: Calendar) -> String {

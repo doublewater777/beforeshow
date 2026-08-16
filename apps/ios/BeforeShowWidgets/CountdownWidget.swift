@@ -24,8 +24,14 @@ struct CountdownEntry: TimelineEntry {
     let snapshot: WidgetShowSnapshot?
     /// App Group 容器内的封面缓存路径;nil 时用占位/纯色
     let coverImagePath: String?
+    let ambientColor: WidgetAmbientRGB?
 
-    static let empty = CountdownEntry(date: .now, snapshot: nil, coverImagePath: nil)
+    static let empty = CountdownEntry(
+        date: .now,
+        snapshot: nil,
+        coverImagePath: nil,
+        ambientColor: nil
+    )
 }
 
 struct CountdownTimelineProvider: TimelineProvider {
@@ -49,14 +55,20 @@ struct CountdownTimelineProvider: TimelineProvider {
                 ),
                 generatedAt: .now
             ),
-            coverImagePath: nil
+            coverImagePath: nil,
+            ambientColor: nil
         )
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CountdownEntry) -> Void) {
         let snapshot = WidgetSnapshotStore.read()
         let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
-        completion(CountdownEntry(date: .now, snapshot: snapshot, coverImagePath: coverPath))
+        completion(CountdownEntry(
+            date: .now,
+            snapshot: snapshot,
+            coverImagePath: coverPath,
+            ambientColor: Self.ambientColor(from: coverPath)
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CountdownEntry>) -> Void) {
@@ -82,6 +94,7 @@ struct CountdownTimelineProvider: TimelineProvider {
     ) -> Timeline<CountdownEntry> {
         let coverPath = coverImagePath
             ?? WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
+        let ambient = ambientColor(from: coverPath)
 
         var startBoundary: Date?
         var endBoundary: Date?
@@ -97,9 +110,18 @@ struct CountdownTimelineProvider: TimelineProvider {
             endBoundary: endBoundary
         )
         let entries = plan.dates.map {
-            CountdownEntry(date: $0, snapshot: snapshot, coverImagePath: coverPath)
+            CountdownEntry(
+                date: $0,
+                snapshot: snapshot,
+                coverImagePath: coverPath,
+                ambientColor: ambient
+            )
         }
         return Timeline(entries: entries, policy: .after(plan.windowEnd))
+    }
+
+    private static func ambientColor(from coverPath: String?) -> WidgetAmbientRGB? {
+        CoverAmbientColor.uiColor(fromCoverAt: coverPath).flatMap(WidgetAmbientRGB.init)
     }
 
     /// 后台拉封面;成功且路径变化时再 reload,避免把网络放在 getTimeline 关键路径上。
@@ -111,13 +133,10 @@ struct CountdownTimelineProvider: TimelineProvider {
         await WidgetCoverCache.refresh(for: source)
         let refreshed = WidgetCoverCache.cachedCoverPath(matching: source)
         if refreshed != deliveredPath {
-            WidgetCenter.shared.reloadTimelines(ofKind: countdownWidgetKind)
+            BeforeShowWidgetKind.reloadAllTimelines()
         }
     }
 }
-
-/// 与 `CountdownWidget.kind` / app 侧 `WidgetDataSync.widgetKind` 对齐。
-private let countdownWidgetKind = "BeforeShowCountdownWidget"
 
 /// WidgetKit completion 未标 Sendable;锁 + 单次消费避免跨 Task 数据竞争。
 private final class OnceTimelineDelivery: @unchecked Sendable {
@@ -140,7 +159,7 @@ private final class OnceTimelineDelivery: @unchecked Sendable {
 // MARK: - Widget
 
 struct CountdownWidget: Widget {
-    let kind = countdownWidgetKind
+    let kind = BeforeShowWidgetKind.homeCountdown
 
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: kind, provider: CountdownTimelineProvider()) { entry in
@@ -151,9 +170,65 @@ struct CountdownWidget: Widget {
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
+        ])
+    }
+}
+
+struct LockScreenCountdownWidget: Widget {
+    let kind = BeforeShowWidgetKind.lockScreenCountdown
+
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: kind, provider: CountdownTimelineProvider()) { entry in
+            CountdownWidgetView(entry: entry)
+        }
+        .configurationDisplayName("开场倒计时")
+        .description("锁屏上看下一场还有多久。")
+        .supportedFamilies([
             .accessoryInline,
             .accessoryCircular,
             .accessoryRectangular,
         ])
     }
 }
+
+#if DEBUG
+private let lockScreenPreviewEntry = CountdownEntry(
+    date: .now,
+    snapshot: WidgetShowSnapshot(
+        showID: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+        name: "夜航西飞",
+        city: "上海",
+        venueName: "梅赛德斯-奔驰文化中心",
+        coverImageURL: nil,
+        timing: ShowTimingFields(
+            date: Date().addingTimeInterval(3 * 3_600 + 24 * 60),
+            startTime: Date().addingTimeInterval(3 * 3_600 + 24 * 60),
+            endDate: nil,
+            endTime: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        ),
+        generatedAt: .now
+    ),
+    coverImagePath: nil,
+    ambientColor: nil
+)
+
+#Preview("锁屏圆形", as: .accessoryCircular) {
+    LockScreenCountdownWidget()
+} timeline: {
+    lockScreenPreviewEntry
+}
+
+#Preview("锁屏长条", as: .accessoryRectangular) {
+    LockScreenCountdownWidget()
+} timeline: {
+    lockScreenPreviewEntry
+}
+
+#Preview("锁屏一行", as: .accessoryInline) {
+    LockScreenCountdownWidget()
+} timeline: {
+    lockScreenPreviewEntry
+}
+#endif

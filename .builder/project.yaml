@@ -1,7 +1,7 @@
 name: beforeshow
-current_stage: business-model
-active_cycle: 2026-08-14-ios27-system-chrome
-updated_at: 2026-08-14
+current_stage: manual-onboarding
+active_cycle: 2026-08-15-first-testflight-build
+updated_at: 2026-08-15
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -20,3 +20,7 @@ links:
   current_show_memory_fragments_cycle: .builder/cycles/2026-08-03-current-show-memory-fragments/
   ticket_timetable_assets_cycle: .builder/cycles/2026-08-04-ticket-timetable-assets/
   ios27_system_chrome_cycle: .builder/cycles/2026-08-14-ios27-system-chrome/
+  first_testflight_build_cycle: .builder/cycles/2026-08-15-first-testflight-build/
+  widget_ambient_bloom_cycle: .builder/cycles/2026-08-15-widget-ambient-bloom/
+  widget_glance_simplify_cycle: .builder/cycles/2026-08-15-widget-glance-simplify/
+  manual_onboarding_stage: .builder/stages/06-manual-onboarding.md

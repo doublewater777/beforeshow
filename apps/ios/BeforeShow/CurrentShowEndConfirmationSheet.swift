@@ -48,8 +48,8 @@ struct CurrentShowEndConfirmationSheet: View {
         VStack(spacing: BSSpacing.lg) {
             BSStageSheetHeader(
                 icon: "moon.stars",
-                title: "确认已经散场？",
-                subtitle: "记录散场时间。",
+                title: BSLocalization.text("确认已经散场？"),
+                subtitle: BSLocalization.text("记录散场时间。"),
                 tint: BSColor.Stage.liveTitle
             )
 
@@ -77,7 +77,7 @@ struct CurrentShowEndConfirmationSheet: View {
         VStack(spacing: BSSpacing.lg) {
             BSStageSheetHeader(
                 icon: "clock",
-                title: "补记散场时间",
+                title: BSLocalization.text("补记散场时间"),
                 subtitle: showName,
                 tint: BSColor.Stage.accent
             )
@@ -145,8 +145,8 @@ struct CurrentShowEndConfirmationSheet: View {
         let minutes = max(0, Int(selectedEnd.timeIntervalSince(showStart) / 60))
         let hours = minutes / 60
         let rest = minutes % 60
-        if hours == 0 { return "\(rest) 分" }
-        if rest == 0 { return "\(hours) 小时" }
-        return "\(hours) 小时 \(rest) 分"
+        if hours == 0 { return BSLocalization.format("%lld 分", rest) }
+        if rest == 0 { return BSLocalization.format("%lld 小时", hours) }
+        return BSLocalization.format("%lld 小时 %lld 分", hours, rest)
     }
 }

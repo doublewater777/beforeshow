@@ -54,16 +54,16 @@ enum FootprintEmptyStateCopy {
     static func content(hasCurrentShow: Bool) -> Content {
         if hasCurrentShow {
             return Content(
-                title: "这场结束后，会来到足迹",
-                message: "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。",
+                title: BSLocalization.text("这场结束后，会来到足迹"),
+                message: BSLocalization.text("当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。"),
                 actionTitle: nil
             )
         }
 
         return Content(
-            title: "这里会长出你的足迹",
-            message: "补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。",
-            actionTitle: "添加第一场现场"
+            title: BSLocalization.text("这里会长出你的足迹"),
+            message: BSLocalization.text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。"),
+            actionTitle: BSLocalization.text("添加第一场现场")
         )
     }
 }
@@ -82,28 +82,28 @@ struct FootprintDetailDestination: Identifiable, Hashable {
 enum FootprintArchiveShareCopy {
     static func title(for category: FootprintCategory) -> String {
         switch category {
-        case .overview: return "分享完整档案"
-        case .artist: return "分享艺人档案"
-        case .city: return "分享城市档案"
-        case .venue: return "分享场馆档案"
+        case .overview: return BSLocalization.text("分享完整档案")
+        case .artist: return BSLocalization.text("分享艺人档案")
+        case .city: return BSLocalization.text("分享城市档案")
+        case .venue: return BSLocalization.text("分享场馆档案")
         }
     }
 
     static func subtitle(for category: FootprintCategory) -> String {
         switch category {
-        case .overview: return "总场次、艺人、城市和场馆偏好会汇总在同一张卡片。"
-        case .artist: return "突出最常看的艺人，并展示艺人排行前三名。"
-        case .city: return "突出你去过最多的城市，并展示城市排行前三名。"
-        case .venue: return "突出最熟悉的场馆，并展示场馆排行前三名。"
+        case .overview: return BSLocalization.text("总场次、艺人、城市和场馆偏好会汇总在同一张卡片。")
+        case .artist: return BSLocalization.text("突出最常看的艺人，并展示艺人排行前三名。")
+        case .city: return BSLocalization.text("突出你去过最多的城市，并展示城市排行前三名。")
+        case .venue: return BSLocalization.text("突出最熟悉的场馆，并展示场馆排行前三名。")
         }
     }
 
     static func chip(for category: FootprintCategory) -> String {
         switch category {
-        case .overview: return "总览"
-        case .artist: return "艺人"
-        case .city: return "城市"
-        case .venue: return "场馆"
+        case .overview: return BSLocalization.text("总览")
+        case .artist: return BSLocalization.text("艺人")
+        case .city: return BSLocalization.text("城市")
+        case .venue: return BSLocalization.text("场馆")
         }
     }
 
@@ -118,19 +118,19 @@ enum FootprintArchiveShareCopy {
 
     static func filename(for category: FootprintCategory) -> String {
         switch category {
-        case .overview: return "我的完整现场档案"
-        case .artist: return "我的艺人现场档案"
-        case .city: return "我的城市现场档案"
-        case .venue: return "我的场馆现场档案"
+        case .overview: return BSLocalization.text("我的完整现场档案")
+        case .artist: return BSLocalization.text("我的艺人现场档案")
+        case .city: return BSLocalization.text("我的城市现场档案")
+        case .venue: return BSLocalization.text("我的场馆现场档案")
         }
     }
 
     static func subject(for category: FootprintCategory) -> String {
         switch category {
-        case .overview: return "我的 BeforeShow 现场总览"
-        case .artist: return "我的 BeforeShow 艺人档案"
-        case .city: return "我的 BeforeShow 城市足迹"
-        case .venue: return "我的 BeforeShow 场馆足迹"
+        case .overview: return BSLocalization.text("我的 BeforeShow 现场总览")
+        case .artist: return BSLocalization.text("我的 BeforeShow 艺人档案")
+        case .city: return BSLocalization.text("我的 BeforeShow 城市足迹")
+        case .venue: return BSLocalization.text("我的 BeforeShow 场馆足迹")
         }
     }
 
@@ -171,13 +171,13 @@ enum FootprintArchiveShareCopy {
     }
 
     private static func leadingLine(_ label: String, from items: [FootprintRankItem]) -> String {
-        guard let first = items.first else { return "\(label)：还没有记录" }
-        return "\(label)：\(first.name) · \(first.count) 场"
+        guard let first = items.first else { return BSLocalization.format("%@：还没有记录", label) }
+        return BSLocalization.format("%@：%@ · %lld 场", label, first.name, first.count)
     }
 
     private static func rankingLine(_ label: String, items: [FootprintRankItem]) -> String {
-        let ranking = items.prefix(3).map { "\($0.name) \($0.count) 场" }.joined(separator: "、")
-        return "\(label)：\(ranking.isEmpty ? "还没有记录" : ranking)"
+        let ranking = items.prefix(3).map { BSLocalization.format("%@ %lld 场", $0.name, $0.count) }.joined(separator: "、")
+        return BSLocalization.format("%@：%@", label, ranking.isEmpty ? BSLocalization.text("还没有记录") : ranking)
     }
 }
 
@@ -189,11 +189,11 @@ enum FootprintPhotoSaveError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .rendererFailed:
-            return "足迹图片生成失败，请重试。"
+            return BSLocalization.text("足迹图片生成失败，请重试。")
         case .authorizationDenied:
-            return "没有照片添加权限，请在系统设置中允许 BeforeShow 添加照片。"
+            return BSLocalization.text("没有照片添加权限，请在系统设置中允许 BeforeShow 添加照片。")
         case .saveFailed:
-            return "照片保存失败，请重试。"
+            return BSLocalization.text("照片保存失败，请重试。")
         }
     }
 }
@@ -612,9 +612,9 @@ struct FootprintsView: View {
 
     private var rankSummaryLabel: String {
         switch rankCategory {
-        case .overview, .artist: return "你最常看的艺人"
-        case .city: return "你去过最多的城市"
-        case .venue: return "你最熟悉的场馆"
+        case .overview, .artist: return BSLocalization.text("你最常看的艺人")
+        case .city: return BSLocalization.text("你去过最多的城市")
+        case .venue: return BSLocalization.text("你最熟悉的场馆")
         }
     }
 
@@ -852,7 +852,7 @@ private enum FootprintSearchFilter: Hashable {
 
     var label: String {
         switch self {
-        case .all: return "全部"
+        case .all: return BSLocalization.text("全部")
         case let .year(year): return String(year)
         case let .city(city): return city
         }
@@ -957,8 +957,8 @@ private struct FootprintShareSheet: View {
 
     var body: some View {
         FootprintShareActionSheet(
-            title: "分享我的足迹",
-            subtitle: "默认隐藏具体日期和详细行程，只分享你选择的档案信息。",
+            title: BSLocalization.text("分享我的足迹"),
+            subtitle: BSLocalization.text("默认隐藏具体日期和详细行程，只分享你选择的档案信息。"),
             previewHeight: 330,
             shareText: shareText,
             exportSize: CGSize(width: 1080, height: 1350),
@@ -1546,9 +1546,9 @@ private struct FootprintArchiveDetailView: View {
     private var categorySubtitle: String {
         switch category {
         case .overview: return ""
-        case .artist: return "你反复回到谁的现场 · 共 \(archive.artists.count) 位艺人"
-        case .city: return "你的现场移动轨迹 · 共 \(archive.cities.count) 座城市"
-        case .venue: return "最熟悉的灯光与座位 · 共 \(archive.venues.count) 个场馆"
+        case .artist: return BSLocalization.format("你反复回到谁的现场 · 共 %lld 位艺人", archive.artists.count)
+        case .city: return BSLocalization.format("你的现场移动轨迹 · 共 %lld 座城市", archive.cities.count)
+        case .venue: return BSLocalization.format("最熟悉的灯光与座位 · 共 %lld 个场馆", archive.venues.count)
         }
     }
 
@@ -1564,11 +1564,11 @@ private struct FootprintArchiveDetailView: View {
         switch category {
         case .artist:
             let cities = Set(related.compactMap(\.city)).prefix(2).joined(separator: "、")
-            return "\(cities.isEmpty ? "现场记录" : cities) · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
+            return BSLocalization.format("%@ · 最近 %@", cities.isEmpty ? BSLocalization.text("现场记录") : cities, related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")
         case .city:
-            return "\(Set(related.compactMap(\.venueName)).count) 个场馆 · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
+            return BSLocalization.format("%lld 个场馆 · 最近 %@", Set(related.compactMap(\.venueName)).count, related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")
         case .venue:
-            return "\(related.first?.city ?? "现场") · 最近 \(related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")"
+            return BSLocalization.format("%@ · 最近 %@", related.first?.city ?? BSLocalization.text("现场"), related.first.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—")
         case .overview: return ""
         }
     }

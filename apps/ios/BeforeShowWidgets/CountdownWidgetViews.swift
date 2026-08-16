@@ -3,7 +3,7 @@ import WidgetKit
 
 // MARK: - Countdown Widget Views
 // 设计稿:docs/design/widget/BeforeShow Widgets.html
-// 与 app 首页同一套精度收束:>1 天天数 hero、<24h 时:分:秒、live 已进行;
+// 与 app 首页同一套精度收束:>1 天天数 hero、<24h 时:分:秒、live 正在现场;
 // 秒针用 Text(timerInterval:) 原生跳动,不靠 timeline 高频刷新。
 
 struct CountdownWidgetView: View {
@@ -20,16 +20,12 @@ struct CountdownWidgetView: View {
         case .systemSmall:
             SmallCountdownView(presentation: presentation)
                 .containerBackground(for: .widget) {
-                    LinearGradient(
-                        colors: [WidgetTheme.surfaceRaised, WidgetTheme.surface],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+                    CoverAmbientBloom(ambient: entry.ambientColor)
                 }
         case .systemMedium:
             MediumCountdownView(presentation: presentation, coverImagePath: entry.coverImagePath)
                 .containerBackground(for: .widget) {
-                    WidgetTheme.surface
+                    CoverAmbientBloom(ambient: entry.ambientColor)
                 }
         case .accessoryInline:
             InlineCountdownView(presentation: presentation)
@@ -123,53 +119,56 @@ struct CountdownPresentation {
 
     var nameLine: String {
         guard let city, !city.isEmpty else { return showName }
-        return "\(showName) · \(city)站"
+        return BSLocalization.format("%@ · %@站", showName, city)
     }
 
     var dateLine: String {
         guard let startDate else { return "" }
         let components = calendar.dateComponents([.month, .day, .hour, .minute], from: startDate)
         return String(
-            format: "%d月%d日 %02d:%02d",
+            format: BSLocalization.text("%d月%d日 %02d:%02d"),
             components.month ?? 0, components.day ?? 0, components.hour ?? 0, components.minute ?? 0
         )
     }
 
-    /// 「今晚」仅当日开场;`<24h` 但跨日用「即将」,避免今晚看明天场仍写今晚。
+    /// 「今晚」仅当日开场;`<24h` 但跨日只报钟点,避免今晚看明天场仍写今晚。
     var isStartTonight: Bool {
         guard let startDate else { return false }
         return calendar.isDateInToday(startDate)
     }
 
-    var nearKickerText: String {
-        isStartTonight ? "今晚开场" : "即将开场"
+    var clockText: String {
+        guard let startDate else { return "" }
+        let components = calendar.dateComponents([.hour, .minute], from: startDate)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 
-    var nearInlineTextPrefix: String {
-        isStartTonight ? "今晚灯亮" : "即将灯亮"
+    var tonightClockText: String {
+        BSLocalization.format("今晚 %@", clockText)
+    }
+
+    /// 顶部时期标签(与首页卡片 kicker 同源):far/near/live/ended/inactive。
+    var phaseTag: String {
+        switch hero {
+        case .far:
+            return BSLocalization.text("距离灯亮还有")
+        case .near:
+            return isStartTonight
+                ? BSLocalization.text("今晚开场")
+                : BSLocalization.text("即将开场")
+        case .live:
+            return BSLocalization.text("演出进行中")
+        case .ended:
+            return BSLocalization.text("已落幕")
+        case .inactive(let title):
+            return title
+        case .empty:
+            return ""
+        }
     }
 }
 
 // MARK: - 共用元素
-
-private struct KickerLabel: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(WidgetTheme.muted)
-    }
-}
-
-private struct CountdownBadge: View {
-    var body: some View {
-        Text("COUNTDOWN")
-            .font(.system(size: 9, weight: .bold))
-            .tracking(0.8)
-            .foregroundStyle(WidgetTheme.accent)
-    }
-}
 
 private struct LiveDot: View {
     var size: CGFloat = 7
@@ -207,21 +206,16 @@ private struct SmallCountdownView: View {
     var body: some View {
         if presentation.hasShow {
             VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    KickerLabel(text: kickerText)
-                    Spacer(minLength: 0)
-                    if case .live = presentation.hero {
-                        LiveDot()
-                    } else {
-                        CountdownBadge()
-                    }
-                }
+                Text(presentation.phaseTag)
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundStyle(WidgetTheme.muted)
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
 
                 heroView
 
-                Spacer(minLength: 0)
+                Spacer(minLength: 8)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(presentation.nameLine)
@@ -236,14 +230,6 @@ private struct SmallCountdownView: View {
             }
         } else {
             EmptyWidgetView()
-        }
-    }
-
-    private var kickerText: String {
-        switch presentation.hero {
-        case .near: return presentation.nearKickerText
-        case .live: return "演出进行中"
-        default: return "距离灯亮还有"
         }
     }
 
@@ -266,17 +252,14 @@ private struct SmallCountdownView: View {
                 .monospacedDigit()
                 .foregroundStyle(WidgetTheme.foreground)
         case .live(let start):
-            VStack(alignment: .leading, spacing: 3) {
-                Text("灯光已亮")
+            VStack(alignment: .leading, spacing: 4) {
+                Text("正在现场")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(WidgetTheme.liveTitle)
                 Text(start, style: .timer)
                     .font(.system(size: 30, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.foreground)
-                Text("已进行")
-                    .font(.system(size: 9))
-                    .foregroundStyle(WidgetTheme.dim)
             }
         case .ended:
             Text("已落幕")
@@ -302,24 +285,16 @@ private struct MediumCountdownView: View {
         if presentation.hasShow {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack {
-                        KickerLabel(text: kickerText)
-                        Spacer(minLength: 0)
-                        if case .live = presentation.hero {
-                            Text("ON STAGE")
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(0.8)
-                                .foregroundStyle(WidgetTheme.liveTitle)
-                        } else {
-                            CountdownBadge()
-                        }
-                    }
+                    Text(presentation.phaseTag)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(WidgetTheme.muted)
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 4)
 
                     heroView
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 8)
 
                     VStack(alignment: .leading, spacing: 1) {
                         Text(presentation.nameLine)
@@ -332,19 +307,11 @@ private struct MediumCountdownView: View {
                             .lineLimit(1)
                     }
                 }
-                .padding(.vertical, 2)
 
                 coverView
             }
         } else {
             EmptyWidgetView()
-        }
-    }
-
-    private var kickerText: String {
-        switch presentation.hero {
-        case .live: return "演出进行中"
-        default: return "距离灯亮还有"
         }
     }
 
@@ -388,23 +355,18 @@ private struct MediumCountdownView: View {
             HStack(spacing: 10) {
                 LiveDot(size: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("灯光已亮 · 开场中")
+                    Text("正在现场")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(WidgetTheme.liveTitle)
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        Text(start, style: .timer)
-                            .font(.system(size: 17, weight: .semibold))
-                            .monospacedDigit()
-                            .foregroundStyle(WidgetTheme.foreground)
-                        Text("已进行")
-                            .font(.system(size: 9))
-                            .foregroundStyle(WidgetTheme.dim)
-                    }
+                    Text(start, style: .timer)
+                        .font(.system(size: 17, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.foreground)
                 }
                 Spacer(minLength: 0)
             }
         case .ended:
-            Text("谢幕了 · 回味还在")
+            Text("已落幕")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
         case .inactive(let title):
@@ -426,7 +388,10 @@ private struct MediumCountdownView: View {
                 .clipped()
                 .overlay(alignment: .leading) {
                     LinearGradient(
-                        colors: [WidgetTheme.surface, WidgetTheme.surface.opacity(0)],
+                        colors: [
+                            Color(red: 0.018, green: 0.018, blue: 0.025),
+                            Color(red: 0.018, green: 0.018, blue: 0.025).opacity(0)
+                        ],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -444,11 +409,15 @@ private struct InlineCountdownView: View {
     var body: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("\(days) 天后灯亮 · \(presentation.showName)")
+            Text("还有 \(days) 天 · \(presentation.showName)")
         case .near(let start):
-            Text("\(presentation.nearInlineTextPrefix) · \(Text(start, style: .timer))")
+            if presentation.isStartTonight {
+                Text("\(presentation.tonightClockText) · \(Text(start, style: .timer))")
+            } else {
+                Text("\(presentation.clockText) · \(Text(start, style: .timer))")
+            }
         case .live(let start):
-            Text("开场中 · 已进行 \(Text(start, style: .timer))")
+            Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:
             Text("已落幕 · \(presentation.showName)")
         case .inactive(let title):
@@ -464,7 +433,7 @@ private struct InlineCountdownView: View {
 private struct CircularCountdownView: View {
     let presentation: CountdownPresentation
 
-    /// 预习期 14 天窗口:环随临近填满,开场中满环。
+    /// 预习期 14 天窗口:环随临近填满,正在现场满环。
     private var progress: Double {
         switch presentation.hero {
         case .live: return 1
@@ -495,14 +464,16 @@ private struct CircularCountdownView: View {
                     .font(.system(size: 8))
                     .foregroundStyle(.secondary)
             }
-        case .near(let start):
+        case .near:
             VStack(spacing: 0) {
-                Text(start, style: .timer)
-                    .font(.system(size: 12, weight: .bold))
+                Text(LockScreenCountdownCopy.circularNearClock(remainingSeconds: presentation.remainingSeconds))
+                    .font(.system(size: 14, weight: .bold))
                     .monospacedDigit()
-                Text("后灯亮")
-                    .font(.system(size: 7))
-                    .foregroundStyle(.secondary)
+                if presentation.isStartTonight {
+                    Text("今晚")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.secondary)
+                }
             }
         case .live(let start):
             VStack(spacing: 1) {
@@ -512,8 +483,8 @@ private struct CircularCountdownView: View {
                     .monospacedDigit()
             }
         case .ended:
-            Text("落幕")
-                .font(.system(size: 11, weight: .bold))
+            Text("已落幕")
+                .font(.system(size: 10, weight: .bold))
         case .inactive(let title):
             Text(title)
                 .font(.system(size: 11, weight: .bold))
@@ -546,13 +517,17 @@ private struct RectangularCountdownView: View {
     private var headline: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("距灯亮还有 \(days) 天")
+            Text("还有 \(days) 天")
         case .near(let start):
-            Text("距灯亮 \(Text(start, style: .timer))")
+            if presentation.isStartTonight {
+                Text(presentation.tonightClockText)
+            } else {
+                Text(start, style: .timer)
+            }
         case .live(let start):
-            Text("LIVE · 已进行 \(Text(start, style: .timer))")
+            Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:
-            Text("已落幕 · 回味还在")
+            Text("已落幕")
         case .inactive(let title):
             Text(title)
         case .empty:

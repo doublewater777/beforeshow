@@ -496,23 +496,23 @@ struct FootprintDetailView: View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             sectionHeader("现场资料")
             VStack(spacing: 0) {
-                infoRow(icon: "calendar", title: "时间", value: formatter.dateText(for: show))
+                infoRow(icon: "calendar", title: BSLocalization.text("时间"), value: formatter.dateText(for: show))
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "mappin.and.ellipse",
-                    title: "场馆",
+                    title: BSLocalization.text("场馆"),
                     value: FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? "未填写场馆"
                 )
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "building.2",
-                    title: "城市",
+                    title: BSLocalization.text("城市"),
                     value: FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? "未填写城市"
                 )
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "music.note",
-                    title: "艺人",
+                    title: BSLocalization.text("艺人"),
                     value: show.artistNames.isEmpty ? "未填写艺人" : show.artistNames.joined(separator: "、")
                 )
             }

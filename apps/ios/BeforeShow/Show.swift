@@ -45,9 +45,9 @@ struct ShowDisplayFormatter {
            let endDay {
             let range = dayRangeText(from: startDay, to: endDay, calendar: calendar)
             if let endTime = show.endTime {
-                return "\(range) · 每日 \(timeText(startClock, calendar: calendar))-\(timeText(endTime, calendar: endCalendar))"
+                return BSLocalization.format("%@ · 每日 %@-%@", range, timeText(startClock, calendar: calendar), timeText(endTime, calendar: endCalendar))
             }
-            return "\(range) · 每日 \(timeText(startClock, calendar: calendar))"
+            return BSLocalization.format("%@ · 每日 %@", range, timeText(startClock, calendar: calendar))
         }
 
         var text = dateText(startDay, calendar: calendar)
@@ -79,19 +79,19 @@ struct ShowDisplayFormatter {
         let endDay = endComponents.day ?? 1
 
         if startMonth == endMonth {
-            return "\(year)年\(startMonth)月\(startDay)日-\(endDay)日"
+            return BSLocalization.format("%lld年%lld月%lld日-%lld日", year, startMonth, startDay, endDay)
         }
-        return "\(year)年\(startMonth)月\(startDay)日-\(endMonth)月\(endDay)日"
+        return BSLocalization.format("%lld年%lld月%lld日-%lld月%lld日", year, startMonth, startDay, endMonth, endDay)
     }
 
     private func dateText(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.year, .month, .day], from: date)
-        return "\(components.year ?? 0)年\(components.month ?? 1)月\(components.day ?? 1)日"
+        return BSLocalization.format("%lld年%lld月%lld日", components.year ?? 0, components.month ?? 1, components.day ?? 1)
     }
 
     private func shortDateText(_ date: Date, calendar: Calendar? = nil) -> String {
         let components = (calendar ?? self.calendar).dateComponents([.month, .day], from: date)
-        return "\(components.month ?? 1)月\(components.day ?? 1)日"
+        return BSLocalization.format("%lld月%lld日", components.month ?? 1, components.day ?? 1)
     }
 
     private func shortDateTimeText(

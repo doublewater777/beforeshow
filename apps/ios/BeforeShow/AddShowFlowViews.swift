@@ -13,44 +13,44 @@ struct AddShowLinkFailurePresentation: Equatable {
             switch parserError {
             case .unsupportedSource:
                 return Self(
-                    title: "这个链接暂不支持",
-                    message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
+                    title: BSLocalization.text("这个链接暂不支持"),
+                    message: BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary)
                 )
             case .missingDate:
                 return Self(
-                    title: "还缺少现场信息",
-                    message: "没有解析到有效日期，请在下方补充后再保存。"
+                    title: BSLocalization.text("还缺少现场信息"),
+                    message: BSLocalization.text("没有解析到有效日期，请在下方补充后再保存。")
                 )
             }
         }
 
         guard let parsingError = error as? ShowLinkParsingError else {
             return Self(
-                title: "链接解析失败",
-                message: "暂时没能读出完整信息。你可以重试，或继续在下方手动填写。"
+                title: BSLocalization.text("链接解析失败"),
+                message: BSLocalization.text("暂时没能读出完整信息。你可以重试，或继续在下方手动填写。")
             )
         }
 
         switch parsingError {
         case .unsupportedSource:
             return Self(
-                title: "这个链接暂不支持",
-                message: "目前支持：\(ShowLinkPlatformCatalog.supportSummary)。你可以继续在下方手动填写。"
+                title: BSLocalization.text("这个链接暂不支持"),
+                message: BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary)
             )
         case .networkFailure:
             return Self(
-                title: "网络连接失败",
-                message: "请检查网络后重试，已经填写的内容会保留。"
+                title: BSLocalization.text("网络连接失败"),
+                message: BSLocalization.text("请检查网络后重试，已经填写的内容会保留。")
             )
         case .invalidResponse:
             return Self(
-                title: "还缺少现场信息",
-                message: "没有解析到有效日期，请在下方补充后再保存。"
+                title: BSLocalization.text("还缺少现场信息"),
+                message: BSLocalization.text("没有解析到有效日期，请在下方补充后再保存。")
             )
         case .parseFailed:
             return Self(
-                title: "链接解析失败",
-                message: "暂时没能读出完整信息。你可以重试，或继续在下方手动填写。"
+                title: BSLocalization.text("链接解析失败"),
+                message: BSLocalization.text("暂时没能读出完整信息。你可以重试，或继续在下方手动填写。")
             )
         }
     }
@@ -72,11 +72,11 @@ enum AddShowMethodCopy {
     var subtitle: String {
         switch self {
         case .manual:
-            return "自己填写现场的基本信息。"
+            return BSLocalization.text("自己填写现场的基本信息。")
         case .screenshot:
-            return "选择票务截图，仅在本机识别，图片不会上传。"
+            return BSLocalization.text("选择票务截图，仅在本机识别，图片不会上传。")
         case .link:
-            return "粘贴支持平台的票务链接，需要联网解析。"
+            return BSLocalization.text("粘贴支持平台的票务链接，需要联网解析。")
         }
     }
 }
@@ -239,7 +239,7 @@ private struct AddShowEntryView: View {
 
                         VStack(spacing: BSSpacing.md) {
                             AddShowMethodCard(
-                                title: "手动填写",
+                                title: BSLocalization.text("手动填写"),
                                 subtitle: AddShowMethodCopy.manual.subtitle,
                                 iconName: "square.and.pencil",
                                 tint: BSColor.Accent.prepare
@@ -248,7 +248,7 @@ private struct AddShowEntryView: View {
                             }
 
                             AddShowMethodCard(
-                                title: "截图识别",
+                                title: BSLocalization.text("截图识别"),
                                 subtitle: AddShowMethodCopy.screenshot.subtitle,
                                 iconName: "camera.fill",
                                 tint: BSColor.Accent.violet
@@ -257,7 +257,7 @@ private struct AddShowEntryView: View {
                             }
 
                             AddShowMethodCard(
-                                title: "链接解析",
+                                title: BSLocalization.text("链接解析"),
                                 subtitle: AddShowMethodCopy.link.subtitle,
                                 iconName: "link",
                                 tint: BSColor.Stage.accent
@@ -280,7 +280,6 @@ private struct AddShowEntryView: View {
 
 struct AddShowFlowView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -304,6 +303,7 @@ struct AddShowFlowView: View {
     @State private var showsManualFallback = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
+    @State private var linkGuidePage: BSInAppBrowserPage?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var didSwitchToManual = false
@@ -426,8 +426,11 @@ struct AddShowFlowView: View {
                     paywallSheet = nil
                 }
             case .membership:
-                ProMembershipSheetView()
+                ProPaywallSheetView()
             }
+        }
+        .sheet(item: $linkGuidePage) { page in
+            BSInAppBrowser(page: page)
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
@@ -481,7 +484,7 @@ struct AddShowFlowView: View {
         if !hasImportedDraft {
             VStack(alignment: .leading, spacing: BSSpacing.md) {
                 EditShowFormCard(
-                    title: "票务链接",
+                    title: BSLocalization.text("票务链接"),
                     icon: "link",
                     tint: BSColor.Stage.accent
                 ) {
@@ -547,7 +550,7 @@ struct AddShowFlowView: View {
                     Button {
                         dismissKeyboard()
                         guard let url = URL(string: "https://beforeshow.doublewaterapps.com/link-guide/") else { return }
-                        openURL(url)
+                        linkGuidePage = BSInAppBrowserPage(url: localizedSiteURL(url))
                     } label: {
                         HStack(spacing: 7) {
                             Image(systemName: "questionmark.circle")
@@ -592,7 +595,7 @@ struct AddShowFlowView: View {
         return VStack(alignment: .leading, spacing: BSSpacing.md) {
             if isRecognizing {
                 EditShowFormCard(
-                    title: "识别进度",
+                    title: BSLocalization.text("识别进度"),
                     icon: "text.viewfinder",
                     tint: BSColor.Accent.violet,
                     pillText: "设备端 · 不上传",
@@ -644,8 +647,8 @@ struct AddShowFlowView: View {
                 if showsManualFallback && sheet == .screenshot {
                     BSEmptyPanel(
                         iconName: "text.viewfinder",
-                        title: "截图识别失败",
-                        message: "没有识别到可用的现场信息。可以继续在下方手动填写。",
+                        title: BSLocalization.text("截图识别失败"),
+                        message: BSLocalization.text("没有识别到可用的现场信息。可以继续在下方手动填写。"),
                         buttonTitle: "手动填写",
                         buttonIconName: "square.and.pencil"
                     ) {
@@ -735,28 +738,28 @@ struct AddShowFlowView: View {
             )
         }
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return SaveBarStatus(text: "还差现场名称", tint: BSColor.Stage.muted)
+            return SaveBarStatus(text: BSLocalization.text("还差现场名称"), tint: BSColor.Stage.muted)
         }
         if needsDateConfirmation {
             return SaveBarStatus(
-                text: "还差确认开场日期 · 截图没读到日期，已先填今天",
+                text: BSLocalization.text("还差确认开场日期 · 截图没读到日期，已先填今天"),
                 tint: BSColor.Stage.muted
             )
         }
         if draft.startTime == nil {
             return SaveBarStatus(
-                text: "还差开场时间 · 用于开场前提醒，可先填大概时间",
+                text: BSLocalization.text("还差开场时间 · 用于开场前提醒，可先填大概时间"),
                 tint: BSColor.Stage.muted
             )
         }
         if !draft.hasValidEndTime() {
             return SaveBarStatus(
-                text: "时间范围无效，结束时间需要晚于开始时间",
+                text: BSLocalization.text("时间范围无效，结束时间需要晚于开始时间"),
                 tint: BSColor.Accent.danger
             )
         }
         return SaveBarStatus(
-            text: "可以添加了 · 封面等可之后再补",
+            text: BSLocalization.text("可以添加了 · 封面等可之后再补"),
             tint: BSColor.Stage.dim
         )
     }
@@ -823,7 +826,7 @@ struct AddShowFlowView: View {
                 hasImportedDraft = false
                 showsManualFallback = true
                 message = "没有读到这张截图，请改用手动填写。"
-                presentToast(.failure, message: "读取失败")
+                presentToast(.failure, message: BSLocalization.text("读取失败"))
                 return
             }
 
@@ -851,7 +854,7 @@ struct AddShowFlowView: View {
             } else {
                 message = nil
             }
-            presentToast(.success, message: "识别完成")
+            presentToast(.success, message: BSLocalization.text("识别完成"))
         } catch is CancellationError {
             // 页面关闭或新请求取消：不写失败态
             return
@@ -861,7 +864,7 @@ struct AddShowFlowView: View {
             hasImportedDraft = false
             showsManualFallback = true
             message = "没有识别到可用的现场信息，请改用手动填写。"
-            presentToast(.failure, message: "识别失败")
+            presentToast(.failure, message: BSLocalization.text("识别失败"))
         }
     }
 
@@ -894,7 +897,7 @@ struct AddShowFlowView: View {
             message = draft.startTime == nil
                 ? "链接里没有明确开场时间，请确认后再添加。"
                 : nil
-            presentToast(.success, message: "解析完成")
+            presentToast(.success, message: BSLocalization.text("解析完成"))
         } catch is CancellationError {
             return
         } catch {
@@ -904,7 +907,7 @@ struct AddShowFlowView: View {
             showsManualFallback = true
             linkFailure = AddShowLinkFailurePresentation.resolve(error)
             message = nil
-            presentToast(.failure, message: "解析失败")
+            presentToast(.failure, message: BSLocalization.text("解析失败"))
         }
     }
 
@@ -922,7 +925,7 @@ struct AddShowFlowView: View {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             guard ProFeatureGate().canAddShow(savedShowCount: shows.count, entitlement: entitlement) else {
                 paywallSheet = .limit
-                presentToast(.neutral, message: "保存上限")
+                presentToast(.neutral, message: BSLocalization.text("保存上限"))
                 isSaving = false
                 return
             }
@@ -949,24 +952,24 @@ struct AddShowFlowView: View {
             }
         } catch ShowValidationError.invalidEndTime {
             message = "结束时间需要晚于开始时间。"
-            presentToast(.failure, message: "时间范围无效")
+            presentToast(.failure, message: BSLocalization.text("时间范围无效"))
             isSaving = false
         } catch ShowValidationError.missingStartTime {
             message = "请确认开场时间。"
-            presentToast(.failure, message: "还缺开场时间")
+            presentToast(.failure, message: BSLocalization.text("还缺开场时间"))
             isSaving = false
         } catch ShowValidationError.emptyName {
             message = "请填写现场名称。"
-            presentToast(.failure, message: "保存失败")
+            presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
         } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
             message = "补录历史仅支持已经结束的现场。"
-            presentToast(.failure, message: "日期还未结束")
+            presentToast(.failure, message: BSLocalization.text("日期还未结束"))
             isSaving = false
         } catch {
             modelContext.rollback()
             message = "请填写必填信息。"
-            presentToast(.failure, message: "保存失败")
+            presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
         }
     }
@@ -1510,7 +1513,7 @@ struct ShowDraftEditorView: View {
                         }
 
                         statusActionButton(
-                            title: "记录取消",
+                            title: BSLocalization.text("记录取消"),
                             systemImage: "xmark.circle",
                             tint: BSColor.Accent.danger
                         ) {
@@ -1813,10 +1816,10 @@ private struct ShowDraftFormFields: View {
     /// 四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
     private var formCards: some View {
         VStack(alignment: .leading, spacing: 18) {
-            EditShowFormCard(title: "基本信息", icon: "square.and.pencil", tint: BSColor.Stage.accent) {
+            EditShowFormCard(title: BSLocalization.text("基本信息"), icon: "square.and.pencil", tint: BSColor.Stage.accent) {
                 AddShowLabeledTextField(
-                    title: "现场名称",
-                    placeholder: "例：五月天上海演唱会",
+                    title: BSLocalization.text("现场名称"),
+                    placeholder: BSLocalization.text("例：五月天上海演唱会"),
                     text: $draft.name,
                     isRequired: true,
                     isRecognized: nameRecognized
@@ -1885,7 +1888,7 @@ private struct ShowDraftFormFields: View {
             }
 
             EditShowFormCard(
-                title: "日期与时间",
+                title: BSLocalization.text("日期与时间"),
                 icon: "clock",
                 tint: BSColor.Accent.violet
             ) {
@@ -1917,10 +1920,10 @@ private struct ShowDraftFormFields: View {
                 }
             }
 
-            EditShowFormCard(title: "地点", icon: "mappin.and.ellipse", tint: BSColor.Accent.prepare) {
+            EditShowFormCard(title: BSLocalization.text("地点"), icon: "mappin.and.ellipse", tint: BSColor.Accent.prepare) {
                 AddShowLabeledTextField(
-                    title: "城市",
-                    placeholder: "上海",
+                    title: BSLocalization.text("城市"),
+                    placeholder: BSLocalization.text("上海"),
                     text: $draft.city,
                     isRecognized: cityRecognized
                 )
@@ -1940,7 +1943,7 @@ private struct ShowDraftFormFields: View {
             }
 
             EditShowFormCard(
-                title: "封面",
+                title: BSLocalization.text("封面"),
                 icon: "photo",
                 tint: BSColor.Stage.accent
             ) {
@@ -1977,7 +1980,7 @@ private struct ShowDraftFormFields: View {
 
                 if showsLinkField {
                     AddShowLabeledTextField(
-                        title: "图片链接",
+                        title: BSLocalization.text("图片链接"),
                         placeholder: "https://...",
                         text: $draft.coverImageURL,
                         keyboardType: .URL
@@ -2186,7 +2189,7 @@ private struct AddShowScheduleFields: View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             HStack(alignment: .top, spacing: Self.columnSpacing) {
                 AddShowDatePickerField(
-                    title: "开场日期",
+                    title: BSLocalization.text("开场日期"),
                     selection: $draft.date,
                     displayedComponents: .date,
                     calendar: eventCalendar,
@@ -2196,7 +2199,7 @@ private struct AddShowScheduleFields: View {
                 )
 
                 AddShowStartTimeField(
-                    title: "开场时间",
+                    title: BSLocalization.text("开场时间"),
                     startTime: $startTime,
                     calendar: eventCalendar,
                     isConfirmed: isStartTimeConfirmed,
@@ -2362,7 +2365,7 @@ private struct AddShowEndTimeField: View {
             if hasEndTime {
                 HStack(alignment: .top, spacing: Self.columnSpacing) {
                     AddShowDatePickerField(
-                        title: "结束日期",
+                        title: BSLocalization.text("结束日期"),
                         selection: $endDate,
                         displayedComponents: .date,
                         calendar: calendar,
@@ -2370,7 +2373,7 @@ private struct AddShowEndTimeField: View {
                     )
 
                     VStack(alignment: .leading, spacing: 6) {
-                        AddShowFieldLabel(title: "结束时间", isRequired: false)
+                        AddShowFieldLabel(title: BSLocalization.text("结束时间"), isRequired: false)
                         AddShowConstrainedDatePicker(
                             selection: $endTime,
                             displayedComponents: .hourAndMinute,
@@ -3153,9 +3156,9 @@ private extension Array {
 private extension AddShowSheet {
     var navigationTitle: String {
         switch self {
-        case .manual: return "手动填写"
-        case .screenshot: return "截图识别"
-        case .link: return "链接解析"
+        case .manual: return BSLocalization.text("手动填写")
+        case .screenshot: return BSLocalization.text("截图识别")
+        case .link: return BSLocalization.text("链接解析")
         }
     }
 

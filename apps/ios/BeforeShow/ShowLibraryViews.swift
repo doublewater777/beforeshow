@@ -76,9 +76,9 @@ struct MyShowsListView: View {
                                 .accessibilityLabel("\(currentShow.name)，当前现场，查看详情")
                             }
 
-                            showGroup(title: "即将开始", shows: upcomingShows, allowsInlineSetCurrent: true)
-                            showGroup(title: "已结束", shows: endedShows, dimmed: true)
-                            showGroup(title: "变更", shows: changedShows, allowsInlineSetCurrent: true)
+                            showGroup(title: BSLocalization.text("即将开始"), shows: upcomingShows, allowsInlineSetCurrent: true)
+                            showGroup(title: BSLocalization.text("已结束"), shows: endedShows, dimmed: true)
+                            showGroup(title: BSLocalization.text("变更"), shows: changedShows, allowsInlineSetCurrent: true)
 
                             Text("点「设为当前」或左滑可切换当前现场")
                                 .font(BSFont.caption)
@@ -101,7 +101,7 @@ struct MyShowsListView: View {
             .bsToastOverlay(toast, bottomPadding: 90)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
-                    presentToast(.success, message: "已放入当前现场")
+                    presentToast(.success, message: BSLocalization.text("已放入当前现场"))
                 }
             }
         }
@@ -260,7 +260,7 @@ struct MyShowsListView: View {
 
     private func selectCurrent(_ show: Show) {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
             return
         }
 
@@ -280,7 +280,7 @@ struct MyShowsListView: View {
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "切换失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
             }
         }
     }
@@ -463,12 +463,12 @@ private struct ShowRowView: View {
     private var subtitleText: String {
         switch show.changeStatus {
         case .canceled:
-            return "已取消 · \(formatter.dateText(for: show))"
+            return BSLocalization.format("已取消 · %@", formatter.dateText(for: show))
         case .postponed:
             if show.postponedDate != nil {
-                return "延期至 \(formatter.dateText(for: show))"
+                return BSLocalization.format("延期至 %@", formatter.dateText(for: show))
             }
-            return "时间待定 · \(formatter.dateText(for: show))"
+            return BSLocalization.format("时间待定 · %@", formatter.dateText(for: show))
         case .scheduled:
             return "\(formatter.dateText(for: show)) · \(session.phase(for: show, now: Date()).statusText)"
         }
@@ -590,24 +590,24 @@ private struct CurrentShowListHeroCard: View {
         switch phase.kind {
         case .before:
             return HeroCountdown(
-                eyebrow: "距离开场",
+                eyebrow: BSLocalization.text("距离开场"),
                 value: "\(phase.countdownNumber)\(phase.countdownUnit)"
             )
         case .today:
-            return HeroCountdown(eyebrow: nil, value: "就是今天")
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("就是今天"))
         case .dayEnded:
-            return HeroCountdown(eyebrow: nil, value: "今日已落幕", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("今日已落幕"), dim: true)
         case .postShow:
             return HeroCountdown(
                 eyebrow: nil,
                 value: "\(phase.countdownNumber)\(phase.countdownUnit)"
             )
         case .ended:
-            return HeroCountdown(eyebrow: nil, value: "已结束", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("已结束"), dim: true)
         case .canceled:
-            return HeroCountdown(eyebrow: nil, value: "记录仍保留", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("记录仍保留"), dim: true)
         case .postponed:
-            return HeroCountdown(eyebrow: nil, value: "倒计时已暂停", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("倒计时已暂停"), dim: true)
         }
     }
 }
@@ -776,7 +776,7 @@ struct CurrentShowLibraryManagementView: View {
             presenting: cancelTarget
         ) { show in
             Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
-                updateStatus(show, message: "已记录取消") { show.markCanceled() }
+                updateStatus(show, message: BSLocalization.text("已记录取消")) { show.markCanceled() }
                 cancelTarget = nil
             }
         } message: { _ in
@@ -784,7 +784,7 @@ struct CurrentShowLibraryManagementView: View {
         }
         .sheet(isPresented: $isShowingAdd) {
             AddShowCoordinatorSheet {
-                presentToast(.success, message: "已添加现场")
+                presentToast(.success, message: BSLocalization.text("已添加现场"))
             }
         }
         .alert("删除这场现场？", isPresented: deleteAlertBinding, presenting: deleteTarget) { show in
@@ -869,14 +869,14 @@ struct CurrentShowLibraryManagementView: View {
         let sections: [LibrarySection]
         switch filter {
         case .upcoming:
-            sections = [.init(title: "即将开始", shows: upcomingShows), .init(title: "延期与变更", shows: changedShows)]
+            sections = [.init(title: BSLocalization.text("即将开始"), shows: upcomingShows), .init(title: BSLocalization.text("延期与变更"), shows: changedShows)]
         case .ended:
-            sections = [.init(title: "已结束", shows: endedShows)]
+            sections = [.init(title: BSLocalization.text("已结束"), shows: endedShows)]
         case .all:
             sections = [
-                .init(title: "即将开始", shows: upcomingShows),
-                .init(title: "延期与变更", shows: changedShows),
-                .init(title: "已结束", shows: endedShows)
+                .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
+                .init(title: BSLocalization.text("延期与变更"), shows: changedShows),
+                .init(title: BSLocalization.text("已结束"), shows: endedShows)
             ]
         }
         return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
@@ -942,9 +942,9 @@ struct CurrentShowLibraryManagementView: View {
         case .postpone, .editPostponedDate:
             presentPostpone(for: show)
         case .restoreScheduled:
-            updateStatus(show, message: "已恢复原定日期") { show.markScheduled() }
+            updateStatus(show, message: BSLocalization.text("已恢复原定日期")) { show.markScheduled() }
         case .restoreCanceled:
-            updateStatus(show, message: "已撤销取消") { show.markScheduled() }
+            updateStatus(show, message: BSLocalization.text("已撤销取消")) { show.markScheduled() }
         case .cancel:
             presentCancel(for: show)
         case .delete:
@@ -981,7 +981,7 @@ struct CurrentShowLibraryManagementView: View {
 
     private func selectCurrent(_ show: Show) {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
             return
         }
         Task { @MainActor in
@@ -1000,7 +1000,7 @@ struct CurrentShowLibraryManagementView: View {
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "切换失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
             }
         }
     }
@@ -1046,7 +1046,7 @@ struct CurrentShowLibraryManagementView: View {
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "删除失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
             }
         }
     }

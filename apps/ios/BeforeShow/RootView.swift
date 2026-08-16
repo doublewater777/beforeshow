@@ -19,6 +19,8 @@ struct RootView: View {
     /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
     /// 在 onChange 触发自己的 push。详见 `presentCeremonyMemoryNavigation`。
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
+    /// 长按图标「Pro 限时优惠」Quick Action 的 deep link 路由。
+    @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
 
     // Returning users must see the home tab on the first frame, not a
     // SplashView that then has to fade out. Pre-seed hasFinishedSplash
@@ -62,6 +64,9 @@ struct RootView: View {
                 presentAddShowSuccess()
             }
         }
+        .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
+            ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
+        }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
@@ -73,6 +78,14 @@ struct RootView: View {
             if Self.debugOpenAddShowManual {
                 hasCompletedOnboarding = true
                 isShowingFirstShowAdd = true
+            }
+            if ProcessInfo.processInfo.arguments.contains("--open-pro-paywall") {
+                hasCompletedOnboarding = true
+                ProOfferDeepLinkRouter.shared.routeToPro()
+            }
+            if ProcessInfo.processInfo.arguments.contains("--open-pro-winback") {
+                hasCompletedOnboarding = true
+                ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
             }
         }
         #endif
@@ -91,7 +104,7 @@ struct RootView: View {
     }
 
     private func presentAddShowSuccess() {
-        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        let payload = BSToastPayload(tone: .success, message: BSLocalization.text("已放入当前现场"))
         // Apple §13 Multimodal feedback — fire the success haptic on the same
         // frame as the toast so causality reads as one beat, not a delayed echo.
         UINotificationFeedbackGenerator().notificationOccurred(.success)
@@ -220,8 +233,9 @@ private struct CurrentShowHomeView: View {
     @State private var isShowingDynamicCoverPicker = false
     @State private var selectedDynamicCoverItem: PhotosPickerItem?
     /// 仪式触发链:commit 成功后 → `ceremonyLightsOutShowID` 拉起 fullScreen 熄灯,
-    /// 0.6s 后清空前者并设置 `ceremonySheetShowID` 拉起三步 sheet。两份独立 state
-    /// 避免同一帧内 .sheet(nil → new) 丢片。两份均为 nil = 无仪式在播。
+    /// 熄灯动画结束只清空前者,由 fullScreenCover 的 onDismiss 再设置 `ceremonySheetShowID`
+    /// 拉起仪式 sheet —— dismiss 与 present 严格串行,不会两个转场互相穿插闪屏。
+    /// 两份均为 nil = 无仪式在播。
     @State private var ceremonyLightsOutShowID: UUID?
     @State private var ceremonySheetShowID: UUID?
     @State private var dynamicCoverImportTask: Task<Void, Never>?
@@ -393,7 +407,7 @@ private struct CurrentShowHomeView: View {
     }
 
     private func presentAddShowSuccess() {
-        let payload = BSToastPayload(tone: .success, message: "已放入当前现场")
+        let payload = BSToastPayload(tone: .success, message: BSLocalization.text("已放入当前现场"))
         toast = payload
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_200_000_000)
@@ -422,7 +436,7 @@ private struct CurrentShowHomeView: View {
             for: show,
             calendar: show.timingCalendar()
         ) else {
-            presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
+            presentToast(.failure, message: BSLocalization.text("散场时间需要在开场后、当前时间前"))
             return
         }
 
@@ -449,7 +463,7 @@ private struct CurrentShowHomeView: View {
                     ceremonyLightsOutShowID = show.id
                 }
             } catch {
-                presentToast(.failure, message: "散场时间没有保存，请重试")
+                presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))
             }
         }
     }
@@ -585,17 +599,16 @@ struct CurrentShowManagementSection: View {
                 )
             }
         }
-        .fullScreenCover(item: $ceremonyLightsOutShowID) { id in
+        .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
+            // cover 彻底消失后再升 sheet,转场不重叠,熄灯黑场直接接上 sheet 升起。
+            ceremonySheetShowID = show.id
+        }) { id in
             DispersalLightsOutOverlay(
                 showName: show.name,
                 ordinal: footprintIdentityForCeremony().showOrdinal
             ) {
-                Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: 50_000_000)
-                    if ceremonyLightsOutShowID == id {
-                        ceremonyLightsOutShowID = nil
-                        ceremonySheetShowID = id
-                    }
+                if ceremonyLightsOutShowID == id {
+                    ceremonyLightsOutShowID = nil
                 }
             }
         }
@@ -613,6 +626,7 @@ struct CurrentShowManagementSection: View {
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
+                .presentationBackground(BSColor.Stage.background)
                 .preferredColorScheme(.dark)
             }
         }
@@ -744,9 +758,9 @@ struct CurrentShowManagementSection: View {
             Spacer(minLength: 0)
 
             HStack(spacing: 8) {
-                headerButton(icon: "gearshape", label: "设置", action: onOpenSettings)
-                headerButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
-                headerButton(icon: "plus", label: "添加现场", action: onAddShow)
+                headerButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
+                headerButton(icon: "list.bullet.rectangle", label: BSLocalization.text("全部现场"), action: onOpenShowLibrary)
+                headerButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
             }
         }
         .frame(maxWidth: .infinity)
@@ -1024,9 +1038,9 @@ private struct CurrentShowFollowUpSummary: View {
     private func distanceText(to show: Show) -> String {
         let start = CurrentShowTimeState.effectiveStartTime(for: show, calendar: .current)
         let seconds = max(0, Int(start.timeIntervalSince(now)))
-        if seconds >= 86_400 { return "\(seconds / 86_400) 天后" }
-        if seconds >= 3_600 { return "\(seconds / 3_600) 小时后" }
-        return "\(max(1, seconds / 60)) 分钟后"
+        if seconds >= 86_400 { return BSLocalization.format("%lld 天后", seconds / 86_400) }
+        if seconds >= 3_600 { return BSLocalization.format("%lld 小时后", seconds / 3_600) }
+        return BSLocalization.format("%lld 分钟后", max(1, seconds / 60))
     }
 }
 
@@ -1045,11 +1059,11 @@ enum CurrentShowQuickAction: Hashable {
 
     var title: String {
         switch self {
-        case .route: return "路线"
-        case .companion: return "同行"
-        case .ticket: return "票根"
-        case .timetable: return "时刻表"
-        case .memoryFragments: return "记忆碎片"
+        case .route: return BSLocalization.text("路线")
+        case .companion: return BSLocalization.text("同行")
+        case .ticket: return BSLocalization.text("票根")
+        case .timetable: return BSLocalization.text("时刻表")
+        case .memoryFragments: return BSLocalization.text("记忆碎片")
         }
     }
 
@@ -1092,26 +1106,26 @@ struct CompanionQuickActionPresentation: Equatable {
         self.companionName = normalizedName
         switch status {
         case .none:
-            title = "同行"
-            accessibilityLabel = "同行，邀请一位朋友"
+            title = BSLocalization.text("同行")
+            accessibilityLabel = BSLocalization.text("同行，邀请一位朋友")
             showsPendingIndicator = false
             showsAvatars = false
         case .pending:
-            title = "待确认"
-            accessibilityLabel = normalizedName.map { "同行，等待\($0)确认" } ?? "同行，待确认"
+            title = BSLocalization.text("待确认")
+            accessibilityLabel = normalizedName.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
             showsPendingIndicator = true
             showsAvatars = false
         case .confirmed:
-            let displayName = normalizedName ?? "同行者"
-            title = isEnded ? "共同足迹" : "与\(displayName)"
+            let displayName = normalizedName ?? BSLocalization.text("同行者")
+            title = isEnded ? BSLocalization.text("共同足迹") : BSLocalization.format("与%@", displayName)
             accessibilityLabel = isEnded
-                ? (normalizedName.map { "同行，与\($0)的共同足迹" } ?? "同行，共同足迹")
-                : "同行，与\(displayName)已确认"
+                ? (normalizedName.map { BSLocalization.format("同行，与%@的共同足迹", $0) } ?? BSLocalization.text("同行，共同足迹"))
+                : BSLocalization.format("同行，与%@已确认", displayName)
             showsPendingIndicator = false
             showsAvatars = true
         case .canceled:
-            title = "重新邀请"
-            accessibilityLabel = normalizedName.map { "同行，重新邀请\($0)" } ?? "同行，重新邀请"
+            title = BSLocalization.text("重新邀请")
+            accessibilityLabel = normalizedName.map { BSLocalization.format("同行，重新邀请%@", $0) } ?? BSLocalization.text("同行，重新邀请")
             showsPendingIndicator = false
             showsAvatars = false
         }
@@ -1320,8 +1334,8 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "hourglass",
-                title: "等待\(displayName)确认",
-                subtitle: "已通过系统分享发出邀请。对方点开链接并接受后，这里会自动变成已确认。"
+                title: BSLocalization.format("等待%@确认", displayName),
+                subtitle: BSLocalization.text("已通过系统分享发出邀请。对方点开链接并接受后，这里会自动变成已确认。")
             )
 
             Button {
@@ -1358,8 +1372,8 @@ struct CurrentShowCompanionSheet: View {
             VStack(spacing: BSSpacing.md) {
                 BSStageSheetHeader(
                     icon: "person.2.fill",
-                    title: "共同足迹",
-                    subtitle: "这场现场已经收进你们共同的记录。"
+                    title: BSLocalization.text("共同足迹"),
+                    subtitle: BSLocalization.text("这场现场已经收进你们共同的记录。")
                 )
 
                 sharedMemoryCard
@@ -1373,8 +1387,8 @@ struct CurrentShowCompanionSheet: View {
             VStack(spacing: BSSpacing.md) {
                 BSStageSheetHeader(
                     icon: "person.2.fill",
-                    title: "与\(displayName)同行",
-                    subtitle: "这场现场已确认同行。"
+                    title: BSLocalization.format("与%@同行", displayName),
+                    subtitle: BSLocalization.text("这场现场已确认同行。")
                 )
 
                 companionPair
@@ -1406,7 +1420,7 @@ struct CurrentShowCompanionSheet: View {
 
     private var companionPair: some View {
         HStack(spacing: BSSpacing.md) {
-            person(name: "你", initial: "我")
+            person(name: BSLocalization.text("你"), initial: "我")
 
             Rectangle()
                 .fill(LinearGradient(colors: [.clear, BSColor.Stage.accent, .clear], startPoint: .leading, endPoint: .trailing))
@@ -1509,7 +1523,7 @@ struct CurrentShowCompanionSheet: View {
         guard let name = show.companionName?
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !name.isEmpty else {
-            return "同行者"
+            return BSLocalization.text("同行者")
         }
         return name
     }
@@ -1687,9 +1701,9 @@ private struct CurrentShowEmptyStateView: View {
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
                 HStack(spacing: 8) {
-                    emptyHeaderButton(icon: "gearshape", label: "设置", action: onOpenSettings)
-                    emptyHeaderButton(icon: "list.bullet.rectangle", label: "全部现场", action: onOpenShowLibrary)
-                    emptyHeaderButton(icon: "plus", label: "添加现场", action: onAddShow)
+                    emptyHeaderButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
+                    emptyHeaderButton(icon: "list.bullet.rectangle", label: BSLocalization.text("全部现场"), action: onOpenShowLibrary)
+                    emptyHeaderButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
                 }
             }
             .padding(.horizontal, 20)
@@ -1719,6 +1733,10 @@ private enum DebugSampleShowSeeder {
     static func seedIfRequested(in modelContext: ModelContext) {
         if ProcessInfo.processInfo.arguments.contains("--seed-current-management-live") {
             seedCurrentManagementLive(in: modelContext)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-near") {
+            seedUpcomingNear(in: modelContext)
             return
         }
 
@@ -1755,6 +1773,44 @@ private enum DebugSampleShowSeeder {
             try modelContext.save()
         } catch {
             assertionFailure("Failed to seed add-show samples: \(error)")
+        }
+    }
+
+    private static func seedUpcomingNear(in modelContext: ModelContext) {
+        let name = "夏夜音乐会"
+        let now = Date()
+        let start = now.addingTimeInterval(3 * 3_600 + 21 * 60 + 18)
+        let draft = ShowDraft(
+            name: name,
+            date: start,
+            startTime: start,
+            city: "南京",
+            venueName: "南京奥体中心体育场",
+            artists: [ArtistSlot(name: "夏夜乐队", avatarURL: nil)],
+            coverImageURL: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1200&q=85",
+            source: .manual
+        )
+        do {
+            let existingShows = try modelContext.fetch(FetchDescriptor<Show>())
+            let show: Show
+            if let existing = existingShows.first(where: { $0.name == name }) {
+                try existing.apply(draft)
+                existing.markScheduled()
+                existing.clearEnded()
+                show = existing
+            } else {
+                show = try draft.makeShow()
+                modelContext.insert(show)
+            }
+            let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+            if let selection = selections.first {
+                selection.select(showID: show.id)
+            } else {
+                modelContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            }
+            try modelContext.save()
+        } catch {
+            assertionFailure("Failed to seed upcoming-near sample: \(error)")
         }
     }
 
@@ -1864,7 +1920,7 @@ private enum DebugSampleShowSeeder {
                 let fragment = try MemoryFragment(
                     id: fragmentID,
                     showID: show.id,
-                    text: "灯亮以后随手留下的一段画面。",
+                    text: BSLocalization.text("灯亮以后随手留下的一段画面。"),
                     createdAt: now.addingTimeInterval(-8 * 60),
                     phase: .live
                 )

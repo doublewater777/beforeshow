@@ -42,13 +42,13 @@ enum DynamicCoverAccessibilityPolicy {
     static func hint(canFlip: Bool, opensDetail: Bool) -> String {
         switch (opensDetail, canFlip) {
         case (true, true):
-            return "轻点查看现场详情，长按翻转动态封面"
+            return BSLocalization.text("轻点查看现场详情，长按翻转动态封面")
         case (true, false):
-            return "轻点查看现场详情"
+            return BSLocalization.text("轻点查看现场详情")
         case (false, true):
-            return "长按翻转动态封面，轻点返回静态封面"
+            return BSLocalization.text("长按翻转动态封面，轻点返回静态封面")
         case (false, false):
-            return "暂无动态封面"
+            return BSLocalization.text("暂无动态封面")
         }
     }
 }

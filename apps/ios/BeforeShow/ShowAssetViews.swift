@@ -332,13 +332,13 @@ struct ShowAssetUploadView: View {
         do {
             guard let data = try await item.loadTransferable(type: Data.self) else {
                 guard operation == .importing(token) else { return }
-                presentToast(.failure, message: "没有读到这张图片")
+                presentToast(.failure, message: BSLocalization.text("没有读到这张图片"))
                 return
             }
             try Task.checkCancellation()
             guard operation == .importing(token) else { return }
             guard let image = UIImage(data: data) else {
-                presentToast(.failure, message: "这张图片暂时无法使用")
+                presentToast(.failure, message: BSLocalization.text("这张图片暂时无法使用"))
                 return
             }
             pendingData = data
@@ -348,7 +348,7 @@ struct ShowAssetUploadView: View {
             return
         } catch {
             guard operation == .importing(token) else { return }
-            presentToast(.failure, message: "图片读取失败，请重试")
+            presentToast(.failure, message: BSLocalization.text("图片读取失败，请重试"))
             selectedItem = nil
         }
     }
@@ -508,24 +508,24 @@ struct ShowAssetUploadView: View {
         if let storeError = error as? ShowAssetMediaStoreError {
             switch storeError {
             case .insufficientDiskSpace:
-                return "存储空间不足，先腾出一点空间再试"
+                return BSLocalization.text("存储空间不足，先腾出一点空间再试")
             case .storageUnavailable:
-                return "本地存储暂时不可用，请稍后重试"
+                return BSLocalization.text("本地存储暂时不可用，请稍后重试")
             case .unsupportedImage, .imageEncodingFailed:
-                return "这张图片暂时无法保存"
+                return BSLocalization.text("这张图片暂时无法保存")
             case .importCancelled:
-                return "已取消"
+                return BSLocalization.text("已取消")
             case .missingShow:
-                return "这场现场已不存在，无法保存"
+                return BSLocalization.text("这场现场已不存在，无法保存")
             case .missingAsset:
-                return "保存失败，请重试"
+                return BSLocalization.text("保存失败，请重试")
             case .invalidRelativePath:
-                return "图片路径异常，请重新添加"
+                return BSLocalization.text("图片路径异常，请重新添加")
             case .fullCleanupPending:
-                return "本地清除正在重试，请稍后再试"
+                return BSLocalization.text("本地清除正在重试，请稍后再试")
             }
         }
-        return "保存失败，请重试"
+        return BSLocalization.text("保存失败，请重试")
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -725,14 +725,14 @@ struct ShowAssetViewerView: View {
             kind: kind
         ) else {
             image = nil
-            presentToast(.failure, message: "图片暂时不可用")
+            presentToast(.failure, message: BSLocalization.text("图片暂时不可用"))
             return
         }
         if let data = try? Data(contentsOf: url), let loaded = UIImage(data: data) {
             image = loaded
         } else {
             image = nil
-            presentToast(.failure, message: "图片暂时打不开")
+            presentToast(.failure, message: BSLocalization.text("图片暂时打不开"))
         }
     }
 
@@ -799,7 +799,7 @@ struct ShowAssetViewerView: View {
                     throw error
                 }
             } catch {
-                presentToast(.failure, message: "删除失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
             }
         }
     }

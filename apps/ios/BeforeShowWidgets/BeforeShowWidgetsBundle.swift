@@ -5,6 +5,7 @@ import WidgetKit
 struct BeforeShowWidgetsBundle: WidgetBundle {
     var body: some Widget {
         CountdownWidget()
+        LockScreenCountdownWidget()
         ShowLiveActivity()
     }
 }

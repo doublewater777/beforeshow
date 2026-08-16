@@ -1,3 +1,4 @@
+import SafariServices
 import UIKit
 import SwiftUI
 
@@ -534,58 +535,10 @@ struct CurrentShowAmbientBackground: View {
         guard let urlString,
               let url = URL(string: urlString),
               let image = await ImageCache.shared.image(from: url),
-              let stageColor = UIColor.stageColor(fromTopBandOf: image) else {
+              let stageColor = CoverAmbientColor.uiColor(from: image) else {
             return nil
         }
         return Color(stageColor)
-    }
-}
-
-private extension UIColor {
-    /// 封面顶部条带均色 → 舞台灯色：只取顶部 ~25% 区域（与状态栏相邻的那条），
-    /// 让环境光就是海报顶边的向上漫延，交界处无色差；再轻提饱和、压亮度。
-    static func stageColor(fromTopBandOf image: UIImage) -> UIColor? {
-        guard let cgImage = image.cgImage else { return nil }
-        let ciImage = CIImage(cgImage: cgImage)
-        let extent = ciImage.extent
-        // CIImage 原点在左下角：顶部 25% = y 从 0.75H 到 H。
-        let topBand = CGRect(
-            x: extent.minX,
-            y: extent.maxY - extent.height * 0.25,
-            width: extent.width,
-            height: extent.height * 0.25
-        )
-        guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
-            kCIInputImageKey: ciImage,
-            kCIInputExtentKey: CIVector(cgRect: topBand)
-        ]), let output = filter.outputImage else { return nil }
-
-        var bitmap = [UInt8](repeating: 0, count: 4)
-        CIContext().render(
-            output,
-            toBitmap: &bitmap,
-            rowBytes: 4,
-            bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-            format: .RGBA8,
-            colorSpace: CGColorSpaceCreateDeviceRGB()
-        )
-
-        let average = UIColor(
-            red: CGFloat(bitmap[0]) / 255,
-            green: CGFloat(bitmap[1]) / 255,
-            blue: CGFloat(bitmap[2]) / 255,
-            alpha: 1
-        )
-        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
-        guard average.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha) else {
-            return average
-        }
-        return UIColor(
-            hue: hue,
-            saturation: min(1, saturation * 1.5 + 0.15),
-            brightness: min(max(brightness, 0.38), 0.75),
-            alpha: 1
-        )
     }
 }
 
@@ -623,6 +576,23 @@ struct BSSettingsSurface<Content: View>: View {
                     .stroke(BSColor.Stage.border, lineWidth: 1)
             )
     }
+}
+
+/// In-app Safari page, presented with `.sheet(item:)`. Keeps users inside the
+/// app instead of jumping to the separate Safari app.
+struct BSInAppBrowserPage: Identifiable {
+    let id = UUID()
+    let url: URL
+}
+
+struct BSInAppBrowser: UIViewControllerRepresentable {
+    let page: BSInAppBrowserPage
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        SFSafariViewController(url: page.url)
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }
 
 struct BSInputFieldStyle: ViewModifier {

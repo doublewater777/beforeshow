@@ -72,9 +72,14 @@ enum DispersalCeremonyPolicy {
     /// 散场文字最大长度。`Show.normalizeClosingNote` 复用同一上限。
     static let maximumNoteLength = 500
 
-    /// 舞台熄灯动画持续时间。3 道光束淡入淡出 + 标题淡入,贴合 V2 原型的"散场"仪式感。
-    /// 短到不打断,长到能看见光。reduceMotion 时直接跳到末尾帧。
-    static let lightsOutDuration: Double = 2.8
+    /// 舞台熄灯动画持续时间。3 道光束淡入淡出 + 标题淡入。
+    /// 4.2s 让「散场」按 25%–80% 包络至少停住 2 秒;2.8s 时只有 1.5s,会像闪一下。
+    /// reduceMotion 时直接跳到中段停驻帧(progress 0.5)。
+    static let lightsOutDuration: Double = 4.2
+
+    /// 熄灯动画开表前的停顿。等 fullScreenCover 上滑转场落定,
+    /// 否则转场会吃掉标题渐入(0–25%)的前三分之一,看起来"突然开始"。
+    static let lightsOutTransitionLeadIn: Double = 0.45
 
     /// 合法评分范围。
     static let ratingRange: ClosedRange<Int> = 1...5
@@ -97,6 +102,14 @@ enum DispersalCeremonyPolicy {
         ("一句话也行", "今晚值了。"),
         ("最喜欢的一首歌", "最喜欢的是最后那首歌。")
     ]
+}
+
+/// 评级吸附条:轨道两端落在首尾圆点中心,拉到顶时线不会在圆点外多出一截。
+enum DispersalSnapSliderLayout {
+    static func trackInset(width: CGFloat, nodeCount: Int = DispersalRating.allCases.count) -> CGFloat {
+        guard nodeCount > 0, width > 0 else { return 0 }
+        return width / CGFloat(nodeCount * 2)
+    }
 }
 
 /// 熄灯动画时间轴。视图用 `TimelineView` 每帧喂 elapsed,这里只算 0...1 进度与透明度。
@@ -161,8 +174,8 @@ enum DispersalCeremonyCardCopy {
 
     static func footerLeading(identity: FootprintDetailIdentity) -> String {
         if let name = identity.companionName, let ordinal = identity.companionOrdinal {
-            return "与\(name)第 \(ordinal) 次见面"
+            return BSLocalization.format("与%@第 %lld 次见面", name, ordinal)
         }
-        return "我的第 \(identity.showOrdinal) 场现场"
+        return BSLocalization.format("我的第 %lld 场现场", identity.showOrdinal)
     }
 }

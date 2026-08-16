@@ -704,6 +704,22 @@ final class NavigationTests: XCTestCase {
         )
     }
 
+    func testHomeIdentityDateTextShowsActualDurationAfterConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let plannedEnd = makeDate(year: 2026, month: 8, day: 8, hour: 21, minute: 30, calendar: calendar)
+        let actualEnd = makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 10, calendar: calendar)
+        let show = try Show(name: "散场现场", date: start, startTime: start, endTime: plannedEnd)
+        show.markEnded(at: actualEnd)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: actualEnd)
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            "2026.08.08 周六 19:00 · 实际演出 3 小时 10 分"
+        )
+    }
+
     func testHomeIdentityDateTextKeepsEndYearAcrossNewYear() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -743,6 +759,19 @@ final class WidgetRuntimeRegressionTests: XCTestCase {
             try? FileManager.default.removeItem(at: tempDirectory)
         }
         try super.tearDownWithError()
+    }
+
+    func testLockScreenCircularNearClockFitsAccessory() {
+        XCTAssertEqual(
+            LockScreenCountdownCopy.circularNearClock(remainingSeconds: 3 * 3_600 + 24 * 60 + 18),
+            "3:24"
+        )
+        XCTAssertEqual(LockScreenCountdownCopy.circularNearClock(remainingSeconds: 90), "0:01")
+        XCTAssertEqual(LockScreenCountdownCopy.circularNearClock(remainingSeconds: 0), "0:00")
+        XCTAssertEqual(
+            BeforeShowWidgetKind.all,
+            ["BeforeShowCountdownWidget", "BeforeShowLockScreenCountdownWidget"]
+        )
     }
 
     func testPruneWithoutCurrentSourceDeletesAllHashedCovers() throws {

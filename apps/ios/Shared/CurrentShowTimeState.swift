@@ -410,7 +410,8 @@ struct CurrentShowTimeState: Equatable {
     ) -> (text: String, number: String, unit: String, helper: String) {
         switch kind {
         case .canceled:
-            return ("这场现场已取消，记录仍会留在我的现场。", "-", "已取消", "这场现场已取消，记录仍会留在我的现场。")
+            let copy = BSLocalization.text("这场现场已取消，记录仍会留在我的现场。")
+            return (copy, "-", BSLocalization.text("已取消"), copy)
         case .postponed:
             let copy = BSLocalization.text("新的日期还没确定，倒计时先暂停。")
             return (copy, "-", BSLocalization.text("待定"), copy)

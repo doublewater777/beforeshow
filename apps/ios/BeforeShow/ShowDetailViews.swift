@@ -31,8 +31,8 @@ struct PostponeShowSheet: View {
         BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
             BSStageSheetHeader(
                 icon: "calendar.badge.clock",
-                title: "延期演出",
-                subtitle: "选择这场演出目前的延期状态。",
+                title: BSLocalization.text("延期演出"),
+                subtitle: BSLocalization.text("选择这场演出目前的延期状态。"),
                 tint: BSColor.Accent.warm
             )
 
@@ -183,7 +183,6 @@ struct ShowDetailView: View {
                         countdownCard
                         showInformationSection
                         currentDisplaySection
-                        eventStatusSection
                         experienceSection
                         assetManagementSection
                         DynamicCoverManagementSection(show: show)
@@ -207,6 +206,11 @@ struct ShowDetailView: View {
                     Button("编辑", systemImage: "square.and.pencil") {
                         presentedSheet = .editor
                     }
+                    Menu {
+                        eventStatusMenuActions
+                    } label: {
+                        Label(statusTitle, systemImage: eventStatusIcon)
+                    }
                     Button("删除", systemImage: "trash", role: .destructive) {
                         isShowingDeleteConfirmation = true
                     }
@@ -220,7 +224,7 @@ struct ShowDetailView: View {
             switch sheet {
             case .editor:
                 ShowDraftEditorView(
-                    title: "编辑现场",
+                    title: BSLocalization.text("编辑现场"),
                     draft: ShowDraft(show: show),
                     saveTitle: "保存",
                     statusPillText: session.phase(for: show, now: Date()).statusText,
@@ -264,7 +268,7 @@ struct ShowDetailView: View {
                     calendar: show.timingCalendar(),
                     onUndated: {
                         presentedSheet = nil
-                        applyStatus(message: "已记录延期，日期待定") {
+                        applyStatus(message: BSLocalization.text("已记录延期，日期待定")) {
                             show.markPostponed(newDate: nil)
                         }
                     },
@@ -274,7 +278,7 @@ struct ShowDetailView: View {
                             calendar: show.timingCalendar()
                         )
                         presentedSheet = nil
-                        applyStatus(message: "延期日期已更新") {
+                        applyStatus(message: BSLocalization.text("延期日期已更新")) {
                             show.markPostponed(newDate: newDate)
                         }
                     }
@@ -298,7 +302,7 @@ struct ShowDetailView: View {
             titleVisibility: .visible
         ) {
             Button(DangerConfirmation.cancelShow.confirmTitle, role: .destructive) {
-                applyStatus(message: "已记录取消") { show.markCanceled() }
+                applyStatus(message: BSLocalization.text("已记录取消")) { show.markCanceled() }
             }
         } message: {
             Text(DangerConfirmation.cancelShow.message)
@@ -505,37 +509,6 @@ struct ShowDetailView: View {
         }
     }
 
-    private var eventStatusSection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("演出状态")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
-
-            VStack(spacing: BSSpacing.compact) {
-                HStack(spacing: BSSpacing.compact) {
-                    Image(systemName: eventStatusIcon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(eventStatusTint)
-                        .frame(width: 36, height: 36)
-                        .background(eventStatusTint.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
-                        .accessibilityHidden(true)
-
-                    Text(statusTitle)
-                        .font(BSFont.V3.small.weight(.medium))
-                        .foregroundColor(BSColor.Stage.foreground)
-
-                    Spacer(minLength: 0)
-                }
-
-                eventStatusActions
-            }
-            .padding(BSSpacing.compact)
-            .background(BSColor.Stage.surface)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border, lineWidth: 1))
-        }
-    }
-
     private var assetManagementSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Text("现场资料")
@@ -585,7 +558,7 @@ struct ShowDetailView: View {
                 } label: {
                     ShowDetailExperienceTile(
                         action: .companion,
-                        title: companionPresentation.title,
+                        title: BSLocalization.text("同行"),
                         subtitle: companionPresentationSubtitle
                     )
                 }
@@ -621,10 +594,10 @@ struct ShowDetailView: View {
 
     private var companionPresentationSubtitle: String {
         switch show.companionStatus {
-        case .none: return "邀请一位朋友"
-        case .pending: return "等待确认"
+        case .none: return BSLocalization.text("邀请一位朋友")
+        case .pending: return BSLocalization.text("等待确认")
         case .confirmed: return companionPresentation.companionName.map { "与\($0)同行" } ?? "已确认同行"
-        case .canceled: return "重新邀请"
+        case .canceled: return BSLocalization.text("重新邀请")
         }
     }
 
@@ -633,49 +606,37 @@ struct ShowDetailView: View {
     }
 
     @ViewBuilder
-    private var eventStatusActions: some View {
+    private var eventStatusMenuActions: some View {
         switch show.changeStatus {
         case .scheduled:
-            HStack(spacing: BSSpacing.sm) {
-                statusActionButton("延期", tint: BSColor.Accent.warm, action: beginPostpone)
-                statusActionButton("取消演出", tint: BSColor.Stage.danger) {
-                    isShowingCancelConfirmation = true
-                }
+            Button("延期", systemImage: "calendar.badge.clock") {
+                beginPostpone()
+            }
+            Button("取消演出", systemImage: "xmark.circle", role: .destructive) {
+                isShowingCancelConfirmation = true
             }
         case .postponed:
-            VStack(spacing: BSSpacing.sm) {
-                HStack(spacing: BSSpacing.sm) {
-                    statusActionButton("修改延期", tint: BSColor.Accent.warm, action: beginPostpone)
-                    statusActionButton("取消演出", tint: BSColor.Stage.danger) {
-                        isShowingCancelConfirmation = true
-                    }
-                }
-                statusActionButton(restoreActionTitle, tint: BSColor.Stage.success) {
-                    applyStatus(message: restoreSuccessMessage) { show.markScheduled() }
-                }
+            Button("修改延期", systemImage: "calendar.badge.clock") {
+                beginPostpone()
+            }
+            Button("取消演出", systemImage: "xmark.circle", role: .destructive) {
+                isShowingCancelConfirmation = true
+            }
+            Button(restoreActionTitle, systemImage: "arrow.clockwise") {
+                applyStatus(message: restoreSuccessMessage) { show.markScheduled() }
             }
         case .canceled:
-            statusActionButton(restoreActionTitle, tint: BSColor.Stage.success) {
+            Button(restoreActionTitle, systemImage: "arrow.clockwise") {
                 applyStatus(message: restoreSuccessMessage) { show.markScheduled() }
             }
         }
-    }
-
-    private func statusActionButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .font(BSFont.V3.caption)
-            .foregroundColor(tint)
-            .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-            .background(tint.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(tint.opacity(0.22), lineWidth: 1))
-            .buttonStyle(.plain)
     }
 
     @ViewBuilder
     private var confirmedEndSection: some View {
         if let endedAt = show.endedAt {
             confirmedEndButton(
-                title: "修改散场时间",
+                title: BSLocalization.text("修改散场时间"),
                 value: formattedDate(
                     endedAt,
                     format: "M月d日 HH:mm",
@@ -688,8 +649,8 @@ struct ShowDetailView: View {
             }
         } else if timeState.kind == .postShow || timeState.kind == .ended {
             confirmedEndButton(
-                title: "补记散场时间",
-                value: "填写真实散场时间",
+                title: BSLocalization.text("补记散场时间"),
+                value: BSLocalization.text("填写真实散场时间"),
                 icon: "clock.badge.checkmark"
             ) {
                 confirmedEndDraft = suggestedConfirmedEnd
@@ -742,30 +703,22 @@ struct ShowDetailView: View {
 
     private var endTimeDescription: String? {
         if let endedAt = show.endedAt {
-            return "已于 \(formattedDate(endedAt, format: "M月d日 HH:mm", calendar: show.endTimingCalendar())) 结束"
+            return BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: "M月d日 HH:mm", calendar: show.endTimingCalendar()))
         }
         if let endTime = timeState.effectiveEndTime {
-            return "预计 \(formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar())) 结束"
+            return BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar()))
         }
         return nil
     }
 
     private var currentDisplayTitle: String {
-        if isCurrentShow { return "当前展示中" }
+        if isCurrentShow { return BSLocalization.text("当前展示中") }
         return session.isManuallySelectable(show) ? "未设为当前" : "暂不可设为当前"
     }
 
     private var statusTint: Color {
         switch show.changeStatus {
         case .scheduled: return BSColor.Stage.glowBlue
-        case .postponed: return BSColor.Accent.warm
-        case .canceled: return BSColor.Stage.danger
-        }
-    }
-
-    private var eventStatusTint: Color {
-        switch show.changeStatus {
-        case .scheduled: return BSColor.Stage.success
         case .postponed: return BSColor.Accent.warm
         case .canceled: return BSColor.Stage.danger
         }
@@ -790,21 +743,21 @@ struct ShowDetailView: View {
         switch show.changeStatus {
         case .canceled:
             return .init(
-                title: "这场已经取消",
+                title: BSLocalization.text("这场已经取消"),
                 trailingValue: "—",
                 trailingLabel: "取消",
                 tint: BSColor.Stage.danger
             )
         case .postponed where show.postponedDate == nil:
             return .init(
-                title: "倒计时暂停",
+                title: BSLocalization.text("倒计时暂停"),
                 trailingValue: "TBD",
                 trailingLabel: "待定",
                 tint: BSColor.Accent.warm
             )
         case .postponed:
             return .init(
-                title: "已延期",
+                title: BSLocalization.text("已延期"),
                 trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
                 trailingLabel: "新日期",
                 tint: BSColor.Accent.warm
@@ -835,11 +788,11 @@ struct ShowDetailView: View {
     private var statusTitle: String {
         switch show.changeStatus {
         case .scheduled:
-            return "正常进行中"
+            return BSLocalization.text("正常进行中")
         case .postponed:
             return show.postponedDate == nil ? "时间待定" : "已改期"
         case .canceled:
-            return "演出已取消"
+            return BSLocalization.text("演出已取消")
         }
     }
 
@@ -867,7 +820,7 @@ struct ShowDetailView: View {
 
     private func selectCurrent() {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
             return
         }
 
@@ -887,14 +840,14 @@ struct ShowDetailView: View {
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "切换失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
             }
         }
     }
 
     private func saveConfirmedEnd() {
         guard CurrentShowEndPolicy.isValidConfirmedEnd(confirmedEndDraft, for: show) else {
-            presentToast(.failure, message: "散场时间需要在开场后、当前时间前")
+            presentToast(.failure, message: BSLocalization.text("散场时间需要在开场后、当前时间前"))
             return
         }
 
@@ -915,7 +868,7 @@ struct ShowDetailView: View {
                     message: didSync ? "散场时间已更新" : "散场时间已保存，同步暂未更新"
                 )
             } catch {
-                presentToast(.failure, message: "散场时间没有保存，请重试")
+                presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))
             }
         }
     }
@@ -940,7 +893,7 @@ struct ShowDetailView: View {
                         : "已撤销结束，同步暂未更新"
                 )
             } catch {
-                presentToast(.failure, message: "没有撤销成功，请重试")
+                presentToast(.failure, message: BSLocalization.text("没有撤销成功，请重试"))
             }
         }
     }
@@ -1010,12 +963,12 @@ struct ShowDetailView: View {
                         : "现场记录已删除，本地副本与同步将在稍后继续"
                 )
             } else if !result.didSync {
-                presentToast(.neutral, message: "现场记录已删除，同步暂未更新")
+                presentToast(.neutral, message: BSLocalization.text("现场记录已删除，同步暂未更新"))
             }
             dismiss()
         } catch {
             modelContext.rollback()
-            presentToast(.failure, message: "删除失败，请重试")
+            presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
         }
     }
 

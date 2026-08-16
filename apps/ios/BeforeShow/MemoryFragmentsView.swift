@@ -432,9 +432,9 @@ struct MemoryFragmentsView: View {
                 .font(.system(size: 11))
                 .foregroundColor(BSColor.Stage.muted)
             HStack(spacing: BSSpacing.lg) {
-                timelineStat(value: "\(stats.memories)", label: "条记忆")
-                timelineStat(value: "\(stats.photos)", label: "照片")
-                timelineStat(value: "\(stats.videos)", label: "视频")
+                timelineStat(value: "\(stats.memories)", label: BSLocalization.text("条记忆"))
+                timelineStat(value: "\(stats.photos)", label: BSLocalization.text("照片"))
+                timelineStat(value: "\(stats.videos)", label: BSLocalization.text("视频"))
             }
             .padding(.top, 2)
         }
@@ -971,14 +971,14 @@ private struct MemoryAddMediaSheet: View {
                     .padding(.top, 6)
                 HStack(spacing: 10) {
                     MemorySourceOptionCard(
-                        title: "继续拍照",
-                        subtitle: "打开系统相机",
+                        title: BSLocalization.text("继续拍照"),
+                        subtitle: BSLocalization.text("打开系统相机"),
                         icon: "camera",
                         action: onCamera
                     )
                     MemorySourceOptionCard(
-                        title: "从图库选择",
-                        subtitle: "照片或视频",
+                        title: BSLocalization.text("从图库选择"),
+                        subtitle: BSLocalization.text("照片或视频"),
                         icon: "photo.on.rectangle",
                         action: onLibrary
                     )
@@ -1743,7 +1743,7 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private var editorTitle: String {
-        if isEditing { return "编辑记忆" }
+        if isEditing { return BSLocalization.text("编辑记忆") }
         return items.isEmpty ? "写下这一刻" : "新记忆"
     }
 
@@ -1760,8 +1760,8 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private var editorSubtitle: String {
-        if items.isEmpty { return "自动记录当前现场时间。" }
-        return "像发一条私密动态，但不会公开发布。"
+        if items.isEmpty { return BSLocalization.text("自动记录当前现场时间。") }
+        return BSLocalization.text("像发一条私密动态，但不会公开发布。")
     }
 
     private var canSave: Bool {
@@ -2091,28 +2091,28 @@ private struct MemoryUnifiedEditorView: View {
         if let storeError = error as? MemoryMediaStoreError {
             switch storeError {
             case .missingStagedDraft:
-                return "所选媒体的临时文件已失效，请返回图库重新选择。"
+                return BSLocalization.text("所选媒体的临时文件已失效，请返回图库重新选择。")
             case .insufficientDiskSpace:
-                return "设备储存空间不足，暂时无法保存。"
+                return BSLocalization.text("设备储存空间不足，暂时无法保存。")
             case .unsupportedMedia:
-                return "这个媒体格式暂不支持，请换一张照片或视频。"
+                return BSLocalization.text("这个媒体格式暂不支持，请换一张照片或视频。")
             case .imageEncodingFailed:
-                return "这张图片无法处理，请换一张图片后重试。"
+                return BSLocalization.text("这张图片无法处理，请换一张图片后重试。")
             case .importCancelled:
-                return "媒体导入已取消，请重新选择。"
+                return BSLocalization.text("媒体导入已取消，请重新选择。")
             }
         }
         if let validationError = error as? MemoryFragmentValidationError {
             switch validationError {
             case .emptyContent:
-                return "请保留至少一项媒体或一段文字。"
+                return BSLocalization.text("请保留至少一项媒体或一段文字。")
             case .textTooLong:
-                return "文字最多 500 字。"
+                return BSLocalization.text("文字最多 500 字。")
             case .mediaLimitExceeded:
-                return "一条记忆最多 10 项媒体。"
+                return BSLocalization.text("一条记忆最多 10 项媒体。")
             }
         }
-        return "内容没有保存，请重试。"
+        return BSLocalization.text("内容没有保存，请重试。")
     }
 
     private func cancel() {
