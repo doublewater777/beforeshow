@@ -357,4 +357,92 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertEqual(products.count, 5)
         XCTAssertTrue(products.allSatisfy(\.isAvailable))
     }
+
+    func testWinbackPlanFlagCoversOnlyDiscountPlans() {
+        XCTAssertTrue(ProSubscriptionPlan.yearlyDiscount.isWinback)
+        XCTAssertTrue(ProSubscriptionPlan.lifetimeDiscount.isWinback)
+        XCTAssertFalse(ProSubscriptionPlan.monthly.isWinback)
+        XCTAssertFalse(ProSubscriptionPlan.yearly.isWinback)
+        XCTAssertFalse(ProSubscriptionPlan.lifetime.isWinback)
+    }
+
+    func testActiveProRejectsLifetimeDiscountPurchase() async throws {
+        let active = ProEntitlementState.active(
+            productID: ProSubscriptionCatalog.yearlyProductID,
+            expirationDate: nil
+        )
+        let store = MockProSubscriptionStore(entitlement: active)
+
+        do {
+            _ = try await store.purchase(productID: ProSubscriptionCatalog.lifetimeDiscountProductID)
+            XCTFail("Winback purchase while Pro active should be rejected")
+        } catch let error as ProSubscriptionError {
+            XCTAssertEqual(error, .winbackNotAvailableWhileActive)
+        } catch {
+            XCTFail("Expected ProSubscriptionError.winbackNotAvailableWhileActive, got \(error)")
+        }
+    }
+
+    func testActiveProRejectsYearlyDiscountPurchase() async throws {
+        let active = ProEntitlementState.active(
+            productID: ProSubscriptionCatalog.monthlyProductID,
+            expirationDate: nil
+        )
+        let store = MockProSubscriptionStore(entitlement: active)
+
+        do {
+            _ = try await store.purchase(productID: ProSubscriptionCatalog.yearlyDiscountProductID)
+            XCTFail("Winback purchase while Pro active should be rejected")
+        } catch let error as ProSubscriptionError {
+            XCTAssertEqual(error, .winbackNotAvailableWhileActive)
+        } catch {
+            XCTFail("Expected ProSubscriptionError.winbackNotAvailableWhileActive, got \(error)")
+        }
+    }
+
+    func testActiveProAllowsStandardPlanPurchase() async throws {
+        let active = ProEntitlementState.active(
+            productID: ProSubscriptionCatalog.monthlyProductID,
+            expirationDate: nil
+        )
+        let store = MockProSubscriptionStore(entitlement: active)
+
+        let purchased = try await store.purchase(productID: ProSubscriptionCatalog.lifetimeProductID)
+
+        XCTAssertEqual(
+            purchased,
+            .active(productID: ProSubscriptionCatalog.lifetimeProductID, expirationDate: nil)
+        )
+    }
+
+    func testFreeProAllowsWinbackPurchase() async throws {
+        let store = MockProSubscriptionStore(entitlement: .free)
+
+        let purchased = try await store.purchase(
+            productID: ProSubscriptionCatalog.lifetimeDiscountProductID
+        )
+
+        XCTAssertEqual(
+            purchased,
+            .active(productID: ProSubscriptionCatalog.lifetimeDiscountProductID, expirationDate: nil)
+        )
+        XCTAssertTrue(purchased.isProActive)
+    }
+
+    func testExpiredProAllowsWinbackPurchase() async throws {
+        let expired = ProEntitlementState.expired(
+            productID: ProSubscriptionCatalog.yearlyProductID,
+            expirationDate: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let store = MockProSubscriptionStore(entitlement: expired)
+
+        let purchased = try await store.purchase(
+            productID: ProSubscriptionCatalog.yearlyDiscountProductID
+        )
+
+        XCTAssertEqual(
+            purchased,
+            .active(productID: ProSubscriptionCatalog.yearlyDiscountProductID, expirationDate: nil)
+        )
+    }
 }

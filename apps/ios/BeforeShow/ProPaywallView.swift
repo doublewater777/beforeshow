@@ -99,12 +99,18 @@ struct ProPaywallView: View {
         .sheet(item: $legalPage) { page in
             BSInAppBrowser(page: page)
         }
-        .sheet(isPresented: $showsWinback, onDismiss: {
-            // 下拉收起挽留只是回到 paywall；点「暂时不要」或购买成功才连带关闭。
-            if winbackDeclined || didPurchase {
-                onRequestDismiss?()
+        .sheet(
+            isPresented: Binding(
+                get: { showsWinback && !entitlement.isProActive },
+                set: { showsWinback = $0 }
+            ),
+            onDismiss: {
+                // 下拉收起挽留只是回到 paywall；点「暂时不要」或购买成功才连带关闭。
+                if winbackDeclined || didPurchase {
+                    onRequestDismiss?()
+                }
             }
-        }) {
+        ) {
             BSDrawerSheet(detent: .height(430), fitsContent: true) {
                 winbackContent
             }
@@ -660,6 +666,10 @@ struct ProPaywallView: View {
             message = BSLocalization.text("已取消购买。")
         } catch ProSubscriptionError.purchasePending {
             message = BSLocalization.text("购买正在处理中。")
+        } catch ProSubscriptionError.winbackNotAvailableWhileActive {
+            // 模型层拒绝：当前已是 Pro，挽留方案会与已有订阅重叠，直接关闭挽留态。
+            showsWinback = false
+            message = BSLocalization.text("当前已是 Pro，挽留方案不适用。")
         } catch {
             message = BSLocalization.text("购买暂时没有完成。")
         }

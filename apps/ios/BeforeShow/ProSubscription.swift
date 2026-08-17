@@ -29,6 +29,11 @@ enum ProSubscriptionPlan: String, CaseIterable, Equatable {
     var isLifetime: Bool {
         self == .lifetime || self == .lifetimeDiscount
     }
+
+    /// 挽留方案仅在用户从免费 / 过期重新购买时使用，已订阅 Pro 时购买会与已有订阅重叠。
+    var isWinback: Bool {
+        self == .yearlyDiscount || self == .lifetimeDiscount
+    }
 }
 
 struct ProSubscriptionProduct: Equatable {
@@ -213,6 +218,9 @@ enum ProSubscriptionError: Error, Equatable {
     case purchaseCancelled
     case purchasePending
     case unverifiedTransaction
+    /// 挽留方案（特惠年度 / 特惠终身）只在用户从免费 / 过期状态购买时可用；
+    /// Pro 已启用时再购买会与已有订阅重叠，模型层直接拒绝以避免重复扣款。
+    case winbackNotAvailableWhileActive
 }
 
 protocol ProSubscriptionStore: Sendable {
@@ -256,6 +264,13 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         }
         guard products.contains(where: { $0.id == productID }) else {
             throw ProSubscriptionError.productNotFound
+        }
+        // 模型层不变量：已激活 Pro 时不能再购买挽留方案。
+        // lifetimeDiscount 是 NonConsumable，App Store 不会自动取消已有订阅，
+        // 允许通过会导致重复扣款；yearlyDiscount 会与已有订阅重叠续费。
+        if let plan = ProSubscriptionPlan(productID: productID), plan.isWinback,
+           entitlement.isProActive {
+            throw ProSubscriptionError.winbackNotAvailableWhileActive
         }
 
         let purchased = ProEntitlementState.active(productID: productID, expirationDate: nil)
@@ -304,6 +319,14 @@ struct StoreKitProSubscriptionStore: ProSubscriptionStore {
     func purchase(productID: String) async throws -> ProEntitlementState {
         guard let product = try await Product.products(for: [productID]).first else {
             throw ProSubscriptionError.productNotFound
+        }
+
+        // 模型层不变量：已激活 Pro 时不能再购买挽留方案。
+        // lifetimeDiscount 是 NonConsumable，App Store 不会自动取消已有订阅，
+        // 允许通过会导致重复扣款；yearlyDiscount 会与已有订阅重叠续费。
+        if let plan = ProSubscriptionPlan(productID: productID), plan.isWinback,
+           let current = try await currentEntitlement(), current.isProActive {
+            throw ProSubscriptionError.winbackNotAvailableWhileActive
         }
 
         switch try await product.purchase() {
