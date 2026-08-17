@@ -174,9 +174,9 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertEqual(imported.creationOrigin, .companionImport)
     }
 
-    /// 升级前写入的旧数据没有来源值，必须由一次性迁移落库：
-    /// participant 侧的纯导入行标 `.companionImport`（不占额度），
-    /// 其余标 `.user`（继续占额度）。
+    /// 升级前写入的旧数据没有来源值，由一次性迁移落库。旧数据无法区分
+    /// 「历史纯导入」和「历史自建后被合并」（两者都只剩 companionIsOwner == false），
+    /// 所以策略保守：一律标 `.user`，继续占额度，绝不凭空退还。
     @MainActor
     func testLegacyShowsGetExplicitCreationOriginOnMigration() throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -224,19 +224,17 @@ final class ProSubscriptionTests: XCTestCase {
 
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
 
-        XCTAssertEqual(legacyImport.creationOrigin, .companionImport)
+        // 旧数据一律按用户自建处理（保守）：participant 侧的历史行也不例外，
+        // 因为它可能本来就是用户自己添加、后来才被邀请合并的。
+        XCTAssertEqual(legacyImport.creationOrigin, .user)
         XCTAssertEqual(legacyManual.creationOrigin, .user)
         XCTAssertEqual(legacyOwner.creationOrigin, .user)
         XCTAssertFalse(legacyImport.hasUnresolvedCreationOrigin)
 
         let gate = ProFeatureGate()
-        // 只有一条历史导入 → 额度未被占用，免费用户仍能添加自己的第一场。
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyImport], now: now, calendar: calendar), 0)
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: .free))
-        // 历史自建行仍然占额度。
         XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [legacyManual, legacyOwner], now: now, calendar: calendar),
-            2
+            gate.showsAddedThisMonth(from: [legacyImport, legacyManual, legacyOwner], now: now, calendar: calendar),
+            3
         )
 
         // 迁移之后再被邀请合并（companionIsOwner 翻成 false）不会退还额度。
@@ -244,6 +242,45 @@ final class ProSubscriptionTests: XCTestCase {
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
         XCTAssertEqual(legacyManual.creationOrigin, .user)
         XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
+    }
+
+    /// 升级前就已经发生过合并的旧数据：用户自己添加、随后接受邀请被合并，
+    /// 到达升级点时 companionIsOwner == false 且带 companion 链接。
+    /// 它与「历史纯导入」不可区分，必须按占额度处理，不能退还已用掉的额度。
+    @MainActor
+    func testLegacyMergedBeforeUpgradeKeepsConsumingQuota() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
+        let thisMonth = Date(timeIntervalSince1970: 1_786_000_000) // 2026-08-06 UTC
+
+        let mergedBeforeUpgrade = try Show(
+            name: "我自己添加后被合并",
+            date: now,
+            startTime: now,
+            creationOrigin: nil,
+            createdAt: thisMonth
+        )
+        mergedBeforeUpgrade.companionIsOwner = false
+        mergedBeforeUpgrade.companionCloudRecordName = "session-legacy"
+        context.insert(mergedBeforeUpgrade)
+        try context.save()
+
+        ShowCreationOriginMigration.migrateIfNeeded(in: context)
+
+        XCTAssertEqual(mergedBeforeUpgrade.creationOrigin, .user)
+        XCTAssertTrue(mergedBeforeUpgrade.countsTowardFreeMonthlyQuota)
+
+        let gate = ProFeatureGate()
+        XCTAssertEqual(
+            gate.showsAddedThisMonth(from: [mergedBeforeUpgrade], now: now, calendar: calendar),
+            1
+        )
+        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
     }
 
     /// 额度归属不能依赖启动期的执行顺序：`noteDependenciesReady()` 会立刻起 Task
