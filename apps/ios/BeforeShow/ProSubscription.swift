@@ -475,8 +475,9 @@ struct ProFeatureGate {
         createdDates.filter { calendar.isDate($0, equalTo: now, toGranularity: .month) }.count
     }
 
-    /// 免费额度只统计用户自己添加的现场。接受 CloudKit 同行邀请导入的场次
-    /// （participant 侧，`companionIsOwner == false`）不占额度。
+    /// 免费额度只统计用户自己添加的现场（`creationOrigin == .user`）。
+    /// 仅因接受 CloudKit 同行邀请而新建的 participant 侧现场不占额度；
+    /// 把邀请合并进用户已有现场不会退还已经占用的额度。
     func showsAddedThisMonth(
         from shows: [Show],
         now: Date = Date(),

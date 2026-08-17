@@ -604,7 +604,10 @@ final class CompanionSharingCoordinator {
             date: session.show.showDate,
             startTime: session.show.showStartTime,
             city: city.flatMap { $0.isEmpty ? nil : $0 },
-            venueName: venue.flatMap { $0.isEmpty ? nil : $0 }
+            venueName: venue.flatMap { $0.isEmpty ? nil : $0 },
+            // 仅因接受邀请而新建：不占用本人的每月免费额度。
+            // 上面的合并分支不改来源，用户自己添加的现场额度不会被退还。
+            creationOrigin: .companionImport
         )
         show.applyCompanionSession(session, isOwner: false)
         modelContext.insert(show)

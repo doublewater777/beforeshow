@@ -16,6 +16,19 @@ enum ShowCompanionStatus: String, CaseIterable, Codable {
     case canceled
 }
 
+/// 这场现场为什么会存在于本机：免费额度只算用户自己添加的场次。
+///
+/// 必须是不可变的来源标记，不能从 `companionIsOwner` 之类的关系状态推导：
+/// 接受同行邀请时会把邀请合并进用户已有的现场（按 cloud record / showID /
+/// 名称+日期+场馆 匹配），那条路径同样会把 `companionIsOwner` 置为 false，
+/// 于是用户自己添加、已经占用额度的现场会被「退还」额度。
+enum ShowCreationOrigin: String, Codable {
+    /// 用户在本机添加（手动 / 链接 / 截图 / 足迹补录）。
+    case user
+    /// 仅因为接受同行邀请而新建的 participant 侧现场。
+    case companionImport
+}
+
 enum ShowCompanionMutationError: Error, Equatable {
     case invalidTransition(from: ShowCompanionStatus, to: ShowCompanionStatus)
 }
@@ -165,10 +178,19 @@ final class Show {
     /// `true` when this device created the share (owner); `false` when accepted as participant.
     var companionIsOwner: Bool?
 
-    /// 免费额度只算用户自己添加的现场：接受同行邀请导入的场次（participant 侧）
-    /// 是对方创建的，不应该消耗本人的每月新增额度。
+    /// 现场的创建来源。旧数据没有这个字段（nil），按 `.user` 解释：
+    /// 免费额度宁可算得保守，也不能凭空退还已经占用的额度。
+    private var creationOriginRawValue: String?
+
+    var creationOrigin: ShowCreationOrigin {
+        get { creationOriginRawValue.flatMap(ShowCreationOrigin.init(rawValue:)) ?? .user }
+        set { creationOriginRawValue = newValue.rawValue }
+    }
+
+    /// 免费额度只算用户自己添加的现场。仅因接受同行邀请而新建的 participant 侧
+    /// 现场不占额度；把邀请合并进用户已有现场时，来源不变，额度也不会被退还。
     var countsTowardFreeMonthlyQuota: Bool {
-        companionIsOwner != false
+        creationOrigin == .user
     }
 
     /// Fragments bound to this show. Deleting a `Show` cascades to its fragments
@@ -258,6 +280,7 @@ final class Show {
         companionShareZoneName: String? = nil,
         companionShareOwnerName: String? = nil,
         companionIsOwner: Bool? = nil,
+        creationOrigin: ShowCreationOrigin = .user,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -308,6 +331,7 @@ final class Show {
         self.companionShareZoneName = companionShareZoneName
         self.companionShareOwnerName = companionShareOwnerName
         self.companionIsOwner = companionIsOwner
+        self.creationOriginRawValue = creationOrigin.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
