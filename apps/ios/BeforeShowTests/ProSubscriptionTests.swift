@@ -1,3 +1,4 @@
+import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -171,6 +172,78 @@ final class ProSubscriptionTests: XCTestCase {
         // 旧数据没有来源字段时按 .user 解释，不会退还额度。
         XCTAssertEqual(mine.creationOrigin, .user)
         XCTAssertEqual(imported.creationOrigin, .companionImport)
+    }
+
+    /// 升级前写入的旧数据没有来源值，必须由一次性迁移落库：
+    /// participant 侧的纯导入行标 `.companionImport`（不占额度），
+    /// 其余标 `.user`（继续占额度）。
+    @MainActor
+    func testLegacyShowsGetExplicitCreationOriginOnMigration() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
+        let thisMonth = Date(timeIntervalSince1970: 1_786_000_000) // 2026-08-06 UTC
+
+        // creationOrigin: nil 重建「升级前写入、没有来源值」的旧行。
+        // 旧的 participant 侧导入行：升级前由 applyAcceptedSession 新建后标成非 owner。
+        let legacyImport = try Show(
+            name: "朋友的现场",
+            date: now,
+            startTime: now,
+            creationOrigin: nil,
+            createdAt: thisMonth
+        )
+        legacyImport.companionIsOwner = false
+        // 旧的用户自建行（从未进过同行流程）。
+        let legacyManual = try Show(
+            name: "我自己添加",
+            date: now,
+            startTime: now,
+            creationOrigin: nil,
+            createdAt: thisMonth
+        )
+        // 旧的 owner 侧同行行：是用户自己添加并发出邀请的。
+        let legacyOwner = try Show(
+            name: "我发的邀请",
+            date: now,
+            startTime: now,
+            creationOrigin: nil,
+            createdAt: thisMonth
+        )
+        legacyOwner.companionIsOwner = true
+
+        for show in [legacyImport, legacyManual, legacyOwner] {
+            XCTAssertTrue(show.hasUnresolvedCreationOrigin)
+            context.insert(show)
+        }
+        try context.save()
+
+        ShowCreationOriginMigration.migrateIfNeeded(in: context)
+
+        XCTAssertEqual(legacyImport.creationOrigin, .companionImport)
+        XCTAssertEqual(legacyManual.creationOrigin, .user)
+        XCTAssertEqual(legacyOwner.creationOrigin, .user)
+        XCTAssertFalse(legacyImport.hasUnresolvedCreationOrigin)
+
+        let gate = ProFeatureGate()
+        // 只有一条历史导入 → 额度未被占用，免费用户仍能添加自己的第一场。
+        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyImport], now: now, calendar: calendar), 0)
+        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: .free))
+        // 历史自建行仍然占额度。
+        XCTAssertEqual(
+            gate.showsAddedThisMonth(from: [legacyManual, legacyOwner], now: now, calendar: calendar),
+            2
+        )
+
+        // 迁移之后再被邀请合并（companionIsOwner 翻成 false）不会退还额度。
+        legacyManual.companionIsOwner = false
+        ShowCreationOriginMigration.migrateIfNeeded(in: context)
+        XCTAssertEqual(legacyManual.creationOrigin, .user)
+        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {

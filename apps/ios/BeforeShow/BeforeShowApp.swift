@@ -59,6 +59,10 @@ struct BeforeShowApp: App {
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
+                    // 必须在 refreshAllLinkedShows 之前：那里会接受待处理邀请，
+                    // 可能把用户自己添加的现场翻成 participant 侧，之后就无法
+                    // 与「升级前纯导入」的旧数据区分了。
+                    ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)

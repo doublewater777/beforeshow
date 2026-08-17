@@ -178,13 +178,24 @@ final class Show {
     /// `true` when this device created the share (owner); `false` when accepted as participant.
     var companionIsOwner: Bool?
 
-    /// 现场的创建来源。旧数据没有这个字段（nil），按 `.user` 解释：
-    /// 免费额度宁可算得保守，也不能凭空退还已经占用的额度。
+    /// 现场的创建来源。`nil` = 本次升级前写入的旧数据，尚未标记来源。
+    ///
+    /// 旧数据不能靠运行时兜底猜测：升级前 `applyAcceptedSession` 在没有匹配现场时
+    /// 会新建一条普通 Show 再标成 participant 侧，这类行没有来源值；但用户自己添加、
+    /// 后来才被邀请合并的现场同样没有来源值。二者只靠 `companionIsOwner` 区分不开，
+    /// 所以由 `ShowCreationOriginMigration` 在启动时一次性落库（见其说明），
+    /// 之后这个字段始终是显式值。
     private var creationOriginRawValue: String?
 
+    /// 尚未迁移的旧数据按 `.user` 读取：额度宁可算得保守，也不凭空退还。
     var creationOrigin: ShowCreationOrigin {
         get { creationOriginRawValue.flatMap(ShowCreationOrigin.init(rawValue:)) ?? .user }
         set { creationOriginRawValue = newValue.rawValue }
+    }
+
+    /// 是否还没有显式的创建来源（迁移用）。
+    var hasUnresolvedCreationOrigin: Bool {
+        creationOriginRawValue == nil
     }
 
     /// 免费额度只算用户自己添加的现场。仅因接受同行邀请而新建的 participant 侧
@@ -280,7 +291,9 @@ final class Show {
         companionShareZoneName: String? = nil,
         companionShareOwnerName: String? = nil,
         companionIsOwner: Bool? = nil,
-        creationOrigin: ShowCreationOrigin = .user,
+        /// `nil` 只用来重建「升级前写入、尚未标记来源」的旧数据（迁移测试）；
+        /// 正常创建路径都会显式带上来源。
+        creationOrigin: ShowCreationOrigin? = .user,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) throws {
@@ -331,7 +344,7 @@ final class Show {
         self.companionShareZoneName = companionShareZoneName
         self.companionShareOwnerName = companionShareOwnerName
         self.companionIsOwner = companionIsOwner
-        self.creationOriginRawValue = creationOrigin.rawValue
+        self.creationOriginRawValue = creationOrigin?.rawValue
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
