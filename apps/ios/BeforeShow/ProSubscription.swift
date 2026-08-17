@@ -475,6 +475,20 @@ struct ProFeatureGate {
         createdDates.filter { calendar.isDate($0, equalTo: now, toGranularity: .month) }.count
     }
 
+    /// 免费额度只统计用户自己添加的现场。接受 CloudKit 同行邀请导入的场次
+    /// （participant 侧，`companionIsOwner == false`）不占额度。
+    func showsAddedThisMonth(
+        from shows: [Show],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        showsAddedThisMonth(
+            from: shows.filter { $0.countsTowardFreeMonthlyQuota }.map(\.createdAt),
+            now: now,
+            calendar: calendar
+        )
+    }
+
     func canAccessExistingLocalData(entitlement: ProEntitlementState) -> Bool {
         true
     }

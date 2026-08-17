@@ -5,6 +5,29 @@ import XCTest
 @testable import BeforeShow
 
 final class WidgetSnapshotTests: XCTestCase {
+    // MARK: - 组件语言覆盖（进程存活跨语言切换）
+
+    /// timeline reload 不保证重启组件进程，所以语言应用必须可重复且可回退：
+    /// zh-Hant → en → 跟随系统，每一步都要真正改变解析结果。
+    func testWidgetLanguageOverrideIsRepeatableAndClearsForSystem() {
+        // 记录每次请求的语言代码，确认调用可重复（不是只在首次生效）。
+        var requestedCodes: [String] = []
+        let lookup: (String) -> Bundle? = { code in
+            requestedCodes.append(code)
+            return Bundle.main
+        }
+
+        XCTAssertNotNil(WidgetLanguageSelection.override(code: "zh-Hant", bundleForCode: lookup))
+        XCTAssertNotNil(WidgetLanguageSelection.override(code: "en", bundleForCode: lookup))
+        XCTAssertEqual(requestedCodes, ["zh-Hant", "en"])
+
+        // 跟随系统：无值 / 空串都必须清空覆盖，而不是沿用上一次的手动语言。
+        XCTAssertNil(WidgetLanguageSelection.override(code: nil, bundleForCode: { _ in Bundle.main }))
+        XCTAssertNil(WidgetLanguageSelection.override(code: "", bundleForCode: { _ in Bundle.main }))
+        // 语言代码没有对应 lproj 时也回到系统解析，不残留上一次的覆盖。
+        XCTAssertNil(WidgetLanguageSelection.override(code: "zh-Hant", bundleForCode: { _ in nil }))
+    }
+
     private func makeShow(
         name: String = "夜航西飞",
         changeStatus: ShowChangeStatus = .scheduled,

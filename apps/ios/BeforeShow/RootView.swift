@@ -21,6 +21,10 @@ struct RootView: View {
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
     /// 长按图标「Pro 限时优惠」Quick Action 的 deep link 路由。
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
+    /// 语言变化要刷新所有 BSLocalization 文案，但不能换掉 RootView 的身份：
+    /// 用 .id(language) 会重建整棵树，把 tab / Settings / 仪式等状态一起丢掉。
+    /// 这里只订阅变化触发 body 重算，导航与呈现状态原样保留。
+    @ObservedObject private var languageController = AppLanguageController.shared
 
     // Returning users must see the home tab on the first frame, not a
     // SplashView that then has to fade out. Pre-seed hasFinishedSplash

@@ -48,7 +48,6 @@ struct BeforeShowApp: App {
         WindowGroup {
             RootView()
                 .environment(companionCoordinator)
-                .id(languageController.language)
                 .environment(\.locale, languageController.language.locale)
                 .onAppear {
                     appDelegate.companionCoordinator = companionCoordinator

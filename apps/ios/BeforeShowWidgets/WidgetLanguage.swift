@@ -17,13 +17,19 @@ private final class WidgetLanguageSwizzledBundle: Bundle, @unchecked Sendable {
 }
 
 enum WidgetLanguage {
+    /// 组件进程可能在 App 改语言后仍然存活（timeline reload 不保证重启进程），
+    /// 所以每次生成 snapshot/timeline 前都要重跑一次，且必须可重复、可回退：
+    /// 选了语言 → 关联对应 lproj；跟随系统 → 清掉关联，回到原生解析。
     static func applyAppLanguageSelection() {
-        guard let code = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?.string(forKey: "appLanguage"),
-              !code.isEmpty,
-              let path = Bundle.main.path(forResource: code, ofType: "lproj"),
-              let override = Bundle(path: path) else {
-            return
+        let code = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?
+            .string(forKey: "appLanguage")
+        let override = WidgetLanguageSelection.override(code: code) { code in
+            guard let path = Bundle.main.path(forResource: code, ofType: "lproj") else {
+                return nil
+            }
+            return Bundle(path: path)
         }
+
         object_setClass(Bundle.main, WidgetLanguageSwizzledBundle.self)
         objc_setAssociatedObject(
             Bundle.main,

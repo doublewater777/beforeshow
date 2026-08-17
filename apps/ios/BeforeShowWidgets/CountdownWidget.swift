@@ -64,6 +64,8 @@ struct CountdownTimelineProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (CountdownEntry) -> Void) {
+        // 组件进程可能跨语言切换存活，渲染前重新对齐 App 选择的语言。
+        WidgetLanguage.applyAppLanguageSelection()
         let snapshot = WidgetSnapshotStore.read()
         let coverPath = WidgetCoverCache.cachedCoverPath(matching: snapshot?.coverImageURL)
         completion(CountdownEntry(
@@ -75,6 +77,7 @@ struct CountdownTimelineProvider: TimelineProvider {
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<CountdownEntry>) -> Void) {
+        WidgetLanguage.applyAppLanguageSelection()
         // TimelineProvider 仍是 completion 回调 API;用一次性投递盒建立线程安全边界。
         let delivery = OnceTimelineDelivery(completion)
         Task {

@@ -4,6 +4,37 @@ import XCTest
 @testable import BeforeShow
 
 final class NavigationTests: XCTestCase {
+    /// 语言切换不得重建整棵根视图：`.id(language)` 会给 RootView 新身份，
+    /// 把 selectedTab / Settings 呈现 / 添加现场 / 仪式等状态一起丢掉
+    /// （复现：首页 → 设置 → 语言 → 选英文，会被弹回初始化后的根视图）。
+    /// 语言文案改由 RootView 订阅 AppLanguageController 触发 body 重算。
+    func testLanguageChangeDoesNotReplaceRootViewIdentity() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // BeforeShowTests
+            .deletingLastPathComponent() // ios
+            .appendingPathComponent("BeforeShow")
+
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("BeforeShowApp.swift"),
+            encoding: .utf8
+        )
+        XCTAssertFalse(
+            appSource.contains(".id(languageController.language)"),
+            "RootView must not be re-identified on language change; it discards navigation state"
+        )
+        // locale 仍要跟随语言，格式化/系统控件才会切换。
+        XCTAssertTrue(appSource.contains("\\.locale, languageController.language.locale"))
+
+        let rootSource = try String(
+            contentsOf: root.appendingPathComponent("RootView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            rootSource.contains("AppLanguageController.shared"),
+            "RootView must observe the language controller so copy refreshes without a new identity"
+        )
+    }
+
     func testTabEnumExposesMainProductSurfaces() {
         let tabs = BeforeShowTab.allCases
         XCTAssertEqual(tabs.count, 2)

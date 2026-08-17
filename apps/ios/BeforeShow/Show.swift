@@ -165,6 +165,12 @@ final class Show {
     /// `true` when this device created the share (owner); `false` when accepted as participant.
     var companionIsOwner: Bool?
 
+    /// 免费额度只算用户自己添加的现场：接受同行邀请导入的场次（participant 侧）
+    /// 是对方创建的，不应该消耗本人的每月新增额度。
+    var countsTowardFreeMonthlyQuota: Bool {
+        companionIsOwner != false
+    }
+
     /// Fragments bound to this show. Deleting a `Show` cascades to its fragments
     /// (and their media items) so no orphan fragment records can survive a show
     /// deletion. Disk files are reclaimed by memory-media reconciliation.

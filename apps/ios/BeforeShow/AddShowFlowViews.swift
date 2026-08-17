@@ -922,7 +922,7 @@ struct AddShowFlowView: View {
         do {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             let gate = ProFeatureGate()
-            let addedThisMonth = gate.showsAddedThisMonth(from: shows.map(\.createdAt))
+            let addedThisMonth = gate.showsAddedThisMonth(from: shows)
             guard gate.canAddShow(showsAddedThisMonth: addedThisMonth, entitlement: entitlement) else {
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))

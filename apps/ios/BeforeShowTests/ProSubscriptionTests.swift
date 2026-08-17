@@ -91,6 +91,42 @@ final class ProSubscriptionTests: XCTestCase {
         )
     }
 
+    /// 接受 CloudKit 同行邀请导入的场次是对方创建的，不该消耗本人的每月免费额度。
+    func testFreeQuotaIgnoresSharesAcceptedFromCompanions() throws {
+        let gate = ProFeatureGate()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
+        let thisMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
+
+        let accepted = try Show(name: "朋友的现场", date: now, startTime: now, createdAt: thisMonth)
+        accepted.companionIsOwner = false
+        let ownShare = try Show(name: "我建的同行", date: now, startTime: now, createdAt: thisMonth)
+        ownShare.companionIsOwner = true
+        let manual = try Show(name: "我自己添加", date: now, startTime: now, createdAt: thisMonth)
+
+        XCTAssertFalse(accepted.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(ownShare.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(manual.countsTowardFreeMonthlyQuota)
+
+        // 只接受了一份邀请 → 本月额度未被占用，用户仍能添加自己的第一场。
+        XCTAssertEqual(gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar), 0)
+        XCTAssertTrue(gate.canAddShow(
+            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar),
+            entitlement: .free
+        ))
+
+        // 自己添加过一场后额度用尽，邀请导入的那份不叠加计数。
+        XCTAssertEqual(
+            gate.showsAddedThisMonth(from: [accepted, manual, ownShare], now: now, calendar: calendar),
+            2
+        )
+        XCTAssertFalse(gate.canAddShow(
+            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted, manual], now: now, calendar: calendar),
+            entitlement: .free
+        ))
+    }
+
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
         XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版每月可添加 1 场现场")
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
