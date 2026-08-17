@@ -33,6 +33,8 @@ struct HomeHeroStage: View {
     let coverWidth: CGFloat
     var isPlaybackActive = true
     var reduceMotion: Bool = false
+    /// 动态封面正在从照片图库导入,封面上盖一层进度态。
+    var isImportingDynamicCover = false
     var onChooseVideo: (() -> Void)? = nil
     var opensDetail = false
 
@@ -80,7 +82,38 @@ struct HomeHeroStage: View {
             RoundedRectangle(cornerRadius: 26)
                 .stroke(Color.white.opacity(0.07), lineWidth: 1)
         )
+        .overlay {
+            if isImportingDynamicCover {
+                importingOverlay
+            }
+        }
+        .animation(
+            reduceMotion ? nil : .easeInOut(duration: 0.22),
+            value: isImportingDynamicCover
+        )
         .shadow(color: .black.opacity(0.55), radius: 30, y: 15)
+    }
+
+    /// 导入耗时不可预估(图库可能要先下载 iCloud 原件),所以用不确定进度 + 一句说明。
+    private var importingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.42)
+
+            VStack(spacing: BSSpacing.sm) {
+                ProgressView()
+                    .tint(.white)
+                Text("正在准备视频…")
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(.white.opacity(0.86))
+            }
+            .padding(.horizontal, BSSpacing.md)
+            .padding(.vertical, BSSpacing.compact)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BSRadius.md))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .transition(.opacity)
+        .accessibilityElement()
+        .accessibilityLabel(BSLocalization.text("正在准备视频…"))
     }
 
     /// hero-glow:蓝 / 紫两束舞台侧光,screen 混合;live 全开,ended 收半,inactive 几近熄灭。

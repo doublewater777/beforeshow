@@ -288,6 +288,7 @@ private struct CurrentShowHomeView: View {
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
                         onChooseDynamicCover: presentDynamicCoverPicker,
+                        isImportingDynamicCover: isImportingDynamicCover,
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
                         },
@@ -498,6 +499,7 @@ struct CurrentShowManagementSection: View {
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
     var onChooseDynamicCover: () -> Void = {}
+    var isImportingDynamicCover = false
     var onConfirmEnd: (Date) -> Void
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
@@ -692,6 +694,7 @@ struct CurrentShowManagementSection: View {
                             coverWidth: coverWidth,
                             isPlaybackActive: isHeroPlaybackActive,
                             reduceMotion: reduceMotion,
+                            isImportingDynamicCover: isImportingDynamicCover,
                             onChooseVideo: onChooseDynamicCover,
                             opensDetail: true
                         )
