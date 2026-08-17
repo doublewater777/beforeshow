@@ -10,7 +10,8 @@ import WidgetKit
 // 不能依赖任何「到点自动切换」——所以 UI 是中性设计:
 // - 文案跨开场/谢幕零点恒成立(「19:30 开场」「预计 22:00 谢幕」)
 // - 计时 Text(startDate, style: .timer) 系统自驱,倒数后自动正数
-// - 进度 ProgressView(timerInterval:) 系统自驱,开场前为 0、谢幕时满
+// - 进度由 TimelineView 每秒重算 fraction(不用 ProgressView(timerInterval:),
+//   其默认 linear 样式的 GeometryReader 会崩 LA 渲染进程,见 LiveActivityBarStyle)
 // - 无 LIVE 徽标/红点:越过谢幕也不会残留「LIVE」误导
 
 struct ShowLiveActivity: Widget {
@@ -54,7 +55,7 @@ struct ShowLiveActivity: Widget {
                     .environment(\.locale, Locale(identifier: "en_US_POSIX"))
                     .font(.system(size: 11, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(WidgetTheme.foreground)
+                    .foregroundStyle(WidgetTheme.accent)
                     .lineLimit(1)
                     .minimumScaleFactor(0.65)
                     .frame(width: 48, alignment: .trailing)
@@ -133,6 +134,26 @@ private enum LiveActivityArtwork {
 
 // MARK: - 锁屏 banner
 
+/// 默认 linear 样式内部是 GeometryReader;LA 内容换入动画期间会把非法(负/非有限)尺寸
+/// 传进 LayoutSubview.place,直接 assert 崩掉整个 WidgetRenderer_Activities 进程
+/// (2026-08-15~17 共 26 份同签名崩溃:GeometryReaderLayout.placeSubviews → place)。
+/// 改为 scaleEffect 实现:不需要测量容器宽度,也不引入 GeometryReader;
+/// 驱动方是外面的 TimelineView(每秒重算 fraction 传进来)。
+private struct LiveActivityBarStyle: ProgressViewStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        let fraction = configuration.fractionCompleted ?? 0
+        Capsule()
+            .fill(WidgetTheme.dim.opacity(0.35))
+            .overlay(alignment: .leading) {
+                Capsule()
+                    .fill(WidgetTheme.accent)
+                    .scaleEffect(x: fraction, anchor: .leading)
+            }
+            .clipShape(Capsule())
+            .frame(height: 3)
+    }
+}
+
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
 
@@ -163,10 +184,16 @@ private struct LiveActivityBannerView: View {
                 Spacer(minLength: 0)
 
                 VStack(alignment: .trailing, spacing: 2) {
+                    // 不要加 .fixedSize():iOS 26.5 LA renderer 下会把整个 VStack
+                    // 渲染成空白(2026-08-17 实测,静态文本同样消失)。
+                    // banner 的 .timer 系统自驱,按分钟刷新(「1小时43分钟」);
+                    // 秒级跳动在 compact 岛(数字格式)。Text(timerInterval:) 秒位
+                    // 在 LA 里渲染成「——」,不要用。
                     Text(state.startDate, style: .timer)
                         .font(.system(size: 20, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.accent)
+                        .lineLimit(1)
                         .accessibilityHidden(true)
                     if state.hasStarted ?? (Date() >= state.startDate) {
                         Text("已开场")
@@ -174,18 +201,18 @@ private struct LiveActivityBannerView: View {
                             .foregroundStyle(WidgetTheme.dim)
                     }
                 }
-                .fixedSize()
             }
 
-            // 进度条系统自驱:countsDown false → 开场前为 0、live 往右填、谢幕时满
+            // 进度条:不用 ProgressView(timerInterval:)——默认 linear 样式内部的
+            // GeometryReader 会崩 LA 渲染进程(见 LiveActivityBarStyle)。
+            // 用 TimelineView 每秒重算 fraction + 手画 Capsule;TimelineView 在 LA 里
+            // 不是每次熄屏都跳,但进度条允许短暂停留,计时数字由 .timer 系统自驱兜底。
             if let end = state.endDate, end > state.startDate {
                 VStack(spacing: 4) {
-                    ProgressView(timerInterval: state.startDate...end, countsDown: false) {
-                        EmptyView()
-                    } currentValueLabel: {
-                        EmptyView()
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        ProgressView(value: Self.progressFraction(start: state.startDate, end: end, now: context.date))
+                            .progressViewStyle(LiveActivityBarStyle())
                     }
-                    .tint(WidgetTheme.accent)
                     .accessibilityHidden(true)
                     HStack {
                         Spacer(minLength: 0)
@@ -231,5 +258,13 @@ private struct LiveActivityBannerView: View {
     private func clockText(_ date: Date, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.hour, .minute], from: date)
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+
+    /// 进度条 fraction:配合上面的 TimelineView 每秒重算。
+    fileprivate static func progressFraction(start: Date, end: Date, now: Date) -> Double {
+        let total = end.timeIntervalSince(start)
+        guard total > 0 else { return 0 }
+        let elapsed = now.timeIntervalSince(start)
+        return min(max(elapsed / total, 0), 1)
     }
 }

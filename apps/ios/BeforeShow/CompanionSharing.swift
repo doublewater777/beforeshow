@@ -232,7 +232,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         session[CompanionSessionRecord.createdAt] = now as CKRecordValue
 
         let share = CKShare(rootRecord: session)
-        share[CKShare.SystemFieldKey.title] = "一起去 \(show.showName)" as CKRecordValue
+        share[CKShare.SystemFieldKey.title] = BSLocalization.format("一起去 %@", show.showName) as CKRecordValue
         share.publicPermission = .none
 
         let saved: [CKRecord]

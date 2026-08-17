@@ -13,6 +13,9 @@ enum WidgetTheme {
     static let muted = Color(red: 0.576, green: 0.600, blue: 0.667)
     static let dim = Color(red: 0.392, green: 0.420, blue: 0.490)
     static let accent = Color(red: 0.910, green: 0.780, blue: 0.557)
+    /// 倒计时 hero 色温递进(对齐 app 端 V4):远场奶白 (#F5EFE2) / 当天暖金 (#F0DCB6)。
+    static let heroIvory = Color(red: 0.961, green: 0.937, blue: 0.886)
+    static let heroWarmGold = Color(red: 0.941, green: 0.863, blue: 0.714)
     static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
     static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
 }

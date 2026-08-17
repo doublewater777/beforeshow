@@ -37,6 +37,40 @@ struct ProSubscriptionProduct: Equatable {
     let displayName: String
     let priceText: String
     let benefitCopy: [String]
+    /// StoreKit 是否真实返回了该产品。catalog 参考价仅供占位，不可作为生产购买价格。
+    let isAvailable: Bool
+    /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 StoreKit 提供真实价格时有值。
+    let perMonthEquivalentText: String?
+
+    init(
+        id: String,
+        plan: ProSubscriptionPlan,
+        displayName: String,
+        priceText: String,
+        benefitCopy: [String],
+        isAvailable: Bool = false,
+        perMonthEquivalentText: String? = nil
+    ) {
+        self.id = id
+        self.plan = plan
+        self.displayName = displayName
+        self.priceText = priceText
+        self.benefitCopy = benefitCopy
+        self.isAvailable = isAvailable
+        self.perMonthEquivalentText = perMonthEquivalentText
+    }
+
+    func markingAvailable(_ available: Bool = true) -> ProSubscriptionProduct {
+        ProSubscriptionProduct(
+            id: id,
+            plan: plan,
+            displayName: displayName,
+            priceText: priceText,
+            benefitCopy: benefitCopy,
+            isAvailable: available,
+            perMonthEquivalentText: perMonthEquivalentText
+        )
+    }
 }
 
 enum ProSubscriptionCatalog {
@@ -51,12 +85,14 @@ enum ProSubscriptionCatalog {
     /// 挽回优惠方案：仅在挽留弹窗与长按图标入口展示。
     static let winbackPlans: [ProSubscriptionPlan] = [.yearlyDiscount, .lifetimeDiscount]
 
+    /// 目录参考价：仅用于 UI 占位（产品 ID / 方案映射），`isAvailable == false`，
+    /// 生产环境不会展示这些 USD 价格，也不会据此允许购买。
     static let defaultProducts: [ProSubscriptionProduct] = [
         ProSubscriptionProduct(
             id: monthlyProductID,
             plan: .monthly,
-            displayName: "BeforeShow Pro 月度",
-            priceText: "$1.49/月",
+            displayName: BSLocalization.text("BeforeShow Pro 月度"),
+            priceText: BSLocalization.text("$1.49/月"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -64,8 +100,8 @@ enum ProSubscriptionCatalog {
         ProSubscriptionProduct(
             id: yearlyProductID,
             plan: .yearly,
-            displayName: "BeforeShow Pro 年度",
-            priceText: "$4.99/年",
+            displayName: BSLocalization.text("BeforeShow Pro 年度"),
+            priceText: BSLocalization.text("$4.99/年"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -73,8 +109,8 @@ enum ProSubscriptionCatalog {
         ProSubscriptionProduct(
             id: lifetimeProductID,
             plan: .lifetime,
-            displayName: "BeforeShow Pro 终身",
-            priceText: "$8.99",
+            displayName: BSLocalization.text("BeforeShow Pro 终身"),
+            priceText: BSLocalization.text("$8.99"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -82,8 +118,8 @@ enum ProSubscriptionCatalog {
         ProSubscriptionProduct(
             id: yearlyDiscountProductID,
             plan: .yearlyDiscount,
-            displayName: "BeforeShow Pro 特惠年度",
-            priceText: "$2.99/年",
+            displayName: BSLocalization.text("BeforeShow Pro 特惠年度"),
+            priceText: BSLocalization.text("$2.99/年"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -91,8 +127,8 @@ enum ProSubscriptionCatalog {
         ProSubscriptionProduct(
             id: lifetimeDiscountProductID,
             plan: .lifetimeDiscount,
-            displayName: "BeforeShow Pro 特惠终身",
-            priceText: "$5.99",
+            displayName: BSLocalization.text("BeforeShow Pro 特惠终身"),
+            priceText: BSLocalization.text("$5.99"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -211,7 +247,7 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         if let error = simulatedError {
             throw error
         }
-        return products
+        return products.map { $0.markingAvailable() }
     }
 
     func purchase(productID: String) async throws -> ProEntitlementState {
@@ -334,8 +370,26 @@ struct StoreKitProSubscriptionStore: ProSubscriptionStore {
             plan: plan,
             displayName: product.displayName,
             priceText: product.displayPrice,
-            benefitCopy: fallback?.benefitCopy ?? []
+            benefitCopy: fallback?.benefitCopy ?? [],
+            isAvailable: true,
+            perMonthEquivalentText: plan == .yearly ? Self.perMonthEquivalentText(for: product) : nil
         )
+    }
+
+    /// 年度方案按月折算（如 $4.99/年 → 约 $0.42/月），用 StoreKit 真实价格计算。
+    private static func perMonthEquivalentText(for product: Product) -> String? {
+        guard let period = product.subscription?.subscriptionPeriod else { return nil }
+        let months: Decimal
+        switch period.unit {
+        case .day: months = Decimal(period.value) / 30
+        case .week: months = Decimal(period.value) * 12 / 52
+        case .month: months = Decimal(period.value)
+        case .year: months = Decimal(period.value) * 12
+        @unknown default:
+            return nil
+        }
+        guard months > 0 else { return nil }
+        return (product.price / months).formatted(product.priceFormatStyle)
     }
 }
 
@@ -365,7 +419,7 @@ enum ProLimitReason: Equatable {
     var title: String {
         switch self {
         case .saveLimit:
-            return BSLocalization.text("免费版可保存 20 场现场")
+            return BSLocalization.text("免费版每月可添加 1 场现场")
         }
     }
 
@@ -378,14 +432,24 @@ enum ProLimitReason: Equatable {
 }
 
 struct ProFeatureGate {
-    let freeSavedShowLimit: Int
+    /// 免费用户每个自然月可添加的现场数量。
+    let freeMonthlyShowLimit: Int
 
-    init(freeSavedShowLimit: Int = 20) {
-        self.freeSavedShowLimit = freeSavedShowLimit
+    init(freeMonthlyShowLimit: Int = 1) {
+        self.freeMonthlyShowLimit = freeMonthlyShowLimit
     }
 
-    func canAddShow(savedShowCount: Int, entitlement: ProEntitlementState) -> Bool {
-        entitlement.isProActive || savedShowCount < freeSavedShowLimit
+    func canAddShow(showsAddedThisMonth: Int, entitlement: ProEntitlementState) -> Bool {
+        entitlement.isProActive || showsAddedThisMonth < freeMonthlyShowLimit
+    }
+
+    /// 统计当自然月（本地时区）新增的现场数。
+    func showsAddedThisMonth(
+        from createdDates: [Date],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        createdDates.filter { calendar.isDate($0, equalTo: now, toGranularity: .month) }.count
     }
 
     func canAccessExistingLocalData(entitlement: ProEntitlementState) -> Bool {

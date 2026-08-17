@@ -324,23 +324,23 @@ struct FootprintDetailView: View {
     }
 
     private var identityValues: [(headline: String, detail: String)] {
-        var values = [("第 \(identity.showOrdinal) 场", "现场档案")]
+        var values = [(BSLocalization.format("第 %lld 场", identity.showOrdinal), BSLocalization.text("现场档案"))]
         if let cityOrdinal = identity.cityOrdinal {
             values.append((
-                "第 \(cityOrdinal) 场",
-                "\(FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? "这座城市")现场"
+                BSLocalization.format("第 %lld 场", cityOrdinal),
+                BSLocalization.format("%@现场", FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("这座城市"))
             ))
         }
         if let companionOrdinal = identity.companionOrdinal,
            let companionName = identity.companionName {
-            values.append(("第 \(companionOrdinal) 次", "与\(companionName)同行"))
+            values.append((BSLocalization.format("第 %lld 次", companionOrdinal), BSLocalization.format("与%@同行", companionName)))
         }
         return values
     }
 
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("记忆碎片", trailing: "\(fragments.count) 条")
+            sectionHeader(BSLocalization.text("记忆碎片"), trailing: BSLocalization.format("%lld 条", fragments.count))
             if fragments.isEmpty {
                 VStack(spacing: BSSpacing.compact) {
                     Image(systemName: "sparkles.rectangle.stack")
@@ -383,7 +383,7 @@ struct FootprintDetailView: View {
 
     private var keepsakesSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("留下的东西")
+            sectionHeader(BSLocalization.text("留下的东西"))
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetKind.allCases) { kind in
                     Button {
@@ -392,7 +392,7 @@ struct FootprintDetailView: View {
                         FootprintKeepsakeTile(kind: kind, asset: asset(for: kind))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("管理\(kind.title)，\(asset(for: kind) == nil ? "未添加" : "已保存")")
+                    .accessibilityLabel(BSLocalization.format("管理%@，%@", kind.title, asset(for: kind) == nil ? BSLocalization.text("未添加") : BSLocalization.text("已保存")))
                 }
             }
         }
@@ -465,7 +465,7 @@ struct FootprintDetailView: View {
                     Text(FootprintTextNormalizer.nonEmptyTrimmed(show.companionName) ?? "同行者")
                         .font(BSFont.headline)
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text("共同留下 \(companionFootprintCount) 场足迹")
+                    Text(BSLocalization.format("共同留下 %lld 场足迹", companionFootprintCount))
                         .font(BSFont.V3.caption)
                         .foregroundColor(BSColor.Stage.muted)
                 }
@@ -479,7 +479,7 @@ struct FootprintDetailView: View {
 
     private var companionInitial: String {
         guard let name = FootprintTextNormalizer.nonEmptyTrimmed(show.companionName),
-              let first = name.first else { return "同" }
+              let first = name.first else { return BSLocalization.text("同") }
         return String(first)
     }
 

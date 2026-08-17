@@ -13,6 +13,9 @@
 "已落幕" = "Show ended";
 "已落幕 · %@" = "Ended · %@";
 "已落幕 · 回味还在" = "Show ended · The afterglow remains";
+"已到预计散场时间" = "Past expected end time";
+"待确认" = "Pending";
+"待确认 · %@" = "Pending · %@";
 "已进行" = "Elapsed";
 "已开场" = "Show started";
 "开场中 · 已进行 %@" = "Show in progress · Elapsed %@";
@@ -98,3 +101,11 @@
 "%lld年%lld月%lld日 %@" = "%lld/%lld/%lld at %@";
 "%lld 天前" = "%lld days ago";
 "今晚开场" = "Opening Tonight";
+"还有 %lld 天" = "%lld days left";
+"还有 %lld 天 · %@" = "%lld days left · %@";
+
+/* i18n gap fill */
+"锁屏上看下一场还有多久。" = "See on the lock screen how long until your next show.";
+
+/* i18n gap fill */
+"%@ 倒计时已开始" = "%@ countdown started";

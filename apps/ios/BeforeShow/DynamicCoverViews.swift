@@ -76,7 +76,7 @@ private struct DynamicCoverFaceAccessibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isAvailable {
             content
-                .accessibilityAction(named: "显示静态封面") { showStaticFace() }
+                .accessibilityAction(named: BSLocalization.text("显示静态封面")) { showStaticFace() }
                 .accessibilityAction(named: "显示动态封面") { showDynamicFace() }
         } else {
             content
@@ -131,7 +131,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
 
     /// 已上传视频时翻向播放面；未上传时翻向带「选择视频」入口的空状态背面。
     private var canFlip: Bool { mediaURL != nil || (dynamicCover == nil && onChooseVideo != nil) }
-    private var faceDescription: String { isDynamicFace ? "动态封面" : "静态封面" }
+    private var faceDescription: String { isDynamicFace ? BSLocalization.text("动态封面") : BSLocalization.text("静态封面") }
 
     private func chooseVideoFromAccessibility() {
         guard dynamicCover == nil else { return }
@@ -204,7 +204,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            [accessibilityName.map { "现场封面，\($0)" } ?? "现场封面", "当前为\(faceDescription)"]
+            [accessibilityName.map { BSLocalization.format("现场封面，%@", $0) } ?? BSLocalization.text("现场封面"), BSLocalization.format("当前为%@", faceDescription)]
                 .joined(separator: "，")
         )
         .accessibilityAddTraits(opensDetail ? .isButton : [])
@@ -531,7 +531,7 @@ struct DynamicCoverManagementSection: View {
             }
         } catch {
             modelContext.rollback()
-            errorMessage = "动态封面没有删除，请重试。"
+            errorMessage = BSLocalization.text("动态封面没有删除，请重试。")
         }
         await LocalMediaCommitGate.shared.release()
     }

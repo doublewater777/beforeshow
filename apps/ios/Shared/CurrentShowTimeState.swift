@@ -199,6 +199,12 @@ struct CurrentShowTimeState: Equatable {
         }
     }
 
+    /// 估算散场边界(start+默认时长 / 每日末场)已过,但用户尚未确认 endedAt。
+    /// 首页与 widget 共用:此时只说「待确认 / 已到预计散场时间」,不提前宣布「已落幕 / ENDED」。
+    static func isUnconfirmedEstimatedEnd(kind: CurrentShowTimeKind, hasConfirmedEnd: Bool) -> Bool {
+        !hasConfirmedEnd && (kind == .postShow || kind == .ended)
+    }
+
     var canScheduleNotifications: Bool {
         hasKnownEffectiveDate && kind != .canceled
     }

@@ -26,11 +26,11 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .spoiled: "拉完了"
-        case .meh: "NPC"
-        case .golden: "人上人"
-        case .peak: "顶级"
-        case .fire: "夯爆了"
+        case .spoiled: BSLocalization.text("拉完了")
+        case .meh: BSLocalization.text("NPC")
+        case .golden: BSLocalization.text("人上人")
+        case .peak: BSLocalization.text("顶级")
+        case .fire: BSLocalization.text("夯爆了")
         }
     }
 
@@ -38,16 +38,16 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
     /// 拉完了不是"我演砸了",是"今晚有点难评"。
     var sub: String {
         switch self {
-        case .spoiled: "今晚有点难评"
-        case .meh: "平稳经过这一晚"
-        case .golden: "明显高于预期"
-        case .peak: "这一晚很值"
-        case .fire: "今晚直接封神"
+        case .spoiled: BSLocalization.text("今晚有点难评")
+        case .meh: BSLocalization.text("平稳经过这一晚")
+        case .golden: BSLocalization.text("明显高于预期")
+        case .peak: BSLocalization.text("这一晚很值")
+        case .fire: BSLocalization.text("今晚直接封神")
         }
     }
 
     var accessibilityLabel: String {
-        "\(label)，\(sub)，\(rawValue) 星"
+        BSLocalization.format("%@，%@，%lld 星", label, sub, rawValue)
     }
 
     /// 由冷到暖,匹配「场子越热情绪越亮」的视觉直觉。
@@ -98,9 +98,9 @@ enum DispersalCeremonyPolicy {
     /// 散场文字快捷填充。3 个意图对应"刚好够"的句式,降低散场时敲字的门槛。
     /// 顺序敏感:UI chip 顺序 = 数组顺序,后两个比前一个更短,符合"一句话也行"的设计意图。
     static let quickFillPresets: [(label: String, text: String)] = [
-        ("一个瞬间", "最后一首歌结束的时候，灯亮得特别慢。"),
-        ("一句话也行", "今晚值了。"),
-        ("最喜欢的一首歌", "最喜欢的是最后那首歌。")
+        (BSLocalization.text("一个瞬间"), BSLocalization.text("最后一首歌结束的时候，灯亮得特别慢。")),
+        (BSLocalization.text("一句话也行"), BSLocalization.text("今晚值了。")),
+        (BSLocalization.text("最喜欢的一首歌"), BSLocalization.text("最喜欢的是最后那首歌。"))
     ]
 }
 
@@ -145,8 +145,8 @@ enum DispersalLightsOutMotion {
 
 /// 散场卡上的可见文案。规则只有一份,视图与测试共用。
 enum DispersalCeremonyCardCopy {
-    static let brand = "BEFORESHOW · 散场记录"
-    static let footerTrailing = "开场前"
+    static let brand = BSLocalization.text("BEFORESHOW · 散场记录")
+    static let footerTrailing = BSLocalization.text("开场前")
 
     /// 现场名拆成最多两行:有艺人且标题以「艺人 · 」开头时拆开,贴近海报排版。
     static func eventLines(name: String, artistNames: [String]) -> [String] {
@@ -169,7 +169,7 @@ enum DispersalCeremonyCardCopy {
     }
 
     static func ratingTitle(_ rating: DispersalRating) -> String {
-        "\(rating.emoji) \(rating.label)"
+        BSLocalization.format("%@ %@", rating.emoji, rating.label)
     }
 
     static func footerLeading(identity: FootprintDetailIdentity) -> String {

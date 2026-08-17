@@ -33,7 +33,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsRowContent(
                         iconName: "lock.fill",
-                        title: SettingsEntry.privacyAndLocalData.rawValue,
+                        title: SettingsEntry.privacyAndLocalData.displayTitle,
                         subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
@@ -48,7 +48,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsRowContent(
                         iconName: "bubble.left.and.bubble.right.fill",
-                        title: SettingsEntry.feedback.rawValue,
+                        title: SettingsEntry.feedback.displayTitle,
                         subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
@@ -78,7 +78,7 @@ struct SettingsView: View {
                 } label: {
                     SettingsRowContent(
                         iconName: "info.circle.fill",
-                        title: SettingsEntry.about.rawValue,
+                        title: SettingsEntry.about.displayTitle,
                         subtitle: nil,
                         value: AppVersionInformation.current.compactCopy,
                         tint: BSColor.Stage.muted
@@ -341,11 +341,11 @@ private struct NotificationSettingsRow: View {
         }
         .buttonStyle(SettingsPressButtonStyle())
         .disabled(isPerformingAction)
-        .accessibilityLabel("开场提醒，\(presentation.status)")
+        .accessibilityLabel(BSLocalization.format("开场提醒，%@", presentation.status))
         .accessibilityHint(
             presentation.action == .requestPermission
-                ? "轻点请求通知权限"
-                : "轻点前往系统设置管理通知"
+                ? BSLocalization.text("轻点请求通知权限")
+                : BSLocalization.text("轻点前往系统设置管理通知")
         )
         .task {
             await refreshAuthorizationState()
@@ -440,14 +440,14 @@ private struct ProEntitlementDebugPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("Pro 状态测试")
+            Text(BSLocalization.text("Pro 状态测试"))
                 .font(BSFont.V3.body.weight(.semibold))
                 .foregroundColor(BSColor.Stage.foreground)
-            Text("切换后立即生效，仅调试构建可见。")
+            Text(BSLocalization.text("切换后立即生效，仅调试构建可见。"))
                 .font(BSFont.V3.body)
                 .foregroundColor(BSColor.Stage.muted)
 
-            Picker("Pro 状态", selection: Binding(get: { selectedOption }, set: { selectedOption = $0 })) {
+            Picker(BSLocalization.text("Pro 状态"), selection: Binding(get: { selectedOption }, set: { selectedOption = $0 })) {
                 ForEach(DebugProEntitlementOption.allCases, id: \.self) { option in
                     Text(option.displayName).tag(option)
                 }
@@ -520,20 +520,20 @@ private struct PrivacyLocalDataView: View {
 
     var body: some View {
         BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
-            SettingsGroup(title: "本地数据") {
+            SettingsGroup(title: BSLocalization.text("本地数据")) {
                 if let inventory {
                     if inventory.isEmpty {
-                        settingsStatusRow("暂无本地数据")
+                        settingsStatusRow(BSLocalization.text("暂无本地数据"))
                     } else {
-                        inventoryRow("现场", value: "\(inventory.showCount) 场")
+                        inventoryRow(BSLocalization.text("现场"), value: BSLocalization.format("%lld 场", inventory.showCount))
                         SettingsDivider()
-                        inventoryRow("记忆碎片", value: "\(inventory.memoryFragmentCount) 条")
+                        inventoryRow(BSLocalization.text("记忆碎片"), value: BSLocalization.format("%lld 条", inventory.memoryFragmentCount))
                         SettingsDivider()
-                        inventoryRow("票根与时刻表", value: "\(inventory.assetCount) 个")
+                        inventoryRow(BSLocalization.text("票根与时刻表"), value: BSLocalization.format("%lld 个", inventory.assetCount))
                         SettingsDivider()
-                        inventoryRow("动态封面", value: "\(inventory.dynamicCoverCount) 个")
+                        inventoryRow(BSLocalization.text("动态封面"), value: BSLocalization.format("%lld 个", inventory.dynamicCoverCount))
                         SettingsDivider()
-                        inventoryRow("App 内占用", value: formattedBytes(inventory.appBytes))
+                        inventoryRow(BSLocalization.text("App 内占用"), value: formattedBytes(inventory.appBytes))
                     }
                 } else {
                     ProgressView()
@@ -659,12 +659,12 @@ private struct PrivacyLocalDataView: View {
                 do {
                     try await ShowAssetMediaStore.shared.deleteAll()
                 } catch {
-                    cleanupFailures.append("票根和时刻表副本")
+                    cleanupFailures.append(BSLocalization.text("票根和时刻表副本"))
                 }
                 do {
                     try await DynamicCoverMediaStore.shared.deleteAll()
                 } catch {
-                    cleanupFailures.append("动态封面视频副本")
+                    cleanupFailures.append(BSLocalization.text("动态封面视频副本"))
                 }
                 if cleanupFailures.isEmpty {
                     ShowAssetCleanupRetry.clearFullCleanupPending()
@@ -675,14 +675,14 @@ private struct PrivacyLocalDataView: View {
                 if cleanupFailures.isEmpty {
                     let freedBytes = before?.mediaBytes ?? 0
                     clearFeedback = .success(freedBytes > 0
-                        ? "已清除本地数据，释放 \(formattedBytes(freedBytes))。"
-                        : "已清除本地数据。")
+                        ? BSLocalization.format("已清除本地数据，释放 %@。", formattedBytes(freedBytes))
+                        : BSLocalization.text("已清除本地数据。"))
                 } else {
-                    clearFeedback = .failure("部分内容未清除（\(cleanupFailures.joined(separator: "、"))），将于下次启动时重试。")
+                    clearFeedback = .failure(BSLocalization.format("部分内容未清除（%@），将于下次启动时重试。", cleanupFailures.joined(separator: "、")))
                 }
             } catch {
                 ShowAssetCleanupRetry.clearFullCleanupPrepared()
-                clearFeedback = .failure("清除本地数据失败，请重试。")
+                clearFeedback = .failure(BSLocalization.text("清除本地数据失败，请重试。"))
                 await ShowAssetMediaStore.shared.releaseCommitGate()
             }
             isClearing = false
@@ -727,13 +727,13 @@ private struct FeedbackView: View {
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    Text("反馈类型")
+                    Text(BSLocalization.text("反馈类型"))
                         .font(BSFont.V3.body.weight(.semibold))
                         .foregroundColor(BSColor.Stage.foreground)
 
-                    Picker("类型", selection: $category) {
+                    Picker(BSLocalization.text("类型"), selection: $category) {
                         ForEach(FeedbackCategory.allCases) { category in
-                            Text(category.rawValue).tag(category)
+                            Text(category.displayTitle).tag(category)
                         }
                     }
                     .pickerStyle(.segmented)
@@ -776,7 +776,7 @@ private struct FeedbackView: View {
                         }
                     }
 
-                    Toggle("附上 App 版本与系统版本", isOn: $includesDiagnostics)
+                    Toggle(BSLocalization.text("附上 App 版本与系统版本"), isOn: $includesDiagnostics)
                         .tint(BSColor.Stage.accent)
                         .foregroundColor(BSColor.Stage.muted)
                         .font(BSFont.V3.body)
@@ -833,7 +833,7 @@ private struct FeedbackView: View {
                 await presentMailto(shareTextBuilder.build(from: payload))
             }
         } catch {
-            validationMessage = "请先填写反馈内容"
+            validationMessage = BSLocalization.text("请先填写反馈内容")
         }
     }
 
@@ -841,13 +841,13 @@ private struct FeedbackView: View {
     private func presentMailto(_ text: String) async {
         sendState = .sending
         guard let url = FeedbackDestination.mailtoURL(prefilledBody: text) else {
-            sendState = .failed("无法生成邮件链接")
+            sendState = .failed(BSLocalization.text("无法生成邮件链接"))
             return
         }
         let accepted = await FeedbackMailOpener.open(url: url)
         // 两种 accepted=false 场景：设备没装邮件 app / 装但未配账户。`open(mailto:)`
         // 对两者都返回 false，文案上给出唯一可执行的引导（去系统设置查看账户/添加 app）。
-        sendState = accepted ? .sent : .failed("无法唤起邮件 app，请检查系统邮件账户或 App Store 安装")
+        sendState = accepted ? .sent : .failed(BSLocalization.text("无法唤起邮件 app，请检查系统邮件账户或 App Store 安装"))
     }
 }
 

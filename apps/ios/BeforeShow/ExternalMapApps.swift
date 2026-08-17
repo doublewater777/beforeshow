@@ -13,10 +13,10 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .apple: return "Apple 地图"
-        case .amap: return "高德地图"
-        case .baidu: return "百度地图"
-        case .google: return "Google 地图"
+        case .apple: return BSLocalization.text("Apple 地图")
+        case .amap: return BSLocalization.text("高德地图")
+        case .baidu: return BSLocalization.text("百度地图")
+        case .google: return BSLocalization.text("Google 地图")
         }
     }
 

@@ -24,6 +24,8 @@ enum MemoryCreateSourceOption: String, CaseIterable {
     case library = "图库"
     case text = "文字"
 
+    var title: String { BSLocalization.text(rawValue) }
+
     var iconName: String {
         switch self {
         case .camera: return "camera"
@@ -32,18 +34,11 @@ enum MemoryCreateSourceOption: String, CaseIterable {
         }
     }
 
-    var subtitle: String {
-        switch self {
-        case .camera: return BSLocalization.text("打开系统相机")
-        case .library: return BSLocalization.text("照片或视频")
-        case .text: return BSLocalization.text("写一句话")
-        }
-    }
 }
 
 enum MemoryCreateSourcePresentation {
-    static let title = "新增记忆"
-    static let message = "照片、图库或一段文字，都可以成为一条记忆。"
+    static let title = BSLocalization.text("新增记忆")
+    static let message = BSLocalization.text("拍一张、选一段、写一句。")
 }
 
 enum ShowAssetPresentationStyle: Equatable {
@@ -122,7 +117,7 @@ enum MapChooserPresentation {
     }
 
     static func title(hasDestination: Bool) -> String {
-        hasDestination ? "在地图中打开" : "还没有目的地"
+        hasDestination ? BSLocalization.text("在地图中打开") : BSLocalization.text("还没有目的地")
     }
 }
 

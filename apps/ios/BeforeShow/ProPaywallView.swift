@@ -10,6 +10,7 @@ struct ProPaywallView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var products = ProSubscriptionCatalog.defaultProducts
     @State private var isLoadingProducts = false
+    @State private var productsLoadFailed = false
     @State private var purchasingProductID: String?
     @State private var message: String?
     @State private var selectedPlan: ProSubscriptionPlan = .yearly
@@ -49,11 +50,22 @@ struct ProPaywallView: View {
                         activeCard
                     } else {
                         if case .expired = entitlement {
-                            noteText("Pro 已过期，已有本地内容仍可查看和编辑。")
+                            noteText(BSLocalization.text("Pro 已过期，已有本地内容仍可查看和编辑。"))
                         }
                         benefitCard
                         planCards
                         ctaButton
+                        if productsLoadFailed {
+                            Button {
+                                Task {
+                                    await loadProducts()
+                                }
+                            } label: {
+                                Text(BSLocalization.text("重试"))
+                                    .font(.system(size: 11))
+                                    .foregroundColor(BSColor.Stage.accent)
+                            }
+                        }
                         ctaNote
                     }
 
@@ -72,7 +84,7 @@ struct ProPaywallView: View {
             if showsCloseButton {
                 BSChromeIconButton(
                     systemName: "xmark",
-                    accessibilityLabel: "关闭",
+                    accessibilityLabel: BSLocalization.text("关闭"),
                     action: handleClose
                 )
                 .padding(.trailing, 18)
@@ -122,23 +134,28 @@ struct ProPaywallView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [BSColor.Stage.accent.opacity(0.18), .clear],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 52
+            ZStack(alignment: .bottom) {
+                heroBeams
+
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [BSColor.Stage.accent.opacity(0.18), .clear],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 52
+                            )
                         )
-                    )
-                    .frame(width: 104, height: 104)
-                    .blur(radius: 4)
-                Image(systemName: "sparkle")
-                    .font(.system(size: 34, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
+                        .frame(width: 104, height: 104)
+                        .blur(radius: 4)
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 34, weight: .medium))
+                        .foregroundColor(BSColor.Stage.accent)
+                }
+                .frame(width: 67, height: 67)
             }
-            .frame(width: 67, height: 67)
+            .frame(height: 150)
             .padding(.bottom, 18)
 
             Text("BEFORESHOW PRO")
@@ -147,7 +164,7 @@ struct ProPaywallView: View {
                 .foregroundColor(BSColor.Stage.accent)
                 .padding(.bottom, 9)
 
-            Text("把下一场，\n也留下来")
+            Text(BSLocalization.text("把下一场，\n也留下来"))
                 .font(.system(size: 29, weight: .bold))
                 .kerning(-0.7)
                 .lineSpacing(5)
@@ -164,7 +181,36 @@ struct ProPaywallView: View {
                 .padding(.top, 11)
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, showsCloseButton ? 44 : BSSpacing.md)
+        .padding(.top, showsCloseButton ? 34 : BSSpacing.md)
+    }
+
+    /// 顶部静态光束:蓝/金/紫三个光锥从星标处向上散开,呼应「灯亮」时刻,
+    /// 同时填掉原本空旷的头部。静态(无动画),与熄灯仪式的光束同一语言。
+    private var heroBeams: some View {
+        ZStack(alignment: .bottom) {
+            heroBeam(color: BSColor.Stage.glowBlue, topWidth: 150, rotation: 30, opacity: 0.75)
+            heroBeam(color: BSColor.Stage.accent, topWidth: 150, rotation: -30, opacity: 0.70)
+            heroBeam(color: BSColor.Accent.violet, topWidth: 110, rotation: 0, opacity: 0.50)
+        }
+        .blendMode(.screen)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    /// 单个光锥:顶点在下的三角,自下而上淡出,绕顶点旋转后左右展开。
+    private func heroBeam(color: Color, topWidth: CGFloat, rotation: Double, opacity: Double) -> some View {
+        PaywallBeamShape()
+            .fill(
+                LinearGradient(
+                    colors: [color.opacity(0.85), color.opacity(0.28), .clear],
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+            )
+            .frame(width: topWidth, height: 190)
+            .rotationEffect(.degrees(rotation), anchor: .bottom)
+            .blur(radius: 7)
+            .opacity(opacity)
     }
 
     // MARK: - 权益卡
@@ -179,10 +225,10 @@ struct ProPaywallView: View {
                 .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("无限添加现场")
+                Text(BSLocalization.text("无限添加现场"))
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("未来的每一场，都可以继续进入「当前」并最终留进「足迹」。")
+                Text(BSLocalization.text("未来的每一场，都可以继续进入「当前」并最终留进「足迹」。"))
                     .font(.system(size: 11.8))
                     .lineSpacing(2)
                     .foregroundColor(BSColor.Stage.muted)
@@ -208,6 +254,8 @@ struct ProPaywallView: View {
                 planCard(plan)
             }
         }
+        // 给骑在年度卡上边框的推荐徽章留出伸出空间
+        .padding(.top, 8)
     }
 
     private func planCard(_ plan: ProSubscriptionPlan) -> some View {
@@ -233,7 +281,7 @@ struct ProPaywallView: View {
                         .foregroundColor(BSColor.Stage.dim)
                 }
 
-                Text(ProPaywallCopy.planNote(plan))
+                Text(ProPaywallCopy.planNote(plan, product: product(for: plan)))
                     .font(.system(size: 10.5))
                     .foregroundColor(BSColor.Stage.dim)
                     .lineLimit(2)
@@ -243,7 +291,7 @@ struct ProPaywallView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 13)
             .padding(.vertical, 15)
-            .frame(minHeight: 109, alignment: .topLeading)
+            .frame(minHeight: 109, maxHeight: .infinity, alignment: .topLeading)
             .background(
                 isSelected
                     ? AnyShapeStyle(LinearGradient(
@@ -264,16 +312,20 @@ struct ProPaywallView: View {
                         lineWidth: 1
                     )
             )
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .top) {
+                // 推荐徽章骑在卡片上边框:不占卡内空间,月度/终身卡顶部不再留空行。
                 if plan == .yearly {
-                    Text("推荐")
+                    Text(BSLocalization.text("推荐"))
                         .font(.system(size: 9.5, weight: .bold))
                         .foregroundColor(BSColor.Stage.accent)
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
-                        .background(BSColor.Stage.accent.opacity(0.13))
+                        .background(BSColor.Stage.surface)
                         .clipShape(Capsule())
-                        .padding(9)
+                        .overlay(
+                            Capsule().stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 1)
+                        )
+                        .offset(y: -9)
                 }
             }
         }
@@ -297,20 +349,23 @@ struct ProPaywallView: View {
             }
         }
         .buttonStyle(BSPrimaryButtonStyle())
-        .disabled(purchasingProductID != nil)
+        .disabled(purchasingProductID != nil || product(for: selectedPlan)?.isAvailable != true)
     }
 
     private var ctaTitle: String {
+        guard product(for: selectedPlan)?.isAvailable == true else {
+            return BSLocalization.text("价格暂不可用")
+        }
         let price = ctaPrice(for: selectedPlan)
         switch selectedPlan {
         case .monthly:
-            return "订阅月度 Pro · \(price)"
+            return BSLocalization.format("订阅月度 Pro · %@", price)
         case .yearly:
-            return "订阅年度 Pro · \(price)"
+            return BSLocalization.format("订阅年度 Pro · %@", price)
         case .lifetime:
-            return "买断终身 Pro · \(price)"
+            return BSLocalization.format("买断终身 Pro · %@", price)
         case .yearlyDiscount, .lifetimeDiscount:
-            return "以特惠价解锁 Pro · \(price)"
+            return BSLocalization.format("以特惠价解锁 Pro · %@", price)
         }
     }
 
@@ -320,9 +375,9 @@ struct ProPaywallView: View {
         let amount = priceAmount(for: plan)
         switch plan {
         case .monthly:
-            return "\(amount)/月"
+            return BSLocalization.format("%@/月", amount)
         case .yearly, .yearlyDiscount:
-            return "\(amount)/年"
+            return BSLocalization.format("%@/年", amount)
         case .lifetime, .lifetimeDiscount:
             return amount
         }
@@ -330,8 +385,8 @@ struct ProPaywallView: View {
 
     private var ctaNote: some View {
         Text(selectedPlan.isLifetime
-             ? "一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。"
-             : "订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
+             ? BSLocalization.text("一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。")
+             : BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。"))
             .font(.system(size: 10.5))
             .lineSpacing(3)
             .multilineTextAlignment(.center)
@@ -346,7 +401,7 @@ struct ProPaywallView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 20))
                 .foregroundStyle(BSColor.brandGradient)
-            Text("Pro 已启用，可以继续添加现场。")
+            Text(BSLocalization.text("Pro 已启用，可以继续添加现场。"))
                 .font(BSFont.body)
                 .foregroundColor(BSColor.Stage.foreground)
         }
@@ -374,15 +429,15 @@ struct ProPaywallView: View {
     private var linksRow: some View {
         HStack(spacing: 16) {
             Spacer(minLength: 0)
-            linkButton("恢复购买") {
+            linkButton(BSLocalization.text("恢复购买")) {
                 Task {
                     await restore()
                 }
             }
-            linkButton("隐私政策") {
+            linkButton(BSLocalization.text("隐私政策")) {
                 legalPage = BSInAppBrowserPage(url: localizedSiteURL(ProPaywallCopy.privacyURL))
             }
-            linkButton("使用条款") {
+            linkButton(BSLocalization.text("用户协议")) {
                 legalPage = BSInAppBrowserPage(url: localizedSiteURL(ProPaywallCopy.termsURL))
             }
             Spacer(minLength: 0)
@@ -400,7 +455,7 @@ struct ProPaywallView: View {
 
     private var winbackContent: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
-            Text("限时优惠 · 最高 40% OFF")
+            Text(BSLocalization.text("限时优惠 · 最高 40% OFF"))
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(BSColor.Stage.accent)
                 .padding(.horizontal, 9)
@@ -412,10 +467,10 @@ struct ProPaywallView: View {
                 )
 
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text("再想一下？")
+                Text(BSLocalization.text("再想一下？"))
                     .font(.system(size: 24, weight: .bold))
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("以特惠价升级，错过恢复原价；免费版仍可完整保存 20 场现场。")
+                Text(BSLocalization.text("以特惠价升级，错过恢复原价；免费版每月仍可添加 1 场现场。"))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -440,9 +495,9 @@ struct ProPaywallView: View {
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(purchasingProductID != nil)
+            .disabled(purchasingProductID != nil || product(for: selectedWinbackPlan)?.isAvailable != true)
 
-            Button("暂时不要") {
+            Button(BSLocalization.text("暂时不要")) {
                 winbackDeclined = true
                 showsWinback = false
             }
@@ -460,6 +515,19 @@ struct ProPaywallView: View {
             selectedWinbackPlan = plan
         } label: {
             VStack(alignment: .leading, spacing: 0) {
+                // 徽章入流:英文「Discounted Annual」很长,悬浮会与之重叠。
+                HStack {
+                    Spacer(minLength: 0)
+                    Text(ProPaywallCopy.winbackSaveLabel(plan))
+                        .font(.system(size: 9.5, weight: .bold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(BSColor.Stage.accent.opacity(0.13))
+                        .clipShape(Capsule())
+                }
+                .padding(.bottom, 6)
+
                 Text(ProPaywallCopy.planName(plan))
                     .font(.system(size: 12))
                     .foregroundColor(BSColor.Stage.muted)
@@ -479,7 +547,7 @@ struct ProPaywallView: View {
                         .strikethrough()
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(.horizontal, 13)
             .padding(.vertical, 12)
             .background(
@@ -502,22 +570,15 @@ struct ProPaywallView: View {
                         lineWidth: 1
                     )
             )
-            .overlay(alignment: .topTrailing) {
-                Text(ProPaywallCopy.winbackSaveLabel(plan))
-                    .font(.system(size: 9.5, weight: .bold))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 4)
-                    .background(BSColor.Stage.accent.opacity(0.13))
-                    .clipShape(Capsule())
-                    .padding(9)
-            }
         }
         .buttonStyle(.plain)
     }
 
     private var ctaTitleForWinback: String {
-        "以特惠价解锁 Pro · \(ctaPrice(for: selectedWinbackPlan))"
+        guard product(for: selectedWinbackPlan)?.isAvailable == true else {
+            return BSLocalization.text("价格暂不可用")
+        }
+        return BSLocalization.format("以特惠价解锁 Pro · %@", ctaPrice(for: selectedWinbackPlan))
     }
 
     // MARK: - 数据与行为
@@ -532,14 +593,19 @@ struct ProPaywallView: View {
 
     /// 价格字符串只保留金额部分（去掉「/月」「/年」后缀），周期由方案推导，
     /// 这样 StoreKit 的 displayPrice（不含周期）和 fallback 文案都能用。
+    /// 未从 StoreKit 拿到的方案只显示「价格暂不可用」，不展示 catalog USD 参考价。
     private func priceAmount(for plan: ProSubscriptionPlan) -> String {
-        let priceText = product(for: plan)?.priceText ?? ""
+        guard let product = product(for: plan), product.isAvailable else {
+            return BSLocalization.text("价格暂不可用")
+        }
+        let priceText = product.priceText
         return priceText.components(separatedBy: "/").first ?? priceText
     }
 
     /// 挽留价对应的标准价划线金额：特惠年度 → 年度，特惠终身 → 终身。
     private func standardPriceAmount(for winbackPlan: ProSubscriptionPlan) -> String {
         let standardPlan: ProSubscriptionPlan = winbackPlan == .yearlyDiscount ? .yearly : .lifetime
+        guard product(for: standardPlan)?.isAvailable == true else { return "" }
         return priceAmount(for: standardPlan)
     }
 
@@ -556,17 +622,23 @@ struct ProPaywallView: View {
         isLoadingProducts = true
         defer { isLoadingProducts = false }
 
+        productsLoadFailed = false
         do {
             let loadedProducts = try await store.loadProducts()
-            if !loadedProducts.isEmpty {
-                // 按方案逐个覆盖：StoreKit 暂时没返回的档（如新建产品还在传播）
-                // 回退到目录参考价，避免方案卡显示空价格。
-                products = ProSubscriptionCatalog.defaultProducts.map { fallback in
-                    loadedProducts.first { $0.plan == fallback.plan } ?? fallback
-                }
+            guard !loadedProducts.isEmpty else {
+                productsLoadFailed = true
+                message = BSLocalization.text("暂时无法加载 App Store 价格。")
+                return
+            }
+            // 只保留 StoreKit 实际返回的方案；缺失方案仍用 catalog 占位，
+            // 但 isAvailable == false，UI 显示「价格暂不可用」并禁用 CTA，
+            // 不会用自定义 USD 参考价冒充真实 App Store 价格。
+            products = ProSubscriptionCatalog.defaultProducts.map { fallback in
+                loadedProducts.first { $0.plan == fallback.plan } ?? fallback
             }
         } catch {
-            message = "暂时没有加载到 App Store 价格，先显示参考价。"
+            productsLoadFailed = true
+            message = BSLocalization.text("暂时无法加载 App Store 价格。")
         }
     }
 
@@ -580,16 +652,16 @@ struct ProPaywallView: View {
             let entitlement = try await store.purchase(productID: product.id)
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
             didPurchase = true
-            message = "Pro 已启用。"
+            message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {
                 showsWinback = false
             }
         } catch ProSubscriptionError.purchaseCancelled {
-            message = "已取消购买。"
+            message = BSLocalization.text("已取消购买。")
         } catch ProSubscriptionError.purchasePending {
-            message = "购买正在处理中。"
+            message = BSLocalization.text("购买正在处理中。")
         } catch {
-            message = "购买暂时没有完成。"
+            message = BSLocalization.text("购买暂时没有完成。")
         }
     }
 
@@ -602,11 +674,11 @@ struct ProPaywallView: View {
             let entitlement = try await store.restorePurchases()
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
             didPurchase = true
-            message = "已恢复 Pro。"
+            message = BSLocalization.text("已恢复 Pro。")
         } catch ProSubscriptionError.nothingToRestore {
-            message = "没有找到可恢复的 Pro。"
+            message = BSLocalization.text("没有找到可恢复的 Pro。")
         } catch {
-            message = "恢复购买暂时没有完成。"
+            message = BSLocalization.text("恢复购买暂时没有完成。")
         }
     }
 
@@ -620,6 +692,18 @@ struct ProPaywallView: View {
 }
 
 // MARK: - Sheet 形态（设置 / 限额 / 长按图标入口）
+
+/// Paywall 顶部的光锥:顶点在下的三角,顶点即光源(星标处)。
+private struct PaywallBeamShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: rect.midX, y: rect.maxY))
+            p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            p.closeSubpath()
+        }
+    }
+}
 
 struct ProPaywallSheetView: View {
     @Environment(\.dismiss) private var dismiss
@@ -648,42 +732,46 @@ struct ProPaywallSheetView: View {
 // MARK: - 文案
 
 enum ProPaywallCopy {
-    static let summary = "免费版可以完整保存 20 场现场。Pro 让你的足迹继续累积，不限制新增场次。"
+    static var summary: String {
+        BSLocalization.text("免费版每月可以添加 1 场现场。Pro 让你的足迹继续累积，不限制新增场次。")
+    }
 
     static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!
     static let termsURL = URL(string: "https://beforeshow.doublewaterapps.com/terms")!
 
     static func planName(_ plan: ProSubscriptionPlan) -> String {
         switch plan {
-        case .monthly: return "月度"
-        case .yearly: return "年度"
-        case .lifetime: return "终身"
-        case .yearlyDiscount: return "特惠年度"
-        case .lifetimeDiscount: return "特惠终身"
+        case .monthly: return BSLocalization.text("月度")
+        case .yearly: return BSLocalization.text("年度")
+        case .lifetime: return BSLocalization.text("终身")
+        case .yearlyDiscount: return BSLocalization.text("特惠年度")
+        case .lifetimeDiscount: return BSLocalization.text("特惠终身")
         }
     }
 
     static func periodLabel(_ plan: ProSubscriptionPlan) -> String {
         switch plan {
-        case .monthly: return "/ 月"
-        case .yearly, .yearlyDiscount: return "/ 年"
-        case .lifetime, .lifetimeDiscount: return "一次性"
+        case .monthly: return BSLocalization.text("/ 月")
+        case .yearly, .yearlyDiscount: return BSLocalization.text("/ 年")
+        case .lifetime, .lifetimeDiscount: return BSLocalization.text("一次性")
         }
     }
 
-    static func planNote(_ plan: ProSubscriptionPlan) -> String {
+    static func planNote(_ plan: ProSubscriptionPlan, product: ProSubscriptionProduct?) -> String {
         switch plan {
-        case .monthly: return "按月续订，可随时取消"
-        case .yearly: return "约 $0.42 / 月"
-        case .lifetime: return "一次买断，永久有效"
+        case .monthly: return BSLocalization.text("按月订阅，随时取消")
+        case .yearly:
+            guard let perMonth = product?.perMonthEquivalentText else { return "" }
+            return BSLocalization.format("约 %@ / 月", perMonth)
+        case .lifetime: return BSLocalization.text("一次买断，永久有效")
         case .yearlyDiscount, .lifetimeDiscount: return ""
         }
     }
 
     static func winbackSaveLabel(_ plan: ProSubscriptionPlan) -> String {
         switch plan {
-        case .yearlyDiscount: return "省 40%"
-        case .lifetimeDiscount: return "省 33%"
+        case .yearlyDiscount: return BSLocalization.text("省 40%")
+        case .lifetimeDiscount: return BSLocalization.text("省 33%")
         default: return ""
         }
     }

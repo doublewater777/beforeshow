@@ -714,6 +714,7 @@ struct CurrentShowManagementSection: View {
                             shows: followUpShows,
                             formatter: formatter,
                             now: now,
+                            onOpenShowLibrary: onOpenShowLibrary,
                             onDetailVisibilityChange: onDetailVisibilityChange
                         )
                         .padding(.horizontal, contentInset)
@@ -935,6 +936,7 @@ private struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
     let now: Date
+    var onOpenShowLibrary: () -> Void = {}
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
     var body: some View {
@@ -944,7 +946,7 @@ private struct CurrentShowFollowUpSummary: View {
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(1.3)
                     .foregroundColor(BSColor.Stage.muted)
-                Text("\(shows.count) 场")
+                Text(BSLocalization.format("%lld 场", shows.count))
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(BSColor.Stage.dim)
                 Spacer()
@@ -960,11 +962,9 @@ private struct CurrentShowFollowUpSummary: View {
             }
 
             if shows.count > 2 {
-                NavigationLink {
-                    CurrentShowLibraryManagementView(onDetailVisibilityChange: onDetailVisibilityChange)
-                } label: {
+                Button(action: onOpenShowLibrary) {
                     HStack(spacing: 8) {
-                        Text("查看我的现场 · \(shows.count) 场")
+                        Text(BSLocalization.format("查看我的现场 · %lld 场", shows.count))
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                     }
@@ -1180,7 +1180,7 @@ private struct CompanionAvatarStack: View {
 
     var body: some View {
         HStack(spacing: -8) {
-            avatar("我", colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue])
+            avatar(BSLocalization.text("我"), colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue])
             avatar(initial, colors: [BSColor.Accent.violet, BSColor.Stage.accent])
         }
         .accessibilityHidden(true)
@@ -1188,7 +1188,7 @@ private struct CompanionAvatarStack: View {
 
     private var initial: String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty || trimmed == "共同足迹" ? "友" : String(trimmed.prefix(1))
+        return trimmed.isEmpty || trimmed == BSLocalization.text("共同足迹") ? BSLocalization.text("友") : String(trimmed.prefix(1))
     }
 
     private func avatar(_ text: String, colors: [Color]) -> some View {
@@ -1341,7 +1341,7 @@ struct CurrentShowCompanionSheet: View {
             Button {
                 Task { await resendInvitation() }
             } label: {
-                Label("再次发送", systemImage: "paperplane")
+                Label(BSLocalization.text("再次发送"), systemImage: "paperplane")
             }
             .buttonStyle(BSSecondaryButtonStyle())
             .disabled(isPreparingInvite || show.companionShareRecordName == nil)
@@ -1353,7 +1353,7 @@ struct CurrentShowCompanionSheet: View {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {
-                    Label("刷新状态", systemImage: "arrow.clockwise")
+                    Label(BSLocalization.text("刷新状态"), systemImage: "arrow.clockwise")
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
@@ -1379,7 +1379,7 @@ struct CurrentShowCompanionSheet: View {
                 sharedMemoryCard
 
                 ShareLink(item: sharedFootprintShareText) {
-                    Label("分享共同足迹", systemImage: "square.and.arrow.up")
+                    Label(BSLocalization.text("分享共同足迹"), systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
             }
@@ -1393,7 +1393,7 @@ struct CurrentShowCompanionSheet: View {
 
                 companionPair
 
-                Text("你们共同看过 \(sharedHistory.count) 场现场")
+                Text(BSLocalization.format("你们共同看过 %lld 场现场", sharedHistory.count))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.muted)
 
@@ -1405,7 +1405,7 @@ struct CurrentShowCompanionSheet: View {
                             isShowingHistory = true
                         }
                     } label: {
-                        Label("查看共同足迹", systemImage: "clock.arrow.circlepath")
+                        Label(BSLocalization.text("查看共同足迹"), systemImage: "clock.arrow.circlepath")
                     }
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
@@ -1420,7 +1420,7 @@ struct CurrentShowCompanionSheet: View {
 
     private var companionPair: some View {
         HStack(spacing: BSSpacing.md) {
-            person(name: BSLocalization.text("你"), initial: "我")
+            person(name: BSLocalization.text("你"), initial: BSLocalization.text("我"))
 
             Rectangle()
                 .fill(LinearGradient(colors: [.clear, BSColor.Stage.accent, .clear], startPoint: .leading, endPoint: .trailing))
@@ -1461,7 +1461,7 @@ struct CurrentShowCompanionSheet: View {
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
                 .foregroundColor(BSColor.Stage.accent)
-            Text("我们一起看的\n第 \(max(1, sharedHistory.count)) 场现场")
+            Text(BSLocalization.format("我们一起看的\n第 %lld 场现场", max(1, sharedHistory.count)))
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
             Text(show.name)
@@ -1533,7 +1533,7 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private var sharedFootprintShareText: String {
-        "我和\(displayName)一起看了 \(show.name)。\n这是我们共同记录的第 \(max(1, sharedHistory.count)) 场现场。"
+        BSLocalization.format("我和%@一起看了 %@。\n这是我们共同记录的第 %lld 场现场。", displayName, show.name, max(1, sharedHistory.count))
     }
 
     @MainActor
@@ -1541,7 +1541,7 @@ struct CurrentShowCompanionSheet: View {
         isPreparingInvite = true
         defer { isPreparingInvite = false }
         if isRetry, show.companionShareLocator != nil {
-            errorMessage = "请先完成取消同步，再重新邀请"
+            errorMessage = BSLocalization.text("请先完成取消同步，再重新邀请")
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext)
@@ -1555,7 +1555,7 @@ struct CurrentShowCompanionSheet: View {
             return
         }
         guard show.companionCloudRecordName == nil else {
-            errorMessage = "这场现场已有同行邀请，请先刷新状态"
+            errorMessage = BSLocalization.text("这场现场已有同行邀请，请先刷新状态")
             return
         }
         do {
@@ -1621,7 +1621,7 @@ struct CurrentShowCompanionSheet: View {
             }
         )
         if !presented {
-            errorMessage = "无法打开系统分享"
+            errorMessage = BSLocalization.text("无法打开系统分享")
         }
     }
 
@@ -1739,6 +1739,22 @@ private enum DebugSampleShowSeeder {
             seedUpcomingNear(in: modelContext)
             return
         }
+        if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-soon") {
+            seedUpcomingNear(in: modelContext, offset: 42 * 60 + 17)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-far") {
+            seedUpcomingNear(in: modelContext, offset: 57 * 86_400)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--seed-awaiting-end-confirmation") {
+            seedPostEstimatedEnd(in: modelContext, confirmEnd: false)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--seed-confirmed-ended") {
+            seedPostEstimatedEnd(in: modelContext, confirmEnd: true)
+            return
+        }
 
         guard ProcessInfo.processInfo.arguments.contains("--seed-add-show-samples") else {
             return
@@ -1776,10 +1792,10 @@ private enum DebugSampleShowSeeder {
         }
     }
 
-    private static func seedUpcomingNear(in modelContext: ModelContext) {
+    private static func seedUpcomingNear(in modelContext: ModelContext, offset: TimeInterval = 3 * 3_600 + 21 * 60 + 18) {
         let name = "夏夜音乐会"
         let now = Date()
-        let start = now.addingTimeInterval(3 * 3_600 + 21 * 60 + 18)
+        let start = now.addingTimeInterval(offset)
         let draft = ShowDraft(
             name: name,
             date: start,
@@ -1811,6 +1827,49 @@ private enum DebugSampleShowSeeder {
             try modelContext.save()
         } catch {
             assertionFailure("Failed to seed upcoming-near sample: \(error)")
+        }
+    }
+
+    /// 越过估算散场边界(start+默认 4h)的现场:confirmEnd=false → 首页「待确认」;
+    /// confirmEnd=true → 用户已确认散场,进入停留期。
+    private static func seedPostEstimatedEnd(in modelContext: ModelContext, confirmEnd: Bool) {
+        let name = "夏夜音乐会"
+        let now = Date()
+        let start = now.addingTimeInterval(-5 * 3_600)
+        let draft = ShowDraft(
+            name: name,
+            date: start,
+            startTime: start,
+            city: "台北",
+            venueName: "台北流行音乐中心",
+            artists: [ArtistSlot(name: "夏夜乐队", avatarURL: nil)],
+            coverImageURL: "https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=900&q=85",
+            source: .manual
+        )
+        do {
+            let existingShows = try modelContext.fetch(FetchDescriptor<Show>())
+            let show: Show
+            if let existing = existingShows.first(where: { $0.name == name }) {
+                try existing.apply(draft)
+                existing.markScheduled()
+                existing.clearEnded()
+                show = existing
+            } else {
+                show = try draft.makeShow()
+                modelContext.insert(show)
+            }
+            if confirmEnd {
+                show.markEnded(at: start.addingTimeInterval(2 * 3_600 + 17 * 60))
+            }
+            let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+            if let selection = selections.first {
+                selection.select(showID: show.id)
+            } else {
+                modelContext.insert(CurrentShowSelection(selectedShowID: show.id))
+            }
+            try modelContext.save()
+        } catch {
+            assertionFailure("Failed to seed post-estimated-end sample: \(error)")
         }
     }
 

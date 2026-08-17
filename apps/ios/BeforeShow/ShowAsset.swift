@@ -21,10 +21,10 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    var emptySubtitle: String { "未添加" }
-    var savedSubtitle: String { "已保存" }
+    var emptySubtitle: String { BSLocalization.text("未添加") }
+    var savedSubtitle: String { BSLocalization.text("已保存") }
 
-    var addTitle: String { "添加\(title)" }
+    var addTitle: String { BSLocalization.format("添加%@", title) }
 
     var addDescription: String {
         switch self {

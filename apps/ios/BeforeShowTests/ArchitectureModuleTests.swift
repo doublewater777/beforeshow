@@ -72,6 +72,48 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testUnconfirmedEstimatedEndRequiresPostBoundaryWithoutEndedAt() {
+        // 首页 / widget 共用:postShow・ended 且未确认 endedAt → 「待确认」,不宣布落幕。
+        XCTAssertTrue(
+            CurrentShowTimeState.isUnconfirmedEstimatedEnd(kind: .postShow, hasConfirmedEnd: false)
+        )
+        XCTAssertTrue(
+            CurrentShowTimeState.isUnconfirmedEstimatedEnd(kind: .ended, hasConfirmedEnd: false)
+        )
+        // dayEnded 是多日循环内部态,不算未确认散场。
+        XCTAssertFalse(
+            CurrentShowTimeState.isUnconfirmedEstimatedEnd(kind: .dayEnded, hasConfirmedEnd: false)
+        )
+        XCTAssertFalse(
+            CurrentShowTimeState.isUnconfirmedEstimatedEnd(kind: .postShow, hasConfirmedEnd: true)
+        )
+    }
+
+    func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() throws {
+        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才是「1 天」。
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let atThreshold = try Show(
+            name: "恰好一天",
+            date: now.addingTimeInterval(86_400),
+            startTime: now.addingTimeInterval(86_400)
+        )
+        let state = CurrentShowTimeState(show: atThreshold, now: now)
+        guard case .countdownClock = HomeCountdownPresentationPolicy.state(for: atThreshold, timeState: state, now: now) else {
+            return XCTFail("remaining == 24h 应显示时:分:秒,不是「1 天」")
+        }
+
+        let pastThreshold = try Show(
+            name: "一天多一秒",
+            date: now.addingTimeInterval(86_401),
+            startTime: now.addingTimeInterval(86_401)
+        )
+        let pastState = CurrentShowTimeState(show: pastThreshold, now: now)
+        XCTAssertEqual(
+            HomeCountdownPresentationPolicy.state(for: pastThreshold, timeState: pastState, now: now),
+            .countdownDays(1)
+        )
+    }
+
     func testFollowUpPolicyExcludesCurrentAndPast() throws {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let past = try Show(name: "过去", date: now.addingTimeInterval(-86_400), startTime: now.addingTimeInterval(-86_400))

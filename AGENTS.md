@@ -6,6 +6,8 @@
 
 临时文件、截图不要上传git，密钥不要上传git
 
+i18n
+
 use iphone 17 simulator
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.

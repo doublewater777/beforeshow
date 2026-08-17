@@ -10,8 +10,7 @@ xcuserdata/
 .feishu-beforeshow.json
 .playwright-mcp/
 .wrangler
-apps/ios/DerivedData
-apps/ios/DerivedData-device
+apps/ios/DerivedData*
 scripts
 apps/ios/design-exploration
 apps/ios/screenshots
@@ -43,4 +42,3 @@ tmp-screenshots
 .codex
 tmp-ui-verify
 .asc
-

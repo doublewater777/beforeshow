@@ -84,7 +84,7 @@ private struct ConfirmedEndTimeEditorSheet: View {
             BSSurfacePanel {
                 VStack(spacing: BSSpacing.sm) {
                     DatePicker(
-                        "散场日期",
+                        BSLocalization.text("散场日期"),
                         selection: $endTime,
                         in: showStart...Date(),
                         displayedComponents: .date
@@ -136,6 +136,7 @@ struct ShowDetailView: View {
     @State private var isShowingCancelConfirmation = false
     @State private var confirmedEndDraft = Date()
     @State private var postponeDraft = Date()
+    @State private var isShowingCoverPreview = false
     @State private var toast: BSToastPayload?
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -285,6 +286,9 @@ struct ShowDetailView: View {
                 )
             }
         }
+        .fullScreenCover(isPresented: $isShowingCoverPreview) {
+            ShowCoverFullscreenPreview(urlString: show.coverImageURL)
+        }
         .alert(
             DangerConfirmation.deleteShow.title,
             isPresented: $isShowingDeleteConfirmation
@@ -318,16 +322,22 @@ struct ShowDetailView: View {
 
     private var detailSummaryCard: some View {
         HStack(spacing: BSSpacing.compact) {
-            ShowCoverImageView(
-                urlString: show.coverImageURL,
-                aspectRatio: 3.0 / 4.0,
-                contentMode: .fill,
-                alignment: .top,
-                enforcesAspectRatio: false,
-                cornerRadius: BSRadius.md
-            )
-            .frame(width: 74, height: 98)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+            Button {
+                isShowingCoverPreview = true
+            } label: {
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    alignment: .top,
+                    enforcesAspectRatio: false,
+                    cornerRadius: BSRadius.md
+                )
+                .frame(width: 74, height: 98)
+                .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(BSLocalization.text("查看封面大图"))
 
             VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text(session.phase(for: show, now: Date()).statusText)
@@ -540,7 +550,7 @@ struct ShowDetailView: View {
                         )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("管理\(entry.kind.title)，\(entry.subtitle)")
+                    .accessibilityLabel(BSLocalization.format("管理%@，%@", entry.kind.title, entry.subtitle))
                 }
             }
         }
@@ -575,7 +585,7 @@ struct ShowDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("记忆碎片，\(memoryFragmentsSubtitle)")
+                .accessibilityLabel(BSLocalization.format("记忆碎片，%@", memoryFragmentsSubtitle))
             }
         }
     }
@@ -589,14 +599,14 @@ struct ShowDetailView: View {
     }
 
     private var memoryFragmentsSubtitle: String {
-        memoryFragments.isEmpty ? "记录这一刻" : "\(memoryFragments.count) 条"
+        memoryFragments.isEmpty ? BSLocalization.text("记录这一刻") : BSLocalization.format("%lld 条", memoryFragments.count)
     }
 
     private var companionPresentationSubtitle: String {
         switch show.companionStatus {
         case .none: return BSLocalization.text("邀请一位朋友")
         case .pending: return BSLocalization.text("等待确认")
-        case .confirmed: return companionPresentation.companionName.map { "与\($0)同行" } ?? "已确认同行"
+        case .confirmed: return companionPresentation.companionName.map { BSLocalization.format("与%@同行", $0) } ?? BSLocalization.text("已确认同行")
         case .canceled: return BSLocalization.text("重新邀请")
         }
     }
@@ -639,7 +649,7 @@ struct ShowDetailView: View {
                 title: BSLocalization.text("修改散场时间"),
                 value: formattedDate(
                     endedAt,
-                    format: "M月d日 HH:mm",
+format: BSLocalization.text("M月d日 HH:mm"),
                     calendar: show.endTimingCalendar()
                 ),
                 icon: "clock.arrow.circlepath"
@@ -703,7 +713,7 @@ struct ShowDetailView: View {
 
     private var endTimeDescription: String? {
         if let endedAt = show.endedAt {
-            return BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: "M月d日 HH:mm", calendar: show.endTimingCalendar()))
+            return BSLocalization.format("已于 %@ 结束", formattedDate(endedAt, format: BSLocalization.text("M月d日 HH:mm"), calendar: show.endTimingCalendar()))
         }
         if let endTime = timeState.effectiveEndTime {
             return BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar()))
@@ -774,7 +784,7 @@ struct ShowDetailView: View {
 
     private func formattedDate(_ date: Date, format: String, calendar: Calendar? = nil) -> String {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.locale = AppLanguageManager.persisted.locale
         formatter.dateFormat = format
         formatter.timeZone = (calendar ?? show.timingCalendar()).timeZone
         return formatter.string(from: date)
@@ -797,11 +807,11 @@ struct ShowDetailView: View {
     }
 
     private var restoreActionTitle: String {
-        "恢复正常状态"
+        BSLocalization.text("恢复正常状态")
     }
 
     private var restoreSuccessMessage: String {
-        show.changeStatus == .canceled ? "已撤销取消" : "已恢复原定日期"
+        show.changeStatus == .canceled ? BSLocalization.text("已撤销取消") : BSLocalization.text("已恢复原定日期")
     }
 
     private func beginPostpone() {
@@ -959,8 +969,8 @@ struct ShowDetailView: View {
                 presentToast(
                     .neutral,
                     message: result.didSync
-                        ? "现场记录已删除，部分本地副本将在下次启动继续清理"
-                        : "现场记录已删除，本地副本与同步将在稍后继续"
+                        ? BSLocalization.text("现场记录已删除，部分本地副本将在下次启动继续清理")
+                        : BSLocalization.text("现场记录已删除，本地副本与同步将在稍后继续")
                 )
             } else if !result.didSync {
                 presentToast(.neutral, message: BSLocalization.text("现场记录已删除，同步暂未更新"))
@@ -1003,5 +1013,43 @@ private struct ShowDetailExperienceTile: View {
             RoundedRectangle(cornerRadius: BSRadius.v3Medium)
                 .stroke(BSColor.Stage.border, lineWidth: 1)
         )
+    }
+}
+
+private struct ShowCoverFullscreenPreview: View {
+    let urlString: String?
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
+            ShowCoverImageView(
+                urlString: urlString,
+                aspectRatio: 3.0 / 4.0,
+                contentMode: .fit,
+                enforcesAspectRatio: false
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.vertical, BSSpacing.roomy)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.9))
+                    .frame(width: 34, height: 34)
+                    .background(.black.opacity(0.45), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, BSSpacing.md)
+            .padding(.top, BSSpacing.md)
+            .accessibilityLabel(BSLocalization.text("关闭大图"))
+        }
+        .preferredColorScheme(.dark)
     }
 }

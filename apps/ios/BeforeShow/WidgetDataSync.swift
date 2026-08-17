@@ -176,7 +176,9 @@ actor ShowLiveActivityController {
         let now = request.now
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
 
-        // 封面在窗口内或需要 schedule 时才拉取(LA 小图规格)。
+        // 封面与 Live Activity 窗口解耦:只要当前现场有封面 URL 就维护 widget 缓存。
+        // 之前只在 desired != nil 时下载、否则 prune 全部——现场一越过谢幕边界,
+        // 每次 sync 都把封面删掉,widget 只能靠 extension 里随时可能被掐断的后台下载。
         // 若下载期间来了更新请求,跳过旧请求的 prune / ActivityKit 副作用。
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
@@ -184,14 +186,16 @@ actor ShowLiveActivityController {
             coverFilename: nil
         )
         var coverFilename: String?
-        if desired != nil, let source = snapshot?.coverImageURL {
+        if let source = snapshot?.coverImageURL {
             // App 侧下载是可靠路径;成功后若封面从无到有,主动 reload widget,
             // 避免 extension 下载被掐断后占位图挂到下一次 12h timeline。
             let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             await WidgetCoverCache.refresh(for: source)
             guard request.generation == latestGeneration else { return }
-            coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
             WidgetCoverCache.pruneCovers(except: source)
+            if desired != nil {
+                coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
+            }
             let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
             if !hadWidgetCover, hasWidgetCover {
                 await MainActor.run {
@@ -199,7 +203,7 @@ actor ShowLiveActivityController {
                 }
             }
         } else {
-            // 无封面，或已无可展示现场(取消/结束/nil)时都清理历史缓存。
+            // 已无可展示现场(nil)或现场本身无封面时,清理历史缓存。
             guard request.generation == latestGeneration else { return }
             WidgetCoverCache.pruneCovers(except: nil)
         }
@@ -306,7 +310,7 @@ actor ShowLiveActivityController {
                 do {
                     let alert = AlertConfiguration(
                         title: "开场前",
-                        body: LocalizedStringResource(stringLiteral: "\(state.showName) 倒计时已开始"),
+                        body: LocalizedStringResource("\(state.showName) 倒计时已开始"),
                         sound: .default
                     )
                     _ = try Activity<ShowLiveActivityAttributes>.request(

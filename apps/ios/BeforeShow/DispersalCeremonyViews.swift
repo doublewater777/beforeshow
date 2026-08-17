@@ -54,7 +54,7 @@ struct DispersalLightsOutOverlay: View {
             }
         }
         .accessibilityAddTraits(.isHeader)
-        .accessibilityLabel("散场，这是你的第 \(ordinal) 场现场")
+        .accessibilityLabel(BSLocalization.format("散场，这是你的第 %lld 场现场", ordinal))
     }
 
     private func stage(progress: Double) -> some View {
@@ -66,7 +66,7 @@ struct DispersalLightsOutOverlay: View {
                     .font(.system(size: 42, weight: .light))
                     .tracking(5)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("这是你的第 \(ordinal) 场现场")
+                Text(BSLocalization.format("这是你的第 %lld 场现场", ordinal))
                     .font(.system(size: 13, weight: .medium))
                     .tracking(0.6)
                     .foregroundColor(BSColor.Stage.accent)
@@ -229,7 +229,7 @@ struct DispersalCeremonySheet: View {
             try await onCommit(draftRating, noteToSave)
             step = Self.nextStep(after: .combined, commitSucceeded: true)
         } catch {
-            commitError = "散场评价没有保存，请重试"
+            commitError = BSLocalization.text("散场评价没有保存，请重试")
             step = Self.nextStep(after: .combined, commitSucceeded: false)
         }
         saving = false
@@ -477,7 +477,7 @@ struct DispersalCombinedStep: View {
             BSSurfacePanel {
                 VStack(alignment: .trailing, spacing: BSSpacing.sm) {
                     TextField(
-                        "写下现在最想记住的事……",
+                        BSLocalization.text("写下现在最想记住的事……"),
                         text: $note,
                         axis: .vertical
                     )
@@ -517,7 +517,7 @@ struct DispersalCombinedStep: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("填入：\(preset.text)")
+                    .accessibilityLabel(BSLocalization.format("填入：%@", preset.text))
                 }
             }
         }
@@ -648,7 +648,7 @@ struct DispersalShareStep: View {
             try await FootprintPhotoLibrary.save(image)
             lastError = nil
         } catch {
-            lastError = "保存失败，请检查相册权限"
+            lastError = BSLocalization.text("保存失败，请检查相册权限")
         }
     }
 }

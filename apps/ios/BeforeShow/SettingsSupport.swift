@@ -2,18 +2,21 @@ import Foundation
 import ObjectiveC
 import SwiftData
 import UIKit
+import WidgetKit
 
 enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
     case about = "关于开场前"
+
+    var displayTitle: String { BSLocalization.text(rawValue) }
 }
 
 enum HomeStyle: String, Equatable {
     case halfCover = "half-cover"
 
-    var displayName: String { "半屏封面" }
+    var displayName: String { BSLocalization.text("半屏封面") }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
@@ -27,8 +30,8 @@ enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
     var displayName: String {
         switch self {
         case .system: return BSLocalization.text("跟随系统")
-        case .zhHans: return "简体中文"
-        case .zhHant: return "繁體中文"
+        case .zhHans: return BSLocalization.text("简体中文")
+        case .zhHant: return BSLocalization.text("繁體中文")
         case .en: return "English"
         }
     }
@@ -43,8 +46,25 @@ enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
     }
 
     var bundle: Bundle? {
-        guard self != .system else { return nil }
+        guard self != .system else {
+            return AppLanguage.systemBundle()
+        }
         guard let path = Bundle.main.path(forResource: rawValue, ofType: "lproj") else { return nil }
+        return Bundle(path: path)
+    }
+
+    /// 系统语言对应的 `.lproj` bundle，按当前 `Locale.preferredLanguages` 实时匹配，
+    /// 不依赖 `Bundle.main` 启动时缓存的 localizations。
+    static func systemBundle() -> Bundle? {
+        let supported = Bundle.main.localizations
+        let preferred = Bundle.preferredLocalizations(
+            from: supported,
+            forPreferences: Locale.preferredLanguages
+        )
+        guard let code = preferred.first,
+              let path = Bundle.main.path(forResource: code, ofType: "lproj") else {
+            return nil
+        }
         return Bundle(path: path)
     }
 }
@@ -53,8 +73,9 @@ enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
 ///
 /// `BSLocalization` resolves through `Bundle.main.localizedString`, so swapping
 /// `Bundle.main`'s class for `LanguageSwizzledBundle` makes every lookup hit the
-/// selected `lproj`. `.system` keeps the swizzled class but drops the override
-/// bundle, so lookups fall through to the device language.
+/// selected `lproj`. `.system` resolves the device-language `lproj` explicitly
+/// (via `AppLanguage.systemBundle()`), so switching back from a manual language
+/// takes effect immediately instead of relying on `Bundle.main`'s launch-time choice.
 nonisolated(unsafe) private var languageBundleAssociationKey: UInt8 = 0
 
 private final class LanguageSwizzledBundle: Bundle, @unchecked Sendable {
@@ -80,6 +101,8 @@ enum AppLanguageManager {
             UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
         }
         UserDefaults.standard.set(language.rawValue, forKey: storageKey)
+        // 组件进程读不到 App 私有 defaults，把语言选择同步到 App Group，让组件跟随。
+        UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?.set(language.rawValue, forKey: storageKey)
         object_setClass(Bundle.main, LanguageSwizzledBundle.self)
         objc_setAssociatedObject(
             Bundle.main,
@@ -102,6 +125,8 @@ final class AppLanguageController: ObservableObject {
     func select(_ language: AppLanguage) {
         AppLanguageManager.apply(language)
         self.language = language
+        // 语言变化本身不改变 widget 数据指纹，需要主动刷新让组件按新语言重渲染。
+        WidgetCenter.shared.reloadAllTimelines()
     }
 }
 
@@ -133,7 +158,7 @@ struct SettingsMembershipSummary: Equatable {
     init(entitlement: ProEntitlementState) {
         switch entitlement {
         case .free:
-            self.init(title: BSLocalization.text("免费版"), subtitle: BSLocalization.text("可保存 20 场现场"))
+            self.init(title: BSLocalization.text("免费版"), subtitle: BSLocalization.text("每月可添加 1 场现场"))
         case .active:
             self.init(title: BSLocalization.text("Pro 已启用"), subtitle: BSLocalization.text("可以无限添加现场"))
         case .expired:
@@ -185,8 +210,8 @@ struct AppVersionInformation: Equatable {
 
     init(infoDictionary: [String: Any]) {
         self.init(
-            marketingVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? "未知版本",
-            buildNumber: infoDictionary["CFBundleVersion"] as? String ?? "未知构建"
+            marketingVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? BSLocalization.text("未知版本"),
+            buildNumber: infoDictionary["CFBundleVersion"] as? String ?? BSLocalization.text("未知构建")
         )
     }
 
@@ -200,7 +225,7 @@ struct AppVersionInformation: Equatable {
     }
 
     var compactCopy: String { "v\(marketingVersion)" }
-    var fullCopy: String { "版本 \(marketingVersion)（构建 \(buildNumber)）" }
+    var fullCopy: String { BSLocalization.format("版本 %@（构建 %@）", marketingVersion, buildNumber) }
 }
 
 enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
@@ -209,6 +234,8 @@ enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
     case privacy = "隐私与数据"
 
     var id: String { rawValue }
+
+    var displayTitle: String { BSLocalization.text(rawValue) }
 }
 
 struct FeedbackDiagnostics: Equatable {
@@ -267,13 +294,13 @@ struct FeedbackPayloadBuilder {
 struct FeedbackShareTextBuilder {
     func build(from payload: FeedbackPayload) -> String {
         var text = [
-            "类型：\(payload.category.rawValue)",
-            "反馈：\(payload.message)"
+            BSLocalization.format("类型：%@", payload.category.displayTitle),
+            BSLocalization.format("反馈：%@", payload.message)
         ].joined(separator: "\n")
 
         if let diagnostics = payload.diagnostics {
             text += "\n\n" +
-                "诊断信息\nApp 版本：\(diagnostics.appVersion)\n系统版本：\(diagnostics.osVersion)"
+                BSLocalization.format("诊断信息\nApp 版本：%@\n系统版本：%@", diagnostics.appVersion, diagnostics.osVersion)
         }
 
         return text

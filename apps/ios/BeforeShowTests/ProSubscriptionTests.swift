@@ -61,21 +61,38 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
-    func testProGateAllowsTwentyFreeShows() {
+    func testProGateAllowsOneFreeShowPerMonth() {
         let gate = ProFeatureGate()
         let proEntitlement = ProEntitlementState.active(
             productID: ProSubscriptionCatalog.yearlyProductID,
             expirationDate: nil
         )
 
-        XCTAssertTrue(gate.canAddShow(savedShowCount: 0, entitlement: .free))
-        XCTAssertTrue(gate.canAddShow(savedShowCount: 19, entitlement: .free))
-        XCTAssertFalse(gate.canAddShow(savedShowCount: 20, entitlement: .free))
-        XCTAssertTrue(gate.canAddShow(savedShowCount: 100, entitlement: proEntitlement))
+        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: .free))
+        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 100, entitlement: proEntitlement))
+    }
+
+    func testProGateCountsOnlyShowsCreatedInCurrentCalendarMonth() {
+        let gate = ProFeatureGate()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
+        let sameMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
+        let previousMonth = Date(timeIntervalSince1970: 1_784_000_000) // 2026-07-14 UTC
+
+        XCTAssertEqual(
+            gate.showsAddedThisMonth(
+                from: [sameMonth, sameMonth, previousMonth],
+                now: now,
+                calendar: calendar
+            ),
+            2
+        )
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
-        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版可保存 20 场现场")
+        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版每月可添加 1 场现场")
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
 
     }
@@ -101,14 +118,14 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(expired.isProActive)
         XCTAssertTrue(gate.canAccessExistingLocalData(entitlement: expired))
         XCTAssertTrue(gate.canEditManualContent(entitlement: expired))
-        XCTAssertTrue(gate.canAddShow(savedShowCount: 19, entitlement: expired))
-        XCTAssertFalse(gate.canAddShow(savedShowCount: 20, entitlement: expired))
+        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: expired))
+        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: expired))
     }
 
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .free),
-            SettingsMembershipSummary(title: "免费版", subtitle: "可保存 20 场现场")
+            SettingsMembershipSummary(title: "免费版", subtitle: "每月可添加 1 场现场")
         )
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
@@ -254,5 +271,90 @@ final class ProSubscriptionTests: XCTestCase {
         } catch {
             XCTFail("Expected ProSubscriptionError")
         }
+    }
+
+    func testPaywallCopyResolvesInEnglishAndTraditionalChinese() {
+        let keys = [
+            "订阅月度 Pro · %@",
+            "订阅年度 Pro · %@",
+            "买断终身 Pro · %@",
+            "以特惠价解锁 Pro · %@",
+            "暂时不要",
+            "再想一下？",
+            "限时优惠 · 最高 40% OFF",
+            "价格暂不可用",
+            "推荐",
+            "无限添加现场",
+            "按月订阅，随时取消",
+            "一次买断，永久有效"
+        ]
+
+        for code in ["en", "zh-Hant"] {
+            guard let path = Bundle.main.path(forResource: code, ofType: "lproj"),
+                  let tablePath = Bundle(path: path)?.path(forResource: "Localizable", ofType: "strings"),
+                  let table = NSDictionary(contentsOfFile: tablePath) as? [String: String] else {
+                XCTFail("Missing \(code) Localizable.strings in app bundle")
+                continue
+            }
+            for key in keys {
+                XCTAssertNotNil(table[key], "\(key) missing from \(code) Localizable.strings")
+            }
+        }
+    }
+
+    func testFollowingSystemLanguageDropsManualOverrideImmediately() {
+        let originalAppLanguage = UserDefaults.standard.string(forKey: AppLanguageManager.storageKey)
+        let originalAppleLanguages = UserDefaults.standard.array(forKey: "AppleLanguages")
+        // apply() 会把语言选择同步到 App Group(供组件进程读取),同样要还原,
+        // 否则测试残留会让模拟器上的 widget 一直按最后一次 apply 的语言渲染。
+        let groupDefaults = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)
+        let originalGroupLanguage = groupDefaults?.string(forKey: AppLanguageManager.storageKey)
+        defer {
+            if let originalAppleLanguages {
+                UserDefaults.standard.set(originalAppleLanguages, forKey: "AppleLanguages")
+            } else {
+                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+            }
+            if let originalAppLanguage {
+                UserDefaults.standard.set(originalAppLanguage, forKey: AppLanguageManager.storageKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: AppLanguageManager.storageKey)
+            }
+            if let originalGroupLanguage {
+                groupDefaults?.set(originalGroupLanguage, forKey: AppLanguageManager.storageKey)
+            } else {
+                groupDefaults?.removeObject(forKey: AppLanguageManager.storageKey)
+            }
+        }
+
+        AppLanguageManager.apply(.zhHant)
+        XCTAssertEqual(BSLocalization.text("跟随系统"), "跟隨系統")
+
+        AppLanguageManager.apply(.en)
+        XCTAssertEqual(BSLocalization.text("跟随系统"), "Follow System")
+
+        // 切回「跟随系统」后应实时落到系统语言，而不是继续停留在手动语言。
+        AppLanguageManager.apply(.system)
+        XCTAssertNotEqual(BSLocalization.text("跟随系统"), "跟隨系統")
+        XCTAssertEqual(
+            BSLocalization.text("跟随系统"),
+            AppLanguage.systemBundle()?.localizedString(forKey: "跟随系统", value: nil, table: nil)
+        )
+    }
+
+    func testSystemLanguageResolvesToASupportedLocalizationBundle() {
+        XCTAssertNotNil(AppLanguage.system.bundle)
+        let resolved = AppLanguage.system.bundle?.preferredLocalizations.first
+        XCTAssertTrue(["zh-Hans", "zh-Hant", "en"].contains(resolved), "resolved \(resolved ?? "nil")")
+    }
+
+    func testCatalogReferenceProductsAreNotPurchasablePlaceholders() {
+        XCTAssertTrue(ProSubscriptionCatalog.defaultProducts.allSatisfy { !$0.isAvailable })
+    }
+
+    func testMockStoreMarksLoadedProductsAvailable() async throws {
+        let products = try await MockProSubscriptionStore().loadProducts()
+        XCTAssertEqual(products.count, 5)
+        XCTAssertTrue(products.allSatisfy(\.isAvailable))
     }
 }

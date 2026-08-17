@@ -73,7 +73,7 @@ struct MyShowsListView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("\(currentShow.name)，当前现场，查看详情")
+                                .accessibilityLabel(BSLocalization.format("%@，当前现场，查看详情", currentShow.name))
                             }
 
                             showGroup(title: BSLocalization.text("即将开始"), shows: upcomingShows, allowsInlineSetCurrent: true)
@@ -789,9 +789,9 @@ struct CurrentShowLibraryManagementView: View {
         }
         .alert("删除这场现场？", isPresented: deleteAlertBinding, presenting: deleteTarget) { show in
             Button("删除记录", role: .destructive) { delete(show) }
-            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button(BSLocalization.text("取消"), role: .cancel) { deleteTarget = nil }
         } message: { show in
-            Text("“\(show.name)”删除后无法恢复，也会从足迹统计中移除。")
+            Text(BSLocalization.format("“%@”删除后无法恢复，也会从足迹统计中移除。", show.name))
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
@@ -817,7 +817,7 @@ struct CurrentShowLibraryManagementView: View {
         HStack(spacing: 4) {
             ForEach(CurrentShowLibraryFilter.allCases) { item in
                 Button { filter = item } label: {
-                    Text("\(item.rawValue) \(count(for: item))")
+                    Text("\(BSLocalization.text(item.rawValue)) \(count(for: item))")
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
                         .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)
@@ -841,7 +841,7 @@ struct CurrentShowLibraryManagementView: View {
                     .tracking(1.3)
                     .foregroundColor(BSColor.Stage.muted)
                 Spacer()
-                Text("\(section.shows.count) 场")
+                Text(BSLocalization.format("%lld 场", section.shows.count))
                     .font(.system(size: 11))
                     .foregroundColor(BSColor.Stage.dim)
             }
@@ -1040,9 +1040,9 @@ struct CurrentShowLibraryManagementView: View {
                     result.hasPendingMediaCleanup || !result.didSync ? .neutral : .success,
                     message: result.hasPendingMediaCleanup
                         ? (result.didSync
-                            ? "现场记录已删除，部分本地副本将在下次启动继续清理"
-                            : "现场记录已删除，本地副本与同步将在稍后继续")
-                        : (result.didSync ? "已删除现场" : "现场记录已删除，同步暂未更新")
+                            ? BSLocalization.text("现场记录已删除，部分本地副本将在下次启动继续清理")
+                            : BSLocalization.text("现场记录已删除，本地副本与同步将在稍后继续"))
+                        : (result.didSync ? BSLocalization.text("已删除现场") : BSLocalization.text("现场记录已删除，同步暂未更新"))
                 )
             } catch {
                 modelContext.rollback()
@@ -1108,7 +1108,7 @@ private struct CurrentShowLibraryRow: View {
                     Button(role: action.isDestructive ? .destructive : nil) {
                         onAction(action)
                     } label: {
-                        Label(action.rawValue, systemImage: action.icon)
+                        Label(BSLocalization.text(action.rawValue), systemImage: action.icon)
                     }
                 }
             } label: {
@@ -1118,7 +1118,7 @@ private struct CurrentShowLibraryRow: View {
                     .frame(width: 38, height: 38)
                     .background(Color.white.opacity(0.055), in: Circle())
             }
-            .accessibilityLabel("管理 \(show.name)")
+            .accessibilityLabel(BSLocalization.format("管理 %@", show.name))
             .padding(.trailing, 11)
         }
         .background(BSColor.Stage.surface)

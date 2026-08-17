@@ -126,7 +126,7 @@ final class CompanionSharingCoordinator {
                 participantDisplayName: participantDisplayName
             )
             try applyAcceptedSession(session, in: modelContext)
-            pendingAcceptMessage = "已与\(session.ownerDisplayName ?? "朋友")确认同行"
+            pendingAcceptMessage = BSLocalization.format("已与%@确认同行", session.ownerDisplayName ?? BSLocalization.text("朋友"))
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
@@ -308,7 +308,7 @@ final class CompanionSharingCoordinator {
                 // The only accepted participant disappeared. Close the root and revoke the
                 // remaining share so the owner does not keep a phantom confirmed relationship.
                 try await cancelCompanion(for: show, in: modelContext)
-                lastErrorMessage = "同行者已退出，同行关系已取消"
+                lastErrorMessage = BSLocalization.text("同行者已退出，同行关系已取消")
                 lastErrorKind = .permissionDenied
                 return
             }

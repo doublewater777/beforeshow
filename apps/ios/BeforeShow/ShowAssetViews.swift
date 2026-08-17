@@ -65,9 +65,7 @@ struct ShowAssetSheet: View {
                         asset: asset
                     )
                     .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("取消") { dismiss() }
-                        }
+                        BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
                     }
                     .bsClearNavigationContainer()
                 }
@@ -248,13 +246,13 @@ struct ShowAssetUploadView: View {
     private var isSaving: Bool { operation.isSaving }
 
     private var editorTitle: String {
-        replacingAsset == nil ? kind.addTitle : "替换\(kind.title)"
+        replacingAsset == nil ? kind.addTitle : BSLocalization.format("替换%@", kind.title)
     }
 
     private var editorDescription: String {
         replacingAsset == nil
             ? kind.addDescription
-            : "选择一张新的\(kind.choosePrompt)，替换当前保存的图片。"
+            : BSLocalization.format("选择一张新的%@，替换当前保存的图片。", kind.choosePrompt)
     }
 
     private var emptyUploadSection: some View {
@@ -275,7 +273,7 @@ struct ShowAssetUploadView: View {
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isImporting || isSaving)
-            .accessibilityLabel("选择\(kind.title)图片")
+            .accessibilityLabel(BSLocalization.format("选择%@图片", kind.title))
         }
         .frame(maxWidth: .infinity)
     }
@@ -310,7 +308,7 @@ struct ShowAssetUploadView: View {
                         ProgressView()
                             .frame(maxWidth: .infinity)
                     } else {
-                        Label("保存\(kind.title)", systemImage: "square.and.arrow.down")
+                        Label(BSLocalization.format("保存%@", kind.title), systemImage: "square.and.arrow.down")
                     }
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
@@ -443,8 +441,8 @@ struct ShowAssetUploadView: View {
             presentToast(
                 cleanupPending ? .neutral : .success,
                 message: cleanupPending
-                    ? "\(kind.title)已保存，旧图片将在下次启动继续清理"
-                    : "\(kind.title)已保存"
+                    ? BSLocalization.format("%@已保存，旧图片将在下次启动继续清理", kind.title)
+                    : BSLocalization.format("%@已保存", kind.title)
             )
             if replacingAsset != nil {
                 try? await Task.sleep(nanoseconds: 350_000_000)
@@ -663,10 +661,10 @@ struct ShowAssetViewerView: View {
             Spacer()
 
             Menu {
-                Button("替换图片") {
+                Button(BSLocalization.text("替换图片")) {
                     isReplacing = true
                 }
-                Button("删除\(kind.title)", role: .destructive) {
+                Button(BSLocalization.format("删除%@", kind.title), role: .destructive) {
                     isConfirmingDelete = true
                 }
             } label: {
@@ -678,7 +676,7 @@ struct ShowAssetViewerView: View {
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
             }
-            .accessibilityLabel("管理\(kind.title)")
+            .accessibilityLabel(BSLocalization.format("管理%@", kind.title))
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -786,10 +784,10 @@ struct ShowAssetViewerView: View {
                     presentToast(
                         invalidPath || cleanupPending ? .neutral : .success,
                         message: invalidPath
-                            ? "\(kind.title)记录已删除，异常图片将在下次启动整理"
+                            ? BSLocalization.format("%@记录已删除，异常图片将在下次启动整理", kind.title)
                             : cleanupPending
-                            ? "\(kind.title)记录已删除，图片将在下次启动继续清理"
-                            : "\(kind.title)已删除"
+                            ? BSLocalization.format("%@记录已删除，图片将在下次启动继续清理", kind.title)
+                            : BSLocalization.format("%@已删除", kind.title)
                     )
                     try? await Task.sleep(nanoseconds: 350_000_000)
                     dismiss()

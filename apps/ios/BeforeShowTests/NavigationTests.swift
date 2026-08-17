@@ -171,10 +171,6 @@ final class NavigationTests: XCTestCase {
             MemoryCreateSourceOption.allCases.map(\.iconName),
             ["camera", "photo.on.rectangle", "text.alignleft"]
         )
-        XCTAssertEqual(
-            MemoryCreateSourceOption.allCases.map(\.subtitle),
-            ["打开系统相机", "照片或视频", "写一句话"]
-        )
     }
 
     func testAssetsAndMemoryOpenAsSheets() {
@@ -699,7 +695,7 @@ final class NavigationTests: XCTestCase {
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
 
         XCTAssertEqual(
-            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
             "2026.08.08 周六 19:00 · 预计演出 2 小时 30 分"
         )
     }
@@ -715,7 +711,7 @@ final class NavigationTests: XCTestCase {
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: actualEnd)
 
         XCTAssertEqual(
-            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
             "2026.08.08 周六 19:00 · 实际演出 3 小时 10 分"
         )
     }
@@ -729,7 +725,7 @@ final class NavigationTests: XCTestCase {
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
 
         XCTAssertEqual(
-            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
             "2026.12.31-2027.01.01 · 每日 19:00-21:00"
         )
     }

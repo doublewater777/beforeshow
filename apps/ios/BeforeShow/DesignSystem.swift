@@ -77,6 +77,9 @@ enum BSColor {
 
         /// Warm tungsten gold — home primary accent (#E8C78E).
         static let accent = Color(red: 0.910, green: 0.780, blue: 0.557)
+        /// Countdown hero 色温递进:远场奶白 (#F5EFE2) → 当天暖金 (#F0DCB6) → <1h 用 accent。
+        static let heroIvory = Color(red: 0.961, green: 0.937, blue: 0.886)
+        static let heroWarmGold = Color(red: 0.941, green: 0.863, blue: 0.714)
         /// Cool blue stage-light tone (#527FC9).
         static let glowBlue = Color(red: 0.322, green: 0.498, blue: 0.788)
         /// 出门清单 card tone (#7B678F).

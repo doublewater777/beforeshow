@@ -115,9 +115,7 @@ struct AddShowCoordinatorSheet: View {
             .navigationTitle("添加现场")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
+                BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
             }
             .navigationDestination(item: $selectedSheet) { sheet in
                 AddShowFlowView(
@@ -401,7 +399,7 @@ struct AddShowFlowView: View {
         .navigationTitle(flowNavTitle)
         .navigationBarTitleDisplayMode(.inline)
         .preferredColorScheme(.dark)
-        .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
+        .environment(\.locale, AppLanguageManager.persisted.locale)
         .onChange(of: selectedScreenshotItem) { _, newItem in
             guard let newItem else { return }
             beginImportTask {
@@ -542,7 +540,7 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
 
-                    Text("目前支持：\(ShowLinkPlatformCatalog.supportSummary)")
+                    Text(BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary))
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -825,7 +823,7 @@ struct AddShowFlowView: View {
                 draft.source = .manual
                 hasImportedDraft = false
                 showsManualFallback = true
-                message = "没有读到这张截图，请改用手动填写。"
+                message = BSLocalization.text("没有读到这张截图，请改用手动填写。")
                 presentToast(.failure, message: BSLocalization.text("读取失败"))
                 return
             }
@@ -848,9 +846,9 @@ struct AddShowFlowView: View {
             fallbackDateConfirmed = false
             if !recognized.recognizedFields.contains(.date) {
                 // OCR 日期回退为当天不算识别成功，必须引导用户确认
-                message = "截图里没有识别到日期，已先填今天，请改成实际开场日期。"
+                message = BSLocalization.text("截图里没有识别到日期，已先填今天，请改成实际开场日期。")
             } else if recognized.startTime == nil {
-                message = "已识别部分信息，请确认日期并补充开场时间。"
+                message = BSLocalization.text("已识别部分信息，请确认日期并补充开场时间。")
             } else {
                 message = nil
             }
@@ -863,7 +861,7 @@ struct AddShowFlowView: View {
             draft.source = .manual
             hasImportedDraft = false
             showsManualFallback = true
-            message = "没有识别到可用的现场信息，请改用手动填写。"
+            message = BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。")
             presentToast(.failure, message: BSLocalization.text("识别失败"))
         }
     }
@@ -895,7 +893,7 @@ struct AddShowFlowView: View {
             importRevision += 1
             fallbackDateConfirmed = false
             message = draft.startTime == nil
-                ? "链接里没有明确开场时间，请确认后再添加。"
+                ? BSLocalization.text("链接里没有明确开场时间，请确认后再添加。")
                 : nil
             presentToast(.success, message: BSLocalization.text("解析完成"))
         } catch is CancellationError {
@@ -923,7 +921,9 @@ struct AddShowFlowView: View {
 
         do {
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
-            guard ProFeatureGate().canAddShow(savedShowCount: shows.count, entitlement: entitlement) else {
+            let gate = ProFeatureGate()
+            let addedThisMonth = gate.showsAddedThisMonth(from: shows.map(\.createdAt))
+            guard gate.canAddShow(showsAddedThisMonth: addedThisMonth, entitlement: entitlement) else {
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))
                 isSaving = false
@@ -951,24 +951,24 @@ struct AddShowFlowView: View {
                 dismiss()
             }
         } catch ShowValidationError.invalidEndTime {
-            message = "结束时间需要晚于开始时间。"
+            message = BSLocalization.text("结束时间需要晚于开始时间。")
             presentToast(.failure, message: BSLocalization.text("时间范围无效"))
             isSaving = false
         } catch ShowValidationError.missingStartTime {
-            message = "请确认开场时间。"
+            message = BSLocalization.text("请确认开场时间。")
             presentToast(.failure, message: BSLocalization.text("还缺开场时间"))
             isSaving = false
         } catch ShowValidationError.emptyName {
-            message = "请填写现场名称。"
+            message = BSLocalization.text("请填写现场名称。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
         } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
-            message = "补录历史仅支持已经结束的现场。"
+            message = BSLocalization.text("补录历史仅支持已经结束的现场。")
             presentToast(.failure, message: BSLocalization.text("日期还未结束"))
             isSaving = false
         } catch {
             modelContext.rollback()
-            message = "请填写必填信息。"
+            message = BSLocalization.text("请填写必填信息。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
         }
@@ -1212,7 +1212,7 @@ struct ShowDraftEditorView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .environment(\.locale, Locale(identifier: "zh_Hans_CN"))
+        .environment(\.locale, AppLanguageManager.persisted.locale)
         .interactiveDismissDisabled(hasUnsavedChanges || isSaving || isApplyingStatus)
         .onChange(of: draft) { _, _ in
             message = nil
@@ -1282,10 +1282,7 @@ struct ShowDraftEditorView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button("取消") { requestDismiss() }
-                    .accessibilityLabel("取消编辑")
-            }
+            BSChromeToolbarCloseButton(accessibilityLabel: "取消编辑") { requestDismiss() }
         }
         }
     }
@@ -1341,14 +1338,15 @@ struct ShowDraftEditorView: View {
 
     private var summaryDateText: String {
         let calendar = draft.timingCalendar()
+        let locale = AppLanguageManager.persisted.locale
         let dateFormatter = DateFormatter()
-        dateFormatter.locale = Locale(identifier: "zh_Hans_CN")
-        dateFormatter.dateFormat = "M月d日"
+        dateFormatter.locale = locale
+        dateFormatter.dateFormat = DateFormatter.dateFormat(fromTemplate: "Md", options: 0, locale: locale)
         dateFormatter.timeZone = calendar.timeZone
-        var text = (isPostponed ? "原定 " : "") + dateFormatter.string(from: draft.date)
+        var text = (isPostponed ? BSLocalization.text("原定 ") : "") + dateFormatter.string(from: draft.date)
         if let startTime = draft.startTime {
             let timeFormatter = DateFormatter()
-            timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+            timeFormatter.locale = locale
             timeFormatter.dateFormat = "HH:mm"
             timeFormatter.timeZone = calendar.timeZone
             text += " " + timeFormatter.string(from: startTime)
@@ -1659,7 +1657,7 @@ struct ShowDraftEditorView: View {
     private func save() async {
         guard !isSaving else { return }
         guard draft.hasValidEndTime() else {
-            message = "结束时间需晚于开始时间，请修正后保存"
+            message = BSLocalization.text("结束时间需晚于开始时间，请修正后保存")
             return
         }
 
@@ -1673,7 +1671,7 @@ struct ShowDraftEditorView: View {
             didSave = true
             dismiss()
         } catch {
-            message = "没有保存成功，请重试。你的修改仍保留在这里。"
+            message = BSLocalization.text("没有保存成功，请重试。你的修改仍保留在这里。")
             isSaving = false
         }
     }
@@ -1702,6 +1700,7 @@ private struct ShowDraftFormFields: View {
     @State private var selectedCoverItem: PhotosPickerItem?
     @State private var isImportingCover = false
     @State private var coverImportMessage: String?
+    @State private var coverImportFailed = false
     @State private var showsLinkField = false
 
     /// 「已识别」标记只读字段级 provenance，不按字段是否有值推断。
@@ -1975,7 +1974,8 @@ private struct ShowDraftFormFields: View {
                     selectedItem: $selectedCoverItem,
                     showsLinkField: $showsLinkField,
                     isImporting: isImportingCover,
-                    message: coverImportMessage
+                    message: coverImportMessage,
+                    messageIsError: coverImportFailed
                 )
 
                 if showsLinkField {
@@ -2042,6 +2042,7 @@ private struct ShowDraftFormFields: View {
     private func importCover(from item: PhotosPickerItem) async {
         isImportingCover = true
         coverImportMessage = nil
+        coverImportFailed = false
         defer {
             isImportingCover = false
             selectedCoverItem = nil
@@ -2051,7 +2052,8 @@ private struct ShowDraftFormFields: View {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let image = UIImage(data: data),
                   let jpegData = image.jpegData(compressionQuality: 0.86) else {
-                coverImportMessage = "没有读到这张图片"
+                coverImportMessage = BSLocalization.text("没有读到这张图片")
+                coverImportFailed = true
                 return
             }
 
@@ -2061,9 +2063,10 @@ private struct ShowDraftFormFields: View {
             let previousURL = draft.coverImageURL
             draft.coverImageURL = fileURL.absoluteString
             onCoverImported(previousURL, draft.coverImageURL)
-            coverImportMessage = "已换成本地封面"
+            coverImportMessage = BSLocalization.text("已换成本地封面")
         } catch {
-            coverImportMessage = "封面图导入失败"
+            coverImportMessage = BSLocalization.text("封面图导入失败")
+            coverImportFailed = true
         }
     }
 }
@@ -2393,6 +2396,7 @@ private struct AddShowCoverActions: View {
     @Binding var showsLinkField: Bool
     let isImporting: Bool
     let message: String?
+    let messageIsError: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -2428,11 +2432,7 @@ private struct AddShowCoverActions: View {
             if let message, !message.isEmpty {
                 Text(message)
                     .font(BSFont.caption)
-                    .foregroundColor(
-                        message.contains("失败") || message.contains("没有")
-                            ? BSColor.Accent.danger
-                            : BSColor.Accent.prepare
-                    )
+                    .foregroundColor(messageIsError ? BSColor.Accent.danger : BSColor.Accent.prepare)
             }
         }
     }
@@ -2674,7 +2674,7 @@ private struct AddShowImportedBanner: View {
     let source: AddShowSheet
 
     private var sourceName: String {
-        source == .link ? "链接" : "截图"
+        source == .link ? BSLocalization.text("链接") : BSLocalization.text("截图")
     }
 
     var body: some View {
@@ -2683,7 +2683,7 @@ private struct AddShowImportedBanner: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(BSColor.Accent.prepare)
 
-            Text("已从\(sourceName)识别出信息，请核对；金色标出的还需补充。")
+            Text(BSLocalization.format("已从%@识别出信息，请核对；金色标出的还需补充。", sourceName))
                 .font(.system(size: 12.5))
                 .foregroundColor(Color(red: 0.79, green: 0.92, blue: 0.87))
                 .lineSpacing(3)
@@ -2715,7 +2715,7 @@ private struct AddShowOCRStepsView: View {
     /// 当前进行中的步骤（1...4）；0 表示未开始。
     let activeStep: Int
 
-    private let steps = ["读取截图", "提取文字", "整理现场信息", "生成可编辑草稿"]
+    private let steps = [BSLocalization.text("读取截图"), BSLocalization.text("提取文字"), BSLocalization.text("整理现场信息"), BSLocalization.text("生成可编辑草稿")]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -3060,7 +3060,7 @@ private struct ArtistInputRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                TextField("艺人名称", text: $name)
+                TextField(BSLocalization.text("艺人名称"), text: $name)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(size: 15, weight: .regular))

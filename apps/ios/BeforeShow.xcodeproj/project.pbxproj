@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		006C52B3ADEEF3D12108EE95 /* ShowCoverLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB7334C72BD3BCF80D90BE2E /* ShowCoverLifecycleTests.swift */; };
+		034C04E99164EAFF15B423B3 /* WidgetLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7855927C9CCEEA6D97CF85E6 /* WidgetLanguage.swift */; };
 		0680B0F4DCCA5ED3CA8201A2 /* WidgetCoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */; };
 		0748C5592484B1591075BD93 /* CurrentShowEndPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5824EA0E534802C56ED70E8A /* CurrentShowEndPolicy.swift */; };
 		0A4A94FE473E9332A5959388 /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 6DA81F9F6F739CF4E806746A /* Localizable.strings */; };
@@ -215,6 +216,7 @@
 		711E15D7D9CF1B31D0EC3287 /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/Localizable.strings"; sourceTree = "<group>"; };
 		74C64589886C6435640E402F /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		7641CE787498F655D71C04DD /* ShowDraftImportMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftImportMergeTests.swift; sourceTree = "<group>"; };
+		7855927C9CCEEA6D97CF85E6 /* WidgetLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLanguage.swift; sourceTree = "<group>"; };
 		7858D91A6D9F686852707D0C /* MemoryFragmentMediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryFragmentMediaStore.swift; sourceTree = "<group>"; };
 		7B46048CB6FE0401F7494316 /* BeforeShowWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = BeforeShowWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		81EDA0FCD8E5ED275E917D41 /* FootprintDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailView.swift; sourceTree = "<group>"; };
@@ -465,13 +467,14 @@
 				2ACF97DF4FB82150D04E8ED3 /* CountdownWidget.swift */,
 				6B4598A90A4B87490D2AB557 /* CountdownWidgetViews.swift */,
 				93756E7EEFF577D4B2A54093 /* ShowLiveActivity.swift */,
+				7855927C9CCEEA6D97CF85E6 /* WidgetLanguage.swift */,
 				D63526AD380594D0F78FAEDA /* Resources */,
 				5965430D7BB8B89CFD8B854D /* Supporting */,
 			);
 			path = BeforeShowWidgets;
 			sourceTree = "<group>";
 		};
-		"TEMP_75C05732-EAA5-412D-84D3-49F0E523D5DB" /* prototypes */ = {
+		"TEMP_A009D692-7869-493E-941A-E7372AC9CC2E" /* prototypes */ = {
 			isa = PBXGroup;
 			children = (
 			);
@@ -733,6 +736,7 @@
 				8245DA7CF2D917097ED185AA /* ShowLiveActivityAttributes.swift in Sources */,
 				CCEC11CAC80F6EF000172B2C /* ShowTimingFields.swift in Sources */,
 				0680B0F4DCCA5ED3CA8201A2 /* WidgetCoverCache.swift in Sources */,
+				034C04E99164EAFF15B423B3 /* WidgetLanguage.swift in Sources */,
 				632162FBDC297B15A3177ABA /* WidgetShowSnapshot.swift in Sources */,
 				139793E7F8784E714606B08D /* WidgetTimelinePlanner.swift in Sources */,
 			);
