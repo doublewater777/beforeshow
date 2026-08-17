@@ -181,12 +181,12 @@ struct FootprintMemoryShareCard: View {
     }
 
     private var cardIdentities: [String] {
-        var result = ["第 \(identity.showOrdinal) 场现场"]
+        var result = [BSLocalization.format("第 %lld 场现场", identity.showOrdinal)]
         if let name = identity.companionName,
            let ordinal = identity.companionOrdinal {
-            result.append("与\(name)第 \(ordinal) 次见面")
+            result.append(BSLocalization.format("与%@第 %lld 次见面", name, ordinal))
         } else if let cityOrdinal = identity.cityOrdinal {
-            result.append("城市第 \(cityOrdinal) 场")
+            result.append(BSLocalization.format("城市第 %lld 场", cityOrdinal))
         }
         return Array(result.prefix(2))
     }

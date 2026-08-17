@@ -92,13 +92,13 @@ struct FootprintShareComposerView: View {
                     .overlay(Circle().stroke(BSColor.Stage.border))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("取消分享")
+            .accessibilityLabel(BSLocalization.text("取消分享"))
             Spacer()
             VStack(spacing: 2) {
-                Text("分享编辑器")
+                Text(BSLocalization.text("分享编辑器"))
                     .font(BSFont.headline)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("选择 1–3 个画面")
+                Text(BSLocalization.text("选择 1–3 个画面"))
                     .font(BSFont.V3.caption)
                     .foregroundColor(BSColor.Stage.dim)
             }
@@ -134,7 +134,7 @@ struct FootprintShareComposerView: View {
     private var selectionSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             HStack(alignment: .firstTextBaseline) {
-                Text("选择画面")
+                Text(BSLocalization.text("选择画面"))
                     .font(BSFont.headline)
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
@@ -156,7 +156,7 @@ struct FootprintShareComposerView: View {
                 }
             }
 
-            Text(selected.isEmpty ? "至少选择一个画面" : "成品会按记忆时间排列，票根与时刻表排在最后。")
+            Text(selected.isEmpty ? BSLocalization.text("至少选择一个画面") : BSLocalization.text("成品会按记忆时间排列，票根与时刻表排在最后。"))
                 .font(BSFont.V3.caption)
                 .foregroundColor(selected.isEmpty ? BSColor.Stage.danger : BSColor.Stage.dim)
         }
@@ -229,10 +229,10 @@ struct FootprintShareComposerView: View {
                 .foregroundColor(BSColor.Accent.warm)
                 .padding(.top, BSSpacing.xs)
             VStack(alignment: .leading, spacing: 4) {
-                Text("分享票根前请检查")
+                Text(BSLocalization.text("分享票根前请检查"))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("确认画面中没有二维码、订单号及其他个人信息。")
+                Text(BSLocalization.text("确认画面中没有二维码、订单号及其他个人信息。"))
                     .font(BSFont.V3.caption)
                     .foregroundColor(BSColor.Stage.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -252,7 +252,7 @@ struct FootprintShareComposerView: View {
 
     private var shareAction: some View {
         Button { renderAndShare() } label: {
-            Label("分享图片", systemImage: "square.and.arrow.up")
+            Label(BSLocalization.text("分享图片"), systemImage: "square.and.arrow.up")
                 .font(BSFont.caption.weight(.semibold))
                 .foregroundColor(selected.isEmpty ? BSColor.Stage.dim : BSColor.Stage.background)
                 .frame(maxWidth: .infinity)
@@ -264,7 +264,7 @@ struct FootprintShareComposerView: View {
         }
         .buttonStyle(.plain)
         .disabled(selected.isEmpty)
-        .accessibilityHint(selected.isEmpty ? "至少选择一个画面" : "生成 PNG 并打开系统分享")
+        .accessibilityHint(selected.isEmpty ? BSLocalization.text("至少选择一个画面") : BSLocalization.text("生成 PNG 并打开系统分享"))
     }
 
     private func toggle(_ material: FootprintShareMaterial) {
@@ -273,7 +273,7 @@ struct FootprintShareComposerView: View {
             return
         }
         guard let next = FootprintShareSelectionPolicy.selectionByAdding(material.id, to: selected) else {
-            presentToast(.failure, "最多选择 3 个画面")
+            presentToast(.failure, BSLocalization.text("最多选择 3 个画面"))
             return
         }
         selected = next
@@ -292,7 +292,7 @@ struct FootprintShareComposerView: View {
     @MainActor
     private func renderAndShare() {
         guard !selected.isEmpty else {
-            presentToast(.failure, "至少选择一个画面")
+            presentToast(.failure, BSLocalization.text("至少选择一个画面"))
             return
         }
 
@@ -317,7 +317,7 @@ struct FootprintShareComposerView: View {
               image.cgImage?.width == FootprintShareComposerTokens.outputWidth,
               image.cgImage?.height == FootprintShareComposerTokens.outputHeight,
               let data = image.pngData() else {
-            presentToast(.failure, "分享图片生成失败，请重试")
+            presentToast(.failure, BSLocalization.text("分享图片生成失败，请重试"))
             return
         }
 
@@ -327,11 +327,11 @@ struct FootprintShareComposerView: View {
             try data.write(to: url, options: .atomic)
             guard SystemPNGSharePresenter.present(url: url) else {
                 try? FileManager.default.removeItem(at: url)
-                presentToast(.failure, "系统分享面板暂时无法打开")
+                presentToast(.failure, BSLocalization.text("系统分享面板暂时无法打开"))
                 return
             }
         } catch {
-            presentToast(.failure, "分享图片生成失败，请重试")
+            presentToast(.failure, BSLocalization.text("分享图片生成失败，请重试"))
         }
     }
 

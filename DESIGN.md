@@ -114,7 +114,8 @@ Typography should feel editorial and deliberate while remaining native and legib
 
 | Level | iOS size | Weight | Line height | Tracking | Usage |
 |---|---:|---:|---:|---:|---|
-| Countdown | 80 | 300 | 0.95 | -1.0 | Days/state number |
+| Countdown days | 72 | 200 | 0.94 | -1.5 | Far hero, `heroIvory` 奶白 |
+| Countdown clock | 64 | 400 → 600 | 1.0 | -1.0 | <24h `HH:MM` 暖金；<1h `MM:SS` accent + 光晕 |
 | Display | 40 | 400 | 1.12 | -0.6 | Onboarding promise |
 | H1 | 28 | 600 | 1.2 | -0.3 | Sheet/page title |
 | H2 | 22 | 600 | 1.3 | -0.1 | Section heading |
@@ -190,6 +191,7 @@ All spacing derives from 4pt.
 - **Structure:** tabular number or state phrase, unit, one supporting line.
 - **Variants:** before, today, ended, postponed, canceled.
 - **States:** static after arrival; never loops.
+- **Crescendo ramp:** visual intensity rises as the show approaches — far days stay calm (`heroIvory`, ultraLight), the same-day clock turns warm gold and drops seconds (`HH:MM`), and the final hour switches to `MM:SS` in `accent` with a glow.
 - **Accessibility:** read as one phrase, for example “距离开场还有 1 天”.
 - **Motion:** one arrival transition when a show becomes current.
 

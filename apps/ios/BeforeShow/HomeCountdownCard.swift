@@ -36,8 +36,9 @@ enum HomeCountdownPresentationPolicy {
                 guard let total = remainingSeconds(to: timeState.effectiveStartTime, from: now) else {
                     return .countdownClock(hours: 0, minutes: 0, seconds: 0, urgent: false)
                 }
-                if total >= 86_400 {
-                    return .countdownDays(total / 86_400)
+                // 与 widget 共用同一阈值:remaining 恰好 24h 时是时钟,不是「1 天」
+                if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
+                    return .countdownDays(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))
                 }
                 return clockState(total)
             }
@@ -69,22 +70,22 @@ enum HomeShowIdentityPresentation {
     ) -> String {
         switch timeState.kind {
         case .before:
-            return timeState.isDatedPostponement ? "新日期" : "下一场"
+            return timeState.isDatedPostponement ? BSLocalization.text("新日期") : BSLocalization.text("下一场")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return citySiteText("今天开场", city: city)
+                return citySiteText("今天开场 · %@站", city: city, bare: "今天开场")
             }
-            return "LIVE · 开场中"
+            return BSLocalization.text("LIVE · 开场中")
         case .dayEnded:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .postShow:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .ended:
-            return citySiteText("已落幕", city: city)
+            return citySiteText("已落幕 · %@站", city: city, bare: "已落幕")
         case .canceled:
-            return "已取消"
+            return BSLocalization.text("已取消")
         case .postponed:
-            return "延期 · 时间待定"
+            return BSLocalization.text("延期 · 时间待定")
         }
     }
 
@@ -93,24 +94,24 @@ enum HomeShowIdentityPresentation {
         now: Date
     ) -> String {
         switch timeState.kind {
-        case .before: return "开场前"
+        case .before: return BSLocalization.text("开场前")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return "今天开场"
+                return BSLocalization.text("今天开场")
             }
-            return "正在现场"
-        case .dayEnded: return "今日已落幕"
-        case .postShow: return "散场后"
-        case .ended: return "已结束"
-        case .canceled: return "已取消"
-        case .postponed: return "时间待定"
+            return BSLocalization.text("正在现场")
+        case .dayEnded: return BSLocalization.text("今日已落幕")
+        case .postShow: return BSLocalization.text("散场后")
+        case .ended: return BSLocalization.text("已结束")
+        case .canceled: return BSLocalization.text("已取消")
+        case .postponed: return BSLocalization.text("时间待定")
         }
     }
 
-    private static func citySiteText(_ prefix: String, city: String?) -> String {
+    private static func citySiteText(_ formatKey: String, city: String?, bare: String) -> String {
         let city = city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let city, !city.isEmpty else { return prefix }
-        return "\(prefix) · \(city)站"
+        guard let city, !city.isEmpty else { return BSLocalization.text(bare) }
+        return BSLocalization.format(formatKey, city)
     }
 
     static func venueSummary(venue: String?, city: String?) -> String? {
@@ -130,24 +131,25 @@ enum HomeShowIdentityPresentation {
     static func dateText(
         for show: Show,
         timeState: CurrentShowTimeState,
-        calendar: Calendar = .current
+        calendar: Calendar = .current,
+        locale: Locale = AppLanguageManager.persisted.locale
     ) -> String? {
         guard timeState.hasKnownEffectiveDate else { return nil }
         let calendar = show.timingCalendar(fallback: calendar)
 
         let dayFormatter = DateFormatter()
-        dayFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        dayFormatter.locale = locale
         dayFormatter.calendar = calendar
         dayFormatter.timeZone = calendar.timeZone
         dayFormatter.dateFormat = "yyyy.MM.dd E"
 
         let timeFormatter = DateFormatter()
-        timeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        timeFormatter.locale = locale
         timeFormatter.calendar = calendar
         timeFormatter.timeZone = calendar.timeZone
         timeFormatter.dateFormat = "HH:mm"
         let endTimeFormatter = DateFormatter()
-        endTimeFormatter.locale = Locale(identifier: "zh_Hans_CN")
+        endTimeFormatter.locale = locale
         endTimeFormatter.calendar = show.endTimingCalendar(fallback: calendar)
         endTimeFormatter.timeZone = show.endTimingCalendar(fallback: calendar).timeZone
         endTimeFormatter.dateFormat = "HH:mm"
@@ -163,28 +165,23 @@ enum HomeShowIdentityPresentation {
             let endDateText = startYear == endYear
                 ? monthDayText(endDay, calendar: calendar)
                 : "\(endYear).\(monthDayText(endDay, calendar: calendar))"
-            return "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))-\(endDateText) · 每日 \(daily)"
+            return BSLocalization.format("%@-%@ · 每日 %@", "\(startYear).\(monthDayText(show.effectiveDate, calendar: calendar))", endDateText, daily)
         }
 
         let base = "\(dayFormatter.string(from: show.effectiveDate)) \(timeFormatter.string(from: show.startTime))"
-        guard let start = timeState.effectiveStartTime,
-              let end = timeState.effectiveEndTime,
-              end > start else {
-            return base
+
+        // 已确认散场的现场展示实际时长(开场→散场),不再说「预计」。
+        if let endedAt = show.endedAt,
+           let actual = ShowDurationFormatter.single(from: timeState.effectiveStartTime ?? show.startTime, to: endedAt) {
+            return BSLocalization.format("%@ · 实际演出 %@", base, actual)
         }
 
-        let minutes = Int(end.timeIntervalSince(start)) / 60
-        let hours = minutes / 60
-        let rest = minutes % 60
-        let duration: String
-        if hours > 0 && rest > 0 {
-            duration = "\(hours) 小时 \(rest) 分"
-        } else if hours > 0 {
-            duration = "\(hours) 小时"
-        } else {
-            duration = "\(max(1, rest)) 分钟"
+        guard let start = timeState.effectiveStartTime,
+              let end = timeState.effectiveEndTime,
+              let duration = ShowDurationFormatter.single(from: start, to: end) else {
+            return base
         }
-        return "\(base) · 预计演出 \(duration)"
+        return BSLocalization.format("%@ · 预计演出 %@", base, duration)
     }
 
     private static func trimmed(_ value: String?) -> String? {
@@ -215,7 +212,7 @@ struct HomeCountdownLockup: View {
     // .accessibility2 — above that, a 3-digit day number at 1.85× scale
     // would push the HStack past the safe area and break the card.
     @ScaledMetric(relativeTo: .largeTitle) private var dayNumber: CGFloat = 72
-    @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 54
+    @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 64
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -305,6 +302,14 @@ struct HomeCountdownLockup: View {
         .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
     }
 
+    /// 估算散场时间已过、用户尚未确认 endedAt:状态条说「待确认」,不提前宣布 ENDED。
+    private func isAwaitingEndConfirmation(_ timeState: CurrentShowTimeState) -> Bool {
+        CurrentShowTimeState.isUnconfirmedEstimatedEnd(
+            kind: timeState.kind,
+            hasConfirmedEnd: show.endedAt != nil
+        )
+    }
+
     private func statusRow(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
@@ -316,7 +321,11 @@ struct HomeCountdownLockup: View {
                     .fill(statusColor(for: phase, timeState: timeState))
                     .frame(width: 6, height: 6)
 
-                Text(HomeShowIdentityPresentation.statusText(for: timeState, now: now))
+                Text(
+                    isAwaitingEndConfirmation(timeState)
+                        ? BSLocalization.text("待确认")
+                        : HomeShowIdentityPresentation.statusText(for: timeState, now: now)
+                )
                     .font(.system(size: 10.5, weight: .semibold))
                     .tracking(0.65)
                     .foregroundColor(statusColor(for: phase, timeState: timeState))
@@ -335,11 +344,14 @@ struct HomeCountdownLockup: View {
 
             Spacer(minLength: 0)
 
-            Text(modeLabel(for: phase, timeState: timeState))
-                .font(.system(size: 9.5, weight: .semibold))
-                .tracking(1.45)
-                .foregroundColor(modeLabelColor(for: phase))
-                .lineLimit(1)
+            let mode = modeLabel(for: phase, timeState: timeState)
+            if !mode.isEmpty {
+                Text(mode)
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .tracking(1.45)
+                    .foregroundColor(modeLabelColor(for: phase))
+                    .lineLimit(1)
+            }
         }
     }
 
@@ -380,9 +392,10 @@ struct HomeCountdownLockup: View {
         case .pre:
             return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
         case .live:
-            return "ON STAGE"
+            return "LIVE"
         case .ended:
-            return "ENDED"
+            // 估算散场未确认时不标 ENDED,避免状态条与「这场已经结束了吗?」自相矛盾。
+            return isAwaitingEndConfirmation(timeState) ? "" : "ENDED"
         case .inactive:
             return "TBD"
         }
@@ -397,45 +410,49 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>1 天只到「天」超大节拍,<24h 秒开始跳,<1h 使用分:秒。
+    // 精度随临近程度收束:>24h 只到「天」超大节拍;≤24h 只到分(每分钟跳一下),<1h 切 MM:SS 走秒。
+    // 色温递进:远场奶白 heroIvory → 当天暖金 heroWarmGold → <1h 纯金 accent + 光晕,
+    // 字重同步加码(ultraLight → regular → semibold),视觉强度随临近升温。
+    // 天数/时钟的阈值与 widget 共用 WidgetTimelinePlanner.isDayCountHero。
 
     @ViewBuilder
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
         if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
-            if total >= 86_400 {
+            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: 10) {
-                        Text("\(total / 86_400)")
-                            .font(.system(size: dayNumber, weight: .thin))
-                            .tracking(-2.5)
+                        Text("\(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))")
+                            .font(.system(size: dayNumber, weight: .ultraLight))
+                            .tracking(-1.5)
                             .monospacedDigit()
                             .lineLimit(1)
-                            .foregroundStyle(Self.heroNumberGradient)
+                            .foregroundColor(BSColor.Stage.heroIvory)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
                             .padding(.vertical, -9)
                         Text("天")
-                            .font(.system(size: 22, weight: .regular))
-                            .foregroundColor(BSColor.Stage.muted)
+                            .font(.system(size: 20, weight: .regular))
+                            .foregroundColor(BSColor.Stage.dim)
                     }
                     if timeState.isDatedPostponement {
-                        Text("原定 \(Self.originalDateText(for: show, calendar: show.timingCalendar()))")
+                        Text(BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: show.timingCalendar())))
                             .font(.system(size: 12.5, weight: .regular))
                             .foregroundColor(BSColor.Stage.dim)
                             .padding(.top, 10)
                     }
                 }
             } else if total >= 3_600 {
-                Text(Self.clockText(total, forceHours: true))
-                    .font(.system(size: clockNumber, weight: .thin))
+                Text(Self.clockText(total))
+                    .font(.system(size: clockNumber, weight: .regular))
                     .tracking(-1)
                     .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.foreground)
+                    .foregroundColor(BSColor.Stage.heroWarmGold)
             } else {
-                Text(Self.clockText(total, forceHours: false))
-                    .font(.system(size: clockNumber, weight: .thin))
+                Text(Self.clockText(total))
+                    .font(.system(size: clockNumber, weight: .semibold))
                     .tracking(-1)
                     .monospacedDigit()
-                    .foregroundStyle(Self.heroNumberGradient)
+                    .foregroundColor(BSColor.Stage.accent)
+                    .shadow(color: BSColor.Stage.accent.opacity(0.35), radius: 16)
             }
         } else {
             Text("--")
@@ -445,33 +462,27 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    // MARK: live:脉冲 + 已进行 + 散场确认入口
+    // MARK: live:脉冲 + 已开场时长 + 散场确认入口
+    // 状态只说一遍:顶部 pill 是「正在现场」,Hero 只展示新增信息——已开场多久。
 
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                HomeLivePulse(reduceMotion: reduceMotion)
+        HStack(spacing: 14) {
+            HomeLivePulse(reduceMotion: reduceMotion)
 
-                Text("正在现场")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.liveTitle)
-
-                Spacer(minLength: 0)
-
-                VStack(spacing: 4) {
-                    Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
-                        .font(.system(size: 22, weight: .semibold))
-                        .monospacedDigit()
-                        .tracking(-0.3)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Text("已开场")
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(BSColor.Stage.dim)
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
+                    .font(.system(size: 22, weight: .semibold))
+                    .monospacedDigit()
+                    .tracking(-0.3)
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text("已开场")
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundColor(BSColor.Stage.dim)
             }
-            .padding(.vertical, 4)
 
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 4)
     }
 
     // MARK: Primary action:单一主行动随生命周期切换
@@ -539,10 +550,10 @@ struct HomeCountdownLockup: View {
 
     private func primaryActionTitle(_ action: PrimaryAction) -> String {
         switch action {
-        case .end(live: true): return "结束现场"
-        case .end(live: false): return "确认已结束"
-        case .companion: return "约人同行"
-        case .memoryFragments: return "记一段记忆"
+        case .end(live: true): return BSLocalization.text("结束现场")
+        case .end(live: false): return BSLocalization.text("确认已结束")
+        case .companion: return BSLocalization.text("约人同行")
+        case .memoryFragments: return BSLocalization.text("记一段记忆")
         }
     }
 
@@ -556,9 +567,9 @@ struct HomeCountdownLockup: View {
 
     private func accessibilityHint(for action: PrimaryAction) -> String {
         switch action {
-        case .end: return "打开结束现场确认"
-        case .companion: return "邀请一位朋友同行"
-        case .memoryFragments: return "打开记忆碎片"
+        case .end: return BSLocalization.text("打开结束现场确认")
+        case .companion: return BSLocalization.text("邀请一位朋友同行")
+        case .memoryFragments: return BSLocalization.text("打开记忆碎片")
         }
     }
 
@@ -626,18 +637,6 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    /// 倒计时超大数字的钨丝金渐变(#F5EFE2 → accent)。
-    private static var heroNumberGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                Color(red: 0.961, green: 0.937, blue: 0.886),
-                BSColor.Stage.accent
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
     // MARK: 时间计算
 
     private static func remainingSeconds(to start: Date?, from now: Date) -> Int? {
@@ -645,13 +644,14 @@ struct HomeCountdownLockup: View {
         return max(0, Int(start.timeIntervalSince(now)))
     }
 
-    private static func clockText(_ total: Int, forceHours: Bool) -> String {
+    /// >1h 只到分(HH:MM,每分钟跳一下);<1h 切 MM:SS 走秒。
+    private static func clockText(_ total: Int) -> String {
         let total = max(0, total)
         let hours = total / 3_600
         let minutes = (total % 3_600) / 60
         let seconds = total % 60
-        if hours > 0 || forceHours {
-            return String(format: "%02d:%02d:%02d", hours, minutes, seconds)
+        if hours > 0 {
+            return String(format: "%02d:%02d", hours, minutes)
         }
         return String(format: "%02d:%02d", minutes, seconds)
     }
@@ -670,7 +670,7 @@ struct HomeCountdownLockup: View {
 
     private static func originalDateText(for show: Show, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.month, .day], from: show.date)
-        return "\(components.month ?? 0)月\(components.day ?? 0)日"
+        return BSLocalization.format("%lld月%lld日", components.month ?? 0, components.day ?? 0)
     }
 }
 
@@ -725,65 +725,65 @@ struct HomeTipCard: View {
         case .pre:
             if timeState.isDatedPostponement {
                 return Content(
-                    badge: "现场变更",
-                    title: "等待被延长了",
-                    text: "新日期的倒计时和提醒已重新排好。",
+                    badge: BSLocalization.text("现场变更"),
+                    title: BSLocalization.text("等待被延长了"),
+                    text: BSLocalization.text("新日期的倒计时和提醒已重新排好。"),
                     tone: .violet
                 )
             }
             if !lineup.isEmpty {
                 return Content(
-                    badge: "现场准备",
-                    title: "草地、阳光和一整天的音乐",
-                    text: "野餐垫、防晒和充电宝,让这两天从容很多。",
+                    badge: BSLocalization.text("现场准备"),
+                    title: BSLocalization.text("草地、阳光和一整天的音乐"),
+                    text: BSLocalization.text("野餐垫、防晒和充电宝,让这两天从容很多。"),
                     tone: .violet,
                     showsLineup: true
                 )
             }
             if timeState.kind == .today {
                 return Content(
-                    badge: "现场准备",
-                    title: "今晚的事,白天就顺手办了",
-                    text: "出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。",
+                    badge: BSLocalization.text("现场准备"),
+                    title: BSLocalization.text("今晚的事,白天就顺手办了"),
+                    text: BSLocalization.text("出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。"),
                     tone: .blue
                 )
             }
             return Content(
-                badge: "进入状态",
-                title: "离开场又近了一天",
-                text: "把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。",
+                badge: BSLocalization.text("进入状态"),
+                title: BSLocalization.text("离开场又近了一天"),
+                text: BSLocalization.text("把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。"),
                 tone: .gold
             )
         case .live:
             return Content(
-                badge: "正在现场",
-                title: "享受这一晚",
-                text: "散场后人多,提前想好从哪个出口离开。",
+                badge: BSLocalization.text("正在现场"),
+                title: BSLocalization.text("享受这一晚"),
+                text: BSLocalization.text("散场后人多,提前想好从哪个出口离开。"),
                 tone: .gray
             )
         case .ended:
             if timeState.kind == .dayEnded {
                 return Content(
-                    badge: "今日已落幕",
-                    title: "今天先到这里",
+                    badge: BSLocalization.text("今日已落幕"),
+                    title: BSLocalization.text("今天先到这里"),
                     text: timeState.helperText,
                     tone: .gray
                 )
             }
             guard timeState.kind == .postShow else { return nil }
             return Content(
-                badge: "散场之后",
-                title: "余温还留在这里",
-                text: "这场的资料还会保留。想好下一场去哪了吗?",
+                badge: BSLocalization.text("散场之后"),
+                title: BSLocalization.text("余温还留在这里"),
+                text: BSLocalization.text("这场的资料还会保留。想好下一场去哪了吗?"),
                 tone: .gray,
-                quietAction: "添加下一场现场 →"
+                quietAction: BSLocalization.text("添加下一场现场 →")
             )
         case .inactive:
             guard timeState.kind == .postponed else { return nil }
             return Content(
-                badge: "现场变更",
-                title: "先把它放在这里",
-                text: "等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。",
+                badge: BSLocalization.text("现场变更"),
+                title: BSLocalization.text("先把它放在这里"),
+                text: BSLocalization.text("等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。"),
                 tone: .gray
             )
         }

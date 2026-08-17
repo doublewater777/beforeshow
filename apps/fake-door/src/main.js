@@ -1,7 +1,6 @@
 import "./styles.css";
 
 // ── Data ────────────────────────────────────────────
-const STORAGE_LEADS = "beforeshow.leads.v2";
 const STORAGE_EVENTS = "beforeshow.events.v2";
 const STORAGE_SESSION = "beforeshow.session.v2";
 
@@ -42,9 +41,6 @@ const audienceItems = [
 // ── State ────────────────────────────────────────────
 const state = {
   activeShowId: "jay",
-  formErrors: {},
-  submitting: false,
-  submitted: false,
   toast: "",
   ambientMode: false,
 };
@@ -111,7 +107,6 @@ function render() {
       ${renderExperience()}
       ${renderUseFlow()}
       ${renderAudience()}
-      ${renderJoin()}
     </main>
     ${renderFooter()}
     ${state.toast ? `<div class="toast" role="status">${esc(state.toast)}</div>` : ""}
@@ -124,20 +119,8 @@ function renderNav() {
   return `
     <nav class="site-nav" aria-label="主导航">
       <div class="nav-logo">
-        <div class="nav-logo-mark" aria-hidden="true">
-          <svg viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="logo-title">
-            <title id="logo-title">开场前 BeforeShow</title>
-            <path d="M9 2.2C9 2.2 4.4 4.9 4.4 10a4.6 4.6 0 0 0 9.2 0C13.6 4.9 9 2.2 9 2.2Z"/>
-            <circle cx="9" cy="10" r="2.1" fill="var(--accent)"/>
-            <path d="M9 5.2 10.45 9H7.55L9 5.2Z" fill="currentColor"/>
-            <circle cx="9" cy="10" r=".5" fill="currentColor"/>
-          </svg>
-        </div>
+        <img class="nav-logo-mark" src="/app-icon.png" alt="开场前 BeforeShow 图标" width="32" height="32" />
         <span class="nav-brand">开场前</span>
-      </div>
-      <div class="nav-cta">
-        <button class="btn btn-ghost btn-sm" data-scroll="#experience">先体验</button>
-        <button class="btn btn-primary btn-sm" data-scroll="#join">加入内测</button>
       </div>
     </nav>
   `;
@@ -166,30 +149,13 @@ function renderHero() {
           <span class="hero-title-line hero-title-accent">提前进入状态。</span>
         </h1>
         <p class="hero-sub fade-up fade-up-delay-2">
-          输入你要看的演出，BeforeShow 会生成一份开场前 14 天预习清单：
-          倒数提醒、AI 预测歌单和出行方案等功能。
+          把你的演出记下来：每天看见开场倒计时，和同行的人确认到场，
+          把票根和现场记忆都收好。
         </p>
         <div class="hero-feature-list fade-up fade-up-delay-2" aria-label="BeforeShow 可做的事">
-          <span>倒数提醒</span>
-          <span>AI 预测歌单</span>
-          <span>出行方案</span>
-        </div>
-        <div class="hero-cta-group fade-up fade-up-delay-3">
-          <button class="btn btn-primary" data-scroll="#join" id="hero-cta-main">
-            加入内测
-          </button>
-          <button class="btn btn-ghost" data-scroll="#experience" id="hero-cta-try">
-            感受一下
-          </button>
-        </div>
-        <div class="hero-social-proof fade-up fade-up-delay-4">
-          <div class="proof-avatars" aria-hidden="true">
-            <div class="proof-avatar" style="background:#e86c4a">音</div>
-            <div class="proof-avatar" style="background:#b05bff">乐</div>
-            <div class="proof-avatar" style="background:#1db954">节</div>
-            <div class="proof-avatar" style="background:#f0bd72">客</div>
-          </div>
-          <span>已经有买到票的人在等开场了</span>
+          <span>开场倒计时</span>
+          <span>同行确认</span>
+          <span>记忆与票根</span>
         </div>
       </div>
     </section>
@@ -375,77 +341,6 @@ function renderConcertCountdownRight(show) {
   `;
 }
 
-// ── Join / Waitlist ───────────────────────────────────
-function renderJoin() {
-  return `
-    <section id="join" aria-labelledby="join-title">
-      <div class="join-inner">
-        <p class="section-label" style="justify-content:center">加入内测</p>
-        <h2 class="join-title" id="join-title">
-          你下一场要走进哪里？
-        </h2>
-        <p class="join-sub">
-          告诉我们你在等哪一场。<br>内测开放时，还在等开场的人会先收到邀请。
-        </p>
-        ${state.submitted ? renderSuccessState() : renderWaitlistForm()}
-      </div>
-    </section>
-  `;
-}
-
-function renderSuccessState() {
-  return `
-    <div class="waitlist-form success-state">
-      <div class="success-icon" aria-hidden="true">✓</div>
-      <h3 class="success-title">下一场，帮你记住了</h3>
-      <p class="success-desc">已经记下了。<br>内测一开放就告诉你——在那之前，这段日子我们陪你一起过。</p>
-    </div>
-  `;
-}
-
-function renderWaitlistForm() {
-  const emailError = state.formErrors.email;
-  const showError = state.formErrors.show;
-  return `
-    <form class="waitlist-form" novalidate aria-labelledby="join-title" id="waitlist-form">
-      <div class="form-row">
-        <label class="form-label" for="field-email">邮箱 <span aria-hidden="true">*</span></label>
-        <input
-          id="field-email"
-          class="form-input ${emailError ? "error" : ""}"
-          name="email"
-          type="email"
-          placeholder="your@email.com"
-          autocomplete="email"
-          aria-required="true"
-          aria-describedby="email-hint ${emailError ? "email-error" : ""}"
-        />
-        ${emailError ? `<span id="email-error" class="form-error" role="alert">${esc(emailError)}</span>` : ""}
-        <span id="email-hint" class="form-hint">内测邀请将发到这里</span>
-      </div>
-      <div class="form-row">
-        <label class="form-label" for="field-show">下一场要看的演出 <span aria-hidden="true">*</span></label>
-        <input
-          id="field-show"
-          class="form-input ${showError ? "error" : ""}"
-          name="show"
-          type="text"
-          placeholder="例：五月天上海演唱会"
-          aria-required="true"
-          aria-describedby="${showError ? "show-error" : ""}"
-        />
-        ${showError ? `<span id="show-error" class="form-error" role="alert">${esc(showError)}</span>` : ""}
-      </div>
-      <button class="btn btn-primary form-submit" type="submit" id="btn-join-submit" ${state.submitting ? "disabled" : ""}>
-        ${state.submitting ? "提交中…" : "存下我的下一场 →"}
-      </button>
-      <p class="form-footnote">
-        不频繁打扰。只在开场前，提醒你那些值得期待的事。
-      </p>
-    </form>
-  `;
-}
-
 // ── Footer ───────────────────────────────────────────
 function renderFooter() {
   return `
@@ -466,49 +361,6 @@ function setToast(msg) {
     state.toast = "";
     render();
   }, 2800);
-}
-
-function saveLeadLocally(lead) {
-  try {
-    const raw = localStorage.getItem(STORAGE_LEADS);
-    const leads = raw ? JSON.parse(raw) : [];
-    leads.push(lead);
-    localStorage.setItem(STORAGE_LEADS, JSON.stringify(leads));
-  } catch {}
-}
-
-async function submitForm(form) {
-  const data = new FormData(form);
-  const email = String(data.get("email") || "").trim();
-  const show = String(data.get("show") || "").trim();
-  const errors = {};
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = "请填一个有效邮箱。";
-  if (!show) errors.show = "请写一场你要去看的演出。";
-  state.formErrors = errors;
-  if (Object.keys(errors).length) {
-    render();
-    return;
-  }
-
-  const lead = {
-    id: `l_${Date.now()}`,
-    at: new Date().toISOString(),
-    email,
-    show,
-    session: getSessionId(),
-  };
-
-  state.submitting = true;
-  render();
-
-  saveLeadLocally(lead);
-  track("lead_submit", { show });
-
-  state.submitting = false;
-  state.submitted = true;
-  state.formErrors = {};
-  render();
-  document.getElementById("join")?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // ── Event Delegation ─────────────────────────────────
@@ -532,32 +384,14 @@ document.addEventListener("click", (e) => {
   // Close-modal backdrop
   const btn = e.target.closest("button, a");
 
-  // Scroll to section
-  const scrollTarget = btn?.getAttribute("data-scroll");
-  if (scrollTarget) {
-    e.preventDefault();
-    track("nav_click", { target: scrollTarget });
-    render();
-    setTimeout(() => {
-      document.querySelector(scrollTarget)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
-    return;
-  }
-
   // Fake action (save countdown)
   const fakeAction = btn?.getAttribute("data-fake-action");
   if (fakeAction === "save_countdown") {
     track("save_countdown", { showId: state.activeShowId });
-    setToast("已放进你的开场前。内测开放后会真正提醒你。");
+    setToast("已放进你的开场前。");
     return;
   }
 
-});
-
-document.addEventListener("submit", (e) => {
-  if (!e.target.matches("#waitlist-form")) return;
-  e.preventDefault();
-  void submitForm(e.target);
 });
 
 document.addEventListener("keydown", (e) => {

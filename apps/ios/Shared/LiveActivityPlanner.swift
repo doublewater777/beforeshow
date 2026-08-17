@@ -72,7 +72,8 @@ enum LiveActivityPlanner {
                 endTimeZoneSecondsFromGMT: snapshot.timing.endTimeZoneSecondsFromGMT,
                 timeZoneIdentifier: snapshot.timing.timeZoneIdentifier,
                 endTimeZoneIdentifier: snapshot.timing.endTimeZoneIdentifier,
-                coverImageFilename: coverFilename
+                coverImageFilename: coverFilename,
+                hasStarted: now >= start
             ),
             activityEnd
         )

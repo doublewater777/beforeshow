@@ -4,16 +4,17 @@ import UIKit
 
 // MARK: - 熄灯动画
 
-/// 2.8s 舞台熄灯动画。3 道光束（蓝/金/紫）淡入淡出 + 标题"散场"淡入,
-/// 节奏对齐 V2 原型。reduceMotion 时直接跳到末尾帧。
-/// onComplete 在动画结束(包含 reduceMotion 跳过)时回调,父视图负责切到仪式 sheet。
+/// 4.2s 舞台熄灯动画。3 道光束（蓝/金/紫）淡入淡出 + 标题"散场"淡入。
+/// 计时在 fullScreenCover 转场落定后才开始,避免转场吃掉渐入前段。
+/// reduceMotion 时直接呈现中段停驻帧并立即回调。
+/// onComplete 在动画结束(包含 reduceMotion 跳过)时回调;视图提前消失(任务取消)时不回调。
 struct DispersalLightsOutOverlay: View {
     let showName: String
     let ordinal: Int
     let onComplete: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt = Date()
+    @State private var startedAt: Date?
 
     var body: some View {
         Group {
@@ -21,7 +22,7 @@ struct DispersalLightsOutOverlay: View {
                 stage(progress: 0.5)
                     .saturation(0.2)
                     .brightness(-0.15)
-            } else {
+            } else if let startedAt {
                 TimelineView(.animation) { context in
                     let elapsed = context.date.timeIntervalSince(startedAt)
                     let progress = DispersalLightsOutMotion.progress(
@@ -30,20 +31,30 @@ struct DispersalLightsOutOverlay: View {
                     )
                     stage(progress: progress)
                 }
+            } else {
+                stage(progress: 0)
             }
         }
         .task {
             if reduceMotion {
                 onComplete()
-            } else {
-                try? await Task.sleep(
+                return
+            }
+            do {
+                try await Task.sleep(
+                    nanoseconds: UInt64(DispersalCeremonyPolicy.lightsOutTransitionLeadIn * 1_000_000_000)
+                )
+                startedAt = Date()
+                try await Task.sleep(
                     nanoseconds: UInt64(DispersalCeremonyPolicy.lightsOutDuration * 1_000_000_000)
                 )
                 onComplete()
+            } catch {
+                // 任务被取消(视图提前消失)时不回调 onComplete,后续交给父视图决定。
             }
         }
         .accessibilityAddTraits(.isHeader)
-        .accessibilityLabel("散场，这是你的第 \(ordinal) 场现场")
+        .accessibilityLabel(BSLocalization.format("散场，这是你的第 %lld 场现场", ordinal))
     }
 
     private func stage(progress: Double) -> some View {
@@ -55,7 +66,7 @@ struct DispersalLightsOutOverlay: View {
                     .font(.system(size: 42, weight: .light))
                     .tracking(5)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("这是你的第 \(ordinal) 场现场")
+                Text(BSLocalization.format("这是你的第 %lld 场现场", ordinal))
                     .font(.system(size: 13, weight: .medium))
                     .tracking(0.6)
                     .foregroundColor(BSColor.Stage.accent)
@@ -141,8 +152,9 @@ struct DispersalLightsOutOverlay: View {
 ///
 /// 整条流程与 `endedAt` 写入完全解耦:任一步骤失败或跳过,已结束的现场
 /// 都不受影响。
-/// - combined 步底部按钮:`跳过` / `生成散场卡`,后者把 `(rating, note)` 一次性 commit
-/// - 头部 `×` 按钮触发 `onSkipToMemory`(直接跳到现场回忆,跳过 share)
+/// - combined 步底部按钮:`跳过` / `生成散场卡`,前者直接跳过仪式进现场回忆(不落库),
+///   后者把 `(rating, note)` 一次性 commit 后进分享卡
+/// - 头部 `×` 按钮与「跳过」等价,触发 `onSkipToMemory`(直接跳到现场回忆,跳过 share)
 /// - share 步底部按钮:`保存图片` / `进入现场回忆`,后者触发 `onSkipToMemory`
 struct DispersalCeremonySheet: View {
     let show: Show
@@ -189,8 +201,8 @@ struct DispersalCeremonySheet: View {
                     note: $draftNote,
                     commitError: commitError,
                     onClose: { onSkipToMemory() },
-                    onSkip: { Task { await advanceCombined(skip: true) } },
-                    onGenerate: { Task { await advanceCombined(skip: false) } }
+                    onSkip: onSkipToMemory,
+                    onGenerate: { Task { await advanceCombined() } }
                 )
             case .share:
                 DispersalShareStep(
@@ -208,21 +220,16 @@ struct DispersalCeremonySheet: View {
         .interactiveDismissDisabled(saving)
     }
 
-    private func advanceCombined(skip: Bool) async {
+    private func advanceCombined() async {
         guard !saving else { return }
         saving = true
         commitError = nil
-        let noteToSave: String?
-        if skip {
-            noteToSave = nil
-        } else {
-            noteToSave = draftNote.isEmpty ? nil : draftNote
-        }
+        let noteToSave = draftNote.isEmpty ? nil : draftNote
         do {
             try await onCommit(draftRating, noteToSave)
             step = Self.nextStep(after: .combined, commitSucceeded: true)
         } catch {
-            commitError = "散场评价没有保存，请重试"
+            commitError = BSLocalization.text("散场评价没有保存，请重试")
             step = Self.nextStep(after: .combined, commitSucceeded: false)
         }
         saving = false
@@ -279,8 +286,8 @@ struct DispersalCombinedStep: View {
             }
 
             DispersalSheetBottomBar(
-                secondaryTitle: "跳过",
-                primaryTitle: "生成散场卡",
+                secondaryTitle: BSLocalization.text("跳过"),
+                primaryTitle: BSLocalization.text("生成散场卡"),
                 onSecondary: onSkip,
                 onPrimary: onGenerate
             )
@@ -297,21 +304,17 @@ struct DispersalCombinedStep: View {
 
     private var header: some View {
         HStack {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.06), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-                    .foregroundColor(BSColor.Stage.foreground)
-            }
-            .accessibilityLabel("跳过散场仪式，回到足迹")
+            BSChromeIconButton(
+                systemName: "xmark",
+                accessibilityLabel: "跳过散场仪式，回到足迹",
+                action: onClose
+            )
             Spacer()
             Text("散场了")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()
-            Color.clear.frame(width: 42, height: 42)
+            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -380,30 +383,29 @@ struct DispersalCombinedStep: View {
 
     private var snapSlider: some View {
         ZStack(alignment: .top) {
-            Capsule()
-                .fill(Color.white.opacity(0.08))
-                .frame(height: 4)
-                .padding(.horizontal, 16)
-                .padding(.top, 17)
-
             GeometryReader { proxy in
-                let inset: CGFloat = 16
+                let inset = DispersalSnapSliderLayout.trackInset(width: proxy.size.width)
                 let track = max(proxy.size.width - inset * 2, 1)
                 let progress = CGFloat((rating ?? 1) - 1) / 4
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                (current?.tint ?? BSColor.Stage.accent).opacity(0.55),
-                                current?.tint ?? BSColor.Stage.accent
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
+                ZStack(alignment: .topLeading) {
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(width: track, height: 4)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    (current?.tint ?? BSColor.Stage.accent).opacity(0.55),
+                                    current?.tint ?? BSColor.Stage.accent
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
                         )
-                    )
-                    .frame(width: rating == nil ? 0 : track * progress, height: 4)
-                    .padding(.leading, inset)
-                    .padding(.top, 17)
+                        .frame(width: rating == nil ? 0 : track * progress, height: 4)
+                }
+                .padding(.leading, inset)
+                .padding(.top, 17)
             }
 
             HStack(spacing: 0) {
@@ -475,7 +477,7 @@ struct DispersalCombinedStep: View {
             BSSurfacePanel {
                 VStack(alignment: .trailing, spacing: BSSpacing.sm) {
                     TextField(
-                        "写下现在最想记住的事……",
+                        BSLocalization.text("写下现在最想记住的事……"),
                         text: $note,
                         axis: .vertical
                     )
@@ -515,7 +517,7 @@ struct DispersalCombinedStep: View {
                             )
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("填入：\(preset.text)")
+                    .accessibilityLabel(BSLocalization.format("填入：%@", preset.text))
                 }
             }
         }
@@ -575,8 +577,8 @@ struct DispersalShareStep: View {
             }
 
             DispersalSheetBottomBar(
-                secondaryTitle: "保存图片",
-                primaryTitle: "进入现场回忆",
+                secondaryTitle: BSLocalization.text("保存图片"),
+                primaryTitle: BSLocalization.text("进入现场回忆"),
                 onSecondary: { Task { await saveToPhotos() } },
                 onPrimary: onEnterMemory
             )
@@ -585,21 +587,17 @@ struct DispersalShareStep: View {
 
     private var header: some View {
         HStack {
-            Button(action: onBack) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 15, weight: .semibold))
-                    .frame(width: 42, height: 42)
-                    .background(Color.white.opacity(0.06), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-                    .foregroundColor(BSColor.Stage.foreground)
-            }
-            .accessibilityLabel("回到评级")
+            BSChromeIconButton(
+                systemName: "chevron.left",
+                accessibilityLabel: "回到评级",
+                action: onBack
+            )
             Spacer()
             Text("散场卡")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()
-            Color.clear.frame(width: 42, height: 42)
+            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -612,6 +610,7 @@ struct DispersalShareStep: View {
             rating: rating,
             note: note
         )
+        .aspectRatio(Self.renderSize.width / Self.renderSize.height, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .overlay(
             RoundedRectangle(cornerRadius: 28)
@@ -649,14 +648,14 @@ struct DispersalShareStep: View {
             try await FootprintPhotoLibrary.save(image)
             lastError = nil
         } catch {
-            lastError = "保存失败，请检查相册权限"
+            lastError = BSLocalization.text("保存失败，请检查相册权限")
         }
     }
 }
 
 // MARK: - 底部操作条
 
-/// V2 原型的浮动玻璃底栏:窄次要按钮 + 撑满的主按钮。
+/// 与 App 其他 sheet 一致的标准按钮组:次要(描边) + 主要(白底),等宽排列。
 private struct DispersalSheetBottomBar: View {
     let secondaryTitle: String
     let primaryTitle: String
@@ -666,29 +665,12 @@ private struct DispersalSheetBottomBar: View {
     var body: some View {
         HStack(spacing: 9) {
             Button(secondaryTitle, action: onSecondary)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundColor(BSColor.Stage.muted)
-                .frame(width: 108, height: 46)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
+                .buttonStyle(BSSecondaryButtonStyle())
 
             Button(primaryTitle, action: onPrimary)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundColor(Color(red: 0.035, green: 0.043, blue: 0.067))
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                .buttonStyle(BSPrimaryButtonStyle())
         }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 22)
-                .fill(Color(red: 0.051, green: 0.067, blue: 0.106).opacity(0.72))
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22)
-                .stroke(Color.white.opacity(0.11), lineWidth: 1)
-        )
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
     }
 }

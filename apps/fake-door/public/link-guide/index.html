@@ -6,11 +6,11 @@
     <title>如何获取票务链接 — 开场前 BeforeShow</title>
     <meta
       name="description"
-      content="了解如何从大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS 和 Live Nation 复制演出详情链接。"
+      content="先选择你的购票平台，再按对应步骤从大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS 和 Live Nation 获取演出详情链接。"
     />
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://beforeshow.doublewaterapps.com/link-guide/" />
-    <link rel="icon" href="/logo.svg" type="image/svg+xml" />
+    <link rel="icon" href="/app-icon.png" type="image/png" />
     <style>
       :root {
         color-scheme: dark;
@@ -40,20 +40,52 @@
 
       a { color: inherit; text-decoration: none; }
 
+      button { font: inherit; }
+
       .wrap {
         width: min(760px, 100%);
         margin: 0 auto;
         padding: 48px 20px 88px;
       }
 
-      .back {
-        display: inline-block;
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
         margin-bottom: 42px;
+      }
+
+      .back {
         color: var(--text-soft);
         font-size: 14px;
       }
 
       .back:hover, .back:focus-visible { color: var(--accent); }
+
+      .lang-switch {
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+
+      .lang-switch button {
+        padding: 4px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-soft);
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .lang-switch button.active {
+        background: rgba(132, 191, 255, 0.16);
+        color: var(--accent);
+      }
 
       h1 {
         max-width: 620px;
@@ -119,10 +151,36 @@
         font-size: 14px;
       }
 
-      .platform-list {
+      .platform-picker {
         display: grid;
-        gap: 14px;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
       }
+
+      .platform-card {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        align-items: flex-start;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        background: var(--surface);
+        color: var(--text);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .platform-card:hover, .platform-card:focus-visible {
+        border-color: rgba(132, 191, 255, 0.45);
+        background: var(--surface-strong);
+      }
+
+      .platform-card strong { font-size: 15px; }
+
+      .platform-card span { color: var(--text-soft); font-size: 12px; }
+
+      .platform-detail { margin-top: 26px; }
 
       .platform { padding: 20px; }
 
@@ -159,6 +217,19 @@
 
       .platform li { padding-left: 4px; margin: 5px 0; }
 
+      .picker-back {
+        margin-top: 18px;
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: var(--surface);
+        color: var(--text-soft);
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .picker-back:hover, .picker-back:focus-visible { color: var(--accent); border-color: rgba(132, 191, 255, 0.45); }
+
       .notice {
         margin-top: 42px;
         padding: 20px;
@@ -185,8 +256,9 @@
 
       @media (max-width: 560px) {
         .wrap { padding-top: 32px; }
-        .back { margin-bottom: 34px; }
-        .quick-start { grid-template-columns: 1fr; margin: 32px 0 44px; }
+        .topbar { margin-bottom: 34px; }
+        .quick-start, .platform-picker { grid-template-columns: 1fr; }
+        .quick-start { margin: 32px 0 44px; }
         .quick-step { display: grid; grid-template-columns: 28px 1fr; column-gap: 12px; align-items: center; }
         .step-number { grid-row: span 2; margin: 0; }
         .quick-step strong { margin: 0; }
@@ -197,88 +269,296 @@
   </head>
   <body>
     <main class="wrap">
-      <a class="back" href="/">← 返回首页</a>
+      <div class="topbar">
+        <a class="back" data-i18n="back" href="/">← 返回首页</a>
+        <nav class="lang-switch" aria-label="Language">
+          <button type="button" data-set-lang="zh-Hans">简体</button>
+          <button type="button" data-set-lang="zh-Hant">繁體</button>
+          <button type="button" data-set-lang="en">EN</button>
+        </nav>
+      </div>
 
-      <h1>如何获取票务链接</h1>
-      <p class="lede">
-        BeforeShow 需要演出详情页的链接来读取名称、日期、场馆等信息。先打开对应平台的总览页，再搜索演出、进入详情页，最后复制此时浏览器里的页面地址。
-      </p>
+      <h1 data-i18n="title">如何获取票务链接</h1>
+      <p class="lede" data-i18n="lede"></p>
 
-      <section class="quick-start" aria-label="复制链接的三个步骤">
+      <section class="quick-start" aria-label="Steps">
         <div class="quick-step">
           <span class="step-number">1</span>
-          <strong>打开平台总览页</strong>
-          <span>从下面的官方入口进入平台。</span>
+          <strong data-i18n="quick1t"></strong>
+          <span data-i18n="quick1d"></span>
         </div>
         <div class="quick-step">
           <span class="step-number">2</span>
-          <strong>搜索并进入详情</strong>
-          <span>用平台搜索找到演出，再点进对应详情页。</span>
+          <strong data-i18n="quick2t"></strong>
+          <span data-i18n="quick2d"></span>
         </div>
         <div class="quick-step">
           <span class="step-number">3</span>
-          <strong>复制当前地址</strong>
-          <span>复制详情页此时的地址栏内容，粘贴到 BeforeShow。</span>
+          <strong data-i18n="quick3t"></strong>
+          <span data-i18n="quick3d"></span>
         </div>
       </section>
 
-      <h2>国内平台</h2>
-      <p class="section-note">点击平台名称打开总览页，然后搜索演出并进入详情页。</p>
-      <div class="platform-list">
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://m.damai.cn/shows/home.html" target="_blank" rel="noreferrer">大麦</a></h3><span class="domain">m.damai.cn</span></div>
-          <ol><li>打开大麦总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://showstart.com/" target="_blank" rel="noreferrer">秀动</a></h3><span class="domain">showstart.com</span></div>
-          <ol><li>打开秀动总览页，搜索你要添加的演出或 Livehouse 活动。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://show.maoyan.com/" target="_blank" rel="noreferrer">猫眼</a></h3><span class="domain">maoyan.com</span></div>
-          <ol><li>打开猫眼演出总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://e.piaoxingqiu.com/" target="_blank" rel="noreferrer">票星球</a></h3><span class="domain">e.piaoxingqiu.com</span></div>
-          <ol><li>打开票星球总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://www.livelab.com.cn/" target="_blank" rel="noreferrer">纷玩岛</a></h3><span class="domain">livelab.com.cn</span></div>
-          <ol><li>打开纷玩岛总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-      </div>
+      <section id="pickerStep">
+        <h2 data-i18n="pickerTitle"></h2>
+        <p class="section-note" data-i18n="pickerNote"></p>
+        <div class="platform-picker" id="platformPicker"></div>
+      </section>
 
-      <h2>海外平台</h2>
-      <p class="section-note">点击平台名称打开总览页，然后搜索演出并进入详情页。</p>
-      <div class="platform-list">
+      <section id="detailStep" class="platform-detail" hidden>
+        <h2 id="detailTitle"></h2>
+        <p class="section-note" data-i18n="detailNote"></p>
         <article class="platform">
-          <div class="platform-header"><h3><a href="https://www.ticketmaster.com/" target="_blank" rel="noreferrer">Ticketmaster</a></h3><span class="domain">ticketmaster.*</span></div>
-          <ol><li>打开 Ticketmaster 总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
+          <div class="platform-header">
+            <h3><a id="detailLink"></a></h3>
+            <span class="domain" id="detailDomain"></span>
+          </div>
+          <ol id="detailSteps"></ol>
         </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://dice.fm/" target="_blank" rel="noreferrer">DICE</a></h3><span class="domain">dice.fm</span></div>
-          <ol><li>打开 DICE 总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://www.axs.com/" target="_blank" rel="noreferrer">AXS</a></h3><span class="domain">axs.com</span></div>
-          <ol><li>打开 AXS 总览页，搜索你要添加的活动。</li><li>点击搜索结果，进入对应的活动详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-        <article class="platform">
-          <div class="platform-header"><h3><a href="https://www.livenation.com/" target="_blank" rel="noreferrer">Live Nation</a></h3><span class="domain">livenation.com / 区域站点</span></div>
-          <ol><li>打开 Live Nation 总览页，搜索你要添加的演出。</li><li>点击搜索结果，进入对应的演出详情页。</li><li>复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。</li></ol>
-        </article>
-      </div>
-
-      <aside class="notice">
-        <strong>解析失败时</strong>
-        <p>请确认你已经从平台总览页搜索并进入了正确的演出详情页，再复制当前地址栏。不要复制平台首页、搜索结果、订单、选座或付款页；如果打开的是短链，先让浏览器展开后再复制。</p>
-      </aside>
+        <aside class="notice">
+          <strong data-i18n="noticeTitle"></strong>
+          <p data-i18n="notice"></p>
+        </aside>
+        <button class="picker-back" id="backToPicker" type="button"></button>
+      </section>
 
       <footer class="footer">
-        <span>© 2026 开场前 BeforeShow</span>
-        <a class="footer-link" href="/privacy">隐私政策</a>
-        <a class="footer-link" href="/terms">用户协议</a>
-        <a class="footer-link" href="/">返回首页</a>
+        <span data-i18n="copyright"></span>
+        <a class="footer-link" href="/privacy" data-i18n="privacyLink"></a>
+        <a class="footer-link" href="/terms" data-i18n="termsLink"></a>
+        <a class="footer-link" href="/" data-i18n="homeLink"></a>
       </footer>
     </main>
+
+    <script>
+      var LANG = (function () {
+        var params = new URLSearchParams(location.search);
+        if (["zh-Hans", "zh-Hant", "en"].indexOf(params.get("lang")) !== -1) return params.get("lang");
+        try {
+          var saved = localStorage.getItem("bs-lang");
+          if (["zh-Hans", "zh-Hant", "en"].indexOf(saved) !== -1) return saved;
+        } catch (e) {}
+        var nav = (navigator.language || "").toLowerCase();
+        if (nav.indexOf("zh") !== -1 && (nav.indexOf("hant") !== -1 || nav.indexOf("tw") !== -1 || nav.indexOf("hk") !== -1)) return "zh-Hant";
+        if (nav.indexOf("en") !== -1) return "en";
+        return "zh-Hans";
+      })();
+
+      var copy = {
+        "zh-Hans": {
+          back: "← 返回首页",
+          title: "如何获取票务链接",
+          lede: "BeforeShow 需要演出详情页的链接来读取名称、日期、场馆等信息。先选择你买票的平台，再按对应步骤获取链接。",
+          quick1t: "进入平台详情页",
+          quick1d: "从下方选中你的平台，打开它的演出总览页。",
+          quick2t: "搜索并进入详情",
+          quick2d: "搜索找到你要的演出，点进对应的详情页。",
+          quick3t: "复制当前地址",
+          quick3d: "复制详情页此时地址栏的内容，回到 BeforeShow 粘贴解析。",
+          pickerTitle: "选择你的平台",
+          pickerNote: "先选平台，再显示对应的获取步骤。",
+          detailNote: "点平台名称打开它的演出总览页，然后按下面的步骤获取链接。",
+          openOverview: "打开",
+          overviewSuffix: "总览页",
+          noticeTitle: "解析失败时",
+          notice: "请确认你已经从平台总览页搜索并进入了正确的演出详情页，再复制当前地址栏。不要复制平台首页、搜索结果、订单、选座或付款页；如果打开的是短链，先让浏览器展开后再复制。",
+          backToPicker: "← 选择其他平台",
+          copyright: "© 2026 开场前 BeforeShow",
+          privacyLink: "隐私政策",
+          termsLink: "用户协议",
+          homeLink: "返回首页"
+        },
+        "zh-Hant": {
+          back: "← 返回首頁",
+          title: "如何取得票務連結",
+          lede: "BeforeShow 需要演出詳情頁的連結來讀取名稱、日期、場館等資訊。先選擇你購票的平台，再依對應步驟取得連結。",
+          quick1t: "進入平台詳情頁",
+          quick1d: "從下方選中你的平台，開啟它的演出總覽頁。",
+          quick2t: "搜尋並進入詳情",
+          quick2d: "搜尋找到你要的演出，點進對應的詳情頁。",
+          quick3t: "複製目前網址",
+          quick3d: "複製詳情頁此時網址列的內容，回到 BeforeShow 貼上解析。",
+          pickerTitle: "選擇你的平台",
+          pickerNote: "先選平台，再顯示對應的取得步驟。",
+          detailNote: "點平台名稱開啟它的演出總覽頁，然後依下列步驟取得連結。",
+          openOverview: "開啟",
+          overviewSuffix: "總覽頁",
+          noticeTitle: "解析失敗時",
+          notice: "請確認你已經從平台總覽頁搜尋並進入正確的演出詳情頁，再複製目前網址列。不要複製平台首頁、搜尋結果、訂單、選位或付款頁；如果開啟的是短網址，先讓瀏覽器展開後再複製。",
+          backToPicker: "← 選擇其他平台",
+          copyright: "© 2026 開場前 BeforeShow",
+          privacyLink: "隱私政策",
+          termsLink: "使用者條款",
+          homeLink: "返回首頁"
+        },
+        en: {
+          back: "← Back to home",
+          title: "How to Get a Ticket Link",
+          lede: "BeforeShow needs the link to a show's details page to read its name, date, venue, and more. First choose where you bought your ticket, then follow the steps for that platform.",
+          quick1t: "Open the platform",
+          quick1d: "Pick your platform below and open its event overview page.",
+          quick2t: "Find your show",
+          quick2d: "Search for your show and open its details page.",
+          quick3t: "Copy the address",
+          quick3d: "Copy the details page's address bar and paste it back in BeforeShow.",
+          pickerTitle: "Choose Your Platform",
+          pickerNote: "Pick a platform to see how to get its link.",
+          detailNote: "Tap a platform name to open its event overview, then follow the steps below.",
+          openOverview: "Open",
+          overviewSuffix: "overview",
+          noticeTitle: "If parsing fails",
+          notice: "Make sure you searched from the platform's overview page and entered the correct show details page before copying the address. Don't copy the homepage, search results, order, seat-selection, or payment pages; if the link is shortened, expand it in the browser first.",
+          backToPicker: "← Choose another platform",
+          copyright: "© 2026 BeforeShow",
+          privacyLink: "Privacy Policy",
+          termsLink: "Terms of Service",
+          homeLink: "Back to home"
+        }
+      };
+
+      var platformNames = {
+        "zh-Hans": { damai: "大麦", showstart: "秀动", maoyan: "猫眼", piaoxingqiu: "票星球", fenwandao: "纷玩岛", ticketmaster: "Ticketmaster", dice: "DICE", axs: "AXS", livenation: "Live Nation" },
+        "zh-Hant": { damai: "大麥", showstart: "秀動", maoyan: "貓眼", piaoxingqiu: "票星球", fenwandao: "紛玩島", ticketmaster: "Ticketmaster", dice: "DICE", axs: "AXS", livenation: "Live Nation" },
+        en: { damai: "Damai", showstart: "ShowStart", maoyan: "Maoyan", piaoxingqiu: "PiaoXingQiu", fenwandao: "LiveLab", ticketmaster: "Ticketmaster", dice: "DICE", axs: "AXS", livenation: "Live Nation" }
+      };
+
+      var platformSteps = {
+        damai: {
+          "zh-Hans": ["打开大麦总览页，搜索你要添加的演出。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟大麥總覽頁，搜尋你要新增的演出。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the Damai overview page and search for your show.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        showstart: {
+          "zh-Hans": ["打开秀动总览页，搜索你要添加的演出或 Livehouse 活动。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟秀動總覽頁，搜尋你要新增的演出或 Livehouse 活動。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the ShowStart overview page and search for your show or Livehouse event.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        maoyan: {
+          "zh-Hans": ["打开猫眼演出总览页，搜索你要添加的演出。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟貓眼演出總覽頁，搜尋你要新增的演出。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the Maoyan show overview page and search for your show.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        piaoxingqiu: {
+          "zh-Hans": ["打开票星球总览页，搜索你要添加的活动。", "点击搜索结果，进入对应的活动详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟票星球總覽頁，搜尋你要新增的活動。", "點擊搜尋結果，進入對應的活動詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the PiaoXingQiu overview page and search for your event.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        fenwandao: {
+          "zh-Hans": ["打开纷玩岛总览页，搜索你要添加的演出。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟紛玩島總覽頁，搜尋你要新增的演出。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the LiveLab overview page and search for your show.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        ticketmaster: {
+          "zh-Hans": ["打开 Ticketmaster 总览页，搜索你要添加的演出。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟 Ticketmaster 總覽頁，搜尋你要新增的演出。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the Ticketmaster overview page and search for your show.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        dice: {
+          "zh-Hans": ["打开 DICE 总览页，搜索你要添加的活动。", "点击搜索结果，进入对应的活动详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟 DICE 總覽頁，搜尋你要新增的活動。", "點擊搜尋結果，進入對應的活動詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the DICE overview page and search for your event.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        axs: {
+          "zh-Hans": ["打开 AXS 总览页，搜索你要添加的活动。", "点击搜索结果，进入对应的活动详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟 AXS 總覽頁，搜尋你要新增的活動。", "點擊搜尋結果，進入對應的活動詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the AXS overview page and search for your event.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        },
+        livenation: {
+          "zh-Hans": ["打开 Live Nation 总览页，搜索你要添加的演出。", "点击搜索结果，进入对应的演出详情页。", "复制此时浏览器地址栏里的页面地址，回到 BeforeShow 粘贴并开始解析。"],
+          "zh-Hant": ["開啟 Live Nation 總覽頁，搜尋你要新增的演出。", "點擊搜尋結果，進入對應的演出詳情頁。", "複製此時瀏覽器網址列裡的頁面網址，回到 BeforeShow 貼上並開始解析。"],
+          en: ["Open the Live Nation overview page and search for your show.", "Tap the search result to open its details page.", "Copy the URL from the address bar and paste it back in BeforeShow to parse."]
+        }
+      };
+
+      var platforms = [
+        { key: "damai", url: "https://m.damai.cn/shows/home.html", domain: "m.damai.cn" },
+        { key: "showstart", url: "https://showstart.com/", domain: "showstart.com" },
+        { key: "maoyan", url: "https://show.maoyan.com/qqw/", domain: "maoyan.com" },
+        { key: "piaoxingqiu", url: "https://e.piaoxingqiu.com/", domain: "e.piaoxingqiu.com" },
+        { key: "fenwandao", url: "https://www.livelab.com.cn/", domain: "livelab.com.cn" },
+        { key: "ticketmaster", url: "https://www.ticketmaster.com/", domain: "ticketmaster.*" },
+        { key: "dice", url: "https://dice.fm/", domain: "dice.fm" },
+        { key: "axs", url: "https://www.axs.com/", domain: "axs.com" },
+        { key: "livenation", url: "https://www.livenation.com/", domain: "livenation.com" }
+      ];
+
+      var picker = document.getElementById("platformPicker");
+      var pickerStep = document.getElementById("pickerStep");
+      var detailStep = document.getElementById("detailStep");
+      var detailTitle = document.getElementById("detailTitle");
+      var detailLink = document.getElementById("detailLink");
+      var detailDomain = document.getElementById("detailDomain");
+      var detailSteps = document.getElementById("detailSteps");
+      var backToPicker = document.getElementById("backToPicker");
+      var currentPlatform = null;
+
+      function renderCopy() {
+        var t = copy[LANG];
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          var key = el.getAttribute("data-i18n");
+          if (key in t) el.textContent = t[key];
+        });
+        document.documentElement.lang = LANG === "en" ? "en" : LANG === "zh-Hant" ? "zh-Hant" : "zh-Hans";
+        document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-set-lang") === LANG);
+        });
+      }
+
+      function renderDetail(platform) {
+        currentPlatform = platform;
+        var c = copy[LANG];
+        var names = platformNames[LANG];
+        detailTitle.textContent = names[platform.key];
+        detailLink.textContent = c.openOverview + " " + names[platform.key] + " " + c.overviewSuffix;
+        detailLink.href = platform.url;
+        detailDomain.textContent = platform.domain;
+        detailSteps.innerHTML = "";
+        var steps = platformSteps[platform.key][LANG];
+        for (var j = 0; j < steps.length; j++) {
+          var li = document.createElement("li");
+          li.textContent = steps[j];
+          detailSteps.appendChild(li);
+        }
+        pickerStep.hidden = true;
+        detailStep.hidden = false;
+      }
+
+      function renderPicker() {
+        picker.innerHTML = "";
+        var names = platformNames[LANG];
+        for (var i = 0; i < platforms.length; i++) {
+          (function (platform) {
+            var card = document.createElement("button");
+            card.type = "button";
+            card.className = "platform-card";
+            card.innerHTML = "<strong>" + names[platform.key] + "</strong><span>" + platform.domain + "</span>";
+            card.addEventListener("click", function () {
+              renderDetail(platform);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            });
+            picker.appendChild(card);
+          })(platforms[i]);
+        }
+      }
+
+      backToPicker.addEventListener("click", function () {
+        detailStep.hidden = true;
+        pickerStep.hidden = false;
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          LANG = btn.getAttribute("data-set-lang");
+          try { localStorage.setItem("bs-lang", LANG); } catch (e) {}
+          renderCopy();
+          renderPicker();
+          if (currentPlatform) renderDetail(currentPlatform);
+        });
+      });
+
+      renderCopy();
+      renderPicker();
+    </script>
   </body>
 </html>

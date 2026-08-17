@@ -25,6 +25,10 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var endTimeZoneIdentifier: String? = nil
         /// App Group 容器内的封面缓存文件名(Live Activity 小图规格);nil 用占位
         var coverImageFilename: String?
+        /// 开场时刻是否已过(app 运行时由 desiredState 写入)。LA 无自驱重渲染,
+        /// 跨开场零点需靠状态翻转「已开场」标签,不能依赖渲染期的 Date()。
+        /// optional:旧构建存留的活动解码时无此键,回退到渲染期 Date() 判断。
+        var hasStarted: Bool? = nil
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)

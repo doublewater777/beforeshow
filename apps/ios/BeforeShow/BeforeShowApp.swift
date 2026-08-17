@@ -6,6 +6,7 @@ import UserNotifications
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
 
     private let modelContainer: ModelContainer = {
@@ -30,6 +31,7 @@ struct BeforeShowApp: App {
     }()
 
     init() {
+        AppLanguageManager.apply(AppLanguageManager.persisted)
         #if DEBUG
         UserDefaults.standard.register(defaults: [
             ProEntitlementStorage.appStorageKey: ProEntitlementStorage.encode(
@@ -46,12 +48,17 @@ struct BeforeShowApp: App {
         WindowGroup {
             RootView()
                 .environment(companionCoordinator)
+                .environment(\.locale, languageController.language.locale)
                 .onAppear {
+                    // 在 noteDependenciesReady() 之前定格旧数据来源：它会立刻起
+                    // Task flush 待处理邀请，可能把用户自己添加的现场翻成 participant 侧。
+                    ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
                 }
                 .task {
+                    ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer

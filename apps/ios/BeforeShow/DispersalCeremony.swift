@@ -26,11 +26,11 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .spoiled: "拉完了"
-        case .meh: "NPC"
-        case .golden: "人上人"
-        case .peak: "顶级"
-        case .fire: "夯爆了"
+        case .spoiled: BSLocalization.text("拉完了")
+        case .meh: BSLocalization.text("NPC")
+        case .golden: BSLocalization.text("人上人")
+        case .peak: BSLocalization.text("顶级")
+        case .fire: BSLocalization.text("夯爆了")
         }
     }
 
@@ -38,16 +38,16 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
     /// 拉完了不是"我演砸了",是"今晚有点难评"。
     var sub: String {
         switch self {
-        case .spoiled: "今晚有点难评"
-        case .meh: "平稳经过这一晚"
-        case .golden: "明显高于预期"
-        case .peak: "这一晚很值"
-        case .fire: "今晚直接封神"
+        case .spoiled: BSLocalization.text("今晚有点难评")
+        case .meh: BSLocalization.text("平稳经过这一晚")
+        case .golden: BSLocalization.text("明显高于预期")
+        case .peak: BSLocalization.text("这一晚很值")
+        case .fire: BSLocalization.text("今晚直接封神")
         }
     }
 
     var accessibilityLabel: String {
-        "\(label)，\(sub)，\(rawValue) 星"
+        BSLocalization.format("%@，%@，%lld 星", label, sub, rawValue)
     }
 
     /// 由冷到暖,匹配「场子越热情绪越亮」的视觉直觉。
@@ -72,9 +72,14 @@ enum DispersalCeremonyPolicy {
     /// 散场文字最大长度。`Show.normalizeClosingNote` 复用同一上限。
     static let maximumNoteLength = 500
 
-    /// 舞台熄灯动画持续时间。3 道光束淡入淡出 + 标题淡入,贴合 V2 原型的"散场"仪式感。
-    /// 短到不打断,长到能看见光。reduceMotion 时直接跳到末尾帧。
-    static let lightsOutDuration: Double = 2.8
+    /// 舞台熄灯动画持续时间。3 道光束淡入淡出 + 标题淡入。
+    /// 4.2s 让「散场」按 25%–80% 包络至少停住 2 秒;2.8s 时只有 1.5s,会像闪一下。
+    /// reduceMotion 时直接跳到中段停驻帧(progress 0.5)。
+    static let lightsOutDuration: Double = 4.2
+
+    /// 熄灯动画开表前的停顿。等 fullScreenCover 上滑转场落定,
+    /// 否则转场会吃掉标题渐入(0–25%)的前三分之一,看起来"突然开始"。
+    static let lightsOutTransitionLeadIn: Double = 0.45
 
     /// 合法评分范围。
     static let ratingRange: ClosedRange<Int> = 1...5
@@ -93,10 +98,18 @@ enum DispersalCeremonyPolicy {
     /// 散场文字快捷填充。3 个意图对应"刚好够"的句式,降低散场时敲字的门槛。
     /// 顺序敏感:UI chip 顺序 = 数组顺序,后两个比前一个更短,符合"一句话也行"的设计意图。
     static let quickFillPresets: [(label: String, text: String)] = [
-        ("一个瞬间", "最后一首歌结束的时候，灯亮得特别慢。"),
-        ("一句话也行", "今晚值了。"),
-        ("最喜欢的一首歌", "最喜欢的是最后那首歌。")
+        (BSLocalization.text("一个瞬间"), BSLocalization.text("最后一首歌结束的时候，灯亮得特别慢。")),
+        (BSLocalization.text("一句话也行"), BSLocalization.text("今晚值了。")),
+        (BSLocalization.text("最喜欢的一首歌"), BSLocalization.text("最喜欢的是最后那首歌。"))
     ]
+}
+
+/// 评级吸附条:轨道两端落在首尾圆点中心,拉到顶时线不会在圆点外多出一截。
+enum DispersalSnapSliderLayout {
+    static func trackInset(width: CGFloat, nodeCount: Int = DispersalRating.allCases.count) -> CGFloat {
+        guard nodeCount > 0, width > 0 else { return 0 }
+        return width / CGFloat(nodeCount * 2)
+    }
 }
 
 /// 熄灯动画时间轴。视图用 `TimelineView` 每帧喂 elapsed,这里只算 0...1 进度与透明度。
@@ -132,8 +145,8 @@ enum DispersalLightsOutMotion {
 
 /// 散场卡上的可见文案。规则只有一份,视图与测试共用。
 enum DispersalCeremonyCardCopy {
-    static let brand = "BEFORESHOW · 散场记录"
-    static let footerTrailing = "开场前"
+    static let brand = BSLocalization.text("BEFORESHOW · 散场记录")
+    static let footerTrailing = BSLocalization.text("开场前")
 
     /// 现场名拆成最多两行:有艺人且标题以「艺人 · 」开头时拆开,贴近海报排版。
     static func eventLines(name: String, artistNames: [String]) -> [String] {
@@ -156,13 +169,13 @@ enum DispersalCeremonyCardCopy {
     }
 
     static func ratingTitle(_ rating: DispersalRating) -> String {
-        "\(rating.emoji) \(rating.label)"
+        BSLocalization.format("%@ %@", rating.emoji, rating.label)
     }
 
     static func footerLeading(identity: FootprintDetailIdentity) -> String {
         if let name = identity.companionName, let ordinal = identity.companionOrdinal {
-            return "与\(name)第 \(ordinal) 次见面"
+            return BSLocalization.format("与%@第 %lld 次见面", name, ordinal)
         }
-        return "我的第 \(identity.showOrdinal) 场现场"
+        return BSLocalization.format("我的第 %lld 场现场", identity.showOrdinal)
     }
 }

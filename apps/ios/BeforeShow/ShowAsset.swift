@@ -9,29 +9,29 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .ticket: return "票根"
-        case .timetable: return "时刻表"
+        case .ticket: return BSLocalization.text("票根")
+        case .timetable: return BSLocalization.text("时刻表")
         }
     }
 
     var viewerTitle: String {
         switch self {
-        case .ticket: return "我的票根"
-        case .timetable: return "时刻表"
+        case .ticket: return BSLocalization.text("我的票根")
+        case .timetable: return BSLocalization.text("时刻表")
         }
     }
 
-    var emptySubtitle: String { "未添加" }
-    var savedSubtitle: String { "已保存" }
+    var emptySubtitle: String { BSLocalization.text("未添加") }
+    var savedSubtitle: String { BSLocalization.text("已保存") }
 
-    var addTitle: String { "添加\(title)" }
+    var addTitle: String { BSLocalization.format("添加%@", title) }
 
     var addDescription: String {
         switch self {
         case .ticket:
-            return "选择一张电子票截图或实体票照片，保存到这场现场。"
+            return BSLocalization.text("选择一张电子票截图或实体票照片，保存到这场现场。")
         case .timetable:
-            return "选择一张演出流程、阵容安排或时间图片，保存到这场现场。"
+            return BSLocalization.text("选择一张演出流程、阵容安排或时间图片，保存到这场现场。")
         }
     }
 
@@ -39,7 +39,7 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
     var viewerDisclaimer: String? {
         switch self {
         case .ticket:
-            return "只作现场记录，不替代官方票务凭证。"
+            return BSLocalization.text("只作现场记录，不替代官方票务凭证。")
         case .timetable:
             return nil
         }
@@ -47,8 +47,8 @@ enum ShowAssetKind: String, Codable, CaseIterable, Identifiable, Hashable {
 
     var choosePrompt: String {
         switch self {
-        case .ticket: return "电子票截图或实体票照片"
-        case .timetable: return "演出流程、阵容安排或时间图片"
+        case .ticket: return BSLocalization.text("电子票截图或实体票照片")
+        case .timetable: return BSLocalization.text("演出流程、阵容安排或时间图片")
         }
     }
 

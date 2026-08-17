@@ -13,10 +13,10 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
         switch self {
-        case .apple: return "Apple 地图"
-        case .amap: return "高德地图"
-        case .baidu: return "百度地图"
-        case .google: return "Google 地图"
+        case .apple: return BSLocalization.text("Apple 地图")
+        case .amap: return BSLocalization.text("高德地图")
+        case .baidu: return BSLocalization.text("百度地图")
+        case .google: return BSLocalization.text("Google 地图")
         }
     }
 
@@ -78,7 +78,7 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
         case .amap:
             var components = URLComponents(string: "iosamap://path")
             components?.queryItems = [
-                URLQueryItem(name: "sourceApplication", value: "开场前"),
+                URLQueryItem(name: "sourceApplication", value: BSLocalization.text("开场前")),
                 URLQueryItem(name: "dname", value: query),
                 URLQueryItem(name: "dev", value: "0"),
                 URLQueryItem(name: "t", value: "0"),

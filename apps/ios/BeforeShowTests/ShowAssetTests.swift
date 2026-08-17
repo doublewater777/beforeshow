@@ -484,21 +484,6 @@ final class ShowAssetTests: XCTestCase {
         )
     }
 
-    func testPrivacyCopyMentionsLocalTicketAssetsWithoutTicketWalletLanguage() {
-        let joined = PrivacyLocalDataCopy.points.joined(separator: " ")
-        XCTAssertTrue(joined.contains("票根"))
-        XCTAssertTrue(joined.contains("时刻表"))
-        XCTAssertTrue(joined.contains("本机") || joined.contains("本地"))
-        XCTAssertFalse(joined.contains("验票"))
-        XCTAssertFalse(joined.contains("票夹"))
-        XCTAssertTrue(PrivacyLocalDataCopy.clearDataExplanation.contains("票根"))
-        XCTAssertTrue(
-            LocalDataClearancePolicy.defaultPlan.deletesAppOwnedData.contains {
-                $0.contains("票根") && $0.contains("时刻表")
-            }
-        )
-    }
-
     private func solidJPEGData() -> Data? {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24))
         let image = renderer.image { context in

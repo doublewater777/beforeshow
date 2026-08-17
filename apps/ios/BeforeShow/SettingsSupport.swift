@@ -1,17 +1,145 @@
 import Foundation
+import ObjectiveC
+import SwiftData
 import UIKit
+import WidgetKit
 
 enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
     case about = "关于开场前"
+
+    var displayTitle: String { BSLocalization.text(rawValue) }
 }
 
 enum HomeStyle: String, Equatable {
     case halfCover = "half-cover"
 
-    var displayName: String { "半屏封面" }
+    var displayName: String { BSLocalization.text("半屏封面") }
+}
+
+enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
+    case system = ""
+    case zhHans = "zh-Hans"
+    case zhHant = "zh-Hant"
+    case en = "en"
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .system: return BSLocalization.text("跟随系统")
+        case .zhHans: return BSLocalization.text("简体中文")
+        case .zhHant: return BSLocalization.text("繁體中文")
+        case .en: return "English"
+        }
+    }
+
+    var locale: Locale {
+        switch self {
+        case .system: return .autoupdatingCurrent
+        case .zhHans: return Locale(identifier: "zh-Hans")
+        case .zhHant: return Locale(identifier: "zh-Hant")
+        case .en: return Locale(identifier: "en")
+        }
+    }
+
+    var bundle: Bundle? {
+        guard self != .system else {
+            return AppLanguage.systemBundle()
+        }
+        guard let path = Bundle.main.path(forResource: rawValue, ofType: "lproj") else { return nil }
+        return Bundle(path: path)
+    }
+
+    /// 系统语言对应的 `.lproj` bundle，按当前 `Locale.preferredLanguages` 实时匹配，
+    /// 不依赖 `Bundle.main` 启动时缓存的 localizations。
+    static func systemBundle() -> Bundle? {
+        let supported = Bundle.main.localizations
+        let preferred = Bundle.preferredLocalizations(
+            from: supported,
+            forPreferences: Locale.preferredLanguages
+        )
+        guard let code = preferred.first,
+              let path = Bundle.main.path(forResource: code, ofType: "lproj") else {
+            return nil
+        }
+        return Bundle(path: path)
+    }
+}
+
+/// In-app language override, active immediately without an app restart.
+///
+/// `BSLocalization` resolves through `Bundle.main.localizedString`, so swapping
+/// `Bundle.main`'s class for `LanguageSwizzledBundle` makes every lookup hit the
+/// selected `lproj`. `.system` resolves the device-language `lproj` explicitly
+/// (via `AppLanguage.systemBundle()`), so switching back from a manual language
+/// takes effect immediately instead of relying on `Bundle.main`'s launch-time choice.
+nonisolated(unsafe) private var languageBundleAssociationKey: UInt8 = 0
+
+private final class LanguageSwizzledBundle: Bundle, @unchecked Sendable {
+    override func localizedString(forKey key: String, value: String?, table tableName: String?) -> String {
+        guard let override = objc_getAssociatedObject(self, &languageBundleAssociationKey) as? Bundle else {
+            return super.localizedString(forKey: key, value: value, table: tableName)
+        }
+        return override.localizedString(forKey: key, value: value, table: tableName)
+    }
+}
+
+enum AppLanguageManager {
+    static let storageKey = "appLanguage"
+
+    static var persisted: AppLanguage {
+        AppLanguage(rawValue: UserDefaults.standard.string(forKey: storageKey) ?? "") ?? .system
+    }
+
+    static func apply(_ language: AppLanguage) {
+        if language == .system {
+            UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+        } else {
+            UserDefaults.standard.set([language.rawValue], forKey: "AppleLanguages")
+        }
+        UserDefaults.standard.set(language.rawValue, forKey: storageKey)
+        // 组件进程读不到 App 私有 defaults，把语言选择同步到 App Group，让组件跟随。
+        UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?.set(language.rawValue, forKey: storageKey)
+        object_setClass(Bundle.main, LanguageSwizzledBundle.self)
+        objc_setAssociatedObject(
+            Bundle.main,
+            &languageBundleAssociationKey,
+            language.bundle,
+            .OBJC_ASSOCIATION_RETAIN_NONATOMIC
+        )
+    }
+}
+
+@MainActor
+final class AppLanguageController: ObservableObject {
+    static let shared = AppLanguageController()
+    @Published var language: AppLanguage
+
+    private init() {
+        language = AppLanguageManager.persisted
+    }
+
+    func select(_ language: AppLanguage) {
+        AppLanguageManager.apply(language)
+        self.language = language
+        // 语言变化本身不改变 widget 数据指纹，需要主动刷新让组件按新语言重渲染。
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+}
+
+/// 在官网链接上追加当前 App 语言，让 App 内打开的页面跟随语言切换。
+@MainActor
+func localizedSiteURL(_ base: URL) -> URL {
+    let language = AppLanguageController.shared.language
+    guard language != .system else { return base }
+    var components = URLComponents(url: base, resolvingAgainstBaseURL: false)
+    var queryItems = components?.queryItems ?? []
+    queryItems.append(URLQueryItem(name: "lang", value: language.rawValue))
+    components?.queryItems = queryItems
+    return components?.url ?? base
 }
 
 enum SettingsInformation {
@@ -23,32 +151,6 @@ enum SettingsInformation {
     ]
 }
 
-enum PrivacyLocalDataCopy {
-    static let points = [
-        "添加现场时的票务截图只用于设备端 OCR，不会为了识别上传。",
-        "票根与时刻表保存在 BeforeShow 的设备本地 App 沙盒中；BeforeShow 不会主动上传这些图片，也不会加入同行 CloudKit 分享记录，并会将它们排除在 iOS 系统备份之外。",
-        "链接解析、同行分享等你主动使用的联网功能会发起网络请求；系统备份是否包含 App 数据由 iOS 和你的系统设置决定。",
-        "记忆碎片、票根和时刻表里的图片是 App 沙盒副本，不是系统相册原始内容；BeforeShow 不提供跨设备同步或恢复保证。"
-    ]
-
-    static let clearDataExplanation = "清除本地数据会删除 BeforeShow 管理的本地记录、记忆碎片文字，以及 App 沙盒中的票根/时刻表、照片/视频副本和临时缓存；不会删除系统相册中的原始图片或视频。"
-}
-
-enum ProMembershipCopy {
-    static let summary = "Pro 提供更高的现场保存额度，不锁本地已有内容。"
-
-    /// 以 `ProFeatureGate` 实际接线的现场保存额度为准。
-    static let unlockedPoints = [
-        "无限添加现场（免费版限 1 场）"
-    ]
-
-    /// `ProFeatureGate` 中始终放行的能力：已有现场、手动编辑。
-    static let freePoints = [
-        "查看与编辑已有现场",
-        "手动编辑所有内容"
-    ]
-}
-
 struct SettingsMembershipSummary: Equatable {
     let title: String
     let subtitle: String
@@ -56,11 +158,11 @@ struct SettingsMembershipSummary: Equatable {
     init(entitlement: ProEntitlementState) {
         switch entitlement {
         case .free:
-            self.init(title: "免费版", subtitle: "可保存 1 场现场")
+            self.init(title: BSLocalization.text("免费版"), subtitle: BSLocalization.text("每月可添加 1 场现场"))
         case .active:
-            self.init(title: "Pro 已启用", subtitle: "可以无限添加现场")
+            self.init(title: BSLocalization.text("Pro 已启用"), subtitle: BSLocalization.text("可以无限添加现场"))
         case .expired:
-            self.init(title: "Pro 已过期", subtitle: "已有本地内容仍可查看和编辑")
+            self.init(title: BSLocalization.text("Pro 已过期"), subtitle: BSLocalization.text("已有本地内容仍可查看和编辑"))
         }
     }
 
@@ -77,31 +179,27 @@ enum NotificationSettingsAction: Equatable {
 
 struct NotificationSettingsPresentation: Equatable {
     let status: String
-    let subtitle: String
     let action: NotificationSettingsAction
 
     init(authorizationState: NotificationAuthorizationState) {
         switch authorizationState {
         case .notDetermined:
             self.init(
-                status: "尚未开启",
-                subtitle: "轻点开启开场提醒",
+                status: BSLocalization.text("尚未开启"),
                 action: .requestPermission
             )
         case .denied:
             self.init(
-                status: "未开启",
-                subtitle: "去系统设置开启通知",
+                status: BSLocalization.text("未开启"),
                 action: .openSystemSettings
             )
         case .authorized, .provisional:
-            self.init(status: "已开启", subtitle: "可在系统设置中调整", action: .openSystemSettings)
+            self.init(status: BSLocalization.text("已开启"), action: .openSystemSettings)
         }
     }
 
-    init(status: String, subtitle: String, action: NotificationSettingsAction) {
+    init(status: String, action: NotificationSettingsAction) {
         self.status = status
-        self.subtitle = subtitle
         self.action = action
     }
 }
@@ -112,8 +210,8 @@ struct AppVersionInformation: Equatable {
 
     init(infoDictionary: [String: Any]) {
         self.init(
-            marketingVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? "未知版本",
-            buildNumber: infoDictionary["CFBundleVersion"] as? String ?? "未知构建"
+            marketingVersion: infoDictionary["CFBundleShortVersionString"] as? String ?? BSLocalization.text("未知版本"),
+            buildNumber: infoDictionary["CFBundleVersion"] as? String ?? BSLocalization.text("未知构建")
         )
     }
 
@@ -127,7 +225,7 @@ struct AppVersionInformation: Equatable {
     }
 
     var compactCopy: String { "v\(marketingVersion)" }
-    var fullCopy: String { "版本 \(marketingVersion)（构建 \(buildNumber)）" }
+    var fullCopy: String { BSLocalization.format("版本 %@（构建 %@）", marketingVersion, buildNumber) }
 }
 
 enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
@@ -136,6 +234,8 @@ enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
     case privacy = "隐私与数据"
 
     var id: String { rawValue }
+
+    var displayTitle: String { BSLocalization.text(rawValue) }
 }
 
 struct FeedbackDiagnostics: Equatable {
@@ -194,38 +294,65 @@ struct FeedbackPayloadBuilder {
 struct FeedbackShareTextBuilder {
     func build(from payload: FeedbackPayload) -> String {
         var text = [
-            "类型：\(payload.category.rawValue)",
-            "反馈：\(payload.message)"
+            BSLocalization.format("类型：%@", payload.category.displayTitle),
+            BSLocalization.format("反馈：%@", payload.message)
         ].joined(separator: "\n")
 
         if let diagnostics = payload.diagnostics {
             text += "\n\n" +
-                "诊断信息\nApp 版本：\(diagnostics.appVersion)\n系统版本：\(diagnostics.osVersion)"
+                BSLocalization.format("诊断信息\nApp 版本：%@\n系统版本：%@", diagnostics.appVersion, diagnostics.osVersion)
         }
 
         return text
     }
 }
 
-struct LocalDataClearancePlan: Equatable {
-    let deletesAppOwnedData: [String]
-    let preservesSystemData: [String]
+struct LocalDataInventory: Equatable {
+    var showCount = 0
+    var memoryFragmentCount = 0
+    var assetCount = 0
+    var dynamicCoverCount = 0
+    var appBytes: Int64 = 0
+    var mediaBytes: Int64 = 0
+
+    var isEmpty: Bool {
+        showCount == 0 && memoryFragmentCount == 0 && assetCount == 0 && dynamicCoverCount == 0 && mediaBytes == 0
+    }
 }
 
-enum LocalDataClearancePolicy {
-    static let defaultPlan = LocalDataClearancePlan(
-        deletesAppOwnedData: [
-            "SwiftData 中的现场和偏好设置",
-            "记忆碎片文字与元数据",
-            "BeforeShow 沙盒中的票根和时刻表图片",
-            "BeforeShow 沙盒中保存的记忆照片和视频副本",
-            "动态封面正反面偏好",
-            "BeforeShow 沙盒中的临时缓存"
-        ],
-        preservesSystemData: [
-            "系统相册中的原始图片和视频"
-        ]
-    )
+@MainActor
+enum LocalDataInventoryService {
+    static func compute(modelContext: ModelContext) async -> LocalDataInventory {
+        var inventory = LocalDataInventory()
+        inventory.showCount = (try? modelContext.fetchCount(FetchDescriptor<Show>())) ?? 0
+        inventory.memoryFragmentCount = (try? modelContext.fetchCount(FetchDescriptor<MemoryFragment>())) ?? 0
+        inventory.assetCount = (try? modelContext.fetchCount(FetchDescriptor<ShowAsset>())) ?? 0
+        inventory.dynamicCoverCount = (try? modelContext.fetchCount(FetchDescriptor<DynamicCover>())) ?? 0
+
+        inventory.appBytes = directoryBytes(at: URL(fileURLWithPath: NSHomeDirectory()))
+
+        var bytes: Int64 = 0
+        bytes += directoryBytes(at: await ShowAssetMediaStore.shared.rootDirectoryURL())
+        bytes += directoryBytes(at: await DynamicCoverMediaStore.shared.rootDirectoryURL())
+        bytes += directoryBytes(at: MemoryFragmentMediaStore.shared.location.rootDirectory)
+        inventory.mediaBytes = bytes
+        return inventory
+    }
+
+    static func directoryBytes(at url: URL, fileManager: FileManager = .default) -> Int64 {
+        guard let enumerator = fileManager.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+                  values.isRegularFile == true else { continue }
+            total += Int64(values.fileSize ?? 0)
+        }
+        return total
+    }
 }
 
 /// Retry journal for ticket/timetable files only. Memory-fragment cleanup keeps
@@ -376,7 +503,7 @@ enum FeedbackDestination {
         components.scheme = "mailto"
         components.path = address
         components.queryItems = [
-            URLQueryItem(name: "subject", value: "BeforeShow 反馈"),
+            URLQueryItem(name: "subject", value: BSLocalization.text("BeforeShow 反馈")),
             URLQueryItem(name: "body", value: prefilledBody)
         ]
         return components.url
@@ -394,15 +521,5 @@ enum FeedbackMailOpener {
                 continuation.resume(returning: accepted)
             }
         }
-    }
-}
-
-protocol LocalDataClearing {
-    func clearAppOwnedLocalData() async throws -> LocalDataClearancePlan
-}
-
-actor LocalDataClearer: LocalDataClearing {
-    func clearAppOwnedLocalData() async throws -> LocalDataClearancePlan {
-        LocalDataClearancePolicy.defaultPlan
     }
 }

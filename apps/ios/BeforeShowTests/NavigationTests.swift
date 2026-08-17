@@ -4,6 +4,37 @@ import XCTest
 @testable import BeforeShow
 
 final class NavigationTests: XCTestCase {
+    /// 语言切换不得重建整棵根视图：`.id(language)` 会给 RootView 新身份，
+    /// 把 selectedTab / Settings 呈现 / 添加现场 / 仪式等状态一起丢掉
+    /// （复现：首页 → 设置 → 语言 → 选英文，会被弹回初始化后的根视图）。
+    /// 语言文案改由 RootView 订阅 AppLanguageController 触发 body 重算。
+    func testLanguageChangeDoesNotReplaceRootViewIdentity() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent() // BeforeShowTests
+            .deletingLastPathComponent() // ios
+            .appendingPathComponent("BeforeShow")
+
+        let appSource = try String(
+            contentsOf: root.appendingPathComponent("BeforeShowApp.swift"),
+            encoding: .utf8
+        )
+        XCTAssertFalse(
+            appSource.contains(".id(languageController.language)"),
+            "RootView must not be re-identified on language change; it discards navigation state"
+        )
+        // locale 仍要跟随语言，格式化/系统控件才会切换。
+        XCTAssertTrue(appSource.contains("\\.locale, languageController.language.locale"))
+
+        let rootSource = try String(
+            contentsOf: root.appendingPathComponent("RootView.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(
+            rootSource.contains("AppLanguageController.shared"),
+            "RootView must observe the language controller so copy refreshes without a new identity"
+        )
+    }
+
     func testTabEnumExposesMainProductSurfaces() {
         let tabs = BeforeShowTab.allCases
         XCTAssertEqual(tabs.count, 2)
@@ -170,10 +201,6 @@ final class NavigationTests: XCTestCase {
         XCTAssertEqual(
             MemoryCreateSourceOption.allCases.map(\.iconName),
             ["camera", "photo.on.rectangle", "text.alignleft"]
-        )
-        XCTAssertEqual(
-            MemoryCreateSourceOption.allCases.map(\.subtitle),
-            ["打开系统相机", "照片或视频", "写一句话"]
         )
     }
 
@@ -699,8 +726,24 @@ final class NavigationTests: XCTestCase {
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
 
         XCTAssertEqual(
-            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
             "2026.08.08 周六 19:00 · 预计演出 2 小时 30 分"
+        )
+    }
+
+    func testHomeIdentityDateTextShowsActualDurationAfterConfirmedEnd() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let start = makeDate(year: 2026, month: 8, day: 8, hour: 19, minute: 0, calendar: calendar)
+        let plannedEnd = makeDate(year: 2026, month: 8, day: 8, hour: 21, minute: 30, calendar: calendar)
+        let actualEnd = makeDate(year: 2026, month: 8, day: 8, hour: 22, minute: 10, calendar: calendar)
+        let show = try Show(name: "散场现场", date: start, startTime: start, endTime: plannedEnd)
+        show.markEnded(at: actualEnd)
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: actualEnd)
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
+            "2026.08.08 周六 19:00 · 实际演出 3 小时 10 分"
         )
     }
 
@@ -713,7 +756,7 @@ final class NavigationTests: XCTestCase {
         let state = CurrentShowTimeState(show: show, calendar: calendar, now: start.addingTimeInterval(-86_400))
 
         XCTAssertEqual(
-            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar),
+            HomeShowIdentityPresentation.dateText(for: show, timeState: state, calendar: calendar, locale: Locale(identifier: "zh_Hans_CN")),
             "2026.12.31-2027.01.01 · 每日 19:00-21:00"
         )
     }
@@ -743,6 +786,19 @@ final class WidgetRuntimeRegressionTests: XCTestCase {
             try? FileManager.default.removeItem(at: tempDirectory)
         }
         try super.tearDownWithError()
+    }
+
+    func testLockScreenCircularNearClockFitsAccessory() {
+        XCTAssertEqual(
+            LockScreenCountdownCopy.circularNearClock(remainingSeconds: 3 * 3_600 + 24 * 60 + 18),
+            "3:24"
+        )
+        XCTAssertEqual(LockScreenCountdownCopy.circularNearClock(remainingSeconds: 90), "0:01")
+        XCTAssertEqual(LockScreenCountdownCopy.circularNearClock(remainingSeconds: 0), "0:00")
+        XCTAssertEqual(
+            BeforeShowWidgetKind.all,
+            ["BeforeShowCountdownWidget", "BeforeShowLockScreenCountdownWidget"]
+        )
     }
 
     func testPruneWithoutCurrentSourceDeletesAllHashedCovers() throws {

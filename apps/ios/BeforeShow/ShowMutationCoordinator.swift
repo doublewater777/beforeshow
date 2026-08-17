@@ -166,13 +166,13 @@ enum ShowMutationCoordinator {
                 effects: effects,
                 mutation: mutation
             )
-            let presentedMessage = didSync ? message : "\(message)，同步暂未更新"
+            let presentedMessage = didSync ? message : BSLocalization.format("%@，同步暂未更新", message)
             return ShowStatusActionResult(
                 tone: didSync ? .success : .neutral,
                 message: presentedMessage
             )
         } catch {
-            return ShowStatusActionResult(tone: .failure, message: "状态没有保存，请重试")
+            return ShowStatusActionResult(tone: .failure, message: BSLocalization.text("状态没有保存，请重试"))
         }
     }
 

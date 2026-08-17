@@ -2,7 +2,58 @@
   "identifier": "BEFORESHOW21",
   "environment": "Xcode",
   "bundleId": "com.doublewaterapps.beforeshow",
-  "products": [],
+  "products": [
+    {
+      "displayPrice": "8.99",
+      "familyShareable": false,
+      "internalID": "BS21PROLT",
+      "localizations": [
+        {
+          "description": "Unlock unlimited saved shows forever with a one-time purchase.",
+          "displayName": "BeforeShow Pro Lifetime",
+          "locale": "en_US"
+        },
+        {
+          "description": "一次性买断，永久解锁无限添加现场。",
+          "displayName": "BeforeShow Pro 终身",
+          "locale": "zh_CN"
+        },
+        {
+          "description": "一次性買斷，永久解鎖無限新增現場。",
+          "displayName": "BeforeShow Pro 終身",
+          "locale": "zh_TW"
+        }
+      ],
+      "productID": "com.doublewaterapps.beforeshow.pro.lifetime",
+      "referenceName": "BeforeShow Pro Lifetime",
+      "type": "NonConsumable"
+    },
+    {
+      "displayPrice": "5.99",
+      "familyShareable": false,
+      "internalID": "BS21PROLTD",
+      "localizations": [
+        {
+          "description": "Win-back offer: unlock unlimited saved shows forever with a one-time purchase.",
+          "displayName": "BeforeShow Pro Lifetime Offer",
+          "locale": "en_US"
+        },
+        {
+          "description": "挽留特惠：一次性买断，永久解锁无限添加现场。",
+          "displayName": "BeforeShow Pro 特惠终身",
+          "locale": "zh_CN"
+        },
+        {
+          "description": "挽留特惠：一次性買斷，永久解鎖無限新增現場。",
+          "displayName": "BeforeShow Pro 特惠終身",
+          "locale": "zh_TW"
+        }
+      ],
+      "productID": "com.doublewaterapps.beforeshow.pro.lifetime.discount",
+      "referenceName": "BeforeShow Pro Lifetime Win-back",
+      "type": "NonConsumable"
+    }
+  ],
   "settings": {
     "failTransactionsEnabled": false,
     "interruptPurchasesEnabled": false,
@@ -34,7 +85,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "12.00",
+          "displayPrice": "1.49",
           "familyShareable": false,
           "groupNumber": 1,
           "internalID": "BS21PROM",
@@ -64,7 +115,7 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "68.00",
+          "displayPrice": "4.99",
           "familyShareable": false,
           "groupNumber": 2,
           "internalID": "BS21PROY",
@@ -88,6 +139,36 @@
           "productID": "com.doublewaterapps.beforeshow.pro.yearly",
           "recurringSubscriptionPeriod": "P1Y",
           "referenceName": "BeforeShow Pro Yearly",
+          "subscriptionGroupID": "BEFORESHOWPRO",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "2.99",
+          "familyShareable": false,
+          "groupNumber": 3,
+          "internalID": "BS21PROYD",
+          "localizations": [
+            {
+              "description": "Win-back offer: unlock unlimited saved shows and repeated generation for one year.",
+              "displayName": "BeforeShow Pro Yearly Offer",
+              "locale": "en_US"
+            },
+            {
+              "description": "挽留特惠：按年解锁无限添加现场和重复生成。",
+              "displayName": "BeforeShow Pro 特惠年度",
+              "locale": "zh_CN"
+            },
+            {
+              "description": "挽留特惠：按年解鎖無限新增現場與重複產生。",
+              "displayName": "BeforeShow Pro 特惠年訂閱",
+              "locale": "zh_TW"
+            }
+          ],
+          "productID": "com.doublewaterapps.beforeshow.pro.yearly.discount",
+          "recurringSubscriptionPeriod": "P1Y",
+          "referenceName": "BeforeShow Pro Yearly Win-back",
           "subscriptionGroupID": "BEFORESHOWPRO",
           "type": "RecurringSubscription"
         }

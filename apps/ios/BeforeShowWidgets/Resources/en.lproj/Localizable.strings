@@ -2,7 +2,7 @@
 
 "%@" = "%@";
 "%1$@ · %2$@" = "%1$@ · %2$@";
-"%1$@ 天后灯亮 · %2$@" = "%1$@ days until lights up · %2$@";
+"%lld 天后灯亮 · %@" = "%lld days until lights up · %@";
 "%@ 开场" = "%@ opening";
 "--" = "--";
 "COUNTDOWN" = "COUNTDOWN";
@@ -13,7 +13,11 @@
 "已落幕" = "Show ended";
 "已落幕 · %@" = "Ended · %@";
 "已落幕 · 回味还在" = "Show ended · The afterglow remains";
+"已到预计散场时间" = "Past expected end time";
+"待确认" = "Pending";
+"待确认 · %@" = "Pending · %@";
 "已进行" = "Elapsed";
+"已开场" = "Show started";
 "开场中 · 已进行 %@" = "Show in progress · Elapsed %@";
 "开场前" = "BeforeShow";
 "开场前 · 还没有现场" = "BeforeShow · No show yet";
@@ -24,7 +28,7 @@
 "落幕" = "End";
 "谢幕了 · 回味还在" = "The curtain call is over·The aftertaste is still there";
 "距灯亮 %@" = "Until lights up %@";
-"距灯亮还有 %@ 天" = "%@ days until the lights come up";
+"距灯亮还有 %lld 天" = "%lld days until the lights come up";
 "还没有现场" = "No Shows Yet";
 "预计 %@ 谢幕" = "Estimated curtain at %@";
 "%lld 天 %lld 小时" = "%lld days %lld hours";
@@ -69,3 +73,39 @@
 
 "开场倒计时" = "Show Countdown";
 "最近一场现场,灯亮之前一点点靠近。" = "Your next show, a little closer before the lights come up.";
+
+"开场计时" = "Show Countdown";
+"灯亮之前,先进入状态" = "Before the lights come up, get in the mood";
+
+"演出进行中" = "Live now";
+"距离灯亮还有" = "Lights on in";
+
+"今晚灯亮" = "Tonight, lights up";
+"即将灯亮" = "Lights up soon";
+"今晚" = "Tonight";
+"今晚 %@" = "Tonight %@";
+"还有 %lld 天 · %@" = "%lld days remaining · %@";
+"正在现场 · %@" = "At the show · %@";
+"%@ · %@站" = "%@ · %@";
+"%d月%d日 %02d:%02d" = "%d/%d %02d:%02d";
+
+"%lld月%lld日 %@ 结束" = "Ends %lld/%lld at %@";
+"这场现场已取消，记录仍会留在我的现场。" = "This show is canceled; its record stays in your library.";
+"刚刚" = "Just now";
+"进行中" = "In progress";
+
+"%lld 分钟前" = "%lld minutes ago";
+"%lld 小时前" = "%lld hours ago";
+"昨天 %@" = "Yesterday at %@";
+"%lld月%lld日 %@" = "%lld/%lld at %@";
+"%lld年%lld月%lld日 %@" = "%lld/%lld/%lld at %@";
+"%lld 天前" = "%lld days ago";
+"今晚开场" = "Opening Tonight";
+"还有 %lld 天" = "%lld days left";
+"还有 %lld 天 · %@" = "%lld days left · %@";
+
+/* i18n gap fill */
+"锁屏上看下一场还有多久。" = "See on the lock screen how long until your next show.";
+
+/* i18n gap fill */
+"%@ 倒计时已开始" = "%@ countdown started";

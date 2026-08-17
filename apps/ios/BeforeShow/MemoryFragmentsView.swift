@@ -41,9 +41,7 @@ struct MemoryFragmentsSheet: View {
         NavigationStack {
             MemoryFragmentsView(show: show)
                 .toolbar {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("取消") { dismiss() }
-                    }
+                    BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
                 }
         }
         .presentationDetents([.large])
@@ -68,8 +66,7 @@ private struct MemoryCreateSourceSheet: View {
                 HStack(spacing: 10) {
                     ForEach(MemoryCreateSourceOption.allCases, id: \.self) { option in
                         MemorySourceOptionCard(
-                            title: option.rawValue,
-                            subtitle: option.subtitle,
+                            title: option.title,
                             icon: option.iconName,
                             action: { onSelect(option) }
                         )
@@ -432,9 +429,9 @@ struct MemoryFragmentsView: View {
                 .font(.system(size: 11))
                 .foregroundColor(BSColor.Stage.muted)
             HStack(spacing: BSSpacing.lg) {
-                timelineStat(value: "\(stats.memories)", label: "条记忆")
-                timelineStat(value: "\(stats.photos)", label: "照片")
-                timelineStat(value: "\(stats.videos)", label: "视频")
+                timelineStat(value: "\(stats.memories)", label: BSLocalization.text("条记忆"))
+                timelineStat(value: "\(stats.photos)", label: BSLocalization.text("照片"))
+                timelineStat(value: "\(stats.videos)", label: BSLocalization.text("视频"))
             }
             .padding(.top, 2)
         }
@@ -527,7 +524,7 @@ struct MemoryFragmentsView: View {
             guard directImportTask == nil else { return }
             Task { @MainActor in
             guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-                createSourceError = "当前设备无法使用相机。"
+                createSourceError = BSLocalization.text("当前设备无法使用相机。")
                 return
             }
             switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -537,12 +534,12 @@ struct MemoryFragmentsView: View {
                 if await AVCaptureDevice.requestAccess(for: .video) {
                     isCameraPresented = true
                 } else {
-                    createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
+createSourceError = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
                 }
             case .denied, .restricted:
                 createSourceError = "没有相机权限。你可以在系统设置中允许访问。"
             @unknown default:
-                createSourceError = "当前无法使用相机。"
+                createSourceError = BSLocalization.text("当前无法使用相机。")
             }
             }
         }
@@ -601,7 +598,7 @@ struct MemoryFragmentsView: View {
                 guard case .photo(let data) = result else {
                     directImportDraftID = nil
                     directImportTask = nil
-                    createSourceError = "相机入口只拍照片，视频请从相册选择。"
+                    createSourceError = BSLocalization.text("相机入口只拍照片，视频请从相册选择。")
                     return
                 }
                 let staged = try await MemoryFragmentMediaStore.shared.stageCameraPhoto(data, draftID: draftID)
@@ -971,14 +968,12 @@ private struct MemoryAddMediaSheet: View {
                     .padding(.top, 6)
                 HStack(spacing: 10) {
                     MemorySourceOptionCard(
-                        title: "继续拍照",
-                        subtitle: "打开系统相机",
+                        title: BSLocalization.text("继续拍照"),
                         icon: "camera",
                         action: onCamera
                     )
                     MemorySourceOptionCard(
-                        title: "从图库选择",
-                        subtitle: "照片或视频",
+                        title: BSLocalization.text("从图库选择"),
                         icon: "photo.on.rectangle",
                         action: onLibrary
                     )
@@ -991,7 +986,6 @@ private struct MemoryAddMediaSheet: View {
 
 private struct MemorySourceOptionCard: View {
     let title: String
-    let subtitle: String
     let icon: String
     var height: CGFloat = 105
     let action: () -> Void
@@ -1005,7 +999,6 @@ private struct MemorySourceOptionCard: View {
                     .frame(width: 42, height: 42)
                     .background(BSColor.Stage.accent.opacity(0.10), in: Circle())
                 Text(title).font(.system(size: 12, weight: .semibold))
-                Text(subtitle).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
             }
             .frame(maxWidth: .infinity)
             .frame(height: height)
@@ -1032,7 +1025,7 @@ private struct MemoryTimelineSection: View {
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(1.0)
                     .foregroundColor(phaseTitleColor)
-                Text("\(fragments.count) 条")
+                Text(BSLocalization.format("%lld 条", fragments.count))
                     .font(.system(size: 9.5))
                     .foregroundColor(BSColor.Stage.dim)
                 Rectangle()
@@ -1403,7 +1396,7 @@ private struct MemoryTextFragmentViewer: View {
                 Spacer()
             }
         }
-
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -1504,6 +1497,7 @@ private struct MemoryMediaViewer: View {
                 .padding(.vertical, 16)
             }
         }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
@@ -1609,7 +1603,7 @@ private struct MemoryUnifiedEditorView: View {
                             HStack {
                                 Text("点击查看 · 拖动调整顺序")
                                 Spacer()
-                                Text("最多 \(MemoryFragment.maximumMediaCount) 项")
+                                Text(BSLocalization.format("最多 %lld 项", MemoryFragment.maximumMediaCount))
                             }
                             .font(.system(size: 9.5))
                             .foregroundColor(BSColor.Stage.dim)
@@ -1620,7 +1614,7 @@ private struct MemoryUnifiedEditorView: View {
                         }
 
                         TextField(
-                            items.isEmpty ? "这一刻，你想记下什么？" : "写点什么……（可选）",
+                            items.isEmpty ? BSLocalization.text("这一刻，你想记下什么？") : BSLocalization.text("写点什么……（可选）"),
                             text: $caption,
                             axis: .vertical
                         )
@@ -1635,7 +1629,7 @@ private struct MemoryUnifiedEditorView: View {
                         .padding(.top, 15)
 
                         HStack {
-                            Text(items.isEmpty ? "最多 500 字" : "整组媒体共用一段文字")
+                            Text(items.isEmpty ? BSLocalization.text("最多 500 字") : BSLocalization.text("整组媒体共用一段文字"))
                             Spacer()
                             Text("\(caption.count) / \(captionLimit)")
                         }
@@ -1658,9 +1652,12 @@ private struct MemoryUnifiedEditorView: View {
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(isImporting ? "停止" : "取消") { cancel() }
-                    .disabled(isSaving && !isImporting)
+            ToolbarItem(placement: .topBarLeading) {
+                Button(action: cancel) {
+                    Image(systemName: "xmark")
+                }
+                .accessibilityLabel(isImporting ? BSLocalization.text("停止导入") : BSLocalization.text("取消"))
+                .disabled(isSaving && !isImporting)
             }
         }
         .preferredColorScheme(.dark)
@@ -1743,7 +1740,7 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private var editorTitle: String {
-        if isEditing { return "编辑记忆" }
+        if isEditing { return BSLocalization.text("编辑记忆") }
         return items.isEmpty ? "写下这一刻" : "新记忆"
     }
 
@@ -1760,8 +1757,8 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     private var editorSubtitle: String {
-        if items.isEmpty { return "自动记录当前现场时间。" }
-        return "像发一条私密动态，但不会公开发布。"
+        if items.isEmpty { return BSLocalization.text("自动记录当前现场时间。") }
+        return BSLocalization.text("像发一条私密动态，但不会公开发布。")
     }
 
     private var canSave: Bool {
@@ -1893,11 +1890,11 @@ private struct MemoryUnifiedEditorView: View {
     private func requestCamera() {
         guard !operationBusy else { return }
         guard replacementIndex != nil || items.count < MemoryFragment.maximumMediaCount else {
-            errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
+            errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体。", MemoryFragment.maximumMediaCount)
             return
         }
         guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            errorMessage = "当前设备无法使用相机。"
+            errorMessage = BSLocalization.text("当前设备无法使用相机。")
             return
         }
         switch AVCaptureDevice.authorizationStatus(for: .video) {
@@ -1908,13 +1905,13 @@ private struct MemoryUnifiedEditorView: View {
                 if await AVCaptureDevice.requestAccess(for: .video) {
                     isCameraPresented = true
                 } else {
-                    errorMessage = "没有相机权限。你可以在系统设置中允许访问。"
+errorMessage = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
                 }
             }
         case .denied, .restricted:
             errorMessage = "没有相机权限。你可以在系统设置中允许访问。"
         @unknown default:
-            errorMessage = "当前无法使用相机。"
+            errorMessage = BSLocalization.text("当前无法使用相机。")
         }
     }
 
@@ -1948,11 +1945,11 @@ private struct MemoryUnifiedEditorView: View {
                 ? MemoryFragment.maximumMediaCount - items.count
                 : 1
             guard remaining > 0 else {
-                errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
+                errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体。", MemoryFragment.maximumMediaCount)
                 return
             }
             if isEditing, pickerItems.count > remaining, isCurrentImport(generation) {
-                errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体，已只载入前 \(remaining) 个。"
+                errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体，已只载入前 %lld 个。", MemoryFragment.maximumMediaCount, remaining)
             }
             for item in pickerItems.prefix(remaining) {
                 guard isCurrentImport(generation) else { return }
@@ -2002,7 +1999,7 @@ private struct MemoryUnifiedEditorView: View {
         activeImportTask = Task { @MainActor in
             defer { finishImport(generation) }
             guard items.count < MemoryFragment.maximumMediaCount else {
-                errorMessage = "一条记忆最多 \(MemoryFragment.maximumMediaCount) 个媒体。"
+                errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体。", MemoryFragment.maximumMediaCount)
                 return
             }
             do {
@@ -2027,7 +2024,7 @@ private struct MemoryUnifiedEditorView: View {
                         items.append(editorItem)
                     }
                 case .video:
-                    errorMessage = "相机入口只拍照片，视频请从相册选择。"
+                    errorMessage = BSLocalization.text("相机入口只拍照片，视频请从相册选择。")
                     return
                 }
                 guard isCurrentImport(generation) else { return }
@@ -2091,28 +2088,28 @@ private struct MemoryUnifiedEditorView: View {
         if let storeError = error as? MemoryMediaStoreError {
             switch storeError {
             case .missingStagedDraft:
-                return "所选媒体的临时文件已失效，请返回图库重新选择。"
+                return BSLocalization.text("所选媒体的临时文件已失效，请返回图库重新选择。")
             case .insufficientDiskSpace:
-                return "设备储存空间不足，暂时无法保存。"
+                return BSLocalization.text("设备储存空间不足，暂时无法保存。")
             case .unsupportedMedia:
-                return "这个媒体格式暂不支持，请换一张照片或视频。"
+                return BSLocalization.text("这个媒体格式暂不支持，请换一张照片或视频。")
             case .imageEncodingFailed:
-                return "这张图片无法处理，请换一张图片后重试。"
+                return BSLocalization.text("这张图片无法处理，请换一张图片后重试。")
             case .importCancelled:
-                return "媒体导入已取消，请重新选择。"
+                return BSLocalization.text("媒体导入已取消，请重新选择。")
             }
         }
         if let validationError = error as? MemoryFragmentValidationError {
             switch validationError {
             case .emptyContent:
-                return "请保留至少一项媒体或一段文字。"
+                return BSLocalization.text("请保留至少一项媒体或一段文字。")
             case .textTooLong:
-                return "文字最多 500 字。"
+                return BSLocalization.text("文字最多 500 字。")
             case .mediaLimitExceeded:
-                return "一条记忆最多 10 项媒体。"
+                return BSLocalization.text("一条记忆最多 10 项媒体。")
             }
         }
-        return "内容没有保存，请重试。"
+        return BSLocalization.text("内容没有保存，请重试。")
     }
 
     private func cancel() {

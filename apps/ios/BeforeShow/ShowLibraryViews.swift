@@ -59,7 +59,7 @@ struct MyShowsListView: View {
                                         .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("添加现场")
+                                .accessibilityLabel(BSLocalization.text("添加现场"))
                             }
 
                             if let currentShow = shows.first(where: { $0.id == selectedShowID }) {
@@ -73,12 +73,12 @@ struct MyShowsListView: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
-                                .accessibilityLabel("\(currentShow.name)，当前现场，查看详情")
+                                .accessibilityLabel(BSLocalization.format("%@，当前现场，查看详情", currentShow.name))
                             }
 
-                            showGroup(title: "即将开始", shows: upcomingShows, allowsInlineSetCurrent: true)
-                            showGroup(title: "已结束", shows: endedShows, dimmed: true)
-                            showGroup(title: "变更", shows: changedShows, allowsInlineSetCurrent: true)
+                            showGroup(title: BSLocalization.text("即将开始"), shows: upcomingShows, allowsInlineSetCurrent: true)
+                            showGroup(title: BSLocalization.text("已结束"), shows: endedShows, dimmed: true)
+                            showGroup(title: BSLocalization.text("变更"), shows: changedShows, allowsInlineSetCurrent: true)
 
                             Text("点「设为当前」或左滑可切换当前现场")
                                 .font(BSFont.caption)
@@ -101,7 +101,7 @@ struct MyShowsListView: View {
             .bsToastOverlay(toast, bottomPadding: 90)
             .sheet(isPresented: $isShowingAddShowCoordinator) {
                 AddShowCoordinatorSheet {
-                    presentToast(.success, message: "已放入当前现场")
+                    presentToast(.success, message: BSLocalization.text("已放入当前现场"))
                 }
             }
         }
@@ -218,7 +218,7 @@ struct MyShowsListView: View {
         }
         parts.append(session.phase(for: show, now: Date()).statusText)
         if isCurrent {
-            parts.append("当前现场")
+            parts.append(BSLocalization.text("当前现场"))
         }
         return Text(parts.joined(separator: "，"))
     }
@@ -260,7 +260,7 @@ struct MyShowsListView: View {
 
     private func selectCurrent(_ show: Show) {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
             return
         }
 
@@ -276,11 +276,11 @@ struct MyShowsListView: View {
                 )
                 presentToast(
                     didSync ? .success : .neutral,
-                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
+                    message: didSync ? BSLocalization.text("已设为当前现场") : BSLocalization.text("已切换现场，同步暂未更新")
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "切换失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
             }
         }
     }
@@ -341,7 +341,7 @@ private struct MyShowsEmptyView: View {
                 }
                 .buttonStyle(.plain)
                 .padding(.top, BSSpacing.sm)
-                .accessibilityLabel("添加现场")
+                .accessibilityLabel(BSLocalization.text("添加现场"))
             }
             .padding(.horizontal, 36)
 
@@ -409,7 +409,7 @@ private struct ShowRowView: View {
                         .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 1))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("设为当前现场")
+                .accessibilityLabel(BSLocalization.text("设为当前现场"))
             } else {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
@@ -463,12 +463,12 @@ private struct ShowRowView: View {
     private var subtitleText: String {
         switch show.changeStatus {
         case .canceled:
-            return "已取消 · \(formatter.dateText(for: show))"
+            return BSLocalization.format("已取消 · %@", formatter.dateText(for: show))
         case .postponed:
             if show.postponedDate != nil {
-                return "延期至 \(formatter.dateText(for: show))"
+                return BSLocalization.format("延期至 %@", formatter.dateText(for: show))
             }
-            return "时间待定 · \(formatter.dateText(for: show))"
+            return BSLocalization.format("时间待定 · %@", formatter.dateText(for: show))
         case .scheduled:
             return "\(formatter.dateText(for: show)) · \(session.phase(for: show, now: Date()).statusText)"
         }
@@ -555,7 +555,7 @@ private struct CurrentShowListHeroCard: View {
     }
 
     private var metaText: String {
-        let place = show.venueName ?? show.city ?? "现场"
+        let place = show.venueName ?? show.city ?? BSLocalization.text("现场")
         return "\(place) · \(formatter.dateText(for: show))"
     }
 
@@ -590,24 +590,24 @@ private struct CurrentShowListHeroCard: View {
         switch phase.kind {
         case .before:
             return HeroCountdown(
-                eyebrow: "距离开场",
+                eyebrow: BSLocalization.text("距离开场"),
                 value: "\(phase.countdownNumber)\(phase.countdownUnit)"
             )
         case .today:
-            return HeroCountdown(eyebrow: nil, value: "就是今天")
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("就是今天"))
         case .dayEnded:
-            return HeroCountdown(eyebrow: nil, value: "今日已落幕", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("今日已落幕"), dim: true)
         case .postShow:
             return HeroCountdown(
                 eyebrow: nil,
                 value: "\(phase.countdownNumber)\(phase.countdownUnit)"
             )
         case .ended:
-            return HeroCountdown(eyebrow: nil, value: "已结束", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("已结束"), dim: true)
         case .canceled:
-            return HeroCountdown(eyebrow: nil, value: "记录仍保留", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("记录仍保留"), dim: true)
         case .postponed:
-            return HeroCountdown(eyebrow: nil, value: "倒计时已暂停", dim: true)
+            return HeroCountdown(eyebrow: nil, value: BSLocalization.text("倒计时已暂停"), dim: true)
         }
     }
 }
@@ -740,7 +740,7 @@ struct CurrentShowLibraryManagementView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
-                .accessibilityLabel("添加现场")
+                .accessibilityLabel(BSLocalization.text("添加现场"))
             }
         }
         .navigationDestination(item: $destination) { target in
@@ -776,7 +776,7 @@ struct CurrentShowLibraryManagementView: View {
             presenting: cancelTarget
         ) { show in
             Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
-                updateStatus(show, message: "已记录取消") { show.markCanceled() }
+                updateStatus(show, message: BSLocalization.text("已记录取消")) { show.markCanceled() }
                 cancelTarget = nil
             }
         } message: { _ in
@@ -784,14 +784,14 @@ struct CurrentShowLibraryManagementView: View {
         }
         .sheet(isPresented: $isShowingAdd) {
             AddShowCoordinatorSheet {
-                presentToast(.success, message: "已添加现场")
+                presentToast(.success, message: BSLocalization.text("已添加现场"))
             }
         }
-        .alert("删除这场现场？", isPresented: deleteAlertBinding, presenting: deleteTarget) { show in
+        .alert(BSLocalization.text("删除这场现场？"), isPresented: deleteAlertBinding, presenting: deleteTarget) { show in
             Button("删除记录", role: .destructive) { delete(show) }
-            Button("取消", role: .cancel) { deleteTarget = nil }
+            Button(BSLocalization.text("取消"), role: .cancel) { deleteTarget = nil }
         } message: { show in
-            Text("“\(show.name)”删除后无法恢复，也会从足迹统计中移除。")
+            Text(BSLocalization.format("“%@”删除后无法恢复，也会从足迹统计中移除。", show.name))
         }
         .bsToastOverlay(toast, bottomPadding: 28)
     }
@@ -817,7 +817,7 @@ struct CurrentShowLibraryManagementView: View {
         HStack(spacing: 4) {
             ForEach(CurrentShowLibraryFilter.allCases) { item in
                 Button { filter = item } label: {
-                    Text("\(item.rawValue) \(count(for: item))")
+                    Text("\(BSLocalization.text(item.rawValue)) \(count(for: item))")
                         .font(.system(size: 12, weight: filter == item ? .semibold : .regular))
                         .foregroundColor(filter == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                         .frame(maxWidth: .infinity)
@@ -841,7 +841,7 @@ struct CurrentShowLibraryManagementView: View {
                     .tracking(1.3)
                     .foregroundColor(BSColor.Stage.muted)
                 Spacer()
-                Text("\(section.shows.count) 场")
+                Text(BSLocalization.format("%lld 场", section.shows.count))
                     .font(.system(size: 11))
                     .foregroundColor(BSColor.Stage.dim)
             }
@@ -869,14 +869,14 @@ struct CurrentShowLibraryManagementView: View {
         let sections: [LibrarySection]
         switch filter {
         case .upcoming:
-            sections = [.init(title: "即将开始", shows: upcomingShows), .init(title: "延期与变更", shows: changedShows)]
+            sections = [.init(title: BSLocalization.text("即将开始"), shows: upcomingShows), .init(title: BSLocalization.text("延期与变更"), shows: changedShows)]
         case .ended:
-            sections = [.init(title: "已结束", shows: endedShows)]
+            sections = [.init(title: BSLocalization.text("已结束"), shows: endedShows)]
         case .all:
             sections = [
-                .init(title: "即将开始", shows: upcomingShows),
-                .init(title: "延期与变更", shows: changedShows),
-                .init(title: "已结束", shows: endedShows)
+                .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
+                .init(title: BSLocalization.text("延期与变更"), shows: changedShows),
+                .init(title: BSLocalization.text("已结束"), shows: endedShows)
             ]
         }
         return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
@@ -942,9 +942,9 @@ struct CurrentShowLibraryManagementView: View {
         case .postpone, .editPostponedDate:
             presentPostpone(for: show)
         case .restoreScheduled:
-            updateStatus(show, message: "已恢复原定日期") { show.markScheduled() }
+            updateStatus(show, message: BSLocalization.text("已恢复原定日期")) { show.markScheduled() }
         case .restoreCanceled:
-            updateStatus(show, message: "已撤销取消") { show.markScheduled() }
+            updateStatus(show, message: BSLocalization.text("已撤销取消")) { show.markScheduled() }
         case .cancel:
             presentCancel(for: show)
         case .delete:
@@ -963,7 +963,7 @@ struct CurrentShowLibraryManagementView: View {
 
     private func applyPostponement(to show: Show, newDate: Date?) {
         postponeTarget = nil
-        let message = newDate == nil ? "已记录延期，日期待定" : "延期日期已更新"
+        let message = newDate == nil ? BSLocalization.text("已记录延期，日期待定") : BSLocalization.text("延期日期已更新")
         updateStatus(show, message: message) { show.markPostponed(newDate: newDate) }
     }
 
@@ -981,7 +981,7 @@ struct CurrentShowLibraryManagementView: View {
 
     private func selectCurrent(_ show: Show) {
         guard session.isManuallySelectable(show) else {
-            presentToast(.neutral, message: "当前状态不能设为当前现场")
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
             return
         }
         Task { @MainActor in
@@ -996,11 +996,11 @@ struct CurrentShowLibraryManagementView: View {
                 )
                 presentToast(
                     didSync ? .success : .neutral,
-                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
+                    message: didSync ? BSLocalization.text("已设为当前现场") : BSLocalization.text("已切换现场，同步暂未更新")
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "切换失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
             }
         }
     }
@@ -1040,13 +1040,13 @@ struct CurrentShowLibraryManagementView: View {
                     result.hasPendingMediaCleanup || !result.didSync ? .neutral : .success,
                     message: result.hasPendingMediaCleanup
                         ? (result.didSync
-                            ? "现场记录已删除，部分本地副本将在下次启动继续清理"
-                            : "现场记录已删除，本地副本与同步将在稍后继续")
-                        : (result.didSync ? "已删除现场" : "现场记录已删除，同步暂未更新")
+                            ? BSLocalization.text("现场记录已删除，部分本地副本将在下次启动继续清理")
+                            : BSLocalization.text("现场记录已删除，本地副本与同步将在稍后继续"))
+                        : (result.didSync ? BSLocalization.text("已删除现场") : BSLocalization.text("现场记录已删除，同步暂未更新"))
                 )
             } catch {
                 modelContext.rollback()
-                presentToast(.failure, message: "删除失败，请重试")
+                presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
             }
         }
     }
@@ -1078,7 +1078,7 @@ private struct CurrentShowLibraryRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 5) {
-                            if isCurrent { tag("当前展示", color: BSColor.Stage.glowBlue) }
+                            if isCurrent { tag(BSLocalization.text("当前展示"), color: BSColor.Stage.glowBlue) }
                             if show.changeStatus != .scheduled { tag(statusTag, color: BSColor.Accent.warm) }
                         }
                         Text(show.name)
@@ -1108,7 +1108,7 @@ private struct CurrentShowLibraryRow: View {
                     Button(role: action.isDestructive ? .destructive : nil) {
                         onAction(action)
                     } label: {
-                        Label(action.rawValue, systemImage: action.icon)
+                        Label(BSLocalization.text(action.rawValue), systemImage: action.icon)
                     }
                 }
             } label: {
@@ -1118,7 +1118,7 @@ private struct CurrentShowLibraryRow: View {
                     .frame(width: 38, height: 38)
                     .background(Color.white.opacity(0.055), in: Circle())
             }
-            .accessibilityLabel("管理 \(show.name)")
+            .accessibilityLabel(BSLocalization.format("管理 %@", show.name))
             .padding(.trailing, 11)
         }
         .background(BSColor.Stage.surface)
@@ -1126,7 +1126,7 @@ private struct CurrentShowLibraryRow: View {
         .overlay(RoundedRectangle(cornerRadius: 17).stroke(Color.white.opacity(0.09), lineWidth: 1))
     }
 
-    private var statusTag: String { show.changeStatus == .canceled ? "已取消" : "已延期" }
+    private var statusTag: String { show.changeStatus == .canceled ? BSLocalization.text("已取消") : BSLocalization.text("已延期") }
 
     private func tag(_ text: String, color: Color) -> some View {
         Text(text)

@@ -1,5 +1,59 @@
 # Gate History
 
+## 2026-08-15 · Widget Glance Simplify
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-15-widget-glance-simplify/`
+
+Verdict: unknown — cycle opened, not passed.
+
+Evidence: HIG says a small widget typically shows one idea; current small/medium stacked kicker, badge, date, and venue.
+
+Weakest assumption: show name plus the countdown number is enough to recognize the next show.
+
+Decision: small = number + name; medium adds cover only; leave lock-screen families alone.
+
+Next stage: stay on manual-onboarding; verify on iPhone 17 Home Screen.
+
+Loop-back: if live and near clocks collide visually, tint is the only extra cue allowed.
+
+## 2026-08-15 · Widget Ambient Bloom
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-15-widget-ambient-bloom/`
+
+Verdict: unknown — cycle opened, not passed.
+
+Evidence: home already extracts a top-band stage color; widgets still used a flat navy `containerBackground`.
+
+Weakest assumption: the cached cover yields a bloom that still reads at widget size.
+
+Decision: reuse the home extractor on small/medium widgets only; keep lock-screen monochrome.
+
+Next stage: stay on manual-onboarding; verify on iPhone 17.
+
+Loop-back: if the bloom is invisible or muddy, simplify the wash before touching copy.
+
+## 2026-08-15 · First TestFlight Build
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-15-first-testflight-build/`
+
+Verdict: unknown — cycle opened, not passed.
+
+Evidence: ASC `builds list` is empty; 2026-06-16 local IPA existed but object-storage upload failed.
+
+Weakest assumption: this machine can reach Apple object storage and produce a VALID TestFlight build.
+
+Decision: unlock internal TestFlight before any App Store metadata work.
+
+Next stage: stay on manual-onboarding until a VALID build is installable from TestFlight.
+
+Loop-back: if upload fails twice, stop and change network/machine; do not start store listing.
+
 ## 2026-06-08
 
 Stage: fake-door

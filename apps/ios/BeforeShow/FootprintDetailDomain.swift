@@ -81,11 +81,11 @@ enum FootprintAccessibilityPolicy {
         recordedAt: Date,
         text: String? = nil
     ) -> String {
-        var parts = ["打开记忆碎片", "第 \(ordinal) 条", kind, timeText(recordedAt)]
+        let kindAndTime = BSLocalization.format("第 %lld 条，%@，%@", ordinal, kind, timeText(recordedAt))
         if let summary = summary(from: text) {
-            parts.append("内容：\(summary)")
+            return BSLocalization.format("打开记忆碎片，%@，内容：%@", kindAndTime, summary)
         }
-        return parts.joined(separator: "，")
+        return BSLocalization.format("打开记忆碎片，%@", kindAndTime)
     }
 
     static func shareMaterialLabel(
@@ -94,7 +94,8 @@ enum FootprintAccessibilityPolicy {
         recordedAt: Date,
         isSelected: Bool
     ) -> String {
-        "\(title)，第 \(ordinal) 项，\(timeText(recordedAt))，\(isSelected ? "已选择" : "未选择")"
+        let selection = isSelected ? BSLocalization.text("已选择") : BSLocalization.text("未选择")
+        return BSLocalization.format("%@，第 %lld 项，%@，%@", title, ordinal, timeText(recordedAt), selection)
     }
 
     private static func timeText(_ date: Date) -> String {
@@ -208,13 +209,13 @@ enum FootprintShareMaterialBuilder {
         case .text:
             return nil
         case .photo:
-            return (.photo, "照片")
+            return (.photo, BSLocalization.text("照片"))
         case .videoCover:
-            return (.videoCover, "视频封面")
+            return (.videoCover, BSLocalization.text("视频封面"))
         case .ticket:
-            return (.ticket, "票根")
+            return (.ticket, BSLocalization.text("票根"))
         case .timetable:
-            return (.timetable, "时刻表")
+            return (.timetable, BSLocalization.text("时刻表"))
         }
     }
 }

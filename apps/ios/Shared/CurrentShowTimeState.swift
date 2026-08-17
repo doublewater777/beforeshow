@@ -199,6 +199,12 @@ struct CurrentShowTimeState: Equatable {
         }
     }
 
+    /// 估算散场边界(start+默认时长 / 每日末场)已过,但用户尚未确认 endedAt。
+    /// 首页与 widget 共用:此时只说「待确认 / 已到预计散场时间」,不提前宣布「已落幕 / ENDED」。
+    static func isUnconfirmedEstimatedEnd(kind: CurrentShowTimeKind, hasConfirmedEnd: Bool) -> Bool {
+        !hasConfirmedEnd && (kind == .postShow || kind == .ended)
+    }
+
     var canScheduleNotifications: Bool {
         hasKnownEffectiveDate && kind != .canceled
     }
@@ -410,7 +416,8 @@ struct CurrentShowTimeState: Equatable {
     ) -> (text: String, number: String, unit: String, helper: String) {
         switch kind {
         case .canceled:
-            return ("这场现场已取消，记录仍会留在我的现场。", "-", "已取消", "这场现场已取消，记录仍会留在我的现场。")
+            let copy = BSLocalization.text("这场现场已取消，记录仍会留在我的现场。")
+            return (copy, "-", BSLocalization.text("已取消"), copy)
         case .postponed:
             let copy = BSLocalization.text("新的日期还没确定，倒计时先暂停。")
             return (copy, "-", BSLocalization.text("待定"), copy)

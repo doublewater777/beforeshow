@@ -3,9 +3,37 @@ import Foundation
 import StoreKit
 #endif
 
+@MainActor
+final class ProOfferDeepLinkRouter: ObservableObject {
+    static let shared = ProOfferDeepLinkRouter()
+
+    @Published var shouldPresentProSheet = false
+    @Published var shouldShowWinbackOffer = false
+
+    private init() {}
+
+    func routeToPro(showWinbackOffer: Bool = false) {
+        shouldShowWinbackOffer = showWinbackOffer
+        shouldPresentProSheet = true
+    }
+}
+
 enum ProSubscriptionPlan: String, CaseIterable, Equatable {
     case monthly
     case yearly
+    case lifetime
+    case yearlyDiscount
+    case lifetimeDiscount
+
+    /// 终身买断没有续订周期，购买/恢复后也不需要到期日语义。
+    var isLifetime: Bool {
+        self == .lifetime || self == .lifetimeDiscount
+    }
+
+    /// 挽留方案仅在用户从免费 / 过期重新购买时使用，已订阅 Pro 时购买会与已有订阅重叠。
+    var isWinback: Bool {
+        self == .yearlyDiscount || self == .lifetimeDiscount
+    }
 }
 
 struct ProSubscriptionProduct: Equatable {
@@ -14,18 +42,62 @@ struct ProSubscriptionProduct: Equatable {
     let displayName: String
     let priceText: String
     let benefitCopy: [String]
+    /// StoreKit 是否真实返回了该产品。catalog 参考价仅供占位，不可作为生产购买价格。
+    let isAvailable: Bool
+    /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 StoreKit 提供真实价格时有值。
+    let perMonthEquivalentText: String?
+
+    init(
+        id: String,
+        plan: ProSubscriptionPlan,
+        displayName: String,
+        priceText: String,
+        benefitCopy: [String],
+        isAvailable: Bool = false,
+        perMonthEquivalentText: String? = nil
+    ) {
+        self.id = id
+        self.plan = plan
+        self.displayName = displayName
+        self.priceText = priceText
+        self.benefitCopy = benefitCopy
+        self.isAvailable = isAvailable
+        self.perMonthEquivalentText = perMonthEquivalentText
+    }
+
+    func markingAvailable(_ available: Bool = true) -> ProSubscriptionProduct {
+        ProSubscriptionProduct(
+            id: id,
+            plan: plan,
+            displayName: displayName,
+            priceText: priceText,
+            benefitCopy: benefitCopy,
+            isAvailable: available,
+            perMonthEquivalentText: perMonthEquivalentText
+        )
+    }
 }
 
 enum ProSubscriptionCatalog {
     static let monthlyProductID = "com.doublewaterapps.beforeshow.pro.monthly"
     static let yearlyProductID = "com.doublewaterapps.beforeshow.pro.yearly"
+    static let lifetimeProductID = "com.doublewaterapps.beforeshow.pro.lifetime"
+    static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
+    static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
 
+    /// 标准在售方案：月度 / 年度 / 终身。
+    static let standardPlans: [ProSubscriptionPlan] = [.monthly, .yearly, .lifetime]
+    /// 挽回优惠方案：仅在挽留弹窗与长按图标入口展示。
+    static let winbackPlans: [ProSubscriptionPlan] = [.yearlyDiscount, .lifetimeDiscount]
+
+    /// 目录参考价：仅用于 UI 占位（产品 ID / 方案映射），`isAvailable == false`，
+    /// 生产环境不会展示这些 USD 价格，也不会据此允许购买。
     static let defaultProducts: [ProSubscriptionProduct] = [
         ProSubscriptionProduct(
             id: monthlyProductID,
             plan: .monthly,
-            displayName: "BeforeShow Pro 月度",
-            priceText: "¥12/月",
+            displayName: BSLocalization.text("BeforeShow Pro 月度"),
+            priceText: BSLocalization.text("$1.49/月"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -33,8 +105,35 @@ enum ProSubscriptionCatalog {
         ProSubscriptionProduct(
             id: yearlyProductID,
             plan: .yearly,
-            displayName: "BeforeShow Pro 年度",
-            priceText: "¥68/年",
+            displayName: BSLocalization.text("BeforeShow Pro 年度"),
+            priceText: BSLocalization.text("$4.99/年"),
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: lifetimeProductID,
+            plan: .lifetime,
+            displayName: BSLocalization.text("BeforeShow Pro 终身"),
+            priceText: BSLocalization.text("$8.99"),
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: yearlyDiscountProductID,
+            plan: .yearlyDiscount,
+            displayName: BSLocalization.text("BeforeShow Pro 特惠年度"),
+            priceText: BSLocalization.text("$2.99/年"),
+            benefitCopy: [
+                "无限添加现场"
+            ]
+        ),
+        ProSubscriptionProduct(
+            id: lifetimeDiscountProductID,
+            plan: .lifetimeDiscount,
+            displayName: BSLocalization.text("BeforeShow Pro 特惠终身"),
+            priceText: BSLocalization.text("$5.99"),
             benefitCopy: [
                 "无限添加现场"
             ]
@@ -119,6 +218,9 @@ enum ProSubscriptionError: Error, Equatable {
     case purchaseCancelled
     case purchasePending
     case unverifiedTransaction
+    /// 挽留方案（特惠年度 / 特惠终身）只在用户从免费 / 过期状态购买时可用；
+    /// Pro 已启用时再购买会与已有订阅重叠，模型层直接拒绝以避免重复扣款。
+    case winbackNotAvailableWhileActive
 }
 
 protocol ProSubscriptionStore: Sendable {
@@ -153,7 +255,7 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         if let error = simulatedError {
             throw error
         }
-        return products
+        return products.map { $0.markingAvailable() }
     }
 
     func purchase(productID: String) async throws -> ProEntitlementState {
@@ -162,6 +264,13 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
         }
         guard products.contains(where: { $0.id == productID }) else {
             throw ProSubscriptionError.productNotFound
+        }
+        // 模型层不变量：已激活 Pro 时不能再购买挽留方案。
+        // lifetimeDiscount 是 NonConsumable，App Store 不会自动取消已有订阅，
+        // 允许通过会导致重复扣款；yearlyDiscount 会与已有订阅重叠续费。
+        if let plan = ProSubscriptionPlan(productID: productID), plan.isWinback,
+           entitlement.isProActive {
+            throw ProSubscriptionError.winbackNotAvailableWhileActive
         }
 
         let purchased = ProEntitlementState.active(productID: productID, expirationDate: nil)
@@ -191,7 +300,10 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
 struct StoreKitProSubscriptionStore: ProSubscriptionStore {
     var productIDs: [String] = [
         ProSubscriptionCatalog.monthlyProductID,
-        ProSubscriptionCatalog.yearlyProductID
+        ProSubscriptionCatalog.yearlyProductID,
+        ProSubscriptionCatalog.lifetimeProductID,
+        ProSubscriptionCatalog.yearlyDiscountProductID,
+        ProSubscriptionCatalog.lifetimeDiscountProductID
     ]
 
     func loadProducts() async throws -> [ProSubscriptionProduct] {
@@ -207,6 +319,14 @@ struct StoreKitProSubscriptionStore: ProSubscriptionStore {
     func purchase(productID: String) async throws -> ProEntitlementState {
         guard let product = try await Product.products(for: [productID]).first else {
             throw ProSubscriptionError.productNotFound
+        }
+
+        // 模型层不变量：已激活 Pro 时不能再购买挽留方案。
+        // lifetimeDiscount 是 NonConsumable，App Store 不会自动取消已有订阅，
+        // 允许通过会导致重复扣款；yearlyDiscount 会与已有订阅重叠续费。
+        if let plan = ProSubscriptionPlan(productID: productID), plan.isWinback,
+           let current = try await currentEntitlement(), current.isProActive {
+            throw ProSubscriptionError.winbackNotAvailableWhileActive
         }
 
         switch try await product.purchase() {
@@ -273,8 +393,26 @@ struct StoreKitProSubscriptionStore: ProSubscriptionStore {
             plan: plan,
             displayName: product.displayName,
             priceText: product.displayPrice,
-            benefitCopy: fallback?.benefitCopy ?? []
+            benefitCopy: fallback?.benefitCopy ?? [],
+            isAvailable: true,
+            perMonthEquivalentText: plan == .yearly ? Self.perMonthEquivalentText(for: product) : nil
         )
+    }
+
+    /// 年度方案按月折算（如 $4.99/年 → 约 $0.42/月），用 StoreKit 真实价格计算。
+    private static func perMonthEquivalentText(for product: Product) -> String? {
+        guard let period = product.subscription?.subscriptionPeriod else { return nil }
+        let months: Decimal
+        switch period.unit {
+        case .day: months = Decimal(period.value) / 30
+        case .week: months = Decimal(period.value) * 12 / 52
+        case .month: months = Decimal(period.value)
+        case .year: months = Decimal(period.value) * 12
+        @unknown default:
+            return nil
+        }
+        guard months > 0 else { return nil }
+        return (product.price / months).formatted(product.priceFormatStyle)
     }
 }
 
@@ -285,6 +423,12 @@ extension ProSubscriptionPlan {
             self = .monthly
         case ProSubscriptionCatalog.yearlyProductID:
             self = .yearly
+        case ProSubscriptionCatalog.lifetimeProductID:
+            self = .lifetime
+        case ProSubscriptionCatalog.yearlyDiscountProductID:
+            self = .yearlyDiscount
+        case ProSubscriptionCatalog.lifetimeDiscountProductID:
+            self = .lifetimeDiscount
         default:
             return nil
         }
@@ -298,27 +442,52 @@ enum ProLimitReason: Equatable {
     var title: String {
         switch self {
         case .saveLimit:
-            return "免费版可保存 1 场现场"
+            return BSLocalization.text("免费版每月可添加 1 场现场")
         }
     }
 
     var message: String {
         switch self {
         case .saveLimit:
-            return "开通 Pro 后可以无限保存现场。"
+            return BSLocalization.text("开通 Pro 后可以无限保存现场。")
         }
     }
 }
 
 struct ProFeatureGate {
-    let freeSavedShowLimit: Int
+    /// 免费用户每个自然月可添加的现场数量。
+    let freeMonthlyShowLimit: Int
 
-    init(freeSavedShowLimit: Int = 1) {
-        self.freeSavedShowLimit = freeSavedShowLimit
+    init(freeMonthlyShowLimit: Int = 1) {
+        self.freeMonthlyShowLimit = freeMonthlyShowLimit
     }
 
-    func canAddShow(savedShowCount: Int, entitlement: ProEntitlementState) -> Bool {
-        entitlement.isProActive || savedShowCount < freeSavedShowLimit
+    func canAddShow(showsAddedThisMonth: Int, entitlement: ProEntitlementState) -> Bool {
+        entitlement.isProActive || showsAddedThisMonth < freeMonthlyShowLimit
+    }
+
+    /// 统计当自然月（本地时区）新增的现场数。
+    func showsAddedThisMonth(
+        from createdDates: [Date],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        createdDates.filter { calendar.isDate($0, equalTo: now, toGranularity: .month) }.count
+    }
+
+    /// 免费额度只统计用户自己添加的现场（`creationOrigin == .user`）。
+    /// 仅因接受 CloudKit 同行邀请而新建的 participant 侧现场不占额度；
+    /// 把邀请合并进用户已有现场不会退还已经占用的额度。
+    func showsAddedThisMonth(
+        from shows: [Show],
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Int {
+        showsAddedThisMonth(
+            from: shows.filter { $0.countsTowardFreeMonthlyQuota }.map(\.createdAt),
+            now: now,
+            calendar: calendar
+        )
     }
 
     func canAccessExistingLocalData(entitlement: ProEntitlementState) -> Bool {

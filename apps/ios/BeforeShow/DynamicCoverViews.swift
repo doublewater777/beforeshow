@@ -42,13 +42,13 @@ enum DynamicCoverAccessibilityPolicy {
     static func hint(canFlip: Bool, opensDetail: Bool) -> String {
         switch (opensDetail, canFlip) {
         case (true, true):
-            return "轻点查看现场详情，长按翻转动态封面"
+            return BSLocalization.text("轻点查看现场详情，长按翻转动态封面")
         case (true, false):
-            return "轻点查看现场详情"
+            return BSLocalization.text("轻点查看现场详情")
         case (false, true):
-            return "长按翻转动态封面，轻点返回静态封面"
+            return BSLocalization.text("长按翻转动态封面，轻点返回静态封面")
         case (false, false):
-            return "暂无动态封面"
+            return BSLocalization.text("暂无动态封面")
         }
     }
 }
@@ -60,7 +60,7 @@ private struct DynamicCoverAddVideoAccessibilityModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if isAvailable {
-            content.accessibilityAction(named: "添加动态封面视频", action)
+            content.accessibilityAction(named: BSLocalization.text("添加动态封面视频"), action)
         } else {
             content
         }
@@ -76,8 +76,8 @@ private struct DynamicCoverFaceAccessibilityModifier: ViewModifier {
     func body(content: Content) -> some View {
         if isAvailable {
             content
-                .accessibilityAction(named: "显示静态封面") { showStaticFace() }
-                .accessibilityAction(named: "显示动态封面") { showDynamicFace() }
+                .accessibilityAction(named: BSLocalization.text("显示静态封面")) { showStaticFace() }
+                .accessibilityAction(named: BSLocalization.text("显示动态封面")) { showDynamicFace() }
         } else {
             content
         }
@@ -131,7 +131,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
 
     /// 已上传视频时翻向播放面；未上传时翻向带「选择视频」入口的空状态背面。
     private var canFlip: Bool { mediaURL != nil || (dynamicCover == nil && onChooseVideo != nil) }
-    private var faceDescription: String { isDynamicFace ? "动态封面" : "静态封面" }
+    private var faceDescription: String { isDynamicFace ? BSLocalization.text("动态封面") : BSLocalization.text("静态封面") }
 
     private func chooseVideoFromAccessibility() {
         guard dynamicCover == nil else { return }
@@ -204,7 +204,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(
-            [accessibilityName.map { "现场封面，\($0)" } ?? "现场封面", "当前为\(faceDescription)"]
+            [accessibilityName.map { BSLocalization.format("现场封面，%@", $0) } ?? BSLocalization.text("现场封面"), BSLocalization.format("当前为%@", faceDescription)]
                 .joined(separator: "，")
         )
         .accessibilityAddTraits(opensDetail ? .isButton : [])
@@ -297,7 +297,7 @@ struct DynamicCoverFlipView<StaticFace: View>: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("添加动态封面视频")
+                .accessibilityLabel(BSLocalization.text("添加动态封面视频"))
                 .padding(.bottom, BSSpacing.xs)
                 Text("添加动态封面")
                     .font(BSFont.caption.weight(.medium))
@@ -386,11 +386,11 @@ struct DynamicCoverManagementSection: View {
                         }
 
                     HStack(spacing: BSSpacing.sm) {
-                        coverActionButton("更换视频", icon: "arrow.triangle.2.circlepath") {
+                        coverActionButton(BSLocalization.text("更换视频"), icon: "arrow.triangle.2.circlepath") {
                             isPickerPresented = true
                         }
                         .disabled(isImporting)
-                        coverActionButton("删除", icon: "trash", tint: BSColor.Stage.danger) {
+                        coverActionButton(BSLocalization.text("删除"), icon: "trash", tint: BSColor.Stage.danger) {
                             coverPendingDeletion = cover
                             isShowingDeleteConfirmation = true
                         }
@@ -413,7 +413,7 @@ struct DynamicCoverManagementSection: View {
                         }
                         Spacer(minLength: 0)
                     }
-                    coverActionButton("添加视频", icon: "plus") {
+                    coverActionButton(BSLocalization.text("添加视频"), icon: "plus") {
                         isPickerPresented = true
                     }
                 }
@@ -448,7 +448,7 @@ struct DynamicCoverManagementSection: View {
         .onDisappear {
             importTask?.cancel()
         }
-        .alert("删除动态封面？", isPresented: $isShowingDeleteConfirmation) {
+        .alert(BSLocalization.text("删除动态封面？"), isPresented: $isShowingDeleteConfirmation) {
             Button("删除", role: .destructive) {
                 if let coverPendingDeletion {
                     Task { @MainActor in await deleteCover(coverPendingDeletion) }
@@ -460,7 +460,7 @@ struct DynamicCoverManagementSection: View {
             Text("删除后这段视频将从这场现场移除。")
         }
         .alert(
-            "动态封面没有更新",
+            BSLocalization.text("动态封面没有更新"),
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
@@ -468,7 +468,7 @@ struct DynamicCoverManagementSection: View {
         ) {
             Button("知道了", role: .cancel) { errorMessage = nil }
         } message: {
-            Text(errorMessage ?? "请重试")
+            Text(errorMessage ?? BSLocalization.text("请重试"))
         }
     }
 
@@ -504,7 +504,7 @@ struct DynamicCoverManagementSection: View {
         } catch let error as DynamicCoverMediaStoreError {
             errorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
         } catch {
-            errorMessage = "视频没有载入，请重试。"
+            errorMessage = BSLocalization.text("视频没有载入，请重试。")
         }
     }
 
@@ -531,7 +531,7 @@ struct DynamicCoverManagementSection: View {
             }
         } catch {
             modelContext.rollback()
-            errorMessage = "动态封面没有删除，请重试。"
+            errorMessage = BSLocalization.text("动态封面没有删除，请重试。")
         }
         await LocalMediaCommitGate.shared.release()
     }
@@ -648,7 +648,7 @@ struct FootprintDynamicCoverSection: View {
                         .font(BSFont.headline)
                         .foregroundColor(BSColor.Stage.foreground)
                     Spacer()
-                    Text(effectiveIsPlaying ? "播放中" : "已暂停")
+                    Text(effectiveIsPlaying ? BSLocalization.text("播放中") : BSLocalization.text("已暂停"))
                         .font(BSFont.V3.caption)
                         .foregroundColor(BSColor.Stage.dim)
                 }
@@ -677,7 +677,7 @@ struct FootprintDynamicCoverSection: View {
                     .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(effectiveIsPlaying ? "暂停动态封面" : "播放动态封面")
+                .accessibilityLabel(effectiveIsPlaying ? BSLocalization.text("暂停动态封面") : BSLocalization.text("播放动态封面"))
             }
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase != .active { isPlaying = false }

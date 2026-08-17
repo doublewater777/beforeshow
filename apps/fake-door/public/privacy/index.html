@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>隐私政策 — 开场前 BeforeShow</title>
+    <meta
+      name="description"
+      content="开场前 BeforeShow 的隐私政策：我们如何收集、使用、保存和删除你在 App 中的数据。"
+    />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://beforeshow.doublewaterapps.com/privacy/" />
+    <link rel="icon" href="/app-icon.png" type="image/png" />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #050508;
+        --surface: rgba(245, 241, 233, 0.06);
+        --border: rgba(245, 241, 233, 0.12);
+        --text: #f5f1e9;
+        --text-soft: #aaa5af;
+        --text-faint: #85808c;
+        --accent: #84bfff;
+        --accent-warm: #ffb36b;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-width: 320px;
+        background:
+          radial-gradient(ellipse 70% 45% at 50% 0%, rgba(132, 191, 255, 0.14), transparent 70%),
+          var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+        line-height: 1.8;
+      }
+
+      a { color: inherit; text-decoration: none; }
+
+      button { font: inherit; }
+
+      .wrap {
+        width: min(760px, 100%);
+        margin: 0 auto;
+        padding: 48px 20px 88px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 42px;
+      }
+
+      .back {
+        color: var(--text-soft);
+        font-size: 14px;
+      }
+
+      .back:hover, .back:focus-visible { color: var(--accent); }
+
+      .lang-switch {
+        display: flex;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+
+      .lang-switch button {
+        padding: 4px 12px;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--text-soft);
+        font-size: 13px;
+        cursor: pointer;
+      }
+
+      .lang-switch button.active {
+        background: rgba(132, 191, 255, 0.16);
+        color: var(--accent);
+      }
+
+      h1 {
+        max-width: 620px;
+        margin: 0;
+        font-size: clamp(34px, 7vw, 58px);
+        line-height: 1.08;
+        letter-spacing: -0.04em;
+      }
+
+      .lede {
+        max-width: 620px;
+        margin: 20px 0 0;
+        color: var(--text-soft);
+        font-size: 17px;
+      }
+
+      h2 {
+        margin: 46px 0 14px;
+        font-size: 24px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+
+      h2:first-of-type { margin-top: 40px; }
+
+      p { margin: 0 0 16px; color: var(--text-soft); font-size: 15px; }
+
+      strong { color: var(--text); }
+
+      .updated {
+        display: inline-block;
+        margin-top: 32px;
+        padding: 4px 12px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        color: var(--text-faint);
+        font-size: 13px;
+      }
+
+      .footer {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 14px 20px;
+        margin-top: 64px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--text-faint);
+        font-size: 13px;
+      }
+
+      .footer-link { color: var(--accent); }
+
+      @media (max-width: 560px) {
+        .wrap { padding-top: 32px; }
+        .topbar { margin-bottom: 34px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="topbar">
+        <a class="back" href="/" data-i18n="back"></a>
+        <nav class="lang-switch" aria-label="Language">
+          <button type="button" data-set-lang="zh-Hans">简体</button>
+          <button type="button" data-set-lang="zh-Hant">繁體</button>
+          <button type="button" data-set-lang="en">EN</button>
+        </nav>
+      </div>
+
+      <section data-lang="zh-Hans">
+        <h1>隐私政策</h1>
+        <p class="lede">开场前 BeforeShow（下称「BeforeShow」）尊重并保护你的个人数据。本政策说明我们收集哪些信息、如何使用、保存在哪里，以及你可以如何删除。</p>
+        <span class="updated">更新日期：2026 年 8 月</span>
+
+        <h2>1. 我们收集的信息</h2>
+        <p><strong>本地保存的现场信息。</strong>你手动添加或通过链接、截图导入的现场名称、时间、场馆、艺人等信息，只保存在你的设备本地。</p>
+        <p><strong>图片与视频。</strong>记忆碎片、票根、时刻表和动态封面中的图片与视频，以副本形式保存在 App 沙盒中，不会写入系统相册原图。</p>
+        <p><strong>同行分享。</strong>当你主动发起或接受同行邀请时，相关的现场信息和确认状态会通过 Apple CloudKit 在你的账号与同行者之间同步。</p>
+        <p><strong>购买信息。</strong>Pro 会员通过 App Store 订阅，支付与订阅状态由 Apple 处理。BeforeShow 不收集、不保存你的支付信息。</p>
+
+        <h2>2. 我们如何使用信息</h2>
+        <p>BeforeShow 使用上述信息提供核心功能：展示倒计时与现场信息、生成记忆回顾、创建分享卡片，以及在你主动使用时同步同行状态。我们不会用于广告、画像或向你之外的人出售数据。</p>
+        <p><strong>本地识别。</strong>票务截图只用于设备端 OCR，不会为了识别上传到服务器。</p>
+
+        <h2>3. 联网功能</h2>
+        <p>链接解析（你主动粘贴演出详情链接）、同行分享（CloudKit）和意见反馈是你主动发起的联网功能，仅在这些场景下发起网络请求。App 不会在后台静默上传你的现场或媒体数据。</p>
+
+        <h2>4. 数据保存与备份</h2>
+        <p>App 数据保存在设备本地。iOS 系统备份是否包含 App 数据由 iOS 和你的系统设置决定，BeforeShow 无法控制。我们目前不提供跨设备同步或云端恢复保证。</p>
+
+        <h2>5. 数据删除</h2>
+        <p>你可以在「设置 → 隐私与本地数据 → 清除 BeforeShow 本地数据」中删除 BeforeShow 管理的本地记录和副本。该操作不会删除系统相册中的原始图片或视频。删除同行分享或停止 iCloud 同步，请按系统设置操作。</p>
+
+        <h2>6. 儿童隐私</h2>
+        <p>BeforeShow 面向一般用户，不面向未满 14 周岁的儿童，也不会故意收集儿童的个人信息。</p>
+
+        <h2>7. 政策变更</h2>
+        <p>我们可能适时更新本政策，并在本页面公布最新版本。重大变更会在 App 内显著提示。</p>
+
+        <h2>8. 联系我们</h2>
+        <p>如对本政策有任何疑问，请通过邮件联系我们：<a href="mailto:feedback@163.com" style="color: var(--accent)">feedback@163.com</a>。</p>
+      </section>
+
+      <section data-lang="zh-Hant">
+        <h1>隱私政策</h1>
+        <p class="lede">開場前 BeforeShow（下稱「BeforeShow」）尊重並保護你的個人資料。本政策說明我們收集哪些資訊、如何使用、保存在哪裡，以及你可以如何刪除。</p>
+        <span class="updated">更新日期：2026 年 8 月</span>
+
+        <h2>1. 我們收集的資訊</h2>
+        <p><strong>本機儲存的現場資訊。</strong>你手動新增或透過連結、截圖匯入的現場名稱、時間、場館、藝人等資訊，只儲存在你的裝置本機。</p>
+        <p><strong>圖片與影片。</strong>記憶碎片、票根、時刻表和動態封面中的圖片與影片，以副本形式儲存在 App 沙盒中，不會寫入系統相簿原圖。</p>
+        <p><strong>同行分享。</strong>當你主動發起或接受同行邀請時，相關的現場資訊和確認狀態會透過 Apple CloudKit 在你的帳號與同行者之間同步。</p>
+        <p><strong>購買資訊。</strong>Pro 會員透過 App Store 訂閱，付款與訂閱狀態由 Apple 處理。BeforeShow 不收集、不儲存你的付款資訊。</p>
+
+        <h2>2. 我們如何使用資訊</h2>
+        <p>BeforeShow 使用上述資訊提供核心功能：顯示倒數計時與現場資訊、產生記憶回顧、建立分享卡片，以及在你主動使用時同步同行狀態。我們不會用於廣告、分析或向你以外的人出售資料。</p>
+        <p><strong>本機辨識。</strong>票務截圖只用於裝置端 OCR，不會為了辨識上傳到伺服器。</p>
+
+        <h2>3. 聯網功能</h2>
+        <p>連結解析（你主動貼上演出詳情連結）、同行分享（CloudKit）和意見回饋是你主動發起的聯網功能，僅在這些場景下發起網路請求。App 不會在背景靜默上傳你的現場或媒體資料。</p>
+
+        <h2>4. 資料儲存與備份</h2>
+        <p>App 資料儲存在裝置本機。iOS 系統備份是否包含 App 資料由 iOS 和你的系統設定決定，BeforeShow 無法控制。我們目前不提供跨裝置同步或雲端復原保證。</p>
+
+        <h2>5. 資料刪除</h2>
+        <p>你可以在「設定 → 隱私與本機資料 → 清除 BeforeShow 本機資料」中刪除 BeforeShow 管理的本機記錄和副本。此操作不會刪除系統相簿中的原始圖片或影片。刪除同行分享或停止 iCloud 同步，請依系統設定操作。</p>
+
+        <h2>6. 兒童隱私</h2>
+        <p>BeforeShow 面向一般使用者，不面向未滿 14 歲的兒童，也不會故意收集兒童的個人資訊。</p>
+
+        <h2>7. 政策變更</h2>
+        <p>我們可能適時更新本政策，並在本頁面公布最新版本。重大變更會在 App 內顯著提示。</p>
+
+        <h2>8. 聯絡我們</h2>
+        <p>如對本政策有任何疑問，請透過電子郵件聯絡我們：<a href="mailto:feedback@163.com" style="color: var(--accent)">feedback@163.com</a>。</p>
+      </section>
+
+      <section data-lang="en">
+        <h1>Privacy Policy</h1>
+        <p class="lede">BeforeShow (the "App") respects and protects your personal data. This policy explains what information we collect, how it is used, where it is stored, and how you can delete it.</p>
+        <span class="updated">Last updated: August 2026</span>
+
+        <h2>1. Information We Collect</h2>
+        <p><strong>Locally stored event data.</strong> Event names, dates, venues, artists, and other data you add manually or import via links or screenshots are stored only on your device.</p>
+        <p><strong>Photos and videos.</strong> Photos and videos in memory fragments, ticket stubs, timetables, and animated covers are stored as copies inside the App's sandbox and are not written back to your photo library.</p>
+        <p><strong>Companion sharing.</strong> When you send or accept a companion invite, the related event data and confirmation status are synced through Apple CloudKit between your account and your companion.</p>
+        <p><strong>Purchase information.</strong> Pro membership is a subscription purchased through the App Store; payment and subscription status are handled by Apple. BeforeShow does not collect or store your payment information.</p>
+
+        <h2>2. How We Use Information</h2>
+        <p>BeforeShow uses the above information to provide its core features: showing countdowns and event details, generating memory recaps, creating share cards, and syncing companion status when you use it. We do not use it for advertising, profiling, or selling your data to anyone.</p>
+        <p><strong>On-device recognition.</strong> Ticket screenshots are used for on-device OCR only and are never uploaded for recognition.</p>
+
+        <h2>3. Network Features</h2>
+        <p>Link parsing (when you paste an event details link), companion sharing (CloudKit), and feedback are features you actively trigger. Network requests are made only in these scenarios. The App never silently uploads your event or media data in the background.</p>
+
+        <h2>4. Storage and Backup</h2>
+        <p>App data is stored locally on your device. Whether iOS backups include App data is determined by iOS and your system settings; BeforeShow cannot control this. We currently do not provide cross-device sync or cloud restore guarantees.</p>
+
+        <h2>5. Deleting Your Data</h2>
+        <p>You can delete records and copies managed by BeforeShow under Settings → Privacy &amp; Local Data → Clear BeforeShow Local Data. This does not delete original photos or videos in your photo library. To delete a companion share or stop iCloud sync, follow your system settings.</p>
+
+        <h2>6. Children's Privacy</h2>
+        <p>BeforeShow is intended for the general public, not for children under 14, and does not knowingly collect personal information from children.</p>
+
+        <h2>7. Changes to This Policy</h2>
+        <p>We may update this policy from time to time and publish the latest version on this page. Material changes will be highlighted in the App.</p>
+
+        <h2>8. Contact Us</h2>
+        <p>If you have any questions about this policy, contact us at: <a href="mailto:feedback@163.com" style="color: var(--accent)">feedback@163.com</a>.</p>
+      </section>
+
+      <footer class="footer">
+        <span data-i18n="copyright"></span>
+        <a class="footer-link" href="/privacy" data-i18n="privacyLink"></a>
+        <a class="footer-link" href="/terms" data-i18n="termsLink"></a>
+        <a class="footer-link" href="/" data-i18n="homeLink"></a>
+      </footer>
+    </main>
+
+    <script>
+      var LANG = (function () {
+        var params = new URLSearchParams(location.search);
+        if (["zh-Hans", "zh-Hant", "en"].indexOf(params.get("lang")) !== -1) return params.get("lang");
+        try {
+          var saved = localStorage.getItem("bs-lang");
+          if (["zh-Hans", "zh-Hant", "en"].indexOf(saved) !== -1) return saved;
+        } catch (e) {}
+        var nav = (navigator.language || "").toLowerCase();
+        if (nav.indexOf("zh") !== -1 && (nav.indexOf("hant") !== -1 || nav.indexOf("tw") !== -1 || nav.indexOf("hk") !== -1)) return "zh-Hant";
+        if (nav.indexOf("en") !== -1) return "en";
+        return "zh-Hans";
+      })();
+
+      var footerCopy = {
+        "zh-Hans": { back: "← 返回首页", copyright: "© 2026 开场前 BeforeShow", privacyLink: "隐私政策", termsLink: "用户协议", homeLink: "返回首页" },
+        "zh-Hant": { back: "← 返回首頁", copyright: "© 2026 開場前 BeforeShow", privacyLink: "隱私政策", termsLink: "使用者條款", homeLink: "返回首頁" },
+        en: { back: "← Back to home", copyright: "© 2026 BeforeShow", privacyLink: "Privacy Policy", termsLink: "Terms of Service", homeLink: "Back to home" }
+      };
+
+      var titles = {
+        "zh-Hans": "隐私政策 — 开场前 BeforeShow",
+        "zh-Hant": "隱私政策 — 開場前 BeforeShow",
+        en: "Privacy Policy — BeforeShow"
+      };
+
+      function apply() {
+        document.querySelectorAll("[data-lang]").forEach(function (el) {
+          el.hidden = el.getAttribute("data-lang") !== LANG;
+        });
+        document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+          btn.classList.toggle("active", btn.getAttribute("data-set-lang") === LANG);
+        });
+        var t = footerCopy[LANG];
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          el.textContent = t[el.getAttribute("data-i18n")];
+        });
+        document.title = titles[LANG];
+        document.documentElement.lang = LANG === "en" ? "en" : LANG === "zh-Hant" ? "zh-Hant" : "zh-Hans";
+        history.replaceState(null, "", LANG === "zh-Hans" ? "/privacy" : "/privacy?lang=" + LANG);
+      }
+
+      document.querySelectorAll("[data-set-lang]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          LANG = btn.getAttribute("data-set-lang");
+          try { localStorage.setItem("bs-lang", LANG); } catch (e) {}
+          apply();
+        });
+      });
+
+      apply();
+    </script>
+  </body>
+</html>

@@ -99,18 +99,9 @@ body::before {
 .nav-logo-mark {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  background: var(--accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 8px;
+  object-fit: cover;
   flex-shrink: 0;
-}
-
-.nav-logo-mark svg {
-  width: 18px;
-  height: 18px;
-  fill: #0a0a0f;
 }
 
 .nav-brand {

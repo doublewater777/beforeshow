@@ -107,6 +107,14 @@ struct FootprintDetailView: View {
         FootprintDetailIdentityBuilder.make(show: show, archive: archive)
     }
 
+    /// 单场观看时长:已确认散场用真实时刻,否则用录入结束时间或默认估算。
+    private var durationText: String? {
+        let calendar = show.timingCalendar()
+        let timeState = CurrentShowTimeState(show: show, calendar: calendar)
+        guard let minutes = ShowDurationFormatter.minutes(for: show, timeState: timeState) else { return nil }
+        return ShowDurationFormatter.single(totalMinutes: minutes)
+    }
+
     private var isDynamicCoverPlaybackActive: Bool {
         FootprintPlaybackPolicy.isActive(
             sceneIsActive: scenePhase == .active,
@@ -243,9 +251,9 @@ struct FootprintDetailView: View {
                     .overlay(Circle().stroke(BSColor.Stage.border))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("返回")
+            .accessibilityLabel(BSLocalization.text("返回"))
             Spacer()
-            Text("足迹详情")
+            Text(BSLocalization.text("足迹详情"))
                 .font(FootprintDetailTokens.navigationFont)
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()
@@ -266,7 +274,7 @@ struct FootprintDetailView: View {
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(3)
                 .padding(.top, BSSpacing.compact)
-            Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? "未填写场馆")
+            Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? BSLocalization.text("未填写场馆"))
                 .font(BSFont.body)
                 .foregroundColor(BSColor.Stage.muted)
                 .padding(.top, BSSpacing.sm)
@@ -324,29 +332,29 @@ struct FootprintDetailView: View {
     }
 
     private var identityValues: [(headline: String, detail: String)] {
-        var values = [("第 \(identity.showOrdinal) 场", "现场档案")]
+        var values = [(BSLocalization.format("第 %lld 场", identity.showOrdinal), BSLocalization.text("现场档案"))]
         if let cityOrdinal = identity.cityOrdinal {
             values.append((
-                "第 \(cityOrdinal) 场",
-                "\(FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? "这座城市")现场"
+                BSLocalization.format("第 %lld 场", cityOrdinal),
+                BSLocalization.format("%@现场", FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("这座城市"))
             ))
         }
         if let companionOrdinal = identity.companionOrdinal,
            let companionName = identity.companionName {
-            values.append(("第 \(companionOrdinal) 次", "与\(companionName)同行"))
+            values.append((BSLocalization.format("第 %lld 次", companionOrdinal), BSLocalization.format("与%@同行", companionName)))
         }
         return values
     }
 
     private var memorySection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("记忆碎片", trailing: "\(fragments.count) 条")
+            sectionHeader(BSLocalization.text("记忆碎片"), trailing: BSLocalization.format("%lld 条", fragments.count))
             if fragments.isEmpty {
                 VStack(spacing: BSSpacing.compact) {
                     Image(systemName: "sparkles.rectangle.stack")
                         .font(BSFont.title.weight(.light))
                         .foregroundColor(BSColor.Stage.dim)
-                    Text("这一晚还没有留下记忆碎片")
+                    Text(BSLocalization.text("这一晚还没有留下记忆碎片"))
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.Stage.muted)
                 }
@@ -370,7 +378,7 @@ struct FootprintDetailView: View {
                         .accessibilityLabel(
                             FootprintAccessibilityPolicy.memoryLabel(
                                 ordinal: index + 1,
-                                kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? "视频" : "照片" } ?? "文字",
+                                kind: fragment.orderedMediaItems.first.map { $0.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片") } ?? BSLocalization.text("文字"),
                                 recordedAt: fragment.createdAt,
                                 text: fragment.text
                             )
@@ -383,7 +391,7 @@ struct FootprintDetailView: View {
 
     private var keepsakesSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("留下的东西")
+            sectionHeader(BSLocalization.text("留下的东西"))
             HStack(spacing: BSSpacing.sm) {
                 ForEach(ShowAssetKind.allCases) { kind in
                     Button {
@@ -392,7 +400,7 @@ struct FootprintDetailView: View {
                         FootprintKeepsakeTile(kind: kind, asset: asset(for: kind))
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("管理\(kind.title)，\(asset(for: kind) == nil ? "未添加" : "已保存")")
+                    .accessibilityLabel(BSLocalization.format("管理%@，%@", kind.title, asset(for: kind) == nil ? BSLocalization.text("未添加") : BSLocalization.text("已保存")))
                 }
             }
         }
@@ -406,7 +414,7 @@ struct FootprintDetailView: View {
         let note = FootprintTextNormalizer.nonEmptyTrimmed(show.closingNote)
         return VStack(alignment: .leading, spacing: BSSpacing.sm) {
             HStack(alignment: .firstTextBaseline) {
-                Text("散场评价")
+                Text(BSLocalization.text("散场评价"))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
@@ -418,7 +426,7 @@ struct FootprintDetailView: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(
-                node.map(\.accessibilityLabel) ?? "散场评价"
+                node.map(\.accessibilityLabel) ?? BSLocalization.text("散场评价")
             )
 
             if let note {
@@ -445,7 +453,7 @@ struct FootprintDetailView: View {
 
     private var companionSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("同行")
+            sectionHeader(BSLocalization.text("同行"))
             HStack(spacing: BSSpacing.compact) {
                 Circle()
                     .fill(
@@ -462,10 +470,10 @@ struct FootprintDetailView: View {
                             .foregroundColor(BSColor.Stage.foreground)
                     )
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(FootprintTextNormalizer.nonEmptyTrimmed(show.companionName) ?? "同行者")
+                    Text(FootprintTextNormalizer.nonEmptyTrimmed(show.companionName) ?? BSLocalization.text("同行者"))
                         .font(BSFont.headline)
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text("共同留下 \(companionFootprintCount) 场足迹")
+                    Text(BSLocalization.format("共同留下 %lld 场足迹", companionFootprintCount))
                         .font(BSFont.V3.caption)
                         .foregroundColor(BSColor.Stage.muted)
                 }
@@ -479,7 +487,7 @@ struct FootprintDetailView: View {
 
     private var companionInitial: String {
         guard let name = FootprintTextNormalizer.nonEmptyTrimmed(show.companionName),
-              let first = name.first else { return "同" }
+              let first = name.first else { return BSLocalization.text("同") }
         return String(first)
     }
 
@@ -494,26 +502,30 @@ struct FootprintDetailView: View {
 
     private var informationSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
-            sectionHeader("现场资料")
+            sectionHeader(BSLocalization.text("现场资料"))
             VStack(spacing: 0) {
-                infoRow(icon: "calendar", title: "时间", value: formatter.dateText(for: show))
+                infoRow(icon: "calendar", title: BSLocalization.text("时间"), value: formatter.dateText(for: show))
+                if let durationText {
+                    Divider().overlay(BSColor.Stage.border)
+                    infoRow(icon: "timer", title: BSLocalization.text("时长"), value: durationText)
+                }
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "mappin.and.ellipse",
-                    title: "场馆",
-                    value: FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? "未填写场馆"
+                    title: BSLocalization.text("场馆"),
+                    value: FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? BSLocalization.text("未填写场馆")
                 )
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "building.2",
-                    title: "城市",
-                    value: FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? "未填写城市"
+                    title: BSLocalization.text("城市"),
+                    value: FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("未填写城市")
                 )
                 Divider().overlay(BSColor.Stage.border)
                 infoRow(
                     icon: "music.note",
-                    title: "艺人",
-                    value: show.artistNames.isEmpty ? "未填写艺人" : show.artistNames.joined(separator: "、")
+                    title: BSLocalization.text("艺人"),
+                    value: show.artistNames.isEmpty ? BSLocalization.text("未填写艺人") : show.artistNames.joined(separator: "、")
                 )
             }
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
@@ -531,6 +543,8 @@ struct FootprintDetailView: View {
             Text(title)
                 .font(BSFont.V3.caption)
                 .foregroundColor(BSColor.Stage.dim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
                 .frame(width: FootprintDetailTokens.infoTitleWidth, alignment: .leading)
             Text(value)
                 .font(BSFont.V3.small.weight(.medium))
@@ -545,7 +559,7 @@ struct FootprintDetailView: View {
 
     private var shareButton: some View {
         Button { isShowingShareComposer = true } label: {
-            Label("分享这场回忆", systemImage: "square.and.arrow.up")
+            Label(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up")
                 .font(BSFont.caption.weight(.semibold))
                 .foregroundColor(BSColor.Stage.background)
                 .frame(maxWidth: .infinity)
@@ -626,7 +640,7 @@ private struct FootprintMemoryTile: View {
                     .clipped()
 
                     HStack(alignment: .bottom, spacing: BSSpacing.sm) {
-                        Text(media.kind == .video ? "视频" : "照片")
+                        Text(media.kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片"))
                         Spacer(minLength: 0)
                         Text(timeText(fragment.createdAt))
                     }
@@ -649,7 +663,7 @@ private struct FootprintMemoryTile: View {
                         .multilineTextAlignment(.leading)
                     Spacer(minLength: 0)
                     HStack(alignment: .bottom) {
-                        Text("文字")
+                        Text(BSLocalization.text("文字"))
                         Spacer(minLength: 0)
                         Text(timeText(fragment.createdAt))
                     }
@@ -716,7 +730,7 @@ private struct FootprintKeepsakeTile: View {
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
                 if asset == nil {
-                    Text("点击添加")
+                    Text(BSLocalization.text("点击添加"))
                         .font(BSFont.V3.caption)
                         .foregroundColor(BSColor.Stage.muted)
                 }

@@ -1,8 +1,33 @@
 import Foundation
+import SwiftUI
+import UIKit
 import XCTest
 @testable import BeforeShow
 
 final class WidgetSnapshotTests: XCTestCase {
+    // MARK: - 组件语言覆盖（进程存活跨语言切换）
+
+    /// timeline reload 不保证重启组件进程，所以语言应用必须可重复且可回退：
+    /// zh-Hant → en → 跟随系统，每一步都要真正改变解析结果。
+    func testWidgetLanguageOverrideIsRepeatableAndClearsForSystem() {
+        // 记录每次请求的语言代码，确认调用可重复（不是只在首次生效）。
+        var requestedCodes: [String] = []
+        let lookup: (String) -> Bundle? = { code in
+            requestedCodes.append(code)
+            return Bundle.main
+        }
+
+        XCTAssertNotNil(WidgetLanguageSelection.override(code: "zh-Hant", bundleForCode: lookup))
+        XCTAssertNotNil(WidgetLanguageSelection.override(code: "en", bundleForCode: lookup))
+        XCTAssertEqual(requestedCodes, ["zh-Hant", "en"])
+
+        // 跟随系统：无值 / 空串都必须清空覆盖，而不是沿用上一次的手动语言。
+        XCTAssertNil(WidgetLanguageSelection.override(code: nil, bundleForCode: { _ in Bundle.main }))
+        XCTAssertNil(WidgetLanguageSelection.override(code: "", bundleForCode: { _ in Bundle.main }))
+        // 语言代码没有对应 lproj 时也回到系统解析，不残留上一次的覆盖。
+        XCTAssertNil(WidgetLanguageSelection.override(code: "zh-Hant", bundleForCode: { _ in nil }))
+    }
+
     private func makeShow(
         name: String = "夜航西飞",
         changeStatus: ShowChangeStatus = .scheduled,
@@ -640,5 +665,29 @@ final class WidgetSnapshotTests: XCTestCase {
             canSchedule: true
         )
         XCTAssertEqual(action, .keep(desired.state))
+    }
+
+    func testAmbientColorReadsTopBandNotBottom() {
+        let size = CGSize(width: 40, height: 80)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        let image = renderer.image { context in
+            UIColor.red.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: size.width, height: size.height * 0.25))
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: size.height * 0.25, width: size.width, height: size.height * 0.75))
+        }
+
+        let color = try! XCTUnwrap(CoverAmbientColor.uiColor(from: image))
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
+        XCTAssertTrue(color.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha))
+        XCTAssertLessThan(hue, 0.12, "top-band red should stay in the red/orange hue")
+        XCTAssertGreaterThan(saturation, 0.5)
+        XCTAssertGreaterThanOrEqual(brightness, 0.38)
+        XCTAssertLessThanOrEqual(brightness, 0.75)
+    }
+
+    func testAmbientColorFromMissingCoverPathIsNil() {
+        XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: nil))
+        XCTAssertNil(CoverAmbientColor.uiColor(fromCoverAt: "/tmp/does-not-exist-\(UUID().uuidString).jpg"))
     }
 }

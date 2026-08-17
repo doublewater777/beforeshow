@@ -126,7 +126,7 @@ final class CompanionSharingCoordinator {
                 participantDisplayName: participantDisplayName
             )
             try applyAcceptedSession(session, in: modelContext)
-            pendingAcceptMessage = "已与\(session.ownerDisplayName ?? "朋友")确认同行"
+            pendingAcceptMessage = BSLocalization.format("已与%@确认同行", session.ownerDisplayName ?? BSLocalization.text("朋友"))
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
@@ -308,7 +308,7 @@ final class CompanionSharingCoordinator {
                 // The only accepted participant disappeared. Close the root and revoke the
                 // remaining share so the owner does not keep a phantom confirmed relationship.
                 try await cancelCompanion(for: show, in: modelContext)
-                lastErrorMessage = "同行者已退出，同行关系已取消"
+                lastErrorMessage = BSLocalization.text("同行者已退出，同行关系已取消")
                 lastErrorKind = .permissionDenied
                 return
             }
@@ -546,6 +546,12 @@ final class CompanionSharingCoordinator {
         let descriptor = FetchDescriptor<Show>()
         let shows = try modelContext.fetch(descriptor)
 
+        // 接受邀请会把匹配到的现场标成 participant 侧（companionIsOwner = false）。
+        // 一旦发生，就再也分不清「用户自己添加的旧现场」和「升级前纯导入的旧现场」。
+        // 所以在任何合并/新建之前，先把尚未标记来源的旧数据定格下来 —— 这样
+        // 免费额度的归属不依赖启动期各条路径的先后顺序。
+        ShowCreationOriginMigration.resolveUnresolvedOrigins(in: shows)
+
         if let existing = shows.first(where: {
             $0.companionCloudRecordName == session.sessionLocator.recordName
         }) {
@@ -604,7 +610,10 @@ final class CompanionSharingCoordinator {
             date: session.show.showDate,
             startTime: session.show.showStartTime,
             city: city.flatMap { $0.isEmpty ? nil : $0 },
-            venueName: venue.flatMap { $0.isEmpty ? nil : $0 }
+            venueName: venue.flatMap { $0.isEmpty ? nil : $0 },
+            // 仅因接受邀请而新建：不占用本人的每月免费额度。
+            // 上面的合并分支不改来源，用户自己添加的现场额度不会被退还。
+            creationOrigin: .companionImport
         )
         show.applyCompanionSession(session, isOwner: false)
         modelContext.insert(show)
@@ -615,50 +624,50 @@ final class CompanionSharingCoordinator {
         if let sharing = error as? CompanionSharingError {
             switch sharing {
             case .iCloudAccountUnavailable:
-                return "需要登录 iCloud 才能邀请同行"
+                return BSLocalization.text("需要登录 iCloud 才能邀请同行")
             case .networkFailure:
-                return "网络不可用，请稍后重试"
+                return BSLocalization.text("网络不可用，请稍后重试")
             case .sharePreparationFailed:
-                return "邀请创建失败，请稍后重试"
+                return BSLocalization.text("邀请创建失败，请稍后重试")
             case .acceptFailed:
-                return "接受邀请失败，请确认链接有效"
+                return BSLocalization.text("接受邀请失败，请确认链接有效")
             case .sessionNotFound:
-                return "找不到这场同行邀请"
+                return BSLocalization.text("找不到这场同行邀请")
             case .invalidPayload:
-                return "邀请内容无效"
+                return BSLocalization.text("邀请内容无效")
             case .permissionDenied:
-                return "没有权限更新同行状态"
+                return BSLocalization.text("没有权限更新同行状态")
             case .conflict:
-                return "同行状态已变更，请刷新后重试"
+                return BSLocalization.text("同行状态已变更，请刷新后重试")
             case .statusSyncPending:
-                return "已接受邀请，但状态同步失败，请稍后刷新"
+                return BSLocalization.text("已接受邀请，但状态同步失败，请稍后刷新")
             }
         }
         if error is ShowCompanionMutationError {
-            return "同行状态无法更新"
+            return BSLocalization.text("同行状态无法更新")
         }
         if let ck = error as? CKError {
             return message(forCloudKit: ck)
         }
-        return "同行操作失败：\(error.localizedDescription)"
+        return BSLocalization.format("同行操作失败：%@", error.localizedDescription)
     }
 
     private static func message(forCloudKit error: CKError) -> String {
         switch error.code {
         case .notAuthenticated, .managedAccountRestricted:
-            return "需要登录 iCloud 才能邀请同行"
+            return BSLocalization.text("需要登录 iCloud 才能邀请同行")
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .zoneBusy, .requestRateLimited:
-            return "网络不可用，请稍后重试"
+            return BSLocalization.text("网络不可用，请稍后重试")
         case .permissionFailure:
-            return "没有权限创建同行邀请，请确认 iCloud 云盘已打开"
+            return BSLocalization.text("没有权限创建同行邀请，请确认 iCloud 云盘已打开")
         case .quotaExceeded:
-            return "iCloud 空间不足，无法创建同行邀请"
+            return BSLocalization.text("iCloud 空间不足，无法创建同行邀请")
         case .invalidArguments, .constraintViolation:
-            return "邀请创建失败：CloudKit 拒绝了这次请求"
+            return BSLocalization.text("邀请创建失败：CloudKit 拒绝了这次请求")
         case .serverRejectedRequest:
-            return "邀请创建失败：CloudKit 容器未就绪，请在 Xcode 打开 iCloud 能力并确认 Development 环境可用"
+            return BSLocalization.text("邀请创建失败：CloudKit 容器未就绪，请在 Xcode 打开 iCloud 能力并确认 Development 环境可用")
         default:
-            return "邀请创建失败：\(error.localizedDescription)"
+            return BSLocalization.format("邀请创建失败：%@", error.localizedDescription)
         }
     }
 }
@@ -751,6 +760,21 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
             }
         }
     }
+
+    func application(
+        _ application: UIApplication,
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
+    ) {
+        if shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
+            Task { @MainActor in
+                ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
+            }
+            completionHandler(true)
+        } else {
+            completionHandler(false)
+        }
+    }
 }
 
 final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
@@ -762,15 +786,35 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
         if let metadata = connectionOptions.cloudKitShareMetadata {
             deliver(metadata)
         }
+        if let shortcutItem = connectionOptions.shortcutItem,
+           shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
+            Task { @MainActor in
+                ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
+            }
+        }
     }
+
+   func windowScene(
+       _ windowScene: UIWindowScene,
+       userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
+   ) {
+       deliver(cloudKitShareMetadata)
+   }
 
     func windowScene(
         _ windowScene: UIWindowScene,
-        userDidAcceptCloudKitShareWith cloudKitShareMetadata: CKShare.Metadata
+        performActionFor shortcutItem: UIApplicationShortcutItem,
+        completionHandler: @escaping (Bool) -> Void
     ) {
-        deliver(cloudKitShareMetadata)
+        if shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
+            Task { @MainActor in
+                ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
+            }
+            completionHandler(true)
+        } else {
+            completionHandler(false)
+        }
     }
-
     private func deliver(_ metadata: CKShare.Metadata) {
         guard let appDelegate = UIApplication.shared.delegate as? BeforeShowAppDelegate else {
             return
