@@ -546,6 +546,12 @@ final class CompanionSharingCoordinator {
         let descriptor = FetchDescriptor<Show>()
         let shows = try modelContext.fetch(descriptor)
 
+        // 接受邀请会把匹配到的现场标成 participant 侧（companionIsOwner = false）。
+        // 一旦发生，就再也分不清「用户自己添加的旧现场」和「升级前纯导入的旧现场」。
+        // 所以在任何合并/新建之前，先把尚未标记来源的旧数据定格下来 —— 这样
+        // 免费额度的归属不依赖启动期各条路径的先后顺序。
+        ShowCreationOriginMigration.resolveUnresolvedOrigins(in: shows)
+
         if let existing = shows.first(where: {
             $0.companionCloudRecordName == session.sessionLocator.recordName
         }) {

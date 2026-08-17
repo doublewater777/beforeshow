@@ -246,6 +246,47 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
     }
 
+    /// 额度归属不能依赖启动期的执行顺序：`noteDependenciesReady()` 会立刻起 Task
+    /// flush 待处理邀请，可能先于启动任务里的迁移跑完。接受邀请的路径自己会先定格
+    /// 旧数据来源，所以即使 flush 抢先，用户自己添加的现场也不会被误判成导入。
+    @MainActor
+    func testAcceptFlushBeforeMigrationStillKeepsUserOrigin() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
+        let thisMonth = Date(timeIntervalSince1970: 1_786_000_000) // 2026-08-06 UTC
+
+        // 升级前用户自己添加的现场（没有来源值），本月额度已占用。
+        let legacyManual = try Show(
+            name: "我自己添加",
+            date: now,
+            startTime: now,
+            creationOrigin: nil,
+            createdAt: thisMonth
+        )
+        context.insert(legacyManual)
+        try context.save()
+
+        // 模拟「flush 抢在启动迁移之前」：接受邀请路径先定格来源，再做合并。
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        ShowCreationOriginMigration.resolveUnresolvedOrigins(in: shows)
+        legacyManual.companionIsOwner = false // 合并把它标成 participant 侧
+        try context.save()
+
+        // 之后启动迁移才跑到 —— 来源已经定格，不会被改写成导入。
+        ShowCreationOriginMigration.migrateIfNeeded(in: context)
+
+        XCTAssertEqual(legacyManual.creationOrigin, .user)
+        XCTAssertTrue(legacyManual.countsTowardFreeMonthlyQuota)
+        let gate = ProFeatureGate()
+        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
+        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+    }
+
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
         XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版每月可添加 1 场现场")
         XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")

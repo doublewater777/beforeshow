@@ -12,20 +12,30 @@ import SwiftData
 /// 判定为 participant 侧导入并标记 `.companionImport`，其余标记 `.user`。此后来源字段
 /// 永远是显式值，合并邀请再改 `companionIsOwner` 也不会影响额度。
 ///
-/// 时序很关键：必须在任何新的邀请接受把已有现场翻成 participant 侧之前跑完，
-/// 否则用户自己添加的现场会被迁移误判成导入。
+/// 时序不能靠启动顺序保证：`noteDependenciesReady()` 会立刻起一个 Task 去
+/// flush 待处理邀请，可能先于启动任务里的迁移执行。所以除了启动时调用一次，
+/// `applyAcceptedSession` 在合并/新建之前也会先调用 `resolveUnresolvedOrigins`，
+/// 把旧数据的来源定格下来 —— 无论谁先跑，用户自己添加的现场都不会被误判成导入。
 enum ShowCreationOriginMigration {
     static func migrateIfNeeded(in modelContext: ModelContext) {
         let descriptor = FetchDescriptor<Show>()
         guard let shows = try? modelContext.fetch(descriptor) else { return }
 
+        guard resolveUnresolvedOrigins(in: shows) else { return }
+        try? modelContext.save()
+    }
+
+    /// 给还没有来源值的现场落一个显式来源。返回是否有改动。
+    ///
+    /// 判定依据 `companionIsOwner`：在这条现场第一次被邀请合并之前，它仍然
+    /// 忠实反映「这条记录是不是纯 participant 侧导入」。定格之后来源不再变化。
+    @discardableResult
+    static func resolveUnresolvedOrigins(in shows: [Show]) -> Bool {
         var didChange = false
         for show in shows where show.hasUnresolvedCreationOrigin {
             show.creationOrigin = show.companionIsOwner == false ? .companionImport : .user
             didChange = true
         }
-
-        guard didChange else { return }
-        try? modelContext.save()
+        return didChange
     }
 }
