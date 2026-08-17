@@ -527,7 +527,8 @@ struct CurrentShowManagementSection: View {
             cities: [],
             venues: [],
             years: [],
-            currentYearCount: 0
+            currentYearCount: 0,
+            totalDurationMinutes: 0
         )
         return FootprintDetailIdentityBuilder.make(
             show: show,

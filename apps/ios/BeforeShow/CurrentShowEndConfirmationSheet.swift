@@ -143,10 +143,6 @@ struct CurrentShowEndConfirmationSheet: View {
 
     private var durationText: String {
         let minutes = max(0, Int(selectedEnd.timeIntervalSince(showStart) / 60))
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours == 0 { return BSLocalization.format("%lld 分", rest) }
-        if rest == 0 { return BSLocalization.format("%lld 小时", hours) }
-        return BSLocalization.format("%lld 小时 %lld 分", hours, rest)
+        return ShowDurationFormatter.single(totalMinutes: minutes)
     }
 }

@@ -72,7 +72,7 @@ private struct ConfirmedEndTimeEditorSheet: View {
                     .frame(width: 56, height: 56)
                     .background(BSColor.Stage.accent.opacity(0.10))
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                Text(hasConfirmedEnd ? "修改散场时间" : "补记散场时间")
+                Text(hasConfirmedEnd ? BSLocalization.text("修改散场时间") : BSLocalization.text("补记散场时间"))
                     .font(BSFont.headline)
                     .foregroundColor(BSColor.Stage.foreground)
                 Text(showName)
@@ -218,7 +218,7 @@ struct ShowDetailView: View {
                 } label: {
                     Image(systemName: "ellipsis")
                 }
-                .accessibilityLabel("更多操作")
+                .accessibilityLabel(BSLocalization.text("更多操作"))
             }
         }
         .sheet(item: $presentedSheet) { sheet in
@@ -227,7 +227,7 @@ struct ShowDetailView: View {
                 ShowDraftEditorView(
                     title: BSLocalization.text("编辑现场"),
                     draft: ShowDraft(show: show),
-                    saveTitle: "保存",
+                    saveTitle: BSLocalization.text("保存"),
                     statusPillText: session.phase(for: show, now: Date()).statusText,
                     isPostponed: show.changeStatus == .postponed
                 ) { draft in
@@ -418,13 +418,13 @@ struct ShowDetailView: View {
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "mappin.and.ellipse",
-                    title: show.venueName ?? show.city ?? "未填写场馆",
+                    title: show.venueName ?? show.city ?? BSLocalization.text("未填写场馆"),
                     subtitle: venueDetail
                 )
                 Divider().overlay(BSColor.Stage.border)
                 detailInfoRow(
                     icon: "music.note",
-                    title: show.artistNames.isEmpty ? "未填写艺人" : show.artistNames.joined(separator: "、"),
+                    title: show.artistNames.isEmpty ? BSLocalization.text("未填写艺人") : show.artistNames.joined(separator: "、"),
                     subtitle: nil,
                     trailing: avatarLeading
                 )
@@ -580,7 +580,7 @@ struct ShowDetailView: View {
                 } label: {
                     ShowDetailExperienceTile(
                         action: .memoryFragments,
-                        title: ShowDetailExperienceAction.memoryFragments.rawValue,
+                        title: BSLocalization.text(ShowDetailExperienceAction.memoryFragments.rawValue),
                         subtitle: memoryFragmentsSubtitle
                     )
                 }
@@ -704,7 +704,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
 
     private var venueSummary: String {
         let value = [show.venueName, show.city].compactMap { $0 }.joined(separator: " · ")
-        return value.isEmpty ? "场馆待补充" : value
+        return value.isEmpty ? BSLocalization.text("场馆待补充") : value
     }
 
     private var venueDetail: String? {
@@ -723,7 +723,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
 
     private var currentDisplayTitle: String {
         if isCurrentShow { return BSLocalization.text("当前展示中") }
-        return session.isManuallySelectable(show) ? "未设为当前" : "暂不可设为当前"
+        return session.isManuallySelectable(show) ? BSLocalization.text("未设为当前") : BSLocalization.text("暂不可设为当前")
     }
 
     private var statusTint: Color {
@@ -755,21 +755,21 @@ format: BSLocalization.text("M月d日 HH:mm"),
             return .init(
                 title: BSLocalization.text("这场已经取消"),
                 trailingValue: "—",
-                trailingLabel: "取消",
+                trailingLabel: BSLocalization.text("取消"),
                 tint: BSColor.Stage.danger
             )
         case .postponed where show.postponedDate == nil:
             return .init(
                 title: BSLocalization.text("倒计时暂停"),
                 trailingValue: "TBD",
-                trailingLabel: "待定",
+                trailingLabel: BSLocalization.text("待定"),
                 tint: BSColor.Accent.warm
             )
         case .postponed:
             return .init(
                 title: BSLocalization.text("已延期"),
                 trailingValue: formattedDate(show.effectiveDate, format: "MM.dd"),
-                trailingLabel: "新日期",
+                trailingLabel: BSLocalization.text("新日期"),
                 tint: BSColor.Accent.warm
             )
         case .scheduled:
@@ -800,7 +800,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
         case .scheduled:
             return BSLocalization.text("正常进行中")
         case .postponed:
-            return show.postponedDate == nil ? "时间待定" : "已改期"
+            return show.postponedDate == nil ? BSLocalization.text("时间待定") : BSLocalization.text("已改期")
         case .canceled:
             return BSLocalization.text("演出已取消")
         }
@@ -846,7 +846,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
                 )
                 presentToast(
                     didSync ? .success : .neutral,
-                    message: didSync ? "已设为当前现场" : "已切换现场，同步暂未更新"
+                    message: didSync ? BSLocalization.text("已设为当前现场") : BSLocalization.text("已切换现场，同步暂未更新")
                 )
             } catch {
                 modelContext.rollback()
@@ -875,7 +875,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
                 presentedSheet = nil
                 presentToast(
                     didSync ? .success : .neutral,
-                    message: didSync ? "散场时间已更新" : "散场时间已保存，同步暂未更新"
+                    message: didSync ? BSLocalization.text("散场时间已更新") : BSLocalization.text("散场时间已保存，同步暂未更新")
                 )
             } catch {
                 presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))
@@ -899,8 +899,8 @@ format: BSLocalization.text("M月d日 HH:mm"),
                 presentToast(
                     .neutral,
                     message: didSync
-                        ? "已撤销结束，继续按现场时间计时"
-                        : "已撤销结束，同步暂未更新"
+                        ? BSLocalization.text("已撤销结束，继续按现场时间计时")
+                        : BSLocalization.text("已撤销结束，同步暂未更新")
                 )
             } catch {
                 presentToast(.failure, message: BSLocalization.text("没有撤销成功，请重试"))
@@ -932,7 +932,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
         )
         presentToast(
             didSync ? .success : .neutral,
-            message: didSync ? "现场信息已更新" : "信息已保存，同步暂未更新"
+            message: didSync ? BSLocalization.text("现场信息已更新") : BSLocalization.text("信息已保存，同步暂未更新")
         )
     }
 

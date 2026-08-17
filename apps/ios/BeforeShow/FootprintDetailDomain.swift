@@ -209,13 +209,13 @@ enum FootprintShareMaterialBuilder {
         case .text:
             return nil
         case .photo:
-            return (.photo, "照片")
+            return (.photo, BSLocalization.text("照片"))
         case .videoCover:
-            return (.videoCover, "视频封面")
+            return (.videoCover, BSLocalization.text("视频封面"))
         case .ticket:
-            return (.ticket, "票根")
+            return (.ticket, BSLocalization.text("票根"))
         case .timetable:
-            return (.timetable, "时刻表")
+            return (.timetable, BSLocalization.text("时刻表"))
         }
     }
 }

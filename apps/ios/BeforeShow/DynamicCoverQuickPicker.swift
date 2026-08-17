@@ -50,7 +50,7 @@ struct DynamicCoverQuickPicker: View {
                 } catch is CancellationError {
                     return
                 } catch {
-                    errorMessage = "视频没有载入，请重试。"
+                    errorMessage = BSLocalization.text("视频没有载入，请重试。")
                 }
             }
         }
@@ -59,7 +59,7 @@ struct DynamicCoverQuickPicker: View {
             importTask?.cancel()
             importTask = nil
         }
-        .alert("动态封面没有更新", isPresented: Binding(
+        .alert(BSLocalization.text("动态封面没有更新"), isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {

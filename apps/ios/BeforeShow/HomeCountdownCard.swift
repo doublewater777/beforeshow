@@ -172,31 +172,16 @@ enum HomeShowIdentityPresentation {
 
         // 已确认散场的现场展示实际时长(开场→散场),不再说「预计」。
         if let endedAt = show.endedAt,
-           let actual = durationText(from: timeState.effectiveStartTime ?? show.startTime, to: endedAt) {
+           let actual = ShowDurationFormatter.single(from: timeState.effectiveStartTime ?? show.startTime, to: endedAt) {
             return BSLocalization.format("%@ · 实际演出 %@", base, actual)
         }
 
         guard let start = timeState.effectiveStartTime,
               let end = timeState.effectiveEndTime,
-              let duration = durationText(from: start, to: end) else {
+              let duration = ShowDurationFormatter.single(from: start, to: end) else {
             return base
         }
         return BSLocalization.format("%@ · 预计演出 %@", base, duration)
-    }
-
-    /// 「X 小时 Y 分」时长文案,end <= start 时返回 nil 让上层回退到纯日期。
-    private static func durationText(from start: Date, to end: Date) -> String? {
-        guard end > start else { return nil }
-        let minutes = Int(end.timeIntervalSince(start)) / 60
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours > 0 && rest > 0 {
-            return BSLocalization.format("%lld 小时 %lld 分", hours, rest)
-        } else if hours > 0 {
-            return BSLocalization.format("%lld 小时", hours)
-        } else {
-            return BSLocalization.format("%lld 分钟", max(1, rest))
-        }
     }
 
     private static func trimmed(_ value: String?) -> String? {

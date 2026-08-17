@@ -10,6 +10,9 @@ enum FootprintCategory: String, CaseIterable, Identifiable {
     case venue = "场馆"
 
     var id: String { rawValue }
+
+    /// 展示用本地化标题(rawValue 是稳定标识,不直接上屏)。
+    var title: String { BSLocalization.text(rawValue) }
 }
 
 struct FootprintRankItem: Identifiable, Equatable, Hashable {
@@ -31,6 +34,8 @@ struct FootprintArchiveSnapshot {
     let venues: [FootprintRankItem]
     let years: [FootprintYearGroup]
     let currentYearCount: Int
+    /// 全部归档现场的观看时长合计(分钟),动态计算不持久化。
+    let totalDurationMinutes: Int
 
     var firstShow: Show? { shows.last }
 
@@ -139,7 +144,8 @@ enum FootprintArchiveShareCopy {
         case .overview:
             var lines = [
                 subject(for: category),
-                BSLocalization.format("%lld 场现场 · %lld 位艺人 · %lld 座城市 · %lld 个场馆", archive.shows.count, archive.artists.count, archive.cities.count, archive.venues.count)
+                BSLocalization.format("%lld 场现场 · %lld 位艺人 · %lld 座城市 · %lld 个场馆", archive.shows.count, archive.artists.count, archive.cities.count, archive.venues.count),
+                BSLocalization.format("在现场待过 %@", ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes))
             ]
             if let top = archive.artists.first { lines.append(BSLocalization.format("最常看：%@ · %lld 场", top.name, top.count)) }
             if let first = archive.firstShow {
@@ -247,6 +253,11 @@ enum FootprintArchiveBuilder {
         let grouped = Dictionary(grouping: archived) {
             $0.timingCalendar(fallback: calendar).component(.year, from: $0.effectiveDate)
         }
+        let totalDurationMinutes = archived.reduce(0) { partial, show in
+            let timeState = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+            guard let minutes = ShowDurationFormatter.minutes(for: show, timeState: timeState) else { return partial }
+            return partial + minutes
+        }
 
         return FootprintArchiveSnapshot(
             shows: archived,
@@ -256,7 +267,8 @@ enum FootprintArchiveBuilder {
             years: grouped.keys.sorted(by: >).map {
                 FootprintYearGroup(year: $0, shows: grouped[$0] ?? [])
             },
-            currentYearCount: grouped[calendar.component(.year, from: now)]?.count ?? 0
+            currentYearCount: grouped[calendar.component(.year, from: now)]?.count ?? 0,
+            totalDurationMinutes: totalDurationMinutes
         )
     }
 
@@ -355,8 +367,8 @@ struct FootprintsView: View {
                     FootprintShareSheet(
                         archive: archive,
                         shareText: shareText(archive),
-                        onCopied: { presentToast("已复制足迹文案") },
-                        onSaved: { presentToast("足迹图片已保存") }
+                        onCopied: { presentToast(BSLocalization.text("已复制足迹文案")) },
+                        onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
                     )
                     .presentationDetents([.height(555)])
                     .presentationCornerRadius(26)
@@ -454,8 +466,9 @@ struct FootprintsView: View {
                 .layoutPriority(1)
                 VStack(alignment: .leading, spacing: 8) {
                     heroMetric(archive.currentYearCount, BSLocalization.text("今年"))
-                    heroMetric(archive.cities.count, "城市")
-                    heroMetric(archive.venues.count, "场馆")
+                    heroMetric(archive.cities.count, BSLocalization.text("城市"))
+                    heroMetric(archive.venues.count, BSLocalization.text("场馆"))
+                    heroMetric(ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes), BSLocalization.text("现场时长"))
                 }
                 .padding(.bottom, 11)
             }
@@ -471,8 +484,12 @@ struct FootprintsView: View {
     }
 
     private func heroMetric(_ value: Int, _ label: String) -> some View {
+        heroMetric("\(value)", label)
+    }
+
+    private func heroMetric(_ value: String, _ label: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
-            Text("\(value)").font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(value).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
             Text(label).font(BSFont.tag).foregroundColor(BSColor.Stage.dim)
         }
     }
@@ -521,7 +538,7 @@ struct FootprintsView: View {
                     Spacer()
                     HStack(spacing: 2) {
                         ForEach([FootprintCategory.artist, .city, .venue]) { category in
-                            Button(category.rawValue) { rankCategory = category }
+                            Button(category.title) { rankCategory = category }
                                 .font(.system(size: 10.5, weight: .medium))
                                 .foregroundColor(rankCategory == category ? BSColor.Stage.foreground : BSColor.Stage.dim)
                                 .padding(.horizontal, 9)
@@ -706,8 +723,13 @@ struct FootprintsView: View {
                         .font(.system(size: 11.8)).foregroundColor(BSColor.Stage.muted).lineLimit(1)
                 }
                 Spacer(minLength: 0)
-                Text(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))
-                    .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))
+                        .font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
+                    if let duration = showDurationText(show) {
+                        Text(duration).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.dim)
+                    }
+                }
                 Image(systemName: "chevron.right")
                     .font(BSFont.V3.caption.weight(.semibold))
                     .foregroundColor(BSColor.Stage.dim)
@@ -720,10 +742,18 @@ struct FootprintsView: View {
         .padding(.horizontal, BSSpacing.roomy).padding(.top, BSSpacing.sm)
     }
 
+    /// 列表行的单场观看时长:已确认散场用真实时刻,否则录入结束时间或默认估算。
+    private func showDurationText(_ show: Show) -> String? {
+        let timeState = CurrentShowTimeState(show: show, calendar: show.timingCalendar())
+        guard let minutes = ShowDurationFormatter.minutes(for: show, timeState: timeState) else { return nil }
+        return ShowDurationFormatter.single(totalMinutes: minutes)
+    }
+
     private func shareText(_ archive: FootprintArchiveSnapshot) -> String {
         var lines = [
             BSLocalization.format("我的 BeforeShow 现场足迹：%lld 场现场", archive.shows.count),
-            BSLocalization.format("去过 %lld 座城市、%lld 个场馆", archive.cities.count, archive.venues.count)
+            BSLocalization.format("去过 %lld 座城市、%lld 个场馆", archive.cities.count, archive.venues.count),
+            BSLocalization.format("在现场待过 %@", ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes))
         ]
         if let top = archive.artists.first { lines.append(BSLocalization.format("最常看的艺人：%@（%lld 场）", top.name, top.count)) }
         return lines.joined(separator: "\n")
@@ -926,13 +956,13 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
-        .alert("无法保存图片", isPresented: Binding(
+        .alert(BSLocalization.text("无法保存图片"), isPresented: Binding(
             get: { saveError != nil },
             set: { if !$0 { saveError = nil } }
         )) {
             Button(BSLocalization.text("好"), role: .cancel) { saveError = nil }
         } message: {
-            Text(saveError ?? "请重试。")
+            Text(saveError ?? BSLocalization.text("请重试。"))
         }
     }
 
@@ -944,7 +974,7 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         do {
             try await FootprintShareImageExport.save(exportContent(), size: exportSize)
         } catch {
-            saveError = (error as? LocalizedError)?.errorDescription ?? "照片保存失败，请重试。"
+            saveError = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
             return
         }
         dismiss()
@@ -991,7 +1021,7 @@ private struct FootprintSharePreview: View {
                         Text(BSLocalization.text("场现场")).font(.system(size: 17 * scale)).foregroundColor(BSColor.Stage.muted)
                     }
                     .padding(.top, 28 * scale)
-                    Text(BSLocalization.format("%lld 座城市 · %lld 个场馆", archive.cities.count, archive.venues.count))
+                    Text(BSLocalization.format("%lld 座城市 · %lld 个场馆 · %@", archive.cities.count, archive.venues.count, ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes)))
                         .font(.system(size: 17 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
                     Text(BSLocalization.format("最常看：%@\n第一场：%@", archive.artists.first?.name ?? "—", archive.firstShow.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"))
                         .font(.system(size: 12 * scale)).foregroundColor(BSColor.Stage.muted).lineSpacing(5 * scale).padding(.top, 7 * scale)
@@ -1101,6 +1131,7 @@ private struct FootprintArchiveSharePreview: View {
             shareMetric(archive.artists.count, BSLocalization.text("艺人"), scale: scale)
             shareMetric(archive.cities.count, BSLocalization.text("城市"), scale: scale)
             shareMetric(archive.venues.count, BSLocalization.text("场馆"), scale: scale)
+            shareMetric(ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes), BSLocalization.text("现场时长"), scale: scale)
         }
         .padding(.top, 14 * scale)
 
@@ -1132,7 +1163,7 @@ private struct FootprintArchiveSharePreview: View {
             HStack(alignment: .lastTextBaseline, spacing: 12 * scale) {
             VStack(alignment: .leading, spacing: 5 * scale) {
                 Text(label).font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.dim)
-                Text(top?.name ?? "还没有记录")
+                Text(top?.name ?? BSLocalization.text("还没有记录"))
                     .font(.system(size: 24 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
             }
             Spacer(minLength: 0)
@@ -1164,8 +1195,12 @@ private struct FootprintArchiveSharePreview: View {
     }
 
     private func shareMetric(_ value: Int, _ label: String, scale: CGFloat) -> some View {
+        shareMetric("\(value)", label, scale: scale)
+    }
+
+    private func shareMetric(_ value: String, _ label: String, scale: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 3 * scale) {
-            Text("\(value)").font(.system(size: 15 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(value).font(.system(size: 15 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
             Text(label).font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1360,7 +1395,7 @@ private struct FootprintArchiveDetailView: View {
                     .frame(width: 42, height: 42).background(Color.white.opacity(0.055), in: Circle())
                     .overlay(Circle().stroke(BSColor.Stage.border))
             }
-            .accessibilityLabel(BSLocalization.format("分享%@档案", category.rawValue))
+            .accessibilityLabel(BSLocalization.format("分享%@档案", category.title))
         }
         .padding(.horizontal, 18).padding(.vertical, 12)
         .background(BSColor.Stage.background.opacity(0.96))
@@ -1381,6 +1416,7 @@ private struct FootprintArchiveDetailView: View {
                 archiveMetric(archive.artists.count, BSLocalization.text("艺人"))
                 archiveMetric(archive.cities.count, BSLocalization.text("城市"))
                 archiveMetric(archive.venues.count, BSLocalization.text("场馆"))
+                archiveMetric(ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes), BSLocalization.text("现场时长"))
             }
             .padding(.top, 15)
         }
@@ -1393,8 +1429,12 @@ private struct FootprintArchiveDetailView: View {
     }
 
     private func archiveMetric(_ value: Int, _ label: String) -> some View {
+        archiveMetric("\(value)", label)
+    }
+
+    private func archiveMetric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text("\(value)").font(.system(size: 16, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(value).font(.system(size: 16, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
             Text(label).font(BSFont.tag).foregroundColor(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(9)
@@ -1405,7 +1445,7 @@ private struct FootprintArchiveDetailView: View {
     private var categoryTabs: some View {
         HStack(spacing: 2) {
             ForEach(FootprintCategory.allCases) { item in
-                Button(item.rawValue) { category = item }
+                Button(item.title) { category = item }
                     .font(BSFont.tag).foregroundColor(category == item ? BSColor.Stage.foreground : BSColor.Stage.dim)
                     .frame(maxWidth: .infinity).padding(.vertical, 9)
                     .background(category == item ? BSColor.Stage.surfaceRaised : .clear, in: RoundedRectangle(cornerRadius: 9))
@@ -1480,7 +1520,9 @@ private struct FootprintArchiveDetailView: View {
         return HStack(alignment: .bottom, spacing: 14) {
             ForEach(Array(archive.years.reversed().enumerated()), id: \.element.id) { index, group in
                 VStack(spacing: 6) {
-                    Text(BSLocalization.format("%lld 场", group.shows.count)).font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+                    Text(BSLocalization.format("%lld 场 · %@", group.shows.count, yearDurationText(group)))
+                        .font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+                        .lineLimit(1).minimumScaleFactor(0.8)
                     RoundedRectangle(cornerRadius: 5).fill(index.isMultiple(of: 2) ? BSColor.Stage.accent.opacity(0.72) : BSColor.Stage.glowBlue.opacity(0.72))
                         .frame(height: max(9, 74 * CGFloat(group.shows.count) / CGFloat(max(maximum, 1))))
                     Text(String(group.year)).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.muted)
@@ -1491,13 +1533,22 @@ private struct FootprintArchiveDetailView: View {
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))
     }
 
+    /// 某一年的累计观看时长。
+    private func yearDurationText(_ group: FootprintYearGroup) -> String {
+        let minutes = group.shows.reduce(0) { partial, show in
+            let timeState = CurrentShowTimeState(show: show, calendar: show.timingCalendar())
+            return partial + (ShowDurationFormatter.minutes(for: show, timeState: timeState) ?? 0)
+        }
+        return ShowDurationFormatter.aggregate(totalMinutes: minutes)
+    }
+
     private var ranking: some View {
         let values = archive.ranking(for: category)
         return VStack(alignment: .leading, spacing: 12) {
             if let top = archive.ranking(for: category).first {
                 ZStack(alignment: .bottomTrailing) {
                     VStack(alignment: .leading, spacing: 5) {
-                        Text(BSLocalization.format("%@排行", category.rawValue)).font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(BSColor.Stage.accent)
+                        Text(BSLocalization.format("%@排行", category.title)).font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(BSColor.Stage.accent)
                         Text(top.name).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(2)
                         Text(categorySubtitle).font(.system(size: 11.5)).foregroundColor(BSColor.Stage.muted)
                     }

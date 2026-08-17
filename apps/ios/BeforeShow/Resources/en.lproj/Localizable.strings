@@ -156,6 +156,8 @@
 "随着记录增加，这里会逐渐出现你最常看的艺人、去过最多的城市和场馆。" = "As the records increase, the artists you watch most and the cities and venues you visit the most will gradually appear here.";
 "＋ 新增记忆" = "＋ New Memory";
 "%lld 天 %lld 小时" = "%lld days %lld hours";
+"%lld 天" = "%lld days";
+"时长" = "Length";
 "%lld 小时" = "%lld hours";
 "LIVE · 开场中" = "LIVE · Show in progress";
 "不到 1 小时" = "Under 1 hour";
@@ -1050,3 +1052,6 @@ First show: %@";
 "图库" = "Library";
 "相机" = "Camera";
 "停留期还剩 %@" = "%@ left in this period";
+"%lld 场 · %@" = "%lld shows · %@";
+"在现场待过 %@" = "Time at shows: %@";
+"%lld 座城市 · %lld 个场馆 · %@" = "%lld cities · %lld venues · %@";
