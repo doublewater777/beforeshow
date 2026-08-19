@@ -545,8 +545,8 @@ final class ShowModelTests: XCTestCase {
     func testShowCoverFallbackUsesSplashImageWithoutMissingCoverCopy() {
         let presentation = ShowCoverFallbackPresentation(reason: .noCover)
 
-        XCTAssertEqual(presentation.assetName, "splash_bg")
-        XCTAssertEqual(presentation.alignment, .top)
+        XCTAssertEqual(presentation.assetName, "default_cover")
+        XCTAssertEqual(presentation.alignment, .center)
         XCTAssertTrue(presentation.visibleTexts.isEmpty)
     }
 

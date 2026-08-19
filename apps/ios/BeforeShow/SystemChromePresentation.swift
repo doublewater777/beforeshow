@@ -6,6 +6,7 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
     case companion
     case asset(ShowAssetKind)
     case memory
+    case memoryCreate
     case mapChooser
 
     var id: String {
@@ -14,6 +15,7 @@ enum CurrentShowPresentedSheet: Identifiable, Equatable, Hashable {
         case .companion: return "companion"
         case .asset(let kind): return "asset-\(kind.rawValue)"
         case .memory: return "memory"
+        case .memoryCreate: return "memoryCreate"
         case .mapChooser: return "mapChooser"
         }
     }
@@ -39,15 +41,6 @@ enum MemoryCreateSourceOption: String, CaseIterable {
 enum MemoryCreateSourcePresentation {
     static let title = BSLocalization.text("新增记忆")
     static let message = BSLocalization.text("拍一张、选一段、写一句。")
-}
-
-enum ShowAssetPresentationStyle: Equatable {
-    case sheet
-    case push
-
-    static func style(hasSavedAsset _: Bool) -> Self {
-        .sheet
-    }
 }
 
 /// Show-detail overlays that occupy the single sheet slot.

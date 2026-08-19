@@ -1,6 +1,7 @@
+import PostHog
 import SwiftUI
 
-/// V2 Paywall：标准三档（月度 $1.49 / 年度 $4.99 / 终身 $8.99）+ 挽留双档
+/// V2 Paywall：标准双档（年度 $4.99 / 终身 $8.99）+ 挽留双档
 ///（特惠年度 $2.99 / 特惠终身 $5.99）。布局以参考稿
 /// beforeshow-settings-paywall-v2-winback.html 为准：居中 hero + 横向并排方案卡。
 ///
@@ -94,6 +95,7 @@ struct ProPaywallView: View {
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
         .task {
+            PostHogSDK.shared.capture("pro_paywall_viewed")
             await loadProducts()
         }
         .sheet(item: $legalPage) { page in
@@ -319,7 +321,7 @@ struct ProPaywallView: View {
                     )
             )
             .overlay(alignment: .top) {
-                // 推荐徽章骑在卡片上边框:不占卡内空间,月度/终身卡顶部不再留空行。
+                // 推荐徽章骑在卡片上边框:不占卡内空间,终身卡顶部不再留空行。
                 if plan == .yearly {
                     Text(BSLocalization.text("推荐"))
                         .font(.system(size: 9.5, weight: .bold))
@@ -364,8 +366,6 @@ struct ProPaywallView: View {
         }
         let price = ctaPrice(for: selectedPlan)
         switch selectedPlan {
-        case .monthly:
-            return BSLocalization.format("订阅月度 Pro · %@", price)
         case .yearly:
             return BSLocalization.format("订阅年度 Pro · %@", price)
         case .lifetime:
@@ -375,13 +375,11 @@ struct ProPaywallView: View {
         }
     }
 
-    /// CTA 上的紧凑价格：金额 + 紧凑周期（/月、/年；买断档不带周期）。
-    /// StoreKit 的 displayPrice 不含周期，这里由方案补上。
+    /// CTA 上的紧凑价格：金额 + 紧凑周期（/年；买断档不带周期）。
+    /// store 的 displayPrice 不含周期，这里由方案补上。
     private func ctaPrice(for plan: ProSubscriptionPlan) -> String {
         let amount = priceAmount(for: plan)
         switch plan {
-        case .monthly:
-            return BSLocalization.format("%@/月", amount)
         case .yearly, .yearlyDiscount:
             return BSLocalization.format("%@/年", amount)
         case .lifetime, .lifetimeDiscount:
@@ -597,9 +595,9 @@ struct ProPaywallView: View {
         products.first { $0.plan == plan }
     }
 
-    /// 价格字符串只保留金额部分（去掉「/月」「/年」后缀），周期由方案推导，
-    /// 这样 StoreKit 的 displayPrice（不含周期）和 fallback 文案都能用。
-    /// 未从 StoreKit 拿到的方案只显示「价格暂不可用」，不展示 catalog USD 参考价。
+    /// 价格字符串只保留金额部分（去掉「/年」后缀），周期由方案推导，
+    /// 这样 store 的 displayPrice（不含周期）和 fallback 文案都能用。
+    /// 未从 store 拿到的方案只显示「价格暂不可用」，不展示 catalog USD 参考价。
     private func priceAmount(for plan: ProSubscriptionPlan) -> String {
         guard let product = product(for: plan), product.isAvailable else {
             return BSLocalization.text("价格暂不可用")
@@ -636,7 +634,7 @@ struct ProPaywallView: View {
                 message = BSLocalization.text("暂时无法加载 App Store 价格。")
                 return
             }
-            // 只保留 StoreKit 实际返回的方案；缺失方案仍用 catalog 占位，
+            // 只保留 store 实际返回的方案；缺失方案仍用 catalog 占位，
             // 但 isAvailable == false，UI 显示「价格暂不可用」并禁用 CTA，
             // 不会用自定义 USD 参考价冒充真实 App Store 价格。
             products = ProSubscriptionCatalog.defaultProducts.map { fallback in
@@ -657,20 +655,24 @@ struct ProPaywallView: View {
         do {
             let entitlement = try await store.purchase(productID: product.id)
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
+            PostHogSDK.shared.capture("pro_purchase_completed", properties: [
+                "plan": plan.rawValue
+            ])
             didPurchase = true
             message = BSLocalization.text("Pro 已启用。")
             withAnimation(.easeOut(duration: BSMotion.interface)) {
                 showsWinback = false
             }
         } catch ProSubscriptionError.purchaseCancelled {
-            message = BSLocalization.text("已取消购买。")
-        } catch ProSubscriptionError.purchasePending {
-            message = BSLocalization.text("购买正在处理中。")
+            message = nil
         } catch ProSubscriptionError.winbackNotAvailableWhileActive {
             // 模型层拒绝：当前已是 Pro，挽留方案会与已有订阅重叠，直接关闭挽留态。
             showsWinback = false
             message = BSLocalization.text("当前已是 Pro，挽留方案不适用。")
         } catch {
+            PostHogSDK.shared.capture("pro_purchase_failed", properties: [
+                "plan": plan.rawValue
+            ])
             message = BSLocalization.text("购买暂时没有完成。")
         }
     }
@@ -683,6 +685,7 @@ struct ProPaywallView: View {
         do {
             let entitlement = try await store.restorePurchases()
             entitlementRawValue = ProEntitlementStorage.encode(entitlement)
+            PostHogSDK.shared.capture("pro_restored")
             didPurchase = true
             message = BSLocalization.text("已恢复 Pro。")
         } catch ProSubscriptionError.nothingToRestore {
@@ -693,11 +696,16 @@ struct ProPaywallView: View {
     }
 
     static func defaultStore() -> any ProSubscriptionStore {
-        #if canImport(StoreKit)
-        return StoreKitProSubscriptionStore()
-        #else
-        return MockProSubscriptionStore()
-        #endif
+        // 占位 key（appl_REPLACE_ME）或缺失时回退到 Mock：保证 dashboard 端还没配好
+        // key 之前 app 仍能跑，paywall 用 Mock 走通完整流程。
+        let key = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String ?? ""
+        if key.isEmpty || key == "appl_REPLACE_ME" {
+            #if DEBUG
+            print("[Pro] RevenueCatAPIKey missing — falling back to Mock store")
+            #endif
+            return MockProSubscriptionStore()
+        }
+        return RevenueCatProSubscriptionStore()
     }
 }
 
@@ -751,7 +759,6 @@ enum ProPaywallCopy {
 
     static func planName(_ plan: ProSubscriptionPlan) -> String {
         switch plan {
-        case .monthly: return BSLocalization.text("月度")
         case .yearly: return BSLocalization.text("年度")
         case .lifetime: return BSLocalization.text("终身")
         case .yearlyDiscount: return BSLocalization.text("特惠年度")
@@ -761,7 +768,6 @@ enum ProPaywallCopy {
 
     static func periodLabel(_ plan: ProSubscriptionPlan) -> String {
         switch plan {
-        case .monthly: return BSLocalization.text("/ 月")
         case .yearly, .yearlyDiscount: return BSLocalization.text("/ 年")
         case .lifetime, .lifetimeDiscount: return BSLocalization.text("一次性")
         }
@@ -769,7 +775,6 @@ enum ProPaywallCopy {
 
     static func planNote(_ plan: ProSubscriptionPlan, product: ProSubscriptionProduct?) -> String {
         switch plan {
-        case .monthly: return BSLocalization.text("按月订阅，随时取消")
         case .yearly:
             guard let perMonth = product?.perMonthEquivalentText else { return "" }
             return BSLocalization.format("约 %@ / 月", perMonth)

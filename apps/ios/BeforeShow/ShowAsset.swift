@@ -90,11 +90,6 @@ enum ShowAssetManagementPolicy {
     }
 }
 
-enum ShowAssetValidationError: Error, Equatable {
-    case emptyImage
-    case unsupportedImage
-}
-
 enum ShowAssetReplacement {
     static func target(
         replacingAssetID: UUID?,

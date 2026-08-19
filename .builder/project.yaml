@@ -1,7 +1,7 @@
 name: beforeshow
 current_stage: manual-onboarding
-active_cycle: 2026-08-15-first-testflight-build
-updated_at: 2026-08-15
+active_cycle: 2026-08-19-opening-memory-window
+updated_at: 2026-08-19
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -23,4 +23,6 @@ links:
   first_testflight_build_cycle: .builder/cycles/2026-08-15-first-testflight-build/
   widget_ambient_bloom_cycle: .builder/cycles/2026-08-15-widget-ambient-bloom/
   widget_glance_simplify_cycle: .builder/cycles/2026-08-15-widget-glance-simplify/
+  revenuecat_migration_cycle: .builder/cycles/2026-08-18-revenuecat-migration/
+  opening_memory_window_cycle: .builder/cycles/2026-08-19-opening-memory-window/
   manual_onboarding_stage: .builder/stages/06-manual-onboarding.md

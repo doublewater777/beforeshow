@@ -2,6 +2,28 @@ import AVFoundation
 import SwiftUI
 import UIKit
 
+/// App-wide audio session policy.
+///
+/// iOS defaults to `soloAmbient`, which interrupts other audio as soon as an
+/// `AVPlayer` with an audio track starts — `isMuted` only zeroes the output, it
+/// does not stop the session from activating. Dynamic covers are decorative and
+/// muted, so the app stays on `ambient` + `mixWithOthers` and never stops the
+/// user's music. Views that intentionally play sound switch to `playback` while
+/// they are on screen.
+enum AppAudioSession {
+    static func configureAmbient() {
+        try? AVAudioSession.sharedInstance().setCategory(
+            .ambient,
+            mode: .default,
+            options: [.mixWithOthers]
+        )
+    }
+
+    static func configureSoundPlayback() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
+    }
+}
+
 /// A borderless, muted AVPlayer surface used by dynamic covers.
 struct DynamicCoverPlaybackView: UIViewRepresentable {
     let url: URL

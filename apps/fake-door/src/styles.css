@@ -1015,6 +1015,20 @@ body::before {
   flex-wrap: wrap;
 }
 
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px 18px;
+}
+
+.footer-link {
+  color: var(--accent);
+}
+
+.footer-link:hover {
+  color: var(--text);
+}
+
 /* ── Scroll fade-in animation ──────────────────────── */
 @keyframes fade-up {
   from { opacity: 0; transform: translateY(28px); }

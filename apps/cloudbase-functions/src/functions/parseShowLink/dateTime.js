@@ -16,7 +16,7 @@ export function formatTimeParts(hourValue, minuteValue) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-export function validDateParts(year, month, day) {
+function validDateParts(year, month, day) {
   if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)
     || year < 2000 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
     return false;

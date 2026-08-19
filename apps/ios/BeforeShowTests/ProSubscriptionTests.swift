@@ -1,3 +1,4 @@
+import RevenueCat
 import SwiftData
 import XCTest
 @testable import BeforeShow
@@ -6,16 +7,15 @@ final class ProSubscriptionTests: XCTestCase {
     func testCatalogLoadsStandardAndWinbackProducts() {
         let products = ProSubscriptionCatalog.defaultProducts
 
-        XCTAssertEqual(products.map(\.plan), [.monthly, .yearly, .lifetime, .yearlyDiscount, .lifetimeDiscount])
+        XCTAssertEqual(products.map(\.plan), [.yearly, .lifetime, .yearlyDiscount, .lifetimeDiscount])
         XCTAssertEqual(products.map(\.id), [
-            "com.doublewaterapps.beforeshow.pro.monthly",
             "com.doublewaterapps.beforeshow.pro.yearly",
             "com.doublewaterapps.beforeshow.pro.lifetime",
             "com.doublewaterapps.beforeshow.pro.yearly.discount",
             "com.doublewaterapps.beforeshow.pro.lifetime.discount"
         ])
-        XCTAssertEqual(products.map(\.priceText), ["$1.49/月", "$4.99/年", "$8.99", "$2.99/年", "$5.99"])
-        XCTAssertEqual(ProSubscriptionCatalog.standardPlans, [.monthly, .yearly, .lifetime])
+        XCTAssertEqual(products.map(\.priceText), ["$4.99/年", "$8.99", "$2.99/年", "$5.99"])
+        XCTAssertEqual(ProSubscriptionCatalog.standardPlans, [.yearly, .lifetime])
         XCTAssertEqual(ProSubscriptionCatalog.winbackPlans, [.yearlyDiscount, .lifetimeDiscount])
         XCTAssertTrue(ProSubscriptionPlan.lifetime.isLifetime)
         XCTAssertTrue(ProSubscriptionPlan.lifetimeDiscount.isLifetime)
@@ -44,7 +44,7 @@ final class ProSubscriptionTests: XCTestCase {
 
         XCTAssertEqual(
             entitlement,
-            .active(productID: ProSubscriptionCatalog.monthlyProductID, expirationDate: nil)
+            .active(productID: ProSubscriptionCatalog.yearlyProductID, expirationDate: nil)
         )
         XCTAssertTrue(entitlement.isProActive)
     }
@@ -344,7 +344,7 @@ final class ProSubscriptionTests: XCTestCase {
     func testExpiredProKeepsExistingLocalDataAndManualEditsAvailable() {
         let gate = ProFeatureGate()
         let expired = ProEntitlementState.expired(
-            productID: ProSubscriptionCatalog.monthlyProductID,
+            productID: ProSubscriptionCatalog.yearlyProductID,
             expirationDate: Date(timeIntervalSince1970: 1_779_552_000)
         )
 
@@ -445,6 +445,7 @@ final class ProSubscriptionTests: XCTestCase {
             .proMembership,
             .privacyAndLocalData,
             .feedback,
+            .rateApp,
             .about
         ])
 
@@ -483,7 +484,7 @@ final class ProSubscriptionTests: XCTestCase {
         await store.setSimulatedError(ProSubscriptionError.purchaseCancelled)
         
         do {
-            _ = try await store.purchase(productID: ProSubscriptionCatalog.monthlyProductID)
+            _ = try await store.purchase(productID: ProSubscriptionCatalog.yearlyProductID)
             XCTFail("Should have thrown purchaseCancelled error")
         } catch let error as ProSubscriptionError {
             XCTAssertEqual(error, .purchaseCancelled)
@@ -508,7 +509,6 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testPaywallCopyResolvesInEnglishAndTraditionalChinese() {
         let keys = [
-            "订阅月度 Pro · %@",
             "订阅年度 Pro · %@",
             "买断终身 Pro · %@",
             "以特惠价解锁 Pro · %@",
@@ -518,7 +518,6 @@ final class ProSubscriptionTests: XCTestCase {
             "价格暂不可用",
             "推荐",
             "无限添加现场",
-            "按月订阅，随时取消",
             "一次买断，永久有效"
         ]
 
@@ -587,14 +586,13 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testMockStoreMarksLoadedProductsAvailable() async throws {
         let products = try await MockProSubscriptionStore().loadProducts()
-        XCTAssertEqual(products.count, 5)
+        XCTAssertEqual(products.count, 4)
         XCTAssertTrue(products.allSatisfy(\.isAvailable))
     }
 
     func testWinbackPlanFlagCoversOnlyDiscountPlans() {
         XCTAssertTrue(ProSubscriptionPlan.yearlyDiscount.isWinback)
         XCTAssertTrue(ProSubscriptionPlan.lifetimeDiscount.isWinback)
-        XCTAssertFalse(ProSubscriptionPlan.monthly.isWinback)
         XCTAssertFalse(ProSubscriptionPlan.yearly.isWinback)
         XCTAssertFalse(ProSubscriptionPlan.lifetime.isWinback)
     }
@@ -618,7 +616,7 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testActiveProRejectsYearlyDiscountPurchase() async throws {
         let active = ProEntitlementState.active(
-            productID: ProSubscriptionCatalog.monthlyProductID,
+            productID: ProSubscriptionCatalog.yearlyProductID,
             expirationDate: nil
         )
         let store = MockProSubscriptionStore(entitlement: active)
@@ -635,7 +633,7 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testActiveProAllowsStandardPlanPurchase() async throws {
         let active = ProEntitlementState.active(
-            productID: ProSubscriptionCatalog.monthlyProductID,
+            productID: ProSubscriptionCatalog.yearlyProductID,
             expirationDate: nil
         )
         let store = MockProSubscriptionStore(entitlement: active)
@@ -677,5 +675,92 @@ final class ProSubscriptionTests: XCTestCase {
             purchased,
             .active(productID: ProSubscriptionCatalog.yearlyDiscountProductID, expirationDate: nil)
         )
+    }
+
+    // MARK: - RevenueCat entitlement 解析
+
+    func testRevenueCatActiveEntitlementMapsToActiveState() {
+        let productID = ProSubscriptionCatalog.yearlyProductID
+        let expiration = Date(timeIntervalSince1970: 1_900_000_000)
+
+        let state = RevenueCatProSubscriptionStore.entitlement(
+            isActive: true,
+            expirationDate: expiration,
+            productIdentifier: productID
+        )
+
+        XCTAssertEqual(state, .active(productID: productID, expirationDate: expiration))
+    }
+
+    func testRevenueCatActiveEntitlementWithNoExpirationDateMapsToActiveNilExpiration() {
+        // NonConsumable（lifetime）走 RC 后 expirationDate 为 nil。
+        let productID = ProSubscriptionCatalog.lifetimeProductID
+
+        let state = RevenueCatProSubscriptionStore.entitlement(
+            isActive: true,
+            expirationDate: nil,
+            productIdentifier: productID
+        )
+
+        XCTAssertEqual(
+            state,
+            .active(productID: productID, expirationDate: nil)
+        )
+        XCTAssertTrue(state?.isProActive == true)
+    }
+
+    func testRevenueCatExpiredEntitlementMapsToExpiredState() {
+        let productID = ProSubscriptionCatalog.yearlyProductID
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let expiration = Date(timeIntervalSince1970: 1_700_000_000) // 早于 now
+
+        let state = RevenueCatProSubscriptionStore.entitlement(
+            isActive: false,
+            expirationDate: expiration,
+            productIdentifier: productID,
+            referenceDate: now
+        )
+
+        XCTAssertEqual(state, .expired(productID: productID, expirationDate: expiration))
+    }
+
+    func testRevenueCatInactiveNotYetExpiredMapsToNilFree() {
+        // subscription 续费失败但还没到过期时间：RC 标 inactive，但 expirationDate
+        // 仍在未来；这种情况下用户实际还有 Pro，但 RC 不认为 active。
+        // 当前模型按 RC 视角处理：return nil → 视为 free，避免过期前还能用。
+        let productID = ProSubscriptionCatalog.yearlyProductID
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let future = Date(timeIntervalSince1970: 1_900_000_000)
+
+        let state = RevenueCatProSubscriptionStore.entitlement(
+            isActive: false,
+            expirationDate: future,
+            productIdentifier: productID,
+            referenceDate: now
+        )
+
+        XCTAssertNil(state)
+    }
+
+    func testRevenueCatMapsTestStoreShortProductIDsToPlans() {
+        XCTAssertEqual(RevenueCatProSubscriptionStore.planForProductID["yearly"], .yearly)
+        XCTAssertEqual(RevenueCatProSubscriptionStore.planForProductID["lifetime"], .lifetime)
+        XCTAssertEqual(
+            RevenueCatProSubscriptionStore.planForProductID[ProSubscriptionCatalog.yearlyProductID],
+            .yearly
+        )
+        XCTAssertEqual(RevenueCatProSubscriptionStore.proEntitlementID, "beforeshow Pro")
+        XCTAssertTrue(RevenueCatProSubscriptionStore.proEntitlementIDs.contains("pro"))
+    }
+
+    func testRevenueCatPurchaseCancelledErrorMapsToCancelled() {
+        let cancelled = NSError(
+            domain: "RevenueCat.ErrorCode",
+            code: ErrorCode.purchaseCancelledError.rawValue
+        )
+        XCTAssertTrue(RevenueCatProSubscriptionStore.isPurchaseCancelled(cancelled))
+
+        let other = NSError(domain: "RevenueCat.ErrorCode", code: ErrorCode.networkError.rawValue)
+        XCTAssertFalse(RevenueCatProSubscriptionStore.isPurchaseCancelled(other))
     }
 }

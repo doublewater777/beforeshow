@@ -41,21 +41,3 @@ export function createTechnicalLog(fields, now = new Date()) {
 
   return log;
 }
-
-export function containsSensitiveLogField(value) {
-  if (Array.isArray(value)) {
-    return value.some(containsSensitiveLogField);
-  }
-
-  if (value && typeof value === "object") {
-    return Object.entries(value).some(([key, child]) => {
-      if (SENSITIVE_KEYS.has(key)) {
-        return true;
-      }
-
-      return containsSensitiveLogField(child);
-    });
-  }
-
-  return false;
-}

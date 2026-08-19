@@ -1,3 +1,4 @@
+import PostHog
 import SwiftUI
 import SwiftData
 import UIKit
@@ -200,8 +201,14 @@ struct DispersalCeremonySheet: View {
                     rating: $draftRating,
                     note: $draftNote,
                     commitError: commitError,
-                    onClose: { onSkipToMemory() },
-                    onSkip: onSkipToMemory,
+                    onClose: {
+                        PostHogSDK.shared.capture("dispersal_ceremony_skipped", properties: ["trigger": "close"])
+                        onSkipToMemory()
+                    },
+                    onSkip: {
+                        PostHogSDK.shared.capture("dispersal_ceremony_skipped", properties: ["trigger": "skip"])
+                        onSkipToMemory()
+                    },
                     onGenerate: { Task { await advanceCombined() } }
                 )
             case .share:
@@ -213,7 +220,10 @@ struct DispersalCeremonySheet: View {
                     onBack: {
                         step = .combined
                     },
-                    onEnterMemory: { onSkipToMemory() }
+                    onEnterMemory: {
+                        AppReviewPrompt.consider(.completedCeremony)
+                        onSkipToMemory()
+                    }
                 )
             }
         }
@@ -227,6 +237,12 @@ struct DispersalCeremonySheet: View {
         let noteToSave = draftNote.isEmpty ? nil : draftNote
         do {
             try await onCommit(draftRating, noteToSave)
+            var props: [String: Any] = [
+                "has_rating": draftRating != nil,
+                "has_note": noteToSave != nil
+            ]
+            if let rating = draftRating { props["rating_value"] = rating }
+            PostHogSDK.shared.capture("dispersal_ceremony_completed", properties: props)
             step = Self.nextStep(after: .combined, commitSucceeded: true)
         } catch {
             commitError = BSLocalization.text("散场评价没有保存，请重试")

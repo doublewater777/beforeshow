@@ -85,39 +85,9 @@
         {
           "adHocOffers": [],
           "codeOffers": [],
-          "displayPrice": "1.49",
-          "familyShareable": false,
-          "groupNumber": 1,
-          "internalID": "BS21PROM",
-          "localizations": [
-            {
-              "description": "Unlock unlimited saved shows and repeated generation for one month.",
-              "displayName": "BeforeShow Pro Monthly",
-              "locale": "en_US"
-            },
-            {
-              "description": "按月解锁无限添加现场和重复生成。",
-              "displayName": "BeforeShow Pro 月度",
-              "locale": "zh_CN"
-            },
-            {
-              "description": "按月解鎖無限新增現場與重複產生。",
-              "displayName": "BeforeShow Pro 月訂閱",
-              "locale": "zh_TW"
-            }
-          ],
-          "productID": "com.doublewaterapps.beforeshow.pro.monthly",
-          "recurringSubscriptionPeriod": "P1M",
-          "referenceName": "BeforeShow Pro Monthly",
-          "subscriptionGroupID": "BEFORESHOWPRO",
-          "type": "RecurringSubscription"
-        },
-        {
-          "adHocOffers": [],
-          "codeOffers": [],
           "displayPrice": "4.99",
           "familyShareable": false,
-          "groupNumber": 2,
+          "groupNumber": 1,
           "internalID": "BS21PROY",
           "localizations": [
             {
@@ -147,7 +117,7 @@
           "codeOffers": [],
           "displayPrice": "2.99",
           "familyShareable": false,
-          "groupNumber": 3,
+          "groupNumber": 2,
           "internalID": "BS21PROYD",
           "localizations": [
             {

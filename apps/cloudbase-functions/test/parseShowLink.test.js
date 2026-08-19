@@ -10,7 +10,8 @@ import {
   computeMtopSign,
   fetchMtopToken,
   fetchDamaiDetail,
-  parseDamaiDetail
+  parseDamaiDetail,
+  NotAShowError
 } from "../src/functions/parseShowLink/damaiParser.js";
 import {
   fetchShowStartDetail,
@@ -232,6 +233,41 @@ describe("Damai mtop parser", () => {
     assert.equal(draft.priceRange, "380-1580");
     assert.equal(draft.coverImageURL, "https://example.com/damai-cover.jpg");
     assert.deepEqual(draft.artistAvatarURLs, ["https://example.com/artist-avatar.jpg"]);
+  });
+
+  it("parses Chinese-format showTime with time", () => {
+    const draft = parseDamaiDetail({
+      item: { itemName: "测试现场", showTime: "2026年9月12日 周六 19:30" }
+    });
+
+    assert.equal(draft.date, "2026-09-12");
+    assert.equal(draft.startTime, "19:30");
+  });
+
+  it("parses Chinese-format date range, taking the first day", () => {
+    const draft = parseDamaiDetail({
+      item: { itemName: "测试现场", showTime: "2026年8月7日-12月31日" }
+    });
+
+    assert.equal(draft.date, "2026-08-07");
+    assert.equal(draft.startTime, "");
+  });
+
+  it("rejects Damai merchandise pages (custom showTime + venue TBD)", () => {
+    assert.throws(
+      () => parseDamaiDetail({
+        item: {
+          itemName: "薛之谦-万兽之王巡回演唱会-官方荧光棒",
+          showTime: "2026年8月7日-12月31日",
+          showTimeCustom: "true"
+        },
+        venue: {
+          venueName: "演出场馆地址待定",
+          venueAddr: "薛之谦万兽之王巡回演唱会"
+        }
+      }),
+      NotAShowError
+    );
   });
 });
 

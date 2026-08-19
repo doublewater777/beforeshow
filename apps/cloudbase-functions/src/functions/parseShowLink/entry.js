@@ -1,6 +1,6 @@
 import { assertAppAuthenticated } from "../../auth/appAuth.js";
 import { createTechnicalLog } from "../../logging/technicalLog.js";
-import { parseShowLink, UnsupportedPlatformError } from "./index.js";
+import { parseShowLink, UnsupportedPlatformError, NotAShowError } from "./index.js";
 
 export async function main(event = {}, context = {}, options = {}) {
   const body = parseRequestBody(event);
@@ -38,6 +38,12 @@ export async function main(event = {}, context = {}, options = {}) {
     };
   } catch (error) {
     const isUnsupported = error instanceof UnsupportedPlatformError;
+    const isNotAShow = error instanceof NotAShowError;
+    const errorCode = isUnsupported
+      ? "UNSUPPORTED_PLATFORM"
+      : isNotAShow
+        ? "NOT_A_SHOW"
+        : "PARSE_FAILED";
 
     return {
       ok: false,
@@ -45,14 +51,14 @@ export async function main(event = {}, context = {}, options = {}) {
         accountless: auth.accountless
       },
       error: {
-        code: isUnsupported ? "UNSUPPORTED_PLATFORM" : "PARSE_FAILED",
+        code: errorCode,
         message: error.message
       },
       log: createTechnicalLog({
         event: "parseShowLink.request.failed",
         url: url.slice(0, 200),
         success: false,
-        errorCode: isUnsupported ? "UNSUPPORTED_PLATFORM" : "PARSE_FAILED",
+        errorCode,
         errorMessage: error.message,
         durationMs: Date.now() - startedAt
       })

@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import PostHog
+import RevenueCat
 
 @main
 struct BeforeShowApp: App {
@@ -31,14 +33,56 @@ struct BeforeShowApp: App {
     }()
 
     init() {
-        AppLanguageManager.apply(AppLanguageManager.persisted)
+        // MARK: - PostHog
+        // API key and host are embedded via Info.plist (injected from POSTHOG_API_KEY /
+        // POSTHOG_HOST build settings in project.yml) so they ship in every build type,
+        // including App Store and TestFlight, without any Xcode scheme dependency.
+        let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
+        let posthogHost = Bundle.main.object(forInfoDictionaryKey: "PostHogHost") as? String ?? ""
         #if DEBUG
-        UserDefaults.standard.register(defaults: [
-            ProEntitlementStorage.appStorageKey: ProEntitlementStorage.encode(
-                ProEntitlementStorage.localDebugDefaultEntitlement
-            )
-        ])
+        if posthogAPIKey.isEmpty {
+            assertionFailure("PostHogAPIKey variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogAPIKey is configured")
+        }
+        if posthogHost.isEmpty {
+            assertionFailure("PostHogHost variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogHost is configured")
+        }
         #endif
+        if !posthogAPIKey.isEmpty, !posthogHost.isEmpty {
+            let config = PostHogConfig(apiKey: posthogAPIKey, host: posthogHost)
+            config.captureApplicationLifecycleEvents = true
+            config.errorTrackingConfig.autoCapture = true
+            config.sessionReplay = true
+            #if DEBUG
+            config.debug = true
+            #endif
+            PostHogSDK.shared.setup(config)
+            ProductAnalyticsPreferences.syncPostHog()
+        }
+
+        AppLanguageManager.apply(AppLanguageManager.persisted)
+        // Muted dynamic covers must never interrupt the user's music: the default
+        // `soloAmbient` category stops other audio the moment an AVPlayer starts.
+        AppAudioSession.configureAmbient()
+
+        // MARK: - RevenueCat
+        // 公共 SDK key 嵌入在 Info.plist（由 project.yml 的 REVENUECAT_API_KEY
+        // 按 Debug/Release 注入）。Debug 走 Test Store；Release 需要 appl_ key。
+        // 占位 / 缺失时静默跳过：defaultStore() 会回退到 Mock。
+        let revenueCatAPIKey = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String ?? ""
+        if !revenueCatAPIKey.isEmpty, revenueCatAPIKey != "appl_REPLACE_ME" {
+            #if DEBUG
+            Purchases.logLevel = .debug
+            #endif
+            Purchases.configure(withAPIKey: revenueCatAPIKey)
+            MainActor.assumeIsolated {
+                Purchases.shared.delegate = ProEntitlementSyncDelegate.shared
+            }
+            // 启动后从服务端拉一次 entitlement，避免 paywall 看到陈旧的本地状态。
+            Task { @MainActor in
+                await ProEntitlementSyncDelegate.shared.refreshFromServer()
+            }
+        }
+
         UNUserNotificationCenter.current().delegate = BeforeShowNotificationDelegate.shared
         // Wire CloudKit share acceptance dependencies before any scene callback can race.
         // RootView.onAppear is too late for cold-launch invitation acceptance.

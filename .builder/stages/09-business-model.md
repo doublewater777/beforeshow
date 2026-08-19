@@ -35,6 +35,8 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 - The active memory-fragments cycle `.builder/cycles/2026-08-03-current-show-memory-fragments/` explicitly revisits the July retirement decision with a narrower current-show-only, private local timeline; it tests whether low-friction capture adds emotional value without reopening history, social, cloud, or AI scope.
 - The ticket/timetable assets cycle `.builder/cycles/2026-08-04-ticket-timetable-assets/` tests whether a private, show-bound visual reference adds preparation value without being mistaken for official ticket validation or reopening cloud scope.
 
+
+- The active monetization cycle `.builder/cycles/2026-08-18-revenuecat-migration/` replaces StoreKit 2 purchase/restore with RevenueCat entitlements.
 ## Open Questions
 
 - Whether payment increases or reduces core preparation behavior.

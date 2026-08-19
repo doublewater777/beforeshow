@@ -433,6 +433,16 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertNotEqual(network, unsupported)
     }
 
+    func testLinkFailurePresentationExplainsMerchandiseLinks() {
+        let notAShow = AddShowLinkFailurePresentation.resolve(
+            ShowLinkParsingError.notAShow
+        )
+
+        XCTAssertEqual(notAShow.title, "这不是演出链接")
+        XCTAssertTrue(notAShow.message.contains("周边商品"))
+        XCTAssertTrue(notAShow.message.contains("手动填写"))
+    }
+
     func testShowLinkPlatformCatalogRecognizesSupportedHostsAndRejectsLookalikes() {
         let supported: [(String, String)] = [
             ("m.damai.cn", "大麦"),

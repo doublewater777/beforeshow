@@ -1,5 +1,5 @@
 import { normalizeUrl, UnsupportedPlatformError } from "./platformDetector.js";
-import { fetchDamaiDetail, parseDamaiDetail } from "./damaiParser.js";
+import { fetchDamaiDetail, parseDamaiDetail, NotAShowError } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
 import { fetchMaoyanPerformance, parseMaoyanPerformance } from "./maoyanParser.js";
 import { fetchAndParseTicketPage } from "./ticketPageParser.js";
@@ -14,7 +14,7 @@ const PUBLIC_PAGE_PLATFORMS = new Set([
   "axs"
 ]);
 
-export { UnsupportedPlatformError };
+export { UnsupportedPlatformError, NotAShowError };
 
 export async function parseShowLink(url, options = {}) {
   const normalized = normalizeUrl(url);

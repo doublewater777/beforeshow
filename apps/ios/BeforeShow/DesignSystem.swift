@@ -193,17 +193,6 @@ enum BSSettingsStyle {
 // MARK: - Reusable View Modifiers
 
 extension View {
-    /// Standard card treatment: dark surface, large radius, hairline border.
-    func bsCard() -> some View {
-        self
-            .background(BSColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg))
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.lg)
-                    .stroke(BSColor.border, lineWidth: 1)
-            )
-    }
-
     /// Splash-style gradient text, used sparingly for hero moments.
     func bsGradientText() -> some View {
         self
@@ -743,32 +732,6 @@ extension View {
     }
 }
 
-struct BSLoadingStatePanel: View {
-    let title: String
-    let message: String
-
-    var body: some View {
-        BSSurfacePanel {
-            HStack(alignment: .center, spacing: BSSpacing.md) {
-                ProgressView()
-                    .tint(BSColor.textPrimary)
-                    .frame(width: 34, height: 34)
-
-                VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                    Text(title)
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.textPrimary)
-                    Text(message)
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
 struct BSEmptyPanel: View {
     let iconName: String
     let title: String
@@ -816,11 +779,11 @@ enum ShowCoverPlaceholderReason: Equatable {
 }
 
 enum ShowCoverFallbackAlignment: Equatable {
-    case top
+    case center
 
     var swiftUIAlignment: Alignment {
         switch self {
-        case .top: .top
+        case .center: .center
         }
     }
 }
@@ -831,8 +794,8 @@ struct ShowCoverFallbackPresentation: Equatable {
     let visibleTexts: [String]
 
     init(reason: ShowCoverPlaceholderReason) {
-        assetName = "splash_bg"
-        alignment = .top
+        assetName = "default_cover"
+        alignment = .center
         visibleTexts = []
     }
 }
@@ -943,48 +906,6 @@ private struct ShowCoverAspectRatioModifier: ViewModifier {
     }
 }
 
-struct ArtistAvatarStackView: View {
-    let urls: [String]
-    var size: CGFloat = 32
-
-    private var displayURLs: [String] {
-        Array(urls
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .prefix(5))
-    }
-
-    var body: some View {
-        if !displayURLs.isEmpty {
-            HStack(spacing: -8) {
-                ForEach(Array(displayURLs.enumerated()), id: \.offset) { _, urlString in
-                    if let url = URL(string: urlString) {
-                        AsyncImage(url: url) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            default:
-                                Circle()
-                                    .fill(Color.white.opacity(0.12))
-                                    .overlay(
-                                        Image(systemName: "person.fill")
-                                            .font(.system(size: size * 0.38, weight: .regular))
-                                            .foregroundColor(.white.opacity(0.46))
-                                    )
-                            }
-                        }
-                        .frame(width: size, height: size)
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.black, lineWidth: 2))
-                    }
-                }
-            }
-            .accessibilityHidden(true)
-        }
-    }
-}
 
 /// 单头像缩略;库行(28pt)、详情页(40pt)、搜索候选(28pt)共用。
 struct ArtistAvatarThumb: View {

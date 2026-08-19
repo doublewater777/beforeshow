@@ -99,49 +99,6 @@ struct ShowAssetSheet: View {
     }
 }
 
-// MARK: - Entry
-
-/// Routes a ticket/timetable quick action: open viewer when saved, otherwise start upload.
-struct ShowAssetEntryView: View {
-    let showID: UUID
-    let showName: String
-    let kind: ShowAssetKind
-
-    @Query private var assets: [ShowAsset]
-
-    init(showID: UUID, showName: String, kind: ShowAssetKind) {
-        self.showID = showID
-        self.showName = showName
-        self.kind = kind
-        let kindRaw = kind.rawValue
-        _assets = Query(
-            filter: #Predicate<ShowAsset> { asset in
-                asset.showID == showID && asset.kindRawValue == kindRaw
-            }
-        )
-    }
-
-    var body: some View {
-        Group {
-            if let asset = assets.first {
-                ShowAssetViewerView(
-                    showID: showID,
-                    showName: showName,
-                    kind: kind,
-                    asset: asset
-                )
-            } else {
-                ShowAssetUploadView(
-                    showID: showID,
-                    showName: showName,
-                    kind: kind
-                )
-            }
-        }
-        .bsClearNavigationContainer()
-    }
-}
-
 // MARK: - Upload
 
 enum ShowAssetEditorOperation: Equatable {
@@ -496,10 +453,6 @@ struct ShowAssetUploadView: View {
             ]
         )
         return (try? modelContext.fetch(descriptor)) ?? []
-    }
-
-    private func existingAssetOfSameKind() -> ShowAsset? {
-        assetsOfSameKind().first
     }
 
     private func saveErrorMessage(_ error: Error) -> String {

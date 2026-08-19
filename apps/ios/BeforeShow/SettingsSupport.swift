@@ -8,15 +8,10 @@ enum SettingsEntry: String, CaseIterable, Equatable {
     case proMembership = "Pro会员"
     case privacyAndLocalData = "隐私与本地数据"
     case feedback = "意见反馈"
+    case rateApp = "评价此应用"
     case about = "关于开场前"
 
     var displayTitle: String { BSLocalization.text(rawValue) }
-}
-
-enum HomeStyle: String, Equatable {
-    case halfCover = "half-cover"
-
-    var displayName: String { BSLocalization.text("半屏封面") }
 }
 
 enum AppLanguage: String, CaseIterable, Identifiable, Equatable {
@@ -147,6 +142,7 @@ enum SettingsInformation {
         .proMembership,
         .privacyAndLocalData,
         .feedback,
+        .rateApp,
         .about
     ]
 }
@@ -495,8 +491,8 @@ enum ShowAssetCleanupRetry {
 /// 真实反馈渠道：`mailto:` 邮件收件人。RELEASE/DEBUG 共用同一地址。
 /// `mailto:` 是系统 URL scheme，不需要 `LSApplicationQueriesSchemes` 声明。
 enum FeedbackDestination {
-    /// 反馈收件邮箱。占位待用户替换为实际网易 163 邮箱。
-    static let address = "feedback@163.com"
+    /// 反馈收件邮箱。
+    static let address = "return_panyang@163.com"
 
     static func mailtoURL(prefilledBody: String) -> URL? {
         var components = URLComponents()

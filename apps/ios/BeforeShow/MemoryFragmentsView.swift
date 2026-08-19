@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import PhotosUI
+import PostHog
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -34,12 +35,13 @@ private struct MemoryViewerTarget: Identifiable, Hashable {
 /// Scoped memory task: sheet for the list, push for viewer / editor.
 struct MemoryFragmentsSheet: View {
     let show: Show
+    var pendingCreate: MemoryCreateSourceOption? = nil
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            MemoryFragmentsView(show: show)
+            MemoryFragmentsView(show: show, pendingCreate: pendingCreate)
                 .toolbar {
                     BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
                 }
@@ -50,7 +52,7 @@ struct MemoryFragmentsSheet: View {
     }
 }
 
-private struct MemoryCreateSourceSheet: View {
+struct MemoryCreateSourceSheet: View {
     let onSelect: (MemoryCreateSourceOption) -> Void
 
     var body: some View {
@@ -200,11 +202,13 @@ private struct MemoryEditorItem: Identifiable, Equatable {
 
 struct MemoryFragmentsView: View {
     let show: Show
+    var pendingCreate: MemoryCreateSourceOption? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Query private var fragments: [MemoryFragment]
     @State private var isShowingCreateOptions = false
     @State private var editorLaunch: MemoryEditorLaunch?
+    @State private var didAutoOpenCreate = false
     @State private var isPhotoPickerPresented = false
     @State private var isCameraPresented = false
     @State private var selectedCreateMedia: [PhotosPickerItem] = []
@@ -221,8 +225,9 @@ struct MemoryFragmentsView: View {
     @State private var deleteConfirmationTarget: MemoryFragment?
     @State private var toast: BSToastPayload?
 
-    init(show: Show) {
+    init(show: Show, pendingCreate: MemoryCreateSourceOption? = nil) {
         self.show = show
+        self.pendingCreate = pendingCreate
         let showID = show.id
         _fragments = Query(
             filter: #Predicate<MemoryFragment> { $0.showID == showID },
@@ -366,6 +371,12 @@ struct MemoryFragmentsView: View {
             },
             onViewerDismissed: performPendingPresentation
         )
+        .task {
+            guard let pendingCreate, !didAutoOpenCreate else { return }
+            didAutoOpenCreate = true
+            beginCreate(from: pendingCreate)
+            performPendingCreateDestination()
+        }
         .confirmationDialog(
             DangerConfirmation.deleteMemory.title,
             isPresented: Binding(
@@ -459,13 +470,6 @@ struct MemoryFragmentsView: View {
         }
     }
 
-    private func phaseColor(_ phase: MemoryFragmentPhase) -> Color {
-        switch phase {
-        case .after: return BSColor.Stage.accent
-        case .live: return BSColor.Stage.liveTitle
-        case .before: return BSColor.Stage.muted
-        }
-    }
 
     private var timelineEmptyState: some View {
         VStack(spacing: 0) {
@@ -736,6 +740,7 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
             fragment.show = owner
             modelContext.insert(fragment)
             try modelContext.save()
+            PostHogSDK.shared.capture("memory_fragment_created", properties: ["has_media": false, "media_count": 0])
             presentToast(.success, "已加入这场现场")
             return
         }
@@ -791,6 +796,7 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
         }
         await MemoryFragmentMediaStore.shared.releaseCommitGate()
         try? await MemoryFragmentMediaStore.shared.finalizeCommit(draftID: draftID)
+        PostHogSDK.shared.capture("memory_fragment_created", properties: ["has_media": true, "media_count": media.count])
         presentToast(.success, "已加入这场现场")
     }
 
@@ -1498,6 +1504,10 @@ private struct MemoryMediaViewer: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        // The viewer plays video with sound, so it needs `playback`; restore the
+        // ambient policy on exit so covers stay non-interrupting.
+        .onAppear { AppAudioSession.configureSoundPlayback() }
+        .onDisappear { AppAudioSession.configureAmbient() }
     }
 }
 
@@ -1863,16 +1873,6 @@ private struct MemoryUnifiedEditorView: View {
         let moved = items.remove(at: source)
         items.insert(moved, at: destination)
         selection = destination
-    }
-
-    private func replaceCurrent() {
-        guard items.indices.contains(selection) else { return }
-        replacementIndex = selection
-        if items[selection].mediaKind == .photo {
-            requestCamera()
-        } else {
-            isPhotoPickerPresented = true
-        }
     }
 
     private func removeCurrent() {

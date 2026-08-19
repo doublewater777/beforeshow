@@ -204,6 +204,7 @@ struct HomeCountdownLockup: View {
     var onEndShow: (() -> Void)? = nil
     var onCompanion: (() -> Void)? = nil
     var onMemoryFragments: (() -> Void)? = nil
+    var onMemoryCreate: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -273,7 +274,7 @@ struct HomeCountdownLockup: View {
             }
             .padding(.top, 10)
 
-            if let action = availablePrimaryAction(phase: phase, timeState: timeState) {
+            if let action = availablePrimaryAction(phase: phase, timeState: timeState, now: now) {
                 primaryActionButton(action)
             }
         }
@@ -486,19 +487,26 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: Primary action:单一主行动随生命周期切换
-    // pre → 约人同行;live → 结束现场;ended(未确认) → 确认已结束;其余不出现。
-    // 避免 live/ended 用同一句「结束现场」,让确认动作与所处阶段语气一致。
+    // pre → 约人同行;开场记忆窗 → 记一段记忆;其余 live → 结束现场;
+    // ended(未确认) → 确认已结束。开场记忆窗内结束现场降到快捷区。
 
     enum PrimaryAction: Equatable {
         case end(live: Bool)
         case companion
         case memoryFragments
+        case memoryCreate
     }
 
-    private func availablePrimaryAction(phase: HomeShowPhase, timeState: CurrentShowTimeState) -> PrimaryAction? {
+    private func availablePrimaryAction(
+        phase: HomeShowPhase,
+        timeState: CurrentShowTimeState,
+        now: Date
+    ) -> PrimaryAction? {
         Self.primaryAction(
             phase: phase,
             timeState: timeState,
+            now: now,
+            showStart: CurrentShowTimeState.effectiveStartTime(for: show, calendar: show.timingCalendar()),
             hasConfirmedEnd: show.endedAt != nil,
             hasEndHandler: onEndShow != nil
         )
@@ -507,6 +515,8 @@ struct HomeCountdownLockup: View {
     nonisolated static func primaryAction(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
+        now: Date,
+        showStart: Date,
         hasConfirmedEnd: Bool,
         hasEndHandler: Bool
     ) -> PrimaryAction? {
@@ -515,6 +525,9 @@ struct HomeCountdownLockup: View {
         case .pre:
             return .companion
         case .live:
+            if OpeningMemoryWindow.isActive(now: now, showStart: showStart, isLive: true) {
+                return .memoryCreate
+            }
             return hasEndHandler ? .end(live: true) : nil
         case .ended:
             if timeState.kind == .postShow || timeState.kind == .ended {
@@ -553,7 +566,7 @@ struct HomeCountdownLockup: View {
         case .end(live: true): return BSLocalization.text("结束现场")
         case .end(live: false): return BSLocalization.text("确认已结束")
         case .companion: return BSLocalization.text("约人同行")
-        case .memoryFragments: return BSLocalization.text("记一段记忆")
+        case .memoryFragments, .memoryCreate: return BSLocalization.text("记一段记忆")
         }
     }
 
@@ -562,6 +575,7 @@ struct HomeCountdownLockup: View {
         case .end: return { onEndShow?() }
         case .companion: return { onCompanion?() }
         case .memoryFragments: return { onMemoryFragments?() }
+        case .memoryCreate: return { (onMemoryCreate ?? onMemoryFragments)?() }
         }
     }
 
@@ -570,18 +584,23 @@ struct HomeCountdownLockup: View {
         case .end: return BSLocalization.text("打开结束现场确认")
         case .companion: return BSLocalization.text("邀请一位朋友同行")
         case .memoryFragments: return BSLocalization.text("打开记忆碎片")
+        case .memoryCreate: return BSLocalization.text("打开新增记忆")
         }
     }
 
     nonisolated static func endActionTitle(
         phase: HomeShowPhase,
         timeState: CurrentShowTimeState,
+        now: Date,
+        showStart: Date,
         hasConfirmedEnd: Bool,
         hasEndHandler: Bool
     ) -> String? {
         guard let action = primaryAction(
             phase: phase,
             timeState: timeState,
+            now: now,
+            showStart: showStart,
             hasConfirmedEnd: hasConfirmedEnd,
             hasEndHandler: hasEndHandler
         ) else { return nil }
@@ -674,201 +693,7 @@ struct HomeCountdownLockup: View {
     }
 }
 
-// MARK: - Home Tip Card
-
-/// V4 首页 Tip 卡:每个生命周期只推一张,轻量阅读建议,不是任务清单。
-/// 音乐节(多艺人)在同一张卡里附只读阵容条;停留期给一个安静的「添加下一场」出口。
-struct HomeTipCard: View {
-    let show: Show
-    let phase: HomeShowPhase
-    let timeState: CurrentShowTimeState
-    var onAddNextShow: () -> Void = {}
-
-    private struct Content {
-        let badge: String
-        let title: String
-        let text: String
-        let tone: Tone
-        var showsLineup = false
-        var quietAction: String? = nil
-    }
-
-    private enum Tone {
-        case gold, blue, violet, gray
-
-        var badgeColor: Color {
-            switch self {
-            case .gold: return BSColor.Stage.accent
-            case .blue: return Color(red: 0.604, green: 0.722, blue: 0.910)
-            case .violet: return Color(red: 0.718, green: 0.639, blue: 0.788)
-            case .gray: return BSColor.Stage.muted
-            }
-        }
-
-        var topTint: Color {
-            switch self {
-            case .gold: return BSColor.Stage.accent.opacity(0.07)
-            case .blue: return BSColor.Stage.glowBlue.opacity(0.14)
-            case .violet: return BSColor.Stage.prepare.opacity(0.14)
-            case .gray: return Color.white.opacity(0.035)
-            }
-        }
-    }
-
-    /// 艺人字段里名字 ≥ 3 个时视为音乐节阵容(只读展示,不做交互)。
-    private var lineup: [String] {
-        show.artistNames.count >= 3 ? Array(show.artistNames.prefix(8)) : []
-    }
-
-    private var content: Content? {
-        switch phase {
-        case .pre:
-            if timeState.isDatedPostponement {
-                return Content(
-                    badge: BSLocalization.text("现场变更"),
-                    title: BSLocalization.text("等待被延长了"),
-                    text: BSLocalization.text("新日期的倒计时和提醒已重新排好。"),
-                    tone: .violet
-                )
-            }
-            if !lineup.isEmpty {
-                return Content(
-                    badge: BSLocalization.text("现场准备"),
-                    title: BSLocalization.text("草地、阳光和一整天的音乐"),
-                    text: BSLocalization.text("野餐垫、防晒和充电宝,让这两天从容很多。"),
-                    tone: .violet,
-                    showsLineup: true
-                )
-            }
-            if timeState.kind == .today {
-                return Content(
-                    badge: BSLocalization.text("现场准备"),
-                    title: BSLocalization.text("今晚的事,白天就顺手办了"),
-                    text: BSLocalization.text("出门前看一眼天气,给手机充满电,票根截图提前放到相册最前面。"),
-                    tone: .blue
-                )
-            }
-            return Content(
-                badge: BSLocalization.text("进入状态"),
-                title: BSLocalization.text("离开场又近了一天"),
-                text: BSLocalization.text("把歌单里那几首老歌翻出来听听,等灯亮的时候,大合唱会有你一份。"),
-                tone: .gold
-            )
-        case .live:
-            return Content(
-                badge: BSLocalization.text("正在现场"),
-                title: BSLocalization.text("享受这一晚"),
-                text: BSLocalization.text("散场后人多,提前想好从哪个出口离开。"),
-                tone: .gray
-            )
-        case .ended:
-            if timeState.kind == .dayEnded {
-                return Content(
-                    badge: BSLocalization.text("今日已落幕"),
-                    title: BSLocalization.text("今天先到这里"),
-                    text: timeState.helperText,
-                    tone: .gray
-                )
-            }
-            guard timeState.kind == .postShow else { return nil }
-            return Content(
-                badge: BSLocalization.text("散场之后"),
-                title: BSLocalization.text("余温还留在这里"),
-                text: BSLocalization.text("这场的资料还会保留。想好下一场去哪了吗?"),
-                tone: .gray,
-                quietAction: BSLocalization.text("添加下一场现场 →")
-            )
-        case .inactive:
-            guard timeState.kind == .postponed else { return nil }
-            return Content(
-                badge: BSLocalization.text("现场变更"),
-                title: BSLocalization.text("先把它放在这里"),
-                text: BSLocalization.text("等主办方公布新日期,在编辑现场里记一下,倒计时就会继续。"),
-                tone: .gray
-            )
-        }
-    }
-
-    var body: some View {
-        if let content {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(content.badge)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .tracking(1.2)
-                    .foregroundColor(content.tone.badgeColor)
-                    .padding(.bottom, 8)
-
-                Text(content.title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .tracking(-0.1)
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .padding(.bottom, 5)
-
-                Text(content.text)
-                    .font(.system(size: 12.5, weight: .regular))
-                    .lineSpacing(4)
-                    .foregroundColor(BSColor.Stage.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if content.showsLineup {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(lineup, id: \.self) { name in
-                                Text(name)
-                                    .font(.system(size: 12, weight: .regular))
-                                    .foregroundColor(BSColor.Stage.foreground.opacity(0.88))
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(
-                                        Capsule().fill(Color.white.opacity(0.045))
-                                    )
-                                    .overlay(
-                                        Capsule().stroke(BSColor.Stage.border, lineWidth: 1)
-                                    )
-                            }
-                        }
-                    }
-                    .padding(.top, 10)
-                }
-
-                if let quiet = content.quietAction {
-                    Button(action: onAddNextShow) {
-                        Text(quiet)
-                            .font(.system(size: 12.5, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .frame(minHeight: BSLayout.minTouchTarget)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 2)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 16)
-            .padding(.top, 14)
-            .padding(.bottom, 13)
-            .background(
-                RoundedRectangle(cornerRadius: 20)
-                    .fill(BSColor.Stage.surface)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .fill(
-                                LinearGradient(
-                                    colors: [content.tone.topTint, .clear],
-                                    startPoint: .top,
-                                    endPoint: UnitPoint(x: 0.5, y: 0.55)
-                                )
-                            )
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20)
-                    .stroke(BSColor.Stage.border, lineWidth: 1)
-            )
-            .accessibilityElement(children: .contain)
-        }
-    }
-}
+// MARK: - Live Pulse
 
 // MARK: - Live Pulse
 

@@ -1,5 +1,16 @@
 import Foundation
 
+/// 「如何获取链接」引导页里的单个平台：名称 + 总览页地址。
+/// `isDomestic` 标记中国大陆购票平台，用于按语言环境排序。
+struct ShowLinkGuidePlatform: Identifiable, Equatable {
+    let id: String
+    let displayName: String
+    let overviewURL: String
+    let isDomestic: Bool
+
+    var url: URL? { URL(string: overviewURL) }
+}
+
 enum ShowLinkPlatformCatalog {
     private static let domainEntries: [(domain: String, displayName: String)] = [
         ("damai.cn", "大麦"),
@@ -77,6 +88,26 @@ enum ShowLinkPlatformCatalog {
 
     static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
 
+    /// 「如何获取链接」引导页的平台总览入口；与网页版 link-guide 保持同一份数据。
+    static let guidePlatforms: [ShowLinkGuidePlatform] = [
+        ShowLinkGuidePlatform(id: "damai", displayName: "大麦", overviewURL: "https://m.damai.cn/shows/home.html", isDomestic: true),
+        ShowLinkGuidePlatform(id: "showstart", displayName: "秀动", overviewURL: "https://showstart.com/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "maoyan", displayName: "猫眼", overviewURL: "https://show.maoyan.com/qqw/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "piaoxingqiu", displayName: "票星球", overviewURL: "https://e.piaoxingqiu.com/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "fenwandao", displayName: "纷玩岛", overviewURL: "https://www.livelab.com.cn/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "ticketmaster", displayName: "Ticketmaster", overviewURL: "https://www.ticketmaster.com/", isDomestic: false),
+        ShowLinkGuidePlatform(id: "dice", displayName: "DICE", overviewURL: "https://dice.fm/", isDomestic: false),
+        ShowLinkGuidePlatform(id: "axs", displayName: "AXS", overviewURL: "https://www.axs.com/", isDomestic: false),
+        ShowLinkGuidePlatform(id: "livenation", displayName: "Live Nation", overviewURL: "https://www.livenation.com/", isDomestic: false)
+    ]
+
+    /// 引导页排序：中文环境国内平台在前，其他语言海外平台在前；组内保持声明顺序。
+    static func guidePlatformsSorted(chineseFirst: Bool) -> [ShowLinkGuidePlatform] {
+        let domestic = guidePlatforms.filter(\.isDomestic)
+        let overseas = guidePlatforms.filter { !$0.isDomestic }
+        return chineseFirst ? domestic + overseas : overseas + domestic
+    }
+
     static func displayName(forHost host: String) -> String? {
         let normalizedHost = host.lowercased()
         return domainEntries.first { entry in
@@ -89,6 +120,7 @@ enum ShowLinkParsingError: Error, Equatable {
     case unsupportedSource
     case networkFailure
     case invalidResponse
+    case notAShow
     case parseFailed(String)
 }
 
@@ -134,6 +166,9 @@ struct RemoteShowLinkParsingService: ShowLinkParsingService {
         guard decoded.ok, let draft = decoded.draft else {
             if decoded.error?.code == "UNSUPPORTED_PLATFORM" {
                 throw ShowLinkParsingError.unsupportedSource
+            }
+            if decoded.error?.code == "NOT_A_SHOW" {
+                throw ShowLinkParsingError.notAShow
             }
             let message = decoded.error?.message ?? "Unknown error"
             throw ShowLinkParsingError.parseFailed(message)

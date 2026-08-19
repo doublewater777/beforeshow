@@ -1,5 +1,12 @@
 import crypto from "node:crypto";
 
+export class NotAShowError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "NotAShowError";
+  }
+}
+
 export const DAMAI_APP_KEY = "12574478";
 export const DAMAI_API = "mtop.damai.item.detail.getdetail";
 export const DAMAI_API_VERSION = "1.0";
@@ -100,6 +107,11 @@ export function parseDamaiDetail(data) {
   const venueName = venue.venueName ?? "";
   const venueAddr = venue.venueAddr ?? "";
 
+  // 周边商品页（如官方荧光棒）：自定义文案的"演出时间" + 场馆待定，没有真实场次
+  if (item.showTimeCustom === "true" && venueName.includes("待定")) {
+    throw new NotAShowError(`Damai item is merchandise, not a show: ${cleanName}`);
+  }
+
   const { date, startTime } = parseShowTime(item.showTime ?? "");
   const artist = artists.map((a) => a.name).join(", ") || "";
 
@@ -167,6 +179,16 @@ function parseShowTime(showTime) {
     return {
       date: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`,
       startTime: ""
+    };
+  }
+
+  // 中文格式："2026年8月7日 19:30"、"2026年8月7日-12月31日"（区间取第一天）
+  const chineseMatch = showTime.match(/(\d{4})年(\d{1,2})月(\d{1,2})日(?:[^\d]*(\d{1,2}):(\d{2}))?/);
+  if (chineseMatch) {
+    const [, year, month, day, hour, minute] = chineseMatch;
+    return {
+      date: `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`,
+      startTime: hour && minute ? `${hour.padStart(2, "0")}:${minute}` : ""
     };
   }
 

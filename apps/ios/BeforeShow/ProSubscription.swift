@@ -1,7 +1,5 @@
 import Foundation
-#if canImport(StoreKit)
-import StoreKit
-#endif
+import RevenueCat
 
 @MainActor
 final class ProOfferDeepLinkRouter: ObservableObject {
@@ -19,7 +17,6 @@ final class ProOfferDeepLinkRouter: ObservableObject {
 }
 
 enum ProSubscriptionPlan: String, CaseIterable, Equatable {
-    case monthly
     case yearly
     case lifetime
     case yearlyDiscount
@@ -42,9 +39,9 @@ struct ProSubscriptionProduct: Equatable {
     let displayName: String
     let priceText: String
     let benefitCopy: [String]
-    /// StoreKit 是否真实返回了该产品。catalog 参考价仅供占位，不可作为生产购买价格。
+    /// Store 是否真实返回了该产品。catalog 参考价仅供占位，不可作为生产购买价格。
     let isAvailable: Bool
-    /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 StoreKit 提供真实价格时有值。
+    /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 store 提供真实价格时有值。
     let perMonthEquivalentText: String?
 
     init(
@@ -79,29 +76,19 @@ struct ProSubscriptionProduct: Equatable {
 }
 
 enum ProSubscriptionCatalog {
-    static let monthlyProductID = "com.doublewaterapps.beforeshow.pro.monthly"
     static let yearlyProductID = "com.doublewaterapps.beforeshow.pro.yearly"
     static let lifetimeProductID = "com.doublewaterapps.beforeshow.pro.lifetime"
     static let yearlyDiscountProductID = "com.doublewaterapps.beforeshow.pro.yearly.discount"
     static let lifetimeDiscountProductID = "com.doublewaterapps.beforeshow.pro.lifetime.discount"
 
-    /// 标准在售方案：月度 / 年度 / 终身。
-    static let standardPlans: [ProSubscriptionPlan] = [.monthly, .yearly, .lifetime]
+    /// 标准在售方案：年度 / 终身。
+    static let standardPlans: [ProSubscriptionPlan] = [.yearly, .lifetime]
     /// 挽回优惠方案：仅在挽留弹窗与长按图标入口展示。
     static let winbackPlans: [ProSubscriptionPlan] = [.yearlyDiscount, .lifetimeDiscount]
 
     /// 目录参考价：仅用于 UI 占位（产品 ID / 方案映射），`isAvailable == false`，
     /// 生产环境不会展示这些 USD 价格，也不会据此允许购买。
     static let defaultProducts: [ProSubscriptionProduct] = [
-        ProSubscriptionProduct(
-            id: monthlyProductID,
-            plan: .monthly,
-            displayName: BSLocalization.text("BeforeShow Pro 月度"),
-            priceText: BSLocalization.text("$1.49/月"),
-            benefitCopy: [
-                "无限添加现场"
-            ]
-        ),
         ProSubscriptionProduct(
             id: yearlyProductID,
             plan: .yearly,
@@ -164,13 +151,6 @@ enum ProEntitlementStorage {
 
     static let appStorageKey = "proEntitlementState"
 
-    #if DEBUG
-    static let localDebugDefaultEntitlement = ProEntitlementState.active(
-        productID: "debug.local.pro",
-        expirationDate: nil
-    )
-    #endif
-
     static func encode(_ entitlement: ProEntitlementState) -> String {
         let stored: StoredEntitlement
         switch entitlement {
@@ -216,8 +196,6 @@ enum ProSubscriptionError: Error, Equatable {
     case productNotFound
     case nothingToRestore
     case purchaseCancelled
-    case purchasePending
-    case unverifiedTransaction
     /// 挽留方案（特惠年度 / 特惠终身）只在用户从免费 / 过期状态购买时可用；
     /// Pro 已启用时再购买会与已有订阅重叠，模型层直接拒绝以避免重复扣款。
     case winbackNotAvailableWhileActive
@@ -296,112 +274,140 @@ actor MockProSubscriptionStore: ProSubscriptionStore {
     }
 }
 
-#if canImport(StoreKit)
-struct StoreKitProSubscriptionStore: ProSubscriptionStore {
-    var productIDs: [String] = [
-        ProSubscriptionCatalog.monthlyProductID,
-        ProSubscriptionCatalog.yearlyProductID,
-        ProSubscriptionCatalog.lifetimeProductID,
-        ProSubscriptionCatalog.yearlyDiscountProductID,
-        ProSubscriptionCatalog.lifetimeDiscountProductID
+struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
+    /// Dashboard 当前 entitlement identifier 是 "beforeshow Pro"；
+    /// 同时接受 "pro"，方便以后改成更短的 id。
+    static let proEntitlementID = "beforeshow Pro"
+    static let proEntitlementIDs: Set<String> = ["beforeshow Pro", "pro"]
+
+    /// store product identifier → 内部 plan。
+    /// App Store ID 和当前 Test Store 短 ID（yearly / lifetime）都要认，
+    /// 否则 Test Store offering 拉回来后会被全部丢掉。
+    static let planForProductID: [String: ProSubscriptionPlan] = [
+        ProSubscriptionCatalog.yearlyProductID: .yearly,
+        "yearly": .yearly,
+        "yearly.v2": .yearly,
+        ProSubscriptionCatalog.lifetimeProductID: .lifetime,
+        "lifetime": .lifetime,
+        "lifetime.v2": .lifetime,
+        ProSubscriptionCatalog.yearlyDiscountProductID: .yearlyDiscount,
+        "yearly.discount": .yearlyDiscount,
+        ProSubscriptionCatalog.lifetimeDiscountProductID: .lifetimeDiscount,
+        "lifetime.discount": .lifetimeDiscount,
     ]
 
     func loadProducts() async throws -> [ProSubscriptionProduct] {
-        let storeProducts = try await Product.products(for: productIDs)
-        return storeProducts
-            .compactMap(Self.subscriptionProduct(from:))
-            .sorted { first, second in
-                ProSubscriptionPlan.allCases.firstIndex(of: first.plan) ?? 0
-                    < ProSubscriptionPlan.allCases.firstIndex(of: second.plan) ?? 0
+        let offerings = try await Purchases.shared.offerings()
+        guard let current = offerings.current else { return [] }
+        return current.availablePackages
+            .compactMap(Self.product(from:))
+            .sorted { lhs, rhs in
+                ProSubscriptionPlan.allCases.firstIndex(of: lhs.plan) ?? 0
+                    < ProSubscriptionPlan.allCases.firstIndex(of: rhs.plan) ?? 0
             }
     }
 
     func purchase(productID: String) async throws -> ProEntitlementState {
-        guard let product = try await Product.products(for: [productID]).first else {
+        let offerings = try await Purchases.shared.offerings()
+        guard let package = offerings.current?.availablePackages
+                .first(where: { $0.storeProduct.productIdentifier == productID }) else {
             throw ProSubscriptionError.productNotFound
         }
 
         // 模型层不变量：已激活 Pro 时不能再购买挽留方案。
         // lifetimeDiscount 是 NonConsumable，App Store 不会自动取消已有订阅，
         // 允许通过会导致重复扣款；yearlyDiscount 会与已有订阅重叠续费。
-        if let plan = ProSubscriptionPlan(productID: productID), plan.isWinback,
-           let current = try await currentEntitlement(), current.isProActive {
+        if let plan = Self.planForProductID[productID], plan.isWinback,
+           let current = try await Self.currentEntitlement(), current.isProActive {
             throw ProSubscriptionError.winbackNotAvailableWhileActive
         }
 
-        switch try await product.purchase() {
-        case .success(let verificationResult):
-            let transaction = try verifiedTransaction(from: verificationResult)
-            await transaction.finish()
-            return Self.entitlement(from: transaction)
-        case .userCancelled:
-            throw ProSubscriptionError.purchaseCancelled
-        case .pending:
-            throw ProSubscriptionError.purchasePending
-        @unknown default:
-            throw ProSubscriptionError.purchasePending
+        do {
+            let result = try await Purchases.shared.purchase(package: package)
+            // RC 5.x async purchase 返回 PurchaseResultData 元组：
+            // (transaction, customerInfo, userCancelled)。取消既可能是 flag，
+            // 也可能是 ErrorCode.purchaseCancelledError。
+            if result.userCancelled {
+                throw ProSubscriptionError.purchaseCancelled
+            }
+            return Self.entitlement(from: result.customerInfo) ?? .free
+        } catch {
+            if Self.isPurchaseCancelled(error) {
+                throw ProSubscriptionError.purchaseCancelled
+            }
+            throw error
         }
     }
 
     func restorePurchases() async throws -> ProEntitlementState {
-        try await AppStore.sync()
-        if let entitlement = try await currentEntitlement() {
-            return entitlement
+        let info = try await Purchases.shared.restorePurchases()
+        guard let state = Self.entitlement(from: info) else {
+            throw ProSubscriptionError.nothingToRestore
         }
-
-        throw ProSubscriptionError.nothingToRestore
+        return state
     }
 
-    private func currentEntitlement() async throws -> ProEntitlementState? {
-        for await verificationResult in Transaction.currentEntitlements {
-            let transaction = try verifiedTransaction(from: verificationResult)
-            guard productIDs.contains(transaction.productID) else { continue }
-            return Self.entitlement(from: transaction)
-        }
-
-        return nil
+    static func currentEntitlement() async throws -> ProEntitlementState? {
+        let info = try await Purchases.shared.customerInfo()
+        return entitlement(from: info)
     }
 
-    private func verifiedTransaction(
-        from result: VerificationResult<Transaction>
-    ) throws -> Transaction {
-        switch result {
-        case .verified(let transaction):
-            return transaction
-        case .unverified:
-            throw ProSubscriptionError.unverifiedTransaction
-        }
+    static func isPurchaseCancelled(_ error: Error) -> Bool {
+        (error as NSError).code == ErrorCode.purchaseCancelledError.rawValue
     }
 
-    private static func entitlement(from transaction: Transaction) -> ProEntitlementState {
-        if let expirationDate = transaction.expirationDate,
-           expirationDate < Date() {
-            return .expired(productID: transaction.productID, expirationDate: expirationDate)
-        }
-
-        return .active(productID: transaction.productID, expirationDate: transaction.expirationDate)
-    }
-
-    private static func subscriptionProduct(from product: Product) -> ProSubscriptionProduct? {
-        guard let plan = ProSubscriptionPlan(productID: product.id) else {
-            return nil
-        }
-
-        let fallback = ProSubscriptionCatalog.defaultProducts.first { $0.id == product.id }
-        return ProSubscriptionProduct(
-            id: product.id,
-            plan: plan,
-            displayName: product.displayName,
-            priceText: product.displayPrice,
-            benefitCopy: fallback?.benefitCopy ?? [],
-            isAvailable: true,
-            perMonthEquivalentText: plan == .yearly ? Self.perMonthEquivalentText(for: product) : nil
+    /// 把 RC 的 `CustomerInfo` 映射成本地 `ProEntitlementState`。
+    /// 仅在 RC entitlement 名为 "pro" 时返回非空；否则视为 free。
+    static func entitlement(from info: CustomerInfo) -> ProEntitlementState? {
+        let entry = proEntitlementIDs.lazy.compactMap { info.entitlements[$0] }.first
+        guard let entry else { return nil }
+        return entitlement(
+            isActive: entry.isActive,
+            expirationDate: entry.expirationDate,
+            productIdentifier: entry.productIdentifier
         )
     }
 
-    /// 年度方案按月折算（如 $4.99/年 → 约 $0.42/月），用 StoreKit 真实价格计算。
-    private static func perMonthEquivalentText(for product: Product) -> String? {
-        guard let period = product.subscription?.subscriptionPeriod else { return nil }
+    /// `entitlement(from info:)` 的纯函数核心。拆出来便于在测试里直接喂基本类型，
+    /// 不用手工构造 `CustomerInfo` / `EntitlementInfo`。
+    /// - active → `.active`
+    /// - expirationDate < referenceDate → `.expired`
+    /// - 其他（包括 nil / 还没到过期时间）→ nil（视为 free）
+    static func entitlement(
+        isActive: Bool,
+        expirationDate: Date?,
+        productIdentifier: String,
+        referenceDate: Date = Date()
+    ) -> ProEntitlementState? {
+        if isActive {
+            return .active(productID: productIdentifier, expirationDate: expirationDate)
+        }
+        if let exp = expirationDate, exp < referenceDate {
+            return .expired(productID: productIdentifier, expirationDate: exp)
+        }
+        return nil
+    }
+
+    private static func product(from package: Package) -> ProSubscriptionProduct? {
+        let id = package.storeProduct.productIdentifier
+        guard let plan = planForProductID[id] else { return nil }
+        let fallback = ProSubscriptionCatalog.defaultProducts.first { $0.id == id }
+        return ProSubscriptionProduct(
+            id: id,
+            plan: plan,
+            displayName: package.storeProduct.localizedTitle,
+            priceText: package.storeProduct.localizedPriceString,
+            benefitCopy: fallback?.benefitCopy ?? [],
+            isAvailable: true,
+            perMonthEquivalentText: plan == .yearly
+                ? Self.perMonthEquivalentText(for: package.storeProduct)
+                : nil
+        )
+    }
+
+    /// 年度方案按月折算（如 $4.99/年 → 约 $0.42/月），用 RC 真实价格计算。
+    private static func perMonthEquivalentText(for product: StoreProduct) -> String? {
+        guard let period = product.subscriptionPeriod else { return nil }
         let months: Decimal
         switch period.unit {
         case .day: months = Decimal(period.value) / 30
@@ -412,15 +418,18 @@ struct StoreKitProSubscriptionStore: ProSubscriptionStore {
             return nil
         }
         guard months > 0 else { return nil }
-        return (product.price / months).formatted(product.priceFormatStyle)
+        let monthly = product.price / months
+        if let formatter = product.priceFormatter {
+            return formatter.string(from: monthly as NSDecimalNumber)
+        }
+        guard let currencyCode = product.currencyCode else { return nil }
+        return monthly.formatted(.currency(code: currencyCode))
     }
 }
 
 extension ProSubscriptionPlan {
     init?(productID: String) {
         switch productID {
-        case ProSubscriptionCatalog.monthlyProductID:
-            self = .monthly
         case ProSubscriptionCatalog.yearlyProductID:
             self = .yearly
         case ProSubscriptionCatalog.lifetimeProductID:
@@ -434,7 +443,6 @@ extension ProSubscriptionPlan {
         }
     }
 }
-#endif
 
 enum ProLimitReason: Equatable {
     case saveLimit

@@ -477,21 +477,6 @@ actor MemoryFragmentMediaStore {
         }
     }
 
-    func cleanupOrphanedFragments(showID: UUID, validFragmentIDs: Set<UUID>) throws {
-        let showDirectory = location.url(for: showID.uuidString)
-        guard fileManager.fileExists(atPath: showDirectory.path) else { return }
-        for directory in try fileManager.contentsOfDirectory(
-            at: showDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey]
-        ) {
-            guard let fragmentID = UUID(uuidString: directory.lastPathComponent),
-                  validFragmentIDs.contains(fragmentID) else {
-                try removeIfPresent(directory)
-                continue
-            }
-        }
-    }
-
     /// Removes unreferenced files inside valid fragment directories and orphan fragment directories.
     func reconcileFragmentFiles(
         showID: UUID,
@@ -571,10 +556,6 @@ actor MemoryFragmentMediaStore {
 
     private func stagingPath(draftID: UUID, fileName: String) -> String {
         "Staging/\(draftID.uuidString)/\(fileName)"
-    }
-
-    private func finalPath(from stagedPath: String, finalDirectory: String) -> String {
-        "\(finalDirectory)/\(URL(fileURLWithPath: stagedPath).lastPathComponent)"
     }
 
     private func resolvedContentType(_ imported: MemoryImportedFile) -> UTType {

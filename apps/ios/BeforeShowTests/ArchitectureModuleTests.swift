@@ -220,6 +220,35 @@ final class ArchitectureModuleTests: XCTestCase {
             XCTAssertEqual(error as? ShowLinkParsingError, .unsupportedSource)
         }
     }
+
+    func testRemoteLinkParserMapsNotAShowBackendCode() async {
+        let json = """
+        {
+            "ok": false,
+            "error": {
+                "code": "NOT_A_SHOW",
+                "message": "Damai item is merchandise, not a show"
+            }
+        }
+        """
+        let service = RemoteShowLinkParsingService(
+            client: BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(
+                    appInstanceId: "test-instance",
+                    appSignature: "test-signature"
+                ),
+                session: ArchitectureMockURLSession(data: Data(json.utf8))
+            )
+        )
+
+        do {
+            _ = try await service.parse(link: "https://m.damai.cn/shows/item.html?itemId=1065385649255")
+            XCTFail("Expected not-a-show error")
+        } catch {
+            XCTAssertEqual(error as? ShowLinkParsingError, .notAShow)
+        }
+    }
 }
 
 private struct ArchitectureMockURLSession: URLSessionProtocol {

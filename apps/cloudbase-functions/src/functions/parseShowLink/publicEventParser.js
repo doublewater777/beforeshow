@@ -43,15 +43,6 @@ export async function fetchPublicEventPage({ url, fetch = globalThis.fetch } = {
   return response.text();
 }
 
-export async function fetchAndParsePublicEvent({
-  url,
-  source,
-  fetch = globalThis.fetch
-} = {}) {
-  const html = await fetchPublicEventPage({ url, fetch });
-  return parsePublicEventPage(html, { source });
-}
-
 export function parsePublicEventPage(html, { source } = {}) {
   if (typeof html !== "string" || html.trim().length === 0) {
     throw new Error("Public event page is empty");

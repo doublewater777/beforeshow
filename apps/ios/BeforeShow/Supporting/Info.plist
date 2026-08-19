@@ -65,6 +65,17 @@
 			<string>最高 40% OFF</string>
 		</dict>
 	</array>
+	<!-- PostHog analytics configuration. Values are injected from POSTHOG_API_KEY
+	     and POSTHOG_HOST build settings defined in project.yml. -->
+	<key>PostHogAPIKey</key>
+	<string>$(POSTHOG_API_KEY)</string>
+	<key>PostHogHost</key>
+	<string>$(POSTHOG_HOST)</string>
+	<!-- RevenueCat subscription configuration. Value is injected from
+	     REVENUECAT_API_KEY build setting defined in project.yml. -->
+	<key>RevenueCatAPIKey</key>
+	<string>$(REVENUECAT_API_KEY)</string>
+
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSSupportsLiveActivities</key>

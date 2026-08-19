@@ -1,4 +1,4 @@
-export class AppAuthError extends Error {
+class AppAuthError extends Error {
   constructor(code, message) {
     super(message);
     this.name = "AppAuthError";

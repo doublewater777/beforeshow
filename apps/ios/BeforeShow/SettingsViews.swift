@@ -1,6 +1,7 @@
 import SwiftData
 import SwiftUI
 import UIKit
+import UserNotifications
 
 // MARK: - Settings View
 
@@ -55,6 +56,23 @@ struct SettingsView: View {
                     )
                 }
                 .buttonStyle(SettingsPressButtonStyle())
+
+                SettingsDivider()
+
+                Button {
+                    AppReviewPrompt.consider(.settings)
+                } label: {
+                    SettingsRowContent(
+                        iconName: "star.fill",
+                        title: SettingsEntry.rateApp.displayTitle,
+                        subtitle: nil,
+                        value: nil,
+                        tint: BSColor.Stage.muted,
+                        trailingIconName: "arrow.up.right.square"
+                    )
+                }
+                .buttonStyle(SettingsPressButtonStyle())
+                .accessibilityHint(BSLocalization.text("打开 App Store 写下评价"))
             }
 
             SettingsGroup(title: BSLocalization.text("语言")) {
@@ -315,6 +333,9 @@ private struct SettingsRowContent: View {
 
 private struct NotificationSettingsRow: View {
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
     @State private var authorizationState: NotificationAuthorizationState = .notDetermined
     @State private var isPerformingAction = false
 
@@ -354,6 +375,7 @@ private struct NotificationSettingsRow: View {
             guard phase == .active else { return }
             Task {
                 await refreshAuthorizationState()
+                await reconcileFocusAfterAuthorizationChange()
             }
         }
     }
@@ -382,6 +404,8 @@ private struct NotificationSettingsRow: View {
             case .requestPermission:
                 _ = await LocalNotificationCenter.shared.requestAuthorization()
                 await refreshAuthorizationState()
+                // 之前被拒 / 未决时排期可能是空的，授权后立刻按当前现场补齐。
+                await reconcileFocusAfterAuthorizationChange()
             case .openSystemSettings:
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     await UIApplication.shared.open(url)
@@ -394,6 +418,20 @@ private struct NotificationSettingsRow: View {
     @MainActor
     private func refreshAuthorizationState() async {
         authorizationState = await LocalNotificationCenter.shared.authorizationState()
+    }
+
+    /// 用户在系统设置里打开开关后回到 app 也走这里：把排期补齐到当前现场。
+    @MainActor
+    private func reconcileFocusAfterAuthorizationChange() async {
+        guard authorizationState == .authorized || authorizationState == .provisional else { return }
+        let currentShow = CurrentShowSession().selectCurrentShow(
+            from: shows,
+            manualSelection: selections.first
+        )
+        await LocalNotificationCenter.shared.reconcileFocus(
+            to: currentShow,
+            in: ModelContext(modelContext.container)
+        )
     }
 }
 
@@ -513,6 +551,7 @@ private struct DebugPrintPendingNotificationsRow: View {
 private struct PrivacyLocalDataView: View {
     @Environment(\.modelContext) private var modelContext
 
+    @AppStorage(ProductAnalyticsPreferences.appStorageKey) private var productAnalyticsEnabled = true
     @State private var inventory: LocalDataInventory?
     @State private var clearFeedback: ClearDataFeedback?
     @State private var isClearing = false
@@ -520,6 +559,24 @@ private struct PrivacyLocalDataView: View {
 
     var body: some View {
         BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
+            SettingsGroup(title: BSLocalization.text("产品改进")) {
+                Toggle(isOn: productAnalyticsBinding) {
+                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                        Text(BSLocalization.text("帮助改进产品"))
+                            .font(BSFont.V3.body.weight(.semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+                        Text(BSLocalization.text("匿名分析与操作回放，用于发现卡点和修复问题。可随时关闭。"))
+                            .font(BSFont.V3.body)
+                            .foregroundColor(BSColor.Stage.muted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(BSColor.Stage.accent)
+                .padding(.horizontal, BSSpacing.md)
+                .padding(.vertical, BSSettingsStyle.rowVerticalPadding)
+                .accessibilityHint(BSLocalization.text("关闭后停止发送匿名分析与操作回放"))
+            }
+
             SettingsGroup(title: BSLocalization.text("本地数据")) {
                 if let inventory {
                     if inventory.isEmpty {
@@ -593,6 +650,16 @@ private struct PrivacyLocalDataView: View {
         }
     }
 
+    private var productAnalyticsBinding: Binding<Bool> {
+        Binding(
+            get: { productAnalyticsEnabled },
+            set: { newValue in
+                productAnalyticsEnabled = newValue
+                ProductAnalyticsPreferences.apply(newValue)
+            }
+        )
+    }
+
     private func inventoryRow(_ label: String, value: String) -> some View {
         HStack {
             Text(label)
@@ -646,6 +713,9 @@ private struct PrivacyLocalDataView: View {
                     try context.delete(model: ShowAsset.self)
                     try context.delete(model: DynamicCover.self)
                     try context.save()
+                    // 系统通知中心里的 pending 请求不受 SwiftData 删除影响，
+                    // 必须显式清掉，否则清空数据后通知仍按时弹出、深链指向已删除的现场。
+                    UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
                 } catch {
                     context.rollback()
                     throw error

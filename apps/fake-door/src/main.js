@@ -19,23 +19,23 @@ const shows = [
 
 const useFlowSteps = [
   {
-    title: "导入你的演出",
-    desc: "粘贴票务信息、上传截图，或手动添加。演唱会、Livehouse、音乐节都可以。",
+    title: "放入下一场",
+    desc: "粘贴票务链接、上传截图，或手动添加。把下一场先落到本地。",
   },
   {
-    title: "选中这一场",
-    desc: "如果你有不止一场演出，开场前会帮你聚焦当前最想期待的那一场。",
+    title: "准备开场",
+    desc: "看现场倒计时，收好票根和时刻表，出门前把关键信息准备齐。",
   },
   {
-    title: "每天看见倒数",
-    desc: "离开场越来越近时，打开就知道还要等多久。",
+    title: "留下现场记录",
+    desc: "散场后把现场记录留在本地，之后还能回头翻看这一场。",
   },
 ];
 
 const audienceItems = [
-  "适合已经买票、正在等开场的人",
+  "适合需要现场准备的人",
+  "适合想把票根、时刻表留在本地的人",
   "适合演唱会、Livehouse、音乐节",
-  "适合想把下一场放在心上的人",
 ];
 
 // ── State ────────────────────────────────────────────
@@ -142,20 +142,21 @@ function renderHero() {
       <div class="hero-content">
         <div class="hero-eyebrow fade-up">
           <span class="hero-eyebrow-dot"></span>
-          距开场还有一段日子
+          现场准备 · 本地记录
         </div>
         <h1 id="hero-title" class="hero-title fade-up fade-up-delay-1">
-          <span class="hero-title-line">下一场演出，</span>
-          <span class="hero-title-line hero-title-accent">提前进入状态。</span>
+          <span class="hero-title-line">现场准备与</span>
+          <span class="hero-title-line hero-title-accent">本地记录工具。</span>
         </h1>
         <p class="hero-sub fade-up fade-up-delay-2">
-          把你的演出记下来：每天看见开场倒计时，和同行的人确认到场，
-          把票根和现场记忆都收好。
+          开场前 BeforeShow 用于现场准备与本地记录，
+          提供现场倒计时、记录票根、记录时刻表、现场记录等功能。
         </p>
         <div class="hero-feature-list fade-up fade-up-delay-2" aria-label="BeforeShow 可做的事">
-          <span>开场倒计时</span>
-          <span>同行确认</span>
-          <span>记忆与票根</span>
+          <span>现场倒计时</span>
+          <span>记录票根</span>
+          <span>记录时刻表</span>
+          <span>现场记录</span>
         </div>
       </div>
     </section>
@@ -169,7 +170,7 @@ function renderUseFlow() {
       <div class="section">
         <p class="section-label">使用流程</p>
         <h2 class="section-title" id="use-flow-title">
-          买到票之后，<br>真正的现场就已经开始了。
+          从准备开场，<br>到留下这场记录。
         </h2>
         <div class="how-grid" aria-label="BeforeShow 使用流程">
           ${useFlowSteps.map((step, i) => `
@@ -192,7 +193,7 @@ function renderAudience() {
       <div class="section">
         <p class="section-label">适合谁</p>
         <h2 class="section-title" id="audience-title">
-          给那些已经有一张票，<br>也有一段期待的人。
+          给需要把现场准备好，<br>也想把记录留在本地的人。
         </h2>
         <div class="audience-list" aria-label="BeforeShow 适合的人群">
           ${audienceItems.map((item) => `
@@ -214,15 +215,15 @@ function renderExperience() {
       <div class="section">
         <p class="section-label">开场前两周</p>
         <h2 class="section-title" id="experience-title">
-          演出越接近开始，<br>越值得期待。
+          先把下一场放进来，<br>再把准备做齐。
         </h2>
         <p class="section-desc">
-          把下一场放进来，
-          每次打开都能看见离灯光亮起还有多久。
+          现场倒计时帮你盯住开场时间；
+          票根、时刻表和现场记录都留在本地。
         </p>
 
         <div class="feature-modules" aria-label="BeforeShow 核心体验">
-          ${renderFeatureModule("01", "倒数提醒", "把五月天上海演唱会放进来，每天知道离开场还有多久。", renderCountdownDemo())}
+          ${renderFeatureModule("01", "现场倒计时", "把下一场放进来，每天知道离开场还有多久。", renderCountdownDemo())}
         </div>
       </div>
     </section>
@@ -346,8 +347,12 @@ function renderFooter() {
   return `
     <footer class="footer">
       <span>开场前 · BeforeShow</span>
-      <span>给买了票、正在等开场的人。</span>
-      <a class="footer-link" href="/link-guide/">如何获取票务链接</a>
+      <span>现场准备与本地记录工具。</span>
+      <nav class="footer-links" aria-label="页脚链接">
+        <a class="footer-link" href="/privacy/">隐私政策</a>
+        <a class="footer-link" href="/terms/">用户协议</a>
+        <a class="footer-link" href="/link-guide/">如何获取票务链接</a>
+      </nav>
     </footer>
   `;
 }

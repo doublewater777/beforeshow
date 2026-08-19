@@ -24,10 +24,6 @@ struct AddressSuggestion: Identifiable, Equatable {
     }
 }
 
-enum AddressSuggestionError: Error, Equatable {
-    case providerUnavailable
-}
-
 enum VenueAddressSearchPolicy {
     static func shouldApplyResults(
         revision: Int,

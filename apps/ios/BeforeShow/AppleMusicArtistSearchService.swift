@@ -96,28 +96,3 @@ private struct ITunesArtist: Decodable {
     let artworkUrl100: String?
 }
 
-/// Test / DEBUG stub — never hits the network. Tests inject canned results keyed by
-/// the exact query string (or `"*"` as a wildcard fallback).
-final class StubArtistSearchService: ArtistSearchServicing, @unchecked Sendable {
-    var canned: [String: [RecognizedArtist]] = [:]
-    var status: ArtistSearchAuthorizationStatus = .authorized
-    private let counter = RequestCounter()
-
-    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus {
-        status
-    }
-
-    func searchArtists(query: String) async throws -> [RecognizedArtist] {
-        counter.increment()
-        return canned[query] ?? canned["*"] ?? []
-    }
-
-    var requestCount: Int { counter.value }
-
-    private final class RequestCounter: @unchecked Sendable {
-        private var _value: Int = 0
-        private let lock = NSLock()
-        func increment() { lock.lock(); _value += 1; lock.unlock() }
-        var value: Int { lock.lock(); defer { lock.unlock() }; return _value }
-    }
-}

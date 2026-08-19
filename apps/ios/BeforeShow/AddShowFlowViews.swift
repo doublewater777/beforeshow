@@ -1,5 +1,6 @@
 import Foundation
 import PhotosUI
+import PostHog
 import SwiftData
 import SwiftUI
 import UIKit
@@ -46,6 +47,11 @@ struct AddShowLinkFailurePresentation: Equatable {
             return Self(
                 title: BSLocalization.text("还缺少现场信息"),
                 message: BSLocalization.text("没有解析到有效日期，请在下方补充后再保存。")
+            )
+        case .notAShow:
+            return Self(
+                title: BSLocalization.text("这不是演出链接"),
+                message: BSLocalization.text("这个链接指向的是周边商品，没有演出场次信息。你可以换个演出链接重试，或在下方手动填写。")
             )
         case .parseFailed:
             return Self(
@@ -183,42 +189,6 @@ enum AddShowPersistenceCoordinator {
     }
 }
 
-struct AddShowMenu: View {
-    @Binding var addSheet: AddShowSheet?
-
-    var body: some View {
-        Menu {
-            AddShowMethodButtons(addSheet: $addSheet)
-        } label: {
-            Label("添加现场", systemImage: "plus")
-        }
-    }
-}
-
-struct AddShowMethodButtons: View {
-    @Binding var addSheet: AddShowSheet?
-
-    var body: some View {
-        Button {
-            addSheet = .manual
-        } label: {
-            Label("手动添加", systemImage: "square.and.pencil")
-        }
-
-        Button {
-            addSheet = .screenshot
-        } label: {
-            Label("截图识别", systemImage: "text.viewfinder")
-        }
-
-        Button {
-            addSheet = .link
-        } label: {
-            Label("链接解析", systemImage: "link")
-        }
-    }
-}
-
 private struct AddShowEntryView: View {
     let onSelect: (AddShowSheet) -> Void
 
@@ -301,7 +271,17 @@ struct AddShowFlowView: View {
     @State private var showsManualFallback = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
-    @State private var linkGuidePage: BSInAppBrowserPage?
+    /// 首次请求通知权限前的说明页。`nil` = 不展示。
+    @State private var isShowingNotificationPrimer = false
+    /// 说明页的用户选择回传。保存流程会一直等到用户在说明页上做出选择，
+    /// 再决定是否弹系统权限弹窗，之后才继续 dismiss。
+    @State private var notificationPrimerDecision: CheckedContinuation<Bool, Never>?
+    @State private var showsLinkGuide = false
+    /// 引导页里点过「打开 XX」才置真；关闭引导页时只有这种情况才读剪贴板，
+    /// 避免只是翻翻平台也触发系统粘贴弹窗。
+    @State private var didOpenPlatformFromGuide = false
+    /// 引导页关闭后检测到剪贴板里有支持平台的链接时，出「粘贴XX链接？」chip。
+    @State private var linkPasteSuggestion: (link: String, platform: String)?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var didSwitchToManual = false
@@ -323,22 +303,28 @@ struct AddShowFlowView: View {
         sheet: AddShowSheet,
         intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
+        prefilledDraft: ShowDraft? = nil,
         onSaved: (() -> Void)? = nil
     ) {
         self.sheet = sheet
         self.intent = intent
         self.linkParser = linkParser
         self.onSaved = onSaved
-        var initialDraft = ShowDraft(source: sheet.draftSource)
-        if sheet == .manual {
-            initialDraft.startTime = Calendar.current.date(
-                bySettingHour: 19,
-                minute: 30,
-                second: 0,
-                of: initialDraft.date
-            )
+        if let prefilledDraft {
+            _draft = State(initialValue: prefilledDraft)
+            _hasImportedDraft = State(initialValue: true)
+        } else {
+            var initialDraft = ShowDraft(source: sheet.draftSource)
+            if sheet == .manual {
+                initialDraft.startTime = Calendar.current.date(
+                    bySettingHour: 19,
+                    minute: 30,
+                    second: 0,
+                    of: initialDraft.date
+                )
+            }
+            _draft = State(initialValue: initialDraft)
         }
-        _draft = State(initialValue: initialDraft)
     }
 
     static func defaultLinkParser() -> ShowLinkDraftParser {
@@ -406,6 +392,10 @@ struct AddShowFlowView: View {
                 await recognizeScreenshot(from: newItem)
             }
         }
+        .onChange(of: linkText) { _, _ in
+            // 用户手动编辑后，之前的剪贴板建议已过期
+            linkPasteSuggestion = nil
+        }
         .onDisappear {
             // 页面离开时作废进行中的导入，避免任务在 dismiss 后继续写状态 / 弹 toast
             abandonInFlightImport()
@@ -427,11 +417,47 @@ struct AddShowFlowView: View {
                 ProPaywallSheetView()
             }
         }
-        .sheet(item: $linkGuidePage) { page in
-            BSInAppBrowser(page: page)
+        .sheet(isPresented: $showsLinkGuide, onDismiss: {
+            if didOpenPlatformFromGuide {
+                detectPasteboardLink()
+            }
+            didOpenPlatformFromGuide = false
+        }) {
+            AddShowLinkGuideView(onOpenPlatform: {
+                didOpenPlatformFromGuide = true
+            })
+        }
+        .sheet(isPresented: $isShowingNotificationPrimer, onDismiss: {
+            // 下划关闭等同「暂时不用」：不能让保存流程悬在 continuation 上。
+            resumeNotificationPrimer(accepted: false)
+        }) {
+            NotificationPermissionPrimerView(
+                onContinue: {
+                    isShowingNotificationPrimer = false
+                    resumeNotificationPrimer(accepted: true)
+                },
+                onSkip: {
+                    isShowingNotificationPrimer = false
+                    resumeNotificationPrimer(accepted: false)
+                }
+            )
         }
         .bsToastOverlay(toast, bottomPadding: 28)
+        #if DEBUG
+        .task {
+            if Self.debugOpenNotificationPrimer {
+                isShowingNotificationPrimer = true
+            }
+        }
+        #endif
     }
+
+    #if DEBUG
+    /// 截图 / 验证用：直接拉起通知说明页，不必先走完保存流程。
+    private static var debugOpenNotificationPrimer: Bool {
+        ProcessInfo.processInfo.arguments.contains("--open-notification-primer")
+    }
+    #endif
 
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
@@ -496,6 +522,34 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink)
                     .opacity(isParsingLink ? 0.55 : 1)
 
+                    // 从引导页回来、剪贴板里有支持平台的链接时，一键粘贴并直接解析
+                    if let linkPasteSuggestion, !isParsingLink {
+                        Button {
+                            applyPasteSuggestion()
+                        } label: {
+                            HStack(spacing: 7) {
+                                Image(systemName: "doc.on.clipboard")
+                                    .font(.system(size: 12, weight: .semibold))
+                                Text(BSLocalization.format("粘贴%@链接？", linkPasteSuggestion.platform))
+                                    .font(.system(size: 13, weight: .semibold))
+                                Spacer(minLength: 0)
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .foregroundColor(BSColor.Accent.prepare)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(BSColor.Accent.prepare.opacity(0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: BSRadius.md)
+                                    .stroke(BSColor.Accent.prepare.opacity(0.28), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(BSLocalization.format("粘贴%@链接并开始解析", linkPasteSuggestion.platform))
+                    }
+
                     if let detectedLinkSource {
                         HStack(spacing: 8) {
                             Text("已识别来源")
@@ -547,8 +601,7 @@ struct AddShowFlowView: View {
 
                     Button {
                         dismissKeyboard()
-                        guard let url = URL(string: "https://beforeshow.doublewaterapps.com/link-guide/") else { return }
-                        linkGuidePage = BSInAppBrowserPage(url: localizedSiteURL(url))
+                        showsLinkGuide = true
                     } label: {
                         HStack(spacing: 7) {
                             Image(systemName: "questionmark.circle")
@@ -852,6 +905,7 @@ struct AddShowFlowView: View {
             } else {
                 message = nil
             }
+            PostHogSDK.shared.capture("screenshot_recognized")
             presentToast(.success, message: BSLocalization.text("识别完成"))
         } catch is CancellationError {
             // 页面关闭或新请求取消：不写失败态
@@ -863,6 +917,29 @@ struct AddShowFlowView: View {
             showsManualFallback = true
             message = BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。")
             presentToast(.failure, message: BSLocalization.text("识别失败"))
+        }
+    }
+
+    /// 引导页关闭时读一次剪贴板：是支持平台的链接就提示一键粘贴。
+    /// 直接读内容会出一次系统粘贴提示横幅，换取 chip 里能带上平台名。
+    private func detectPasteboardLink() {
+        guard sheet == .link, !hasImportedDraft,
+              linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let raw = UIPasteboard.general.string else { return }
+        let candidate = ShowLinkDraftParser.normalizedLink(raw)
+        guard !candidate.isEmpty,
+              let host = URL(string: candidate)?.host()?.lowercased(),
+              let platform = ShowLinkPlatformCatalog.displayName(forHost: host) else { return }
+        linkPasteSuggestion = (candidate, platform)
+    }
+
+    /// chip 确认后：填入链接并直接开始解析，意图已足够明确。
+    private func applyPasteSuggestion() {
+        guard let suggestion = linkPasteSuggestion else { return }
+        linkPasteSuggestion = nil
+        linkText = suggestion.link
+        beginImportTask {
+            await parseLink()
         }
     }
 
@@ -895,6 +972,7 @@ struct AddShowFlowView: View {
             message = draft.startTime == nil
                 ? BSLocalization.text("链接里没有明确开场时间，请确认后再添加。")
                 : nil
+            PostHogSDK.shared.capture("show_link_parsed")
             presentToast(.success, message: BSLocalization.text("解析完成"))
         } catch is CancellationError {
             return
@@ -924,6 +1002,7 @@ struct AddShowFlowView: View {
             let gate = ProFeatureGate()
             let addedThisMonth = gate.showsAddedThisMonth(from: shows)
             guard gate.canAddShow(showsAddedThisMonth: addedThisMonth, entitlement: entitlement) else {
+                PostHogSDK.shared.capture("pro_limit_reached")
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))
                 isSaving = false
@@ -942,6 +1021,11 @@ struct AddShowFlowView: View {
             if let notificationState {
                 await activateNotifications(for: show, state: notificationState)
             }
+            PostHogSDK.shared.capture("show_added", properties: [
+                "method": sheet.rawValue,
+                "intent": intent == .upcoming ? "upcoming" : "historical_backfill"
+            ])
+            AppReviewPrompt.consider(.addedShow)
             didSave = true
             coverLifecycle.finalize(keeping: draft.coverImageURL)
 
@@ -988,12 +1072,33 @@ struct AddShowFlowView: View {
         )
 
         if shouldRequest {
-            _ = await center.requestAuthorization()
+            // 先解释再请求：系统弹窗只有一次机会，用户得先知道会收到什么。
+            let accepted = await presentNotificationPrimer()
+            // 无论用户是否接受，都记下已经问过，不再反复打扰。
             state.recordPermissionRequest()
             try? modelContext.save()
+            if accepted {
+                _ = await center.requestAuthorization()
+            }
         }
 
         await center.applyFocusChange(to: show, in: modelContext)
+    }
+
+    /// 展示说明页并等待用户选择。返回 `true` 表示可以继续弹系统权限弹窗。
+    @MainActor
+    private func presentNotificationPrimer() async -> Bool {
+        await withCheckedContinuation { continuation in
+            notificationPrimerDecision = continuation
+            isShowingNotificationPrimer = true
+        }
+    }
+
+    @MainActor
+    private func resumeNotificationPrimer(accepted: Bool) {
+        guard let continuation = notificationPrimerDecision else { return }
+        notificationPrimerDecision = nil
+        continuation.resume(returning: accepted)
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -2256,6 +2361,30 @@ private struct AddShowConstrainedDatePicker: View {
     }
 }
 
+/// 「待确认」字段的显式确认 CTA：整宽紫底按钮，替代容易漏看的小字文本按钮。
+private struct AddShowConfirmButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .buttonStyle(AddShowConfirmButtonStyle())
+            .accessibilityHint(BSLocalization.text("确认后才可以保存现场"))
+    }
+}
+
+private struct AddShowConfirmButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, minHeight: 40)
+            .background(BSColor.Accent.violet.opacity(configuration.isPressed ? 0.75 : 1))
+            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+            .contentShape(RoundedRectangle(cornerRadius: BSRadius.md))
+    }
+}
+
 private struct AddShowDatePickerField: View {
     let title: String
     @Binding var selection: Date
@@ -2293,11 +2422,10 @@ private struct AddShowDatePickerField: View {
                 }
             }
             if isNeeded, let onConfirmNeeded {
-                Button("确认使用这个日期", action: onConfirmNeeded)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.violet)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .accessibilityHint("确认后才可以保存现场")
+                AddShowConfirmButton(
+                    title: BSLocalization.text("确认使用这个日期"),
+                    action: onConfirmNeeded
+                )
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
@@ -2319,6 +2447,15 @@ private struct AddShowStartTimeField: View {
         return isRecognized ? BSColor.Accent.prepare.opacity(0.30) : nil
     }
 
+    /// 确认按钮直接亮出所选时间，点之前就知道在确认什么。
+    private var confirmTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguageManager.persisted.locale
+        formatter.dateFormat = "HH:mm"
+        formatter.timeZone = calendar.timeZone
+        return BSLocalization.format("确认 %@ 开场", formatter.string(from: startTime))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             AddShowFieldLabel(
@@ -2332,15 +2469,17 @@ private struct AddShowStartTimeField: View {
                 calendar: calendar,
                 borderColor: borderColor
             )
+            .onChange(of: startTime) { _, _ in
+                // 与日期字段一致：手动转动选择器即视为确认。
+                if !isConfirmed { onConfirm() }
+            }
             if !isConfirmed {
-                Button("确认使用这个时间", action: onConfirm)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Accent.violet)
-                    .frame(minHeight: BSLayout.minTouchTarget)
-                    .accessibilityHint("确认后才可以保存现场")
+                AddShowConfirmButton(title: confirmTitle, action: onConfirm)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
             }
         }
         .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .animation(.easeInOut(duration: BSMotion.interface), value: isConfirmed)
     }
 }
 
@@ -2883,7 +3022,7 @@ private struct ShowDraftCoverPreview: View {
 }
 
 /// 编辑现场吸底保存按钮：钨金渐变主按钮；禁用时降为灰底，由保存栏说明原因。
-private struct EditShowSaveButtonStyle: ButtonStyle {
+struct EditShowSaveButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
@@ -2916,21 +3055,6 @@ private struct EditShowSaveButtonStyle: ButtonStyle {
         } else {
             Color.white.opacity(0.08)
         }
-    }
-}
-
-private struct AddShowSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(BSColor.textSecondary)
-            .padding(.vertical, 15)
-            .background(Color.white.opacity(configuration.isPressed ? 0.10 : 0.055))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(BSColor.borderProminent, lineWidth: 1)
-            )
     }
 }
 

@@ -22,10 +22,6 @@ enum ShowDraftField: String, Equatable, Hashable, CaseIterable {
     case artist
 }
 
-enum ShowDraftValidationError: Error, Equatable {
-    case emptyName
-}
-
 struct ShowDraft: Equatable {
     var name: String
     var date: Date

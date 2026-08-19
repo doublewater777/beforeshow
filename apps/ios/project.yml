@@ -1,4 +1,17 @@
 name: BeforeShow
+
+# PostHog is declared here (not via Xcode's package UI). The .xcodeproj is
+# generated from this file — any edits to project.pbxproj are wiped by the
+# next `xcodegen generate`. Always declare packages here instead.
+# Check https://github.com/PostHog/posthog-ios/releases for the latest version.
+packages:
+  PostHog:
+    url: https://github.com/PostHog/posthog-ios
+    from: 3.64.1
+  RevenueCat:
+    url: https://github.com/RevenueCat/purchases-ios
+    from: 5.40.0
+
 options:
   bundleIdPrefix: com.doublewaterapps
   deploymentTarget:
@@ -24,6 +37,8 @@ targets:
     dependencies:
       - target: BeforeShowWidgets
         embed: true
+      - package: PostHog
+      - package: RevenueCat
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.doublewaterapps.beforeshow
@@ -37,11 +52,22 @@ targets:
         SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD: false
         UILAUNCHSTORYBOARDNAME: LaunchScreen
         ENABLE_USER_SCRIPT_SANDBOXING: true
+        # PostHog configuration — read from Info.plist at runtime via Bundle.main.
+        # Keep in sync with the PostHogAPIKey / PostHogHost entries in Info.plist.
+        POSTHOG_API_KEY: phc_zLnN7zxFf2zTS5XkNd9um5DgNPmv4ZZejgR6Ln2uudVm
+        POSTHOG_HOST: https://us.i.posthog.com
+        # RevenueCat public SDK key is injected into Info.plist as RevenueCatAPIKey.
+        # Debug uses the Test Store key (test_…) so paywall iteration does not
+        # depend on App Store Connect. Release must use an App Store key (appl_…).
+        # appl_REPLACE_ME / empty values skip configure and fall back to Mock.
+        REVENUECAT_API_KEY: appl_FWKFhestdOkpZpYZCMTNHDpCfFZ
       configs:
         Debug:
           CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.Debug.entitlements
+          REVENUECAT_API_KEY: test_hBPlDvelppaflbazKfzVpfjTnEV
         Release:
           CODE_SIGN_ENTITLEMENTS: BeforeShow/BeforeShow.entitlements
+          REVENUECAT_API_KEY: appl_FWKFhestdOkpZpYZCMTNHDpCfFZ
     scheme:
       testTargets:
         - BeforeShowTests

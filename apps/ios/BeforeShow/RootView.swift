@@ -13,14 +13,15 @@ struct RootView: View {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var isShowingFirstShowAdd = false
-    @State private var addShowToast: BSToastPayload?
     @State private var isTabBarHidden = false
     /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
     /// 在 onChange 触发自己的 push。详见 `presentCeremonyMemoryNavigation`。
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
     /// 长按图标「Pro 限时优惠」Quick Action 的 deep link 路由。
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
+    /// 点击本地通知的 deep link 路由。RootView 只负责切到「当前」tab，
+    /// 具体目标（首页 / 记忆碎片）由 CurrentShowHomeView 消费。
+    @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     /// 语言变化要刷新所有 BSLocalization 文案，但不能换掉 RootView 的身份：
     /// 用 .id(language) 会重建整棵树，把 tab / Settings / 仪式等状态一起丢掉。
     /// 这里只订阅变化触发 body 重算，导航与呈现状态原样保留。
@@ -37,11 +38,14 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            if !hasCompletedOnboarding && shows.isEmpty {
-                OnboardingPlaceholderView(
-                    onStartFirstShow: { isShowingFirstShowAdd = true },
-                    onSkip: { hasCompletedOnboarding = true }
-                )
+            // onboarding 不看 shows 是否为空：P5 创建现场后 shows 已非空，
+            // 但 P6「第一个倒计时」仍要展示，只有完成 onboarding 才进入主界面。
+            if !hasCompletedOnboarding {
+                OnboardingView(onFinish: {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        hasCompletedOnboarding = true
+                    }
+                })
                 .opacity(hasFinishedSplash ? 1 : 0)
             } else {
                 mainTabView
@@ -58,67 +62,42 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
-        .bsToastOverlay(addShowToast, bottomPadding: 90)
-        .sheet(isPresented: $isShowingFirstShowAdd, onDismiss: {
-            hasCompletedOnboarding = true
-        }) {
-            AddShowCoordinatorSheet(
-                initialSheet: Self.debugOpenAddShowManual ? .manual : nil
-            ) {
-                presentAddShowSuccess()
-            }
-        }
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
+        }
+        .onChange(of: notificationRouter.pendingDeepLink) { _, deepLink in
+            // 通知落地的前提是先站在「当前」tab；目标的消费在首页。
+            guard deepLink != nil else { return }
+            hasCompletedOnboarding = true
+            selectedTab = .current
         }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
-            if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
+            if ProcessInfo.processInfo.arguments.contains("--seed-app-store-screenshots")
+                || ProcessInfo.processInfo.arguments.contains("--seed-opening-memory-window")
+                || ProcessInfo.processInfo.arguments.contains("--open-footprints")
+                || ProcessInfo.processInfo.arguments.contains("--open-pro-paywall")
+                || ProcessInfo.processInfo.arguments.contains("--open-pro-winback")
+                || ProcessInfo.processInfo.arguments.contains("--open-show-library")
+                || ProcessInfo.processInfo.arguments.contains("--open-memory-fragments")
+                || ProcessInfo.processInfo.arguments.contains("--open-add-show-review")
+                || ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating")
+                || ProcessInfo.processInfo.arguments.contains("--open-widget-preview") {
                 hasCompletedOnboarding = true
+            }
+            if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
                 selectedTab = .footprints
             }
-            if Self.debugOpenAddShowManual {
-                hasCompletedOnboarding = true
-                isShowingFirstShowAdd = true
-            }
             if ProcessInfo.processInfo.arguments.contains("--open-pro-paywall") {
-                hasCompletedOnboarding = true
                 ProOfferDeepLinkRouter.shared.routeToPro()
             }
             if ProcessInfo.processInfo.arguments.contains("--open-pro-winback") {
-                hasCompletedOnboarding = true
                 ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
             }
         }
         #endif
-    }
-
-    @Query(sort: \Show.date) private var shows: [Show]
-
-    /// DEBUG launch arg for UI tests: open first-show sheet already on 手动填写.
-    /// Scoped to that sheet only — 足迹补录 / 其它添加入口仍走三选一。
-    private static var debugOpenAddShowManual: Bool {
-        #if DEBUG
-        ProcessInfo.processInfo.arguments.contains("--open-add-show-manual")
-        #else
-        false
-        #endif
-    }
-
-    private func presentAddShowSuccess() {
-        let payload = BSToastPayload(tone: .success, message: BSLocalization.text("已放入当前现场"))
-        // Apple §13 Multimodal feedback — fire the success haptic on the same
-        // frame as the toast so causality reads as one beat, not a delayed echo.
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        addShowToast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if addShowToast == payload {
-                addShowToast = nil
-            }
-        }
     }
 
     /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
@@ -172,50 +151,6 @@ enum CurrentShowPlaybackPolicy {
     }
 }
 
-// MARK: - Onboarding Placeholder
-
-private struct OnboardingPlaceholderView: View {
-    let onStartFirstShow: () -> Void
-    let onSkip: () -> Void
-
-    var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-
-            VStack(spacing: BSSpacing.lg) {
-                Spacer()
-
-                Text("开场前")
-                    .font(.system(size: 48, weight: .light))
-                    .tracking(6)
-                    .bsGradientText()
-
-                Text("把要去的现场放进来，\n慢慢靠近那一场。")
-                    .font(BSFont.body)
-                    .foregroundColor(BSColor.textSecondary)
-                    .multilineTextAlignment(.center)
-
-                Button(action: onStartFirstShow) {
-                    Text("添加第一场现场")
-                        .font(BSFont.caption)
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.white)
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                }
-                .padding(.horizontal, 48)
-
-                Button("先逛逛", action: onSkip)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.textTertiary)
-
-                Spacer()
-            }
-        }
-    }
-}
-
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
@@ -231,6 +166,8 @@ private struct CurrentShowHomeView: View {
     @Query private var notificationStates: [NotificationSchedulingState]
     @Environment(\.scenePhase) private var scenePhase
     @State private var isShowingAddShowCoordinator = false
+    @State private var isShowingAddShowReview = false
+    @State private var isShowingWidgetPreview = false
     @State private var toast: BSToastPayload?
     @State private var isShowingSettings = false
     @State private var isShowingShowLibrary = false
@@ -347,13 +284,33 @@ private struct CurrentShowHomeView: View {
                     presentAddShowSuccess()
                 }
             }
+            #if DEBUG
+            .sheet(isPresented: $isShowingAddShowReview) {
+                NavigationStack {
+                    AddShowFlowView(
+                        sheet: .link,
+                        prefilledDraft: DebugSampleShowSeeder.appStoreReviewDraft()
+                    )
+                }
+                .preferredColorScheme(.dark)
+            }
+            .fullScreenCover(isPresented: $isShowingWidgetPreview) {
+                AppStoreWidgetPreviewView()
+            }
+            #endif
             .task(id: widgetSyncFingerprint) {
                 WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+                    Task { await reconcileNotificationFocus() }
                 }
+            }
+            .task {
+                // 当前现场会随时间自然更替（旧现场过了停留期，下一场接上）。
+                // 只有数据变更时才排通知的话，新的当前现场会一条都收不到。
+                await reconcileNotificationFocus()
             }
             .sheet(isPresented: $isShowingSettings) {
                 NavigationStack {
@@ -375,6 +332,31 @@ private struct CurrentShowHomeView: View {
                 if ProcessInfo.processInfo.arguments.contains("--open-settings") {
                     isShowingSettings = true
                 }
+                if ProcessInfo.processInfo.arguments.contains("--open-show-library") {
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    isShowingShowLibrary = true
+                }
+                if ProcessInfo.processInfo.arguments.contains("--open-add-show-review") {
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    isShowingAddShowReview = true
+                }
+                if ProcessInfo.processInfo.arguments.contains("--open-widget-preview") {
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    isShowingWidgetPreview = true
+                }
+                // 截图 / 验证用:跳过熄灯动画，直接打开散场评分分档页（默认选中「夯爆了」）。
+                if ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating"),
+                   let target = shows.first(where: { $0.name == "「夜航」巡演 · 上海站" })
+                    ?? shows.first(where: { $0.endedAt == nil }) {
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    target.markEnded(at: Date())
+                    try? target.setClosingRitual(
+                        rating: 5,
+                        note: "最后一首歌结束的时候，灯亮得特别慢，舍不得走。"
+                    )
+                    try? modelContext.save()
+                    ceremonySheetShowID = target.id
+                }
                 // 截图 / 验证用:对当前 live 现场直接拉起散场仪式,跳过手动点「结束现场」。
                 if ProcessInfo.processInfo.arguments.contains("--auto-fire-dispersal"),
                    let live = shows.first(where: { $0.endedAt == nil }) {
@@ -391,6 +373,15 @@ private struct CurrentShowHomeView: View {
     private func presentDynamicCoverPicker() {
         guard !isImportingDynamicCover else { return }
         isShowingDynamicCoverPicker = true
+    }
+
+    /// 按此刻重算当前现场并对齐已排通知。空转很便宜：计划没变时不重写任何东西。
+    @MainActor
+    private func reconcileNotificationFocus() async {
+        await LocalNotificationCenter.shared.reconcileFocus(
+            to: currentShow,
+            in: ModelContext(modelContext.container)
+        )
     }
 
     @MainActor
@@ -513,9 +504,11 @@ struct CurrentShowManagementSection: View {
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Environment(\.scenePhase) private var scenePhase
     @State private var presentedSheet: CurrentShowPresentedSheet?
+    @State private var pendingMemoryCreate: MemoryCreateSourceOption?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
+    @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -554,6 +547,14 @@ struct CurrentShowManagementSection: View {
 
     var body: some View {
         homeContent(now: Date())
+        #if DEBUG
+        .task {
+            if ProcessInfo.processInfo.arguments.contains("--open-memory-fragments") {
+                try? await Task.sleep(nanoseconds: 900_000_000)
+                presentedSheet = .memory
+            }
+        }
+        #endif
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .endConfirmation:
@@ -590,7 +591,12 @@ struct CurrentShowManagementSection: View {
                     onDetailVisibilityChange: onDetailVisibilityChange
                 )
             case .memory:
-                MemoryFragmentsSheet(show: show)
+                MemoryFragmentsSheet(show: show, pendingCreate: pendingMemoryCreate)
+            case .memoryCreate:
+                MemoryCreateSourceSheet { option in
+                    pendingMemoryCreate = option
+                    presentedSheet = nil
+                }
             case .mapChooser:
                 MapChooserSheet(
                     hasDestination: hasMapDestination,
@@ -639,6 +645,19 @@ struct CurrentShowManagementSection: View {
         }
         .onAppear {
             installedMapApps = ExternalMapApp.installed
+            // 冷启动点通知：路由早于视图出现，onChange 收不到，这里补一次。
+            consumeNotificationDeepLink()
+        }
+        .onChange(of: notificationRouter.pendingDeepLink) { _, _ in
+            consumeNotificationDeepLink()
+        }
+        .onChange(of: presentedSheet) { oldSheet, newSheet in
+            if newSheet == nil, oldSheet == .memoryCreate, pendingMemoryCreate != nil {
+                presentedSheet = .memory
+            }
+            if newSheet == nil, oldSheet == .memory {
+                pendingMemoryCreate = nil
+            }
         }
         .alert(
             "同行",
@@ -708,12 +727,32 @@ struct CurrentShowManagementSection: View {
                             ? { presentedSheet = .endConfirmation }
                             : nil,
                         onCompanion: { presentedSheet = .companion },
-                        onMemoryFragments: { presentedSheet = .memory }
+                        onMemoryFragments: {
+                            pendingMemoryCreate = nil
+                            presentedSheet = .memory
+                        },
+                        onMemoryCreate: {
+                            pendingMemoryCreate = nil
+                            presentedSheet = .memoryCreate
+                        }
                     )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
 
-                    quickActionRow(CurrentShowQuickAction.actions(for: phase))
+                    quickActionRow(
+                        CurrentShowQuickAction.actions(
+                            for: phase,
+                            inOpeningMemoryWindow: OpeningMemoryWindow.isActive(
+                                now: now,
+                                showStart: CurrentShowTimeState.effectiveStartTime(
+                                    for: show,
+                                    calendar: show.timingCalendar()
+                                ),
+                                isLive: phase == .live
+                            ),
+                            canRecordEnd: canRecordEnd
+                        )
+                    )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 17)
 
@@ -864,6 +903,28 @@ struct CurrentShowManagementSection: View {
         }
     }
 
+    /// 只处理指向当前现场的通知。指向别的现场时保持 pending 不消费也无意义
+    /// （用户已经看到的是另一场），直接丢弃，避免路由卡住后续通知。
+    private func consumeNotificationDeepLink() {
+        guard let deepLink = notificationRouter.pendingDeepLink else { return }
+        guard deepLink.showID == show.id else {
+            notificationRouter.consume()
+            return
+        }
+        notificationRouter.consume()
+
+        switch deepLink.destination {
+        case .home:
+            break
+        case .memoryFragments:
+            pendingMemoryCreate = nil
+            presentedSheet = .memory
+        case .memoryCreate:
+            pendingMemoryCreate = nil
+            presentedSheet = .memoryCreate
+        }
+    }
+
     private func performQuickAction(_ action: CurrentShowQuickAction) {
         switch action {
         case .route:
@@ -876,7 +937,10 @@ struct CurrentShowManagementSection: View {
         case .timetable:
             openAsset(.timetable)
         case .memoryFragments:
+            pendingMemoryCreate = nil
             presentedSheet = .memory
+        case .endShow:
+            presentedSheet = .endConfirmation
         }
     }
 
@@ -1064,6 +1128,7 @@ enum CurrentShowQuickAction: Hashable {
     case ticket
     case timetable
     case memoryFragments
+    case endShow
 
     var title: String {
         switch self {
@@ -1072,6 +1137,7 @@ enum CurrentShowQuickAction: Hashable {
         case .ticket: return BSLocalization.text("票根")
         case .timetable: return BSLocalization.text("时刻表")
         case .memoryFragments: return BSLocalization.text("记忆碎片")
+        case .endShow: return BSLocalization.text("结束现场")
         }
     }
 
@@ -1082,16 +1148,28 @@ enum CurrentShowQuickAction: Hashable {
         case .ticket: return "ticket"
         case .timetable: return "list.bullet.rectangle"
         case .memoryFragments: return "photo.on.rectangle.angled"
+        case .endShow: return "flag.checkered"
         }
     }
 
     /// 快捷入口按生命周期排序:主行动已在卡片上,这里保留其余入口,
     /// 但把当前阶段次相关的动作后置,避免 ended 后路线/票根抢占记忆。
-    static func actions(for phase: HomeShowPhase) -> [Self] {
+    static func actions(
+        for phase: HomeShowPhase,
+        inOpeningMemoryWindow: Bool = false,
+        canRecordEnd: Bool = true
+    ) -> [Self] {
         switch phase {
         case .pre:
             return [.route, .ticket, .timetable, .companion, .memoryFragments]
         case .live:
+            if inOpeningMemoryWindow {
+                var actions: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
+                if canRecordEnd {
+                    actions.insert(.endShow, at: 0)
+                }
+                return actions
+            }
             return [.companion, .memoryFragments, .route, .ticket, .timetable]
         case .ended:
             return [.memoryFragments, .companion, .route, .ticket, .timetable]
@@ -1739,8 +1817,16 @@ private struct CurrentShowEmptyStateView: View {
 @MainActor
 private enum DebugSampleShowSeeder {
     static func seedIfRequested(in modelContext: ModelContext) {
+        if ProcessInfo.processInfo.arguments.contains("--seed-app-store-screenshots") {
+            seedAppStoreScreenshots(in: modelContext)
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--seed-current-management-live") {
             seedCurrentManagementLive(in: modelContext)
+            return
+        }
+        if ProcessInfo.processInfo.arguments.contains("--seed-opening-memory-window") {
+            seedCurrentManagementLive(in: modelContext, startedAgo: 12 * 60)
             return
         }
         if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-near") {
@@ -1797,6 +1883,281 @@ private enum DebugSampleShowSeeder {
             try modelContext.save()
         } catch {
             assertionFailure("Failed to seed add-show samples: \(error)")
+        }
+    }
+
+    /// App Store 截屏演示包：当前「夜航」+ 两场未来现场 + 记忆碎片。
+    /// 封面用自有 `default_cover`，避免真实艺人海报版权风险。
+    /// Upsert by name — 不要删掉当前现场，否则已打开的 sheet 会绑到被 cascade 清掉的旧对象。
+    static func seedAppStoreScreenshots(in modelContext: ModelContext) {
+        let coverURL = installDefaultCoverURL() ?? ""
+        let primary = appStorePrimaryDraft(coverURL: coverURL)
+        let now = Date()
+        let secondaryDrafts: [ShowDraft] = [
+            ShowDraft(
+                name: "潮汐 Livehouse · 杭州站",
+                date: now.addingTimeInterval(18 * 86_400),
+                startTime: appStoreWallTime(on: now.addingTimeInterval(18 * 86_400)),
+                city: "杭州",
+                venueName: "酒球会",
+                artists: [ArtistSlot(name: "潮汐", avatarURL: nil)],
+                coverImageURL: coverURL,
+                source: .manual
+            ),
+            ShowDraft(
+                name: "山海音乐节 · 成都",
+                date: now.addingTimeInterval(42 * 86_400),
+                startTime: appStoreWallTime(on: now.addingTimeInterval(42 * 86_400)),
+                city: "成都",
+                venueName: "露天音乐公园",
+                artists: [ArtistSlot(name: "山海", avatarURL: nil)],
+                coverImageURL: coverURL,
+                source: .manual
+            )
+        ]
+        // 足迹页需要已结束现场；全部虚构，避免真实艺人海报/名称风险。
+        let endedDrafts: [(ShowDraft, TimeInterval, Int?)] = [
+            (
+                ShowDraft(
+                    name: "南风 Live · 厦门站",
+                    date: now.addingTimeInterval(-40 * 86_400),
+                    startTime: appStoreWallTime(on: now.addingTimeInterval(-40 * 86_400)),
+                    city: "厦门",
+                    venueName: "岸边音乐空间",
+                    artists: [ArtistSlot(name: "南风", avatarURL: nil)],
+                    coverImageURL: coverURL,
+                    source: .manual
+                ),
+                2.5 * 3_600,
+                5
+            ),
+            (
+                ShowDraft(
+                    name: "极光音乐节 · 昆明",
+                    date: now.addingTimeInterval(-120 * 86_400),
+                    startTime: appStoreWallTime(on: now.addingTimeInterval(-120 * 86_400)),
+                    city: "昆明",
+                    venueName: "滇池草坪",
+                    artists: [
+                        ArtistSlot(name: "极光", avatarURL: nil),
+                        ArtistSlot(name: "夜航", avatarURL: nil)
+                    ],
+                    coverImageURL: coverURL,
+                    source: .manual
+                ),
+                5 * 3_600,
+                4
+            ),
+            (
+                ShowDraft(
+                    name: "回声巡演 · 南京站",
+                    date: now.addingTimeInterval(-220 * 86_400),
+                    startTime: appStoreWallTime(on: now.addingTimeInterval(-220 * 86_400)),
+                    city: "南京",
+                    venueName: "奥体中心体育馆",
+                    artists: [ArtistSlot(name: "回声", avatarURL: nil)],
+                    coverImageURL: coverURL,
+                    source: .manual
+                ),
+                2.5 * 3_600,
+                5
+            ),
+            (
+                ShowDraft(
+                    name: "潮汐 Livehouse · 上海站",
+                    date: now.addingTimeInterval(-300 * 86_400),
+                    startTime: appStoreWallTime(on: now.addingTimeInterval(-300 * 86_400)),
+                    city: "上海",
+                    venueName: "育音堂",
+                    artists: [ArtistSlot(name: "潮汐", avatarURL: nil)],
+                    coverImageURL: coverURL,
+                    source: .manual
+                ),
+                2 * 3_600,
+                3
+            )
+        ]
+
+        do {
+            let existingShows = try modelContext.fetch(FetchDescriptor<Show>())
+            let keepNames = Set(
+                [primary.name]
+                    + secondaryDrafts.map(\.name)
+                    + endedDrafts.map(\.0.name)
+            )
+
+            let current: Show
+            if let existing = existingShows.first(where: { $0.name == primary.name }) {
+                try existing.apply(primary)
+                existing.markScheduled()
+                existing.clearEnded()
+                current = existing
+            } else {
+                current = try primary.makeShow()
+                modelContext.insert(current)
+            }
+
+            for draft in secondaryDrafts {
+                if let existing = existingShows.first(where: { $0.name == draft.name }) {
+                    try existing.apply(draft)
+                    existing.markScheduled()
+                    existing.clearEnded()
+                } else {
+                    modelContext.insert(try draft.makeShow())
+                }
+            }
+
+            for (draft, duration, rating) in endedDrafts {
+                let show: Show
+                if let existing = existingShows.first(where: { $0.name == draft.name }) {
+                    try existing.apply(draft)
+                    show = existing
+                } else {
+                    show = try draft.makeShow()
+                    modelContext.insert(show)
+                }
+                let endAt = (draft.startTime ?? draft.date).addingTimeInterval(duration)
+                show.markEnded(at: endAt)
+                if let rating {
+                    try? show.setClosingRitual(rating: rating, note: nil)
+                }
+            }
+
+            for show in existingShows where !keepNames.contains(show.name) {
+                modelContext.delete(show)
+            }
+
+            let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+            if let selection = selections.first {
+                selection.select(showID: current.id)
+            } else {
+                modelContext.insert(CurrentShowSelection(selectedShowID: current.id))
+            }
+
+            // 截屏包每次刷新记忆，保证带上图片素材（upsert 场景下旧纯文字碎片会被替换）。
+            for fragment in current.memoryFragments {
+                modelContext.delete(fragment)
+            }
+            try seedAppStoreMemoryFragments(for: current, now: now, in: modelContext)
+
+            try modelContext.save()
+        } catch {
+            assertionFailure("Failed to seed app store screenshots: \(error)")
+        }
+    }
+
+    private static func seedAppStoreMemoryFragments(
+        for show: Show,
+        now: Date,
+        in modelContext: ModelContext
+    ) throws {
+        let before = try MemoryFragment(
+            showID: show.id,
+            text: "候场的风有点凉，票根捏在手里才觉得真的要开始了。",
+            createdAt: now.addingTimeInterval(-3 * 86_400),
+            phase: .before
+        )
+        before.show = show
+        try attachDefaultCoverPhoto(to: before, showID: show.id)
+        modelContext.insert(before)
+
+        let live = try MemoryFragment(
+            showID: show.id,
+            text: "灯暗下来的一刻，整个场馆都安静了。",
+            createdAt: now.addingTimeInterval(-2 * 86_400),
+            phase: .live
+        )
+        live.show = show
+        try attachDefaultCoverPhoto(to: live, showID: show.id)
+        modelContext.insert(live)
+
+        let after = try MemoryFragment(
+            showID: show.id,
+            text: "散场后还不想离开，想把这一晚多留一会儿。",
+            createdAt: now.addingTimeInterval(-86_400),
+            phase: .after
+        )
+        after.show = show
+        try attachDefaultCoverPhoto(to: after, showID: show.id)
+        modelContext.insert(after)
+    }
+
+    private static func attachDefaultCoverPhoto(to fragment: MemoryFragment, showID: UUID) throws {
+        guard let image = UIImage(named: "default_cover"),
+              let data = image.jpegData(compressionQuality: 0.88) else { return }
+        let mediaID = UUID()
+        let directory = "\(showID.uuidString)/\(fragment.id.uuidString)"
+        let relativePath = "\(directory)/\(mediaID.uuidString).jpg"
+        let thumbnailPath = "\(directory)/\(mediaID.uuidString)-thumbnail.jpg"
+        let location = MemoryMediaLocation.applicationSupport()
+        let originalURL = location.url(for: relativePath)
+        try FileManager.default.createDirectory(
+            at: originalURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: originalURL, options: .atomic)
+        try data.write(to: location.url(for: thumbnailPath), options: .atomic)
+        try fragment.appendMedia(MemoryMediaItem(
+            id: mediaID,
+            kind: .photo,
+            relativePath: relativePath,
+            thumbnailRelativePath: thumbnailPath,
+            contentTypeIdentifier: UTType.jpeg.identifier,
+            videoDuration: nil,
+            sortOrder: 0
+        ))
+    }
+
+    static func appStoreReviewDraft() -> ShowDraft {
+        appStorePrimaryDraft(coverURL: installDefaultCoverURL() ?? "")
+    }
+
+    private static func appStorePrimaryDraft(coverURL: String) -> ShowDraft {
+        let start = appStorePrimaryStartDate()
+        return ShowDraft(
+            name: "「夜航」巡演 · 上海站",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "回声剧场",
+            artists: [ArtistSlot(name: "夜航", avatarURL: nil)],
+            coverImageURL: coverURL,
+            source: .link,
+            recognizedFields: [.name, .date, .startTime, .city, .venueName, .artist]
+        )
+    }
+
+    private static func appStorePrimaryStartDate() -> Date {
+        appStoreWallTime(on: Date().addingTimeInterval(56 * 86_400))
+    }
+
+    private static func appStoreWallTime(on day: Date) -> Date {
+        var calendar = Calendar.current
+        calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+        let parts = calendar.dateComponents([.year, .month, .day], from: day)
+        return calendar.date(
+            from: DateComponents(
+                year: parts.year,
+                month: parts.month,
+                day: parts.day,
+                hour: 19,
+                minute: 30
+            )
+        ) ?? day
+    }
+
+    private static func installDefaultCoverURL() -> String? {
+        guard let image = UIImage(named: "default_cover"),
+              let data = image.jpegData(compressionQuality: 0.92) else {
+            return nil
+        }
+        do {
+            let directory = try ShowCoverLocalImageStore.directory()
+            let url = directory.appendingPathComponent("app-store-yehang-cover.jpg")
+            try data.write(to: url, options: .atomic)
+            return url.absoluteString
+        } catch {
+            return nil
         }
     }
 
@@ -1881,10 +2242,10 @@ private enum DebugSampleShowSeeder {
         }
     }
 
-    private static func seedCurrentManagementLive(in modelContext: ModelContext) {
+    private static func seedCurrentManagementLive(in modelContext: ModelContext, startedAgo: TimeInterval = 84 * 60) {
         let name = "夏夜音乐会"
         let now = Date()
-        let start = now.addingTimeInterval(-84 * 60)
+        let start = now.addingTimeInterval(-startedAgo)
         let draft = ShowDraft(
             name: name,
             date: start,
@@ -2049,6 +2410,142 @@ private enum DebugSampleShowSeeder {
     private static func apply(_ draft: ShowDraft, to show: Show) {
         try? show.apply(draft)
         show.markScheduled()
+    }
+}
+
+/// App Store 截屏用：主屏幕中号 + 锁屏长条静态预览（数据与夜航演示包一致）。
+private struct AppStoreWidgetPreviewView: View {
+    var body: some View {
+        ZStack {
+            BSColor.Stage.background.ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                Text(BSLocalization.text("小组件"))
+                    .font(BSFont.tag)
+                    .tracking(3)
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Text(BSLocalization.text("不用打开，也在靠近"))
+                    .font(.system(size: 30, weight: .bold))
+                    .tracking(-0.5)
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 10)
+
+                Text(BSLocalization.text("主屏幕和锁屏，都替你数着那一天。"))
+                    .font(BSFont.body)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 9)
+
+                Spacer(minLength: 0)
+
+                VStack(spacing: 14) {
+                    mediumWidget
+                    lockScreenWidget
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .padding(.bottom, 40)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var mediumWidget: some View {
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(BSLocalization.text("距离灯亮还有"))
+                    .font(.system(size: 10, weight: .semibold))
+                    .tracking(1.2)
+                    .foregroundColor(BSColor.Stage.muted)
+
+                Spacer(minLength: 4)
+
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("56")
+                        .font(.system(size: 44, weight: .semibold))
+                        .tracking(-0.5)
+                        .foregroundColor(BSColor.Stage.heroIvory)
+                        .monospacedDigit()
+                    Text(BSLocalization.text("天"))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+
+                Spacer(minLength: 8)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(BSLocalization.text("「夜航」巡演 · 上海站"))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .lineLimit(1)
+                    Text(BSLocalization.text("10月14日 19:30 · 回声剧场"))
+                        .font(.system(size: 10))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Image("default_cover")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 86)
+                .clipped()
+                .overlay(alignment: .leading) {
+                    LinearGradient(
+                        colors: [Color(red: 0.018, green: 0.018, blue: 0.025), .clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                    .frame(width: 36)
+                }
+                .accessibilityHidden(true)
+        }
+        .padding(.leading, 16)
+        .padding(.vertical, 14)
+        .frame(height: (UIScreen.main.bounds.width - 44) * (170.0 / 364.0))
+        .background {
+            Image("default_cover")
+                .resizable()
+                .scaledToFill()
+                .blur(radius: 30)
+                .overlay(BSColor.Stage.background.opacity(0.82))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 22))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(BSLocalization.text("主屏幕小组件预览"))
+    }
+
+    private var lockScreenWidget: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(BSLocalization.format("还有 %lld 天", 56))
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Text(BSLocalization.text("「夜航」巡演 · 上海站 · 10月14日 19:30"))
+                .font(.system(size: 10))
+                .foregroundColor(BSColor.Stage.dim)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(BSLocalization.text("锁屏小组件预览"))
     }
 }
 #endif

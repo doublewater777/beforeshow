@@ -1,5 +1,23 @@
 # Gate History
 
+## 2026-08-19 · Opening Memory Window
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-19-opening-memory-window/`
+
+Verdict: unknown — cycle opened, local implementation in progress.
+
+Evidence: grilling + ADR 0033; live primary used to be End Show.
+
+Weakest assumption: people will capture a fragment in the first hour if the primary button asks for it.
+
+Decision: first hour from show start is the opening memory window; quiet notification at start; End Show demoted to shortcuts.
+
+Next stage: stay on manual-onboarding; verify on iPhone 17.
+
+Loop-back: if nobody taps capture or the notification feels like an interruption.
+
 ## 2026-08-15 · Widget Glance Simplify
 
 Stage: manual-onboarding
@@ -197,3 +215,13 @@ Cycle: `.builder/cycles/2026-08-04-ticket-timetable-assets/`
 Decision: implementation and simulator verification complete; user-value validation pending.
 
 Reason: ticket and timetable images now have local, show-bound storage with explicit non-official-ticket positioning, while shared media transaction boundaries and durable-storage failure behavior were hardened during adversarial review.
+
+## 2026-08-18 · RevenueCat Migration
+
+Stage: business-model
+
+Cycle: `.builder/cycles/2026-08-18-revenuecat-migration/`
+
+Decision: code cutover complete; dashboard and production key still open.
+
+Reason: StoreKit 2 purchase/restore was replaced with RevenueCat offerings and the `pro` entitlement. Debug uses Test Store; Release still needs an `appl_` key and catalog confirmation before sandbox/TestFlight purchases.
