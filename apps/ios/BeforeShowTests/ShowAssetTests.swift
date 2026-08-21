@@ -104,6 +104,94 @@ final class ShowAssetTests: XCTestCase {
         }
     }
 
+    func testRelativePathResolvesAliasedRootBeforeReconciliation() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetAlias-\(UUID().uuidString)", isDirectory: true)
+        let realRoot = parent.appendingPathComponent("real/ShowAssets", isDirectory: true)
+        let aliasedRoot = parent.appendingPathComponent("ShowAssetsAlias", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+
+        try FileManager.default.createDirectory(at: realRoot, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: aliasedRoot, withDestinationURL: realRoot)
+
+        let showID = UUID()
+        let relativePath = "\(showID.uuidString)/ticket/image.jpg"
+        let realFile = realRoot.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: realFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data([0x01]).write(to: realFile)
+
+        XCTAssertEqual(
+            try ShowAssetMediaStore.relativePath(for: realFile, under: aliasedRoot),
+            relativePath
+        )
+    }
+
+    func testTicketAndTimetablePersistAcrossDiskStoreRestart() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowAssetRestart-\(UUID().uuidString)", isDirectory: true)
+        let databaseURL = root.appendingPathComponent("show-assets.store")
+        let mediaRoot = root.appendingPathComponent("ShowAssets", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let store = ShowAssetMediaStore(location: ShowAssetMediaLocation(rootDirectory: mediaRoot))
+        let imageData = try XCTUnwrap(solidJPEGData())
+        var expectedPaths = Set<String>()
+
+        do {
+            let container = try ModelContainer(
+                for: Show.self,
+                ShowAsset.self,
+                configurations: ModelConfiguration(url: databaseURL, cloudKitDatabase: .none)
+            )
+            let context = container.mainContext
+            let now = Date(timeIntervalSince1970: 2_000_000_000)
+            let show = try Show(name: "重启现场", date: now, startTime: now)
+            context.insert(show)
+
+            for kind in ShowAssetKind.allCases {
+                let relativePath = try await store.saveImage(
+                    data: imageData,
+                    showID: show.id,
+                    kind: kind
+                )
+                let asset = ShowAsset(
+                    showID: show.id,
+                    kind: kind,
+                    relativePath: relativePath
+                )
+                asset.show = show
+                context.insert(asset)
+                expectedPaths.insert(relativePath)
+            }
+            try context.save()
+        }
+
+        do {
+            let container = try ModelContainer(
+                for: Show.self,
+                ShowAsset.self,
+                configurations: ModelConfiguration(url: databaseURL, cloudKitDatabase: .none)
+            )
+            let context = container.mainContext
+            let existingPaths = try await store.verifiedExistingRelativePaths()
+            XCTAssertEqual(existingPaths, expectedPaths)
+
+            let validPaths = try reconcileShowAssetShowBoundary(
+                in: context,
+                existingRelativePaths: existingPaths
+            )
+            XCTAssertEqual(validPaths, expectedPaths)
+
+            let assets = try context.fetch(FetchDescriptor<ShowAsset>())
+            XCTAssertEqual(Set(assets.map(\.relativePath)), expectedPaths)
+            XCTAssertEqual(Set(assets.map(\.kind)), Set(ShowAssetKind.allCases))
+        }
+    }
+
     func testReconcileDropsOrphanFilesAndKeepsReferenced() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ShowAssetReconcile-\(UUID().uuidString)", isDirectory: true)

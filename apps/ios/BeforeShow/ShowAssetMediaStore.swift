@@ -256,13 +256,31 @@ actor ShowAssetMediaStore {
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
             guard values.isRegularFile == true else { continue }
-            let relative = fileURL.path.replacingOccurrences(
-                of: location.rootDirectory.path + "/",
-                with: ""
-            )
-            existing.insert(relative)
+            existing.insert(try Self.relativePath(for: fileURL, under: location.rootDirectory))
         }
         return existing
+    }
+
+    /// FileManager may surface the same sandbox through aliased absolute paths
+    /// (for example `/var/...` vs `/private/var/...`). Resolve both sides before
+    /// deriving a persisted relative path so launch reconciliation never mistakes
+    /// a valid ticket/timetable file for a missing one.
+    nonisolated static func relativePath(for fileURL: URL, under rootDirectory: URL) throws -> String {
+        let root = rootDirectory.resolvingSymlinksInPath().standardizedFileURL
+        let file = fileURL.resolvingSymlinksInPath().standardizedFileURL
+        let rootComponents = root.pathComponents
+        let fileComponents = file.pathComponents
+
+        guard fileComponents.count > rootComponents.count,
+              Array(fileComponents.prefix(rootComponents.count)) == rootComponents else {
+            throw ShowAssetMediaStoreError.invalidRelativePath
+        }
+
+        let relative = fileComponents.dropFirst(rootComponents.count).joined(separator: "/")
+        guard isSafeRelativePath(relative) else {
+            throw ShowAssetMediaStoreError.invalidRelativePath
+        }
+        return relative
     }
 
     private func prepareRootDirectory() throws {
