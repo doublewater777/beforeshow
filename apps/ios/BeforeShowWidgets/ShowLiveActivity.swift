@@ -80,7 +80,7 @@ struct ShowLiveActivity: Widget {
 
 // MARK: - 实时时间语义
 
-private enum LiveActivityClockPhase {
+private enum LiveActivityClockPhase: Equatable {
     case before
     case live
     case awaitingEndConfirmation
