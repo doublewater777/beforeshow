@@ -666,8 +666,10 @@ createSourceError = BSLocalization.text("没有相机权限。你可以在系统
     }
 
     private var timelineSections: [(phase: MemoryFragmentPhase, fragments: [MemoryFragment])] {
-        [MemoryFragmentPhase.after, .live, .before].compactMap { phase in
-            let items = visibleFragments.filter { $0.phase == phase }
+        MemoryFragmentPhase.timelineDisplayOrder.compactMap { phase in
+            let items = visibleFragments.filter {
+                resolvedPhase(for: show, at: $0.createdAt) == phase
+            }
             guard !items.isEmpty else { return nil }
             return (phase, items)
         }

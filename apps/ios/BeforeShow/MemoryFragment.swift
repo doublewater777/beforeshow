@@ -21,7 +21,8 @@ final class MemoryFragment {
     var text: String?
     var createdAt: Date
     var updatedAt: Date
-    /// Frozen phase raw value. `nil` means legacy rows awaiting one-time backfill.
+    /// Creation-time phase snapshot retained for legacy data and migrations.
+    /// The memory timeline resolves the visible phase from the current Show timing.
     var phaseRawValue: String?
 
     @Relationship(deleteRule: .cascade, inverse: \MemoryMediaItem.fragment)

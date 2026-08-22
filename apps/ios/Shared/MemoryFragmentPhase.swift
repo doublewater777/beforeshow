@@ -1,6 +1,6 @@
 import Foundation
 
-/// 记忆碎片在创建时固化的现场位置。外显分组标题固定为这三词。
+/// 记忆碎片在时间流中的现场位置。展示时应根据记忆创建时刻与当前现场时间边界解析。
 enum MemoryFragmentPhase: String, Codable, CaseIterable, Equatable, Sendable {
     case before
     case live

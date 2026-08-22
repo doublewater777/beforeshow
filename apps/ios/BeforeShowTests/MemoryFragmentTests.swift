@@ -909,6 +909,28 @@ final class MemoryFragmentTests: XCTestCase {
         )
     }
 
+    func testPhaseResolutionRecomputesAfterEndTimeEdit() {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 8, day: 4, hour: 19))!
+        let createdAt = calendar.date(from: DateComponents(year: 2026, month: 8, day: 4, hour: 22))!
+        let originalEnd = calendar.date(from: DateComponents(year: 2026, month: 8, day: 4, hour: 23))!
+        var timing = ShowTimingFields(
+            date: start,
+            startTime: start,
+            endDate: nil,
+            endTime: originalEnd,
+            endedAt: nil,
+            postponedDate: nil,
+            changeStatus: .scheduled
+        )
+
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: createdAt, timing: timing, calendar: calendar), .live)
+
+        timing.endTime = calendar.date(from: DateComponents(year: 2026, month: 8, day: 4, hour: 21))
+
+        XCTAssertEqual(MemoryFragmentPhase.resolved(at: createdAt, timing: timing, calendar: calendar), .after)
+    }
+
     func testMediaLimitIsHardCappedAtTen() throws {
         let fragment = try MemoryFragment(showID: UUID(), text: "cap")
         for index in 0..<MemoryFragment.maximumMediaCount {
