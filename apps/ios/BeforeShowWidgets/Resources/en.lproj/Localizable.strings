@@ -18,11 +18,14 @@
 "待确认 · %@" = "Pending · %@";
 "已进行" = "Elapsed";
 "已开场" = "Show started";
+"已开" = "Live";
 "开场中 · 已进行 %@" = "Show in progress · Elapsed %@";
 "开场前" = "BeforeShow";
 "开场前 · 还没有现场" = "BeforeShow · No show yet";
 "打开开场前,添加下一场" = "Open BeforeShow to add your next show";
-"时 : 分 : 秒" = "hours : minutes : seconds";
+"时 : 分 : 秒" = "hr : min : sec";
+"分 : 秒" = "min : sec";
+"分秒" = "min·sec";
 "灯光已亮" = "Lights are up";
 "灯光已亮 · 开场中" = "Lights are up · Show in progress";
 "落幕" = "End";
@@ -65,6 +68,7 @@
 "正在" = "Now";
 "正在现场" = "At the show";
 "现场" = "Show";
+"还有" = "In";
 "还有 %lld %@" = "%lld %@ remaining";
 "还有 %lld 天" = "%lld days remaining";
 "这场已结束" = "This show has ended";
@@ -79,6 +83,7 @@
 
 "演出进行中" = "Live now";
 "距离灯亮还有" = "Lights on in";
+"距离开场" = "Until show starts";
 
 "今晚灯亮" = "Tonight, lights up";
 "即将灯亮" = "Lights up soon";
