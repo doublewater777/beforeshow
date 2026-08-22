@@ -431,6 +431,7 @@ struct CurrentShowLibraryManagementView: View {
                 .padding(.bottom, 40)
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
             .bsNavigationScrollEdge()
         }
         .navigationTitle("我的现场")
@@ -795,11 +796,6 @@ private struct CurrentShowLibraryRow: View {
                             .lineLimit(1)
                     }
                     Spacer(minLength: 0)
-                    if let urlString = show.firstRecognizedArtistAvatarURL,
-                       let url = URL(string: urlString) {
-                        ArtistAvatarThumb(url: url, size: 28)
-                            .padding(.trailing, 4)
-                    }
                 }
                 .padding(11)
                 .contentShape(Rectangle())

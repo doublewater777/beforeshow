@@ -1,19 +1,19 @@
 /* Generated localization. Source language: zh-Hans. */
 
 "%1$@ 快开场了，%2$@ 见" = "%1$@ is almost on. See you at %2$@";
-"%1$@ 还有一周，可以先熟悉一下 %2$@ 怎么去" = "One week until %1$@. Maybe look up how to get to %2$@";
+"%1$@ 还有一周，可以先查查 %2$@ 怎么去" = "One week until %1$@. Maybe look up how to get to %2$@";
 "%@" = "%@";
 "%1$@ %2$@" = "%1$@ %2$@";
 "%1$@ / %2$@" = "%1$@/%2$@";
 "%1$@ · %2$@" = "%1$@ · %2$@";
-"%@ 快开场了，凭证电量再确认一遍" = "%@ is almost on. Check your ticket and battery once more";
+"%@ 快开场了，门票和手机电量再确认一遍" = "%@ is almost on. Check your ticket and phone battery once more";
 "%@ 明天开始，第一天的东西今晚就收好" = "%@ starts tomorrow. Pack for day one tonight";
 "%@ 明天见，今晚早点休息" = "See you tomorrow at %@. Get some rest tonight";
 "%@ 的余温还在，想说的可以留在这里" = "%@ is still warm. Anything you want to keep can go here";
 "%@ 还有一周，可以先想想那天的样子了" = "One week until %@. You can start picturing that day";
-"%@ 还有三天，入场凭证和身份证件先确认一遍" = "Three days until %@. Check your ticket and ID";
+"%@ 还有三天，门票和身份证件先确认一遍" = "Three days until %@. Check your ticket and ID";
 "%@ 还有三天，站场时间不短，选一双好走的鞋" = "Three days until %@. It is a long stand, pick comfortable shoes";
-"%@ 还有三天，防晒、雨具和能坐下歇脚的东西可以先备好" = "Three days until %@. Sun care, rain gear and something to sit on";
+"%@ 还有三天，防晒、雨具和折叠椅可以先备好" = "Three days until %@. Sun care, rain gear and a folding chair";
 "%lld 场" = "%lld games";
 "%lld 场现场" = "%lld shows";
 "%lld 座城市 · %lld 个场馆" = "%lld cities · %lld venues";
@@ -53,7 +53,7 @@
 "双击查看详情" = "Double click to view details";
 "双指缩放，拖动查看细节" = "Pinch to zoom and drag to inspect details";
 "取消" = "Cancel";
-"只有快开场那条会响，其余都安静送达" = "Only the almost-time one makes a sound; the rest arrive quietly";
+"只有快开场那条会响，其余只弹横幅不发声" = "Only the almost-time one makes a sound; the rest show a silent banner";
 "在“当前”页长按主封面，可切换静态面与动态面。" = "On the Current tab, press and hold the main cover to switch between still and moving covers.";
 "在几个值得记一下的节点轻轻提醒，不推销任何东西。" = "A gentle nudge at a few moments worth noting. Nothing is being sold.";
 "场" = "shows";
@@ -81,6 +81,8 @@
 "当前" = "Current";
 "当前封面" = "Current cover";
 "当前展示" = "Current display";
+"阵容" = "Lineup";
+"在 Apple Music 中查看 %@" = "View %@ in Apple Music";
 "当前现场" = "Current Show";
 "恢复购买" = "Restore Purchases";
 "我们一起看的\n第 %lld 场现场" = "We watched together\nShow %lld";
@@ -91,7 +93,7 @@
 "把要去和去过的现场都放进来。添加第一场后，这里会按时间保存你的所有现场。" = "Keep the shows you plan to attend and the ones you have lived through here. After your first show, everything is saved by date.";
 "把要去的现场放进来，\n慢慢靠近那一场。" = "Add the show you’re going to,\nthen ease into the moment.";
 "把要去的音乐现场放进来，\n慢慢靠近那一场。" = "Add the live music you’re going to,\nthen ease into the moment.";
-"拍一张照片、选择一段短视频，\n或者写下此刻的一句话。" = "Take a photo, choose a short video, \\n or write a sentence about the moment.";
+"拍一张照片、选择一段短视频，\n或者写下此刻的一句话。" = "Take a photo, choose a short video,\nor write a sentence about the moment.";
 "换个链接重试" = "Try another link";
 "搜索与筛选" = "Search & Filter";
 "搜索艺人、城市或场馆" = "Search artists, cities, or venues";
@@ -109,7 +111,9 @@
 "查看我的现场 · %lld 场" = "View My Shows · %lld";
 "档案起点" = "Archive Beginning";
 "次" = "times";
+"正在准备邀请" = "Preparing invitation";
 "正在准备视频…" = "Preparing video…";
+"正在打开系统分享" = "Opening system share…";
 "正在现场" = "At the show";
 "正在用地图查找地址…" = "Searching for an address on the map…";
 "永久移除这条现场记录" = "Permanently remove this show record";
@@ -220,8 +224,9 @@
 "这场还没有真正结束" = "This show is not quite over";
 
 "%@ 还有两周，期待已经开始了" = "%@ is two weeks away; the anticipation starts now";
+"%1$@ 还有 %2$d 天，已经开始期待了" = "%1$@ is %2$d days away; the anticipation is building";
 "该想想带什么了" = "Time to think about what to bring";
-"明天见，最后看一眼" = "See you tomorrow; one last look";
+"明天见" = "See you tomorrow";
 "快开场了" = "Almost time";
 "天气和体感" = "Weather and comfort";
 "现场礼仪" = "Show etiquette";
@@ -231,7 +236,7 @@
 "跨天停留时间更长，可以准备防晒、轻便雨具和能坐下休息的小垫子。" = "For a multi-day stay, bring sunscreen, light rain gear, and a small mat for breaks.";
 "拍摄时留意身后视线，想记录也别挡住别人看向舞台。" = "Mind the view behind you when filming; keep the stage clear for others too.";
 "散场人多时慢一点，先和同行的人约好汇合点。" = "Take it slowly when the crowd leaves and agree on a meeting point.";
-"把入场凭证、身份证件和必要电量提前确认好，到了门口就不用慌。" = "Check your ticket, ID, and battery before you leave so the entrance feels easy.";
+"把门票、身份证件和必要电量提前确认好，到了门口就不用慌。" = "Check your ticket, ID, and battery before you leave so the entrance feels easy.";
 "如果散场后人多，提前和同行的人约好集合点。" = "If the exit will be busy, agree on a meeting point with your group beforehand.";
 
 "%@ · 每日 %@" = "%@ · daily %@";
@@ -259,6 +264,7 @@
 "保存修改" = "Save Changes";
 "保存图片" = "Save Image";
 "保存失败" = "Save Failed";
+"已保存到相册" = "Image saved to album";
 "保存散场时间" = "Save End Time";
 "信息已保存，同步暂未更新" = "Info saved; sync not yet updated";
 "修改延期" = "Change Postponement";
@@ -507,6 +513,7 @@
 
 "通过 App Store 订阅；V2.1 不提供免费试用。" = "Subscribe via the App Store; V2.1 offers no free trial.";
 "上海" = "Shanghai";
+"上海体育场" = "Shanghai Stadium";
 "我" = "Me";
 "你" = "You";
 
@@ -1083,63 +1090,12 @@ First show: %@";
 "选择其他平台" = "Choose another platform";
 "粘贴%@链接？" = "Paste %@ link?";
 "粘贴%@链接并开始解析" = "Paste %@ link and start parsing";
+"被采纳的反馈会获得奖励" = "Adopted feedback earns a reward";
 
-/* Onboarding v4 */
-"Livehouse" = "Livehouse";
-"万人大合唱的看台" = "The stands of a ten-thousand-voice chorus";
-"为你调校" = "Tuned for You";
-"仅自己可见" = "Only Visible to You";
-"从现在起，慢慢靠近那一天。" = "From now on, drift slowly closer to the day.";
-"低频穿过胸口的位置" = "Where the bass hits your chest";
-"体育馆演唱会" = "Arena Show";
-"你常去哪种现场？" = "What Shows Do You Usually Go To?";
-"你的第一个倒计时" = "Your First Countdown";
-"先记下来，之后慢慢调。" = "Save it for now — fine-tune it anytime later.";
-"准备就绪" = "All Set";
-"前排被 cue 的风险区" = "The front row, where you might get called out";
-"剧场" = "Theater";
-"只要名称和日期就成立，其余之后慢慢补。" = "A name and a date are enough — fill in the rest later.";
-"在重要的节点，轻轻提醒你。" = "A gentle nudge at the moments that matter.";
-"夕阳下的压轴" = "The headliner under the sunset";
-"把下一场放进来" = "Add Your Next Show";
-"把当下留住" = "Hold On to the Moment";
-"把期待变成倒计时" = "Turn the Wait into a Countdown";
-"散场仪式 · 已落幕" = "Closing Ritual · Ended";
-"查看足迹 →" = "View Footprints →";
-"每场奔赴都算数" = "Every Show You Chase Counts";
-"灯亮时" = "Lights On";
-"灯亮的时候，值得留一点下来。" = "When the lights are on, keep a piece of it.";
-"灯暗下来的那一刻" = "The moment the lights go down";
-"熄灯仪式落幕，足迹替你数着每一场。" = "After the lights-out ritual, your footprints count every show.";
-"电子俱乐部" = "Club";
-"离音箱最近的那排" = "The row closest to the speakers";
-"第一场" = "First Show";
-"第一场现场：2025.11 · 雾屿乐队" = "First show: Nov 2025 · Mist Isle Band";
-"继续" = "Continue";
-"脱口秀" = "Stand-up";
-"要去的现场放进来，慢慢靠近那一天。" = "Put in the shows you're going to and drift closer to the day.";
-"还没有偏好，先去逛逛也好。" = "No preferences yet — feel free to look around first.";
-"进入开场前" = "Step into BeforeShow";
-"音乐节" = "Music Festival";
 "「夜航」巡演 · 上海站" = "Night Voyage Tour · Shanghai";
-"「晚风」专场" = "Evening Wind Live";
-"「晚风」专场 · 2026.08.14" = "Evening Wind Live · 2026.08.14";
-"「安可前的大合唱，整片手机灯海。」" = "The singalong before the encore — a sea of phone lights.";
-"2026.08.14 周五 20:00 · 南岸 Livehouse" = "2026.08.14 Fri 20:00 · Southbank Livehouse";
-"2026.10.13 周二 19:30 · 回声剧场" = "2026.10.13 Tue 19:30 · Echo Theater";
-"产品改进" = "Product Improvement";
-"帮助改进产品" = "Help Improve the Product";
-"匿名分析与操作回放，用于发现卡点和修复问题。可随时关闭。" = "Anonymous analytics and session replay to find friction and fix issues. You can turn this off anytime.";
-"关闭后停止发送匿名分析与操作回放" = "Turns off anonymous analytics and session replay";
 
-/* Onboarding widget page + P7 reminder wiring */
+/* App Store widget preview */
 "小组件" = "Widgets";
 "不用打开，也在靠近" = "Getting Closer, No Need to Open";
 "主屏幕和锁屏，都替你数着那一天。" = "Your Home Screen and Lock Screen keep the count for you.";
 "距离灯亮还有" = "Until the lights come on";
-"10月13日 19:30 · 回声剧场" = "Oct 13, 19:30 · Echo Theater";
-"「夜航」巡演 · 上海站 · 10月13日 19:30" = "Night Voyage Tour · Shanghai · Oct 13, 19:30";
-"长按主屏幕，搜索「开场前」添加。" = "Long-press the Home Screen and search for BeforeShow to add it.";
-"开启" = "Turn On";
-"已开启，重要的节点会提醒你。" = "On — you'll get a nudge at the moments that matter.";
-"未开启，去系统设置打开。" = "Off — turn it on in System Settings.";

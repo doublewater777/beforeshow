@@ -10,7 +10,6 @@ extension UUID: @retroactive Identifiable {
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
-    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isTabBarHidden = false
@@ -27,30 +26,10 @@ struct RootView: View {
     /// 这里只订阅变化触发 body 重算，导航与呈现状态原样保留。
     @ObservedObject private var languageController = AppLanguageController.shared
 
-    // Returning users must see the home tab on the first frame, not a
-    // SplashView that then has to fade out. Pre-seed hasFinishedSplash
-    // from the same store @AppStorage reads so the splash branch in body
-    // is never taken for users who have already finished onboarding.
-    init() {
-        let isReturning = UserDefaults.standard.bool(forKey: "hasCompletedOnboarding")
-        _hasFinishedSplash = State(initialValue: isReturning)
-    }
-
     var body: some View {
         ZStack {
-            // onboarding 不看 shows 是否为空：P5 创建现场后 shows 已非空，
-            // 但 P6「第一个倒计时」仍要展示，只有完成 onboarding 才进入主界面。
-            if !hasCompletedOnboarding {
-                OnboardingView(onFinish: {
-                    withAnimation(.easeInOut(duration: 0.3)) {
-                        hasCompletedOnboarding = true
-                    }
-                })
+            mainTabView
                 .opacity(hasFinishedSplash ? 1 : 0)
-            } else {
-                mainTabView
-                    .opacity(hasFinishedSplash ? 1 : 0)
-            }
 
             if !hasFinishedSplash {
                 SplashView {
@@ -68,25 +47,12 @@ struct RootView: View {
         .onChange(of: notificationRouter.pendingDeepLink) { _, deepLink in
             // 通知落地的前提是先站在「当前」tab；目标的消费在首页。
             guard deepLink != nil else { return }
-            hasCompletedOnboarding = true
             selectedTab = .current
         }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
-            if ProcessInfo.processInfo.arguments.contains("--seed-app-store-screenshots")
-                || ProcessInfo.processInfo.arguments.contains("--seed-opening-memory-window")
-                || ProcessInfo.processInfo.arguments.contains("--open-footprints")
-                || ProcessInfo.processInfo.arguments.contains("--open-pro-paywall")
-                || ProcessInfo.processInfo.arguments.contains("--open-pro-winback")
-                || ProcessInfo.processInfo.arguments.contains("--open-show-library")
-                || ProcessInfo.processInfo.arguments.contains("--open-memory-fragments")
-                || ProcessInfo.processInfo.arguments.contains("--open-add-show-review")
-                || ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating")
-                || ProcessInfo.processInfo.arguments.contains("--open-widget-preview") {
-                hasCompletedOnboarding = true
-            }
             if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
                 selectedTab = .footprints
             }
@@ -1370,6 +1336,12 @@ struct CurrentShowCompanionSheet: View {
                 }
             }
             .scrollIndicators(.hidden)
+            .overlay {
+                if isPreparingInvite {
+                    preparingOverlay
+                }
+            }
+            .animation(.easeOut(duration: 0.18), value: isPreparingInvite)
         }
         .alert(
             "同行邀请",
@@ -1395,20 +1367,33 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
-                title: isRetry ? "邀请未接受" : "邀请同行",
+                title: isRetry ? BSLocalization.text("邀请未接受") : BSLocalization.text("邀请同行"),
                 subtitle: isRetry
-                    ? "可以通过系统分享重新发送邀请，对方点开链接后双方都会确认。"
-                    : "通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。"
+                    ? BSLocalization.text("可以通过系统分享重新发送邀请，对方点开链接后双方都会确认。")
+                    : BSLocalization.text("通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。")
             )
 
             Button {
                 Task { await sendInvitation(isRetry: isRetry) }
             } label: {
                 if isPreparingInvite {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.black)
+                        Text(CompanionInvitePreparingPresentation.primaryActionTitle(
+                            isPreparing: true,
+                            isRetry: isRetry
+                        ))
+                    }
+                    .frame(maxWidth: .infinity)
                 } else {
-                    Label(isRetry ? "重新邀请" : "分享邀请", systemImage: "square.and.arrow.up")
+                    Label(
+                        CompanionInvitePreparingPresentation.primaryActionTitle(
+                            isPreparing: false,
+                            isRetry: isRetry
+                        ),
+                        systemImage: "square.and.arrow.up"
+                    )
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
@@ -1427,7 +1412,16 @@ struct CurrentShowCompanionSheet: View {
             Button {
                 Task { await resendInvitation() }
             } label: {
-                Label(BSLocalization.text("再次发送"), systemImage: "paperplane")
+                if isPreparingInvite {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(BSColor.Stage.foreground)
+                        Text(CompanionInvitePreparingPresentation.overlayTitle)
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Label(BSLocalization.text("再次发送"), systemImage: "paperplane")
+                }
             }
             .buttonStyle(BSSecondaryButtonStyle())
             .disabled(isPreparingInvite || show.companionShareRecordName == nil)
@@ -1622,26 +1616,53 @@ struct CurrentShowCompanionSheet: View {
         BSLocalization.format("我和%@一起看了 %@。\n这是我们共同记录的第 %lld 场现场。", displayName, show.name, max(1, sharedHistory.count))
     }
 
+    private var preparingOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.38)
+            VStack(spacing: BSSpacing.sm) {
+                ProgressView()
+                    .tint(.white)
+                    .scaleEffect(1.08)
+                Text(CompanionInvitePreparingPresentation.overlayTitle)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.foreground)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(CompanionInvitePreparingPresentation.overlayTitle)
+        }
+        .allowsHitTesting(true)
+        .transition(.opacity)
+    }
+
     @MainActor
-    private func sendInvitation(isRetry: Bool) async {
-        isPreparingInvite = true
-        defer { isPreparingInvite = false }
+    private func sendInvitation(isRetry: Bool, alreadyPreparing: Bool = false) async {
+        if !alreadyPreparing {
+            guard !isPreparingInvite else { return }
+            isPreparingInvite = true
+        }
         if isRetry, show.companionShareLocator != nil {
+            isPreparingInvite = false
             errorMessage = BSLocalization.text("请先完成取消同步，再重新邀请")
+            return
+        }
+        if show.companionShareLocator != nil {
+            await resendInvitation(alreadyPreparing: true)
+            return
+        }
+        guard show.companionCloudRecordName == nil else {
+            isPreparingInvite = false
+            errorMessage = BSLocalization.text("这场现场已有同行邀请，请先刷新状态")
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext)
         if CompanionInviteGate.blocksNewInvite(coordinator.lastErrorKind) {
+            isPreparingInvite = false
             errorMessage = coordinator.consumeLastErrorMessage()
             return
         }
         _ = coordinator.consumeLastErrorMessage()
         if show.companionShareLocator != nil {
-            await resendInvitation()
-            return
-        }
-        guard show.companionCloudRecordName == nil else {
-            errorMessage = BSLocalization.text("这场现场已有同行邀请，请先刷新状态")
+            await resendInvitation(alreadyPreparing: true)
             return
         }
         do {
@@ -1653,22 +1674,26 @@ struct CurrentShowCompanionSheet: View {
             )
             presentPreparedShare(prepared.shareSystemFields)
         } catch {
+            isPreparingInvite = false
             CompanionDebugLog.write("sendInvitation failed: \(error)")
             errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
 
     @MainActor
-    private func resendInvitation() async {
-        isPreparingInvite = true
-        defer { isPreparingInvite = false }
+    private func resendInvitation(alreadyPreparing: Bool = false) async {
+        if !alreadyPreparing {
+            guard !isPreparingInvite else { return }
+            isPreparingInvite = true
+        }
         do {
             let data = try await coordinator.shareSystemFieldsForResend(show: show)
             presentPreparedShare(data)
         } catch let error as CompanionSharingError where error == .sessionNotFound {
             // Only recreate when CloudKit positively reports the share is gone.
-            await sendInvitation(isRetry: true)
+            await sendInvitation(isRetry: true, alreadyPreparing: true)
         } catch {
+            isPreparingInvite = false
             errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
@@ -1701,12 +1726,17 @@ struct CurrentShowCompanionSheet: View {
                 }
             },
             onDismiss: {
+                isPreparingInvite = false
                 if let error = coordinator.consumeLastErrorMessage() {
                     errorMessage = error
                 }
+            },
+            onPresented: {
+                isPreparingInvite = false
             }
         )
         if !presented {
+            isPreparingInvite = false
             errorMessage = BSLocalization.text("无法打开系统分享")
         }
     }

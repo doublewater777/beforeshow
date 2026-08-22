@@ -7,6 +7,8 @@ struct RecognizedArtist: Identifiable, Equatable, Hashable, Sendable {
     let id: String
     let canonicalName: String
     let avatarURL: URL?
+    /// Apple Music 艺人页链接,详情页点阵容头像直接跳转。
+    let appleMusicURL: URL?
 }
 
 enum ArtistSearchAuthorizationStatus: Equatable, Sendable {
@@ -79,7 +81,8 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
         return RecognizedArtist(
             id: String(result.artistId),
             canonicalName: result.artistName,
-            avatarURL: avatar.flatMap { URL(string: $0) }
+            avatarURL: avatar.flatMap { URL(string: $0) },
+            appleMusicURL: result.artistLinkUrl.flatMap { URL(string: $0) }
         )
     }
 }

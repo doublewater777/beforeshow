@@ -28,7 +28,7 @@ struct NotificationPermissionPrimerView: View {
                     )
                     primerRow(
                         icon: "moon.stars",
-                        text: BSLocalization.text("只有快开场那条会响，其余都安静送达")
+                        text: BSLocalization.text("只有快开场那条会响，其余只弹横幅不发声")
                     )
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

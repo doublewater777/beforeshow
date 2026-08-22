@@ -83,7 +83,7 @@
 	<key>CKSharingSupported</key>
 	<true/>
 	<key>NSPhotoLibraryAddUsageDescription</key>
-	<string>用于把你的现场足迹卡保存到照片。</string>
+	<string>用于把现场封面和足迹卡保存到照片。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>用于拍摄并保存当前现场的记忆碎片。</string>
 	<key>NSMicrophoneUsageDescription</key>

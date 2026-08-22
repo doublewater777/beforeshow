@@ -4,4 +4,4 @@
 "CFBundleName" = "BeforeShow";
 "NSCameraUsageDescription" = "用于拍摄并保存当前现场的记忆碎片。";
 "NSMicrophoneUsageDescription" = "用于录制当前现场记忆碎片中的视频声音。";
-"NSPhotoLibraryAddUsageDescription" = "用于把你的现场足迹卡保存到照片。";
+"NSPhotoLibraryAddUsageDescription" = "用于把现场封面和足迹卡保存到照片。";

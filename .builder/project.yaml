@@ -25,4 +25,5 @@ links:
   widget_glance_simplify_cycle: .builder/cycles/2026-08-15-widget-glance-simplify/
   revenuecat_migration_cycle: .builder/cycles/2026-08-18-revenuecat-migration/
   opening_memory_window_cycle: .builder/cycles/2026-08-19-opening-memory-window/
+  dynamic_memory_time_labels_cycle: .builder/cycles/2026-08-22-dynamic-memory-time-labels/
   manual_onboarding_stage: .builder/stages/06-manual-onboarding.md

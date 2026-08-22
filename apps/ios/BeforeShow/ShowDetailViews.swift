@@ -183,7 +183,7 @@ struct ShowDetailView: View {
                         detailSummaryCard
                         countdownCard
                         showInformationSection
-                        currentDisplaySection
+                        lineupSection
                         experienceSection
                         assetManagementSection
                         DynamicCoverManagementSection(show: show)
@@ -206,6 +206,14 @@ struct ShowDetailView: View {
                 Menu {
                     Button("编辑", systemImage: "square.and.pencil") {
                         presentedSheet = .editor
+                    }
+                    if isCurrentShow {
+                        Button {} label: {
+                            Label("当前展示中", systemImage: "checkmark.circle")
+                        }
+                        .disabled(true)
+                    } else if session.isManuallySelectable(show) {
+                        Button("设为展示", systemImage: "music.note.house", action: selectCurrent)
                     }
                     Menu {
                         eventStatusMenuActions
@@ -421,13 +429,14 @@ struct ShowDetailView: View {
                     title: show.venueName ?? show.city ?? BSLocalization.text("未填写场馆"),
                     subtitle: venueDetail
                 )
-                Divider().overlay(BSColor.Stage.border)
-                detailInfoRow(
-                    icon: "music.note",
-                    title: show.artistNames.isEmpty ? BSLocalization.text("未填写艺人") : show.artistNames.joined(separator: "、"),
-                    subtitle: nil,
-                    trailing: avatarLeading
-                )
+                if show.artists.isEmpty {
+                    Divider().overlay(BSColor.Stage.border)
+                    detailInfoRow(
+                        icon: "music.note",
+                        title: BSLocalization.text("未填写艺人"),
+                        subtitle: nil
+                    )
+                }
             }
             .background(BSColor.Stage.surface)
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
@@ -468,54 +477,17 @@ struct ShowDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// 详情页艺人行右侧贴一个 40pt Apple Music 头像;没有头像就 nil,保持行高一致。
-    private var avatarLeading: AnyView? {
-        guard let urlString = show.firstRecognizedArtistAvatarURL,
-              let url = URL(string: urlString) else { return nil }
-        return AnyView(ArtistAvatarThumb(url: url, size: 40))
-    }
-
-    private var currentDisplaySection: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("当前展示")
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.foreground)
-
-            HStack(spacing: BSSpacing.compact) {
-                Image(systemName: "music.note.house")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(width: 36, height: 36)
-                    .background(BSColor.Stage.accent.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
-                    .accessibilityHidden(true)
-
-                Text(currentDisplayTitle)
-                    .font(BSFont.V3.small.weight(.medium))
+    /// 阵容区:有艺人就展示(单个/多个统一),横滑条见 `ArtistLineupStrip`。
+    @ViewBuilder
+    private var lineupSection: some View {
+        if !show.artists.isEmpty {
+            VStack(alignment: .leading, spacing: BSSpacing.sm) {
+                Text("阵容")
+                    .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
 
-                Spacer(minLength: BSSpacing.sm)
-
-                if !isCurrentShow && session.isManuallySelectable(show) {
-                    Button("设为展示", action: selectCurrent)
-                        .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.accent)
-                        .padding(.horizontal, BSSpacing.compact)
-                        .frame(minHeight: BSLayout.minTouchTarget)
-                        .background(BSColor.Stage.accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 11))
-                        .overlay(RoundedRectangle(cornerRadius: 11).stroke(BSColor.Stage.accent.opacity(0.24), lineWidth: 1))
-                }
+                ArtistLineupStrip(artists: show.artists)
             }
-            .padding(BSSpacing.compact)
-            .background(
-                LinearGradient(
-                    colors: [BSColor.Stage.accent.opacity(0.06), Color.white.opacity(0.015)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.accent.opacity(0.14), lineWidth: 1))
-            .opacity(session.isManuallySelectable(show) || isCurrentShow ? 1 : 0.58)
         }
     }
 
@@ -719,11 +691,6 @@ format: BSLocalization.text("M月d日 HH:mm"),
             return BSLocalization.format("预计 %@ 结束", formattedDate(endTime, format: "HH:mm", calendar: show.endTimingCalendar()))
         }
         return nil
-    }
-
-    private var currentDisplayTitle: String {
-        if isCurrentShow { return BSLocalization.text("当前展示中") }
-        return session.isManuallySelectable(show) ? BSLocalization.text("未设为当前") : BSLocalization.text("暂不可设为当前")
     }
 
     private var statusTint: Color {
@@ -1020,6 +987,8 @@ private struct ShowCoverFullscreenPreview: View {
     let urlString: String?
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isSaving = false
+    @State private var toast: BSToastPayload?
 
     var body: some View {
         ZStack {
@@ -1050,6 +1019,55 @@ private struct ShowCoverFullscreenPreview: View {
             .padding(.top, BSSpacing.md)
             .accessibilityLabel(BSLocalization.text("关闭大图"))
         }
+        .overlay(alignment: .bottom) {
+            if urlString != nil {
+                Button {
+                    Task { await saveCover() }
+                } label: {
+                    Label(BSLocalization.text("保存图片"), systemImage: "square.and.arrow.down")
+                        .font(BSFont.V3.small.weight(.medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .padding(.horizontal, BSSpacing.md)
+                        .frame(minHeight: BSLayout.minTouchTarget)
+                        .background(.black.opacity(0.45), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaving)
+                .padding(.bottom, BSSpacing.lg)
+            }
+        }
+        .bsToastOverlay(toast, bottomPadding: 90)
         .preferredColorScheme(.dark)
+    }
+
+    @MainActor
+    private func saveCover() async {
+        guard !isSaving, let urlString, let url = URL(string: urlString) else { return }
+        isSaving = true
+        defer { isSaving = false }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            // 部分封面 URL 实为 WebP(大麦/阿里 CDN 常见),直接交给 Photos 会报
+            // PHPhotosErrorDomain 3302;先重编码成 JPEG 再保存。
+            guard let decoded = UIImage(data: data),
+                  let jpegData = decoded.jpegData(compressionQuality: 0.95),
+                  let image = UIImage(data: jpegData) else {
+                throw FootprintPhotoSaveError.saveFailed
+            }
+            try await FootprintPhotoLibrary.save(image)
+            presentToast(.success, message: BSLocalization.text("已保存到相册"))
+        } catch {
+            let message = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
+            presentToast(.failure, message: message)
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload { toast = nil }
+        }
     }
 }

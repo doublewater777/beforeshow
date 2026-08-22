@@ -130,6 +130,8 @@ struct ShowDisplayFormatter {
 struct ArtistSlot: Codable, Hashable, Equatable {
     var name: String
     var avatarURL: String?
+    /// 识别到的 Apple Music 艺人页链接,详情页点阵容头像直接跳转;未识别为 nil。
+    var appleMusicURL: String? = nil
 }
 
 @Model
@@ -466,6 +468,7 @@ final class Show {
         let common = min(oldSlots.count, newSlots.count)
         for index in 0..<common where oldSlots[index].name != newSlots[index].name {
             newSlots[index].avatarURL = nil
+            newSlots[index].appleMusicURL = nil
         }
         name = prepared.name
         date = prepared.date
@@ -545,7 +548,7 @@ final class Show {
             guard !name.isEmpty else { return nil }
             let trimmedURL = slot.avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines)
             let avatar = (trimmedURL?.isEmpty ?? true) ? nil : trimmedURL
-            return ArtistSlot(name: name, avatarURL: avatar)
+            return ArtistSlot(name: name, avatarURL: avatar, appleMusicURL: slot.appleMusicURL)
         }
     }
 

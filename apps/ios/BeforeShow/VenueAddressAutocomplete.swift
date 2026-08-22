@@ -174,16 +174,16 @@ struct BSVenueField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("场馆")
+            Text(BSLocalization.text("场馆"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.textTertiary)
 
-            TextField("上海体育场", text: $venueName, axis: .vertical)
+            TextField(BSLocalization.text("上海体育场"), text: $venueName, axis: .vertical)
                 .lineLimit(1...3)
                 .textInputAutocapitalization(.never)
                 .bsInputField()
                 .focused($isFocused)
-                .accessibilityLabel("场馆")
+                .accessibilityLabel(BSLocalization.text("场馆"))
                 .overlay {
                     if isRecognized {
                         RoundedRectangle(cornerRadius: BSRadius.md)
@@ -226,7 +226,7 @@ struct BSVenueField: View {
                 HStack(spacing: 8) {
                     ProgressView()
                         .controlSize(.small)
-                    Text("正在用地图查找地址…")
+                    Text(BSLocalization.text("正在用地图查找地址…"))
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.textTertiary)
                 }
@@ -272,6 +272,10 @@ struct BSVenueField: View {
                         .stroke(BSColor.borderProminent, lineWidth: 1)
                 )
             }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isFocused = false
         }
     }
 
@@ -324,7 +328,7 @@ struct BSVenueField: View {
                 taskIsCancelled: Task.isCancelled
             ) else { return }
             suggestions = results
-            searchMessage = suggestions.isEmpty ? "没找到匹配地址。" : nil
+            searchMessage = suggestions.isEmpty ? BSLocalization.text("没找到匹配地址。") : nil
         } catch {
             guard VenueAddressSearchPolicy.shouldApplyResults(
                 revision: revision,
@@ -332,7 +336,7 @@ struct BSVenueField: View {
                 taskIsCancelled: Task.isCancelled
             ) else { return }
             suggestions = []
-            searchMessage = "暂时没查到地址，请稍后再试。"
+            searchMessage = BSLocalization.text("暂时没查到地址，请稍后再试。")
         }
     }
 

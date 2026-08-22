@@ -225,3 +225,13 @@ Cycle: `.builder/cycles/2026-08-18-revenuecat-migration/`
 Decision: code cutover complete; dashboard and production key still open.
 
 Reason: StoreKit 2 purchase/restore was replaced with RevenueCat offerings and the `pro` entitlement. Debug uses Test Store; Release still needs an `appl_` key and catalog confirmation before sandbox/TestFlight purchases.
+
+## 2026-08-22 · Dynamic Memory Time Labels
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-22-dynamic-memory-time-labels/`
+
+Decision: implementation in progress; verify dynamic phase grouping after show end-time edits.
+
+Reason: memory fragments currently display a phase persisted at creation time, so correcting the actual end time can leave the timeline labels stale.

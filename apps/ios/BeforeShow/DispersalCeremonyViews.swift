@@ -300,6 +300,7 @@ struct DispersalCombinedStep: View {
                 .padding(.top, 6)
                 .padding(.bottom, BSSpacing.lg)
             }
+            .scrollDismissesKeyboard(.interactively)
 
             DispersalSheetBottomBar(
                 secondaryTitle: BSLocalization.text("跳过"),
@@ -307,6 +308,10 @@ struct DispersalCombinedStep: View {
                 onSecondary: onSkip,
                 onPrimary: onGenerate
             )
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isNoteFocused = false
         }
         .onAppear {
             raw = Double(rating ?? 3)
@@ -569,7 +574,8 @@ struct DispersalShareStep: View {
     let onBack: () -> Void
     let onEnterMemory: () -> Void
 
-    @State private var lastError: String?
+    @State private var toast: BSToastPayload?
+    @State private var isSaving = false
 
     private static let renderSize = CGSize(width: 360, height: 450)
     private static let renderScale: CGFloat = 3
@@ -584,14 +590,6 @@ struct DispersalShareStep: View {
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if let lastError {
-                Text(lastError)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.danger)
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 8)
-            }
-
             DispersalSheetBottomBar(
                 secondaryTitle: BSLocalization.text("保存图片"),
                 primaryTitle: BSLocalization.text("进入现场回忆"),
@@ -599,6 +597,7 @@ struct DispersalShareStep: View {
                 onPrimary: onEnterMemory
             )
         }
+        .bsToastOverlay(toast, bottomPadding: 24)
     }
 
     private var header: some View {
@@ -656,15 +655,28 @@ struct DispersalShareStep: View {
 
     @MainActor
     private func saveToPhotos() async {
+        guard !isSaving else { return }
         guard let image = renderImage() else {
-            lastError = "分享图片生成失败，请重试"
+            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
             return
         }
+        isSaving = true
+        presentToast(.neutral, message: BSLocalization.text("保存中…"))
         do {
             try await FootprintPhotoLibrary.save(image)
-            lastError = nil
+            presentToast(.success, message: BSLocalization.text("已保存到相册"))
         } catch {
-            lastError = BSLocalization.text("保存失败，请检查相册权限")
+            presentToast(.failure, message: BSLocalization.text("保存失败，请检查相册权限"))
+        }
+        isSaving = false
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload { toast = nil }
         }
     }
 }

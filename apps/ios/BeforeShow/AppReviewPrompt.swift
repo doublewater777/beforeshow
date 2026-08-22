@@ -12,7 +12,6 @@ enum AppReviewPromptMoment: String {
 enum AppReviewPromptPolicy {
     static let lastPromptAtKey = "appReview.lastPromptAt"
     static let lastPromptVersionKey = "appReview.lastPromptVersion"
-    static let onboardingCompletedKey = "hasCompletedOnboarding"
     static let minimumInterval: TimeInterval = 90 * 24 * 60 * 60
 
     static func shouldPrompt(
@@ -21,7 +20,6 @@ enum AppReviewPromptPolicy {
         defaults: UserDefaults,
         arguments: [String]
     ) -> Bool {
-        guard defaults.bool(forKey: onboardingCompletedKey) else { return false }
         guard !isAutomatedLaunch(arguments) else { return false }
         guard defaults.string(forKey: lastPromptVersionKey) != version else { return false }
         if let lastPromptAt = defaults.object(forKey: lastPromptAtKey) as? Date,

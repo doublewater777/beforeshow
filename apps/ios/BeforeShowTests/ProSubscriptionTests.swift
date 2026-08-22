@@ -413,7 +413,6 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testFeedbackPayloadBuilderUsesCurrentBundleVersionByDefault() throws {
         let payload = try FeedbackPayloadBuilder().build(from: FeedbackDraft(
-            category: .bug,
             message: "通知没有出现",
             includesDiagnostics: true
         ))
@@ -423,20 +422,18 @@ final class ProSubscriptionTests: XCTestCase {
 
     func testFeedbackShareTextIncludesDiagnosticsOnlyWhenUserOptedIn() {
         let withoutDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
-            category: .product,
             message: "希望更快进入状态",
             diagnostics: nil
         ))
-        XCTAssertEqual(withoutDiagnostics, "类型：使用感受\n反馈：希望更快进入状态")
+        XCTAssertEqual(withoutDiagnostics, "反馈：希望更快进入状态")
 
         let withDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
-            category: .bug,
             message: "设置页卡住",
             diagnostics: FeedbackDiagnostics(appVersion: "2.3", osVersion: "iOS 26.5")
         ))
         XCTAssertEqual(
             withDiagnostics,
-            "类型：问题反馈\n反馈：设置页卡住\n\n诊断信息\nApp 版本：2.3\n系统版本：iOS 26.5"
+            "反馈：设置页卡住\n\n诊断信息\nApp 版本：2.3\n系统版本：iOS 26.5"
         )
     }
 
@@ -462,7 +459,6 @@ final class ProSubscriptionTests: XCTestCase {
         }
 
         let minimalPayload = try builder.build(from: FeedbackDraft(
-            category: .product,
             message: "  希望默认平台更好切换  ",
             includesDiagnostics: false
         ))
@@ -471,7 +467,6 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertNil(minimalPayload.diagnostics)
 
         let diagnosticPayload = try builder.build(from: FeedbackDraft(
-            category: .bug,
             message: "设置页卡住",
             includesDiagnostics: true
         ))

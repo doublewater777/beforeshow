@@ -428,16 +428,17 @@ private struct MediumCountdownView: View {
                 .scaledToFill()
                 .frame(width: 108)
                 .clipped()
-                .overlay(alignment: .leading) {
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.018, green: 0.018, blue: 0.025),
-                            Color(red: 0.018, green: 0.018, blue: 0.025).opacity(0)
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: 44)
+                // 左缘淡出到氛围底，不要涂一层近黑——浅色海报边会被涂成黑条。
+                .mask {
+                    HStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [.clear, .black],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: 18)
+                        Color.black
+                    }
                 }
         }
     }

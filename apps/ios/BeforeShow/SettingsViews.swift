@@ -779,7 +779,6 @@ enum ClearDataFeedback: Equatable {
 }
 
 private struct FeedbackView: View {
-    @State private var category: FeedbackCategory = .product
     @State private var message = ""
     @State private var includesDiagnostics = false
     @State private var validationMessage: String?
@@ -792,58 +791,51 @@ private struct FeedbackView: View {
     var body: some View {
         BSStageScaffold(
             title: "",
-            subtitle: BSLocalization.text("整理成一段最小反馈，由 app 唤起系统邮件完成发送"),
+            subtitle: nil,
             bottomPadding: BSSpacing.xl
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    Text(BSLocalization.text("反馈类型"))
-                        .font(BSFont.V3.body.weight(.semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-
-                    Picker(BSLocalization.text("类型"), selection: $category) {
-                        ForEach(FeedbackCategory.allCases) { category in
-                            Text(category.displayTitle).tag(category)
-                        }
+                    HStack(alignment: .firstTextBaseline, spacing: BSSpacing.xs) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(BSLocalization.text("被采纳的反馈会获得奖励"))
+                            .font(BSFont.caption.weight(.semibold))
                     }
-                    .pickerStyle(.segmented)
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .accessibilityElement(children: .combine)
 
-                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                        Text("反馈内容")
-                            .font(BSFont.V3.body.weight(.semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
-
-                        ZStack(alignment: .topLeading) {
-                            if message.isEmpty {
-                                Text("例如：在哪一步遇到了什么，期待结果是什么")
-                                    .font(BSFont.V3.body)
-                                    .foregroundColor(BSColor.Stage.dim)
-                                    .padding(.horizontal, 19)
-                                    .padding(.vertical, 20)
-                                    .allowsHitTesting(false)
-                            }
-
-                            TextEditor(text: $message)
+                    ZStack(alignment: .topLeading) {
+                        if message.isEmpty {
+                            Text("例如：在哪一步遇到了什么，期待结果是什么")
                                 .font(BSFont.V3.body)
-                                .scrollContentBackground(.hidden)
-                                .frame(minHeight: 150)
-                                .bsInputField()
-                                .focused($isMessageFocused)
-                                .accessibilityLabel("反馈内容，必填")
-                                .accessibilityHint("请说明遇到的问题或建议")
-                                .onChange(of: message) {
-                                    if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                        validationMessage = nil
-                                    }
+                                .foregroundColor(BSColor.Stage.dim)
+                                .padding(.horizontal, 19)
+                                .padding(.vertical, 20)
+                                .allowsHitTesting(false)
+                        }
+
+                        TextEditor(text: $message)
+                            .font(BSFont.V3.body)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 150)
+                            .bsInputField()
+                            .focused($isMessageFocused)
+                            .accessibilityLabel("反馈内容，必填")
+                            .accessibilityHint("请说明遇到的问题或建议")
+                            .onChange(of: message) {
+                                if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    validationMessage = nil
                                 }
-                        }
+                            }
+                    }
 
-                        if let validationMessage {
-                            Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                                .font(BSFont.V3.body)
-                                .foregroundColor(BSColor.Stage.danger)
-                                .accessibilityAddTraits(.isStaticText)
-                        }
+                    if let validationMessage {
+                        Label(validationMessage, systemImage: "exclamationmark.circle.fill")
+                            .font(BSFont.V3.body)
+                            .foregroundColor(BSColor.Stage.danger)
+                            .accessibilityAddTraits(.isStaticText)
                     }
 
                     Toggle(BSLocalization.text("附上 App 版本与系统版本"), isOn: $includesDiagnostics)
@@ -851,10 +843,14 @@ private struct FeedbackView: View {
                         .foregroundColor(BSColor.Stage.muted)
                         .font(BSFont.V3.body)
 
-                    Text("不会自动包含现场内容、截图、照片或视频。邮件 app 打开后，发送仍由你确认。")
+                    Text("不会自动包含现场内容、截图、照片或视频。")
                         .font(BSFont.V3.body)
                         .foregroundColor(BSColor.Stage.muted)
                         .fixedSize(horizontal: false, vertical: true)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isMessageFocused = false
                 }
             }
 
@@ -894,7 +890,6 @@ private struct FeedbackView: View {
     private func prepareFeedback() {
         do {
             let payload = try payloadBuilder.build(from: FeedbackDraft(
-                category: category,
                 message: message,
                 includesDiagnostics: includesDiagnostics
             ))

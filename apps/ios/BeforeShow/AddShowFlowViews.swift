@@ -461,7 +461,7 @@ struct AddShowFlowView: View {
 
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
-        didSwitchToManual ? "手动填写" : sheet.navigationTitle
+        didSwitchToManual ? BSLocalization.text("手动填写") : sheet.navigationTitle
     }
 
     /// 粘贴即识别链接来源，不用等一次失败往返。
@@ -741,7 +741,7 @@ struct AddShowFlowView: View {
                         ProgressView()
                             .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
                     }
-                    Text(isSaving ? "正在保存" : sheet.saveButtonTitle)
+                    Text(isSaving ? BSLocalization.text("正在保存") : sheet.saveButtonTitle)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -749,8 +749,8 @@ struct AddShowFlowView: View {
             .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
             .accessibilityLabel(
                 isImportingDraft
-                    ? "正在导入，暂不可保存"
-                    : (isSaving ? "正在保存" : sheet.saveButtonTitle)
+                    ? BSLocalization.text("正在导入，暂不可保存")
+                    : (isSaving ? BSLocalization.text("正在保存") : sheet.saveButtonTitle)
             )
         }
         .padding(.horizontal, 20)
@@ -1968,6 +1968,7 @@ private struct ShowDraftFormFields: View {
                                 ensureArtistSlot(at: index)
                                 draft.artists[index].name = recognition.canonicalName
                                 draft.artists[index].avatarURL = recognition.avatarURL?.absoluteString
+                                draft.artists[index].appleMusicURL = recognition.appleMusicURL?.absoluteString
                                 draft.recognizedFields.remove(.artist)
                             },
                             onDelete: { removeArtistRow(at: index) },
@@ -2328,30 +2329,54 @@ private struct AddShowScheduleFields: View {
     }
 }
 
-/// 把系统紧凑 DatePicker 箍进固定瓷贴，避免中文日期把邻列挤叠。
-/// 控件按内容缩宽并左对齐；列宽由外层 HStack 等分，溢出裁剪，间距才能保留。
+/// 自己画日期文案，系统 compact DatePicker 只负责点按弹出。
+/// 否则系统内框比半列瓷贴宽，右边会被 clip 成贴边。
 private struct AddShowConstrainedDatePicker: View {
     @Binding var selection: Date
     let displayedComponents: DatePickerComponents
     let calendar: Calendar
     var borderColor: Color? = nil
 
+    private var displayText: String {
+        let formatter = DateFormatter()
+        formatter.locale = AppLanguageManager.persisted.locale
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        if displayedComponents == .hourAndMinute {
+            formatter.dateFormat = "HH:mm"
+        } else {
+            formatter.setLocalizedDateFormatFromTemplate("yMMMd")
+        }
+        return formatter.string(from: selection)
+    }
+
     var body: some View {
-        HStack(spacing: 0) {
+        ZStack(alignment: .leading) {
             DatePicker("", selection: $selection, displayedComponents: displayedComponents)
                 .labelsHidden()
                 .environment(\.calendar, calendar)
                 .environment(\.timeZone, calendar.timeZone)
                 .tint(BSColor.Accent.violet)
                 .datePickerStyle(.compact)
-                .fixedSize(horizontal: true, vertical: false)
-            Spacer(minLength: 0)
+                .padding(.leading, 16)
+
+            Text(displayText)
+                .font(BSFont.body)
+                .foregroundColor(BSColor.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+                .frame(minWidth: 0, maxWidth: .infinity, minHeight: 48, alignment: .leading)
+                .background {
+                    BSColor.Stage.surface
+                    Color.white.opacity(0.05)
+                }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        // minWidth: 0 才能在等分列里被压窄，否则会撑破 HStack 间距
         .frame(minWidth: 0, maxWidth: .infinity, minHeight: 48, alignment: .leading)
-        .background(Color.white.opacity(0.05))
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
         .overlay {
             RoundedRectangle(cornerRadius: BSRadius.md)
@@ -2543,7 +2568,7 @@ private struct AddShowCoverActions: View {
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     AddShowCoverActionChip(
                         icon: isImporting ? nil : "photo.on.rectangle.angled",
-                        title: isImporting ? "正在导入…" : "从相册选择",
+                        title: isImporting ? BSLocalization.text("正在导入…") : BSLocalization.text("从相册选择"),
                         isActive: false,
                         showsSpinner: isImporting
                     )
@@ -2559,7 +2584,7 @@ private struct AddShowCoverActions: View {
                 } label: {
                     AddShowCoverActionChip(
                         icon: "link",
-                        title: showsLinkField ? "收起链接" : "图片链接",
+                        title: showsLinkField ? BSLocalization.text("收起链接") : BSLocalization.text("图片链接"),
                         isActive: showsLinkField,
                         showsSpinner: false
                     )
@@ -3295,6 +3320,6 @@ private extension AddShowSheet {
     }
 
     var saveButtonTitle: String {
-        "添加现场"
+        BSLocalization.text("添加现场")
     }
 }

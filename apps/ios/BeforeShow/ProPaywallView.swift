@@ -537,18 +537,27 @@ struct ProPaywallView: View {
                     .foregroundColor(BSColor.Stage.muted)
                     .padding(.bottom, 7)
 
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
                     Text(priceAmount(for: plan))
                         .font(.system(size: 21, weight: .semibold))
                         .kerning(-0.4)
                         .foregroundColor(BSColor.Stage.foreground)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
                     Text(ProPaywallCopy.periodLabel(plan))
                         .font(.system(size: 11))
                         .foregroundColor(BSColor.Stage.dim)
-                    Text(standardPriceAmount(for: plan))
-                        .font(.system(size: 11))
+                        .lineLimit(1)
+                }
+
+                let originalPrice = standardPriceAmount(for: plan)
+                if !originalPrice.isEmpty {
+                    Text(originalPrice)
+                        .font(.system(size: 10.5))
                         .foregroundColor(BSColor.Stage.dim)
                         .strikethrough()
+                        .lineLimit(1)
+                        .padding(.top, 5)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

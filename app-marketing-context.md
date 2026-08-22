@@ -13,7 +13,9 @@
 - **Launch Date:** Not yet launched
 - **Current Version:** 1.0 (state: PREPARE_FOR_SUBMISSION)
 - **Bundle ID:** com.doublewaterapps.beforeshow
-- **App Store 副标题:** 开场之前，先进入状态
+- **App Store 名称:** 开场前 - 演唱会倒计时
+- **App Store 副标题:** 音乐节与Livehouse倒数提醒
+- **描述首屏 / 产品副标题:** 开场之前，先进入状态
 - **品牌氛围句:** 灯亮之前，先进入状态
 
 ## Value Proposition
@@ -37,16 +39,19 @@
 **结论:** 真正对位的是**「演出提醒 + 倒计时 + 情绪陪伴」**这个象限，目前是**空白**。Countdown Star 是工具型对手，bandsintown 是英文世界范式参考，记录现场是互补而非对手。
 
 ## Current ASO State
-- **Title:** 开场前
-- **Subtitle:** _空_ (not yet set on ASC)
-- **Keyword Field:** _空_ (not yet set on ASC)
-- **Description:** _空_ (not yet set on ASC)
+- **Title (local):** 开场前 - 演唱会倒计时
+- **Subtitle (local):** 音乐节与Livehouse倒数提醒
+- **Keyword Field (local):** 99/100，见 `metadata/version/1.0/zh-Hans.json`
+- **Description / Promo:** 已按转化结构写完，**2026-08-19 已 push 到 ASC**（zh-Hans / zh-Hant / en-US 均 succeeded）
 - **Whats New:** N/A (first version)
-- **Promotional Text:** _空_
 - **Rating:** N/A (not launched)
-- **App Tags (Apple-generated):** _无_ (`asc app-tags list` returns empty)
-- **Locales configured:** zh-Hans only (zh-Hant, en not yet added to ASC)
-- **本地草稿:** `APP_STORE_METADATA.md` has zh-Hans / zh-Hant / en draft, not yet pushed
+- **App Tags (Apple-generated):** _无_
+- **Locales on ASC:** zh-Hans, zh-Hant, en-US
+- **ASO research:** `docs/aso/keyword-research-cn-2026-08-19.md`（2026-08-19）
+- **Screenshots:** ASC 已有 6 张 6.7" 成稿（含小组件「不用打开，也在靠近」），三语 COMPLETE
+- **Version:** 1.0 build 2 `READY_FOR_REVIEW`（2026-08-19）
+- **Icon:** 暗场灯缝，audit 44/50，V1 不重画
+- **Review:** 2026-08-19 已提交 6 项（App 1.0 + 年订/年挽回 + 终身/终身挽回 + 群组）。月订未送。
 
 ## Goals
 1. **iOS 中国区 Music 类目排名** — 目标：上线 3 个月内进入 Top 200

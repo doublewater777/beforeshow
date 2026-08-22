@@ -50,9 +50,21 @@ enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
 }
 
 extension ShowNotificationMilestone {
-    /// 只有「快开场了」错过会有真实后果，其余都安静待在通知中心。
+    /// 只有「快开场了」带声音并突破专注模式——错过它有真实后果。
+    /// 其余节点是普通横幅（无声音）。
     var isTimeSensitive: Bool {
         self == .showDay
+    }
+
+    /// 期待期四个节点：临近开场才添加现场时会被补发（见 backfillRequests）。
+    /// showDay/openingMemory/afterShow 各有自己的兜底和生命周期，不参与补发。
+    var isAnticipation: Bool {
+        switch self {
+        case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .oneDayBefore:
+            return true
+        case .showDayMorning, .showDay, .openingMemory, .afterShow:
+            return false
+        }
     }
 }
 
@@ -128,6 +140,8 @@ struct ScheduledShowNotification: Equatable {
     let fireDate: Date
     let title: String
     let body: String
+    /// 过期节点的补发：普通横幅（.active 无声音），文案按实际剩余天数重写。
+    var isBackfill: Bool = false
 }
 
 struct NotificationReschedulePlan: Equatable {
@@ -140,17 +154,23 @@ final class NotificationSchedulingState {
     var id: UUID
     var focusedShowID: UUID?
     var hasRequestedPermissionAfterFirstShow: Bool
+    /// 已补发过过期节点的现场。每场现场只 mint 一次：补发是基于添加时刻
+    /// 的情绪曲线重放，编辑 / 切焦点 / reconcile 重排都不该再来一轮。
+    /// 存储层必须可选：旧数据没有这一列，非可选属性会让轻量迁移直接失败。
+    var backfillMintedShowIDs: [UUID]?
     var updatedAt: Date
 
     init(
         id: UUID = UUID(),
         focusedShowID: UUID? = nil,
         hasRequestedPermissionAfterFirstShow: Bool = false,
+        backfillMintedShowIDs: [UUID]? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.focusedShowID = focusedShowID
         self.hasRequestedPermissionAfterFirstShow = hasRequestedPermissionAfterFirstShow
+        self.backfillMintedShowIDs = backfillMintedShowIDs
         self.updatedAt = updatedAt
     }
 
@@ -163,6 +183,19 @@ final class NotificationSchedulingState {
         focusedShowID = showID
         updatedAt = Date()
     }
+
+    func hasMintedBackfill(for showID: UUID) -> Bool {
+        backfillMintedShowIDs?.contains(showID) ?? false
+    }
+
+    func markBackfillMinted(showID: UUID) {
+        var ids = backfillMintedShowIDs ?? []
+        if !ids.contains(showID) {
+            ids.append(showID)
+            backfillMintedShowIDs = ids
+        }
+        updatedAt = Date()
+    }
 }
 
 @Model
@@ -171,6 +204,13 @@ final class ShowNotificationScheduleRecord {
     var showID: UUID
     var milestoneRawValue: String
     var fireDate: Date
+    /// 补发记录自带文案：重排（applyFocusChange）时待发的补发要按记录原样重建，
+    /// 不能靠 backfillRequests 重算（那会按新的 now 生成另一组时刻）。
+    /// 存储层可选：旧数据没有这三列，非可选属性会让轻量迁移直接失败；
+    /// 读取处按 `== true` / `?? ""` 处理，nil 即「自然节点记录」。
+    var isBackfill: Bool?
+    var title: String?
+    var body: String?
     var createdAt: Date
 
     var milestone: ShowNotificationMilestone {
@@ -182,12 +222,18 @@ final class ShowNotificationScheduleRecord {
         showID: UUID,
         milestone: ShowNotificationMilestone,
         fireDate: Date,
+        isBackfill: Bool = false,
+        title: String = "",
+        body: String = "",
         createdAt: Date = Date()
     ) {
         self.id = id
         self.showID = showID
         self.milestoneRawValue = milestone.rawValue
         self.fireDate = fireDate
+        self.isBackfill = isBackfill
+        self.title = title
+        self.body = body
         self.createdAt = createdAt
     }
 }
@@ -218,6 +264,118 @@ struct LocalNotificationScheduler {
                     body: notificationBody(for: $0.milestone, context: context)
                 )
             }
+    }
+
+    // MARK: - Backfill
+
+    private static let maxBackfillCount = 3
+    private static let firstBackfillDelay: TimeInterval = 60 * 60
+    private static let backfillInterval: TimeInterval = 12 * 60 * 60
+    private static let backfillCrowdingGap: TimeInterval = 4 * 60 * 60
+
+    /// 临近开场才添加的现场，期待期节点已经错过。逐条补发、间隔铺开、封顶 3 条，
+    /// 让晚添加的用户也能收到期待曲线，而不是干等下一个自然节点。
+    ///
+    /// 节奏：首条 1 小时后，之后每 12 小时一条；落在 22:00–08:00 的顺延到清醒时段。
+    /// 防拥挤：与任一自然未来节点相距 <4h、或不早于开场时刻的槽位直接丢弃
+    /// （残局由 showDay / openingMemory 覆盖）。
+    ///
+    /// 只在 applyFocusChange 里 mint（每场现场一次，见 backfillMintedShowIDs）；
+    /// reconcile 不调用它——补发时刻依赖 mint 当时的 now，重算会得到另一组时刻。
+    func backfillRequests(for show: Show, now: Date = Date()) -> [ScheduledShowNotification] {
+        let eventCalendar = show.timingCalendar(fallback: calendar)
+        let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
+        guard timeState.canScheduleNotifications else { return [] }
+
+        let milestones = milestoneDates(for: timeState, show: show, calendar: eventCalendar, now: now)
+        // milestoneDates 按 14→7→3→1 的时间顺序产出，suffix 取最近错过的 3 条，
+        // 重放时仍然沿着情绪曲线走。
+        let missed = milestones
+            .filter { $0.milestone.isAnticipation && $0.fireDate <= now }
+            .suffix(Self.maxBackfillCount)
+        guard !missed.isEmpty else { return [] }
+
+        let naturalFireDates = milestones.filter { $0.fireDate > now }.map(\.fireDate)
+        let showStart = CurrentShowTimeState.effectiveStartTime(for: show, calendar: eventCalendar)
+        let context = NotificationCopyContext(show: show, timeState: timeState, calendar: eventCalendar)
+        let showDay = eventCalendar.startOfDay(for: timeState.effectiveDate)
+
+        // 槽位链式推进：每条在上一条（顺延后的）基础上 +12h，保证相邻补发
+        // 至少隔半天；直接落在 22:00–08:00 的先顺延到清醒时段再入链。
+        var requests: [ScheduledShowNotification] = []
+        var nextSlot = wakingHoursAdjusted(
+            now + Self.firstBackfillDelay,
+            calendar: eventCalendar
+        )
+        for entry in missed {
+            guard let slot = nextSlot else { break }
+            nextSlot = wakingHoursAdjusted(
+                slot + Self.backfillInterval,
+                calendar: eventCalendar
+            )
+            // 不早于开场时刻的槽位丢弃；槽位只会越来越晚，可以直接收工。
+            guard slot < showStart else { break }
+            // 与自然未来节点相距 <4h 的槽位丢弃，避免两条挤在一起。
+            guard !naturalFireDates.contains(where: {
+                abs($0.timeIntervalSince(slot)) < Self.backfillCrowdingGap
+            }) else { continue }
+
+            // 文案按补发触发当天的实际剩余天数写，原节点文案里「还有 N 天」已经不准了。
+            let slotDay = eventCalendar.startOfDay(for: slot)
+            let days = eventCalendar.dateComponents([.day], from: slotDay, to: showDay).day ?? 0
+            let copy = backfillCopy(daysRemaining: days, context: context)
+            requests.append(ScheduledShowNotification(
+                showID: show.id,
+                milestone: entry.milestone,
+                fireDate: slot,
+                title: copy.title,
+                body: copy.body,
+                isBackfill: true
+            ))
+        }
+        return requests
+    }
+
+    /// 深夜不打扰：22:00–08:00 的槽位顺延，<8 点到当天 08:00，≥22 点到次日 10:00。
+    private func wakingHoursAdjusted(_ date: Date, calendar: Calendar) -> Date? {
+        let hour = calendar.component(.hour, from: date)
+        if hour < 8 {
+            return calendar.date(bySettingHour: 8, minute: 0, second: 0, of: date)
+        }
+        if hour >= 22 {
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: date) else { return nil }
+            return calendar.date(bySettingHour: 10, minute: 0, second: 0, of: nextDay)
+        }
+        return date
+    }
+
+    /// 补发文案：触发当天就开场的复用「今天开场」；更早的用带实际剩余天数的
+    /// 通用句（不复用「明天见」——临场前一天添加时会和当晚的自然节点文案撞车），
+    /// 标题映射到最近的情绪节点。
+    private func backfillCopy(
+        daysRemaining: Int,
+        context: NotificationCopyContext
+    ) -> (title: String, body: String) {
+        if daysRemaining <= 0 {
+            return (
+                notificationTitle(for: .showDayMorning, context: context),
+                notificationBody(for: .showDayMorning, context: context)
+            )
+        }
+        let bucket: ShowNotificationMilestone
+        if daysRemaining >= 10 {
+            bucket = .fourteenDaysBefore
+        } else if daysRemaining >= 5 {
+            bucket = .sevenDaysBefore
+        } else if daysRemaining >= 2 {
+            bucket = .threeDaysBefore
+        } else {
+            bucket = .oneDayBefore
+        }
+        return (
+            notificationTitle(for: bucket, context: context),
+            BSLocalization.format("%1$@ 还有 %2$d 天，已经开始期待了", context.showName, daysRemaining)
+        )
     }
 
     func planFocusChange(
@@ -367,18 +525,18 @@ struct LocalNotificationScheduler {
 
         case .sevenDaysBefore:
             if let place = context.place {
-                return BSLocalization.format("%1$@ 还有一周，可以先熟悉一下 %2$@ 怎么去", name, place)
+                return BSLocalization.format("%1$@ 还有一周，可以先查查 %2$@ 怎么去", name, place)
             }
             return BSLocalization.format("%@ 还有一周，可以先想想那天的样子了", name)
 
         case .threeDaysBefore:
             switch context.flavor {
             case .festival:
-                return BSLocalization.format("%@ 还有三天，防晒、雨具和能坐下歇脚的东西可以先备好", name)
+                return BSLocalization.format("%@ 还有三天，防晒、雨具和折叠椅可以先备好", name)
             case .livehouse:
                 return BSLocalization.format("%@ 还有三天，站场时间不短，选一双好走的鞋", name)
             case .concert:
-                return BSLocalization.format("%@ 还有三天，入场凭证和身份证件先确认一遍", name)
+                return BSLocalization.format("%@ 还有三天，门票和身份证件先确认一遍", name)
             }
 
         case .oneDayBefore:
@@ -400,7 +558,7 @@ struct LocalNotificationScheduler {
             if let place = context.place {
                 return BSLocalization.format("%1$@ 快开场了，%2$@ 见", name, place)
             }
-            return BSLocalization.format("%@ 快开场了，凭证电量再确认一遍", name)
+            return BSLocalization.format("%@ 快开场了，门票和手机电量再确认一遍", name)
 
         case .afterShow:
             return BSLocalization.format("%@ 的余温还在，想说的可以留在这里", name)
@@ -426,7 +584,7 @@ struct LocalNotificationScheduler {
         case .threeDaysBefore:
             return BSLocalization.text("该想想带什么了")
         case .oneDayBefore:
-            return BSLocalization.text("明天见，最后看一眼")
+            return BSLocalization.text("明天见")
         case .showDayMorning:
             return BSLocalization.text("今天开场")
         case .showDay:
@@ -512,7 +670,10 @@ extension ScheduledShowNotification {
     }
 
     var requestIdentifier: String {
-        "\(showID.uuidString).\(milestone.rawValue)"
+        if isBackfill {
+            return "\(showID.uuidString).backfill.\(milestone.rawValue)"
+        }
+        return "\(showID.uuidString).\(milestone.rawValue)"
     }
 
     func makeNotificationRequest() -> UNNotificationRequest {
@@ -523,14 +684,15 @@ extension ScheduledShowNotification {
         // 同一现场的通知归到一组，等待期里不会散落成一串独立横幅。
         content.threadIdentifier = showID.uuidString
         if milestone.isTimeSensitive {
+            // 唯一会响铃的：「快开场了」错过有真实后果。
             content.sound = .default
             content.interruptionLevel = .timeSensitive
             content.relevanceScore = 1
         } else {
-            // 进入状态的过程不该被打断：安静送达，留在通知中心里等用户自己看。
+            // 其余一律普通横幅：弹横幅、亮屏、进通知中心，但不带声音。
             content.sound = nil
-            content.interruptionLevel = .passive
-            content.relevanceScore = 0.5
+            content.interruptionLevel = .active
+            content.relevanceScore = isBackfill ? 0.7 : 0.5
         }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -546,7 +708,10 @@ extension ScheduledShowNotification {
 
 extension ShowNotificationScheduleRecord {
     var requestIdentifier: String {
-        "\(showID.uuidString).\(milestone.rawValue)"
+        if isBackfill == true {
+            return "\(showID.uuidString).backfill.\(milestoneRawValue)"
+        }
+        return "\(showID.uuidString).\(milestoneRawValue)"
     }
 }
 
@@ -575,13 +740,14 @@ final class LocalNotificationCenter {
     }
 
     /// Cancel everything tied to the previous focus and schedule the new current show.
-    /// Missed milestones are never backfilled; only future fire dates are scheduled.
+    /// Missed natural milestones are never backfilled here by `planFocusChange`; the
+    /// anticipation backfill below is minted separately, once per show.
     @discardableResult
     func applyFocusChange(to show: Show?, in context: ModelContext, now: Date = Date()) async -> Bool {
         let existingRecords = (try? context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())) ?? []
+        let allShows = (try? context.fetch(FetchDescriptor<Show>())) ?? []
         // 已确认散场的现场即使让出焦点，它的 afterShow 也要继续排。
-        let endedShows = ((try? context.fetch(FetchDescriptor<Show>())) ?? [])
-            .filter { $0.endedAt != nil }
+        let endedShows = allShows.filter { $0.endedAt != nil }
         let plan = scheduler.planFocusChange(
             from: existingRecords,
             to: show,
@@ -589,6 +755,43 @@ final class LocalNotificationCenter {
             now: now
         )
         var didScheduleEveryRequest = true
+
+        var requestsToSchedule = plan.requestsToSchedule
+
+        // 过期期待节点的补发：只在现场从未 mint 过时生成，mint 完登记。
+        // 之后任何重排（编辑、切焦点、reconcile 对齐）都不会再来一轮——
+        // 补发是添加时刻的情绪曲线重放，重复发送比不发更糟糕。
+        if let show {
+            let state = (try? context.fetch(FetchDescriptor<NotificationSchedulingState>()))?.first
+            let schedulingState: NotificationSchedulingState
+            if let state {
+                schedulingState = state
+            } else {
+                schedulingState = NotificationSchedulingState()
+                context.insert(schedulingState)
+            }
+            if !schedulingState.hasMintedBackfill(for: show.id) {
+                requestsToSchedule.append(contentsOf: scheduler.backfillRequests(for: show, now: now))
+                schedulingState.markBackfillMinted(showID: show.id)
+            }
+        }
+
+        // 待发的补发不随重排丢弃：按记录原样重建（时刻和文案都是 mint 时定的，
+        // 重算会得到另一组）。已删除现场的补发不再续命；已触发的（fireDate <= now）
+        // 不重建，记录随下面的 recordsToCancel 清理。
+        let liveShowIDs = Set(allShows.map(\.id))
+        requestsToSchedule.append(contentsOf: existingRecords
+            .filter { $0.isBackfill == true && $0.fireDate > now && liveShowIDs.contains($0.showID) }
+            .map {
+                ScheduledShowNotification(
+                    showID: $0.showID,
+                    milestone: $0.milestone,
+                    fireDate: $0.fireDate,
+                    title: $0.title ?? "",
+                    body: $0.body ?? "",
+                    isBackfill: true
+                )
+            })
 
         let identifiersToCancel = plan.recordsToCancel.map(\.requestIdentifier)
         if !identifiersToCancel.isEmpty {
@@ -598,11 +801,14 @@ final class LocalNotificationCenter {
             context.delete(record)
         }
 
-        for request in plan.requestsToSchedule {
+        for request in requestsToSchedule {
             let record = ShowNotificationScheduleRecord(
                 showID: request.showID,
                 milestone: request.milestone,
-                fireDate: request.fireDate
+                fireDate: request.fireDate,
+                isBackfill: request.isBackfill,
+                title: request.title,
+                body: request.body
             )
             context.insert(record)
             do {
@@ -618,7 +824,7 @@ final class LocalNotificationCenter {
             return didScheduleEveryRequest
         } catch {
             center.removePendingNotificationRequests(
-                withIdentifiers: plan.requestsToSchedule.map(\.requestIdentifier)
+                withIdentifiers: requestsToSchedule.map(\.requestIdentifier)
             )
             context.rollback()
             return false
@@ -652,8 +858,23 @@ final class LocalNotificationCenter {
         let pendingIdentifiers = Set(
             await center.pendingNotificationRequests().map(\.identifier)
         )
-        let recordedIdentifiers = Set(existingRecords.map(\.requestIdentifier))
+
+        // 已触发的补发是「完成的使命」，不是 drift：记录清掉即可，不该触发重排——
+        // 否则第一条补发触发后，下一次 reconcile 会把待发的第 2/3 条取消重建。
+        let firedBackfills = existingRecords.filter { $0.isBackfill == true && $0.fireDate <= now }
+        if !firedBackfills.isEmpty {
+            for record in firedBackfills {
+                context.delete(record)
+            }
+            try? context.save()
+        }
+        let activeRecords = existingRecords.filter { !($0.isBackfill == true && $0.fireDate <= now) }
+
+        let recordedIdentifiers = Set(activeRecords.map(\.requestIdentifier))
+        // 待发的补发始终属于期望集合。它们不在自然排期里，但标识符与
+        // applyFocusChange 按记录重建的请求一一对应，两边一致才不会反复重排。
         let desiredIdentifiers = Set(desired.map(\.requestIdentifier))
+            .union(activeRecords.filter { $0.isBackfill == true }.map(\.requestIdentifier))
 
         // Records for a show that is no longer in focus, or milestones that dropped out.
         let hasStaleRecords = !recordedIdentifiers.subtracting(desiredIdentifiers).isEmpty
@@ -738,7 +959,7 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // 安静节点在前台也不响铃，只有「快开场了」带声音（见 makeNotificationRequest）。
+        // 非「快开场了」的节点不带声音，前台只给横幅（见 makeNotificationRequest）。
         if notification.request.content.sound == nil {
             completionHandler([.banner])
         } else {

@@ -864,6 +864,7 @@ private struct FootprintSearchSheet: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .padding(.top, 8)
 
             Button(BSLocalization.text("完成")) { dismiss() }
@@ -925,7 +926,7 @@ private struct FootprintShareActionSheet<Preview: View>: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSaving = false
-    @State private var saveError: String?
+    @State private var toast: BSToastPayload?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -956,14 +957,7 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
-        .alert(BSLocalization.text("无法保存图片"), isPresented: Binding(
-            get: { saveError != nil },
-            set: { if !$0 { saveError = nil } }
-        )) {
-            Button(BSLocalization.text("好"), role: .cancel) { saveError = nil }
-        } message: {
-            Text(saveError ?? BSLocalization.text("请重试。"))
-        }
+        .bsToastOverlay(toast, bottomPadding: 24)
     }
 
     @MainActor
@@ -974,11 +968,21 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         do {
             try await FootprintShareImageExport.save(exportContent(), size: exportSize)
         } catch {
-            saveError = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
+            let message = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
+            presentToast(.failure, message: message)
             return
         }
         dismiss()
         onSaved?()
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if toast == payload { toast = nil }
+        }
     }
 }
 
@@ -1042,6 +1046,7 @@ private struct FootprintSharePreview: View {
 private struct FootprintArchiveShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory
+    let onSaved: () -> Void
 
     var body: some View {
         FootprintShareActionSheet(
@@ -1051,7 +1056,8 @@ private struct FootprintArchiveShareSheet: View {
             shareText: FootprintArchiveShareCopy.text(for: category, archive: archive),
             exportSize: CGSize(width: 1080, height: 1100),
             preview: { FootprintArchiveSharePreview(archive: archive, category: category) },
-            exportContent: { FootprintArchiveSharePreview(archive: archive, category: category) }
+            exportContent: { FootprintArchiveSharePreview(archive: archive, category: category) },
+            onSaved: onSaved
         )
     }
 }
@@ -1329,6 +1335,7 @@ private struct FootprintArchiveDetailView: View {
     let onVisibilityChange: (Bool) -> Void
     @State private var category: FootprintCategory
     @State private var isShowingShare = false
+    @State private var toast: BSToastPayload?
 
     @Environment(\.dismiss) private var dismiss
 
@@ -1368,10 +1375,24 @@ private struct FootprintArchiveDetailView: View {
         .onAppear { onVisibilityChange(true) }
         .onDisappear { onVisibilityChange(false) }
         .sheet(isPresented: $isShowingShare) {
-            FootprintArchiveShareSheet(archive: archive, category: category)
-                .presentationDetents([.height(620)])
-                .presentationCornerRadius(26)
-                .presentationDragIndicator(.visible)
+            FootprintArchiveShareSheet(
+                archive: archive,
+                category: category,
+                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+            )
+            .presentationDetents([.height(620)])
+            .presentationCornerRadius(26)
+            .presentationDragIndicator(.visible)
+        }
+        .bsToastOverlay(toast, bottomPadding: 100)
+    }
+
+    private func presentToast(_ message: String) {
+        let payload = BSToastPayload(tone: .success, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            if toast == payload { toast = nil }
         }
     }
 

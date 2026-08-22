@@ -13,6 +13,25 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertFalse(CompanionInviteGate.blocksNewInvite(nil))
     }
 
+    func testInvitePreparingCopyReplacesActionTitleUntilShareAppears() {
+        XCTAssertEqual(
+            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: false),
+            BSLocalization.text("分享邀请")
+        )
+        XCTAssertEqual(
+            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: true),
+            BSLocalization.text("重新邀请")
+        )
+        XCTAssertEqual(
+            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: true, isRetry: false),
+            BSLocalization.text("正在准备邀请")
+        )
+        XCTAssertEqual(
+            CompanionInvitePreparingPresentation.overlayTitle,
+            BSLocalization.text("正在打开系统分享")
+        )
+    }
+
     func testCloudStatusMapsToLocalStatus() {
         XCTAssertEqual(CompanionCloudStatus.pending.localStatus, .pending)
         XCTAssertEqual(CompanionCloudStatus.accepted.localStatus, .confirmed)

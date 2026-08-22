@@ -224,29 +224,17 @@ struct AppVersionInformation: Equatable {
     var fullCopy: String { BSLocalization.format("版本 %@（构建 %@）", marketingVersion, buildNumber) }
 }
 
-enum FeedbackCategory: String, CaseIterable, Identifiable, Equatable {
-    case product = "使用感受"
-    case bug = "问题反馈"
-    case privacy = "隐私与数据"
-
-    var id: String { rawValue }
-
-    var displayTitle: String { BSLocalization.text(rawValue) }
-}
-
 struct FeedbackDiagnostics: Equatable {
     let appVersion: String
     let osVersion: String
 }
 
 struct FeedbackDraft: Equatable {
-    var category: FeedbackCategory
     var message: String
     var includesDiagnostics: Bool
 }
 
 struct FeedbackPayload: Equatable {
-    let category: FeedbackCategory
     let message: String
     let diagnostics: FeedbackDiagnostics?
 }
@@ -280,7 +268,6 @@ struct FeedbackPayloadBuilder {
         }
 
         return FeedbackPayload(
-            category: draft.category,
             message: trimmedMessage,
             diagnostics: draft.includesDiagnostics ? diagnosticsProvider() : nil
         )
@@ -289,10 +276,7 @@ struct FeedbackPayloadBuilder {
 
 struct FeedbackShareTextBuilder {
     func build(from payload: FeedbackPayload) -> String {
-        var text = [
-            BSLocalization.format("类型：%@", payload.category.displayTitle),
-            BSLocalization.format("反馈：%@", payload.message)
-        ].joined(separator: "\n")
+        var text = BSLocalization.format("反馈：%@", payload.message)
 
         if let diagnostics = payload.diagnostics {
             text += "\n\n" +

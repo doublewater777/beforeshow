@@ -55,7 +55,8 @@
 - App Store SKU：`beforeshow-ios`
 - App Store 主分类：Music
 - App Store 副分类：Lifestyle
-- App Store 副标题：开场之前，先进入状态
+- App Store 名称：开场前 - 演唱会倒计时
+- App Store 副标题：音乐节与Livehouse倒数提醒
 - 品牌氛围句：灯亮之前，先进入状态
 - iOS Distribution 证书 ID：`XCJMLU87V5`
 - iOS Distribution 证书名称：`iOS Distribution: Yang Pan`

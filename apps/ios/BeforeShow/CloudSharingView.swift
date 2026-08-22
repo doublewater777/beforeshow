@@ -16,6 +16,21 @@ enum CompanionInviteGate {
     }
 }
 
+enum CompanionInvitePreparingPresentation {
+    static var overlayTitle: String {
+        BSLocalization.text("正在打开系统分享")
+    }
+
+    static func primaryActionTitle(isPreparing: Bool, isRetry: Bool) -> String {
+        if isPreparing {
+            return BSLocalization.text("正在准备邀请")
+        }
+        return isRetry
+            ? BSLocalization.text("重新邀请")
+            : BSLocalization.text("分享邀请")
+    }
+}
+
 /// Presents `UICloudSharingController` from the top UIKit controller.
 /// Embedding it as a SwiftUI `fullScreenCover` root dismisses the share sheet as soon
 /// as the system presents its own activity UI.
@@ -28,7 +43,8 @@ enum SystemCloudSharePresenter {
         shareData: Data,
         containerIdentifier: String,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
-        onDismiss: @escaping () -> Void
+        onDismiss: @escaping () -> Void,
+        onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) else {
             return false
@@ -37,7 +53,8 @@ enum SystemCloudSharePresenter {
             share: share,
             container: CKContainer(identifier: containerIdentifier),
             onEvent: onEvent,
-            onDismiss: onDismiss
+            onDismiss: onDismiss,
+            onPresented: onPresented
         )
     }
 
@@ -46,7 +63,8 @@ enum SystemCloudSharePresenter {
         share: CKShare,
         container: CKContainer,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
-        onDismiss: @escaping () -> Void
+        onDismiss: @escaping () -> Void,
+        onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let presenter = SystemPNGSharePresenter.topViewController() else {
             return false
@@ -71,13 +89,14 @@ enum SystemCloudSharePresenter {
                 height: 1
             )
         }
-        presenter.present(controller, animated: true)
+        presenter.present(controller, animated: true, completion: onPresented)
         return true
     }
 
     private final class Session: NSObject, UICloudSharingControllerDelegate, UIAdaptivePresentationControllerDelegate {
         var onEvent: (CloudSharingControllerEvent, CKShare?, Error?) -> Void
         var onDismiss: () -> Void
+        private(set) var isFinished = false
 
         init(
             onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
@@ -114,6 +133,8 @@ enum SystemCloudSharePresenter {
         }
 
         private func finish() {
+            guard !isFinished else { return }
+            isFinished = true
             let dismiss = onDismiss
             onEvent = { _, _, _ in }
             onDismiss = {}

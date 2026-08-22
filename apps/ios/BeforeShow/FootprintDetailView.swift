@@ -178,6 +178,9 @@ struct FootprintDetailView: View {
                             companionSection
                         }
                         informationSection
+                        if !show.artists.isEmpty {
+                            lineupSection
+                        }
                     }
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
@@ -521,15 +524,25 @@ struct FootprintDetailView: View {
                     title: BSLocalization.text("城市"),
                     value: FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("未填写城市")
                 )
-                Divider().overlay(BSColor.Stage.border)
-                infoRow(
-                    icon: "music.note",
-                    title: BSLocalization.text("艺人"),
-                    value: show.artistNames.isEmpty ? BSLocalization.text("未填写艺人") : show.artistNames.joined(separator: "、")
-                )
+                if show.artists.isEmpty {
+                    Divider().overlay(BSColor.Stage.border)
+                    infoRow(
+                        icon: "music.note",
+                        title: BSLocalization.text("艺人"),
+                        value: BSLocalization.text("未填写艺人")
+                    )
+                }
             }
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
             .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
+        }
+    }
+
+    /// 阵容区:与现场详情同一形态(`ArtistLineupStrip`),点头像跳 Apple Music。
+    private var lineupSection: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.compact) {
+            sectionHeader(BSLocalization.text("阵容"))
+            ArtistLineupStrip(artists: show.artists)
         }
     }
 

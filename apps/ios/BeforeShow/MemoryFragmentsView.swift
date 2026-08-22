@@ -264,7 +264,7 @@ struct MemoryFragmentsView: View {
                         }
 
                     }
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 96)
                 }
                 .bsNavigationScrollEdge()
                 .onChange(of: fragments.count) { oldCount, newCount in
@@ -276,18 +276,23 @@ struct MemoryFragmentsView: View {
         .navigationTitle("记忆碎片")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
-        .safeAreaInset(edge: .bottom) {
+        .overlay(alignment: .bottomTrailing) {
             Button {
                 guard directImportTask == nil else { return }
                 isShowingCreateOptions = true
             } label: {
-                Label("新增记忆", systemImage: "plus")
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.black)
+                    .frame(width: 54, height: 54)
+                    .background(Color.white, in: Circle())
+                    .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
             }
-            .buttonStyle(BSPrimaryButtonStyle())
+            .accessibilityLabel("新增记忆")
             .disabled(directImportTask != nil)
-            .padding(.horizontal, BSSpacing.lg)
-            .padding(.top, BSSpacing.sm)
-            .padding(.bottom, BSSpacing.md)
+            .opacity(directImportTask != nil ? 0.5 : 1)
+            .padding(.trailing, 20)
+            .padding(.bottom, 20)
         }
         .bsToastOverlay(toast, bottomPadding: 80)
         .overlay(alignment: .bottom) {
@@ -1659,6 +1664,7 @@ private struct MemoryUnifiedEditorView: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 34)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .navigationTitle(editorTitle)
         .navigationBarTitleDisplayMode(.inline)

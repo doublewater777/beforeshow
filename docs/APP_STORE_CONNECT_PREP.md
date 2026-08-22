@@ -53,7 +53,7 @@ Created with these fields:
 - Initial version: `1.0`
 - Category: Music
 - Secondary category: Lifestyle
-- Subtitle: `开场之前，先进入状态`
+- Subtitle at creation: `开场之前，先进入状态`（2026-08-19 ASO 改为 `音乐节与Livehouse倒数提醒`，见 `docs/aso/metadata-package.md`）
 
 ## Later App Store Setup
 

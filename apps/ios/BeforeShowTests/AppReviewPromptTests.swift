@@ -8,7 +8,6 @@ final class AppReviewPromptTests: XCTestCase {
         super.setUp()
         defaults = UserDefaults(suiteName: "app-review-prompt-tests")
         defaults.removePersistentDomain(forName: "app-review-prompt-tests")
-        defaults.set(true, forKey: AppReviewPromptPolicy.onboardingCompletedKey)
     }
 
     override func tearDown() {
@@ -19,18 +18,6 @@ final class AppReviewPromptTests: XCTestCase {
 
     func testAllowsFirstSuccessMoment() {
         XCTAssertTrue(
-            AppReviewPromptPolicy.shouldPrompt(
-                now: Date(timeIntervalSince1970: 1_800_000_000),
-                version: "1.0",
-                defaults: defaults,
-                arguments: []
-            )
-        )
-    }
-
-    func testSkipsBeforeOnboardingCompletes() {
-        defaults.set(false, forKey: AppReviewPromptPolicy.onboardingCompletedKey)
-        XCTAssertFalse(
             AppReviewPromptPolicy.shouldPrompt(
                 now: Date(timeIntervalSince1970: 1_800_000_000),
                 version: "1.0",
