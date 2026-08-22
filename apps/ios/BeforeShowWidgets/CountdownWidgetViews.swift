@@ -3,9 +3,8 @@ import WidgetKit
 
 // MARK: - Countdown Widget Views
 // App 与普通 widget 共用同一条时间语义:
-// >24h 天、1~24h 小时、最后 1h 分秒；开场后明确标「已开场」。
-// WidgetKit 需要系统 Text(.timer) 才能在最后一小时 / live 自驱刷新，
-// 因此 timer 旁必须补单位，不能再让用户猜 HH:MM / MM:SS。
+// >24h 天、1~24h 小时、最后 1h 分秒；开场后回到分钟 / 小时分钟，不做秒表。
+// 最后一小时仍用系统 .timer 自驱秒数；live 用系统 .relative 自驱本地化的分钟/小时分钟。
 
 struct CountdownWidgetView: View {
     let entry: CountdownEntry
@@ -66,8 +65,6 @@ struct CountdownPresentation {
     let calendar: Calendar
     /// 距开场的秒数(entry 时刻),给精度选择与圆形进度环用。
     let remainingSeconds: Int
-    /// 已开场秒数(entry 时刻),只用于决定 unit legend；实时数字仍由系统 timer 自驱。
-    let elapsedSeconds: Int
 
     var hasShow: Bool { hero != .empty }
 
@@ -81,7 +78,6 @@ struct CountdownPresentation {
             endBoundary = nil
             calendar = .current
             remainingSeconds = 0
-            elapsedSeconds = 0
             return
         }
 
@@ -95,8 +91,6 @@ struct CountdownPresentation {
         endBoundary = state.endBoundary
         remainingSeconds = state.effectiveStartTime
             .map { max(0, Int($0.timeIntervalSince(entry.date))) } ?? 0
-        elapsedSeconds = state.effectiveStartTime
-            .map { max(0, Int(entry.date.timeIntervalSince($0))) } ?? 0
 
         switch HomeShowPhase(timeState: state, now: entry.date) {
         case .pre:
@@ -141,12 +135,6 @@ struct CountdownPresentation {
         )
     }
 
-    var clockText: String {
-        guard let startDate else { return "" }
-        let components = calendar.dateComponents([.hour, .minute], from: startDate)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
     var showsPhaseTag: Bool {
         switch hero {
         case .far, .near:
@@ -167,12 +155,6 @@ struct CountdownPresentation {
 
     var beforeDisplay: CountdownTimeDisplay {
         CountdownTimePresentationPolicy.beforeStart(remainingSeconds: remainingSeconds)
-    }
-
-    var liveUnitLegend: String {
-        elapsedSeconds >= Int(CountdownTimePresentationPolicy.hourThreshold)
-            ? BSLocalization.text("时 : 分 : 秒")
-            : BSLocalization.text("分 : 秒")
     }
 }
 
@@ -270,20 +252,18 @@ private struct SmallCountdownView: View {
                 EmptyView()
             }
         case .live(let start):
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
                     LiveDot(size: 7)
                     Text("已开场")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(WidgetTheme.liveTitle)
                 }
-                Text(start, style: .timer)
-                    .font(.system(size: 28, weight: .semibold))
-                    .monospacedDigit()
+                Text(start, style: .relative)
+                    .font(.system(size: 23, weight: .semibold))
                     .foregroundStyle(WidgetTheme.foreground)
-                Text(presentation.liveUnitLegend)
-                    .font(.system(size: 8.5, weight: .medium))
-                    .foregroundStyle(WidgetTheme.dim)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
             }
         case .ended:
             Text("已落幕")
@@ -398,17 +378,15 @@ private struct MediumCountdownView: View {
         case .live(let start):
             HStack(spacing: 10) {
                 LiveDot(size: 9)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("已开场")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(WidgetTheme.liveTitle)
-                    Text(start, style: .timer)
-                        .font(.system(size: 28, weight: .semibold))
-                        .monospacedDigit()
+                    Text(start, style: .relative)
+                        .font(.system(size: 25, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
-                    Text(presentation.liveUnitLegend)
-                        .font(.system(size: 8.5, weight: .medium))
-                        .foregroundStyle(WidgetTheme.dim)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                 }
                 Spacer(minLength: 0)
             }
@@ -487,7 +465,7 @@ private struct InlineCountdownView: View {
                 Text("距离开场 · \(presentation.showName)")
             }
         case .live(let start):
-            Text("已开场 · \(Text(start, style: .timer))")
+            Text("已开场 · \(Text(start, style: .relative))")
         case .ended:
             Text("已落幕 · \(presentation.showName)")
         case .endUnconfirmed:
@@ -561,9 +539,10 @@ private struct CircularCountdownView: View {
         case .live(let start):
             VStack(spacing: 1) {
                 LiveDot(size: 5)
-                Text(start, style: .timer)
-                    .font(.system(size: 9, weight: .bold))
-                    .monospacedDigit()
+                Text(start, style: .relative)
+                    .font(.system(size: 8.5, weight: .bold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
                 Text("已开场")
                     .font(.system(size: 6.5))
                     .foregroundStyle(.secondary)
@@ -617,7 +596,7 @@ private struct RectangularCountdownView: View {
                 Text("距离开场")
             }
         case .live(let start):
-            Text("已开场 · \(Text(start, style: .timer))")
+            Text("已开场 · \(Text(start, style: .relative))")
         case .ended:
             Text("已落幕")
         case .endUnconfirmed:
