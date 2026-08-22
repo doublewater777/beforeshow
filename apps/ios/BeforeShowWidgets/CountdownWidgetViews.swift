@@ -2,9 +2,10 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Countdown Widget Views
-// 设计稿:docs/design/widget/BeforeShow Widgets.html
-// 与 app 首页同一套精度收束:>1 天天数 hero、<24h 时:分:秒、live 正在现场;
-// 秒针用 Text(timerInterval:) 原生跳动,不靠 timeline 高频刷新。
+// App 与普通 widget 共用同一条时间语义:
+// >24h 天、1~24h 小时、最后 1h 分秒；开场后明确标「已开场」。
+// WidgetKit 需要系统 Text(.timer) 才能在最后一小时 / live 自驱刷新，
+// 因此 timer 旁必须补单位，不能再让用户猜 HH:MM / MM:SS。
 
 struct CountdownWidgetView: View {
     let entry: CountdownEntry
@@ -43,7 +44,6 @@ struct CountdownWidgetView: View {
 }
 
 // MARK: - Presentation
-// 视图输入一次性算好;kind/phase 推导复用 Shared 的 CurrentShowTimeState + HomeShowPhase。
 
 struct CountdownPresentation {
     enum Hero: Equatable {
@@ -64,8 +64,10 @@ struct CountdownPresentation {
     let startDate: Date?
     let endBoundary: Date?
     let calendar: Calendar
-    /// 距开场的秒数(entry 时刻),给圆形进度环用
+    /// 距开场的秒数(entry 时刻),给精度选择与圆形进度环用。
     let remainingSeconds: Int
+    /// 已开场秒数(entry 时刻),只用于决定 unit legend；实时数字仍由系统 timer 自驱。
+    let elapsedSeconds: Int
 
     var hasShow: Bool { hero != .empty }
 
@@ -79,6 +81,7 @@ struct CountdownPresentation {
             endBoundary = nil
             calendar = .current
             remainingSeconds = 0
+            elapsedSeconds = 0
             return
         }
 
@@ -90,17 +93,15 @@ struct CountdownPresentation {
         calendar = snapshot.timing.eventCalendar(fallback: .current)
         startDate = state.effectiveStartTime
         endBoundary = state.endBoundary
-        let remaining = state.effectiveStartTime
+        remainingSeconds = state.effectiveStartTime
             .map { max(0, Int($0.timeIntervalSince(entry.date))) } ?? 0
-        remainingSeconds = remaining
+        elapsedSeconds = state.effectiveStartTime
+            .map { max(0, Int(entry.date.timeIntervalSince($0))) } ?? 0
 
         switch HomeShowPhase(timeState: state, now: entry.date) {
         case .pre:
-            // 与首页一致:按实际剩余秒数分档,不用日历 dayDistance
-            // (23:50→次日 00:10 是 20 分钟,不是「1 天」)
-            // 用 `>` 阈值:start−24h 的 timeline entry 上 remaining==86400 必须已是 near
-            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remaining) {
-                hero = .far(days: remaining / Int(WidgetTimelinePlanner.dayCountdownThreshold))
+            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: remainingSeconds) {
+                hero = .far(days: remainingSeconds / Int(WidgetTimelinePlanner.dayCountdownThreshold))
             } else if let start = state.effectiveStartTime {
                 hero = .near(start: start)
             } else {
@@ -113,8 +114,6 @@ struct CountdownPresentation {
                 hero = .inactive(title: state.title)
             }
         case .ended:
-            // 无明确结束时间的演出,start+默认时长 只是估算边界:
-            // 用户未确认 endedAt 前不算「已落幕」。dayEnded 是单日循环内部态,仍按已落幕处理。
             if CurrentShowTimeState.isUnconfirmedEstimatedEnd(
                 kind: state.kind,
                 hasConfirmedEnd: snapshot.timing.endedAt != nil
@@ -142,24 +141,12 @@ struct CountdownPresentation {
         )
     }
 
-    /// 「今晚」仅当日开场;`<24h` 但跨日只报钟点,避免今晚看明天场仍写今晚。
-    var isStartTonight: Bool {
-        guard let startDate else { return false }
-        return calendar.isDateInToday(startDate)
-    }
-
     var clockText: String {
         guard let startDate else { return "" }
         let components = calendar.dateComponents([.hour, .minute], from: startDate)
         return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
     }
 
-    var tonightClockText: String {
-        BSLocalization.format("今晚 %@", clockText)
-    }
-
-    /// 顶部时期标签只在 Hero 是数字(far/near)时出现;
-    /// Hero 已是状态文字(live/ended/inactive)时 kicker 消失,避免同状态说两遍。
     var showsPhaseTag: Bool {
         switch hero {
         case .far, .near:
@@ -171,15 +158,21 @@ struct CountdownPresentation {
 
     var phaseTag: String {
         switch hero {
-        case .far:
-            return BSLocalization.text("距离灯亮还有")
-        case .near:
-            return isStartTonight
-                ? BSLocalization.text("今晚开场")
-                : BSLocalization.text("即将开场")
+        case .far, .near:
+            return BSLocalization.text("距离开场")
         case .live, .ended, .endUnconfirmed, .inactive, .empty:
             return ""
         }
+    }
+
+    var beforeDisplay: CountdownTimeDisplay {
+        CountdownTimePresentationPolicy.beforeStart(remainingSeconds: remainingSeconds)
+    }
+
+    var liveUnitLegend: String {
+        elapsedSeconds >= Int(CountdownTimePresentationPolicy.hourThreshold)
+            ? BSLocalization.text("时 : 分 : 秒")
+            : BSLocalization.text("分 : 秒")
     }
 }
 
@@ -224,7 +217,7 @@ private struct SmallCountdownView: View {
                 if presentation.showsPhaseTag {
                     Text(presentation.phaseTag)
                         .font(.system(size: 10, weight: .semibold))
-                        .tracking(1.2)
+                        .tracking(1.0)
                         .foregroundStyle(WidgetTheme.muted)
                 }
 
@@ -245,7 +238,6 @@ private struct SmallCountdownView: View {
                         .foregroundStyle(WidgetTheme.dim)
                         .lineLimit(1)
                 }
-                // 撑满列宽:仅按内容理想宽度布局时,长文案会被错误截断
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         } else {
@@ -257,29 +249,41 @@ private struct SmallCountdownView: View {
     private var heroView: some View {
         switch presentation.hero {
         case .far(let days):
-            HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text("\(days)")
-                    .font(.system(size: 56, weight: .semibold))
-                    .tracking(-0.5)
-                    .foregroundStyle(WidgetTheme.heroIvory)
-                Text("天")
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(WidgetTheme.muted)
-            }
+            unitHero(value: "\(days)", unit: "天", size: 56, color: WidgetTheme.heroIvory)
         case .near(let start):
-            Text(start, style: .timer)
-                .font(.system(size: 33, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(WidgetTheme.heroWarmGold)
+            switch presentation.beforeDisplay {
+            case .hours(let hours):
+                unitHero(value: "\(hours)", unit: "小时", size: 52, color: WidgetTheme.heroWarmGold)
+            case .minutesSeconds:
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(start, style: .timer)
+                        .font(.system(size: 32, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.accent)
+                    Text("分 : 秒")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(WidgetTheme.dim)
+                }
+            case .days(let days):
+                unitHero(value: "\(days)", unit: "天", size: 56, color: WidgetTheme.heroIvory)
+            case .elapsedMinutes, .elapsedHoursMinutes:
+                EmptyView()
+            }
         case .live(let start):
-            VStack(alignment: .leading, spacing: 4) {
-                Text("正在现场")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(WidgetTheme.liveTitle)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    LiveDot(size: 7)
+                    Text("已开场")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(WidgetTheme.liveTitle)
+                }
                 Text(start, style: .timer)
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: 28, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(WidgetTheme.foreground)
+                Text(presentation.liveUnitLegend)
+                    .font(.system(size: 8.5, weight: .medium))
+                    .foregroundStyle(WidgetTheme.dim)
             }
         case .ended:
             Text("已落幕")
@@ -300,6 +304,19 @@ private struct SmallCountdownView: View {
             EmptyView()
         }
     }
+
+    private func unitHero(value: String, unit: String, size: CGFloat, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(size: size, weight: .semibold))
+                .tracking(-0.5)
+                .monospacedDigit()
+                .foregroundStyle(color)
+            Text(BSLocalization.text(unit))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(WidgetTheme.muted)
+        }
+    }
 }
 
 // MARK: - 中号 364×170
@@ -315,7 +332,7 @@ private struct MediumCountdownView: View {
                     if presentation.showsPhaseTag {
                         Text(presentation.phaseTag)
                             .font(.system(size: 10, weight: .semibold))
-                            .tracking(1.2)
+                            .tracking(1.0)
                             .foregroundStyle(WidgetTheme.muted)
                     }
 
@@ -336,11 +353,8 @@ private struct MediumCountdownView: View {
                             .foregroundStyle(WidgetTheme.dim)
                             .lineLimit(1)
                     }
-                    // 撑满列宽:仅按内容理想宽度布局时,长文案会被错误截断
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                // 文本列吃满剩余宽度,把封面固定到右缘;
-                // 否则封面紧跟文本浮动,与右缘的间距随文案长短漂移。
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 coverView
@@ -361,42 +375,40 @@ private struct MediumCountdownView: View {
     private var heroView: some View {
         switch presentation.hero {
         case .far(let days):
-            HStack {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("\(days)")
-                        .font(.system(size: 44, weight: .semibold))
-                        .tracking(-0.5)
-                        .foregroundStyle(WidgetTheme.heroIvory)
-                    Text("天")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(WidgetTheme.muted)
-                }
-                Spacer(minLength: 0)
-            }
+            unitHero(value: "\(days)", unit: "天", size: 44, color: WidgetTheme.heroIvory)
         case .near(let start):
-            HStack {
+            switch presentation.beforeDisplay {
+            case .hours(let hours):
+                unitHero(value: "\(hours)", unit: "小时", size: 42, color: WidgetTheme.heroWarmGold)
+            case .minutesSeconds:
                 VStack(alignment: .leading, spacing: 2) {
                     Text(start, style: .timer)
                         .font(.system(size: 34, weight: .semibold))
                         .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.heroWarmGold)
-                    Text("时 : 分 : 秒")
-                        .font(.system(size: 9))
+                        .foregroundStyle(WidgetTheme.accent)
+                    Text("分 : 秒")
+                        .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(WidgetTheme.dim)
                 }
-                Spacer(minLength: 0)
+            case .days(let days):
+                unitHero(value: "\(days)", unit: "天", size: 44, color: WidgetTheme.heroIvory)
+            case .elapsedMinutes, .elapsedHoursMinutes:
+                EmptyView()
             }
         case .live(let start):
             HStack(spacing: 10) {
                 LiveDot(size: 9)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("正在现场")
-                        .font(.system(size: 15, weight: .semibold))
+                    Text("已开场")
+                        .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(WidgetTheme.liveTitle)
                     Text(start, style: .timer)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(.system(size: 28, weight: .semibold))
                         .monospacedDigit()
                         .foregroundStyle(WidgetTheme.foreground)
+                    Text(presentation.liveUnitLegend)
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundStyle(WidgetTheme.dim)
                 }
                 Spacer(minLength: 0)
             }
@@ -420,6 +432,19 @@ private struct MediumCountdownView: View {
         }
     }
 
+    private func unitHero(value: String, unit: String, size: CGFloat, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(size: size, weight: .semibold))
+                .tracking(-0.5)
+                .monospacedDigit()
+                .foregroundStyle(color)
+            Text(BSLocalization.text(unit))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(WidgetTheme.muted)
+        }
+    }
+
     @ViewBuilder
     private var coverView: some View {
         if let coverImagePath, let image = UIImage(contentsOfFile: coverImagePath) {
@@ -428,7 +453,6 @@ private struct MediumCountdownView: View {
                 .scaledToFill()
                 .frame(width: 108)
                 .clipped()
-                // 左缘淡出到氛围底，不要涂一层近黑——浅色海报边会被涂成黑条。
                 .mask {
                     HStack(spacing: 0) {
                         LinearGradient(
@@ -454,13 +478,16 @@ private struct InlineCountdownView: View {
         case .far(let days):
             Text("还有 \(days) 天 · \(presentation.showName)")
         case .near(let start):
-            if presentation.isStartTonight {
-                Text("\(presentation.tonightClockText) · \(Text(start, style: .timer))")
-            } else {
-                Text("\(presentation.clockText) · \(Text(start, style: .timer))")
+            switch presentation.beforeDisplay {
+            case .hours(let hours):
+                Text("距离开场 · \(hours) 小时")
+            case .minutesSeconds:
+                Text("距离开场 · \(Text(start, style: .timer))")
+            default:
+                Text("距离开场 · \(presentation.showName)")
             }
         case .live(let start):
-            Text("正在现场 · \(Text(start, style: .timer))")
+            Text("已开场 · \(Text(start, style: .timer))")
         case .ended:
             Text("已落幕 · \(presentation.showName)")
         case .endUnconfirmed:
@@ -509,23 +536,37 @@ private struct CircularCountdownView: View {
                     .font(.system(size: 8))
                     .foregroundStyle(.secondary)
             }
-        case .near:
-            VStack(spacing: 0) {
-                Text(LockScreenCountdownCopy.circularNearClock(remainingSeconds: presentation.remainingSeconds))
-                    .font(.system(size: 14, weight: .bold))
-                    .monospacedDigit()
-                if presentation.isStartTonight {
-                    Text("今晚")
+        case .near(let start):
+            switch presentation.beforeDisplay {
+            case .hours(let hours):
+                VStack(spacing: 0) {
+                    Text("\(hours)")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("小时")
                         .font(.system(size: 7))
                         .foregroundStyle(.secondary)
                 }
+            case .minutesSeconds:
+                VStack(spacing: 0) {
+                    Text(start, style: .timer)
+                        .font(.system(size: 12, weight: .bold))
+                        .monospacedDigit()
+                    Text("分秒")
+                        .font(.system(size: 7))
+                        .foregroundStyle(.secondary)
+                }
+            default:
+                Text("--")
             }
         case .live(let start):
             VStack(spacing: 1) {
-                Circle().frame(width: 5, height: 5)
+                LiveDot(size: 5)
                 Text(start, style: .timer)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 9, weight: .bold))
                     .monospacedDigit()
+                Text("已开场")
+                    .font(.system(size: 6.5))
+                    .foregroundStyle(.secondary)
             }
         case .ended:
             Text("已落幕")
@@ -565,15 +606,18 @@ private struct RectangularCountdownView: View {
     private var headline: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("还有 \(days) 天")
+            Text("距离开场 · \(days) 天")
         case .near(let start):
-            if presentation.isStartTonight {
-                Text(presentation.tonightClockText)
-            } else {
-                Text(start, style: .timer)
+            switch presentation.beforeDisplay {
+            case .hours(let hours):
+                Text("距离开场 · \(hours) 小时")
+            case .minutesSeconds:
+                Text("距离开场 · \(Text(start, style: .timer))")
+            default:
+                Text("距离开场")
             }
         case .live(let start):
-            Text("正在现场 · \(Text(start, style: .timer))")
+            Text("已开场 · \(Text(start, style: .timer))")
         case .ended:
             Text("已落幕")
         case .endUnconfirmed:
