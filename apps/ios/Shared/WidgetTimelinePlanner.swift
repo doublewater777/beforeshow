@@ -82,9 +82,12 @@ enum WidgetTimelinePlanner {
 
         if let start = startBoundary {
             appendBoundary(start)
-            // 「N 天」→「N 小时」:start − 24h；「N 小时」→「分 + 秒」:start − 1h。
+            // 开场前:「N 天」→「N 小时」在 start−24h；「N 小时」→「分 + 秒」在 start−1h。
             appendBoundary(start.addingTimeInterval(-dayCountdownThreshold))
             appendBoundary(start.addingTimeInterval(-CountdownTimePresentationPolicy.hourThreshold))
+            // 普通 widget 的 live timer 会从 MM:SS 变成 H:MM:SS，给 +1h 一个准确 entry，
+            // 让单位提示同步从「分 : 秒」切到「时 : 分 : 秒」。
+            appendBoundary(start.addingTimeInterval(CountdownTimePresentationPolicy.hourThreshold))
         }
         if let end = endBoundary {
             appendBoundary(end)
