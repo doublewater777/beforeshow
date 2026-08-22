@@ -3,16 +3,10 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Show Live Activity
-// 设计稿:docs/design/widget/BeforeShow Widgets.html
 // 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
-//
-// 关键约束(评审定稿):无 push 时 ContentState 只在 app 运行时更新,
-// 不能依赖任何「到点自动切换」——所以 UI 是中性设计:
-// - 文案跨开场/谢幕零点恒成立(「19:30 开场」「预计 22:00 谢幕」)
-// - 计时 Text(startDate, style: .timer) 系统自驱,倒数后自动正数
-// - 进度由 TimelineView 每秒重算 fraction(不用 ProgressView(timerInterval:),
-//   其默认 linear 样式的 GeometryReader 会崩 LA 渲染进程,见 LiveActivityBarStyle)
-// - 无 LIVE 徽标/红点:越过谢幕也不会残留「LIVE」误导
+// ContentState 无 push 时不能保证在开场零点被 app 主动改写，所以数字继续依赖系统 .timer 自驱。
+// 时间方向和颜色由 TimelineView 在渲染时按当前时间判断：开场前「还有」+ 暖金，
+// 开场后「已开」/「已开场」+ live 色和圆点；即使 app 没醒，也不会长期维持中性视觉。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -24,11 +18,10 @@ struct ShowLiveActivity: Widget {
                     LiveActivityMark(filename: context.state.coverImageFilename, size: 32)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.startDate, style: .timer)
-                        .font(.system(size: 16, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.accent)
-                        .accessibilityHidden(true)
+                    LiveActivityTimeStatus(
+                        startDate: context.state.startDate,
+                        layout: .expanded
+                    )
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -49,20 +42,19 @@ struct ShowLiveActivity: Widget {
             } compactLeading: {
                 LiveActivityMark(filename: context.state.coverImageFilename, size: 20)
             } compactTrailing: {
-                // style:.timer 中文会按「N小时 N分钟」抢理想宽度,把 compact 岛拉满整条顶栏。
-                // 定宽 + POSIX 数字,岛只包住镜头两侧一小截。
-                Text(context.state.startDate, style: .timer)
-                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(WidgetTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
-                    .frame(width: 48, alignment: .trailing)
-                    .clipped()
-                    .accessibilityHidden(true)
+                LiveActivityTimeStatus(
+                    startDate: context.state.startDate,
+                    layout: .compact
+                )
             } minimal: {
-                LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
+                TimelineView(.periodic(from: .now, by: 1)) { timeline in
+                    let started = timeline.date >= context.state.startDate
+                    LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
+                        .overlay {
+                            Circle()
+                                .stroke(started ? WidgetTheme.live : WidgetTheme.accent, lineWidth: 1.5)
+                        }
+                }
             }
         }
     }
@@ -78,6 +70,99 @@ struct ShowLiveActivity: Widget {
             return place.isEmpty ? endLine : "\(place) · \(endLine)"
         }
         return place.isEmpty ? BSLocalization.text("灯亮之前,先进入状态") : place
+    }
+}
+
+// MARK: - 实时时间语义
+
+private struct LiveActivityTimeStatus: View {
+    enum Layout {
+        case compact
+        case expanded
+        case banner
+    }
+
+    let startDate: Date
+    let layout: Layout
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let started = context.date >= startDate
+            let color = started ? WidgetTheme.liveTitle : WidgetTheme.accent
+
+            switch layout {
+            case .compact:
+                HStack(spacing: 3) {
+                    Text(BSLocalization.text(started ? "已开" : "还有"))
+                        .font(.system(size: 8.5, weight: .semibold))
+                        .foregroundStyle(color.opacity(0.92))
+                    timerText(size: 10.5, color: color)
+                }
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .frame(width: 72, alignment: .trailing)
+                .clipped()
+            case .expanded:
+                VStack(alignment: .trailing, spacing: 1) {
+                    HStack(spacing: 4) {
+                        if started {
+                            LiveActivityDot(size: 5)
+                        }
+                        Text(BSLocalization.text(started ? "已开场" : "距离开场"))
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(color.opacity(0.92))
+                    }
+                    timerText(size: 17, color: color)
+                    Text(unitLegend(now: context.date))
+                        .font(.system(size: 7.5, weight: .medium))
+                        .foregroundStyle(WidgetTheme.dim)
+                }
+            case .banner:
+                VStack(alignment: .trailing, spacing: 1) {
+                    HStack(spacing: 5) {
+                        if started {
+                            LiveActivityDot(size: 6)
+                        }
+                        Text(BSLocalization.text(started ? "已开场" : "距离开场"))
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(color)
+                    }
+                    timerText(size: 20, color: color)
+                    Text(unitLegend(now: context.date))
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundStyle(WidgetTheme.dim)
+                }
+            }
+        }
+    }
+
+    private func timerText(size: CGFloat, color: Color) -> some View {
+        // POSIX 强制数字格式，避免中文 locale 把 compact 岛展开成「N小时 N分钟」。
+        // .timer 由系统自驱，跨过 0 后继续正向计时；TimelineView 只负责标签和颜色翻转。
+        Text(startDate, style: .timer)
+            .environment(\.locale, Locale(identifier: "en_US_POSIX"))
+            .font(.system(size: size, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .accessibilityHidden(true)
+    }
+
+    private func unitLegend(now: Date) -> String {
+        let seconds = abs(Int(now.timeIntervalSince(startDate)))
+        return seconds >= Int(CountdownTimePresentationPolicy.hourThreshold)
+            ? BSLocalization.text("时 : 分 : 秒")
+            : BSLocalization.text("分 : 秒")
+    }
+}
+
+private struct LiveActivityDot: View {
+    let size: CGFloat
+
+    var body: some View {
+        Circle()
+            .fill(WidgetTheme.live)
+            .frame(width: size, height: size)
     }
 }
 
@@ -135,18 +220,18 @@ private enum LiveActivityArtwork {
 // MARK: - 锁屏 banner
 
 /// 默认 linear 样式内部是 GeometryReader;LA 内容换入动画期间会把非法(负/非有限)尺寸
-/// 传进 LayoutSubview.place,直接 assert 崩掉整个 WidgetRenderer_Activities 进程
-/// (2026-08-15~17 共 26 份同签名崩溃:GeometryReaderLayout.placeSubviews → place)。
-/// 改为 scaleEffect 实现:不需要测量容器宽度,也不引入 GeometryReader;
-/// 驱动方是外面的 TimelineView(每秒重算 fraction 传进来)。
+/// 传进 LayoutSubview.place,直接 assert 崩掉整个 WidgetRenderer_Activities 进程。
+/// 保持 scaleEffect 实现，不重新引入 GeometryReader。
 private struct LiveActivityBarStyle: ProgressViewStyle {
+    let fillColor: Color
+
     func makeBody(configuration: Configuration) -> some View {
         let fraction = configuration.fractionCompleted ?? 0
         Capsule()
             .fill(WidgetTheme.dim.opacity(0.35))
             .overlay(alignment: .leading) {
                 Capsule()
-                    .fill(WidgetTheme.accent)
+                    .fill(fillColor)
                     .scaleEffect(x: fraction, anchor: .leading)
             }
             .clipShape(Capsule())
@@ -177,41 +262,25 @@ private struct LiveActivityBannerView: View {
                         .lineLimit(1)
                     Text(BSLocalization.format("%@ 开场", clockText(state.startDate, calendar: state.startCalendar)))
                         .font(.system(size: 11))
-                        .foregroundStyle(WidgetTheme.accent)
+                        .foregroundStyle(WidgetTheme.muted)
                         .monospacedDigit()
                 }
 
                 Spacer(minLength: 0)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    // 不要加 .fixedSize():iOS 26.5 LA renderer 下会把整个 VStack
-                    // 渲染成空白(2026-08-17 实测,静态文本同样消失)。
-                    // banner 的 .timer 系统自驱,按分钟刷新(「1小时43分钟」);
-                    // 秒级跳动在 compact 岛(数字格式)。Text(timerInterval:) 秒位
-                    // 在 LA 里渲染成「——」,不要用。
-                    Text(state.startDate, style: .timer)
-                        .font(.system(size: 20, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.accent)
-                        .lineLimit(1)
-                        .accessibilityHidden(true)
-                    if state.hasStarted ?? (Date() >= state.startDate) {
-                        Text("已开场")
-                            .font(.system(size: 10))
-                            .foregroundStyle(WidgetTheme.dim)
-                    }
-                }
+                LiveActivityTimeStatus(startDate: state.startDate, layout: .banner)
             }
 
-            // 进度条:不用 ProgressView(timerInterval:)——默认 linear 样式内部的
-            // GeometryReader 会崩 LA 渲染进程(见 LiveActivityBarStyle)。
-            // 用 TimelineView 每秒重算 fraction + 手画 Capsule;TimelineView 在 LA 里
-            // 不是每次熄屏都跳,但进度条允许短暂停留,计时数字由 .timer 系统自驱兜底。
             if let end = state.endDate, end > state.startDate {
                 VStack(spacing: 4) {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
+                        let started = context.date >= state.startDate
                         ProgressView(value: Self.progressFraction(start: state.startDate, end: end, now: context.date))
-                            .progressViewStyle(LiveActivityBarStyle())
+                            .progressViewStyle(
+                                LiveActivityBarStyle(
+                                    fillColor: started ? WidgetTheme.live : WidgetTheme.accent
+                                )
+                            )
                     }
                     .accessibilityHidden(true)
                     HStack {
