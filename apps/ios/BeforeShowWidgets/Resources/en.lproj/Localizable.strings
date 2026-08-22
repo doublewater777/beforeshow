@@ -84,6 +84,10 @@
 "演出进行中" = "Live now";
 "距离灯亮还有" = "Lights on in";
 "距离开场" = "Until show starts";
+"距离开场 · %lld 天" = "%lld days until show";
+"距离开场 · %lld 小时" = "%lld hours until show";
+"距离开场 · %@" = "Until show starts · %@";
+"已开场 · %@" = "Show started · %@";
 
 "今晚灯亮" = "Tonight, lights up";
 "即将灯亮" = "Lights up soon";
