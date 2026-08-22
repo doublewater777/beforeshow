@@ -36,7 +36,7 @@ enum HomeCountdownPresentationPolicy {
                 guard let total = remainingSeconds(to: timeState.effectiveStartTime, from: now) else {
                     return .countdownClock(hours: 0, minutes: 0, seconds: 0, urgent: false)
                 }
-                // 与 widget 共用同一阈值:remaining 恰好 24h 时是时钟,不是「1 天」
+                // 与 widget 共用同一阈值:remaining 恰好 24h 时不再显示「1 天」
                 if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
                     return .countdownDays(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))
                 }
@@ -196,9 +196,9 @@ enum HomeShowIdentityPresentation {
     }
 }
 
-/// V4 首页倒计时卡片:封面之后的深色卡片。
-/// pre 远场超大天数、当天秒级时钟、临近 1 小时金色时钟;
-/// live 脉冲 + 已进行;ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
+/// 首页倒计时卡片:封面之后的深色卡片。
+/// pre 从天→小时→最后一小时分秒逐级收紧；live 回到分钟/小时分钟，避免秒表感；
+/// ended 冷静收束;inactive 文本态(时间待定 / 已取消)。
 struct HomeCountdownLockup: View {
     let show: Show
     var onEndShow: (() -> Void)? = nil
@@ -214,6 +214,7 @@ struct HomeCountdownLockup: View {
     // would push the HStack past the safe area and break the card.
     @ScaledMetric(relativeTo: .largeTitle) private var dayNumber: CGFloat = 72
     @ScaledMetric(relativeTo: .title) private var clockNumber: CGFloat = 64
+    @ScaledMetric(relativeTo: .title2) private var liveNumber: CGFloat = 44
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
@@ -390,10 +391,9 @@ struct HomeCountdownLockup: View {
         timeState: CurrentShowTimeState
     ) -> String {
         switch phase {
-        case .pre:
-            return timeState.kind == .today ? "TONIGHT" : "COUNTDOWN"
-        case .live:
-            return "LIVE"
+        case .pre, .live:
+            // 时间方向已经紧贴 Hero 说明，不再重复 COUNTDOWN / LIVE 内部标签。
+            return ""
         case .ended:
             // 估算散场未确认时不标 ENDED,避免状态条与「这场已经结束了吗?」自相矛盾。
             return isAwaitingEndConfirmation(timeState) ? "" : "ENDED"
@@ -411,49 +411,63 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>24h 只到「天」超大节拍;≤24h 只到分(每分钟跳一下),<1h 切 MM:SS 走秒。
-    // 色温递进:远场奶白 heroIvory → 当天暖金 heroWarmGold → <1h 纯金 accent + 光晕,
-    // 字重同步加码(ultraLight → regular → semibold),视觉强度随临近升温。
-    // 天数/时钟的阈值与 widget 共用 WidgetTimelinePlanner.isDayCountHero。
+    // >24h 只显示天；1~24h 只显示整小时；最后 1h 才进入分 + 秒。
+    // 精度越临近越高，同时每个数字都带明确单位，不再让用户解码 HH:MM / MM:SS。
 
     @ViewBuilder
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
         if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
-            if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .lastTextBaseline, spacing: 10) {
-                        Text("\(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))")
-                            .font(.system(size: dayNumber, weight: .ultraLight))
-                            .tracking(-1.5)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .foregroundColor(BSColor.Stage.heroIvory)
-                            // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
-                            .padding(.vertical, -9)
-                        Text("天")
-                            .font(.system(size: 20, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(BSLocalization.text("距离开场"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundColor(BSColor.Stage.muted)
+
+                switch CountdownTimePresentationPolicy.beforeStart(remainingSeconds: total) {
+                case .days(let days):
+                    timeUnitColumn(
+                        value: "\(days)",
+                        unitKey: "天",
+                        numberSize: dayNumber,
+                        weight: .ultraLight,
+                        color: BSColor.Stage.heroIvory
+                    )
+                case .hours(let hours):
+                    timeUnitColumn(
+                        value: "\(hours)",
+                        unitKey: "小时",
+                        numberSize: clockNumber,
+                        weight: .regular,
+                        color: BSColor.Stage.heroWarmGold
+                    )
+                case .minutesSeconds(let minutes, let seconds):
+                    HStack(alignment: .top, spacing: 24) {
+                        timeUnitColumn(
+                            value: String(format: "%02d", minutes),
+                            unitKey: "分钟",
+                            numberSize: clockNumber,
+                            weight: .semibold,
+                            color: BSColor.Stage.accent
+                        )
+                        timeUnitColumn(
+                            value: String(format: "%02d", seconds),
+                            unitKey: "秒",
+                            numberSize: clockNumber,
+                            weight: .semibold,
+                            color: BSColor.Stage.accent
+                        )
                     }
-                    if timeState.isDatedPostponement {
-                        Text(BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: show.timingCalendar())))
-                            .font(.system(size: 12.5, weight: .regular))
-                            .foregroundColor(BSColor.Stage.dim)
-                            .padding(.top, 10)
-                    }
+                    .shadow(color: BSColor.Stage.accent.opacity(0.28), radius: 14)
+                case .elapsedMinutes, .elapsedHoursMinutes:
+                    EmptyView()
                 }
-            } else if total >= 3_600 {
-                Text(Self.clockText(total))
-                    .font(.system(size: clockNumber, weight: .regular))
-                    .tracking(-1)
-                    .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.heroWarmGold)
-            } else {
-                Text(Self.clockText(total))
-                    .font(.system(size: clockNumber, weight: .semibold))
-                    .tracking(-1)
-                    .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.accent)
-                    .shadow(color: BSColor.Stage.accent.opacity(0.35), radius: 16)
+
+                if timeState.isDatedPostponement {
+                    Text(BSLocalization.format("原定 %@", Self.originalDateText(for: show, calendar: show.timingCalendar())))
+                        .font(.system(size: 12.5, weight: .regular))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .padding(.top, 4)
+                }
             }
         } else {
             Text("--")
@@ -463,27 +477,74 @@ struct HomeCountdownLockup: View {
         }
     }
 
-    // MARK: live:脉冲 + 已开场时长 + 散场确认入口
-    // 状态只说一遍:顶部 pill 是「正在现场」,Hero 只展示新增信息——已开场多久。
+    // MARK: live:明确时间方向 + 收束精度
+    // 开场后不再走秒:1h 内显示分钟，超过 1h 显示小时 + 分钟；
+    // 脉冲与 live 色负责把「已经开场」和开场前暖金倒数明显区分开。
 
+    @ViewBuilder
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
-        HStack(spacing: 14) {
-            HomeLivePulse(reduceMotion: reduceMotion)
+        let elapsed = max(0, Int(now.timeIntervalSince(timeState.effectiveStartTime ?? now)))
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
-                    .font(.system(size: 22, weight: .semibold))
-                    .monospacedDigit()
-                    .tracking(-0.3)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("已开场")
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(BSColor.Stage.dim)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                HomeLivePulse(reduceMotion: reduceMotion)
+                Text(BSLocalization.text("已开场"))
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.5)
+                    .foregroundColor(BSColor.Stage.liveTitle)
             }
 
-            Spacer(minLength: 0)
+            switch CountdownTimePresentationPolicy.afterStart(elapsedSeconds: elapsed) {
+            case .elapsedMinutes(let minutes):
+                timeUnitColumn(
+                    value: "\(minutes)",
+                    unitKey: "分钟",
+                    numberSize: liveNumber,
+                    weight: .semibold,
+                    color: BSColor.Stage.foreground
+                )
+            case .elapsedHoursMinutes(let hours, let minutes):
+                HStack(alignment: .top, spacing: 22) {
+                    timeUnitColumn(
+                        value: "\(hours)",
+                        unitKey: "小时",
+                        numberSize: liveNumber,
+                        weight: .semibold,
+                        color: BSColor.Stage.foreground
+                    )
+                    timeUnitColumn(
+                        value: String(format: "%02d", minutes),
+                        unitKey: "分钟",
+                        numberSize: liveNumber,
+                        weight: .semibold,
+                        color: BSColor.Stage.foreground
+                    )
+                }
+            case .days, .hours, .minutesSeconds:
+                EmptyView()
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    private func timeUnitColumn(
+        value: String,
+        unitKey: String,
+        numberSize: CGFloat,
+        weight: Font.Weight,
+        color: Color
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(value)
+                .font(.system(size: numberSize, weight: weight))
+                .tracking(-1)
+                .monospacedDigit()
+                .lineLimit(1)
+                .foregroundColor(color)
+            Text(BSLocalization.text(unitKey))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundColor(BSColor.Stage.dim)
+        }
     }
 
     // MARK: Primary action:单一主行动随生命周期切换
@@ -663,37 +724,11 @@ struct HomeCountdownLockup: View {
         return max(0, Int(start.timeIntervalSince(now)))
     }
 
-    /// >1h 只到分(HH:MM,每分钟跳一下);<1h 切 MM:SS 走秒。
-    private static func clockText(_ total: Int) -> String {
-        let total = max(0, total)
-        let hours = total / 3_600
-        let minutes = (total % 3_600) / 60
-        let seconds = total % 60
-        if hours > 0 {
-            return String(format: "%02d:%02d", hours, minutes)
-        }
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-
-    private static func elapsedText(since start: Date?, now: Date) -> String {
-        guard let start else { return "00:00" }
-        let total = max(0, Int(now.timeIntervalSince(start)))
-        let hours = total / 3_600
-        let minutes = (total % 3_600) / 60
-        let seconds = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
-
     private static func originalDateText(for show: Show, calendar: Calendar) -> String {
         let components = calendar.dateComponents([.month, .day], from: show.date)
         return BSLocalization.format("%lld月%lld日", components.month ?? 0, components.day ?? 0)
     }
 }
-
-// MARK: - Live Pulse
 
 // MARK: - Live Pulse
 
