@@ -20,7 +20,8 @@ enum CountdownTimePresentationPolicy {
         if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
             return .days(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))
         }
-        if total >= Int(hourThreshold) {
+        // 「最后 1 小时」从 remaining == 3600 就进入分秒；3601 仍是小时。
+        if total > Int(hourThreshold) {
             return .hours(max(1, total / Int(hourThreshold)))
         }
         return .minutesSeconds(
@@ -82,9 +83,20 @@ enum WidgetTimelinePlanner {
 
         if let start = startBoundary {
             appendBoundary(start)
-            // 开场前:「N 天」→「N 小时」在 start−24h；「N 小时」→「分 + 秒」在 start−1h。
+
+            // >24h → 天；remaining == 24h 起进入整小时。
             appendBoundary(start.addingTimeInterval(-dayCountdownThreshold))
-            appendBoundary(start.addingTimeInterval(-CountdownTimePresentationPolicy.hourThreshold))
+
+            // 整小时 hero 使用 floor 语义，因此必须在 start−Nh 的真实边界刷新，
+            // 不能只按 provider 的 now+1h 滚动，否则 5h23m 会把「5 小时」多挂约 37 分钟。
+            // 1h 边界同时负责切到最后一小时的「分 + 秒」。24h 已由上面的 day 边界覆盖。
+            for remainingHours in 1...23 {
+                appendBoundary(
+                    start.addingTimeInterval(
+                        -TimeInterval(remainingHours) * CountdownTimePresentationPolicy.hourThreshold
+                    )
+                )
+            }
         }
         if let end = endBoundary {
             appendBoundary(end)
