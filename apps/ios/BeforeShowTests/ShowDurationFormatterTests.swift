@@ -100,27 +100,20 @@ final class ShowDurationFormatterTests: XCTestCase {
     }
 
     func testCountdownDynamicLocalizationDoesNotLeakSourceKeys() {
-        let defaults = UserDefaults.standard
-        let storageKey = "appLanguage"
-        let previous = defaults.object(forKey: storageKey)
-        defer {
-            if let previous {
-                defaults.set(previous, forKey: storageKey)
-            } else {
-                defaults.removeObject(forKey: storageKey)
-            }
-        }
+        let suiteName = "CountdownLocalizationTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
 
-        defaults.set("en", forKey: storageKey)
-        XCTAssertEqual(BSLocalization.text("距离开场"), "Until show starts")
-        XCTAssertEqual(BSLocalization.text("小时"), "hours")
-        XCTAssertEqual(BSLocalization.text("分钟"), "minutes")
-        XCTAssertEqual(BSLocalization.text("秒"), "seconds")
+        defaults.set("en", forKey: "appLanguage")
+        XCTAssertEqual(BSLocalization.testFallback("距离开场", localeIdentifier: "en"), "Until show starts")
+        XCTAssertEqual(BSLocalization.testFallback("小时", localeIdentifier: "en"), "hours")
+        XCTAssertEqual(BSLocalization.testFallback("分钟", localeIdentifier: "en"), "minutes")
+        XCTAssertEqual(BSLocalization.testFallback("秒", localeIdentifier: "en"), "seconds")
 
-        defaults.set("zh-Hant", forKey: storageKey)
-        XCTAssertEqual(BSLocalization.text("距离开场"), "距離開場")
-        XCTAssertEqual(BSLocalization.text("小时"), "小時")
-        XCTAssertEqual(BSLocalization.text("分钟"), "分鐘")
-        XCTAssertEqual(BSLocalization.text("秒"), "秒")
+        defaults.set("zh-Hant", forKey: "appLanguage")
+        XCTAssertEqual(BSLocalization.testFallback("距离开场", localeIdentifier: "zh-Hant"), "距離開場")
+        XCTAssertEqual(BSLocalization.testFallback("小时", localeIdentifier: "zh-Hant"), "小時")
+        XCTAssertEqual(BSLocalization.testFallback("分钟", localeIdentifier: "zh-Hant"), "分鐘")
+        XCTAssertEqual(BSLocalization.testFallback("秒", localeIdentifier: "zh-Hant"), "秒")
     }
 }
