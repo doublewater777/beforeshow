@@ -4,8 +4,9 @@ import WidgetKit
 
 // MARK: - Show Live Activity
 // 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
-// ContentState 无 push 时不能保证在开场/谢幕边界被 app 主动改写，所以数字继续依赖系统 .timer 自驱。
-// TimelineView 只负责从当前时间推导三态：开场前暖金、现场中 live 色、预计谢幕后待确认。
+// 无 push 时 ContentState 不能保证在开场/谢幕边界准点 Activity.update；Live Activity 也不使用
+// 普通 widget timeline。因此离散文案/颜色必须跨边界始终成立，不能依赖 TimelineView 到点翻转。
+// 系统 Text(startDate, style: .timer) 负责自驱计时；下一次 app 同步时 controller 再 update/end。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
@@ -19,7 +20,6 @@ struct ShowLiveActivity: Widget {
                 DynamicIslandExpandedRegion(.trailing) {
                     LiveActivityTimeStatus(
                         startDate: context.state.startDate,
-                        endDate: context.state.endDate,
                         layout: .expanded
                     )
                 }
@@ -44,22 +44,14 @@ struct ShowLiveActivity: Widget {
             } compactTrailing: {
                 LiveActivityTimeStatus(
                     startDate: context.state.startDate,
-                    endDate: context.state.endDate,
                     layout: .compact
                 )
             } minimal: {
-                TimelineView(.periodic(from: .now, by: 1)) { timeline in
-                    let phase = LiveActivityClockPhase.resolve(
-                        now: timeline.date,
-                        startDate: context.state.startDate,
-                        endDate: context.state.endDate
-                    )
-                    LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
-                        .overlay {
-                            Circle()
-                                .stroke(phase.ringColor, lineWidth: 1.5)
-                        }
-                }
+                LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
+                    .overlay {
+                        Circle()
+                            .stroke(WidgetTheme.accent, lineWidth: 1.5)
+                    }
             }
         }
     }
@@ -78,36 +70,11 @@ struct ShowLiveActivity: Widget {
     }
 }
 
-// MARK: - 实时时间语义
+// MARK: - 边界安全的实时时间
 
-private enum LiveActivityClockPhase: Equatable {
-    case before
-    case live
-    case awaitingEndConfirmation
-
-    static func resolve(now: Date, startDate: Date, endDate: Date?) -> Self {
-        if now < startDate { return .before }
-        if let endDate, now >= endDate { return .awaitingEndConfirmation }
-        return .live
-    }
-
-    var color: Color {
-        switch self {
-        case .before: return WidgetTheme.accent
-        case .live: return WidgetTheme.liveTitle
-        case .awaitingEndConfirmation: return WidgetTheme.muted
-        }
-    }
-
-    var ringColor: Color {
-        switch self {
-        case .before: return WidgetTheme.accent
-        case .live: return WidgetTheme.live
-        case .awaitingEndConfirmation: return WidgetTheme.dim
-        }
-    }
-}
-
+/// Live Activity 没有可靠的本地「到点重算离散状态」机制。
+/// 这里故意只展示跨开场/谢幕都成立的「开场计时」+ 系统 timer：
+/// timer 可以自行穿过 0，而标签不会在后台错误残留「还有」「已开场」或 LIVE。
 private struct LiveActivityTimeStatus: View {
     enum Layout {
         case compact
@@ -116,129 +83,42 @@ private struct LiveActivityTimeStatus: View {
     }
 
     let startDate: Date
-    let endDate: Date?
     let layout: Layout
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
-            let phase = LiveActivityClockPhase.resolve(
-                now: context.date,
-                startDate: startDate,
-                endDate: endDate
-            )
-
-            switch layout {
-            case .compact:
-                compactView(phase: phase)
-            case .expanded:
-                expandedView(phase: phase, now: context.date)
-            case .banner:
-                bannerView(phase: phase, now: context.date)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func compactView(phase: LiveActivityClockPhase) -> some View {
-        switch phase {
-        case .before, .live:
-            HStack(spacing: 3) {
-                Text(BSLocalization.text(phase == .live ? "已开" : "还有"))
-                    .font(.system(size: 8.5, weight: .semibold))
-                    .foregroundStyle(phase.color.opacity(0.92))
-                timerText(size: 10.5, color: phase.color)
-            }
-            .lineLimit(1)
-            .minimumScaleFactor(0.65)
-            .frame(width: 72, alignment: .trailing)
-            .clipped()
-        case .awaitingEndConfirmation:
-            Text(BSLocalization.text("待确认"))
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(WidgetTheme.muted)
-                .frame(width: 72, alignment: .trailing)
-        }
-    }
-
-    @ViewBuilder
-    private func expandedView(phase: LiveActivityClockPhase, now: Date) -> some View {
-        switch phase {
-        case .before, .live:
+        switch layout {
+        case .compact:
+            timerText(size: 10.5)
+                .minimumScaleFactor(0.65)
+                .frame(width: 52, alignment: .trailing)
+                .clipped()
+        case .expanded:
             VStack(alignment: .trailing, spacing: 1) {
-                statusLabel(phase: phase, size: 9)
-                timerText(size: 17, color: phase.color)
-                Text(unitLegend(now: now))
-                    .font(.system(size: 7.5, weight: .medium))
-                    .foregroundStyle(WidgetTheme.dim)
-            }
-        case .awaitingEndConfirmation:
-            Text(BSLocalization.text("待确认"))
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(WidgetTheme.muted)
-        }
-    }
-
-    @ViewBuilder
-    private func bannerView(phase: LiveActivityClockPhase, now: Date) -> some View {
-        switch phase {
-        case .before, .live:
-            VStack(alignment: .trailing, spacing: 1) {
-                statusLabel(phase: phase, size: 9.5)
-                timerText(size: 20, color: phase.color)
-                Text(unitLegend(now: now))
-                    .font(.system(size: 8, weight: .medium))
-                    .foregroundStyle(WidgetTheme.dim)
-            }
-        case .awaitingEndConfirmation:
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(BSLocalization.text("待确认"))
-                    .font(.system(size: 10, weight: .semibold))
+                Text(BSLocalization.text("开场计时"))
+                    .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(WidgetTheme.muted)
-                Text(BSLocalization.text("已到预计散场时间"))
-                    .font(.system(size: 9))
-                    .foregroundStyle(WidgetTheme.dim)
+                timerText(size: 17)
+            }
+        case .banner:
+            VStack(alignment: .trailing, spacing: 1) {
+                Text(BSLocalization.text("开场计时"))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .foregroundStyle(WidgetTheme.muted)
+                timerText(size: 20)
             }
         }
     }
 
-    private func statusLabel(phase: LiveActivityClockPhase, size: CGFloat) -> some View {
-        HStack(spacing: 5) {
-            if phase == .live {
-                LiveActivityDot(size: size <= 9 ? 5 : 6)
-            }
-            Text(BSLocalization.text(phase == .live ? "已开场" : "距离开场"))
-                .font(.system(size: size, weight: .semibold))
-                .foregroundStyle(phase.color.opacity(0.94))
-        }
-    }
-
-    private func timerText(size: CGFloat, color: Color) -> some View {
-        // POSIX 强制数字格式，避免中文 locale 把 compact 岛展开成「N小时 N分钟」。
-        // .timer 由系统自驱，跨过 0 后继续正向计时；TimelineView 只负责标签和颜色翻转。
+    private func timerText(size: CGFloat) -> some View {
+        // POSIX 强制紧凑数字格式，避免中文 locale 把 compact 岛展开成「N小时 N分钟」。
+        // `.timer` 由系统时钟驱动，不需要 widget timeline，也不会依赖 app 在零点被唤醒。
         Text(startDate, style: .timer)
             .environment(\.locale, Locale(identifier: "en_US_POSIX"))
             .font(.system(size: size, weight: .semibold))
             .monospacedDigit()
-            .foregroundStyle(color)
+            .foregroundStyle(WidgetTheme.foreground)
             .lineLimit(1)
             .accessibilityHidden(true)
-    }
-
-    private func unitLegend(now: Date) -> String {
-        let seconds = abs(Int(now.timeIntervalSince(startDate)))
-        return seconds >= Int(CountdownTimePresentationPolicy.hourThreshold)
-            ? BSLocalization.text("时 : 分 : 秒")
-            : BSLocalization.text("分 : 秒")
-    }
-}
-
-private struct LiveActivityDot: View {
-    let size: CGFloat
-
-    var body: some View {
-        Circle()
-            .fill(WidgetTheme.live)
-            .frame(width: size, height: size)
     }
 }
 
@@ -299,15 +179,13 @@ private enum LiveActivityArtwork {
 /// 传进 LayoutSubview.place,直接 assert 崩掉整个 WidgetRenderer_Activities 进程。
 /// 保持 scaleEffect 实现，不重新引入 GeometryReader。
 private struct LiveActivityBarStyle: ProgressViewStyle {
-    let fillColor: Color
-
     func makeBody(configuration: Configuration) -> some View {
         let fraction = configuration.fractionCompleted ?? 0
         Capsule()
             .fill(WidgetTheme.dim.opacity(0.35))
             .overlay(alignment: .leading) {
                 Capsule()
-                    .fill(fillColor)
+                    .fill(WidgetTheme.accent)
                     .scaleEffect(x: fraction, anchor: .leading)
             }
             .clipShape(Capsule())
@@ -346,21 +224,16 @@ private struct LiveActivityBannerView: View {
 
                 LiveActivityTimeStatus(
                     startDate: state.startDate,
-                    endDate: state.endDate,
                     layout: .banner
                 )
             }
 
             if let end = state.endDate, end > state.startDate {
                 VStack(spacing: 4) {
+                    // 进度是装饰性信息；即使 TimelineView 在锁屏下暂停，核心 timer 仍由系统自驱。
                     TimelineView(.periodic(from: .now, by: 1)) { context in
-                        let phase = LiveActivityClockPhase.resolve(
-                            now: context.date,
-                            startDate: state.startDate,
-                            endDate: end
-                        )
                         ProgressView(value: Self.progressFraction(start: state.startDate, end: end, now: context.date))
-                            .progressViewStyle(LiveActivityBarStyle(fillColor: phase.ringColor))
+                            .progressViewStyle(LiveActivityBarStyle())
                     }
                     .accessibilityHidden(true)
                     HStack {
