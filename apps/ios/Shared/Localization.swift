@@ -9,7 +9,8 @@ import Foundation
 enum BSLocalization {
     static func text(_ key: String) -> String {
         let localized = NSLocalizedString(key, bundle: .main, comment: "")
-        guard localized == key, let fallback = countdownFallback(for: key) else {
+        guard localized == key,
+              let fallback = countdownFallback(for: key, localeIdentifier: selectedLocale.identifier) else {
             return localized
         }
         return fallback
@@ -24,8 +25,8 @@ enum BSLocalization {
     /// keys, use the same wording as the widget table instead of leaking the
     /// Simplified-Chinese source key. An explicit resource localization always
     /// wins before this fallback runs.
-    private static func countdownFallback(for key: String) -> String? {
-        switch selectedLanguageKind {
+    static func countdownFallback(for key: String, localeIdentifier: String) -> String? {
+        switch languageKind(for: localeIdentifier) {
         case .english:
             switch key {
             case "距离开场": return "Until show starts"
@@ -53,8 +54,8 @@ enum BSLocalization {
         case other
     }
 
-    private static var selectedLanguageKind: LanguageKind {
-        let identifier = selectedLocale.identifier
+    private static func languageKind(for localeIdentifier: String) -> LanguageKind {
+        let identifier = localeIdentifier
             .replacingOccurrences(of: "_", with: "-")
             .lowercased()
         if identifier.hasPrefix("en") {
