@@ -90,7 +90,7 @@ final class ArchitectureModuleTests: XCTestCase {
     }
 
     func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() throws {
-        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才是「1 天」。
+        // 与 widget 同一阈值:remaining == 86400 必须进入近场态,只有 > 86400 才是「1 天」。
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let atThreshold = try Show(
             name: "恰好一天",
@@ -99,7 +99,7 @@ final class ArchitectureModuleTests: XCTestCase {
         )
         let state = CurrentShowTimeState(show: atThreshold, now: now)
         guard case .countdownClock = HomeCountdownPresentationPolicy.state(for: atThreshold, timeState: state, now: now) else {
-            return XCTFail("remaining == 24h 应显示时:分:秒,不是「1 天」")
+            return XCTFail("remaining == 24h 应进入近场倒计时,不是「1 天」")
         }
 
         let pastThreshold = try Show(
@@ -111,6 +111,81 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertEqual(
             HomeCountdownPresentationPolicy.state(for: pastThreshold, timeState: pastState, now: now),
             .countdownDays(1)
+        )
+    }
+
+    func testCountdownTimePolicySwitchesAtExactFinalHour() {
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 3_601),
+            .hours(1)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 3_600),
+            .minutesSeconds(minutes: 60, seconds: 0)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 3_599),
+            .minutesSeconds(minutes: 59, seconds: 59)
+        )
+    }
+
+    func testCountdownTimePolicyUsesAgreedPrecisionAfterStart() {
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 25 * 3_600),
+            .days(1)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 24 * 3_600),
+            .hours(24)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(remainingSeconds: 5 * 3_600 + 23 * 60),
+            .hours(5)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.afterStart(elapsedSeconds: 23 * 60 + 46),
+            .elapsedMinutes(23)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.afterStart(elapsedSeconds: 3_600 + 23 * 60 + 46),
+            .elapsedHoursMinutes(hours: 1, minutes: 23)
+        )
+    }
+
+    func testWidgetTimelineIncludesExactHourHeroBoundaries() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let start = now.addingTimeInterval(5 * 3_600 + 23 * 60)
+        let fiveHoursRemaining = start.addingTimeInterval(-5 * 3_600)
+        let fourHoursRemaining = start.addingTimeInterval(-4 * 3_600)
+        let finalHour = start.addingTimeInterval(-3_600)
+
+        let plan = WidgetTimelinePlanner.entryDates(
+            now: now,
+            startBoundary: start,
+            endBoundary: nil
+        )
+
+        XCTAssertTrue(plan.dates.contains(where: { abs($0.timeIntervalSince(fiveHoursRemaining)) < 0.5 }))
+        XCTAssertTrue(plan.dates.contains(where: { abs($0.timeIntervalSince(fourHoursRemaining)) < 0.5 }))
+        XCTAssertTrue(plan.dates.contains(where: { abs($0.timeIntervalSince(finalHour)) < 0.5 }))
+
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(
+                remainingSeconds: Int(start.timeIntervalSince(fiveHoursRemaining))
+            ),
+            .hours(5)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(
+                remainingSeconds: Int(start.timeIntervalSince(fourHoursRemaining))
+            ),
+            .hours(4)
+        )
+        XCTAssertEqual(
+            CountdownTimePresentationPolicy.beforeStart(
+                remainingSeconds: Int(start.timeIntervalSince(finalHour))
+            ),
+            .minutesSeconds(minutes: 60, seconds: 0)
         )
     }
 
