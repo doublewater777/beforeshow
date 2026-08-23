@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import BeforeShow
 
@@ -96,5 +97,30 @@ final class ShowDurationFormatterTests: XCTestCase {
 
         XCTAssertEqual(archive.shows.count, 2)
         XCTAssertEqual(archive.totalDurationMinutes, 150 + CurrentShowTimeState.defaultDurationHours * 60)
+    }
+
+    func testCountdownDynamicLocalizationDoesNotLeakSourceKeys() {
+        let defaults = UserDefaults.standard
+        let storageKey = "appLanguage"
+        let previous = defaults.object(forKey: storageKey)
+        defer {
+            if let previous {
+                defaults.set(previous, forKey: storageKey)
+            } else {
+                defaults.removeObject(forKey: storageKey)
+            }
+        }
+
+        defaults.set("en", forKey: storageKey)
+        XCTAssertEqual(BSLocalization.text("距离开场"), "Until show starts")
+        XCTAssertEqual(BSLocalization.text("小时"), "hours")
+        XCTAssertEqual(BSLocalization.text("分钟"), "minutes")
+        XCTAssertEqual(BSLocalization.text("秒"), "seconds")
+
+        defaults.set("zh-Hant", forKey: storageKey)
+        XCTAssertEqual(BSLocalization.text("距离开场"), "距離開場")
+        XCTAssertEqual(BSLocalization.text("小时"), "小時")
+        XCTAssertEqual(BSLocalization.text("分钟"), "分鐘")
+        XCTAssertEqual(BSLocalization.text("秒"), "秒")
     }
 }
