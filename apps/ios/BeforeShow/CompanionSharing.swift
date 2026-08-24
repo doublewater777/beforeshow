@@ -90,6 +90,7 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     func companionDisplayNames(isOwner: Bool) -> [String] {
         let listed = CompanionNameList.normalized(participantDisplayNames)
         if isOwner {
+            if status == .accepted { return listed }
             if !listed.isEmpty { return listed }
             return CompanionNameList.normalized([participantDisplayName].compactMap { $0 })
         }
@@ -939,7 +940,9 @@ extension Show {
         let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
         let fallback = CompanionNameList.normalized([preferredName].compactMap { $0 })
         let resolvedNames: [String]
-        if !cloudNames.isEmpty {
+        if isOwner, snapshot.status == .accepted {
+            resolvedNames = cloudNames
+        } else if !cloudNames.isEmpty {
             resolvedNames = cloudNames
         } else if !fallback.isEmpty {
             resolvedNames = fallback

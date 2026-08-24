@@ -120,7 +120,15 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     func testCompanionDisplayNamePicksOtherParty() {
-        let session = makeSession(
+        let ownerSession = makeSession(
+            recordName: "rec-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participant: nil,
+            participantNames: ["林嘉"]
+        )
+        let participantSession = makeSession(
             recordName: "rec-1",
             shareName: "share-1",
             status: .accepted,
@@ -128,8 +136,8 @@ final class CompanionSharingTests: XCTestCase {
             participant: "林嘉"
         )
 
-        XCTAssertEqual(session.companionDisplayName(isOwner: true), "林嘉")
-        XCTAssertEqual(session.companionDisplayName(isOwner: false), "Alex")
+        XCTAssertEqual(ownerSession.companionDisplayName(isOwner: true), "林嘉")
+        XCTAssertEqual(participantSession.companionDisplayName(isOwner: false), "Alex")
     }
 
     func testCompanionDisplayNamesListsTheGroup() {
@@ -184,7 +192,8 @@ final class CompanionSharingTests: XCTestCase {
             ownerName: "owner-token",
             status: .accepted,
             owner: "Alex",
-            participant: "林嘉",
+            participant: nil,
+            participantNames: ["林嘉"],
             showID: show.id.uuidString,
             showName: show.name,
             showDate: now
@@ -247,6 +256,33 @@ final class CompanionSharingTests: XCTestCase {
 
         show.applyCompanionSession(session, isOwner: false)
         XCTAssertEqual(show.companionNames, ["Alex", "林嘉", "王宁"])
+    }
+
+    func testOwnerAcceptedSessionDoesNotRetainLegacyNameWhenCurrentNamesAreUnavailable() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "同行现场",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        let session = makeSession(
+            recordName: "session-group",
+            shareName: "share-group",
+            status: .accepted,
+            owner: "Alex",
+            participant: "林嘉",
+            participantNames: [],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now
+        )
+
+        show.applyCompanionSession(session, isOwner: true)
+
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
     }
 
     func testSnapshotRejectsMissingRequiredFields() throws {
@@ -380,7 +416,8 @@ final class CompanionSharingTests: XCTestCase {
             shareName: "share-1",
             status: .accepted,
             owner: "Alex",
-            participant: "林嘉",
+            participant: nil,
+            participantNames: ["林嘉"],
             showID: show.id.uuidString,
             showName: show.name,
             showDate: now,
