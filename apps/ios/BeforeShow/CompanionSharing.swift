@@ -76,6 +76,7 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     var show: CompanionShowSnapshot
     var ownerDisplayName: String?
     var participantDisplayName: String?
+    var participantDisplayNames: [String]
     var status: CompanionCloudStatus
     var createdAt: Date
     var acceptedAt: Date?
@@ -85,12 +86,25 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     var recordName: String { sessionLocator.recordName }
     var shareRecordName: String? { shareLocator?.recordName }
 
-    /// Name the local device should show for the other person.
+    /// Names this device should show for the other people in the group.
+    func companionDisplayNames(isOwner: Bool) -> [String] {
+        let listed = CompanionNameList.normalized(participantDisplayNames)
+        if isOwner {
+            if status == .accepted { return listed }
+            if !listed.isEmpty { return listed }
+            return CompanionNameList.normalized([participantDisplayName].compactMap { $0 })
+        }
+        var names = CompanionNameList.normalized([ownerDisplayName].compactMap { $0 })
+        names.append(contentsOf: listed)
+        if names.isEmpty {
+            names = CompanionNameList.normalized([participantDisplayName].compactMap { $0 })
+        }
+        return CompanionNameList.normalized(names)
+    }
+
+    /// Joined display name for the other people in the group.
     func companionDisplayName(isOwner: Bool) -> String? {
-        let raw = isOwner ? participantDisplayName : ownerDisplayName
-        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmed, !trimmed.isEmpty else { return nil }
-        return trimmed
+        CompanionNameList.joined(companionDisplayNames(isOwner: isOwner))
     }
 }
 
@@ -124,6 +138,57 @@ enum CompanionMembershipState: Equatable, Sendable {
     }
 }
 
+enum CompanionShareMemberStatus: Equatable, Sendable {
+    case accepted
+    case pending
+    case removed
+    case unknown
+}
+
+/// Owner-side share membership without mutating CloudKit.
+/// Multiple accepted members are a valid group; outstanding invites are not warnings.
+enum CompanionMembershipPolicy {
+    static func evaluate(
+        nonOwnerStatuses: [CompanionShareMemberStatus]
+    ) -> CompanionMembershipState {
+        let accepted = nonOwnerStatuses.filter { $0 == .accepted }.count
+        let pending = nonOwnerStatuses.filter { $0 == .pending }.count
+        let unknown = nonOwnerStatuses.filter { $0 == .unknown }.count
+
+        if accepted == 0, unknown == 0 {
+            return .removed
+        }
+        if unknown > 0 {
+            return .warning("同行成员状态暂时无法确认，请稍后重试")
+        }
+        return .healthy
+    }
+}
+
+enum CompanionNameList {
+    static func normalized(_ names: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for raw in names {
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            result.append(trimmed)
+        }
+        return result
+    }
+
+    static func joined(_ names: [String]) -> String? {
+        let cleaned = normalized(names)
+        guard !cleaned.isEmpty else { return nil }
+        return cleaned.joined(separator: "、")
+    }
+
+    static func isSameGroup(_ lhs: [String], _ rhs: [String]) -> Bool {
+        Set(normalized(lhs)) == Set(normalized(rhs))
+    }
+}
+
 // MARK: - Service protocol
 
 protocol CompanionSharingService: Sendable {
@@ -151,7 +216,7 @@ protocol CompanionSharingService: Sendable {
     /// Discover already-accepted shared companion sessions for startup recovery.
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot]
 
-    /// Reconcile the owner-side share so at most one non-owner remains accepted.
+    /// Reconcile the owner-side share. Multiple accepted members are a valid group.
     func reconcileOwnerMembership(
         shareLocator: CompanionRecordLocator
     ) async throws -> CompanionMembershipState
@@ -343,29 +408,23 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             throw CompanionSharingError.invalidPayload
         }
 
-        // One-companion invariant: reject a second accepted participant, while allowing
-        // the same participant to reopen an already accepted invitation.
-        let currentParticipantID = acceptedShare.currentUserParticipant?.participantID
-        let acceptedOthers = acceptedShare.participants.filter { participant in
-            guard participant.role != .owner,
-                  participant.acceptanceStatus == .accepted else {
-                return false
-            }
-            guard let currentParticipantID else { return true }
-            return participant.participantID != currentParticipantID
-        }
-        if !acceptedOthers.isEmpty {
-            try await leaveShareOrThrowCleanupPending()
-            throw CompanionSharingError.permissionDenied
-        }
+        let harvestedNames = Self.participantNames(from: acceptedShare)
 
-        // A root already accepted by this participant is idempotent.
+        // A root already accepted by this participant — or by earlier members —
+        // is idempotent. Additional members join the same accepted session.
         if let existingStatus = record[CompanionSessionRecord.status] as? String,
            existingStatus == CompanionCloudStatus.accepted.rawValue {
-            return try Self.snapshot(from: record, shareLocator: shareLocator)
+            return try Self.snapshot(
+                from: record,
+                shareLocator: shareLocator,
+                participantDisplayNames: harvestedNames
+            )
         }
 
-        if let participantDisplayName, !participantDisplayName.isEmpty {
+        let existingParticipantName = (record[CompanionSessionRecord.participantDisplayName] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let participantDisplayName, !participantDisplayName.isEmpty,
+           existingParticipantName == nil || existingParticipantName?.isEmpty == true {
             record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
         }
         record[CompanionSessionRecord.status] = CompanionCloudStatus.accepted.rawValue as CKRecordValue
@@ -376,7 +435,11 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         do {
             let results = try await modifyRecords(in: sharedDB, saving: [record])
             let saved = results.first ?? record
-            return try Self.snapshot(from: saved, shareLocator: shareLocator)
+            return try Self.snapshot(
+                from: saved,
+                shareLocator: shareLocator,
+                participantDisplayNames: harvestedNames
+            )
         } catch {
             // Share is accepted in CloudKit, but session status is not durable yet.
             throw CompanionSharingError.statusSyncPending
@@ -398,8 +461,13 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
 
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
-        let (record, _) = try await fetchSessionRecord(locator: sessionLocator)
-        return try Self.snapshot(from: record, shareLocator: nil)
+        let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
+        let names = try await participantNames(for: record, in: database)
+        return try Self.snapshot(
+            from: record,
+            shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) },
+            participantDisplayNames: names
+        )
     }
 
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
@@ -471,37 +539,16 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 throw CompanionSharingError.sessionNotFound
             }
 
-            let nonOwners = share.participants.filter { $0.role != .owner }
-            let accepted = nonOwners.filter { $0.acceptanceStatus == .accepted }
-            let pending = nonOwners.filter { $0.acceptanceStatus == .pending }
-            let unknown = nonOwners.filter { $0.acceptanceStatus == .unknown }
-
-            if accepted.count > 1 {
-                // Participant ordering is not a stable contract. Keep the lexically first
-                // accepted participant so repeated reconciliation is deterministic, and
-                // remove every other accepted member from the owner-controlled share.
-                let keep = accepted.min { $0.participantID < $1.participantID }
-                let extras = accepted.filter { $0.participantID != keep?.participantID }
-                for participant in extras {
-                    share.removeParticipant(participant)
+            let statuses: [CompanionShareMemberStatus] = share.participants.compactMap { participant in
+                guard participant.role != .owner else { return nil }
+                switch participant.acceptanceStatus {
+                case .accepted: return .accepted
+                case .pending: return .pending
+                case .removed: return .removed
+                default: return .unknown
                 }
-                _ = try await modifyRecords(in: privateDB, saving: [share])
-                return .warning("检测到多个已接受的同行者，已移除多余成员")
             }
-
-            if accepted.count == 1, !pending.isEmpty {
-                return .warning("已有同行者确认，仍有未确认的邀请成员")
-            }
-            if accepted.isEmpty, pending.isEmpty, unknown.isEmpty {
-                return .removed
-            }
-            if accepted.isEmpty, !pending.isEmpty {
-                return .warning("同行邀请尚未有成员确认")
-            }
-            if !unknown.isEmpty {
-                return .warning("同行成员状态暂时无法确认，请稍后重试")
-            }
-            return .healthy
+            return CompanionMembershipPolicy.evaluate(nonOwnerStatuses: statuses)
         } catch {
             throw Self.mapError(error)
         }
@@ -616,20 +663,20 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         sessionLocator: CompanionRecordLocator,
         shareLocator: CompanionRecordLocator?
     ) async throws -> CompanionSessionSnapshot {
-        // Write canceled status first so the owner can observe it before access is removed.
-        var canceledSnapshot: CompanionSessionSnapshot?
-        var statusWriteError: CompanionSharingError?
+        // Leave the share only. Writing session status=canceled would dissolve the
+        // remaining group. The leaving device still marks local companion canceled.
+        var currentSnapshot: CompanionSessionSnapshot?
+        var fetchError: CompanionSharingError?
         do {
             let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
-            record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
-            record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
-            let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
-            canceledSnapshot = try Self.snapshot(from: saved, shareLocator: nil)
+            let names = try await participantNames(for: record, in: database)
+            currentSnapshot = try Self.snapshot(
+                from: record,
+                shareLocator: shareLocator,
+                participantDisplayNames: names
+            )
         } catch {
-            let mapped = Self.mapError(error)
-            statusWriteError = mapped
-            // Continue to leave the share even when the shared root is read-only to the
-            // participant. Leaving the share is the authoritative access-removal action.
+            fetchError = Self.mapError(error)
         }
 
         var shareLeaveSucceeded = false
@@ -653,17 +700,18 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                     throw mapped
                 }
             }
+        } else {
+            shareLeaveSucceeded = true
         }
 
-        if let canceledSnapshot {
-            return canceledSnapshot
+        if let currentSnapshot {
+            return currentSnapshot
         }
 
-        if !shareLeaveSucceeded, let statusWriteError {
-            throw statusWriteError
+        if !shareLeaveSucceeded, let fetchError {
+            throw fetchError
         }
 
-        // Access already gone and status could not be read — local cancel is still terminal.
         return CompanionSessionSnapshot(
             sessionLocator: sessionLocator,
             shareLocator: nil,
@@ -676,11 +724,24 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             ),
             ownerDisplayName: nil,
             participantDisplayName: nil,
+            participantDisplayNames: [],
             status: .canceled,
             createdAt: Date(),
             acceptedAt: nil,
             canceledAt: Date()
         )
+    }
+
+    private func participantNames(for record: CKRecord, in database: CKDatabase) async throws -> [String] {
+        guard let shareRef = record.share else { return [] }
+        do {
+            guard let share = try await database.record(for: shareRef.recordID) as? CKShare else {
+                return []
+            }
+            return Self.participantNames(from: share)
+        } catch {
+            throw Self.mapError(error)
+        }
     }
 
     private func fetchSessionRecord(
@@ -765,10 +826,28 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         }
     }
 
+    static func participantNames(from share: CKShare) -> [String] {
+        let currentID = share.currentUserParticipant?.participantID
+        return CompanionNameList.normalized(share.participants.compactMap { participant in
+            guard participant.role != .owner else { return nil }
+            guard participant.acceptanceStatus == .accepted else { return nil }
+            if let currentID, participant.participantID == currentID { return nil }
+            return displayName(for: participant)
+        })
+    }
+
+    static func displayName(for participant: CKShare.Participant) -> String? {
+        guard let components = participant.userIdentity.nameComponents else { return nil }
+        let formatted = PersonNameComponentsFormatter().string(from: components)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return formatted.isEmpty ? nil : formatted
+    }
+
     static func snapshot(
         from record: CKRecord,
         shareLocator: CompanionRecordLocator?,
-        forcedStatus: CompanionCloudStatus? = nil
+        forcedStatus: CompanionCloudStatus? = nil,
+        participantDisplayNames: [String] = []
     ) throws -> CompanionSessionSnapshot {
         guard
             let showID = record[CompanionSessionRecord.showID] as? String,
@@ -802,6 +881,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             ),
             ownerDisplayName: record[CompanionSessionRecord.ownerDisplayName] as? String,
             participantDisplayName: record[CompanionSessionRecord.participantDisplayName] as? String,
+            participantDisplayNames: CompanionNameList.normalized(participantDisplayNames),
             status: status,
             createdAt: createdAt,
             acceptedAt: record[CompanionSessionRecord.acceptedAt] as? Date,
@@ -857,18 +937,20 @@ extension Show {
         }
         companionIsOwner = isOwner
 
-        let cloudName = snapshot.companionDisplayName(isOwner: isOwner)
-        let fallback = preferredName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedName: String?
-        if let cloudName {
-            resolvedName = cloudName
-        } else if let fallback, !fallback.isEmpty {
-            resolvedName = fallback
+        let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
+        let fallback = CompanionNameList.normalized([preferredName].compactMap { $0 })
+        let resolvedNames: [String]
+        if isOwner, snapshot.status == .accepted {
+            resolvedNames = cloudNames
+        } else if !cloudNames.isEmpty {
+            resolvedNames = cloudNames
+        } else if !fallback.isEmpty {
+            resolvedNames = fallback
         } else {
-            resolvedName = companionName
+            resolvedNames = companionNames
         }
 
-        applyCompanionState(status: snapshot.status.localStatus, name: resolvedName)
+        applyCompanionState(status: snapshot.status.localStatus, names: resolvedNames)
     }
 
     func clearCompanionCloudLinkage() {

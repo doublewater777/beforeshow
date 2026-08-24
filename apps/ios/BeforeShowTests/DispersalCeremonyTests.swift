@@ -265,19 +265,30 @@ final class DispersalCeremonyTests: XCTestCase {
         let withCompanion = FootprintDetailIdentity(
             showOrdinal: 12,
             cityOrdinal: 3,
-            companionName: "林嘉",
-            companionOrdinal: 2
+            companions: [FootprintCompanionIdentity(name: "林嘉", ordinal: 2)]
         )
         XCTAssertEqual(
             DispersalCeremonyCardCopy.footerLeading(identity: withCompanion),
             "与林嘉第 2 次见面"
         )
 
+        let withGroup = FootprintDetailIdentity(
+            showOrdinal: 12,
+            cityOrdinal: 3,
+            companions: [
+                FootprintCompanionIdentity(name: "林嘉", ordinal: 2),
+                FootprintCompanionIdentity(name: "王宁", ordinal: 1)
+            ]
+        )
+        XCTAssertEqual(
+            DispersalCeremonyCardCopy.footerLeading(identity: withGroup),
+            "与林嘉、王宁同行"
+        )
+
         let solo = FootprintDetailIdentity(
             showOrdinal: 12,
             cityOrdinal: 3,
-            companionName: nil,
-            companionOrdinal: nil
+            companions: []
         )
         XCTAssertEqual(
             DispersalCeremonyCardCopy.footerLeading(identity: solo),

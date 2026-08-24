@@ -340,9 +340,13 @@ struct FootprintDetailView: View {
                 BSLocalization.format("%@现场", FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("这座城市"))
             ))
         }
-        if let companionOrdinal = identity.companionOrdinal,
-           let companionName = identity.companionName {
-            values.append((BSLocalization.format("第 %lld 次", companionOrdinal), BSLocalization.format("与%@同行", companionName)))
+        if identity.companions.count == 1, let companion = identity.companions.first {
+            values.append((
+                BSLocalization.format("第 %lld 次", companion.ordinal),
+                BSLocalization.format("与%@同行", companion.name)
+            ))
+        } else if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
+            values.append((BSLocalization.text("同行"), BSLocalization.format("与%@同行", names)))
         }
         return values
     }
@@ -455,50 +459,61 @@ struct FootprintDetailView: View {
     private var companionSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.compact) {
             sectionHeader(BSLocalization.text("同行"))
-            HStack(spacing: BSSpacing.compact) {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [FootprintDetailTokens.companionAccent, FootprintDetailTokens.companionGlow],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: FootprintDetailTokens.avatarSize, height: FootprintDetailTokens.avatarSize)
-                    .overlay(
-                        Text(companionInitial)
-                            .font(BSFont.headline)
-                            .foregroundColor(BSColor.Stage.foreground)
-                    )
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(FootprintTextNormalizer.nonEmptyTrimmed(show.companionName) ?? BSLocalization.text("同行者"))
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Text(BSLocalization.format("共同留下 %lld 场足迹", companionFootprintCount))
-                        .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.muted)
+            VStack(spacing: 8) {
+                ForEach(Array(companionRows.enumerated()), id: \.offset) { _, row in
+                    companionRow(name: row.name, count: row.count)
                 }
-                Spacer()
             }
-            .padding(BSSpacing.compact)
-            .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
         }
     }
 
-    private var companionInitial: String {
-        guard let name = FootprintTextNormalizer.nonEmptyTrimmed(show.companionName),
-              let first = name.first else { return BSLocalization.text("同") }
-        return String(first)
+    private func companionRow(name: String, count: Int) -> some View {
+        HStack(spacing: BSSpacing.compact) {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [FootprintDetailTokens.companionAccent, FootprintDetailTokens.companionGlow],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: FootprintDetailTokens.avatarSize, height: FootprintDetailTokens.avatarSize)
+                .overlay(
+                    Text(String(name.prefix(1)))
+                        .font(BSFont.headline)
+                        .foregroundColor(BSColor.Stage.foreground)
+                )
+            VStack(alignment: .leading, spacing: 4) {
+                Text(name)
+                    .font(BSFont.headline)
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text(BSLocalization.format("共同留下 %lld 场足迹", count))
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+            }
+            Spacer()
+        }
+        .padding(BSSpacing.compact)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+        .overlay(RoundedRectangle(cornerRadius: BSRadius.v3Medium).stroke(BSColor.Stage.border))
     }
 
-    private var companionFootprintCount: Int {
-        guard let name = FootprintTextNormalizer.nonEmptyTrimmed(show.companionName) else { return 1 }
-        return archive.shows.filter {
+    private var companionRows: [(name: String, count: Int)] {
+        let names = CompanionNameList.normalized(show.companionNames)
+        if names.isEmpty {
+            return [(BSLocalization.text("同行者"), 1)]
+        }
+        return names.map { name in
+            (name, pairwiseCount(for: name))
+        }
+    }
+
+    private func pairwiseCount(for name: String) -> Int {
+        max(1, archive.shows.filter {
             $0.companionStatus == .confirmed
                 && $0.endedAt != nil
-                && FootprintTextNormalizer.nonEmptyTrimmed($0.companionName) == name
-        }.count
+                && CompanionNameList.normalized($0.companionNames).contains(name)
+        }.count)
     }
 
     private var informationSection: some View {

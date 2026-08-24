@@ -1,3 +1,10 @@
 # Match companion history by name
 
-BeforeShow groups completed, confirmed companion relationships into a shared footprint only when their trimmed non-empty companion names match exactly. This reuses the existing local companion model and accepts that renamed companions stop matching and different people with the same name can collide, instead of introducing a stable cross-show companion identity system during the footprint-detail work.
+BeforeShow still has no stable cross-show companion identity. Names are trimmed, de-duplicated lists stored on each show.
+
+Two different counts reuse those names:
+
+- Companion-sheet 共同足迹: completed, confirmed shows whose companion name **sets are equal**. Going with A, then later with A and B, are two groups.
+- Footprint identity: each named person is counted pairwise wherever that name appears in `companionNames` on a completed confirmed show.
+
+Renamed companions stop matching, and different people with the same name can collide. That is accepted until a stable companion ID exists.

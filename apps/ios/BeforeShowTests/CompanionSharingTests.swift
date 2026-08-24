@@ -13,6 +13,25 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertFalse(CompanionInviteGate.blocksNewInvite(nil))
     }
 
+    func testQuickActionJoinsMultipleCompanionNames() {
+        let presentation = CompanionQuickActionPresentation(
+            status: .confirmed,
+            companionNames: ["林嘉", "王宁"],
+            isEnded: false
+        )
+        XCTAssertEqual(presentation.companionName, "林嘉、王宁")
+        XCTAssertEqual(presentation.title, BSLocalization.format("与%@", "林嘉、王宁"))
+        XCTAssertTrue(presentation.showsAvatars)
+        XCTAssertEqual(
+            CompanionQuickActionPresentation(
+                status: .none,
+                companionNames: [],
+                isEnded: false
+            ).accessibilityLabel,
+            BSLocalization.text("同行，邀请朋友")
+        )
+    }
+
     func testInvitePreparingCopyReplacesActionTitleUntilShareAppears() {
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: false),
@@ -38,8 +57,78 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(CompanionCloudStatus.canceled.localStatus, .canceled)
     }
 
+    func testMembershipPolicyKeepsMultipleAcceptedMembersHealthy() {
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.accepted, .accepted]),
+            .healthy
+        )
+    }
+
+    func testMembershipPolicyTreatsOutstandingInvitesAsHealthy() {
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.accepted, .pending]),
+            .healthy
+        )
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending]),
+            .removed
+        )
+    }
+
+    func testMembershipPolicyRemovesEmptyShareAndWarnsOnUnknown() {
+        XCTAssertEqual(CompanionMembershipPolicy.evaluate(nonOwnerStatuses: []), .removed)
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.accepted, .unknown]),
+            .warning("同行成员状态暂时无法确认，请稍后重试")
+        )
+    }
+
+    func testCompanionNameListDropsBlanksAndJoinsWithDunhao() {
+        XCTAssertEqual(CompanionNameList.normalized([" 林嘉 ", "", "王宁", "林嘉"]), ["林嘉", "王宁"])
+        XCTAssertEqual(CompanionNameList.joined(["林嘉", "王宁"]), "林嘉、王宁")
+        XCTAssertNil(CompanionNameList.joined([" ", ""]))
+    }
+
+    func testSharedHistoryMatchesExactNameSetsOnly() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let withJia = try Show(name: "只和林嘉", date: now, startTime: now)
+        try withJia.markCompanionInvitationSent(name: "林嘉")
+        try withJia.markCompanionConfirmed(name: "林嘉")
+        withJia.markEnded(at: now)
+
+        let group = try Show(name: "林嘉和王宁", date: now.addingTimeInterval(86_400), startTime: now)
+        group.applyCompanionState(status: .pending, names: ["王宁", "林嘉"])
+        group.applyCompanionState(status: .confirmed, names: ["王宁", "林嘉"])
+        group.markEnded(at: now.addingTimeInterval(86_400))
+
+        let sameGroupLater = try Show(name: "同一组再看", date: now.addingTimeInterval(172_800), startTime: now)
+        sameGroupLater.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
+        sameGroupLater.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
+        sameGroupLater.markEnded(at: now.addingTimeInterval(172_800))
+
+        let groupHistory = CompanionSharedHistory.shows(
+            matching: group,
+            from: [withJia, group, sameGroupLater]
+        )
+        XCTAssertEqual(groupHistory.map(\.name), ["同一组再看", "林嘉和王宁"])
+
+        let pairHistory = CompanionSharedHistory.shows(
+            matching: withJia,
+            from: [withJia, group, sameGroupLater]
+        )
+        XCTAssertEqual(pairHistory.map(\.name), ["只和林嘉"])
+    }
+
     func testCompanionDisplayNamePicksOtherParty() {
-        let session = makeSession(
+        let ownerSession = makeSession(
+            recordName: "rec-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participant: nil,
+            participantNames: ["林嘉"]
+        )
+        let participantSession = makeSession(
             recordName: "rec-1",
             shareName: "share-1",
             status: .accepted,
@@ -47,8 +136,23 @@ final class CompanionSharingTests: XCTestCase {
             participant: "林嘉"
         )
 
-        XCTAssertEqual(session.companionDisplayName(isOwner: true), "林嘉")
-        XCTAssertEqual(session.companionDisplayName(isOwner: false), "Alex")
+        XCTAssertEqual(ownerSession.companionDisplayName(isOwner: true), "林嘉")
+        XCTAssertEqual(participantSession.companionDisplayName(isOwner: false), "Alex")
+    }
+
+    func testCompanionDisplayNamesListsTheGroup() {
+        let session = makeSession(
+            recordName: "rec-2",
+            shareName: "share-2",
+            status: .accepted,
+            owner: "Alex",
+            participant: nil,
+            participantNames: ["林嘉", "王宁"]
+        )
+
+        XCTAssertEqual(session.companionDisplayNames(isOwner: true), ["林嘉", "王宁"])
+        XCTAssertEqual(session.companionDisplayName(isOwner: true), "林嘉、王宁")
+        XCTAssertEqual(session.companionDisplayNames(isOwner: false), ["Alex", "林嘉", "王宁"])
     }
 
     func testRecordLocatorPreservesZoneIdentity() {
@@ -88,7 +192,8 @@ final class CompanionSharingTests: XCTestCase {
             ownerName: "owner-token",
             status: .accepted,
             owner: "Alex",
-            participant: "林嘉",
+            participant: nil,
+            participantNames: ["林嘉"],
             showID: show.id.uuidString,
             showName: show.name,
             showDate: now
@@ -127,6 +232,57 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.companionIsOwner, false)
         XCTAssertEqual(show.companionStatus, .confirmed)
         XCTAssertEqual(show.companionName, "Alex")
+    }
+
+    func testApplyCompanionSessionWritesMultipleNames() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        let session = makeSession(
+            recordName: "session-group",
+            shareName: "share-group",
+            status: .accepted,
+            owner: "Alex",
+            participant: nil,
+            participantNames: ["林嘉", "王宁"],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now
+        )
+
+        show.applyCompanionSession(session, isOwner: true)
+        XCTAssertEqual(show.companionNames, ["林嘉", "王宁"])
+        XCTAssertEqual(show.companionName, "林嘉、王宁")
+        XCTAssertEqual(show.companionStatus, .confirmed)
+
+        show.applyCompanionSession(session, isOwner: false)
+        XCTAssertEqual(show.companionNames, ["Alex", "林嘉", "王宁"])
+    }
+
+    func testOwnerAcceptedSessionDoesNotRetainLegacyNameWhenCurrentNamesAreUnavailable() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "同行现场",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        let session = makeSession(
+            recordName: "session-group",
+            shareName: "share-group",
+            status: .accepted,
+            owner: "Alex",
+            participant: "林嘉",
+            participantNames: [],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now
+        )
+
+        show.applyCompanionSession(session, isOwner: true)
+
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
     }
 
     func testSnapshotRejectsMissingRequiredFields() throws {
@@ -260,7 +416,8 @@ final class CompanionSharingTests: XCTestCase {
             shareName: "share-1",
             status: .accepted,
             owner: "Alex",
-            participant: "林嘉",
+            participant: nil,
+            participantNames: ["林嘉"],
             showID: show.id.uuidString,
             showName: show.name,
             showDate: now,
@@ -398,6 +555,108 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     @MainActor
+    func testCoordinatorResendFromConfirmedDoesNotCreateANewSession() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        try show.markCompanionInvitationSent(name: "林嘉")
+        try show.markCompanionConfirmed(name: "林嘉")
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-1"
+        show.companionShareZoneName = CompanionRecordLocator.companionZoneName
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        _ = try await coordinator.shareSystemFieldsForResend(show: show)
+        XCTAssertEqual(service.prepareCallCount, 0)
+        XCTAssertEqual(show.companionStatus, .confirmed)
+        XCTAssertEqual(show.companionCloudRecordName, "session-1")
+    }
+
+    @MainActor
+    func testCoordinatorParticipantLeaveCancelsLocallyWithoutDissolvingRemote() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        try show.markCompanionInvitationSent(name: "Alex")
+        try show.markCompanionConfirmed(name: "Alex")
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-1"
+        show.companionIsOwner = false
+        context.insert(show)
+        try context.save()
+
+        service.sessions["session-1"] = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participantNames: ["林嘉", "王宁"],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now,
+            createdAt: now,
+            acceptedAt: now
+        )
+
+        try await coordinator.cancelCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertNil(show.companionCloudRecordName)
+        XCTAssertEqual(service.sessions["session-1"]?.status, .accepted)
+        XCTAssertTrue(service.revokedShareNames.contains("share-1"))
+    }
+
+    @MainActor
+    func testCoordinatorRefreshCancelsWhenLastAcceptedMemberLeaves() async throws {
+        let service = MockCompanionSharingService()
+        service.ownerMembershipState = .removed
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        try show.markCompanionInvitationSent(name: "林嘉")
+        try show.markCompanionConfirmed(name: "林嘉")
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-1"
+        show.companionShareZoneName = CompanionRecordLocator.companionZoneName
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+        service.sessions["session-1"] = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participant: "林嘉",
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now,
+            createdAt: now,
+            acceptedAt: now
+        )
+
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertNil(show.companionCloudRecordName)
+    }
+
+    @MainActor
     func testAcceptPrefersStableShowIDAndAvoidsAmbiguousNameMatch() async throws {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
@@ -514,6 +773,50 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshPreservesOwnerNamesWhenParticipantNameFetchFails() async throws {
+        let service = MockCompanionSharingService()
+        service.participantNamesFetchError = .networkFailure
+        let coordinator = makeCoordinator(service: service)
+
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "同行现场",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉", "王宁"]
+        )
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-1"
+        show.companionShareZoneName = CompanionRecordLocator.companionZoneName
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        service.sessions["session-1"] = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participantNames: ["林嘉", "王宁"],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now,
+            acceptedAt: now
+        )
+
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .confirmed)
+        XCTAssertEqual(show.companionNames, ["林嘉", "王宁"])
+        XCTAssertEqual(coordinator.lastErrorKind, .networkFailure)
+    }
+
+    @MainActor
     func testRefreshAllLinkedShowsRecoversAcceptedSharedSessionAfterLocalReset() async throws {
         let service = MockCompanionSharingService()
         let userDefaults = makeIsolatedUserDefaults()
@@ -624,6 +927,106 @@ final class CompanionSharingTests: XCTestCase {
         let suiteName = "CompanionSharingTests.\(UUID().uuidString)"
         return UserDefaults(suiteName: suiteName)!
     }
+
+    func testMembershipPolicyTreatsRemovedMembersAsRemoved() {
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.removed]),
+            .removed
+        )
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending, .removed]),
+            .removed
+        )
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.accepted, .removed]),
+            .healthy
+        )
+    }
+
+    @MainActor
+    func testOwnerDoesNotRemainConfirmedWhenOnlyPendingInviteesRemain() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let show = try Show(
+            name: "告五人演唱会",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        show.companionCloudRecordName = "rec-1"
+        show.companionShareRecordName = "share-1"
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        let service = MockCompanionSharingService()
+        // Membership only contains pending invitees, 0 accepted participants.
+        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending])
+        let session = makeSession(
+            recordName: "rec-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            participant: nil,
+            participantNames: [],
+            showID: show.id.uuidString
+        )
+        service.sessions["rec-1"] = session
+
+        let coordinator = CompanionSharingCoordinator(service: service)
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        // Show should no longer be confirmed and companion names cleared
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
+    }
+
+    @MainActor
+    func testOwnerDoesNotRemainConfirmedWhenParticipantIsRemoved() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let show = try Show(
+            name: "草东没有派对",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        show.companionCloudRecordName = "rec-2"
+        show.companionShareRecordName = "share-2"
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        let service = MockCompanionSharingService()
+        // CloudKit participant has acceptanceStatus == .removed
+        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.removed])
+        let session = makeSession(
+            recordName: "rec-2",
+            shareName: "share-2",
+            status: .accepted,
+            owner: "Owner",
+            participant: nil,
+            participantNames: [],
+            showID: show.id.uuidString
+        )
+        service.sessions["rec-2"] = session
+
+        let coordinator = CompanionSharingCoordinator(service: service)
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
+    }
 }
 
 // MARK: - Helpers
@@ -635,7 +1038,8 @@ private func makeSession(
     ownerName: String = CKCurrentUserDefaultName,
     status: CompanionCloudStatus,
     owner: String?,
-    participant: String?,
+    participant: String? = nil,
+    participantNames: [String] = [],
     showID: String = "show-1",
     showName: String = "现场",
     showDate: Date = Date(timeIntervalSince1970: 2_000_000_000),
@@ -661,6 +1065,7 @@ private func makeSession(
         ),
         ownerDisplayName: owner,
         participantDisplayName: participant,
+        participantDisplayNames: participantNames,
         status: status,
         createdAt: createdAt,
         acceptedAt: acceptedAt,
@@ -668,13 +1073,12 @@ private func makeSession(
     )
 }
 
-// MARK: - Mock
-
 private final class MockCompanionSharingService: CompanionSharingService, @unchecked Sendable {
     var prepareError: CompanionSharingError?
     var loadShareError: CompanionSharingError?
     var cancelError: CompanionSharingError?
     var fetchError: CompanionSharingError?
+    var participantNamesFetchError: CompanionSharingError?
     var ownerMembershipState: CompanionMembershipState = .healthy
     var sessions: [String: CompanionSessionSnapshot] = [:]
     var revokedShareNames: [String] = []
@@ -731,28 +1135,31 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
         if let shareLocator {
             revokedShareNames.append(shareLocator.recordName)
         }
-        session = makeSession(
-            recordName: session.recordName,
-            shareName: nil,
-            zoneName: session.sessionLocator.zoneName,
-            ownerName: session.sessionLocator.ownerName,
-            status: .canceled,
-            owner: session.ownerDisplayName,
-            participant: session.participantDisplayName,
-            showID: session.show.showID,
-            showName: session.show.showName,
-            showDate: session.show.showDate,
-            createdAt: session.createdAt,
-            acceptedAt: session.acceptedAt,
-            canceledAt: Date()
-        )
-        sessions[sessionLocator.recordName] = session
-        _ = isOwner
+        if isOwner {
+            session = makeSession(
+                recordName: session.recordName,
+                shareName: nil,
+                zoneName: session.sessionLocator.zoneName,
+                ownerName: session.sessionLocator.ownerName,
+                status: .canceled,
+                owner: session.ownerDisplayName,
+                participant: session.participantDisplayName,
+                participantNames: session.participantDisplayNames,
+                showID: session.show.showID,
+                showName: session.show.showName,
+                showDate: session.show.showDate,
+                createdAt: session.createdAt,
+                acceptedAt: session.acceptedAt,
+                canceledAt: Date()
+            )
+            sessions[sessionLocator.recordName] = session
+        }
         return session
     }
 
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         if let fetchError { throw fetchError }
+        if let participantNamesFetchError { throw participantNamesFetchError }
         guard let session = sessions[sessionLocator.recordName] else {
             throw CompanionSharingError.sessionNotFound
         }

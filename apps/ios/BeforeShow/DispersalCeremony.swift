@@ -173,8 +173,12 @@ enum DispersalCeremonyCardCopy {
     }
 
     static func footerLeading(identity: FootprintDetailIdentity) -> String {
-        if let name = identity.companionName, let ordinal = identity.companionOrdinal {
-            return BSLocalization.format("与%@第 %lld 次见面", name, ordinal)
+        if identity.companions.count == 1,
+           let companion = identity.companions.first {
+            return BSLocalization.format("与%@第 %lld 次见面", companion.name, companion.ordinal)
+        }
+        if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
+            return BSLocalization.format("与%@同行", names)
         }
         return BSLocalization.format("我的第 %lld 场现场", identity.showOrdinal)
     }

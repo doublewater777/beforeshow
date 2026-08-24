@@ -9,7 +9,8 @@ enum FootprintDebugSeeder {
         let arguments = ProcessInfo.processInfo.arguments
         guard arguments.contains("--seed-footprints-samples")
                 || arguments.contains("--seed-footprint-detail-v41")
-                || arguments.contains("--seed-dispersal-live") else { return }
+                || arguments.contains("--seed-dispersal-live")
+                || arguments.contains("--seed-companion-group") else { return }
 
         do {
             let existing = try modelContext.fetch(FetchDescriptor<Show>())
@@ -22,6 +23,9 @@ enum FootprintDebugSeeder {
             if arguments.contains("--seed-footprint-detail-v41"),
                !existingNames.contains(detailSampleName) {
                 try seedDetailSamples(in: modelContext)
+            }
+            if arguments.contains("--seed-companion-group") {
+                try seedCompanionGroup(in: modelContext, existingNames: existingNames)
             }
             if arguments.contains("--seed-dispersal-live") {
                 let liveName = "草东没有派对 · 散场仪式 DEMO"
@@ -67,8 +71,8 @@ enum FootprintDebugSeeder {
             "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "落日飞车")]
         ).makeShow()
         full.markEnded(at: date(2026, 7, 12, 22, 20))
-        try full.markCompanionInvitationSent(name: "林嘉")
-        try full.markCompanionConfirmed(name: full.companionName)
+        full.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
+        full.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
         try full.setClosingRitual(
             rating: 5,
             note: "最后一首歌结束的时候，灯亮得特别慢。"
@@ -87,6 +91,25 @@ enum FootprintDebugSeeder {
         try addMemorySamples(to: full, in: modelContext)
         try addAssetSample(to: full, kind: .ticket, title: "SUMMER TOUR\nTICKET", in: modelContext)
         try addAssetSample(to: full, kind: .timetable, title: "19:30 DOORS\n20:00 LIVE", in: modelContext)
+    }
+
+    private static let companionGroupSampleName = "陈绮贞 · 同行群组 DEMO"
+
+    private static func seedCompanionGroup(
+        in modelContext: ModelContext,
+        existingNames: Set<String>
+    ) throws {
+        guard !existingNames.contains(companionGroupSampleName) else { return }
+        let show = try sample(
+            companionGroupSampleName,
+            2026, 9, 20,
+            "杭州", "杭州奥体中心体育馆",
+            [ArtistSlot(name: "陈绮贞")]
+        ).makeShow()
+        show.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
+        show.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
+        show.companionIsOwner = true
+        modelContext.insert(show)
     }
 
     private static func addMemorySamples(to show: Show, in modelContext: ModelContext) throws {

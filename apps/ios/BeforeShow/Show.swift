@@ -164,7 +164,11 @@ final class Show {
     var closingNote: String? = nil
 
     private var companionStatusRawValue: String?
-    private(set) var companionName: String?
+    private(set) var companionNames: [String] = []
+
+    var companionName: String? {
+        CompanionNameList.joined(companionNames)
+    }
     /// CloudKit `CompanionSession` record name; local cache of the shared session.
     var companionCloudRecordName: String?
     /// CloudKit zone for the companion session (custom private zone required for sharing).
@@ -286,6 +290,7 @@ final class Show {
         endedAt: Date? = nil,
         companionStatus: ShowCompanionStatus = .none,
         companionName: String? = nil,
+        companionNames: [String] = [],
         companionCloudRecordName: String? = nil,
         companionCloudZoneName: String? = nil,
         companionCloudOwnerName: String? = nil,
@@ -338,7 +343,9 @@ final class Show {
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
         self.companionStatusRawValue = companionStatus.rawValue
-        self.companionName = Self.trimmedOptional(companionName)
+        self.companionNames = CompanionNameList.normalized(
+            companionNames.isEmpty ? [companionName].compactMap { $0 } : companionNames
+        )
         self.companionCloudRecordName = companionCloudRecordName
         self.companionCloudZoneName = companionCloudZoneName
         self.companionCloudOwnerName = companionCloudOwnerName
@@ -434,22 +441,34 @@ final class Show {
         guard from == .pending || from == .confirmed else {
             throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
         }
+        companionNames = []
         companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
         touch()
     }
 
     /// Snapshot used to restore state when the user cancels the system share sheet.
-    func companionStateSnapshot() -> (status: ShowCompanionStatus, name: String?) {
-        (companionStatus, companionName)
+    func companionStateSnapshot() -> (status: ShowCompanionStatus, names: [String]) {
+        (companionStatus, companionNames)
     }
 
     /// Force-restore a previous companion snapshot after a failed CloudKit invite.
+    func restoreCompanionState(status: ShowCompanionStatus, names: [String]) {
+        applyCompanionState(status: status, names: names)
+    }
+
     func restoreCompanionState(status: ShowCompanionStatus, name: String?) {
         applyCompanionState(status: status, name: name)
     }
 
     func applyCompanionState(status: ShowCompanionStatus, name: String?) {
-        companionName = Self.trimmedOptional(name)
+        applyCompanionState(
+            status: status,
+            names: CompanionNameList.normalized([name].compactMap { $0 })
+        )
+    }
+
+    func applyCompanionState(status: ShowCompanionStatus, names: [String]) {
+        companionNames = CompanionNameList.normalized(names)
         companionStatusRawValue = status.rawValue
         touch()
     }
