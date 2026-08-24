@@ -996,4 +996,72 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
         _ = shareLocator
         return ownerMembershipState
     }
+
+    @MainActor
+    func testLegacyCompanionNameMigratesToCompanionNamesArray() throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let legacyShow = try Show(
+            name: "告五人演唱会",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionName: "林嘉"
+        )
+        context.insert(legacyShow)
+        try context.save()
+
+        XCTAssertEqual(legacyShow.companionNames, ["林嘉"])
+        XCTAssertEqual(legacyShow.companionName, "林嘉")
+
+        ShowCompanionNamesMigration.migrateIfNeeded(in: context)
+
+        XCTAssertEqual(legacyShow.companionNames, ["林嘉"])
+        XCTAssertEqual(legacyShow.companionName, "林嘉")
+        XCTAssertFalse(legacyShow.hasUnresolvedCompanionNames)
+    }
+
+    @MainActor
+    func testLegacyStoreCompanionNamePreservedOnUpgrade() throws {
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("legacy_companion_test_\(UUID().uuidString).sqlite")
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        let config = ModelConfiguration(url: tempURL, cloudKitDatabase: .none)
+        let container1 = try ModelContainer(for: Show.self, configurations: config)
+        let context1 = container1.mainContext
+
+        let now = Date()
+        let show1 = try Show(
+            name: "草东没有派对",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionName: "林嘉"
+        )
+        context1.insert(show1)
+        try context1.save()
+
+        let container2 = try ModelContainer(for: Show.self, configurations: config)
+        let context2 = container2.mainContext
+
+        let fetchedShows = try context2.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(fetchedShows.count, 1)
+
+        let reloadedShow = fetchedShows[0]
+        XCTAssertEqual(reloadedShow.companionNames, ["林嘉"])
+        XCTAssertEqual(reloadedShow.companionName, "林嘉")
+
+        ShowCompanionNamesMigration.migrateIfNeeded(in: context2)
+
+        XCTAssertEqual(reloadedShow.companionNames, ["林嘉"])
+        XCTAssertEqual(reloadedShow.companionName, "林嘉")
+        XCTAssertFalse(reloadedShow.hasUnresolvedCompanionNames)
+    }
 }
+
