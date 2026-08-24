@@ -846,50 +846,6 @@ final class CompanionSharingTests: XCTestCase {
         let suiteName = "CompanionSharingTests.\(UUID().uuidString)"
         return UserDefaults(suiteName: suiteName)!
     }
-}
-
-// MARK: - Helpers
-
-private func makeSession(
-    recordName: String,
-    shareName: String?,
-    zoneName: String = CompanionRecordLocator.companionZoneName,
-    ownerName: String = CKCurrentUserDefaultName,
-    status: CompanionCloudStatus,
-    owner: String?,
-    participant: String? = nil,
-    participantNames: [String] = [],
-    showID: String = "show-1",
-    showName: String = "现场",
-    showDate: Date = Date(timeIntervalSince1970: 2_000_000_000),
-    createdAt: Date = Date(timeIntervalSince1970: 2_000_000_000),
-    acceptedAt: Date? = nil,
-    canceledAt: Date? = nil
-) -> CompanionSessionSnapshot {
-    return CompanionSessionSnapshot(
-        sessionLocator: CompanionRecordLocator(
-            recordName: recordName,
-            zoneName: zoneName,
-            ownerName: ownerName
-        ),
-        shareLocator: shareName.map {
-            CompanionRecordLocator(recordName: $0, zoneName: zoneName, ownerName: ownerName)
-        },
-        show: CompanionShowSnapshot(
-            showID: showID,
-            showName: showName,
-            showDate: showDate,
-            showStartTime: showDate,
-            showLocation: nil
-        ),
-        ownerDisplayName: owner,
-        participantDisplayName: participant,
-        participantDisplayNames: participantNames,
-        status: status,
-        createdAt: createdAt,
-        acceptedAt: acceptedAt,
-        canceledAt: canceledAt
-    )
 
     func testMembershipPolicyTreatsRemovedMembersAsRemoved() {
         XCTAssertEqual(
@@ -992,6 +948,49 @@ private func makeSession(
     }
 }
 
+// MARK: - Helpers
+
+private func makeSession(
+    recordName: String,
+    shareName: String?,
+    zoneName: String = CompanionRecordLocator.companionZoneName,
+    ownerName: String = CKCurrentUserDefaultName,
+    status: CompanionCloudStatus,
+    owner: String?,
+    participant: String? = nil,
+    participantNames: [String] = [],
+    showID: String = "show-1",
+    showName: String = "现场",
+    showDate: Date = Date(timeIntervalSince1970: 2_000_000_000),
+    createdAt: Date = Date(timeIntervalSince1970: 2_000_000_000),
+    acceptedAt: Date? = nil,
+    canceledAt: Date? = nil
+) -> CompanionSessionSnapshot {
+    CompanionSessionSnapshot(
+        sessionLocator: CompanionRecordLocator(
+            recordName: recordName,
+            zoneName: zoneName,
+            ownerName: ownerName
+        ),
+        shareLocator: shareName.map {
+            CompanionRecordLocator(recordName: $0, zoneName: zoneName, ownerName: ownerName)
+        },
+        show: CompanionShowSnapshot(
+            showID: showID,
+            showName: showName,
+            showDate: showDate,
+            showStartTime: showDate,
+            showLocation: nil
+        ),
+        ownerDisplayName: owner,
+        participantDisplayName: participant,
+        participantDisplayNames: participantNames,
+        status: status,
+        createdAt: createdAt,
+        acceptedAt: acceptedAt,
+        canceledAt: canceledAt
+    )
+}
 
 private final class MockCompanionSharingService: CompanionSharingService, @unchecked Sendable {
     var prepareError: CompanionSharingError?

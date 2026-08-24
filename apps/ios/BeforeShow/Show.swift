@@ -441,6 +441,7 @@ final class Show {
         guard from == .pending || from == .confirmed else {
             throw ShowCompanionMutationError.invalidTransition(from: from, to: .canceled)
         }
+        companionNames = []
         companionStatusRawValue = ShowCompanionStatus.canceled.rawValue
         touch()
     }
