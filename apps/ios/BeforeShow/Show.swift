@@ -164,34 +164,10 @@ final class Show {
     var closingNote: String? = nil
 
     private var companionStatusRawValue: String?
-    /// Retained legacy scalar companion name for SwiftData lightweight migration compatibility.
-    private(set) var companionName: String?
-    /// Stored companion names array.
-    private(set) var companionNamesStored: [String] = []
+    private(set) var companionNames: [String] = []
 
-    /// Normalized companion names array. Returns stored array if non-empty,
-    /// or falls back to legacy `companionName` for legacy records.
-    var companionNames: [String] {
-        get {
-            if !companionNamesStored.isEmpty {
-                return companionNamesStored
-            }
-            if let companionName, !companionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                return CompanionNameList.normalized([companionName])
-            }
-            return []
-        }
-        set {
-            let normalized = CompanionNameList.normalized(newValue)
-            companionNamesStored = normalized
-            companionName = CompanionNameList.joined(normalized)
-        }
-    }
-
-    /// Whether this show has a legacy `companionName` scalar that has not been
-    /// backfilled into `companionNamesStored` yet.
-    var hasUnresolvedCompanionNames: Bool {
-        companionNamesStored.isEmpty && companionName != nil && !companionName!.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    var companionName: String? {
+        CompanionNameList.joined(companionNames)
     }
     /// CloudKit `CompanionSession` record name; local cache of the shared session.
     var companionCloudRecordName: String?
@@ -367,11 +343,9 @@ final class Show {
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
         self.companionStatusRawValue = companionStatus.rawValue
-        let normalizedCompanionNames = CompanionNameList.normalized(
+        self.companionNames = CompanionNameList.normalized(
             companionNames.isEmpty ? [companionName].compactMap { $0 } : companionNames
         )
-        self.companionNamesStored = normalizedCompanionNames
-        self.companionName = CompanionNameList.joined(normalizedCompanionNames)
         self.companionCloudRecordName = companionCloudRecordName
         self.companionCloudZoneName = companionCloudZoneName
         self.companionCloudOwnerName = companionCloudOwnerName

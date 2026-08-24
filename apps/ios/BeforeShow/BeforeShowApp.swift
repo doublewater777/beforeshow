@@ -96,15 +96,13 @@ struct BeforeShowApp: App {
                 .onAppear {
                     // 在 noteDependenciesReady() 之前定格旧数据来源：它会立刻起
                     // Task flush 待处理邀请，可能把用户自己添加的现场翻成 participant 侧。
-                    ShowCompanionNamesMigration.migrateIfNeeded(in: modelContainer.mainContext)
-                    ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
+                                        ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
                 }
                 .task {
-                    ShowCompanionNamesMigration.migrateIfNeeded(in: modelContainer.mainContext)
-                    ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
+                                        ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
