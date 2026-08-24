@@ -71,7 +71,7 @@ final class CompanionSharingTests: XCTestCase {
         )
         XCTAssertEqual(
             CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending]),
-            .healthy
+            .removed
         )
     }
 
@@ -997,4 +997,47 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
         return ownerMembershipState
     }
 
+
+    @MainActor
+    func testOwnerDoesNotRemainConfirmedWhenOnlyPendingInviteesRemain() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let show = try Show(
+            name: "告五人演唱会",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        show.companionCloudRecordName = "rec-1"
+        show.companionShareRecordName = "share-1"
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        let service = MockCompanionSharingService()
+        // Membership only contains pending invitees, 0 accepted participants.
+        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending])
+        let session = makeSession(
+            recordName: "rec-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            participant: nil,
+            participantNames: [],
+            showID: show.id.uuidString
+        )
+        service.sessions["rec-1"] = session
+
+        let coordinator = CompanionSharingCoordinator(service: service)
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        // Show should no longer be confirmed and companion names cleared
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
+    }
 }

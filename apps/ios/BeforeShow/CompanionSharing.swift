@@ -153,7 +153,7 @@ enum CompanionMembershipPolicy {
         let pending = nonOwnerStatuses.filter { $0 == .pending }.count
         let unknown = nonOwnerStatuses.filter { $0 == .unknown }.count
 
-        if accepted == 0, pending == 0, unknown == 0 {
+        if accepted == 0, unknown == 0 {
             return .removed
         }
         if unknown > 0 {
