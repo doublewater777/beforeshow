@@ -200,7 +200,7 @@ final class CompanionSharingCoordinator {
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
 
     private static func metadataKey(_ metadata: CKShare.Metadata) -> String {
-        let root = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
+        let root = metadata.hierarchicalRootRecordID ?? metadata.share.recordID
         let share = metadata.share.recordID
         return "\(root.zoneID.ownerName)|\(root.zoneID.zoneName)|\(root.recordName)|\(share.recordName)"
     }

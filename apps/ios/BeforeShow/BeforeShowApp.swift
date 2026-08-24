@@ -48,7 +48,7 @@ struct BeforeShowApp: App {
         }
         #endif
         if !posthogAPIKey.isEmpty, !posthogHost.isEmpty {
-            let config = PostHogConfig(apiKey: posthogAPIKey, host: posthogHost)
+            let config = PostHogConfig(projectToken: posthogAPIKey, host: posthogHost)
             config.captureApplicationLifecycleEvents = true
             config.errorTrackingConfig.autoCapture = true
             config.sessionReplay = true

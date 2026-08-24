@@ -7,7 +7,7 @@ import Foundation
 
 enum WidgetTimelinePlanner {
     static let refreshWindow: TimeInterval = 12 * 3_600
-    /// 首页 / widget 共用:剩余 **大于** 此值显示「N 天」,≤ 则切到时:分:秒。
+    /// 首页 / widget 共用:剩余 **大于** 此值显示「N 天」,≤ 则切到小时/分钟文案。
     /// 用 `>` 而非 `>=`:timeline 在 start−24h 插入的 entry 上 remaining 恰为 86400,
     /// 必须已经是 near,否则仍显示「1 天」直到下一小时点。
     static let dayCountdownThreshold: TimeInterval = 86_400
@@ -41,8 +41,12 @@ enum WidgetTimelinePlanner {
 
         if let start = startBoundary {
             appendBoundary(start)
-            // 「N 天」→ 时分秒 的切换点:start − 24h
+            // 「N 天」→ 小时文案的切换点:start − 24h
             appendBoundary(start.addingTimeInterval(-dayCountdownThreshold))
+            // 最后一小时按分钟更新,避免「还有 59 分钟」在 widget 中停满一小时。
+            for minute in 1...60 {
+                appendBoundary(start.addingTimeInterval(-Double(minute) * 60))
+            }
         }
         if let end = endBoundary {
             appendBoundary(end)

@@ -9,8 +9,10 @@ import WidgetKit
 // Live Activity 产品口径(无 push,评审定稿):
 // - 活跃窗口 = 预计谢幕前最多 8h(平台活跃上限),窗口内打开过 app 才会启动;
 //   iOS 26+ 额外在窗口起点 schedule,不依赖窗口内打开
-// - 谢幕时不承诺准点结束:staleDate 标记过期,下一次 app 运行时 end;
-//   UI 为中性文案,越过谢幕也不会显示「LIVE」
+// - staleDate 指向开场时刻:过 T 系统把内容标记 stale 并重渲染,渲染侧用
+//   context.isStale 翻「距开场/已开场」阶段(金→红),无需 push 或打开 app;
+//   计时用系统 Text(style: .timer) 跨零自动倒数/正计时
+// - 谢幕时不承诺准点结束:下一次 app 运行时 end
 
 enum WidgetDataSync {
     static let widgetKind = BeforeShowWidgetKind.homeCountdown
@@ -288,7 +290,7 @@ actor ShowLiveActivityController {
             guard isCurrent() else { return }
             let target = Activity<ShowLiveActivityAttributes>.activities
                 .first(where: { $0.attributes.showID == showID })
-            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
             if let target {
                 await target.update(content)
             } else {
@@ -299,13 +301,13 @@ actor ShowLiveActivityController {
         case .request(let state):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
             request(attributes: ShowLiveActivityAttributes(showID: showID ?? ""), content: content)
 
         case .schedule(let state, let start):
             await endAll(generation: generation)
             guard isCurrent() else { return }
-            let content = ActivityContent(state: state, staleDate: state.endDate ?? state.startDate)
+            let content = ActivityContent(state: state, staleDate: staleDate(for: state))
             if #available(iOS 26.0, *) {
                 do {
                     let alert = AlertConfiguration(
@@ -331,6 +333,13 @@ actor ShowLiveActivityController {
         case .endAll:
             await endAll(generation: generation)
         }
+    }
+
+    /// staleDate 指向开场时刻:过 T 系统重渲染,渲染侧用 isStale 准点翻阶段。
+    /// 但 staleDate 不能写过去的时刻——实测(iOS 26.5)staleDate 已过期的 update
+    /// 会让系统直接把活动从锁屏移除;所以开场已过时回到谢幕时刻(谢幕过期语义)。
+    private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
+        state.startDate > Date() ? state.startDate : state.endDate
     }
 
     private func request(

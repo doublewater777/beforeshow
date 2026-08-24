@@ -277,6 +277,32 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertNil(WidgetCoverCache.cachedCoverPath(matching: a))
     }
 
+    func testLocalCoverRefreshCopiesImageIntoAppGroupCache() async throws {
+        let container = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-cover-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: container, withIntermediateDirectories: true)
+        WidgetSnapshotStore.overrideContainerURL = container
+        defer {
+            WidgetSnapshotStore.overrideContainerURL = nil
+            try? FileManager.default.removeItem(at: container)
+        }
+
+        let sourceURL = container.appendingPathComponent("local-cover.jpg")
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4))
+        let imageData = renderer.jpegData(withCompressionQuality: 1) { context in
+            UIColor.systemBlue.setFill()
+            context.fill(CGRect(origin: .zero, size: CGSize(width: 4, height: 4)))
+        }
+        try imageData.write(to: sourceURL)
+
+        let source = sourceURL.absoluteString
+        await WidgetCoverCache.refresh(for: source)
+
+        let cachedPath = try XCTUnwrap(WidgetCoverCache.cachedCoverPath(matching: source))
+        XCTAssertNotEqual(cachedPath, sourceURL.path)
+        XCTAssertNotNil(UIImage(contentsOfFile: cachedPath))
+    }
+
     func testLiveActivityContentStateCarriesEditableFields() {
         let start = Date(timeIntervalSince1970: 1_800_000_000)
         let state = ShowLiveActivityAttributes.ContentState(
@@ -332,6 +358,27 @@ final class WidgetSnapshotTests: XCTestCase {
 
         XCTAssertEqual(state.startCalendar.timeZone.secondsFromGMT(for: state.startDate), -7 * 3_600)
         XCTAssertEqual(state.endCalendar.timeZone.secondsFromGMT(for: state.startDate), -8 * 3_600)
+    }
+
+    /// hasStarted 由同步时刻写入;无 push 时锁屏不会在开场零点自己翻。
+    func testLiveActivityDesiredStateMarksHasStartedAtShowStart() {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshot = makePlannerSnapshot(start: start)
+
+        let before = LiveActivityPlanner.desiredState(
+            snapshot: snapshot,
+            now: start.addingTimeInterval(-60),
+            coverFilename: nil
+        )?.state
+        let after = LiveActivityPlanner.desiredState(
+            snapshot: snapshot,
+            now: start.addingTimeInterval(60),
+            coverFilename: nil
+        )?.state
+
+        XCTAssertEqual(before?.hasStarted, false)
+        XCTAssertEqual(after?.hasStarted, true)
+        XCTAssertEqual(before?.startDate, after?.startDate)
     }
 
     func testNilCityAndVenueSnapshotRoundTrip() throws {

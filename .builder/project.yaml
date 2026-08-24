@@ -1,7 +1,7 @@
 name: beforeshow
 current_stage: manual-onboarding
-active_cycle: 2026-08-19-opening-memory-window
-updated_at: 2026-08-19
+  active_cycle: 2026-08-23-medium-widget-cover-corners
+updated_at: 2026-08-23
 links:
   fake_door_stage: .builder/stages/04-fake-door.md
   fake_door_experiment: .builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md
@@ -26,4 +26,13 @@ links:
   revenuecat_migration_cycle: .builder/cycles/2026-08-18-revenuecat-migration/
   opening_memory_window_cycle: .builder/cycles/2026-08-19-opening-memory-window/
   dynamic_memory_time_labels_cycle: .builder/cycles/2026-08-22-dynamic-memory-time-labels/
+  live_activity_banner_alignment_cycle: .builder/cycles/2026-08-23-live-activity-banner-alignment/
+  home_live_status_copy_cycle: .builder/cycles/2026-08-23-home-live-status-copy/
+  share_image_actions_and_keepsake_clearance_cycle: .builder/cycles/2026-08-23-share-image-actions-and-keepsake-clearance/
+  medium_widget_cover_corners_cycle: .builder/cycles/2026-08-23-medium-widget-cover-corners/
+  add_show_home_arrival_cycle: .builder/cycles/2026-08-23-add-show-home-arrival/
+  netease_music_link_import_cycle: .builder/cycles/2026-08-23-netease-music-link-import/
+  onboarding_feature_intro_cycle: .builder/cycles/2026-08-23-onboarding-feature-intro/
+  show_library_cover_view_cycle: .builder/cycles/2026-08-23-show-library-cover-view/
+  live_activity_rendering_reliability_cycle: .builder/cycles/2026-08-24-live-activity-rendering-reliability/
   manual_onboarding_stage: .builder/stages/06-manual-onboarding.md

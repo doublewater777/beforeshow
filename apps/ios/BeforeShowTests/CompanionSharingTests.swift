@@ -208,7 +208,6 @@ final class CompanionSharingTests: XCTestCase {
     func testCoordinatorPrepareInvitationPersistsCloudFieldsOnSuccess() async throws {
         let service = MockCompanionSharingService()
         let coordinator = makeCoordinator(service: service)
-
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let context = container.mainContext
@@ -400,9 +399,6 @@ final class CompanionSharingTests: XCTestCase {
 
     @MainActor
     func testAcceptPrefersStableShowIDAndAvoidsAmbiguousNameMatch() async throws {
-        let service = MockCompanionSharingService()
-        let coordinator = makeCoordinator(service: service)
-
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         let container = try ModelContainer(for: Show.self, configurations: configuration)
         let context = container.mainContext

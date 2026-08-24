@@ -1,5 +1,97 @@
 # Gate History
 
+## 2026-08-24 · Live Activity Rendering Reliability
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-24-live-activity-rendering-reliability/`
+
+Verdict: local implementation and iPhone 17 simulator verification complete; real-device verification pending.
+
+Evidence: `WidgetSnapshotTests` pass, the app builds for iPhone 17 on iOS 26.5, compact and expanded Dynamic Island render complete digital countdowns, and the lock-screen banner still renders without the skeleton fallback.
+
+Weakest assumption: the system `.timer` remains renderer-safe while crossing from countdown to elapsed time.
+
+Decision: use the system date timer for the lock-screen banner and codable system digital timer/stopwatch formats for Dynamic Island.
+
+Loop-back: revisit the timer presentation if the banner returns to a skeleton or fails to advance across show start.
+
+## 2026-08-23 · Onboarding Feature Intro
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-onboarding-feature-intro/`
+
+Verdict: local implementation and iPhone 17 simulator verification complete; release measurement pending.
+
+Evidence: the iPhone 17 build succeeded, focused onboarding tests passed 5/5, and manual QA completed the full first-show creation flow and persistence check across relaunch.
+
+Weakest assumption: four explanatory pages improve understanding without reducing first-show creation.
+
+Decision: use a native lifecycle introduction, reuse the existing add-show flow, and only complete onboarding after a saved first show.
+
+Next stage: stay on manual-onboarding and measure progression plus D0 first-show creation after release.
+
+Loop-back: simplify the sequence if first-show creation falls by 10% relative or first-page skipping is unusually high.
+
+## 2026-08-23 · NetEase Music Link Import
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-netease-music-link-import/`
+
+Verdict: deployed and verified online.
+
+Evidence: 171/171 non-live-integration cloud tests pass; the iPhone 17 simulator build and focused iOS tests pass; an authenticated post-deploy invocation for concert `33678541` returned HTTP 200 with 26 artists and 26 avatar URLs.
+
+Weakest assumption: the unauthenticated NetEase Music concert detail endpoint remains stable after deployment.
+
+Decision: support only strict `st.music.163.com` detail links carrying `concertId`; do not classify ordinary music links or guess a show from the ticket homepage.
+
+Loop-back: if the provider adds authentication or changes the detail contract, replace the adapter rather than broadening HTML scraping.
+
+## 2026-08-23 · Add Show Home Arrival
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-add-show-home-arrival/`
+
+Verdict: implementation and iPhone 17 simulator verification complete; real-device validation pending.
+
+Evidence: the app builds for iPhone 17, 23/23 focused tests pass, and a temporary simulator recording shows completion-card → cover → countdown → actions with no blank frame.
+
+Weakest assumption: the 420 ms completion card is readable without making save feel slower.
+
+Decision: keep the animation keyed to the newly added current-show ID and leave tabs, historical backfill, and selection rules unchanged.
+
+## 2026-08-23 · Share Image Actions and Keepsake Clearance
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-share-image-actions-and-keepsake-clearance/`
+
+Decision: implementation and iPhone 17 simulator verification complete; real-device validation pending.
+
+Reason: image sharing now exposes only save/share actions, and the single-show detail keeps its ticket and timetable content outside the bottom share operation area.
+
+## 2026-08-23 · Home Live Status Copy
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-home-live-status-copy/`
+
+Verdict: implementation and iPhone 17 simulator verification complete; user validation pending.
+
+Evidence: `ArchitectureModuleTests` passed 16/16; the iPhone 17 simulator screenshot shows the requested left status group and trailing timer group.
+
+Weakest assumption: 「正在现场」 remains clearer than a shorter live-state label when paired with the elapsed timer.
+
+Decision: keep lock-screen widgets, Live Activity, notifications, and countdown calculations unchanged.
+
+Next stage: stay on manual-onboarding; verify on iPhone 17.
+
+Loop-back: if the live timer stack is not visibly right-aligned or the pre-start copy remains unclear.
+
 ## 2026-08-19 · Opening Memory Window
 
 Stage: manual-onboarding
@@ -235,3 +327,33 @@ Cycle: `.builder/cycles/2026-08-22-dynamic-memory-time-labels/`
 Decision: implementation in progress; verify dynamic phase grouping after show end-time edits.
 
 Reason: memory fragments currently display a phase persisted at creation time, so correcting the actual end time can leave the timeline labels stale.
+
+## 2026-08-23 · Live Activity Banner Alignment
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-live-activity-banner-alignment/`
+
+Decision: implementation and iPhone 17 simulator verification complete; real-device validation pending.
+
+Reason: the requested layout change is limited to trailing alignment and metadata spacing; the simulator confirms the cover, timer, progress bar, and started-state status remain visible.
+
+## 2026-08-23 · Medium Widget Cover Corners
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-medium-widget-cover-corners/`
+
+Decision: implementation and iPhone 17 simulator build verification complete; visual device validation pending.
+
+Reason: the medium widget keeps its existing left-content/right-cover layout while the cover now uses a continuous rounded mask, so the requested visual correction is isolated and low-risk.
+
+## 2026-08-23 · Show Library Cover View
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-23-show-library-cover-view/`
+
+Decision: implementation and iPhone 17 simulator verification complete; repeat-user validation pending.
+
+Reason: people with many saved shows need a denser visual browsing option while retaining the existing detail-rich list and management actions.

@@ -77,6 +77,7 @@
 "开场之前，先进入状态" = "Before the show, get into the mood";
 "开场之前，我来提醒你" = "I will remind you before the show";
 "开场前" = "BeforeShow";
+"开场了" = "The show is on";
 "开场前两周、一周、三天，慢慢进入状态" = "Two weeks, one week and three days before, easing in";
 "当前" = "Current";
 "当前封面" = "Current cover";
@@ -89,6 +90,8 @@
 "我和%@一起看了 %@。\n这是我们共同记录的第 %lld 场现场。"="I watched %@ with %@.\nThis is the %lld show we've recorded together.";
 "我的现场" = "My Shows";
 "我的现场为空" = "My Shows is empty";
+"切换为封面展示" = "Switch to cover view";
+"切换为列表展示" = "Switch to list view";
 "所有修改已保存" = "All changes saved";
 "把要去和去过的现场都放进来。添加第一场后，这里会按时间保存你的所有现场。" = "Keep the shows you plan to attend and the ones you have lived through here. After your first show, everything is saved by date.";
 "把要去的现场放进来，\n慢慢靠近那一场。" = "Add the show you’re going to,\nthen ease into the moment.";
@@ -115,6 +118,7 @@
 "正在准备视频…" = "Preparing video…";
 "正在打开系统分享" = "Opening system share…";
 "正在现场" = "At the show";
+"马上开场" = "Starting soon";
 "正在用地图查找地址…" = "Searching for an address on the map…";
 "永久移除这条现场记录" = "Permanently remove this show record";
 "没有匹配的现场" = "No matching shows";
@@ -319,7 +323,6 @@
 "图片读取失败，请重试" = "Failed to read image; please retry";
 "填入：%@" = "Fill in: %@";
 "填写真实散场时间" = "Fill in the actual end time";
-"复制文案" = "Copy Text";
 "好" = "OK";
 "完成" = "Done";
 "完整统计已经收好" = "Full stats have been gathered";
@@ -329,7 +332,6 @@
 "已加入这场现场" = "Joined this show";
 "已唤起邮件 app" = "Mail app opened";
 "已填写的内容会保留，不用重打" = "What you entered is kept; no need to retype";
-"已复制足迹文案" = "Footprint text copied";
 "已恢复原定日期" = "Restored the original date";
 "已撤销删除" = "Deletion undone";
 "已撤销取消" = "Cancellation undone";
@@ -1099,3 +1101,34 @@ First show: %@";
 "不用打开，也在靠近" = "Getting Closer, No Need to Open";
 "主屏幕和锁屏，都替你数着那一天。" = "Your Home Screen and Lock Screen keep the count for you.";
 "距离灯亮还有" = "Until the lights come on";
+"已加入当前现场" = "Added as Current Show";
+"正在进入首页" = "Opening Home";
+
+/* Feature onboarding */
+"继续" = "Continue";
+"现场当天" = "Show Day";
+"散场以后" = "After the Show";
+"现在开始" = "Start Now";
+"重要的内容，抬手就能找到" = "What Matters, Right at Hand";
+"把这一晚，轻轻留住" = "Keep a Little of This Night";
+"从下一场开始，慢慢靠近" = "Start With the Next Show";
+"主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。" = "Your Home Screen and Lock Screen keep the count, with a gentle nudge at a few moments worth noting.";
+"选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。" = "Save an image of the schedule, lineup, or set times to this show and open it quickly when you need it.";
+"照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。" = "Photos, videos, and notes stay together by show phase, with a five-level mood rating to close the night.";
+"开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。" = "Keep the anticipation, the important details on show day, and the memories afterward together in one show.";
+"添加我的第一个现场" = "Add My First Show";
+"直接前往添加第一个现场" = "Go straight to adding your first show";
+"第 %lld 页，共 %lld 页" = "Page %lld of %lld";
+"小组件显示现场倒计时，锁屏显示日期，开场前会在重要节点提醒" = "A widget shows the countdown, the Lock Screen shows the date, and gentle reminders arrive before the show";
+"10月14日 19:30 · 回声剧场" = "Oct 14, 7:30 PM · Echo Theater";
+"「夜航」巡演 · 上海站 · 10月14日 19:30" = "Night Voyage Tour · Shanghai · Oct 14, 7:30 PM";
+"保存的图片" = "Saved Image";
+"查看原图" = "View Original";
+"已保存一张时刻表图片，可以快速查看原图" = "A timetable image is saved and ready to open quickly";
+"演出时刻表" = "Show Timetable";
+"开始入场" = "Doors Open";
+"暖场" = "Opening Act";
+"夜航" = "Night Voyage";
+"预计散场" = "Expected End";
+"%@ · %@" = "%@ · %@";
+"记忆碎片包含照片和文字，散场评价当前选择人上人，明显高于预期" = "Memory fragments include a photo and text; the closing rating is Top of the world, better than expected";

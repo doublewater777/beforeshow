@@ -1,5 +1,23 @@
 import Foundation
 
+enum CountdownCopy {
+    static func value(remainingSeconds: Int) -> Int {
+        let remaining = max(0, remainingSeconds)
+        if remaining >= 3_600 {
+            return remaining / 3_600
+        }
+        return max(1, remaining / 60)
+    }
+
+    static func until(remainingSeconds: Int) -> String {
+        let remaining = max(0, remainingSeconds)
+        if remaining >= 3_600 {
+            return BSLocalization.format("%lld 小时后", Int64(value(remainingSeconds: remaining)))
+        }
+        return BSLocalization.format("%lld 分钟后", Int64(value(remainingSeconds: remaining)))
+    }
+}
+
 enum CurrentShowTimeKind: Equatable {
     case before
     case today
@@ -11,7 +29,7 @@ enum CurrentShowTimeKind: Equatable {
     case postponed
 }
 
-/// Phase / clocks / countdown for a 现场. Presentation layout lives in views, not here.
+/// Phase / countdown state for a 现场. Presentation layout lives in views, not here.
 /// 输入是 `ShowTimingFields` 纯值，app（SwiftData Show）与 widget extension（快照）共用。
 struct CurrentShowTimeState: Equatable {
     static let defaultRetentionDays = 3
@@ -200,7 +218,7 @@ struct CurrentShowTimeState: Equatable {
     }
 
     /// 估算散场边界(start+默认时长 / 每日末场)已过,但用户尚未确认 endedAt。
-    /// 首页与 widget 共用:此时只说「待确认 / 已到预计散场时间」,不提前宣布「已落幕 / ENDED」。
+    /// 首页与 widget 共用:此时只说「待确认 / 已到预计结束时间」,不提前宣布「已落幕 / ENDED」。
     static func isUnconfirmedEstimatedEnd(kind: CurrentShowTimeKind, hasConfirmedEnd: Bool) -> Bool {
         !hasConfirmedEnd && (kind == .postShow || kind == .ended)
     }

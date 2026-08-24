@@ -450,6 +450,7 @@ final class ShowDraftTests: XCTestCase {
             ("show.maoyan.com", "猫眼"),
             ("m.piaoxingqiu.com", "票星球"),
             ("mobile.livelab.com.cn", "纷玩岛"),
+            ("st.music.163.com", "网易云"),
             ("www.ticketmaster.com", "Ticketmaster"),
             ("www.ticketmaster.co.uk", "Ticketmaster"),
             ("dice.fm", "DICE"),
@@ -469,6 +470,7 @@ final class ShowDraftTests: XCTestCase {
             "maoyan.com.evil.example",
             "piaoxingqiu.com.evil.example",
             "livelab.com.cn.evil.example",
+            "st.music.163.com.evil.example",
             "ticketmaster.com.evil.example",
             "dice.fm.evil.example",
             "axs.com.evil.example",
@@ -483,15 +485,19 @@ final class ShowDraftTests: XCTestCase {
         let unsupported = AddShowLinkFailurePresentation.resolve(
             ShowLinkParsingError.unsupportedSource
         )
-        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "Ticketmaster", "DICE", "AXS", "Live Nation"]
+        let names = ["大麦", "秀动", "猫眼", "票星球", "纷玩岛", "网易云", "Ticketmaster", "DICE", "AXS", "Live Nation"]
 
         for name in names {
             XCTAssertTrue(unsupported.message.contains(name), name)
         }
         XCTAssertEqual(
             ShowLinkPlatformCatalog.supportSummary,
-            "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
+            "大麦、秀动、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
         )
+        XCTAssertTrue(ShowLinkPlatformCatalog.guidePlatforms.contains { platform in
+            platform.id == "neteasemusic"
+                && platform.overviewURL == "https://st.music.163.com/g/show"
+        })
         XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
     }
 
@@ -865,7 +871,7 @@ final class ShowDraftTests: XCTestCase {
             startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)
         )
 
-        var emptyName = ShowDraft(
+        let emptyName = ShowDraft(
             name: "   ",
             date: makeDate(year: 2026, month: 7, day: 1),
             startTime: makeDate(year: 2026, month: 7, day: 1, hour: 20)

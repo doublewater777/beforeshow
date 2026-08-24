@@ -32,6 +32,7 @@ struct BeforeShowCloudClient: Sendable {
 
     static let productionAppSignature = "beforeshow-app-signature-v1"
 
+    @MainActor
     static func productionAppInstanceId() -> String {
         #if canImport(UIKit)
         UIDevice.current.identifierForVendor?.uuidString ?? UUID().uuidString
@@ -40,6 +41,7 @@ struct BeforeShowCloudClient: Sendable {
         #endif
     }
 
+    @MainActor
     static func production(session: URLSessionProtocol = URLSession.shared) -> BeforeShowCloudClient {
         BeforeShowCloudClient(
             rootURL: productionRootURL,

@@ -14,6 +14,13 @@ enum AppReviewPromptPolicy {
     static let lastPromptVersionKey = "appReview.lastPromptVersion"
     static let minimumInterval: TimeInterval = 90 * 24 * 60 * 60
 
+    static func presentationDelayNanoseconds(for moment: AppReviewPromptMoment) -> UInt64 {
+        // Adding a show now hands off through a completion card and a home-arrival
+        // transition. Let that meaningful product feedback finish before StoreKit
+        // presents its review card.
+        moment == .addedShow ? 2_000_000_000 : 800_000_000
+    }
+
     static func shouldPrompt(
         now: Date,
         version: String,
@@ -89,7 +96,9 @@ enum AppReviewPrompt {
         )
 
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 800_000_000)
+            try? await Task.sleep(
+                nanoseconds: AppReviewPromptPolicy.presentationDelayNanoseconds(for: moment)
+            )
             requestNativeReview()
         }
     }

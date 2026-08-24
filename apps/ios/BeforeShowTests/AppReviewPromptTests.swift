@@ -2,6 +2,17 @@ import XCTest
 @testable import BeforeShow
 
 final class AppReviewPromptTests: XCTestCase {
+    func testAddedShowReviewWaitsForHomeArrival() {
+        XCTAssertEqual(
+            AppReviewPromptPolicy.presentationDelayNanoseconds(for: .addedShow),
+            2_000_000_000
+        )
+        XCTAssertEqual(
+            AppReviewPromptPolicy.presentationDelayNanoseconds(for: .completedCeremony),
+            800_000_000
+        )
+    }
+
     private var defaults: UserDefaults!
 
     override func setUp() {

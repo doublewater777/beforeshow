@@ -97,7 +97,7 @@ struct AddShowCoordinatorSheet: View {
     var intent: AddShowIntent = .upcoming
     /// Skip method picker and open a specific flow. Only for tests / deep links — normal entry leaves this nil.
     var initialSheet: AddShowSheet? = nil
-    var onShowAdded: () -> Void = {}
+    var onShowAdded: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSheet: AddShowSheet?
@@ -105,7 +105,7 @@ struct AddShowCoordinatorSheet: View {
     init(
         intent: AddShowIntent = .upcoming,
         initialSheet: AddShowSheet? = nil,
-        onShowAdded: @escaping () -> Void = {}
+        onShowAdded: @escaping (UUID) -> Void = { _ in }
     ) {
         self.intent = intent
         self.initialSheet = initialSheet
@@ -127,9 +127,9 @@ struct AddShowCoordinatorSheet: View {
                 AddShowFlowView(
                     sheet: sheet,
                     intent: intent,
-                    onSaved: {
+                    onSaved: { showID in
                         dismiss()
-                        onShowAdded()
+                        onShowAdded(showID)
                     }
                 )
             }
@@ -257,7 +257,7 @@ struct AddShowFlowView: View {
     let sheet: AddShowSheet
     let intent: AddShowIntent
     let linkParser: ShowLinkDraftParser
-    private let onSaved: (() -> Void)?
+    private let onSaved: ((UUID) -> Void)?
 
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
@@ -284,6 +284,7 @@ struct AddShowFlowView: View {
     @State private var linkPasteSuggestion: (link: String, platform: String)?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
+    @State private var savedShowConfirmation: SavedShowConfirmation?
     @State private var didSwitchToManual = false
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
@@ -304,7 +305,7 @@ struct AddShowFlowView: View {
         intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
         prefilledDraft: ShowDraft? = nil,
-        onSaved: (() -> Void)? = nil
+        onSaved: ((UUID) -> Void)? = nil
     ) {
         self.sheet = sheet
         self.intent = intent
@@ -336,54 +337,61 @@ struct AddShowFlowView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        methodContent
+            if let savedShowConfirmation {
+                AddShowSavedConfirmationView(confirmation: savedShowConfirmation)
+                    .transition(.scale(scale: 0.96).combined(with: .opacity))
+            } else {
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                            methodContent
 
-                        if hasImportedDraft {
-                            AddShowImportedBanner(source: sheet)
-                        }
+                            if hasImportedDraft {
+                                AddShowImportedBanner(source: sheet)
+                            }
 
-                        if shouldShowDraftFields {
-                            ShowDraftFormFields(
-                                draft: $draft,
-                                recognizedHighlight: hasImportedDraft,
-                                coverEmptyPlaceholder: true,
-                                requiresDateConfirmation: needsDateConfirmation,
-                                onConfirmFallbackDate: {
-                                    fallbackDateConfirmed = true
-                                },
-                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
-                                artistSearch: artistSearch,
-                                userEditedFields: $userEditedFields
-                            )
-                            // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
-                            .id(importRevision)
-                            // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
-                            .disabled(isImportingDraft)
-                            .opacity(isImportingDraft ? 0.55 : 1)
-                            .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
-                        }
+                            if shouldShowDraftFields {
+                                ShowDraftFormFields(
+                                    draft: $draft,
+                                    recognizedHighlight: hasImportedDraft,
+                                    coverEmptyPlaceholder: true,
+                                    requiresDateConfirmation: needsDateConfirmation,
+                                    onConfirmFallbackDate: {
+                                        fallbackDateConfirmed = true
+                                    },
+                                    onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                                    artistSearch: artistSearch,
+                                    userEditedFields: $userEditedFields
+                                )
+                                // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
+                                .id(importRevision)
+                                // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
+                                .disabled(isImportingDraft)
+                                .opacity(isImportingDraft ? 0.55 : 1)
+                                .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+                            }
 
-                        if let message {
-                            AddShowNoteCard(text: message, iconName: "info.circle")
+                            if let message {
+                                AddShowNoteCard(text: message, iconName: "info.circle")
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 12)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
-                }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
+                    .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
 
-                if shouldShowDraftFields {
-                    addSaveBar
+                    if shouldShowDraftFields {
+                        addSaveBar
+                    }
                 }
             }
         }
         .navigationTitle(flowNavTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar(savedShowConfirmation == nil ? .automatic : .hidden, for: .navigationBar)
+        .interactiveDismissDisabled(isSaving)
         .preferredColorScheme(.dark)
         .environment(\.locale, AppLanguageManager.persisted.locale)
         .onChange(of: selectedScreenshotItem) { _, newItem in
@@ -1029,8 +1037,19 @@ struct AddShowFlowView: View {
             didSave = true
             coverLifecycle.finalize(keeping: draft.coverImageURL)
 
+            if intent == .upcoming {
+                withAnimation(.spring(response: 0.42, dampingFraction: 0.88)) {
+                    savedShowConfirmation = SavedShowConfirmation(
+                        name: show.name,
+                        coverImageURL: show.coverImageURL
+                    )
+                }
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                try? await Task.sleep(for: .milliseconds(420))
+            }
+
             if let onSaved {
-                onSaved()
+                onSaved(show.id)
             } else {
                 dismiss()
             }
@@ -1110,6 +1129,70 @@ struct AddShowFlowView: View {
                 toast = nil
             }
         }
+    }
+}
+
+private struct SavedShowConfirmation: Equatable {
+    let name: String
+    let coverImageURL: String?
+}
+
+private struct AddShowSavedConfirmationView: View {
+    let confirmation: SavedShowConfirmation
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: BSSpacing.xl)
+
+            BSSurfacePanel {
+                VStack(spacing: BSSpacing.lg) {
+                    ZStack {
+                        Circle()
+                            .fill(BSColor.Stage.accent.opacity(0.16))
+                            .frame(width: 58, height: 58)
+                        Circle()
+                            .stroke(BSColor.Stage.accent.opacity(0.46), lineWidth: 1)
+                            .frame(width: 58, height: 58)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 23, weight: .bold))
+                            .foregroundColor(BSColor.Stage.accent)
+                    }
+
+                    ShowCoverImageView(
+                        urlString: confirmation.coverImageURL,
+                        aspectRatio: 3.0 / 4.0,
+                        contentMode: .fill,
+                        cornerRadius: BSRadius.md
+                    )
+                    .frame(width: 96, height: 128)
+                    .clipped()
+
+                    VStack(spacing: BSSpacing.xs) {
+                        Text(BSLocalization.text("已加入当前现场"))
+                            .font(BSFont.heroTitle)
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .multilineTextAlignment(.center)
+
+                        Text(confirmation.name)
+                            .font(BSFont.body)
+                            .foregroundColor(BSColor.Stage.muted)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+
+                        Text(BSLocalization.text("正在进入首页"))
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, BSSpacing.sm)
+            }
+            .frame(maxWidth: 330)
+
+            Spacer(minLength: BSSpacing.xl)
+        }
+        .padding(.horizontal, 20)
+        .accessibilityElement(children: .combine)
     }
 }
 

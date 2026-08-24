@@ -25,6 +25,11 @@ const PLATFORM_CASES = [
     source: "fenwandao"
   },
   {
+    platform: "neteasemusic",
+    url: "https://st.music.163.com/g/show/detail?nm_style=sbt&concertId=33750652",
+    source: "neteasemusic"
+  },
+  {
     platform: "ticketmaster",
     url: "https://www.ticketmaster.com/example-tour-los-angeles-california-09-19-2026/event/0D0060EABACB3E23?CAMEFROM=share",
     source: "ticketmaster"
@@ -41,7 +46,9 @@ const PLATFORM_CASES = [
   }
 ];
 
-const PUBLIC_PAGE_CASES = PLATFORM_CASES.filter(({ platform }) => platform !== "maoyan");
+const PUBLIC_PAGE_CASES = PLATFORM_CASES.filter(
+  ({ platform }) => !["maoyan", "neteasemusic"].includes(platform)
+);
 
 const JSON_LD_HTML = `<!doctype html>
 <html>
@@ -84,8 +91,9 @@ describe("additional ticket platform detection", () => {
 
   it("extracts stable event IDs where the public URL exposes one", () => {
     assert.equal(normalizeUrl(PLATFORM_CASES[0].url).eventId, "316942");
-    assert.equal(normalizeUrl(PLATFORM_CASES[3].url).eventId, "0D0060EABACB3E23");
-    assert.equal(normalizeUrl(PLATFORM_CASES[5].url).eventId, "1018298");
+    assert.equal(normalizeUrl(PLATFORM_CASES[3].url).eventId, "33750652");
+    assert.equal(normalizeUrl(PLATFORM_CASES[4].url).eventId, "0D0060EABACB3E23");
+    assert.equal(normalizeUrl(PLATFORM_CASES[6].url).eventId, "1018298");
   });
 
   it("keeps a Ticket Planet share token while dropping unrelated tracking", () => {
@@ -99,6 +107,7 @@ describe("additional ticket platform detection", () => {
       "https://show.maoyan.com.evil.example/qqw#/detail/316942",
       "https://piaoxingqiu.com.evil.example/?lssId=x",
       "https://livelab.com.cn.evil.example/show/1",
+      "https://st.music.163.com.evil.example/g/show/detail?concertId=33750652",
       "https://ticketmaster.com.evil.example/event/ABC",
       "https://dice.fm.evil.example/event/test",
       "https://axs.com.evil.example/events/1/test"

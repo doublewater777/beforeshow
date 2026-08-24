@@ -6,9 +6,10 @@ import Foundation
 // attributes 只放稳定身份字段;可编辑展示字段放 ContentState,
 // 这样延期/改场馆/换封面时 update 能生效(attributes 本身不可变)。
 //
-// 刻意不放 phase:无 push 时 ContentState 只在 app 运行时更新,
-// 跨开场零点可能拿不到 update——UI 一律用跨零恒成立的中性文案,
-// 正确性不依赖任何条件切换。
+// 无 push 时 ContentState 只在 app 运行时更新,跨开场零点可能拿不到 update。
+// 所以渲染侧不依赖 hasStarted:阶段(颜色/文案)由 context.isStale 判定
+// (staleDate = startDate,过 T 系统重渲染),计时用系统 Text(style: .timer)
+// 跨零自动倒数/正计时。hasStarted 仅为兼容保留,UI 不得以它作为渲染依据。
 
 struct ShowLiveActivityAttributes: ActivityAttributes {
     public struct ContentState: Codable, Hashable {
@@ -17,7 +18,7 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var venueName: String?
         /// 开场时刻(effective start)
         var startDate: Date
-        /// 预计谢幕(endBoundary);nil 时不画进度条
+        /// 预计谢幕(endBoundary);只在 hasStarted 后展示
         var endDate: Date?
         var timeZoneSecondsFromGMT: Int? = nil
         var endTimeZoneSecondsFromGMT: Int? = nil
@@ -25,10 +26,8 @@ struct ShowLiveActivityAttributes: ActivityAttributes {
         var endTimeZoneIdentifier: String? = nil
         /// App Group 容器内的封面缓存文件名(Live Activity 小图规格);nil 用占位
         var coverImageFilename: String?
-        /// 开场时刻是否已过(app 运行时由 desiredState 写入)。LA 无自驱重渲染,
-        /// 跨开场零点需靠状态翻转「已开场」标签,不能依赖渲染期的 Date()。
-        /// optional:旧构建存留的活动解码时无此键,回退到渲染期 Date() 判断。
-        var hasStarted: Bool? = nil
+        /// 开场是否已过,由 app 同步时写入。仅为兼容保留;UI 阶段以 context.isStale 为准。
+        var hasStarted: Bool = false
 
         var startCalendar: Calendar {
             calendar(identifier: timeZoneIdentifier, offsetSeconds: timeZoneSecondsFromGMT)

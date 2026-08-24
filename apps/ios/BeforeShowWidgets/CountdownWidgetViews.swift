@@ -148,16 +148,6 @@ struct CountdownPresentation {
         return calendar.isDateInToday(startDate)
     }
 
-    var clockText: String {
-        guard let startDate else { return "" }
-        let components = calendar.dateComponents([.hour, .minute], from: startDate)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    var tonightClockText: String {
-        BSLocalization.format("今晚 %@", clockText)
-    }
-
     /// 顶部时期标签只在 Hero 是数字(far/near)时出现;
     /// Hero 已是状态文字(live/ended/inactive)时 kicker 消失,避免同状态说两遍。
     var showsPhaseTag: Bool {
@@ -211,6 +201,18 @@ private struct EmptyWidgetView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
+}
+
+private func widgetCountdownRange(to start: Date, now: Date = .now) -> ClosedRange<Date> {
+    if now < start { return now...start }
+    return start...start
+}
+
+private func widgetCountdownText(to start: Date, fontSize: CGFloat, color: Color) -> some View {
+    Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
+        .font(.system(size: fontSize, weight: .semibold))
+        .monospacedDigit()
+        .foregroundStyle(color)
 }
 
 // MARK: - 小号 170×170
@@ -267,10 +269,7 @@ private struct SmallCountdownView: View {
                     .foregroundStyle(WidgetTheme.muted)
             }
         case .near(let start):
-            Text(start, style: .timer)
-                .font(.system(size: 33, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(WidgetTheme.heroWarmGold)
+            widgetCountdownText(to: start, fontSize: 33, color: WidgetTheme.heroWarmGold)
         case .live(let start):
             VStack(alignment: .leading, spacing: 4) {
                 Text("正在现场")
@@ -287,7 +286,7 @@ private struct SmallCountdownView: View {
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
         case .endUnconfirmed:
-            Text("已到预计散场时间")
+            Text("已到预计结束时间")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -375,15 +374,7 @@ private struct MediumCountdownView: View {
             }
         case .near(let start):
             HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(start, style: .timer)
-                        .font(.system(size: 34, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.heroWarmGold)
-                    Text("时 : 分 : 秒")
-                        .font(.system(size: 9))
-                        .foregroundStyle(WidgetTheme.dim)
-                }
+                widgetCountdownText(to: start, fontSize: 34, color: WidgetTheme.heroWarmGold)
                 Spacer(minLength: 0)
             }
         case .live(let start):
@@ -406,7 +397,7 @@ private struct MediumCountdownView: View {
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
         case .endUnconfirmed:
-            Text("已到预计散场时间")
+            Text("已到预计结束时间")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -427,19 +418,26 @@ private struct MediumCountdownView: View {
                 .resizable()
                 .scaledToFill()
                 .frame(width: 108)
-                .clipped()
-                // 左缘淡出到氛围底，不要涂一层近黑——浅色海报边会被涂成黑条。
-                .mask {
-                    HStack(spacing: 0) {
-                        LinearGradient(
-                            colors: [.clear, .black],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                        .frame(width: 18)
-                        Color.black
-                    }
-                }
+                .frame(maxHeight: .infinity)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: WidgetTheme.widgetCoverCornerRadius,
+                        style: .continuous
+                    )
+                )
+        } else {
+            // 无封面兜底:与 app 一致用 default_cover(扩展自带 asset)
+            Image("default_cover")
+                .resizable()
+                .scaledToFill()
+                .frame(width: 108)
+                .frame(maxHeight: .infinity)
+                .clipShape(
+                    RoundedRectangle(
+                        cornerRadius: WidgetTheme.widgetCoverCornerRadius,
+                        style: .continuous
+                    )
+                )
         }
     }
 }
@@ -450,25 +448,31 @@ private struct InlineCountdownView: View {
     let presentation: CountdownPresentation
 
     var body: some View {
+        statusText
+            .font(.headline.weight(.semibold))
+            .lineLimit(1)
+            .minimumScaleFactor(0.78)
+    }
+
+    // ponytail: 锁屏单行只放纯状态,演出名放不下;识别靠点进 app
+    @ViewBuilder
+    private var statusText: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("还有 \(days) 天 · \(presentation.showName)")
+            Text("还有 \(days) 天")
         case .near(let start):
-            if presentation.isStartTonight {
-                Text("\(presentation.tonightClockText) · \(Text(start, style: .timer))")
-            } else {
-                Text("\(presentation.clockText) · \(Text(start, style: .timer))")
-            }
+            Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
+                .monospacedDigit()
         case .live(let start):
             Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:
-            Text("已落幕 · \(presentation.showName)")
+            Text("已落幕")
         case .endUnconfirmed:
-            Text("待确认 · \(presentation.showName)")
+            Text("待确认")
         case .inactive(let title):
-            Text("\(title) · \(presentation.showName)")
+            Text(title)
         case .empty:
-            Text("开场前 · 还没有现场")
+            Text("开场前")
         }
     }
 }
@@ -502,43 +506,61 @@ private struct CircularCountdownView: View {
     private var centerLabel: some View {
         switch presentation.hero {
         case .far(let days):
-            VStack(spacing: 0) {
+            VStack(spacing: 1) {
                 Text("\(days)")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.title3.weight(.bold))
+                    .monospacedDigit()
+                    .minimumScaleFactor(0.78)
                 Text("天")
-                    .font(.system(size: 8))
+                    .font(.caption2.weight(.medium))
                     .foregroundStyle(.secondary)
             }
-        case .near:
-            VStack(spacing: 0) {
-                Text(LockScreenCountdownCopy.circularNearClock(remainingSeconds: presentation.remainingSeconds))
-                    .font(.system(size: 14, weight: .bold))
+        case .near(let start):
+            VStack(spacing: 1) {
+                Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
+                    .font(.headline.weight(.bold))
                     .monospacedDigit()
+                    .minimumScaleFactor(0.78)
                 if presentation.isStartTonight {
                     Text("今晚")
-                        .font(.system(size: 7))
+                        .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                 }
             }
-        case .live(let start):
+        case .live:
             VStack(spacing: 1) {
-                Circle().frame(width: 5, height: 5)
-                Text(start, style: .timer)
-                    .font(.system(size: 10, weight: .bold))
-                    .monospacedDigit()
+                Circle().frame(width: 6, height: 6)
+                if let start = presentation.startDate {
+                    // TimelineView 60s 一跳,系统侧渲染,不走原生秒级 timer
+                    TimelineView(.periodic(from: start, by: 60)) { context in
+                        Text(LockScreenCountdownCopy.circularLiveElapsed(
+                            elapsedSeconds: Int(context.date.timeIntervalSince(start))
+                        ))
+                        .font(.caption.weight(.bold))
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.78)
+                    }
+                }
             }
         case .ended:
             Text("已落幕")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
         case .endUnconfirmed:
             Text("待确认")
-                .font(.system(size: 10, weight: .bold))
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.78)
         case .inactive(let title):
             Text(title)
-                .font(.system(size: 11, weight: .bold))
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.68)
         case .empty:
             Text("--")
-                .font(.system(size: 14, weight: .bold))
+                .font(.headline.weight(.bold))
+                .monospacedDigit()
         }
     }
 }
@@ -551,12 +573,21 @@ private struct RectangularCountdownView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
             headline
-                .font(.system(size: 12, weight: .bold))
+                .font(.headline.weight(.semibold))
+                .monospacedDigit()
                 .lineLimit(1)
-            Text(presentation.hasShow ? "\(presentation.showName) · \(presentation.dateLine)" : "打开开场前,添加下一场")
-                .font(.system(size: 10))
+                .minimumScaleFactor(0.78)
+            Group {
+                if presentation.hasShow {
+                    Text(presentation.showName)
+                } else {
+                    Text("打开开场前,添加下一场")
+                }
+            }
+                .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+                .minimumScaleFactor(0.78)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -567,11 +598,8 @@ private struct RectangularCountdownView: View {
         case .far(let days):
             Text("还有 \(days) 天")
         case .near(let start):
-            if presentation.isStartTonight {
-                Text(presentation.tonightClockText)
-            } else {
-                Text(start, style: .timer)
-            }
+            Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
+                .monospacedDigit()
         case .live(let start):
             Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:

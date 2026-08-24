@@ -97,9 +97,9 @@ enum HomeShowIdentityPresentation {
         case .before: return BSLocalization.text("开场前")
         case .today:
             guard let start = timeState.effectiveStartTime, now >= start else {
-                return BSLocalization.text("今天开场")
+                return BSLocalization.text("马上开场")
             }
-            return BSLocalization.text("正在现场")
+            return BSLocalization.text("开场了")
         case .dayEnded: return BSLocalization.text("今日已落幕")
         case .postShow: return BSLocalization.text("散场后")
         case .ended: return BSLocalization.text("已结束")
@@ -411,7 +411,7 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: pre:渐进精度倒计时
-    // 精度随临近程度收束:>24h 只到「天」超大节拍;≤24h 只到分(每分钟跳一下),<1h 切 MM:SS 走秒。
+    // 精度随临近程度收束:>24h 只到「天」超大节拍;≤24h 显示小时,<1h 显示分钟。
     // 色温递进:远场奶白 heroIvory → 当天暖金 heroWarmGold → <1h 纯金 accent + 光晕,
     // 字重同步加码(ultraLight → regular → semibold),视觉强度随临近升温。
     // 天数/时钟的阈值与 widget 共用 WidgetTimelinePlanner.isDayCountHero。
@@ -442,17 +442,17 @@ struct HomeCountdownLockup: View {
                     }
                 }
             } else if total >= 3_600 {
-                Text(Self.clockText(total))
-                    .font(.system(size: clockNumber, weight: .regular))
-                    .tracking(-1)
-                    .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.heroWarmGold)
+                styledCountdown(
+                    total: total,
+                    numberWeight: .regular,
+                    numberColor: BSColor.Stage.heroWarmGold
+                )
             } else {
-                Text(Self.clockText(total))
-                    .font(.system(size: clockNumber, weight: .semibold))
-                    .tracking(-1)
-                    .monospacedDigit()
-                    .foregroundColor(BSColor.Stage.accent)
+                styledCountdown(
+                    total: total,
+                    numberWeight: .semibold,
+                    numberColor: BSColor.Stage.accent
+                )
                     .shadow(color: BSColor.Stage.accent.opacity(0.35), radius: 16)
             }
         } else {
@@ -464,13 +464,21 @@ struct HomeCountdownLockup: View {
     }
 
     // MARK: live:脉冲 + 已开场时长 + 散场确认入口
-    // 状态只说一遍:顶部 pill 是「正在现场」,Hero 只展示新增信息——已开场多久。
+    // 左侧保留「正在现场」状态,右侧展示已开场时长。
 
     private func liveStatus(timeState: CurrentShowTimeState, now: Date) -> some View {
         HStack(spacing: 14) {
-            HomeLivePulse(reduceMotion: reduceMotion)
+            HStack(spacing: 8) {
+                HomeLivePulse(reduceMotion: reduceMotion)
 
-            VStack(alignment: .leading, spacing: 4) {
+                Text(BSLocalization.text("正在现场"))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.liveTitle)
+            }
+
+            Spacer(minLength: 0)
+
+            VStack(alignment: .trailing, spacing: 4) {
                 Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
                     .font(.system(size: 22, weight: .semibold))
                     .monospacedDigit()
@@ -480,8 +488,6 @@ struct HomeCountdownLockup: View {
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(BSColor.Stage.dim)
             }
-
-            Spacer(minLength: 0)
         }
         .padding(.vertical, 4)
     }
@@ -663,16 +669,20 @@ struct HomeCountdownLockup: View {
         return max(0, Int(start.timeIntervalSince(now)))
     }
 
-    /// >1h 只到分(HH:MM,每分钟跳一下);<1h 切 MM:SS 走秒。
-    private static func clockText(_ total: Int) -> String {
-        let total = max(0, total)
-        let hours = total / 3_600
-        let minutes = (total % 3_600) / 60
-        let seconds = total % 60
-        if hours > 0 {
-            return String(format: "%02d:%02d", hours, minutes)
+    private func styledCountdown(
+        total: Int,
+        numberWeight: Font.Weight,
+        numberColor: Color
+    ) -> Text {
+        var attributed = AttributedString(CountdownCopy.until(remainingSeconds: total))
+        attributed.font = .system(size: 22, weight: .medium)
+        attributed.foregroundColor = BSColor.Stage.muted
+        let number = String(CountdownCopy.value(remainingSeconds: total))
+        if let range = attributed.range(of: number) {
+            attributed[range].font = .system(size: clockNumber, weight: numberWeight)
+            attributed[range].foregroundColor = numberColor
         }
-        return String(format: "%02d:%02d", minutes, seconds)
+        return Text(attributed)
     }
 
     private static func elapsedText(since start: Date?, now: Date) -> String {

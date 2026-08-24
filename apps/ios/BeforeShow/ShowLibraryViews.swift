@@ -326,6 +326,13 @@ enum CurrentShowLibraryFilter: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
+enum CurrentShowLibraryLayout: String {
+    case list
+    case covers
+
+    static let storageKey = "currentShowLibraryLayout"
+}
+
 enum CurrentShowLibraryMenuAction: String, Hashable {
     case view = "查看详情"
     case setCurrent = "设为当前展示"
@@ -389,9 +396,10 @@ struct CurrentShowLibraryManagementView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var notificationStates: [NotificationSchedulingState]
+    @AppStorage(CurrentShowLibraryLayout.storageKey) private var layoutRawValue = CurrentShowLibraryLayout.list.rawValue
 
     @State private var searchText = ""
-    @State private var filter: CurrentShowLibraryFilter = .upcoming
+    @State private var filter: CurrentShowLibraryFilter = .all
     @State private var destination: CurrentShowLibraryDestination?
     @State private var deleteTarget: Show?
     @State private var postponeTarget: Show?
@@ -439,7 +447,14 @@ struct CurrentShowLibraryManagementView: View {
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: toggleLayout) {
+                    Image(systemName: layout == .list ? "square.grid.2x2" : "list.bullet")
+                }
+                .accessibilityLabel(
+                    BSLocalization.text(layout == .list ? "切换为封面展示" : "切换为列表展示")
+                )
+
                 Button {
                     isShowingAdd = true
                 } label: {
@@ -488,7 +503,7 @@ struct CurrentShowLibraryManagementView: View {
             Text(DangerConfirmation.cancelShowFromEditor.message)
         }
         .sheet(isPresented: $isShowingAdd) {
-            AddShowCoordinatorSheet {
+            AddShowCoordinatorSheet { _ in
                 presentToast(.success, message: BSLocalization.text("已添加现场"))
             }
         }
@@ -550,18 +565,47 @@ struct CurrentShowLibraryManagementView: View {
                     .font(.system(size: 11))
                     .foregroundColor(BSColor.Stage.dim)
             }
-            ForEach(section.shows) { show in
-                CurrentShowLibraryRow(
-                    show: show,
-                    isCurrent: selectedShowID == show.id,
-                    formatter: formatter,
-                    actions: menuActions(for: show),
-                    onOpen: { destination = .init(show: show, startsEditing: false) },
-                    onAction: { action in handle(action, for: show) }
-                )
+            if layout == .covers {
+                LazyVGrid(
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: BSSpacing.compact),
+                        count: 3
+                    ),
+                    alignment: .leading,
+                    spacing: BSSpacing.md
+                ) {
+                    ForEach(section.shows) { show in
+                        CurrentShowLibraryCoverCard(
+                            show: show,
+                            isCurrent: selectedShowID == show.id,
+                            onOpen: { destination = .init(show: show, startsEditing: false) }
+                        )
+                    }
+                }
+            } else {
+                ForEach(section.shows) { show in
+                    CurrentShowLibraryRow(
+                        show: show,
+                        isCurrent: selectedShowID == show.id,
+                        formatter: formatter,
+                        actions: menuActions(for: show),
+                        onOpen: { destination = .init(show: show, startsEditing: false) },
+                        onAction: { action in handle(action, for: show) }
+                    )
+                }
             }
         }
         .padding(.top, 23)
+    }
+
+    private var layout: CurrentShowLibraryLayout {
+        CurrentShowLibraryLayout(rawValue: layoutRawValue) ?? .list
+    }
+
+    private func toggleLayout() {
+        layoutRawValue = layout == .list
+            ? CurrentShowLibraryLayout.covers.rawValue
+            : CurrentShowLibraryLayout.list.rawValue
     }
 
     private struct LibrarySection: Identifiable {
@@ -763,6 +807,58 @@ struct CurrentShowLibraryManagementView: View {
             try? await Task.sleep(nanoseconds: 2_200_000_000)
             if toast == payload { toast = nil }
         }
+    }
+}
+
+private struct CurrentShowLibraryCoverCard: View {
+    let show: Show
+    let isCurrent: Bool
+    let onOpen: () -> Void
+
+    var body: some View {
+        Button(action: onOpen) {
+            ZStack(alignment: .topLeading) {
+                ShowCoverImageView(
+                    urlString: show.coverImageURL,
+                    aspectRatio: 3.0 / 4.0,
+                    contentMode: .fill,
+                    cornerRadius: BSRadius.md
+                )
+
+                if show.changeStatus != .scheduled {
+                    tag(statusTag, color: statusColor)
+                        .padding(BSSpacing.sm)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+            .overlay(
+                RoundedRectangle(cornerRadius: BSRadius.v3Medium)
+                    .stroke(isCurrent ? BSColor.Stage.glowBlue.opacity(0.55) : BSColor.Stage.border, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(show.name)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var statusTag: String {
+        show.changeStatus == .canceled ? BSLocalization.text("已取消") : BSLocalization.text("已延期")
+    }
+
+    private var statusColor: Color {
+        show.changeStatus == .canceled ? BSColor.Accent.danger : BSColor.Accent.warm
+    }
+
+    private func tag(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(BSFont.V3.caption)
+            .foregroundColor(color)
+            .padding(.horizontal, BSSpacing.sm)
+            .padding(.vertical, BSSpacing.xs)
+            .background(BSColor.Stage.background.opacity(0.82), in: Capsule())
+            .overlay(Capsule().stroke(color.opacity(0.45), lineWidth: 1))
     }
 }
 

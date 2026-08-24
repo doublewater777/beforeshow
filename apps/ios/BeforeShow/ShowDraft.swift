@@ -223,7 +223,6 @@ struct ShowScreenshotRecognitionService {
             .filter { !$0.isEmpty }
             .filter { !containsSensitiveTicketField($0) }
 
-        let combinedText = lines.joined(separator: "\n")
         let name = value(afterAnyPrefix: [
             "演出名称",
             "项目名称",

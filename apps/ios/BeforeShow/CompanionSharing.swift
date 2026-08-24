@@ -299,7 +299,9 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             }
         }
 
-        let rootID = metadata.hierarchicalRootRecordID ?? metadata.rootRecordID
+        guard let rootID = metadata.hierarchicalRootRecordID else {
+            throw CompanionSharingError.invalidPayload
+        }
 
         let record: CKRecord
         do {

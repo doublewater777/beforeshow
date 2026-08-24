@@ -18,6 +18,7 @@ enum ShowLinkPlatformCatalog {
         ("maoyan.com", "猫眼"),
         ("piaoxingqiu.com", "票星球"),
         ("livelab.com.cn", "纷玩岛"),
+        ("st.music.163.com", "网易云"),
         ("ticketmaster.com", "Ticketmaster"),
         ("ticketmaster.ca", "Ticketmaster"),
         ("ticketmaster.co.uk", "Ticketmaster"),
@@ -86,7 +87,7 @@ enum ShowLinkPlatformCatalog {
         ("livenation.app.link", "Live Nation")
     ]
 
-    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、Ticketmaster、DICE、AXS、Live Nation"
+    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
 
     /// 「如何获取链接」引导页的平台总览入口；与网页版 link-guide 保持同一份数据。
     static let guidePlatforms: [ShowLinkGuidePlatform] = [
@@ -95,6 +96,7 @@ enum ShowLinkPlatformCatalog {
         ShowLinkGuidePlatform(id: "maoyan", displayName: "猫眼", overviewURL: "https://show.maoyan.com/qqw/", isDomestic: true),
         ShowLinkGuidePlatform(id: "piaoxingqiu", displayName: "票星球", overviewURL: "https://e.piaoxingqiu.com/", isDomestic: true),
         ShowLinkGuidePlatform(id: "fenwandao", displayName: "纷玩岛", overviewURL: "https://www.livelab.com.cn/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "neteasemusic", displayName: "网易云", overviewURL: "https://st.music.163.com/g/show", isDomestic: true),
         ShowLinkGuidePlatform(id: "ticketmaster", displayName: "Ticketmaster", overviewURL: "https://www.ticketmaster.com/", isDomestic: false),
         ShowLinkGuidePlatform(id: "dice", displayName: "DICE", overviewURL: "https://dice.fm/", isDomestic: false),
         ShowLinkGuidePlatform(id: "axs", displayName: "AXS", overviewURL: "https://www.axs.com/", isDomestic: false),

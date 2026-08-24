@@ -2,6 +2,7 @@ import XCTest
 @testable import BeforeShow
 
 final class BeforeShowCloudClientTests: XCTestCase {
+    @MainActor
     func testProductionConfigUsesSingleHostAndSignature() {
         let client = BeforeShowCloudClient.production(
             session: CapturingCloudURLSession(data: Data(), statusCode: 200)
@@ -36,7 +37,7 @@ final class BeforeShowCloudClientTests: XCTestCase {
         let data = try await client.postJSON(path: "parseShowLink", body: Body(hello: "world"))
         XCTAssertEqual(String(data: data, encoding: .utf8), #"{"ok":true}"#)
 
-        let request = try await session.lastRequest()
+        let request = await session.lastRequest()
         XCTAssertEqual(request?.url?.absoluteString, "https://example.com/parseShowLink")
         XCTAssertEqual(request?.httpMethod, "POST")
         XCTAssertEqual(request?.value(forHTTPHeaderField: "Content-Type"), "application/json")

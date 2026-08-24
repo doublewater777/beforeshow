@@ -18,6 +18,7 @@ enum WidgetTheme {
     static let heroWarmGold = Color(red: 0.941, green: 0.863, blue: 0.714)
     static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
     static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
+    static let widgetCoverCornerRadius: CGFloat = 12
 }
 
 // MARK: - Timeline

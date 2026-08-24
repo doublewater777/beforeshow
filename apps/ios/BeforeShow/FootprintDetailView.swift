@@ -184,16 +184,14 @@ struct FootprintDetailView: View {
                     }
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
-                    .padding(.bottom, shareMaterials.isEmpty ? BSSpacing.xl : BSLayout.tabBarContentInset)
+                    .padding(.bottom, BSSpacing.xl)
+                }
+                if !shareMaterials.isEmpty {
+                    shareButton
                 }
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .overlay(alignment: .bottom) {
-            if !shareMaterials.isEmpty {
-                shareButton
-            }
-        }
         .fullScreenCover(item: $memoryTarget) { target in
             MemoryFragmentReviewView(
                 showID: show.id,

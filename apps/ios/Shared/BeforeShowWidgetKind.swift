@@ -14,11 +14,12 @@ enum BeforeShowWidgetKind {
 }
 
 enum LockScreenCountdownCopy {
-    /// 圆形锁屏放不下 `hh:mm:ss`。按设计稿收成 `H:MM`。
-    static func circularNearClock(remainingSeconds: Int) -> String {
-        let remaining = max(0, remainingSeconds)
-        let hours = remaining / 3_600
-        let minutes = (remaining % 3_600) / 60
-        return String(format: "%d:%02d", hours, minutes)
+    /// live 已进行时长收成 `H:MM`,跳秒在圆形里放不下。
+    static func circularLiveElapsed(elapsedSeconds: Int) -> String {
+        clockText(totalMinutes: max(0, elapsedSeconds) / 60)
+    }
+
+    private static func clockText(totalMinutes: Int) -> String {
+        String(format: "%d:%02d", totalMinutes / 60, totalMinutes % 60)
     }
 }

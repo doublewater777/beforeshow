@@ -213,7 +213,9 @@ struct ShowAssetUploadView: View {
     }
 
     private var emptyUploadSection: some View {
-        VStack(spacing: BSSpacing.lg) {
+        let importing = operation.isImporting
+
+        return VStack(spacing: BSSpacing.lg) {
             BSStageSheetHeader(
                 icon: kind.iconName,
                 title: editorTitle,
@@ -221,7 +223,7 @@ struct ShowAssetUploadView: View {
             )
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                if isImporting {
+                if importing {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                 } else {

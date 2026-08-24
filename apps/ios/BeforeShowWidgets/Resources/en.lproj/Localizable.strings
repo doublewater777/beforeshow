@@ -4,6 +4,7 @@
 "%1$@ · %2$@" = "%1$@ · %2$@";
 "%lld 天后灯亮 · %@" = "%lld days until lights up · %@";
 "%@ 开场" = "%@ opening";
+"%@ 开场 · 预计 %@ 谢幕" = "Starts %1$@ · Est. ends %2$@";
 "--" = "--";
 "COUNTDOWN" = "COUNTDOWN";
 "LIVE · 已进行 %@" = "LIVE · %@ performed";
@@ -18,6 +19,7 @@
 "待确认 · %@" = "Pending · %@";
 "已进行" = "Elapsed";
 "已开场" = "Show started";
+"距开场" = "Until start";
 "开场中 · 已进行 %@" = "Show in progress · Elapsed %@";
 "开场前" = "BeforeShow";
 "开场前 · 还没有现场" = "BeforeShow · No show yet";

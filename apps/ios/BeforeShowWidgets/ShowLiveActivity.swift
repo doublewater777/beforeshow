@@ -3,90 +3,102 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Show Live Activity
-// 设计稿:docs/design/widget/BeforeShow Widgets.html
+// 原型契约:docs/design/live-activity-time-prototype/index.html(HIG 四表面)
 // 生命周期由 app 侧 ShowLiveActivityController 管理(决策在 Shared/LiveActivityPlanner)。
 //
-// 关键约束(评审定稿):无 push 时 ContentState 只在 app 运行时更新,
-// 不能依赖任何「到点自动切换」——所以 UI 是中性设计:
-// - 文案跨开场/谢幕零点恒成立(「19:30 开场」「预计 22:00 谢幕」)
-// - 计时 Text(startDate, style: .timer) 系统自驱,倒数后自动正数
-// - 进度由 TimelineView 每秒重算 fraction(不用 ProgressView(timerInterval:),
-//   其默认 linear 样式的 GeometryReader 会崩 LA 渲染进程,见 LiveActivityBarStyle)
-// - 无 LIVE 徽标/红点:越过谢幕也不会残留「LIVE」误导
+// 平台事实(实测 iOS 26.5):Live Activity 视图是归档快照,TimelineView 不会
+// 每秒重渲染;只有 Text 的系统时间样式(.timer)由系统数据源驱动走动。
+// 因此:
+// - 可见计时 = Text(state.startDate, style: .timer):开场前倒数、过零自动
+//   正计时、永远无正负号。不能加 locale 覆盖(实测 en_US_POSIX 会让 .timer
+//   退化成「1 hour, 17 minutes」长句撑破布局)。不覆盖时由系统按 locale 与
+//   可用宽度自选格式:zh 锁屏宽卡片倒数为「N 分钟」短语、正计时为纯数字,
+//   岛 compact 窄宽度下均为纯数字。
+// - 阶段(金/红、「距开场 / 已开场」)= context.isStale 或渲染时刻已过
+//   startDate;staleDate 指向 startDate(app 侧 WidgetDataSync),过 T 系统把
+//   内容标记 stale 并重渲染翻阶段,无需 push、无需打开 app。
+//   hasStarted 仅为兼容保留,UI 不使用。
 
 struct ShowLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: ShowLiveActivityAttributes.self) { context in
-            LiveActivityBannerView(state: context.state)
+            LiveActivityBannerView(
+                state: context.state,
+                isLive: LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
+            )
         } dynamicIsland: { context in
-            DynamicIsland {
-                DynamicIslandExpandedRegion(.leading) {
-                    LiveActivityMark(filename: context.state.coverImageFilename, size: 32)
-                }
-                DynamicIslandExpandedRegion(.trailing) {
-                    Text(context.state.startDate, style: .timer)
-                        .font(.system(size: 16, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.accent)
-                        .accessibilityHidden(true)
-                }
+            let isLive = LiveActivityCopy.isLive(isStale: context.isStale, startDate: context.state.startDate)
+            return DynamicIsland {
+                // expanded 顶部 leading/trailing 都留空:leading 图标与 bottom 封面位
+                // 视觉重复;trailing 计时贴岛右上圆角会被裁。计时改放 bottom 右中,
+                // 大字号,与信息列垂直居中。
                 DynamicIslandExpandedRegion(.bottom) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(context.state.showName)
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(WidgetTheme.foreground)
-                                .lineLimit(1)
-                            Text(bottomLine(state: context.state))
-                                .font(.system(size: 11))
-                                .foregroundStyle(WidgetTheme.dim)
-                                .lineLimit(1)
-                        }
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.top, 2)
+                    LiveActivityExpandedDetails(state: context.state, isLive: isLive)
                 }
             } compactLeading: {
-                LiveActivityMark(filename: context.state.coverImageFilename, size: 20)
+                LiveActivityAppIconMark(size: 20)
             } compactTrailing: {
-                // style:.timer 中文会按「N小时 N分钟」抢理想宽度,把 compact 岛拉满整条顶栏。
-                // 定宽 + POSIX 数字,岛只包住镜头两侧一小截。
-                Text(context.state.startDate, style: .timer)
-                    .environment(\.locale, Locale(identifier: "en_US_POSIX"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(WidgetTheme.accent)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.65)
+                LiveActivityTimerText(state: context.state, isLive: isLive, fontSize: 11)
                     .frame(width: 48, alignment: .trailing)
-                    .clipped()
-                    .accessibilityHidden(true)
             } minimal: {
-                LiveActivityMark(filename: context.state.coverImageFilename, size: 14)
+                LiveActivityAppIconMark(size: 14)
+                    .accessibilityLabel(Text(context.state.showName))
             }
         }
     }
+}
 
-    private func bottomLine(state: ShowLiveActivityAttributes.ContentState) -> String {
-        let venue = state.venueName.flatMap { $0.isEmpty ? nil : $0 }
-        let city = state.city.flatMap { $0.isEmpty ? nil : $0 }
-        let place = [city, venue].compactMap { $0 }.joined(separator: " · ")
-        if let end = state.endDate {
-            let components = state.endCalendar.dateComponents([.hour, .minute], from: end)
-            let endText = String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-            let endLine = BSLocalization.format("预计 %@ 谢幕", endText)
-            return place.isEmpty ? endLine : "\(place) · \(endLine)"
-        }
-        return place.isEmpty ? BSLocalization.text("灯亮之前,先进入状态") : place
+// MARK: - 计时文本
+// Text(style: .timer) 由系统时间驱动,是 Live Activity 里唯一不依赖 app 运行
+// 就能走动的计时;跨零自动从倒数切到正计时,始终无符号。阶段颜色跟
+// context.isStale(staleDate = startDate)。不引入 ProgressView /
+// GeometryReader(仓库有 Live Activity renderer 因二者崩溃的历史)。
+
+private struct LiveActivityTimerText: View {
+    let state: ShowLiveActivityAttributes.ContentState
+    let isLive: Bool
+    var fontSize: CGFloat
+
+    var body: some View {
+        Text(state.startDate, style: .timer)
+            .font(.system(size: fontSize, weight: .semibold))
+            .monospacedDigit()
+            .foregroundStyle(LiveActivityCopy.phaseColor(isLive: isLive))
+            .lineLimit(1)
+            .minimumScaleFactor(0.65)
+            .multilineTextAlignment(.trailing)
+            // 阶段 + 动态计时一起读:开场前「距开场 + 倒数」,开场后「已开场 + 正计时」
+            .accessibilityLabel(
+                Text(LiveActivityCopy.statusLabel(isLive: isLive))
+                    + Text(" ")
+                    + Text(state.startDate, style: .timer)
+            )
     }
 }
 
-// MARK: - 封面 / App 图标
-// compact / minimal 空间只够一枚圆标;封面优先,读不到再回退宿主 App 图标。
+// MARK: - App 图标 / 演出封面
+// compact / minimal 固定用 BeforeShow App 图标(不是封面),多 Activity 竞争时
+// 也保持品牌可识别;expanded 顶部不放图标(bottom 封面位已承担识别),
+// 封面只出现在 expandedBottom 与锁屏卡片。
 
-private struct LiveActivityMark: View {
-    let filename: String?
+private struct LiveActivityAppIconMark: View {
     var size: CGFloat
+
+    var body: some View {
+        // 必须走扩展自己 asset catalog 的小图引用:Live Activity 要求图片
+        // 分辨率不超过展示区域(岛 minimal/compact 约 45x36.67pt),超了系统
+        // 静默渲染成灰色占位圆——实测 1024px 的 PNG(无论包内读取还是
+        // asset 引用)都会被占位,20/40/60px 的 1x/2x/3x 才正常。
+        Image("live_activity_icon")
+            .resizable()
+            .scaledToFill()
+            .frame(width: size, height: size)
+            .clipShape(Circle())
+    }
+}
+
+private struct LiveActivityExpandedArtwork: View {
+    let filename: String?
 
     var body: some View {
         Group {
@@ -95,15 +107,16 @@ private struct LiveActivityMark: View {
                     .resizable()
                     .scaledToFill()
             } else {
-                Circle().fill(WidgetTheme.surfaceRaised)
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(WidgetTheme.surfaceRaised)
             }
         }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
+        .frame(width: 44, height: 44)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 }
 
-private enum LiveActivityArtwork {
+enum LiveActivityArtwork {
     static func image(filename: String?) -> UIImage? {
         if let filename, !filename.isEmpty,
            let container = WidgetSnapshotStore.containerURL {
@@ -114,7 +127,14 @@ private enum LiveActivityArtwork {
     }
 
     /// 小组件包里没有 App Icon;从宿主 `.app` 根上的系统导出文件读。
+    /// 仅作封面缺失时的兜底(锁屏/expanded 的 UIImage 路径可用),
+    /// 灵动岛图标不走这里(见 LiveActivityAppIconMark)。
     static func appIcon() -> UIImage? {
+        if let url = Bundle.main.url(forResource: "LiveActivityAppIcon", withExtension: "png"),
+           let image = UIImage(contentsOfFile: url.path) {
+            return downscaled(image)
+        }
+
         let app = Bundle.main.bundleURL
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -130,32 +150,131 @@ private enum LiveActivityArtwork {
         }
         return nil
     }
-}
 
-// MARK: - 锁屏 banner
-
-/// 默认 linear 样式内部是 GeometryReader;LA 内容换入动画期间会把非法(负/非有限)尺寸
-/// 传进 LayoutSubview.place,直接 assert 崩掉整个 WidgetRenderer_Activities 进程
-/// (2026-08-15~17 共 26 份同签名崩溃:GeometryReaderLayout.placeSubviews → place)。
-/// 改为 scaleEffect 实现:不需要测量容器宽度,也不引入 GeometryReader;
-/// 驱动方是外面的 TimelineView(每秒重算 fraction 传进来)。
-private struct LiveActivityBarStyle: ProgressViewStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        let fraction = configuration.fractionCompleted ?? 0
-        Capsule()
-            .fill(WidgetTheme.dim.opacity(0.35))
-            .overlay(alignment: .leading) {
-                Capsule()
-                    .fill(WidgetTheme.accent)
-                    .scaleEffect(x: fraction, anchor: .leading)
-            }
-            .clipShape(Capsule())
-            .frame(height: 3)
+    /// Live Activity 视图要序列化给系统渲染进程,1024px/1MB 的原图会超预算;
+    /// 显示尺寸只有 20-48pt,缩到 128px 足够。
+    private static func downscaled(_ image: UIImage, maxPixels: CGFloat = 128) -> UIImage {
+        guard max(image.size.width, image.size.height) > maxPixels else { return image }
+        let size = CGSize(width: maxPixels, height: maxPixels)
+        return UIGraphicsImageRenderer(size: size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 }
 
+private enum LiveActivityCopy {
+    /// expanded 岛与锁屏卡片的详情行:演出名 + 场馆;场馆为空只显示名称。
+    static func detailLine(for state: ShowLiveActivityAttributes.ContentState) -> String {
+        guard let venue = state.venueName, !venue.isEmpty else { return state.showName }
+        return BSLocalization.format("%1$@ · %2$@", state.showName, venue)
+    }
+
+    /// 时间元数据合并为一行:开场前「14:49 开场 · 预计 18:49 谢幕」(无预计
+    /// 谢幕时仅「14:49 开场」);开场后不再展示开场时刻(正计时与「已开场」
+    /// 阶段已表达),只保留「预计 18:49 谢幕」。en:「Starts 14:49 · Est. ends 18:49」。
+    static func timeLine(for state: ShowLiveActivityAttributes.ContentState, isLive: Bool) -> String? {
+        let end = state.endDate.map { clockText($0, calendar: state.endCalendar) }
+        if isLive {
+            guard let end else { return nil }
+            return BSLocalization.format("预计 %@ 谢幕", end)
+        }
+        let start = clockText(state.startDate, calendar: state.startCalendar)
+        guard let end else { return BSLocalization.format("%@ 开场", start) }
+        return BSLocalization.format("%@ 开场 · 预计 %@ 谢幕", start, end)
+    }
+
+    static func statusLabel(isLive: Bool) -> String {
+        BSLocalization.text(isLive ? "已开场" : "距开场")
+    }
+
+    static func phaseColor(isLive: Bool) -> Color {
+        isLive ? WidgetTheme.live : WidgetTheme.accent
+    }
+
+    /// 阶段判定:staleDate = startDate 时 isStale 即「已过开场」;
+    /// 若 staleDate 已让位给 endDate(开场后才同步),用渲染时刻兜底。
+    static func isLive(isStale: Bool, startDate: Date, now: Date = .now) -> Bool {
+        isStale || now >= startDate
+    }
+
+    /// locale-aware 短时间,套用活动自己的时区;语言跟随 App Group 同步的
+    /// 语言选择(与 WidgetLanguage 同一来源),未选择时随系统。
+    static func clockText(_ date: Date, calendar: Calendar) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        formatter.timeZone = calendar.timeZone
+        if let code = UserDefaults(suiteName: WidgetSnapshotStore.appGroupID)?
+            .string(forKey: "appLanguage"), !code.isEmpty {
+            formatter.locale = Locale(identifier: code)
+        }
+        return formatter.string(from: date)
+    }
+}
+
+// MARK: - Dynamic Island expanded bottom
+// 两段式:行 1 = 封面(左) + 大字号计时/阶段标签(右);其下通栏 =
+// 演出名·场馆(可截断) + 时间行(开场·预计谢幕合并,见 LiveActivityCopy.timeLine)。
+// 通栏放下长演出名/场馆,不再与计时抢宽度。顶部 leading/trailing 区域留空
+// (见 ShowLiveActivity.body)。
+
+private struct LiveActivityExpandedDetails: View {
+    let state: ShowLiveActivityAttributes.ContentState
+    let isLive: Bool
+
+    var body: some View {
+        // 尺寸/间距对齐设计原型(docs 侧 HTML):行 1 行距 11、行间距 9、
+        // 计时与标签距 5、信息区内部距 4;计时 23 > 详情行 15 > 时间行 13 > 标签 12。
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 11) {
+                LiveActivityExpandedArtwork(filename: state.coverImageFilename)
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .trailing, spacing: 5) {
+                    LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
+                    Text(LiveActivityCopy.statusLabel(isLive: isLive))
+                        .font(.system(size: 12))
+                        .foregroundStyle(WidgetTheme.dim)
+                        .accessibilityHidden(true)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(LiveActivityCopy.detailLine(for: state))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(WidgetTheme.foreground)
+                    .lineLimit(1)
+
+                if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
+                    Text(timeLine)
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(WidgetTheme.muted)
+                }
+            }
+        }
+        // 对称小内收即可:计时已挪到行 1,远离 bottom 区域伸进岛圆角的右下缘,
+        // 旧版为躲圆角的 trailing 36 补偿不再需要(会把计时推得偏左)。
+        .padding(.horizontal, 8)
+        .padding(.top, 2)
+        .padding(.bottom, 10)
+        .offset(y: -5)
+    }
+}
+
+// MARK: - Lock Screen
+// 系统 Live Activity 卡片,14pt 水平边距;与 expanded 岛同款两段式:
+// 行 1 = 封面 + 计时/阶段标签,其下通栏 = 演出名·场馆 + 时间行。
+// 阶段标签与计时颜色跟 context.isStale(staleDate = startDate,过 T 由系统
+// 标记)。可见「距开场 / 已开场」对 VoiceOver 隐藏,阶段前缀已并入计时文本的
+// accessibilityLabel,避免重复朗读。
+
 private struct LiveActivityBannerView: View {
     let state: ShowLiveActivityAttributes.ContentState
+    let isLive: Bool
 
     private var coverImage: UIImage? {
         guard let filename = state.coverImageFilename,
@@ -165,74 +284,47 @@ private struct LiveActivityBannerView: View {
         return UIImage(contentsOfFile: container.appendingPathComponent(filename).path)
     }
 
+    // 两段式:计时独占行 1 右侧,不再与标题同列争宽——绕开 iOS 26.5 实测的
+    // 坑(Text(.timer) 理想宽度近乎无限且不吃 minimumScaleFactor,同列
+    // 布局下无论 layoutPriority 给哪侧都会截断另一侧)。
+    // 尺寸/间距对齐设计原型(docs 侧 HTML):行间距 9、计时与标签距 5、
+    // 信息区内部距 4;计时 23 > 详情行 15 > 时间行 13 > 标签 12。
     var body: some View {
-        VStack(spacing: 10) {
-            HStack(alignment: .top, spacing: 10) {
+        VStack(alignment: .leading, spacing: 9) {
+            HStack(spacing: 12) {
                 coverView
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(titleLine)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(WidgetTheme.foreground)
-                        .lineLimit(1)
-                    Text(BSLocalization.format("%@ 开场", clockText(state.startDate, calendar: state.startCalendar)))
-                        .font(.system(size: 11))
-                        .foregroundStyle(WidgetTheme.accent)
-                        .monospacedDigit()
-                }
 
                 Spacer(minLength: 0)
 
-                VStack(alignment: .trailing, spacing: 2) {
-                    // 不要加 .fixedSize():iOS 26.5 LA renderer 下会把整个 VStack
-                    // 渲染成空白(2026-08-17 实测,静态文本同样消失)。
-                    // banner 的 .timer 系统自驱,按分钟刷新(「1小时43分钟」);
-                    // 秒级跳动在 compact 岛(数字格式)。Text(timerInterval:) 秒位
-                    // 在 LA 里渲染成「——」,不要用。
-                    Text(state.startDate, style: .timer)
-                        .font(.system(size: 20, weight: .semibold))
-                        .monospacedDigit()
-                        .foregroundStyle(WidgetTheme.accent)
-                        .lineLimit(1)
+                VStack(alignment: .trailing, spacing: 5) {
+                    LiveActivityTimerText(state: state, isLive: isLive, fontSize: 23)
+                    Text(LiveActivityCopy.statusLabel(isLive: isLive))
+                        .font(.system(size: 12))
+                        .foregroundStyle(WidgetTheme.dim)
                         .accessibilityHidden(true)
-                    if state.hasStarted ?? (Date() >= state.startDate) {
-                        Text("已开场")
-                            .font(.system(size: 10))
-                            .foregroundStyle(WidgetTheme.dim)
-                    }
                 }
             }
 
-            // 进度条:不用 ProgressView(timerInterval:)——默认 linear 样式内部的
-            // GeometryReader 会崩 LA 渲染进程(见 LiveActivityBarStyle)。
-            // 用 TimelineView 每秒重算 fraction + 手画 Capsule;TimelineView 在 LA 里
-            // 不是每次熄屏都跳,但进度条允许短暂停留,计时数字由 .timer 系统自驱兜底。
-            if let end = state.endDate, end > state.startDate {
-                VStack(spacing: 4) {
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        ProgressView(value: Self.progressFraction(start: state.startDate, end: end, now: context.date))
-                            .progressViewStyle(LiveActivityBarStyle())
-                    }
-                    .accessibilityHidden(true)
-                    HStack {
-                        Spacer(minLength: 0)
-                        Text(BSLocalization.format("预计 %@ 谢幕", clockText(end, calendar: state.endCalendar)))
-                    }
-                    .font(.system(size: 9))
-                    .foregroundStyle(WidgetTheme.dim)
-                    .monospacedDigit()
+            VStack(alignment: .leading, spacing: 4) {
+                Text(LiveActivityCopy.detailLine(for: state))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(WidgetTheme.foreground)
+                    .lineLimit(1)
+
+                if let timeLine = LiveActivityCopy.timeLine(for: state, isLive: isLive) {
+                    Text(timeLine)
+                        .font(.system(size: 13))
+                        .monospacedDigit()
+                        .foregroundStyle(WidgetTheme.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
+        .padding(.vertical, 11)
         .activityBackgroundTint(Color.black.opacity(0.72))
         .activitySystemActionForegroundColor(WidgetTheme.foreground)
-    }
-
-    private var titleLine: String {
-        guard let city = state.city, !city.isEmpty else { return state.showName }
-        return "\(state.showName) · \(city)站"
     }
 
     @ViewBuilder
@@ -241,30 +333,19 @@ private struct LiveActivityBannerView: View {
             Image(uiImage: coverImage)
                 .resizable()
                 .scaledToFill()
-                .frame(width: 40, height: 40)
+                .frame(width: 48, height: 48)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        } else if let icon = LiveActivityArtwork.appIcon() {
+            // 无封面兜底:App 图标铺满封面位
+            Image(uiImage: icon)
+                .resizable()
+                .scaledToFill()
+                .frame(width: 48, height: 48)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
         } else {
             RoundedRectangle(cornerRadius: 10)
                 .fill(WidgetTheme.surfaceRaised)
-                .frame(width: 40, height: 40)
-                .overlay {
-                    Image(systemName: "ticket")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(WidgetTheme.accent)
-                }
+                .frame(width: 48, height: 48)
         }
-    }
-
-    private func clockText(_ date: Date, calendar: Calendar) -> String {
-        let components = calendar.dateComponents([.hour, .minute], from: date)
-        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
-    }
-
-    /// 进度条 fraction:配合上面的 TimelineView 每秒重算。
-    fileprivate static func progressFraction(start: Date, end: Date, now: Date) -> Double {
-        let total = end.timeIntervalSince(start)
-        guard total > 0 else { return 0 }
-        let elapsed = now.timeIntervalSince(start)
-        return min(max(elapsed / total, 0), 1)
     }
 }

@@ -6,6 +6,29 @@ import XCTest
 /// end policy without a separate phase arg, cover lifecycle is in
 /// `ShowCoverLifecycleTests`.
 final class ArchitectureModuleTests: XCTestCase {
+    func testHomeArrivalOnlyAnimatesForTheNewCurrentShow() {
+        let addedShowID = UUID()
+
+        XCTAssertTrue(
+            CurrentShowHomeArrivalPolicy.shouldAnimate(
+                newShowID: addedShowID,
+                currentShowID: addedShowID
+            )
+        )
+        XCTAssertFalse(
+            CurrentShowHomeArrivalPolicy.shouldAnimate(
+                newShowID: addedShowID,
+                currentShowID: UUID()
+            )
+        )
+        XCTAssertFalse(
+            CurrentShowHomeArrivalPolicy.shouldAnimate(
+                newShowID: addedShowID,
+                currentShowID: nil
+            )
+        )
+    }
+
     func testHomeHeroSnapshotFoldsPhaseAndTimeState() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "快照现场", date: start, startTime: start)
@@ -90,7 +113,7 @@ final class ArchitectureModuleTests: XCTestCase {
     }
 
     func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() throws {
-        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才是「1 天」。
+        // 与 widget 同一阈值:remaining == 86400 必须是小时文案,只有 > 86400 才是「1 天」。
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         let atThreshold = try Show(
             name: "恰好一天",
@@ -99,7 +122,7 @@ final class ArchitectureModuleTests: XCTestCase {
         )
         let state = CurrentShowTimeState(show: atThreshold, now: now)
         guard case .countdownClock = HomeCountdownPresentationPolicy.state(for: atThreshold, timeState: state, now: now) else {
-            return XCTFail("remaining == 24h 应显示时:分:秒,不是「1 天」")
+            return XCTFail("remaining == 24h 应显示小时文案,不是「1 天」")
         }
 
         let pastThreshold = try Show(
@@ -111,6 +134,41 @@ final class ArchitectureModuleTests: XCTestCase {
         XCTAssertEqual(
             HomeCountdownPresentationPolicy.state(for: pastThreshold, timeState: pastState, now: now),
             .countdownDays(1)
+        )
+    }
+
+    func testCountdownCopyUsesHoursThenMinutes() {
+        XCTAssertEqual(
+            CountdownCopy.until(remainingSeconds: 5 * 3_600 + 59),
+            BSLocalization.format("%lld 小时后", Int64(5))
+        )
+        XCTAssertEqual(
+            CountdownCopy.until(remainingSeconds: 3_599),
+            BSLocalization.format("%lld 分钟后", Int64(59))
+        )
+    }
+
+    func testHomeStatusSaysStartingSoonBeforeTodayShow() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "今天开场", date: start, startTime: start)
+        let now = start.addingTimeInterval(-3_600)
+        let state = CurrentShowTimeState(show: show, now: now)
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.statusText(for: state, now: now),
+            "马上开场"
+        )
+    }
+
+    func testHomeLiveStatusUsesStartedCopy() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "进行中的现场", date: start, startTime: start)
+        let now = start.addingTimeInterval(3_600)
+        let state = CurrentShowTimeState(show: show, now: now)
+
+        XCTAssertEqual(
+            HomeShowIdentityPresentation.statusText(for: state, now: now),
+            "开场了"
         )
     }
 

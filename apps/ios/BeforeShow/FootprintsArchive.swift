@@ -348,7 +348,7 @@ struct FootprintsView: View {
                 )
             }
             .sheet(isPresented: $isAddingShow) {
-                AddShowCoordinatorSheet(intent: .historicalBackfill) {}
+                AddShowCoordinatorSheet(intent: .historicalBackfill) { _ in }
             }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
@@ -366,8 +366,6 @@ struct FootprintsView: View {
                 case .share:
                     FootprintShareSheet(
                         archive: archive,
-                        shareText: shareText(archive),
-                        onCopied: { presentToast(BSLocalization.text("已复制足迹文案")) },
                         onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
                     )
                     .presentationDetents([.height(555)])
@@ -749,16 +747,6 @@ struct FootprintsView: View {
         return ShowDurationFormatter.single(totalMinutes: minutes)
     }
 
-    private func shareText(_ archive: FootprintArchiveSnapshot) -> String {
-        var lines = [
-            BSLocalization.format("我的 BeforeShow 现场足迹：%lld 场现场", archive.shows.count),
-            BSLocalization.format("去过 %lld 座城市、%lld 个场馆", archive.cities.count, archive.venues.count),
-            BSLocalization.format("在现场待过 %@", ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes))
-        ]
-        if let top = archive.artists.first { lines.append(BSLocalization.format("最常看的艺人：%@（%lld 场）", top.name, top.count)) }
-        return lines.joined(separator: "\n")
-    }
-
     private func presentToast(_ message: String) {
         let payload = BSToastPayload(tone: .success, message: message)
         toast = payload
@@ -897,31 +885,37 @@ private enum FootprintSearchFilter: Hashable {
 /// Sheets only supply content + size; rendering + photo-library I/O live here.
 enum FootprintShareImageExport {
     @MainActor
-    static func save<Content: View>(
+    static func render<Content: View>(
         _ content: Content,
         size: CGSize
-    ) async throws {
+    ) -> UIImage? {
         let renderer = ImageRenderer(
             content: content.frame(width: size.width, height: size.height)
         )
         renderer.scale = 1
-        guard let image = renderer.uiImage else {
+        return renderer.uiImage
+    }
+
+    @MainActor
+    static func save<Content: View>(
+        _ content: Content,
+        size: CGSize
+    ) async throws {
+        guard let image = render(content, size: size) else {
             throw FootprintPhotoSaveError.rendererFailed
         }
         try await FootprintPhotoLibrary.save(image)
     }
 }
 
-/// Shared chrome for footprint share sheets: preview, copy, save, cancel.
+/// Shared chrome for footprint share sheets: preview, save, share, cancel.
 private struct FootprintShareActionSheet<Preview: View>: View {
     let title: String
     let subtitle: String
     let previewHeight: CGFloat
-    let shareText: String
     let exportSize: CGSize
     @ViewBuilder let preview: () -> Preview
     @ViewBuilder let exportContent: () -> Preview
-    var onCopied: (() -> Void)? = nil
     var onSaved: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
@@ -942,15 +936,11 @@ private struct FootprintShareActionSheet<Preview: View>: View {
                 .padding(.top, 15)
 
             HStack(spacing: 8) {
-                Button(BSLocalization.text("复制文案")) {
-                    UIPasteboard.general.string = shareText
-                    dismiss()
-                    onCopied?()
-                }
-                .footprintShareAction(primary: false)
                 Button(BSLocalization.text("保存图片")) { Task { await saveImage() } }
-                    .footprintShareAction(primary: true)
+                    .footprintShareAction(primary: false)
                     .disabled(isSaving)
+                Button(BSLocalization.text("分享图片")) { shareImage() }
+                    .footprintShareAction(primary: true)
             }
             .padding(.top, 12)
         }
@@ -976,6 +966,28 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         onSaved?()
     }
 
+    @MainActor
+    private func shareImage() {
+        guard let image = FootprintShareImageExport.render(exportContent(), size: exportSize),
+              let data = image.pngData() else {
+            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+            return
+        }
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShow-footprint-\(UUID().uuidString).png")
+        do {
+            try data.write(to: url, options: .atomic)
+            guard SystemPNGSharePresenter.present(url: url) else {
+                try? FileManager.default.removeItem(at: url)
+                presentToast(.failure, message: BSLocalization.text("系统分享面板暂时无法打开"))
+                return
+            }
+        } catch {
+            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+        }
+    }
+
     private func presentToast(_ tone: BSToastTone, message: String) {
         let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
@@ -988,8 +1000,6 @@ private struct FootprintShareActionSheet<Preview: View>: View {
 
 private struct FootprintShareSheet: View {
     let archive: FootprintArchiveSnapshot
-    let shareText: String
-    let onCopied: () -> Void
     let onSaved: () -> Void
 
     var body: some View {
@@ -997,11 +1007,9 @@ private struct FootprintShareSheet: View {
             title: BSLocalization.text("分享我的足迹"),
             subtitle: BSLocalization.text("默认隐藏具体日期和详细行程，只分享你选择的档案信息。"),
             previewHeight: 330,
-            shareText: shareText,
             exportSize: CGSize(width: 1080, height: 1350),
             preview: { FootprintSharePreview(archive: archive) },
             exportContent: { FootprintSharePreview(archive: archive) },
-            onCopied: onCopied,
             onSaved: onSaved
         )
     }
@@ -1053,7 +1061,6 @@ private struct FootprintArchiveShareSheet: View {
             title: FootprintArchiveShareCopy.title(for: category),
             subtitle: FootprintArchiveShareCopy.subtitle(for: category),
             previewHeight: 368,
-            shareText: FootprintArchiveShareCopy.text(for: category, archive: archive),
             exportSize: CGSize(width: 1080, height: 1100),
             preview: { FootprintArchiveSharePreview(archive: archive, category: category) },
             exportContent: { FootprintArchiveSharePreview(archive: archive, category: category) },

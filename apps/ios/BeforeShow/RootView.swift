@@ -10,7 +10,12 @@ extension UUID: @retroactive Identifiable {
 
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Query private var rootShows: [Show]
+    @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
+    @State private var hasResolvedOnboardingRoute = false
+    @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var isTabBarHidden = false
     /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
@@ -28,8 +33,17 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            mainTabView
-                .opacity(hasFinishedSplash ? 1 : 0)
+            Color.black.ignoresSafeArea()
+
+            if hasFinishedSplash, hasResolvedOnboardingRoute {
+                if isShowingOnboarding {
+                    OnboardingFlowView(onCompleted: completeOnboarding)
+                        .transition(.opacity)
+                } else {
+                    mainTabView
+                        .transition(.opacity)
+                }
+            }
 
             if !hasFinishedSplash {
                 SplashView {
@@ -49,6 +63,9 @@ struct RootView: View {
             guard deepLink != nil else { return }
             selectedTab = .current
         }
+        .task {
+            resolveOnboardingRouteIfNeeded()
+        }
         #if DEBUG
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
@@ -64,6 +81,53 @@ struct RootView: View {
             }
         }
         #endif
+    }
+
+    private func resolveOnboardingRouteIfNeeded() {
+        guard !hasResolvedOnboardingRoute else { return }
+
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--open-onboarding") {
+            isShowingOnboarding = true
+            hasResolvedOnboardingRoute = true
+            return
+        }
+        if arguments.contains(where: { argument in
+            argument.hasPrefix("--seed-")
+                || argument == "--open-footprints"
+                || argument == "--open-pro-paywall"
+                || argument == "--open-pro-winback"
+        }) {
+            isShowingOnboarding = false
+            hasResolvedOnboardingRoute = true
+            return
+        }
+        #endif
+
+        let hasShows = !rootShows.isEmpty
+        if OnboardingRoutingPolicy.shouldMigrateExistingUser(
+            hasCompleted: hasCompletedOnboarding,
+            hasShows: hasShows
+        ) {
+            hasCompletedOnboarding = true
+        }
+        isShowingOnboarding = OnboardingRoutingPolicy.shouldPresent(
+            hasCompleted: hasCompletedOnboarding,
+            hasShows: hasShows
+        )
+        hasResolvedOnboardingRoute = true
+    }
+
+    private func completeOnboarding(showID _: UUID) {
+        hasCompletedOnboarding = true
+        if reduceMotion {
+            isShowingOnboarding = false
+        } else {
+            withAnimation(.easeOut(duration: 0.28)) {
+                isShowingOnboarding = false
+            }
+        }
     }
 
     /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
@@ -117,6 +181,22 @@ enum CurrentShowPlaybackPolicy {
     }
 }
 
+struct CurrentShowHomeArrival: Hashable {
+    enum Phase: Hashable {
+        case prepared
+        case animating
+    }
+
+    let showID: UUID
+    var phase: Phase
+}
+
+enum CurrentShowHomeArrivalPolicy {
+    static func shouldAnimate(newShowID: UUID, currentShowID: UUID?) -> Bool {
+        newShowID == currentShowID
+    }
+}
+
 // MARK: - Current Show Home
 
 private struct CurrentShowHomeView: View {
@@ -149,6 +229,7 @@ private struct CurrentShowHomeView: View {
     @State private var isImportingDynamicCover = false
     @State private var dynamicCoverErrorMessage: String?
     @State private var isDetailVisible = false
+    @State private var homeArrival: CurrentShowHomeArrival?
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
@@ -171,6 +252,13 @@ private struct CurrentShowHomeView: View {
             // AmbientBackground 的理想宽度可能超过屏幕，这里封顶以免内容被顶出。
             ZStack {
                 CurrentShowAmbientBackground(coverImageURL: currentShow?.coverImageURL)
+                    .opacity(
+                        homeArrival?.phase == .prepared
+                            && homeArrival?.showID == currentShow?.id
+                            ? 0
+                            : 1
+                    )
+                    .animation(.easeOut(duration: 0.35), value: homeArrival)
 
                 if let show = currentShow {
                     CurrentShowManagementSection(
@@ -194,6 +282,10 @@ private struct CurrentShowHomeView: View {
                         isImportingDynamicCover: isImportingDynamicCover,
                         onConfirmEnd: { endDate in
                             confirmEnd(show, at: endDate)
+                        },
+                        homeArrival: homeArrival,
+                        onHomeArrivalFinished: {
+                            homeArrival = nil
                         },
                         ceremonyLightsOutShowID: $ceremonyLightsOutShowID,
                         ceremonySheetShowID: $ceremonySheetShowID,
@@ -245,9 +337,11 @@ private struct CurrentShowHomeView: View {
             } message: {
                 Text(dynamicCoverErrorMessage ?? "请重试")
             }
-            .sheet(isPresented: $isShowingAddShowCoordinator) {
-                AddShowCoordinatorSheet {
-                    presentAddShowSuccess()
+            .sheet(isPresented: $isShowingAddShowCoordinator, onDismiss: {
+                beginPreparedHomeArrivalIfPossible()
+            }) {
+                AddShowCoordinatorSheet { showID in
+                    homeArrival = CurrentShowHomeArrival(showID: showID, phase: .prepared)
                 }
             }
             #if DEBUG
@@ -368,15 +462,16 @@ private struct CurrentShowHomeView: View {
         }
     }
 
-    private func presentAddShowSuccess() {
-        let payload = BSToastPayload(tone: .success, message: BSLocalization.text("已放入当前现场"))
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if toast == payload {
-                toast = nil
-            }
+    private func beginPreparedHomeArrivalIfPossible() {
+        guard let arrival = homeArrival, arrival.phase == .prepared else { return }
+        guard CurrentShowHomeArrivalPolicy.shouldAnimate(
+            newShowID: arrival.showID,
+            currentShowID: currentShow?.id
+        ) else {
+            homeArrival = nil
+            return
         }
+        homeArrival = CurrentShowHomeArrival(showID: arrival.showID, phase: .animating)
     }
 
     private func commitCeremonyData(show: Show, rating: Int?, note: String?) async throws {
@@ -458,6 +553,8 @@ struct CurrentShowManagementSection: View {
     var onChooseDynamicCover: () -> Void = {}
     var isImportingDynamicCover = false
     var onConfirmEnd: (Date) -> Void
+    var homeArrival: CurrentShowHomeArrival?
+    var onHomeArrivalFinished: () -> Void = {}
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
     var onCeremonyCommit: (_ rating: Int?, _ note: String?) async throws -> Void
@@ -474,6 +571,9 @@ struct CurrentShowManagementSection: View {
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
+    @State private var hasArrivedHero = true
+    @State private var hasArrivedCountdown = true
+    @State private var hasArrivedActions = true
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
@@ -643,6 +743,55 @@ struct CurrentShowManagementSection: View {
                 backgroundError: companionCoordinator.lastErrorMessage
             )
         }
+        .task(id: homeArrival) {
+            await runHomeArrivalIfNeeded()
+        }
+    }
+
+    @MainActor
+    private func runHomeArrivalIfNeeded() async {
+        guard let homeArrival, homeArrival.showID == show.id else {
+            hasArrivedHero = true
+            hasArrivedCountdown = true
+            hasArrivedActions = true
+            return
+        }
+
+        if homeArrival.phase == .prepared {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                hasArrivedHero = false
+                hasArrivedCountdown = false
+                hasArrivedActions = false
+            }
+            return
+        }
+
+        if reduceMotion {
+            withAnimation(.easeOut(duration: 0.22)) {
+                hasArrivedHero = true
+                hasArrivedCountdown = true
+                hasArrivedActions = true
+            }
+            try? await Task.sleep(for: .milliseconds(240))
+            onHomeArrivalFinished()
+            return
+        }
+
+        withAnimation(.spring(response: 0.55, dampingFraction: 0.88)) {
+            hasArrivedHero = true
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        withAnimation(.easeOut(duration: 0.34)) {
+            hasArrivedCountdown = true
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+        withAnimation(.easeOut(duration: 0.3)) {
+            hasArrivedActions = true
+        }
+        try? await Task.sleep(for: .milliseconds(360))
+        onHomeArrivalFinished()
     }
 
     @ViewBuilder
@@ -686,6 +835,9 @@ struct CurrentShowManagementSection: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 18)
+                    .opacity(hasArrivedHero ? 1 : 0)
+                    .scaleEffect(hasArrivedHero ? 1 : 0.94)
+                    .offset(y: hasArrivedHero ? 0 : 24)
 
                     HomeCountdownLockup(
                         show: show,
@@ -704,6 +856,8 @@ struct CurrentShowManagementSection: View {
                     )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
+                        .opacity(hasArrivedCountdown ? 1 : 0)
+                        .offset(y: hasArrivedCountdown ? 0 : 18)
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
@@ -721,6 +875,8 @@ struct CurrentShowManagementSection: View {
                     )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 17)
+                        .opacity(hasArrivedActions ? 1 : 0)
+                        .offset(y: hasArrivedActions ? 0 : 12)
 
                     if !followUpShows.isEmpty {
                         CurrentShowFollowUpSummary(
@@ -732,6 +888,7 @@ struct CurrentShowManagementSection: View {
                         )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
+                        .opacity(hasArrivedActions ? 1 : 0)
                     }
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
@@ -1867,6 +2024,10 @@ private enum DebugSampleShowSeeder {
             seedUpcomingNear(in: modelContext, offset: 42 * 60 + 17)
             return
         }
+        if ProcessInfo.processInfo.arguments.contains("--seed-no-cover") {
+            seedUpcomingNear(in: modelContext, offset: 42 * 60 + 17, withCover: false)
+            return
+        }
         if ProcessInfo.processInfo.arguments.contains("--seed-upcoming-far") {
             seedUpcomingNear(in: modelContext, offset: 57 * 86_400)
             return
@@ -2191,7 +2352,7 @@ private enum DebugSampleShowSeeder {
         }
     }
 
-    private static func seedUpcomingNear(in modelContext: ModelContext, offset: TimeInterval = 3 * 3_600 + 21 * 60 + 18) {
+    private static func seedUpcomingNear(in modelContext: ModelContext, offset: TimeInterval = 3 * 3_600 + 21 * 60 + 18, withCover: Bool = true) {
         let name = "夏夜音乐会"
         let now = Date()
         let start = now.addingTimeInterval(offset)
@@ -2202,7 +2363,7 @@ private enum DebugSampleShowSeeder {
             city: "南京",
             venueName: "南京奥体中心体育场",
             artists: [ArtistSlot(name: "夏夜乐队", avatarURL: nil)],
-            coverImageURL: "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1200&q=85",
+            coverImageURL: withCover ? "https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?auto=format&fit=crop&w=1200&q=85" : "",
             source: .manual
         )
         do {

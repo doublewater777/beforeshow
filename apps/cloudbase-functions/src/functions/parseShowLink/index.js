@@ -6,6 +6,7 @@ import { fetchAndParseTicketPage } from "./ticketPageParser.js";
 import { fetchAndParseLiveNationPage } from "./liveNationParser.js";
 import { fetchAndParsePiaoxingqiu } from "./piaoxingqiuParser.js";
 import { fetchFenwandaoProjectInfo, parseFenwandaoProject } from "./fenwandaoParser.js";
+import { fetchNetEaseMusicConcert, parseNetEaseMusicConcert } from "./neteaseMusicParser.js";
 
 const PUBLIC_PAGE_PLATFORMS = new Set([
   "fenwandao",
@@ -44,6 +45,17 @@ export async function parseShowLink(url, options = {}) {
       fetch: options.fetch
     });
     return parseMaoyanPerformance(detail);
+  }
+
+  if (normalized.platform === "neteasemusic") {
+    if (!normalized.eventId) {
+      throw new UnsupportedPlatformError(url);
+    }
+    const detail = await fetchNetEaseMusicConcert({
+      concertId: normalized.eventId,
+      fetch: options.fetch
+    });
+    return parseNetEaseMusicConcert(detail);
   }
 
   if (normalized.platform === "livenation") {

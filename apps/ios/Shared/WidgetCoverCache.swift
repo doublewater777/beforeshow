@@ -17,7 +17,7 @@ enum WidgetCoverCache {
     /// Live Activity 封面只有 40×40pt;按 3x 限制到 120px——
     /// Apple 要求 LA 图片不超过展示区域,否则活动可能无法启动。
     fileprivate static let liveActivityMaxPixelDimension: CGFloat = 120
-    fileprivate static let maxDownloadBytes = 2 * 1_024 * 1_024
+    fileprivate static let maxDownloadBytes = 100 * 1_024 * 1_024
 
     /// 串行化写盘 / 下载完成检查,避免 reentrancy 下旧 refresh 覆盖新场。
     private static let mutator = CoverCacheMutator()
@@ -224,30 +224,36 @@ private actor CoverCacheMutator {
         }
 
         do {
-            let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
-            // 新下载期间又来了更新的 refresh → 丢弃本结果,不写不删
-            guard ticket == generation else { return }
+            let data: Data
+            if remoteURL.isFileURL {
+                data = try Data(contentsOf: remoteURL)
+            } else {
+                let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
+                // 新下载期间又来了更新的 refresh → 丢弃本结果,不写不删
+                guard ticket == generation else { return }
 
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-                #if DEBUG
-                print("[WidgetCoverCache] non-200 for \(trimmed)")
-                #endif
-                return
+                guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+                    #if DEBUG
+                    print("[WidgetCoverCache] non-200 for \(trimmed)")
+                    #endif
+                    return
+                }
+                guard let mime = http.mimeType, mime.hasPrefix("image/") else {
+                    #if DEBUG
+                    print("[WidgetCoverCache] unexpected MIME: \(http.mimeType ?? "nil")")
+                    #endif
+                    return
+                }
+                data = try Data(contentsOf: tempURL)
             }
-            guard let mime = http.mimeType, mime.hasPrefix("image/") else {
-                #if DEBUG
-                print("[WidgetCoverCache] unexpected MIME: \(http.mimeType ?? "nil")")
-                #endif
-                return
-            }
-            let fileSize = (try? FileManager.default.attributesOfItem(atPath: tempURL.path)[.size] as? Int) ?? 0
+
+            let fileSize = data.count
             guard fileSize > 0, fileSize <= WidgetCoverCache.maxDownloadBytes else {
                 #if DEBUG
                 print("[WidgetCoverCache] payload too large: \(fileSize) bytes")
                 #endif
                 return
             }
-            let data = try Data(contentsOf: tempURL)
             guard let jpeg = WidgetCoverCache.downsampledJPEG(
                 from: data,
                 maxPixel: WidgetCoverCache.maxPixelDimension

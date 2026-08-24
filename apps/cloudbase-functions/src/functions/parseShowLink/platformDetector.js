@@ -44,7 +44,7 @@ export class UnsupportedPlatformError extends Error {
 
 /**
  * 基于 hostname 严格识别平台，拒绝仿冒域名与查询参数里的关键字误报。
- * 国内：大麦、秀动、猫眼、票星球、纷玩岛。
+ * 国内：大麦、秀动、猫眼、票星球、纷玩岛、网易云。
  * 海外：Ticketmaster、DICE、AXS、Live Nation。
  */
 export function detectPlatform(urlString) {
@@ -58,6 +58,7 @@ export function detectPlatform(urlString) {
   if (matchesDomain(host, "maoyan.com")) return "maoyan";
   if (matchesDomain(host, "piaoxingqiu.com")) return "piaoxingqiu";
   if (matchesDomain(host, "livelab.com.cn")) return "fenwandao";
+  if (host === "st.music.163.com") return "neteasemusic";
   if (TICKETMASTER_DOMAINS.some((domain) => matchesDomain(host, domain))) return "ticketmaster";
   if (matchesDomain(host, "dice.fm")) return "dice";
   if (matchesDomain(host, "axs.com")) return "axs";
@@ -160,6 +161,20 @@ export function normalizeUrl(urlString) {
       platform,
       ...(eventId ? { eventId } : {}),
       canonicalUrl: httpsUrlWithoutHash(url)
+    };
+  }
+
+  if (platform === "neteasemusic") {
+    const rawEventId = /^\/g\/show\/detail\/?$/i.test(url.pathname)
+      ? url.searchParams.get("concertId")
+      : null;
+    const eventId = /^\d+$/.test(rawEventId ?? "") ? rawEventId : null;
+    return {
+      platform,
+      ...(eventId ? { eventId } : {}),
+      canonicalUrl: eventId
+        ? `https://st.music.163.com/g/show/detail?concertId=${encodeURIComponent(eventId)}`
+        : "https://st.music.163.com/g/show"
     };
   }
 
