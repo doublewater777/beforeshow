@@ -222,6 +222,41 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(identity.cityOrdinal, 2)
         XCTAssertEqual(identity.companionOrdinal, 2)
         XCTAssertEqual(identity.companionName, "林嘉")
+        XCTAssertEqual(identity.companions.map(\.name), ["林嘉"])
+    }
+
+    func testDetailIdentityListsEachCompanionWithoutASingleGroupOrdinal() throws {
+        let withJia = try makeShow("只和林嘉", year: 2024, artist: "A", city: "上海", venue: "A")
+        try withJia.markCompanionInvitationSent(name: "林嘉")
+        try withJia.markCompanionConfirmed(name: withJia.companionName)
+        withJia.markEnded(at: date(2024, 6, 1, 22))
+
+        let group = try makeShow("林嘉和王宁", year: 2025, artist: "B", city: "上海", venue: "B")
+        try group.markCompanionInvitationSent(name: nil)
+        group.applyCompanionState(status: .pending, names: ["林嘉", "王宁"])
+        group.applyCompanionState(status: .confirmed, names: ["林嘉", "王宁"])
+        group.markEnded(at: date(2025, 6, 1, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [group, withJia],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+        let identity = FootprintDetailIdentityBuilder.make(
+            show: group,
+            archive: archive,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            identity.companions,
+            [
+                FootprintCompanionIdentity(name: "林嘉", ordinal: 2),
+                FootprintCompanionIdentity(name: "王宁", ordinal: 1)
+            ]
+        )
+        XCTAssertEqual(identity.companionName, "林嘉、王宁")
+        XCTAssertNil(identity.companionOrdinal)
     }
 
     func testDetailIdentityHidesMissingCityAndUnnamedCompanion() throws {

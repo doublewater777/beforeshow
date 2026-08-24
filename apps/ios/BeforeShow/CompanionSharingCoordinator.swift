@@ -94,7 +94,7 @@ final class CompanionSharingCoordinator {
             try modelContext.save()
             return prepared
         } catch {
-            show.restoreCompanionState(status: snapshotBefore.status, name: snapshotBefore.name)
+            show.restoreCompanionState(status: snapshotBefore.status, names: snapshotBefore.names)
             show.restoreCompanionCloudLinkage(cloudBefore)
             try? modelContext.save()
             lastErrorMessage = Self.userMessage(for: error)
@@ -305,8 +305,8 @@ final class CompanionSharingCoordinator {
 
             if case .removed = membershipState,
                show.companionStatus == .confirmed {
-                // The only accepted participant disappeared. Close the root and revoke the
-                // remaining share so the owner does not keep a phantom confirmed relationship.
+                // Every accepted member left. Close the root and revoke the remaining share
+                // so the owner does not keep a phantom confirmed relationship.
                 try await cancelCompanion(for: show, in: modelContext)
                 lastErrorMessage = BSLocalization.text("同行者已退出，同行关系已取消")
                 lastErrorKind = .permissionDenied

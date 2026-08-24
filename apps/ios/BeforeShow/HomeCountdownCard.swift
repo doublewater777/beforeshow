@@ -588,7 +588,7 @@ struct HomeCountdownLockup: View {
     private func accessibilityHint(for action: PrimaryAction) -> String {
         switch action {
         case .end: return BSLocalization.text("打开结束现场确认")
-        case .companion: return BSLocalization.text("邀请一位朋友同行")
+        case .companion: return BSLocalization.text("邀请朋友同行")
         case .memoryFragments: return BSLocalization.text("打开记忆碎片")
         case .memoryCreate: return BSLocalization.text("打开新增记忆")
         }

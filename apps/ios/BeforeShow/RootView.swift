@@ -1017,7 +1017,7 @@ struct CurrentShowManagementSection: View {
                 action: action,
                 companion: CompanionQuickActionPresentation(
                     status: show.companionStatus,
-                    companionName: show.companionName,
+                    companionNames: show.companionNames,
                     isEnded: currentPhase == .ended
                 )
             )
@@ -1106,11 +1106,11 @@ private struct HomeHeaderScrollObserver: ViewModifier {
 }
 
 enum CompanionSharedHistory {
-    /// Aggregate only when a stable non-empty companion name exists.
-    /// Unnamed confirmed companions must not merge across unrelated shows.
+    /// Group-level history: completed, confirmed shows whose companion name
+    /// sets match exactly. Pairwise counts belong to footprint identity, not here.
     static func shows(matching show: Show, from candidates: [Show]) -> [Show] {
-        let normalizedName = show.companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let normalizedName, !normalizedName.isEmpty else {
+        let names = CompanionNameList.normalized(show.companionNames)
+        guard !names.isEmpty else {
             if show.companionStatus == .confirmed, show.endedAt != nil {
                 return [show]
             }
@@ -1121,7 +1121,7 @@ enum CompanionSharedHistory {
             .filter { candidate in
                 candidate.companionStatus == .confirmed
                     && candidate.endedAt != nil
-                    && candidate.companionName?.trimmingCharacters(in: .whitespacesAndNewlines) == normalizedName
+                    && CompanionNameList.isSameGroup(candidate.companionNames, names)
             }
             .sorted { ($0.endedAt ?? .distantPast) > ($1.endedAt ?? .distantPast) }
     }
@@ -1306,35 +1306,45 @@ struct CompanionQuickActionPresentation: Equatable {
     let title: String
     let accessibilityLabel: String
     let companionName: String?
+    let companionNames: [String]
     let showsPendingIndicator: Bool
     let showsAvatars: Bool
 
     init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool) {
-        let name = companionName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let normalizedName = name.flatMap { $0.isEmpty ? nil : $0 }
-        self.companionName = normalizedName
+        self.init(
+            status: status,
+            companionNames: CompanionNameList.normalized([companionName].compactMap { $0 }),
+            isEnded: isEnded
+        )
+    }
+
+    init(status: ShowCompanionStatus, companionNames: [String], isEnded: Bool) {
+        let names = CompanionNameList.normalized(companionNames)
+        let joined = CompanionNameList.joined(names)
+        self.companionNames = names
+        self.companionName = joined
         switch status {
         case .none:
             title = BSLocalization.text("同行")
-            accessibilityLabel = BSLocalization.text("同行，邀请一位朋友")
+            accessibilityLabel = BSLocalization.text("同行，邀请朋友")
             showsPendingIndicator = false
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            accessibilityLabel = normalizedName.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
+            accessibilityLabel = joined.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
             showsPendingIndicator = true
             showsAvatars = false
         case .confirmed:
-            let displayName = normalizedName ?? BSLocalization.text("同行者")
+            let displayName = joined ?? BSLocalization.text("同行者")
             title = isEnded ? BSLocalization.text("共同足迹") : BSLocalization.format("与%@", displayName)
             accessibilityLabel = isEnded
-                ? (normalizedName.map { BSLocalization.format("同行，与%@的共同足迹", $0) } ?? BSLocalization.text("同行，共同足迹"))
+                ? (joined.map { BSLocalization.format("同行，与%@的共同足迹", $0) } ?? BSLocalization.text("同行，共同足迹"))
                 : BSLocalization.format("同行，与%@已确认", displayName)
             showsPendingIndicator = false
             showsAvatars = true
         case .canceled:
             title = BSLocalization.text("重新邀请")
-            accessibilityLabel = normalizedName.map { BSLocalization.format("同行，重新邀请%@", $0) } ?? BSLocalization.text("同行，重新邀请")
+            accessibilityLabel = joined.map { BSLocalization.format("同行，重新邀请%@", $0) } ?? BSLocalization.text("同行，重新邀请")
             showsPendingIndicator = false
             showsAvatars = false
         }
@@ -1348,7 +1358,7 @@ private struct CurrentShowQuickActionTile: View {
     var body: some View {
         VStack(spacing: 7) {
             if let companion, companion.showsAvatars {
-                CompanionAvatarStack(name: companion.companionName ?? "同行者")
+                CompanionAvatarStack(names: companion.companionNames)
             } else {
                 Image(systemName: action.iconName)
                     .font(.system(size: 18, weight: .medium))
@@ -1385,19 +1395,34 @@ private struct CurrentShowQuickActionTile: View {
 }
 
 private struct CompanionAvatarStack: View {
-    let name: String
+    let names: [String]
+
+    private static let maxVisibleOthers = 3
+    private static let palettes: [[Color]] = [
+        [BSColor.Stage.accent, BSColor.Stage.glowBlue],
+        [BSColor.Accent.violet, BSColor.Stage.accent],
+        [BSColor.Accent.warm, BSColor.Accent.violet],
+        [BSColor.Stage.glowBlue, BSColor.Accent.warm]
+    ]
 
     var body: some View {
-        HStack(spacing: -8) {
-            avatar(BSLocalization.text("我"), colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue])
-            avatar(initial, colors: [BSColor.Accent.violet, BSColor.Stage.accent])
+        let visible = Array(CompanionNameList.normalized(names).prefix(Self.maxVisibleOthers))
+        let overflow = max(0, CompanionNameList.normalized(names).count - visible.count)
+        return HStack(spacing: -8) {
+            avatar(BSLocalization.text("我"), colors: Self.palettes[0])
+            ForEach(Array(visible.enumerated()), id: \.offset) { index, name in
+                avatar(initial(name), colors: Self.palettes[(index + 1) % Self.palettes.count])
+            }
+            if overflow > 0 {
+                avatar("+\(overflow)", colors: [BSColor.Stage.muted, BSColor.Stage.dim])
+            }
         }
         .accessibilityHidden(true)
     }
 
-    private var initial: String {
+    private func initial(_ name: String) -> String {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty || trimmed == BSLocalization.text("共同足迹") ? BSLocalization.text("友") : String(trimmed.prefix(1))
+        return trimmed.isEmpty ? BSLocalization.text("友") : String(trimmed.prefix(1))
     }
 
     private func avatar(_ text: String, colors: [Color]) -> some View {
@@ -1526,8 +1551,8 @@ struct CurrentShowCompanionSheet: View {
                 icon: "person.2",
                 title: isRetry ? BSLocalization.text("邀请未接受") : BSLocalization.text("邀请同行"),
                 subtitle: isRetry
-                    ? BSLocalization.text("可以通过系统分享重新发送邀请，对方点开链接后双方都会确认。")
-                    : BSLocalization.text("通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。")
+                    ? BSLocalization.text("可以通过系统分享重新发送邀请，对方点开链接后加入这场同行。")
+                    : BSLocalization.text("通过系统分享邀请朋友。对方接受后，会加入这场同行。")
             )
 
             Button {
@@ -1562,7 +1587,7 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "hourglass",
-                title: BSLocalization.format("等待%@确认", displayName),
+                title: pendingTitle,
                 subtitle: BSLocalization.text("已通过系统分享发出邀请。对方点开链接并接受后，这里会自动变成已确认。")
             )
 
@@ -1628,7 +1653,7 @@ struct CurrentShowCompanionSheet: View {
                     subtitle: BSLocalization.text("这场现场已确认同行。")
                 )
 
-                companionPair
+                companionMembers
 
                 Text(BSLocalization.format("你们共同看过 %lld 场现场", sharedHistory.count))
                     .font(BSFont.caption)
@@ -1647,7 +1672,22 @@ struct CurrentShowCompanionSheet: View {
                     .buttonStyle(BSPrimaryButtonStyle())
                 }
 
-                destructiveButton("取消同行") {
+                if show.companionIsOwner != false {
+                    Button {
+                        Task { await resendInvitation() }
+                    } label: {
+                        if isPreparingInvite {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
+                        }
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                    .disabled(isPreparingInvite || show.companionShareRecordName == nil)
+                }
+
+                destructiveButton(show.companionIsOwner == false ? "退出同行" : "取消同行") {
                     Task { await cancelInvitation() }
                 }
                 .disabled(isCanceling)
@@ -1655,18 +1695,16 @@ struct CurrentShowCompanionSheet: View {
         }
     }
 
-    private var companionPair: some View {
-        HStack(spacing: BSSpacing.md) {
-            person(name: BSLocalization.text("你"), initial: BSLocalization.text("我"))
-
-            Rectangle()
-                .fill(LinearGradient(colors: [.clear, BSColor.Stage.accent, .clear], startPoint: .leading, endPoint: .trailing))
-                .frame(maxWidth: 70, maxHeight: 1)
-
-            person(name: displayName, initial: companionInitial)
+    private var companionMembers: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: BSSpacing.md) {
+                person(name: BSLocalization.text("你"), initial: BSLocalization.text("我"))
+                ForEach(Array(memberNames.enumerated()), id: \.offset) { _, name in
+                    person(name: name, initial: String(name.prefix(1)))
+                }
+            }
+            .padding(.vertical, BSSpacing.sm)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, BSSpacing.sm)
     }
 
     private func person(name: String, initial: String) -> some View {
@@ -1756,17 +1794,19 @@ struct CurrentShowCompanionSheet: View {
         .foregroundColor(BSColor.Stage.liveTitle)
     }
 
-    private var displayName: String {
-        guard let name = show.companionName?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !name.isEmpty else {
-            return BSLocalization.text("同行者")
-        }
-        return name
+    private var memberNames: [String] {
+        CompanionNameList.normalized(show.companionNames)
     }
 
-    private var companionInitial: String {
-        String(displayName.prefix(1))
+    private var displayName: String {
+        CompanionNameList.joined(memberNames) ?? BSLocalization.text("同行者")
+    }
+
+    private var pendingTitle: String {
+        if let names = CompanionNameList.joined(memberNames) {
+            return BSLocalization.format("等待%@确认", names)
+        }
+        return BSLocalization.text("等待确认")
     }
 
     private var sharedFootprintShareText: String {

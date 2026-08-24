@@ -565,7 +565,7 @@ struct ShowDetailView: View {
     private var companionPresentation: CompanionQuickActionPresentation {
         CompanionQuickActionPresentation(
             status: show.companionStatus,
-            companionName: show.companionName,
+            companionNames: show.companionNames,
             isEnded: HomeShowPhase(timeState: timeState) == .ended
         )
     }
@@ -576,7 +576,7 @@ struct ShowDetailView: View {
 
     private var companionPresentationSubtitle: String {
         switch show.companionStatus {
-        case .none: return BSLocalization.text("邀请一位朋友")
+        case .none: return BSLocalization.text("邀请朋友")
         case .pending: return BSLocalization.text("等待确认")
         case .confirmed: return companionPresentation.companionName.map { BSLocalization.format("与%@同行", $0) } ?? BSLocalization.text("已确认同行")
         case .canceled: return BSLocalization.text("重新邀请")

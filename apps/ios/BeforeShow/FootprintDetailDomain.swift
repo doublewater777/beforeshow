@@ -1,10 +1,23 @@
 import Foundation
 
+struct FootprintCompanionIdentity: Equatable {
+    let name: String
+    let ordinal: Int
+}
+
 struct FootprintDetailIdentity: Equatable {
     let showOrdinal: Int
     let cityOrdinal: Int?
-    let companionName: String?
-    let companionOrdinal: Int?
+    let companions: [FootprintCompanionIdentity]
+
+    var companionName: String? {
+        if companions.count == 1 { return companions[0].name }
+        return CompanionNameList.joined(companions.map(\.name))
+    }
+
+    var companionOrdinal: Int? {
+        companions.count == 1 ? companions[0].ordinal : nil
+    }
 }
 
 @MainActor
@@ -25,21 +38,22 @@ enum FootprintDetailIdentityBuilder {
         } ?? []
         let cityOrdinal = cityShows.firstIndex { $0.id == show.id }.map { $0 + 1 }
 
-        let companionName = FootprintTextNormalizer.nonEmptyTrimmed(show.companionName)
-        let companionShows = companionName.map { companionName in
-            orderedShows.filter {
+        let companions = CompanionNameList.normalized(show.companionNames).compactMap { name -> FootprintCompanionIdentity? in
+            let companionShows = orderedShows.filter {
                 $0.companionStatus == .confirmed
                     && $0.endedAt != nil
-                    && FootprintTextNormalizer.nonEmptyTrimmed($0.companionName) == companionName
+                    && CompanionNameList.normalized($0.companionNames).contains(name)
             }
-        } ?? []
-        let companionOrdinal = companionShows.firstIndex { $0.id == show.id }.map { $0 + 1 }
+            guard let index = companionShows.firstIndex(where: { $0.id == show.id }) else {
+                return nil
+            }
+            return FootprintCompanionIdentity(name: name, ordinal: index + 1)
+        }
 
         return FootprintDetailIdentity(
             showOrdinal: showOrdinal,
             cityOrdinal: cityOrdinal,
-            companionName: companionOrdinal == nil ? nil : companionName,
-            companionOrdinal: companionOrdinal
+            companions: companions
         )
     }
 
