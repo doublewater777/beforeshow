@@ -866,7 +866,7 @@ private func makeSession(
     acceptedAt: Date? = nil,
     canceledAt: Date? = nil
 ) -> CompanionSessionSnapshot {
-    CompanionSessionSnapshot(
+    return CompanionSessionSnapshot(
         sessionLocator: CompanionRecordLocator(
             recordName: recordName,
             zoneName: zoneName,
@@ -890,9 +890,108 @@ private func makeSession(
         acceptedAt: acceptedAt,
         canceledAt: canceledAt
     )
+
+    func testMembershipPolicyTreatsRemovedMembersAsRemoved() {
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.removed]),
+            .removed
+        )
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending, .removed]),
+            .removed
+        )
+        XCTAssertEqual(
+            CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.accepted, .removed]),
+            .healthy
+        )
+    }
+
+    @MainActor
+    func testOwnerDoesNotRemainConfirmedWhenOnlyPendingInviteesRemain() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let show = try Show(
+            name: "告五人演唱会",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        show.companionCloudRecordName = "rec-1"
+        show.companionShareRecordName = "share-1"
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        let service = MockCompanionSharingService()
+        // Membership only contains pending invitees, 0 accepted participants.
+        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending])
+        let session = makeSession(
+            recordName: "rec-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Owner",
+            participant: nil,
+            participantNames: [],
+            showID: show.id.uuidString
+        )
+        service.sessions["rec-1"] = session
+
+        let coordinator = CompanionSharingCoordinator(service: service)
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        // Show should no longer be confirmed and companion names cleared
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
+    }
+
+    @MainActor
+    func testOwnerDoesNotRemainConfirmedWhenParticipantIsRemoved() async throws {
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+
+        let now = Date()
+        let show = try Show(
+            name: "草东没有派对",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉"]
+        )
+        show.companionCloudRecordName = "rec-2"
+        show.companionShareRecordName = "share-2"
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        let service = MockCompanionSharingService()
+        // CloudKit participant has acceptanceStatus == .removed
+        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.removed])
+        let session = makeSession(
+            recordName: "rec-2",
+            shareName: "share-2",
+            status: .accepted,
+            owner: "Owner",
+            participant: nil,
+            participantNames: [],
+            showID: show.id.uuidString
+        )
+        service.sessions["rec-2"] = session
+
+        let coordinator = CompanionSharingCoordinator(service: service)
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .canceled)
+        XCTAssertEqual(show.companionNames, [])
+        XCTAssertNil(show.companionName)
+    }
 }
 
-// MARK: - Mock
 
 private final class MockCompanionSharingService: CompanionSharingService, @unchecked Sendable {
     var prepareError: CompanionSharingError?
@@ -995,49 +1094,5 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     ) async throws -> CompanionMembershipState {
         _ = shareLocator
         return ownerMembershipState
-    }
-
-
-    @MainActor
-    func testOwnerDoesNotRemainConfirmedWhenOnlyPendingInviteesRemain() async throws {
-        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
-        let container = try ModelContainer(for: Show.self, configurations: configuration)
-        let context = container.mainContext
-
-        let now = Date()
-        let show = try Show(
-            name: "告五人演唱会",
-            date: now,
-            startTime: now,
-            companionStatus: .confirmed,
-            companionNames: ["林嘉"]
-        )
-        show.companionCloudRecordName = "rec-1"
-        show.companionShareRecordName = "share-1"
-        show.companionIsOwner = true
-        context.insert(show)
-        try context.save()
-
-        let service = MockCompanionSharingService()
-        // Membership only contains pending invitees, 0 accepted participants.
-        service.ownerMembershipState = CompanionMembershipPolicy.evaluate(nonOwnerStatuses: [.pending])
-        let session = makeSession(
-            recordName: "rec-1",
-            shareName: "share-1",
-            status: .accepted,
-            owner: "Owner",
-            participant: nil,
-            participantNames: [],
-            showID: show.id.uuidString
-        )
-        service.sessions["rec-1"] = session
-
-        let coordinator = CompanionSharingCoordinator(service: service)
-        await coordinator.refreshCompanion(for: show, in: context)
-
-        // Show should no longer be confirmed and companion names cleared
-        XCTAssertEqual(show.companionStatus, .canceled)
-        XCTAssertEqual(show.companionNames, [])
-        XCTAssertNil(show.companionName)
     }
 }

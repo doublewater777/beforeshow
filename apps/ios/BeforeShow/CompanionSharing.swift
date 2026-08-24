@@ -140,6 +140,7 @@ enum CompanionMembershipState: Equatable, Sendable {
 enum CompanionShareMemberStatus: Equatable, Sendable {
     case accepted
     case pending
+    case removed
     case unknown
 }
 
@@ -542,6 +543,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
                 switch participant.acceptanceStatus {
                 case .accepted: return .accepted
                 case .pending: return .pending
+                case .removed: return .removed
                 default: return .unknown
                 }
             }
