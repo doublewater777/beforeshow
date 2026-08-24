@@ -462,7 +462,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
         let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
-        let names = await participantNames(for: record, in: database)
+        let names = try await participantNames(for: record, in: database)
         return try Self.snapshot(
             from: record,
             shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) },
@@ -669,7 +669,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         var fetchError: CompanionSharingError?
         do {
             let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
-            let names = await participantNames(for: record, in: database)
+            let names = try await participantNames(for: record, in: database)
             currentSnapshot = try Self.snapshot(
                 from: record,
                 shareLocator: shareLocator,
@@ -732,7 +732,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         )
     }
 
-    private func participantNames(for record: CKRecord, in database: CKDatabase) async -> [String] {
+    private func participantNames(for record: CKRecord, in database: CKDatabase) async throws -> [String] {
         guard let shareRef = record.share else { return [] }
         do {
             guard let share = try await database.record(for: shareRef.recordID) as? CKShare else {
@@ -740,7 +740,7 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
             }
             return Self.participantNames(from: share)
         } catch {
-            return []
+            throw Self.mapError(error)
         }
     }
 

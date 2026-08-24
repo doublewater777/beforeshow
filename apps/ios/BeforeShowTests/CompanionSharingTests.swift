@@ -773,6 +773,50 @@ final class CompanionSharingTests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshPreservesOwnerNamesWhenParticipantNameFetchFails() async throws {
+        let service = MockCompanionSharingService()
+        service.participantNamesFetchError = .networkFailure
+        let coordinator = makeCoordinator(service: service)
+
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(
+            name: "同行现场",
+            date: now,
+            startTime: now,
+            companionStatus: .confirmed,
+            companionNames: ["林嘉", "王宁"]
+        )
+        show.companionCloudRecordName = "session-1"
+        show.companionCloudZoneName = CompanionRecordLocator.companionZoneName
+        show.companionShareRecordName = "share-1"
+        show.companionShareZoneName = CompanionRecordLocator.companionZoneName
+        show.companionIsOwner = true
+        context.insert(show)
+        try context.save()
+
+        service.sessions["session-1"] = makeSession(
+            recordName: "session-1",
+            shareName: "share-1",
+            status: .accepted,
+            owner: "Alex",
+            participantNames: ["林嘉", "王宁"],
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now,
+            acceptedAt: now
+        )
+
+        await coordinator.refreshCompanion(for: show, in: context)
+
+        XCTAssertEqual(show.companionStatus, .confirmed)
+        XCTAssertEqual(show.companionNames, ["林嘉", "王宁"])
+        XCTAssertEqual(coordinator.lastErrorKind, .networkFailure)
+    }
+
+    @MainActor
     func testRefreshAllLinkedShowsRecoversAcceptedSharedSessionAfterLocalReset() async throws {
         let service = MockCompanionSharingService()
         let userDefaults = makeIsolatedUserDefaults()
@@ -1034,6 +1078,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
     var loadShareError: CompanionSharingError?
     var cancelError: CompanionSharingError?
     var fetchError: CompanionSharingError?
+    var participantNamesFetchError: CompanionSharingError?
     var ownerMembershipState: CompanionMembershipState = .healthy
     var sessions: [String: CompanionSessionSnapshot] = [:]
     var revokedShareNames: [String] = []
@@ -1114,6 +1159,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
 
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         if let fetchError { throw fetchError }
+        if let participantNamesFetchError { throw participantNamesFetchError }
         guard let session = sessions[sessionLocator.recordName] else {
             throw CompanionSharingError.sessionNotFound
         }
