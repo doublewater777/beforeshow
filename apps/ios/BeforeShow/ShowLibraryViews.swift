@@ -407,6 +407,9 @@ struct CurrentShowLibraryManagementView: View {
     @State private var cancelTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
+    /// 首次进入时列表逐行浮现;之后筛选 / 搜索不再重播,避免每次输入都闪一遍。
+    @State private var rowsAppeared = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let formatter = ShowDisplayFormatter()
     private let session = CurrentShowSession()
@@ -444,6 +447,7 @@ struct CurrentShowLibraryManagementView: View {
         }
         .navigationTitle("我的现场")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { rowsAppeared = true }
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
@@ -574,16 +578,17 @@ struct CurrentShowLibraryManagementView: View {
                     alignment: .leading,
                     spacing: BSSpacing.md
                 ) {
-                    ForEach(section.shows) { show in
+                    ForEach(Array(section.shows.enumerated()), id: \.element.id) { index, show in
                         CurrentShowLibraryCoverCard(
                             show: show,
                             isCurrent: selectedShowID == show.id,
                             onOpen: { destination = .init(show: show, startsEditing: false) }
                         )
+                        .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
                     }
                 }
             } else {
-                ForEach(section.shows) { show in
+                ForEach(Array(section.shows.enumerated()), id: \.element.id) { index, show in
                     CurrentShowLibraryRow(
                         show: show,
                         isCurrent: selectedShowID == show.id,
@@ -592,6 +597,7 @@ struct CurrentShowLibraryManagementView: View {
                         onOpen: { destination = .init(show: show, startsEditing: false) },
                         onAction: { action in handle(action, for: show) }
                     )
+                    .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
                 }
             }
         }
@@ -822,6 +828,7 @@ private struct CurrentShowLibraryCoverCard: View {
                     urlString: show.coverImageURL,
                     aspectRatio: 3.0 / 4.0,
                     contentMode: .fill,
+                    enforcesAspectRatio: false,
                     cornerRadius: BSRadius.md
                 )
 
@@ -830,6 +837,9 @@ private struct CurrentShowLibraryCoverCard: View {
                         .padding(BSSpacing.sm)
                 }
             }
+            // 外层固定 3:4 比例，让封面始终吃列宽；否则加载中的图会按内禀尺寸
+            // 撑大 ZStack，溢出列边界——与 HomeHeroPresentation 的处理一致。
+            .aspectRatio(3.0 / 4.0, contentMode: .fit)
             .frame(maxWidth: .infinity, alignment: .leading)
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
             .overlay(
@@ -945,5 +955,26 @@ private extension CurrentShowLibraryMenuAction {
         case .cancel: return "xmark.circle"
         case .delete: return "trash"
         }
+    }
+}
+
+
+/// 列表 / 封面网格的逐行入场:每行按索引延后 40ms 淡入并上移,
+/// 上限 8 行(第 9 行起与第 8 行同时出现),避免长列表尾部等太久。
+private struct LibraryRowEntrance: ViewModifier {
+    let index: Int
+    let appeared: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 14)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .easeOut(duration: 0.34).delay(Double(min(index, 8)) * 0.04),
+                value: appeared
+            )
     }
 }

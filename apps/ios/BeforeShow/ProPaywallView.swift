@@ -21,6 +21,9 @@ struct ProPaywallView: View {
     /// 点「暂时不要」置 true：挽留 sheet 关闭时连带关闭 paywall；下拉收起则保留 paywall。
     @State private var winbackDeclined = false
     @State private var legalPage: BSInAppBrowserPage?
+    /// 顶部光束的缓慢摇摆开关;onAppear 置真后由 repeatForever 持续来回。
+    @State private var beamsSwaying = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let store: any ProSubscriptionStore
     private let showsCloseButton: Bool
@@ -94,6 +97,7 @@ struct ProPaywallView: View {
         }
         .preferredColorScheme(.dark)
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { beamsSwaying = true }
         .task {
             PostHogSDK.shared.capture("pro_paywall_viewed")
             await loadProducts()
@@ -192,13 +196,15 @@ struct ProPaywallView: View {
         .padding(.top, showsCloseButton ? 34 : BSSpacing.md)
     }
 
-    /// 顶部静态光束:蓝/金/紫三个光锥从星标处向上散开,呼应「灯亮」时刻,
-    /// 同时填掉原本空旷的头部。静态(无动画),与熄灯仪式的光束同一语言。
+    /// 顶部光束:蓝/金/紫三个光锥从星标处向上散开,呼应「灯亮」时刻,
+    /// 同时填掉原本空旷的头部。与熄灯仪式的光束同一语言。
+    /// 三束以不同幅度极慢摇摆(周期 5-7s),像真的舞台灯在缓慢扫射;
+    /// reduceMotion 时回到原本的静态角度。
     private var heroBeams: some View {
         ZStack(alignment: .bottom) {
-            heroBeam(color: BSColor.Stage.glowBlue, topWidth: 150, rotation: 30, opacity: 0.75)
-            heroBeam(color: BSColor.Stage.accent, topWidth: 150, rotation: -30, opacity: 0.70)
-            heroBeam(color: BSColor.Accent.violet, topWidth: 110, rotation: 0, opacity: 0.50)
+            heroBeam(color: BSColor.Stage.glowBlue, topWidth: 150, rotation: 30, sway: 3.5, period: 6.5, opacity: 0.75)
+            heroBeam(color: BSColor.Stage.accent, topWidth: 150, rotation: -30, sway: -3.0, period: 5.5, opacity: 0.70)
+            heroBeam(color: BSColor.Accent.violet, topWidth: 110, rotation: 0, sway: 2.0, period: 7.0, opacity: 0.50)
         }
         .blendMode(.screen)
         .allowsHitTesting(false)
@@ -206,7 +212,14 @@ struct ProPaywallView: View {
     }
 
     /// 单个光锥:顶点在下的三角,自下而上淡出,绕顶点旋转后左右展开。
-    private func heroBeam(color: Color, topWidth: CGFloat, rotation: Double, opacity: Double) -> some View {
+    private func heroBeam(
+        color: Color,
+        topWidth: CGFloat,
+        rotation: Double,
+        sway: Double,
+        period: Double,
+        opacity: Double
+    ) -> some View {
         PaywallBeamShape()
             .fill(
                 LinearGradient(
@@ -216,9 +229,18 @@ struct ProPaywallView: View {
                 )
             )
             .frame(width: topWidth, height: 190)
-            .rotationEffect(.degrees(rotation), anchor: .bottom)
+            .rotationEffect(
+                .degrees(rotation + (beamsSwaying ? sway : 0)),
+                anchor: .bottom
+            )
             .blur(radius: 7)
             .opacity(opacity)
+            .animation(
+                reduceMotion
+                    ? nil
+                    : .easeInOut(duration: period).repeatForever(autoreverses: true),
+                value: beamsSwaying
+            )
     }
 
     // MARK: - 权益卡

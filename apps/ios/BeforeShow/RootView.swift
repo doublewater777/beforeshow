@@ -161,6 +161,9 @@ struct RootView: View {
             .tag(BeforeShowTab.footprints)
             .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
         }
+        // 系统 TabView(Liquid Glass)自带交叉淡入,自定义 transition 会和它打架;
+        // 这里只补一个轻触觉,让切 tab 有确认感。
+        .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             // 仪式 sheet 关闭并要求跳到足迹时,切到 footprints tab。
             // FootprintsView 自己的 onChange 监听同一值并触发 push。

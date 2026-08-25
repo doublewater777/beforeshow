@@ -420,12 +420,20 @@ struct HomeCountdownLockup: View {
     private func preCountdown(timeState: CurrentShowTimeState, now: Date) -> some View {
         if let total = Self.remainingSeconds(to: timeState.effectiveStartTime, from: now) {
             if WidgetTimelinePlanner.isDayCountHero(remainingSeconds: total) {
+                let days = total / Int(WidgetTimelinePlanner.dayCountdownThreshold)
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .lastTextBaseline, spacing: 10) {
-                        Text("\(total / Int(WidgetTimelinePlanner.dayCountdownThreshold))")
+                        Text("\(days)")
                             .font(.system(size: dayNumber, weight: .ultraLight))
                             .tracking(-1.5)
                             .monospacedDigit()
+                            .contentTransition(.numericText(countsDown: true))
+                            // TimelineView re-renders without a transaction, so the
+                            // numericText roll needs its own animation keyed to the value.
+                            .animation(
+                                reduceMotion ? nil : .easeOut(duration: 0.32),
+                                value: days
+                            )
                             .lineLimit(1)
                             .foregroundColor(BSColor.Stage.heroIvory)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
@@ -479,9 +487,15 @@ struct HomeCountdownLockup: View {
             Spacer(minLength: 0)
 
             VStack(alignment: .trailing, spacing: 4) {
-                Text(Self.elapsedText(since: timeState.effectiveStartTime, now: now))
+                let elapsed = Self.elapsedText(since: timeState.effectiveStartTime, now: now)
+                Text(elapsed)
                     .font(.system(size: 22, weight: .semibold))
                     .monospacedDigit()
+                    .contentTransition(.numericText(countsDown: false))
+                    .animation(
+                        reduceMotion ? nil : .easeOut(duration: 0.22),
+                        value: elapsed
+                    )
                     .tracking(-0.3)
                     .foregroundColor(BSColor.Stage.foreground)
                 Text("已开场")

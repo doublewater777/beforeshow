@@ -618,11 +618,12 @@ struct BSPrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 13)
             .background(Color.white.opacity(configuration.isPressed ? 0.78 : 1))
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-            // Press-scale: 120ms is below the 160ms BSMotion.micro token, but
-            // matches DESIGN.md "PrimaryStageAction — 120ms press scale to 0.98"
-            // so the press reads as a single physical beat.
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            // Press-scale springs to 0.96 instead of easing to 0.98: the slight
+            // overshoot on release makes the press read as one physical beat.
+            // Supersedes DESIGN.md "PrimaryStageAction — 120ms press scale to 0.98".
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: configuration.isPressed)
     }
 }
 
@@ -639,8 +640,9 @@ struct BSSecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: BSRadius.md)
                     .stroke(BSColor.borderProminent, lineWidth: 1)
             )
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: configuration.isPressed)
     }
 }
 
@@ -657,8 +659,9 @@ struct BSDangerButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: BSRadius.md)
                     .stroke(BSColor.Stage.danger.opacity(0.30), lineWidth: 1)
             )
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.4), trigger: configuration.isPressed)
     }
 }
 

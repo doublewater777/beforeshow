@@ -264,6 +264,7 @@ struct MemoryFragmentsView: View {
                         }
 
                     }
+                    .animation(.spring(response: 0.4, dampingFraction: 0.85), value: fragments.count)
                     .padding(.bottom, 96)
                 }
                 .bsNavigationScrollEdge()
@@ -1057,6 +1058,12 @@ private struct MemoryTimelineSection: View {
                         onOpenMedia: { onOpenMedia(fragment, $0) }
                     )
                     .id(fragment.id)
+                    .transition(
+                        .asymmetric(
+                            insertion: .scale(scale: 0.94).combined(with: .opacity),
+                            removal: .opacity
+                        )
+                    )
                 }
             }
             .padding(.top, 10)

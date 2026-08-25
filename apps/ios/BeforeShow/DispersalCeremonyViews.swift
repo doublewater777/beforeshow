@@ -463,6 +463,7 @@ struct DispersalCombinedStep: View {
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.7), value: rating)
                     .accessibilityLabel(node.accessibilityLabel)
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
@@ -551,13 +552,14 @@ struct DispersalCombinedStep: View {
 
     private func bumpEmoji() {
         guard !reduceMotion else { return }
-        emojiBump = false
-        withAnimation(.easeOut(duration: 0.18)) {
+        // Spring bounce: the overshoot lands the emoji rather than easing into a
+        // hard stop, so a rating tap reads as one physical beat.
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.45)) {
             emojiBump = true
         }
         Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 170_000_000)
-            withAnimation(.easeOut(duration: 0.16)) {
+            try? await Task.sleep(nanoseconds: 180_000_000)
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.7)) {
                 emojiBump = false
             }
         }

@@ -233,6 +233,11 @@ private struct OnboardingPageView: View {
     let page: OnboardingPage
     let onAddShow: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var visualAppeared = false
+    @State private var textAppeared = false
+    @State private var bodyAppeared = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Group {
@@ -249,6 +254,8 @@ private struct OnboardingPageView: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: page == .start ? 405 : 430)
+            .scaleEffect(visualAppeared ? 1 : 0.92)
+            .opacity(visualAppeared ? 1 : 0)
 
             Spacer(minLength: 0)
 
@@ -256,6 +263,8 @@ private struct OnboardingPageView: View {
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.3)
                 .foregroundColor(BSColor.Stage.accent)
+                .opacity(textAppeared ? 1 : 0)
+                .offset(y: textAppeared ? 0 : 12)
 
             Text(page.title)
                 .font(.custom("Songti SC", size: page == .start ? 36 : 32, relativeTo: .largeTitle))
@@ -263,6 +272,8 @@ private struct OnboardingPageView: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 9)
+                .opacity(textAppeared ? 1 : 0)
+                .offset(y: textAppeared ? 0 : 12)
 
             Text(page.bodyText)
                 .font(.system(size: 13))
@@ -270,17 +281,48 @@ private struct OnboardingPageView: View {
                 .lineSpacing(5)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 10)
+                .opacity(bodyAppeared ? 1 : 0)
+                .offset(y: bodyAppeared ? 0 : 10)
 
             if page == .start {
                 Button(BSLocalization.text("添加我的第一个现场"), action: onAddShow)
                     .buttonStyle(BSPrimaryButtonStyle())
                     .padding(.top, 26)
+                    .opacity(bodyAppeared ? 1 : 0)
+                    .offset(y: bodyAppeared ? 0 : 10)
             }
         }
         .padding(.horizontal, 22)
         .padding(.top, 58)
         .padding(.bottom, BSSpacing.xl * 3 + BSSpacing.sm)
         .accessibilityElement(children: .contain)
+        .onAppear { runEntrance() }
+        .onChange(of: page) { _, _ in runEntrance() }
+    }
+
+    private func runEntrance() {
+        guard !reduceMotion else {
+            visualAppeared = true
+            textAppeared = true
+            bodyAppeared = true
+            return
+        }
+        visualAppeared = false
+        textAppeared = false
+        bodyAppeared = false
+        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+            visualAppeared = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(120))
+            withAnimation(.easeOut(duration: 0.35)) {
+                textAppeared = true
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+            withAnimation(.easeOut(duration: 0.3)) {
+                bodyAppeared = true
+            }
+        }
     }
 }
 

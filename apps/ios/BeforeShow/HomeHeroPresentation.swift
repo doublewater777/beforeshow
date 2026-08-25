@@ -33,6 +33,7 @@ struct HomeHeroStage: View {
     let coverWidth: CGFloat
     var isPlaybackActive = true
     var reduceMotion: Bool = false
+    @State private var glowBreathing = false
     /// 动态封面正在从照片图库导入,封面上盖一层进度态。
     var isImportingDynamicCover = false
     var onChooseVideo: (() -> Void)? = nil
@@ -88,6 +89,32 @@ struct HomeHeroStage: View {
             value: isImportingDynamicCover
         )
         .shadow(color: .black.opacity(0.55), radius: 30, y: 15)
+        .background {
+            if phase == .pre || phase == .live, !reduceMotion {
+                RoundedRectangle(cornerRadius: 30)
+                    .fill(
+                        RadialGradient(
+                            colors: [
+                                BSColor.Stage.accent.opacity(glowBreathing ? 0.25 : 0.10),
+                                .clear
+                            ],
+                            center: .center,
+                            startRadius: coverWidth * 0.3,
+                            endRadius: coverWidth * 0.75
+                        )
+                    )
+                    .blur(radius: 30)
+                    .onAppear {
+                        withAnimation(
+                            .easeInOut(duration: 3.0)
+                            .repeatForever(autoreverses: true)
+                        ) {
+                            glowBreathing = true
+                        }
+                    }
+                    .accessibilityHidden(true)
+            }
+        }
     }
 
     /// 导入耗时不可预估(图库可能要先下载 iCloud 原件),所以用不确定进度 + 一句说明。

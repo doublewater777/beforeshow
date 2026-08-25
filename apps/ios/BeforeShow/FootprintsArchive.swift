@@ -1343,8 +1343,11 @@ private struct FootprintArchiveDetailView: View {
     @State private var category: FootprintCategory
     @State private var isShowingShare = false
     @State private var toast: BSToastPayload?
+    /// 年度柱状图入场:柱子从 0 高度长到目标高度,逐根错开。
+    @State private var barsGrown = false
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         archive: FootprintArchiveSnapshot,
@@ -1547,18 +1550,29 @@ private struct FootprintArchiveDetailView: View {
         let maximum = archive.years.map { $0.shows.count }.max() ?? 1
         return HStack(alignment: .bottom, spacing: 14) {
             ForEach(Array(archive.years.reversed().enumerated()), id: \.element.id) { index, group in
+                let targetHeight = max(9, 74 * CGFloat(group.shows.count) / CGFloat(max(maximum, 1)))
                 VStack(spacing: 6) {
                     Text(BSLocalization.format("%lld 场 · %@", group.shows.count, yearDurationText(group)))
                         .font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
                         .lineLimit(1).minimumScaleFactor(0.8)
+                        .opacity(barsGrown ? 1 : 0)
                     RoundedRectangle(cornerRadius: 5).fill(index.isMultiple(of: 2) ? BSColor.Stage.accent.opacity(0.72) : BSColor.Stage.glowBlue.opacity(0.72))
-                        .frame(height: max(9, 74 * CGFloat(group.shows.count) / CGFloat(max(maximum, 1))))
+                        .frame(height: barsGrown ? targetHeight : 0)
                     Text(String(group.year)).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.muted)
                 }.frame(maxWidth: .infinity)
+                // 每根柱子延后 55ms,读起来像波浪依次长出而不是整块弹起。
+                .animation(
+                    reduceMotion
+                        ? nil
+                        : .spring(response: 0.5, dampingFraction: 0.78)
+                            .delay(Double(index) * 0.055),
+                    value: barsGrown
+                )
             }
         }
         .frame(height: 112, alignment: .bottom).padding(16)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))
+        .onAppear { barsGrown = true }
     }
 
     /// 某一年的累计观看时长。
