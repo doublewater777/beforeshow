@@ -2,6 +2,12 @@ import Foundation
 import CoreLocation
 import WeatherKit
 
+enum WeatherKitLegalAttribution {
+    static func legalPageURL() async -> URL? {
+        try? await WeatherService.shared.attribution.legalPageURL
+    }
+}
+
 struct WeatherKitForecastProvider: WeatherForecastProvider {
     /// 前置条件（必须做，不然 simulator 真机都拿不到数据）：
     /// 1. App ID `com.doublewaterapps.beforeshow` 在 Apple Developer Portal 的

@@ -71,6 +71,8 @@ final class WeatherFallbackTest: XCTestCase {
         let request = try XCTUnwrap(notifications.requests.first)
         XCTAssertEqual(request.identifier, "\(show.id.uuidString).oneDayBefore")
         XCTAssertEqual(notifications.requests.count, 1)
+        let showDay = calendar.startOfDay(for: show.effectiveDate)
+        XCTAssertEqual(provider.fetchedDates, [showDay])
     }
 
     func testFailedSubmissionIsNotDeduped() async throws {
@@ -97,6 +99,50 @@ final class WeatherFallbackTest: XCTestCase {
         notifications.error = nil
         await scheduler.runOpenCheck(modelContext: container.mainContext)
         XCTAssertEqual(notifications.requests.count, 1)
+        XCTAssertEqual(provider.fetchCount, 2)
+    }
+
+    func testFarFutureOneDayBeforeIsNotCheckedOrDeduped() async throws {
+        let (container, show, now, calendar) = try makeTomorrowShow()
+        let laterFire = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 20))!
+        container.mainContext.insert(
+            ShowNotificationScheduleRecord(
+                showID: show.id,
+                milestone: .oneDayBefore,
+                fireDate: laterFire,
+                title: "远",
+                body: "远"
+            )
+        )
+        try container.mainContext.save()
+        let notifications = RecordingWeatherNotifications()
+        let provider = StubForecastProvider { DailyForecast(
+            highCelsius: 22,
+            lowCelsius: 16,
+            precipitationChance: 0.4,
+            precipitationAmountMillimeters: 8,
+            windSpeedKilometersPerHour: 12,
+            condition: .rain
+        ) }
+        let scheduler = makeScheduler(
+            provider: provider,
+            notifications: notifications,
+            calendar: calendar,
+            now: now
+        )
+
+        await scheduler.runOpenCheck(modelContext: container.mainContext)
+
+        XCTAssertEqual(provider.fetchedDates.count, 1)
+        XCTAssertEqual(calendar.startOfDay(for: provider.fetchedDates[0]), calendar.startOfDay(for: show.effectiveDate))
+        let laterNow = calendar.date(from: DateComponents(year: 2026, month: 9, day: 10, hour: 10))!
+        let laterScheduler = makeScheduler(
+            provider: provider,
+            notifications: notifications,
+            calendar: calendar,
+            now: laterNow
+        )
+        await laterScheduler.runOpenCheck(modelContext: container.mainContext)
         XCTAssertEqual(provider.fetchCount, 2)
     }
 
@@ -199,6 +245,7 @@ private struct StubGeocoding: Geocoding {
 
 private final class StubForecastProvider: WeatherForecastProvider, @unchecked Sendable {
     var fetchCount = 0
+    var fetchedDates: [Date] = []
     private let fetch: @Sendable () async throws -> DailyForecast?
 
     init(fetch: @escaping @Sendable () async throws -> DailyForecast?) {
@@ -207,6 +254,7 @@ private final class StubForecastProvider: WeatherForecastProvider, @unchecked Se
 
     func fetchDailyForecast(at: GeocodedCoordinate, date: Date) async throws -> DailyForecast? {
         fetchCount += 1
+        fetchedDates.append(date)
         return try await fetch()
     }
 }

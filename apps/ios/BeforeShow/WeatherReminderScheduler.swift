@@ -123,23 +123,28 @@ final class WeatherReminderScheduler {
             if Task.isCancelled { return }
             guard let show = showsByID[record.showID], show.changeStatus == .scheduled else { continue }
 
+            let eventCalendar = show.timingCalendar(fallback: calendar)
+            let today = eventCalendar.startOfDay(for: now)
+            let reminderDay = eventCalendar.startOfDay(for: record.fireDate)
+            guard reminderDay == today else { continue }
+
             let place = [show.venueAddress, show.city].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
                 .joined(separator: " · ")
-            let reminderDay = calendar.startOfDay(for: record.fireDate)
+            let showDay = eventCalendar.startOfDay(for: show.effectiveDate)
 
-            let flightKey = Self.flightKey(showID: show.id, day: reminderDay, calendar: calendar)
+            let flightKey = Self.flightKey(showID: show.id, day: reminderDay, calendar: eventCalendar)
             guard !inFlightKeys.contains(flightKey) else { continue }
-            if deduper.hasPostedToday(showID: show.id, day: reminderDay, calendar: calendar) {
+            if deduper.hasPostedToday(showID: show.id, day: reminderDay, calendar: eventCalendar) {
                 continue
             }
             inFlightKeys.insert(flightKey)
             defer { inFlightKeys.remove(flightKey) }
 
-            let decision = await fetchAndDecide(show: show, showName: show.name, place: place, targetDate: reminderDay)
+            let decision = await fetchAndDecide(show: show, showName: show.name, place: place, targetDate: showDay)
             if Task.isCancelled { return }
             guard let decision, decision.isWeatherAlert else {
-                deduper.markPostedToday(showID: show.id, day: reminderDay, calendar: calendar)
+                deduper.markPostedToday(showID: show.id, day: reminderDay, calendar: eventCalendar)
                 continue
             }
             let posted = await replaceOneDayBefore(record: record, with: decision)

@@ -1263,7 +1263,8 @@
 "weatherReminderBodyCold" = "%1$@ 在 %2$@ 最低 %3$d°，套件外套";
 "weatherReminderBodyWindy" = "%1$@ 在 %2$@ 风大，留件挡风的";
 "weatherReminderTomorrowGeneric" = "%@ 明天见，今晚早点休息";
-"weatherReminderAttribution" = "Apple Weather";
+"weatherReminderAttribution" = "天气数据来自 Weather，并已经过处理。";
+"weatherReminderLegalTitle" = "Weather";
 "分享完整足迹" = "分享完整足迹";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "整张长图包含你的完整足迹档案，可直接保存或分享。";
 "我的现场足迹" = "我的现场足迹";
