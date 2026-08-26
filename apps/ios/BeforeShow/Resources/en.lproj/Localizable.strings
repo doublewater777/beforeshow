@@ -39,6 +39,7 @@
 "--" = "--";
 "BEFORESHOW" = "BEFORESHOW";
 "BEFORESHOW · LIVE ARCHIVE" = "BEFORESHOW · LIVE ARCHIVE";
+"LIVE ARCHIVE" = "LIVE ARCHIVE";
 "BEFORESHOW · 我的现场足迹" = "BEFORESHOW · My on-site footprints";
 "BeforeShow" = "BeforeShow";
 "TOGETHER · %@" = "TOGETHER · %@";
@@ -766,6 +767,8 @@ First show: %@";
 "分享城市档案" = "Share City Archive";
 "分享完整档案" = "Share Full Archive";
 "分享艺人档案" = "Share Artist Archive";
+"分享年度档案" = "Share Year Archive";
+"这一年的场次、月度节拍和年度之夜会汇总在同一张卡片。" = "The year's shows, monthly rhythm, and night of the year in one card.";
 "删除后可以重新添加。App 内保存的图片会一起移除。" = "You can re-add it later. Images saved in the app are removed too.";
 "删除后，这场现场将无法恢复，也会从足迹统计中移除。" = "After deleting, this show can't be restored and will be removed from footprint stats.";
 "取消后会停止倒计时和提醒，这场仍会保留在“我的现场”。" = "Canceling stops the countdown and reminders; the show stays in My Shows.";
@@ -878,7 +881,8 @@ First show: %@";
 "跟随系统" = "Follow System";
 "语言" = "Language";
 "App 语言" = "App Language";
-"查看隐私政策与用户协议" = "View privacy policy and terms of use";
+"法律信息" = "Legal";
+"ICP备案号" = "ICP Filing Number";
 "%@/年" = "%@/yr";
 "/ 年" = "/yr";
 "一次性" = "once";
@@ -1269,3 +1273,9 @@ First show: %@";
 "分享完整足迹" = "Share Full Footprints";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "The full-page image covers your entire footprint archive — save or share it directly.";
 "我的现场足迹" = "My Live Footprints";
+
+"回忆档案" = "Memory Archive";
+"全部回忆" = "All Memories";
+"%lld 场回忆" = "%lld memories";
+
+"LATEST MEMORY" = "LATEST MEMORY";

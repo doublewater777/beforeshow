@@ -138,6 +138,14 @@ extension FootprintArchiveSnapshot {
         )
     }
 
+    /// 年度高光场:优先回忆/纪念徽章场,否则取当年第一场。
+    func yearHighlightShow(for year: Int, covers: [UUID: FootprintCover]) -> Show? {
+        guard let shows = years.first(where: { $0.year == year })?.shows else { return nil }
+        return shows.first(where: { covers[$0.id]?.badge == .memory })
+            ?? shows.first(where: { covers[$0.id]?.badge == .keepsake })
+            ?? shows.first
+    }
+
     func shows(for ids: [UUID]) -> [Show] {
         let byID = Dictionary(uniqueKeysWithValues: shows.map { ($0.id, $0) })
         return ids.compactMap { byID[$0] }
@@ -413,6 +421,14 @@ enum FootprintCoverBadge: String, Equatable {
     case memory = "MEMORY"
     case keepsake = "KEEPSAKE"
     case archive = "ARCHIVE"
+
+    var localizedTitle: String {
+        switch self {
+        case .memory: return BSLocalization.text("回忆")
+        case .keepsake: return BSLocalization.text("留念")
+        case .archive: return BSLocalization.text("归档")
+        }
+    }
 }
 
 enum FootprintCoverSource: Equatable {

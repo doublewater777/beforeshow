@@ -1176,6 +1176,167 @@ struct FootprintArchiveShareSheet: View {
     }
 }
 
+struct FootprintYearShareSheet: View {
+    let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
+    let year: Int
+    let onSaved: () -> Void
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: BSLocalization.text("分享年度档案"),
+            subtitle: BSLocalization.text("这一年的场次、月度节拍和年度之夜会汇总在同一张卡片。"),
+            previewHeight: 368,
+            exportSize: CGSize(width: 1080, height: 1100),
+            beforeExport: {
+                await FootprintCoverExportWarmup.warm(covers: covers)
+            },
+            preview: { FootprintYearSharePreview(archive: archive, covers: covers, year: year) },
+            exportContent: { FootprintYearSharePreview(archive: archive, covers: covers, year: year) },
+            onSaved: onSaved
+        )
+    }
+}
+
+/// 年度档案分享卡片:年份大数字 + 月度节拍柱状图 + 年度之夜,风格对齐 FootprintArchiveSharePreview。
+private struct FootprintYearSharePreview: View {
+    let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
+    let year: Int
+
+    private var summary: FootprintYearArchiveSummary? { archive.yearArchiveSummary(for: year) }
+    private var activity: FootprintYearActivity? { archive.yearActivity(for: year) }
+    private var highlight: Show? { archive.yearHighlightShow(for: year, covers: covers) }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = geometry.size.width / 361
+            ZStack {
+                Color(red: 0.035, green: 0.047, blue: 0.078)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center) {
+                        Text("BEFORESHOW · LIVE ARCHIVE")
+                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
+                        Spacer()
+                        Text(String(year))
+                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
+                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
+                            .background(Color.white.opacity(0.045), in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
+                    }
+
+                    Text("LIVE TRAIL")
+                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
+                        .padding(.top, 14 * scale)
+
+                    if let summary {
+                        yearContent(summary: summary, scale: scale)
+                    } else {
+                        Text(BSLocalization.text("这一年还没有现场记录"))
+                            .font(.system(size: 12 * scale)).foregroundColor(BSColor.Stage.muted)
+                            .padding(.top, 12 * scale)
+                    }
+
+                    Spacer(minLength: 0)
+                    HStack {
+                        Text(BSLocalization.text("开场前"))
+                        Spacer()
+                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
+                    }
+                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
+                }
+                .padding(20 * scale)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func yearContent(summary: FootprintYearArchiveSummary, scale: CGFloat) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
+            Text(String(year))
+                .font(.system(size: 38 * scale, weight: .ultraLight))
+                .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), BSColor.Stage.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
+            VStack(alignment: .leading, spacing: 2 * scale) {
+                Text(BSLocalization.format("%lld 场现场", summary.showCount))
+                    .font(.system(size: 12 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground)
+                Text(ShowDurationFormatter.aggregate(totalMinutes: summary.durationMinutes))
+                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
+            }
+        }
+        .padding(.top, 2 * scale)
+
+        if let activity {
+            yearRhythm(activity, scale: scale)
+                .padding(.top, 12 * scale)
+        }
+
+        if let highlight {
+            yearHighlightRow(highlight, scale: scale)
+                .padding(.top, 10 * scale)
+        }
+    }
+
+    private func yearRhythm(_ activity: FootprintYearActivity, scale: CGFloat) -> some View {
+        let maxCount = max(1, activity.months.map(\.showCount).max() ?? 1)
+        return VStack(alignment: .leading, spacing: 7 * scale) {
+            Text(BSLocalization.text("年度节拍"))
+                .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
+            Text(footprintYearPeakText(activity))
+                .font(.system(size: 8.5 * scale)).foregroundColor(BSColor.Stage.muted)
+            HStack(alignment: .bottom, spacing: 5 * scale) {
+                ForEach(activity.months) { month in
+                    VStack(spacing: 4 * scale) {
+                        RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
+                            .fill(month.showCount == maxCount && month.showCount > 0 ? BSColor.Stage.accent : BSColor.Stage.accent.opacity(0.46))
+                            .frame(height: max(3 * scale, CGFloat(month.showCount) / CGFloat(maxCount) * 52 * scale))
+                        Text(monthLabel(month.month))
+                            .font(.system(size: 6 * scale))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .bottom)
+                }
+            }
+            .frame(height: 68 * scale, alignment: .bottom)
+        }
+        .padding(11 * scale)
+        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 13 * scale, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13 * scale, style: .continuous).stroke(Color.white.opacity(0.075)))
+    }
+
+    private func yearHighlightRow(_ show: Show, scale: CGFloat) -> some View {
+        HStack(spacing: 10 * scale) {
+            FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
+                .frame(width: 50 * scale, height: 58 * scale)
+                .clipShape(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous))
+            VStack(alignment: .leading, spacing: 4 * scale) {
+                Text(BSLocalization.text("THE NIGHT OF THE YEAR"))
+                    .font(.system(size: 7.5 * scale, weight: .semibold))
+                    .tracking(1.1 * scale)
+                    .foregroundColor(BSColor.Stage.accent)
+                Text(show.name)
+                    .font(.system(size: 11.5 * scale, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                Text([footprintFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: 8.5 * scale))
+                    .foregroundColor(BSColor.Stage.muted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(9 * scale)
+        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 13 * scale, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 13 * scale, style: .continuous).stroke(Color.white.opacity(0.075)))
+    }
+
+    private func monthLabel(_ month: Int) -> String {
+        guard Calendar.current.shortMonthSymbols.indices.contains(month - 1) else { return "—" }
+        return Calendar.current.shortMonthSymbols[month - 1].uppercased()
+    }
+}
+
 private struct FootprintArchiveSharePreview: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory

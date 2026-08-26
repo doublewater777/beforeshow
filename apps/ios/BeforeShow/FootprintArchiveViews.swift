@@ -481,11 +481,11 @@ struct FootprintDashboardSections {
                                         .padding(.vertical, 2)
                                         .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
 
-                                    if let cover = covers[show.id] {
-                                        Text(cover.badge.rawValue)
-                                            .font(.system(size: 9, weight: .medium))
-                                            .foregroundColor(BSColor.Stage.dim)
-                                    }
+                                   if let cover = covers[show.id] {
+                                        Text(cover.badge.localizedTitle)
+                                           .font(.system(size: 9, weight: .medium))
+                                           .foregroundColor(BSColor.Stage.dim)
+                                   }
                                 }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -1137,10 +1137,10 @@ struct FootprintCoverView: View {
         ZStack(alignment: .bottomLeading) {
             coverContent
             LinearGradient(colors: [.clear, .black.opacity(0.66)], startPoint: .center, endPoint: .bottom)
-            if showsMetadata, let cover, cover.source != .archive {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(cover.badge.rawValue).font(.system(size: 8.5, weight: .bold)).tracking(0.8).foregroundColor(.white.opacity(0.78))
-                    if let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city) {
+           if showsMetadata, let cover, cover.source != .archive {
+               VStack(alignment: .leading, spacing: 3) {
+                    Text(cover.badge.localizedTitle).font(.system(size: 8.5, weight: .bold)).tracking(0.8).foregroundColor(.white.opacity(0.78))
+                   if let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city) {
                         Text(city.uppercased()).font(.system(size: 8.5, weight: .medium)).tracking(0.6).foregroundColor(.white.opacity(0.82)).lineLimit(1)
                     }
                 }
@@ -1348,7 +1348,7 @@ struct FootprintYearArchiveView: View {
     }
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("年度档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers)) {
+        FootprintArchivePage(title: BSLocalization.text("年度档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .year(selectedYear))) {
             if let summary = selectedSummary {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(summary.year)")
@@ -1515,17 +1515,11 @@ struct FootprintYearArchiveView: View {
     }
 
     private var highlightShow: Show? {
-        guard let shows = selectedGroup?.shows else { return nil }
-        return shows.first(where: { covers[$0.id]?.badge == .memory })
-            ?? shows.first(where: { covers[$0.id]?.badge == .keepsake })
-            ?? shows.first
+        archive.yearHighlightShow(for: selectedYear, covers: covers)
     }
 
     private func yearPeakText(_ activity: FootprintYearActivity) -> String {
-        guard let peak = activity.months.max(by: { $0.showCount < $1.showCount }), peak.showCount > 0 else {
-            return BSLocalization.text("这一年还没有现场记录")
-        }
-        return BSLocalization.format("%lld 月是这一年最密集的一个月", peak.month)
+        footprintYearPeakText(activity)
     }
 
     private func monthLabel(_ month: Int) -> String {
@@ -1542,7 +1536,7 @@ struct FootprintArtistArchiveView: View {
     @State private var heroWidth: CGFloat = 365
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("艺人档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, category: .artist)) {
+        FootprintArchivePage(title: BSLocalization.text("艺人档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.artist))) {
             let items = archive.artistArchiveItems
             if let first = archive.artistArchiveItems.first {
                 artistArchiveHero(first)
@@ -1679,7 +1673,7 @@ struct FootprintCityArchiveView: View {
     @State private var selectedCity: FootprintCityArchiveItem?
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("城市档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, category: .city)) {
+        FootprintArchivePage(title: BSLocalization.text("城市档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.city))) {
             FootprintGeoMap(items: archive.cityArchiveItems, height: 360) { item in
                 selectedCity = item
             }
@@ -1842,7 +1836,7 @@ struct FootprintVenueArchiveView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, category: .venue)) {
+        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.venue))) {
             if let first = archive.venueArchiveItems.first {
                 let firstShows = archive.shows(for: first.showIDs)
                 HStack(alignment: .center, spacing: 16) {
@@ -2149,12 +2143,29 @@ struct FootprintFilteredShowsView: View {
     }
 }
 
-/// 档案二级页右上角分享入口的配置。category 为 nil 时分享完整足迹长图,
-/// 否则分享对应分类的档案卡片。
+/// 年度节拍峰值文案:年度档案页与年度分享卡片共用。
+func footprintYearPeakText(_ activity: FootprintYearActivity) -> String {
+    guard let peak = activity.months.max(by: { $0.showCount < $1.showCount }), peak.showCount > 0 else {
+        return BSLocalization.text("这一年还没有现场记录")
+    }
+    return BSLocalization.format("%lld 月是这一年最密集的一个月", peak.month)
+}
+
+/// 档案二级页右上角分享入口分享的内容类型。
+enum FootprintArchiveShareKind {
+    /// 完整足迹长图
+    case fullArchive
+    /// 对应分类的档案卡片(艺人/城市/场馆)
+    case category(FootprintCategory)
+    /// 指定年份的年度档案卡片
+    case year(Int)
+}
+
+/// 档案二级页右上角分享入口的配置。
 struct FootprintArchiveShareContext {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
-    var category: FootprintCategory? = nil
+    var kind: FootprintArchiveShareKind = .fullArchive
 }
 
 private struct FootprintArchivePage<Content: View>: View {
@@ -2219,7 +2230,8 @@ private struct FootprintArchivePage<Content: View>: View {
 
     @ViewBuilder
     private func shareSheet(_ share: FootprintArchiveShareContext) -> some View {
-        if let category = share.category {
+        switch share.kind {
+        case .category(let category):
             FootprintArchiveShareSheet(
                 archive: share.archive,
                 category: category,
@@ -2228,7 +2240,17 @@ private struct FootprintArchivePage<Content: View>: View {
             .presentationDetents([.height(620)])
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
-        } else {
+       case .year(let year):
+           FootprintYearShareSheet(
+               archive: share.archive,
+               covers: share.covers,
+               year: year,
+               onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+           )
+           .presentationDetents([PresentationDetent.height(620)])
+           .presentationCornerRadius(26)
+           .presentationDragIndicator(.visible)
+        case .fullArchive:
             FootprintShareSheet(
                 archive: share.archive,
                 covers: share.covers,
@@ -2323,19 +2345,20 @@ struct FootprintVenueCoverStack: View {
                     )
                     .frame(width: width, height: height)
             } else {
-                ForEach(Array(stackShows.enumerated().reversed()), id: \.element.id) { index, show in
-                    let isBack = index > 0
-                    FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
-                        .frame(width: width, height: height)
-                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .shadow(color: .black.opacity(0.45), radius: 6, x: 0, y: 3)
-                        .scaleEffect(isBack ? 0.88 : 1.0)
-                        .rotationEffect(.degrees(isBack ? -7 : 0))
-                        .offset(x: isBack ? -7 : 0, y: isBack ? -4 : 0)
-                }
-            }
-        }
-    }
+               ForEach(Array(stackShows.enumerated().reversed()), id: \.element.id) { index, show in
+                   let isBack = index > 0
+                   FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
+                       .frame(width: width, height: height)
+                       .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                       .shadow(color: .black.opacity(0.45), radius: 6, x: 0, y: 3)
+                       .scaleEffect(isBack ? 0.90 : 1.0)
+                       .rotationEffect(.degrees(isBack ? -4 : 0))
+                       .offset(x: isBack ? -4 : 0, y: isBack ? -2 : 0)
+               }
+           }
+       }
+       .padding(.leading, 4)
+   }
 }
 
 struct FootprintVenueShowsStrip: View {
