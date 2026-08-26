@@ -100,6 +100,38 @@ final class WeatherFallbackTest: XCTestCase {
         XCTAssertEqual(provider.fetchCount, 2)
     }
 
+    func testWeatherDoesNotCreateOneDayBeforeForUnscheduledShow() async throws {
+        let (container, focused, now, calendar) = try makeTomorrowShow()
+        let other = try Show(
+            name: "另一场",
+            date: calendar.date(from: DateComponents(year: 2026, month: 8, day: 26))!,
+            startTime: calendar.date(from: DateComponents(year: 2026, month: 8, day: 26, hour: 21))!,
+            city: "杭州",
+            venueName: "大麦"
+        )
+        container.mainContext.insert(other)
+        try container.mainContext.save()
+        let notifications = RecordingWeatherNotifications()
+        let provider = StubForecastProvider { DailyForecast(
+            highCelsius: 22,
+            lowCelsius: 16,
+            precipitationChance: 0.4,
+            precipitationAmountMillimeters: 8,
+            windSpeedKilometersPerHour: 12,
+            condition: .rain
+        ) }
+        let scheduler = makeScheduler(
+            provider: provider,
+            notifications: notifications,
+            calendar: calendar,
+            now: now
+        )
+
+        await scheduler.runOpenCheck(modelContext: container.mainContext)
+
+        XCTAssertEqual(notifications.requests.map(\.identifier), ["\(focused.id.uuidString).oneDayBefore"])
+    }
+
     func testInFlightKeyIsStablePerShowAndDay() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
@@ -140,10 +172,20 @@ final class WeatherFallbackTest: XCTestCase {
             venueName: "梅奔"
         )
         let container = try ModelContainer(
-            for: Show.self,
+            for: Show.self, ShowNotificationScheduleRecord.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         container.mainContext.insert(show)
+        let fireDate = calendar.date(from: DateComponents(year: 2026, month: 8, day: 25, hour: 20))!
+        container.mainContext.insert(
+            ShowNotificationScheduleRecord(
+                showID: show.id,
+                milestone: .oneDayBefore,
+                fireDate: fireDate,
+                title: "明天见",
+                body: "上海 明天见，今晚早点休息"
+            )
+        )
         try container.mainContext.save()
         return (container, show, now, calendar)
     }

@@ -315,6 +315,19 @@ final class DynamicCoverTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
     }
 
+    func testRollbackRemovesPosterAlongsideVideo() async throws {
+        let (root, store) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let showID = UUID()
+        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let posterPath = try XCTUnwrap(committed.posterRelativePath)
+
+        try await store.rollbackCommittedFile(relativePath: committed.relativePath)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed.relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+    }
+
     func testReconcileKeepsPosterInsideValidSet() async throws {
         let (root, store) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }

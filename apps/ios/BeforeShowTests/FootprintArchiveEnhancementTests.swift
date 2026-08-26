@@ -104,6 +104,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
 
         XCTAssertEqual(archive.venueArchiveItems.count, 2)
         XCTAssertEqual(Set(archive.venueArchiveItems.map(\.id)).count, 2)
+        XCTAssertEqual(archive.venues.count, 2)
         XCTAssertTrue(archive.venueArchiveItems.allSatisfy { $0.count == 1 && $0.isRevisited == false })
     }
 
@@ -124,6 +125,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(venue.count, 2)
         XCTAssertTrue(venue.isRevisited)
         XCTAssertEqual(venue.cities, ["上海"])
+        XCTAssertEqual(archive.venues.count, archive.venueArchiveItems.count)
     }
 
     func testArtistArchiveUsesLaterPersistedAlbumArtworkWhenEarliestSlotIsNil() throws {

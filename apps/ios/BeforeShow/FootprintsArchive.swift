@@ -263,7 +263,7 @@ enum FootprintArchiveBuilder {
             shows: archived,
             artists: rank(archived.flatMap { $0.artistNames }),
             cities: rank(archived.compactMap { normalized($0.city) }),
-            venues: rank(archived.compactMap { normalized($0.venueName) }),
+            venues: FootprintArchiveRankingBuilder.venues(in: archived).map(\.rankItem),
             years: grouped.keys.sorted(by: >).map {
                 FootprintYearGroup(year: $0, shows: grouped[$0] ?? [])
             },

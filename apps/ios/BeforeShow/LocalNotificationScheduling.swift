@@ -823,6 +823,7 @@ final class LocalNotificationCenter {
 
         do {
             try context.save()
+            WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(modelContext: context)
             return didScheduleEveryRequest
         } catch {
             center.removePendingNotificationRequests(

@@ -81,7 +81,7 @@ enum WeatherReminderPolicy {
         case .severeAlert(let showName, let place):
             let title = BSLocalization.text("weatherReminderTitleAlert")
             let body = BSLocalization.format("weatherReminderBodyAlert", showName, place.isEmpty ? "—" : place)
-            return (title, body)
+            return attributed(title, body)
         case .rain(let showName, let place, _):
             let title = BSLocalization.text("weatherReminderTitleRain")
             let body = BSLocalization.format(
@@ -89,7 +89,7 @@ enum WeatherReminderPolicy {
                 showName,
                 place.isEmpty ? "—" : place
             )
-            return (title, body)
+            return attributed(title, body)
         case .snow(let showName, let place, _):
             let title = BSLocalization.text("weatherReminderTitleSnow")
             let body = BSLocalization.format(
@@ -97,7 +97,7 @@ enum WeatherReminderPolicy {
                 showName,
                 place.isEmpty ? "—" : place
             )
-            return (title, body)
+            return attributed(title, body)
         case .heat(let showName, let place, let highC):
             let title = BSLocalization.text("weatherReminderTitleHot")
             let body = BSLocalization.format(
@@ -106,7 +106,7 @@ enum WeatherReminderPolicy {
                 place.isEmpty ? "—" : place,
                 highC
             )
-            return (title, body)
+            return attributed(title, body)
         case .cold(let showName, let place, let lowC):
             let title = BSLocalization.text("weatherReminderTitleCold")
             let body = BSLocalization.format(
@@ -115,7 +115,7 @@ enum WeatherReminderPolicy {
                 place.isEmpty ? "—" : place,
                 lowC
             )
-            return (title, body)
+            return attributed(title, body)
         case .wind(let showName, let place, _):
             let title = BSLocalization.text("weatherReminderTitleWindy")
             let body = BSLocalization.format(
@@ -123,12 +123,16 @@ enum WeatherReminderPolicy {
                 showName,
                 place.isEmpty ? "—" : place
             )
-            return (title, body)
+            return attributed(title, body)
         case .genericReminder(let showName, let place):
             // 复用现有「明天见」标题 key：和原 .oneDayBefore 通知一致，三语种都映射好。
             let title = BSLocalization.text("明天见")
             let body = BSLocalization.format("weatherReminderTomorrowGeneric", place.isEmpty ? showName : place)
             return (title, body)
         }
+    }
+
+    private static func attributed(_ title: String, _ body: String) -> (String, String) {
+        (title, body + "\n" + BSLocalization.text("weatherReminderAttribution"))
     }
 }

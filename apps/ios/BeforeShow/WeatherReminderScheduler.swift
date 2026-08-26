@@ -17,7 +17,7 @@ extension UNUserNotificationCenter: WeatherNotificationSubmitting {}
 /// 三个触发入口：
 /// - `registerTaskHandler(modelContainer:)`：冷启动时挂上 BGTaskScheduler handler
 /// - `runOpenCheck(modelContext:)`：App 打开 / scenePhase=.active / 冷启动
-/// - `scheduleNextBackgroundCheck(modelContext:)`：滚到下一个有演出的明天 20:00
+/// - `scheduleNextBackgroundCheck(modelContext:)`：滚到下一个有演出的前一天 10:00，早于 20:00 的日历提醒
 @MainActor
 final class WeatherReminderScheduler {
     static let shared = WeatherReminderScheduler(
@@ -34,7 +34,6 @@ final class WeatherReminderScheduler {
         deduper: WeatherReminderDeduper,
         calendar: Calendar,
         notifications: WeatherNotificationSubmitting,
-        notificationPlanner: LocalNotificationScheduler? = nil,
         clock: @escaping () -> Date = Date.init
     ) {
         self.provider = provider
@@ -42,9 +41,8 @@ final class WeatherReminderScheduler {
         self.deduper = deduper
         self.calendar = calendar
         self.notifications = notifications
-        self.notificationPlanner = notificationPlanner ?? LocalNotificationScheduler(calendar: calendar)
         self.clock = clock
-        self.reminderHour = 20
+        self.backgroundCheckHour = 10
     }
 
     private let provider: WeatherForecastProvider
@@ -52,9 +50,9 @@ final class WeatherReminderScheduler {
     private let deduper: WeatherReminderDeduper
     private let calendar: Calendar
     private let notifications: WeatherNotificationSubmitting
-    private let notificationPlanner: LocalNotificationScheduler
     private let clock: () -> Date
-    private let reminderHour: Int
+    /// 后台天气拉取必须早于 `.oneDayBefore` 的 20:00 触发，否则 `fireDate > now` 已经不成立。
+    private let backgroundCheckHour: Int
     private var inFlightKeys: Set<String> = []
 
     private static let backgroundTaskIdentifier = "com.doublewaterapps.beforeshow.weather.refresh"
@@ -116,37 +114,37 @@ final class WeatherReminderScheduler {
 
     func runOpenCheck(modelContext: ModelContext) async {
         let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
+        let showsByID = Dictionary(uniqueKeysWithValues: shows.map { ($0.id, $0) })
         let now = clock()
-        let target = calendar.date(byAdding: .day, value: 1, to: now) ?? now
-        let targetStart = calendar.startOfDay(for: target)
-        guard let targetEnd = calendar.date(byAdding: .day, value: 1, to: targetStart) else { return }
+        let records = ((try? modelContext.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())) ?? [])
+            .filter { $0.milestone == .oneDayBefore && $0.isBackfill != true && $0.fireDate > now }
 
-        for show in shows where show.changeStatus == .scheduled {
+        for record in records {
             if Task.isCancelled { return }
-            let effectiveDate = show.effectiveDate
-            guard effectiveDate >= targetStart, effectiveDate < targetEnd else { continue }
+            guard let show = showsByID[record.showID], show.changeStatus == .scheduled else { continue }
 
             let place = [show.venueAddress, show.city].compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
                 .filter { !$0.isEmpty }
                 .joined(separator: " · ")
+            let reminderDay = calendar.startOfDay(for: record.fireDate)
 
-            let flightKey = Self.flightKey(showID: show.id, day: targetStart, calendar: calendar)
+            let flightKey = Self.flightKey(showID: show.id, day: reminderDay, calendar: calendar)
             guard !inFlightKeys.contains(flightKey) else { continue }
-            if deduper.hasPostedToday(showID: show.id, day: targetStart, calendar: calendar) {
+            if deduper.hasPostedToday(showID: show.id, day: reminderDay, calendar: calendar) {
                 continue
             }
             inFlightKeys.insert(flightKey)
             defer { inFlightKeys.remove(flightKey) }
 
-            let decision = await fetchAndDecide(show: show, showName: show.name, place: place, targetDate: targetStart)
+            let decision = await fetchAndDecide(show: show, showName: show.name, place: place, targetDate: reminderDay)
             if Task.isCancelled { return }
             guard let decision, decision.isWeatherAlert else {
-                deduper.markPostedToday(showID: show.id, day: targetStart, calendar: calendar)
+                deduper.markPostedToday(showID: show.id, day: reminderDay, calendar: calendar)
                 continue
             }
-            let posted = await replaceOneDayBefore(for: show, with: decision, now: now)
+            let posted = await replaceOneDayBefore(record: record, with: decision)
             if posted {
-                deduper.markPostedToday(showID: show.id, day: targetStart, calendar: calendar)
+                deduper.markPostedToday(showID: show.id, day: reminderDay, calendar: calendar)
             }
         }
     }
@@ -174,28 +172,25 @@ final class WeatherReminderScheduler {
         return WeatherReminderPolicy.decision(forecast: forecast, showName: showName, place: place)
     }
 
-    /// 用天气文案替换已排好的 `.oneDayBefore` 日历通知；标识符不变，20:00 触发不变。
+    /// 只替换已登记的 `.oneDayBefore` 记录，不给非焦点现场另造一条通知。
     @discardableResult
     private func replaceOneDayBefore(
-        for show: Show,
-        with decision: WeatherReminderPolicy.Decision,
-        now: Date
+        record: ShowNotificationScheduleRecord,
+        with decision: WeatherReminderPolicy.Decision
     ) async -> Bool {
-        guard let pending = notificationPlanner.futureRequests(for: show, now: now)
-            .first(where: { $0.milestone == .oneDayBefore }) else {
-            return false
-        }
         let (title, body) = WeatherReminderPolicy.copy(for: decision)
         let updated = ScheduledShowNotification(
-            showID: pending.showID,
-            milestone: pending.milestone,
-            fireDate: pending.fireDate,
+            showID: record.showID,
+            milestone: .oneDayBefore,
+            fireDate: record.fireDate,
             title: title,
             body: body,
-            isBackfill: pending.isBackfill
+            isBackfill: false
         )
         do {
             try await notifications.add(updated.makeNotificationRequest())
+            record.title = title
+            record.body = body
             return true
         } catch {
             return false
@@ -227,7 +222,7 @@ final class WeatherReminderScheduler {
             let dayStart = calendar.startOfDay(for: effective)
             guard let dayBefore = calendar.date(byAdding: .day, value: -1, to: dayStart),
                   let candidate = calendar.date(
-                    bySettingHour: reminderHour,
+                    bySettingHour: backgroundCheckHour,
                     minute: 0,
                     second: 0,
                     of: dayBefore

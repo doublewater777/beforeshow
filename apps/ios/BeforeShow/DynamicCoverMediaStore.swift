@@ -305,6 +305,7 @@ actor DynamicCoverMediaStore {
 
     func rollbackCommittedFile(relativePath: String) throws {
         try removeIfPresent(location.url(for: relativePath))
+        try removeIfPresent(location.url(for: Self.posterRelativePath(forVideoRelativePath: relativePath)))
     }
 
     func discardDraft(_ draftID: UUID) throws {
