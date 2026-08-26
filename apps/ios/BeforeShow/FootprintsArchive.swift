@@ -1176,357 +1176,99 @@ struct FootprintArchiveShareSheet: View {
     }
 }
 
-struct FootprintYearShareSheet: View {
-    let archive: FootprintArchiveSnapshot
+/// 档案二级页分享入口:把整个页面渲染成一张完整长图(页头 + 页面内容 + 落款),
+/// 布局宽度对齐 dashboard 导出,按 exportScale 放大出图。
+struct FootprintPageShareSheet<Content: View>: View {
+    let title: String
+    let kicker: String
     let covers: [UUID: FootprintCover]
-    let year: Int
     let onSaved: () -> Void
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
         FootprintShareActionSheet(
-            title: BSLocalization.text("分享年度档案"),
-            subtitle: BSLocalization.text("这一年的场次、月度节拍和年度之夜会汇总在同一张卡片。"),
+            title: BSLocalization.text("分享本页"),
+            subtitle: BSLocalization.text("当前页面会渲染成一张完整长图，可直接保存或分享。"),
             previewHeight: 368,
-            exportSize: CGSize(width: 1080, height: 1100),
+            exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
+            usesIntrinsicHeight: true,
+            exportScale: FootprintDashboardExportView.exportScale,
             beforeExport: {
                 await FootprintCoverExportWarmup.warm(covers: covers)
             },
-            preview: { FootprintYearSharePreview(archive: archive, covers: covers, year: year) },
-            exportContent: { FootprintYearSharePreview(archive: archive, covers: covers, year: year) },
+            flexiblePreviewHeight: true,
+            preview: { FootprintPageExportPreview(title: title, kicker: kicker, content: content) },
+            exportContent: { FootprintPageExportView(title: title, kicker: kicker, content: content) },
             onSaved: onSaved
         )
     }
 }
 
-/// 年度档案分享卡片:年份大数字 + 月度节拍柱状图 + 年度之夜,风格对齐 FootprintArchiveSharePreview。
-private struct FootprintYearSharePreview: View {
-    let archive: FootprintArchiveSnapshot
-    let covers: [UUID: FootprintCover]
-    let year: Int
-
-    private var summary: FootprintYearArchiveSummary? { archive.yearArchiveSummary(for: year) }
-    private var activity: FootprintYearActivity? { archive.yearActivity(for: year) }
-    private var highlight: Show? { archive.yearHighlightShow(for: year, covers: covers) }
+/// 整页长图的导出内容:页头(kicker + 页标题) + 页面内容 + 底部署名日期。
+struct FootprintPageExportView<Content: View>: View {
+    let title: String
+    let kicker: String
+    @ViewBuilder let content: () -> Content
 
     var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / 361
-            ZStack {
-                Color(red: 0.035, green: 0.047, blue: 0.078)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center) {
-                        Text("BEFORESHOW · LIVE ARCHIVE")
-                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
-                        Spacer()
-                        Text(String(year))
-                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
-                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
-                            .background(Color.white.opacity(0.045), in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
-                    }
-
-                    Text("LIVE TRAIL")
-                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
-                        .padding(.top, 14 * scale)
-
-                    if let summary {
-                        yearContent(summary: summary, scale: scale)
-                    } else {
-                        Text(BSLocalization.text("这一年还没有现场记录"))
-                            .font(.system(size: 12 * scale)).foregroundColor(BSColor.Stage.muted)
-                            .padding(.top, 12 * scale)
-                    }
-
-                    Spacer(minLength: 0)
-                    HStack {
-                        Text(BSLocalization.text("开场前"))
-                        Spacer()
-                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
-                    }
-                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
-                }
-                .padding(20 * scale)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func yearContent(summary: FootprintYearArchiveSummary, scale: CGFloat) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
-            Text(String(year))
-                .font(.system(size: 38 * scale, weight: .ultraLight))
-                .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), BSColor.Stage.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-            VStack(alignment: .leading, spacing: 2 * scale) {
-                Text(BSLocalization.format("%lld 场现场", summary.showCount))
-                    .font(.system(size: 12 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground)
-                Text(ShowDurationFormatter.aggregate(totalMinutes: summary.durationMinutes))
-                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
-            }
-        }
-        .padding(.top, 2 * scale)
-
-        if let activity {
-            yearRhythm(activity, scale: scale)
-                .padding(.top, 12 * scale)
-        }
-
-        if let highlight {
-            yearHighlightRow(highlight, scale: scale)
-                .padding(.top, 10 * scale)
-        }
-    }
-
-    private func yearRhythm(_ activity: FootprintYearActivity, scale: CGFloat) -> some View {
-        let maxCount = max(1, activity.months.map(\.showCount).max() ?? 1)
-        return VStack(alignment: .leading, spacing: 7 * scale) {
-            Text(BSLocalization.text("年度节拍"))
-                .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
-            Text(footprintYearPeakText(activity))
-                .font(.system(size: 8.5 * scale)).foregroundColor(BSColor.Stage.muted)
-            HStack(alignment: .bottom, spacing: 5 * scale) {
-                ForEach(activity.months) { month in
-                    VStack(spacing: 4 * scale) {
-                        RoundedRectangle(cornerRadius: 3 * scale, style: .continuous)
-                            .fill(month.showCount == maxCount && month.showCount > 0 ? BSColor.Stage.accent : BSColor.Stage.accent.opacity(0.46))
-                            .frame(height: max(3 * scale, CGFloat(month.showCount) / CGFloat(maxCount) * 52 * scale))
-                        Text(monthLabel(month.month))
-                            .font(.system(size: 6 * scale))
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .bottom)
-                }
-            }
-            .frame(height: 68 * scale, alignment: .bottom)
-        }
-        .padding(11 * scale)
-        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 13 * scale, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 13 * scale, style: .continuous).stroke(Color.white.opacity(0.075)))
-    }
-
-    private func yearHighlightRow(_ show: Show, scale: CGFloat) -> some View {
-        HStack(spacing: 10 * scale) {
-            FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
-                .frame(width: 50 * scale, height: 58 * scale)
-                .clipShape(RoundedRectangle(cornerRadius: 7 * scale, style: .continuous))
-            VStack(alignment: .leading, spacing: 4 * scale) {
-                Text(BSLocalization.text("THE NIGHT OF THE YEAR"))
-                    .font(.system(size: 7.5 * scale, weight: .semibold))
-                    .tracking(1.1 * scale)
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("BEFORESHOW · LIVE ARCHIVE")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .tracking(1.65)
                     .foregroundColor(BSColor.Stage.accent)
-                Text(show.name)
-                    .font(.system(size: 11.5 * scale, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 24, weight: .bold))
                     .foregroundColor(BSColor.Stage.foreground)
-                    .lineLimit(1)
-                Text([footprintFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 8.5 * scale))
-                    .foregroundColor(BSColor.Stage.muted)
             }
-            Spacer(minLength: 0)
+
+            VStack(alignment: .leading, spacing: 16) {
+                if !kicker.isEmpty {
+                    Text(kicker)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(2)
+                        .foregroundColor(BSColor.Stage.accent)
+                }
+                content()
+            }
+
+            HStack {
+                Text(BSLocalization.text("开场前"))
+                Spacer()
+                Text(footprintFullDateText(Date(), calendar: Calendar.current))
+            }
+            .font(.system(size: 9.5))
+            .foregroundColor(BSColor.Stage.dim)
+            .padding(.top, 8)
         }
-        .padding(9 * scale)
-        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 13 * scale, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 13 * scale, style: .continuous).stroke(Color.white.opacity(0.075)))
-    }
-
-    private func monthLabel(_ month: Int) -> String {
-        guard Calendar.current.shortMonthSymbols.indices.contains(month - 1) else { return "—" }
-        return Calendar.current.shortMonthSymbols[month - 1].uppercased()
+        .padding(.horizontal, 20)
+        .padding(.top, 26)
+        .padding(.bottom, 30)
+        .frame(width: FootprintDashboardExportView.layoutWidth, alignment: .leading)
+        .background(BSColor.Stage.background)
     }
 }
 
-struct FootprintShowsShareSheet: View {
+/// 整页长图在分享 sheet 里的可滚动缩放预览,做法对齐 FootprintDashboardExportPreview。
+private struct FootprintPageExportPreview<Content: View>: View {
     let title: String
-    let stats: String
-    let shows: [Show]
-    let covers: [UUID: FootprintCover]
-    let onSaved: () -> Void
+    let kicker: String
+    @ViewBuilder let content: () -> Content
 
-    var body: some View {
-        FootprintShareActionSheet(
-            title: BSLocalization.text("分享现场清单"),
-            subtitle: BSLocalization.text("这份清单里的场次、日期和场馆会汇总在同一张卡片。"),
-            previewHeight: 368,
-            exportSize: CGSize(width: 1080, height: 1100),
-            beforeExport: {
-                await FootprintCoverExportWarmup.warm(covers: covers)
-            },
-            preview: { FootprintShowsSharePreview(title: title, stats: stats, shows: shows, covers: covers) },
-            exportContent: { FootprintShowsSharePreview(title: title, stats: stats, shows: shows, covers: covers) },
-            onSaved: onSaved
-        )
-    }
-}
-
-struct FootprintMemoriesShareSheet: View {
-    let shows: [Show]
-    let covers: [UUID: FootprintCover]
-    let onSaved: () -> Void
-
-    var body: some View {
-        FootprintShareActionSheet(
-            title: BSLocalization.text("分享回忆档案"),
-            subtitle: BSLocalization.text("回忆场次和封面会汇总在同一张卡片。"),
-            previewHeight: 368,
-            exportSize: CGSize(width: 1080, height: 1100),
-            beforeExport: {
-                await FootprintCoverExportWarmup.warm(covers: covers)
-            },
-            preview: { FootprintMemoriesSharePreview(shows: shows, covers: covers) },
-            exportContent: { FootprintMemoriesSharePreview(shows: shows, covers: covers) },
-            onSaved: onSaved
-        )
-    }
-}
-
-/// 现场清单分享卡片:标题 + 统计行 + 最多 5 场场次列表,风格对齐 FootprintArchiveSharePreview。
-private struct FootprintShowsSharePreview: View {
-    let title: String
-    let stats: String
-    let shows: [Show]
-    let covers: [UUID: FootprintCover]
+    @State private var contentHeight: CGFloat = 0
 
     var body: some View {
         GeometryReader { geometry in
-            let scale = geometry.size.width / 361
-            ZStack {
-                Color(red: 0.035, green: 0.047, blue: 0.078)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center) {
-                        Text("BEFORESHOW · LIVE ARCHIVE")
-                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
-                        Spacer()
-                        Text(stats)
-                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
-                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
-                            .background(Color.white.opacity(0.045), in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
-                    }
-
-                    Text("LIVE TRAIL")
-                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
-                        .padding(.top, 14 * scale)
-
-                    Text(title)
-                        .font(.system(size: 24 * scale, weight: .bold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .lineLimit(2)
-                        .padding(.top, 6 * scale)
-                    Text(stats)
-                        .font(.system(size: 10 * scale))
-                        .foregroundColor(BSColor.Stage.muted)
-                        .padding(.top, 4 * scale)
-
-                    VStack(spacing: 0) {
-                        ForEach(Array(shows.prefix(5))) { show in
-                            showRow(show, scale: scale)
-                        }
-                    }
-                    .padding(.top, 10 * scale)
-
-                    Spacer(minLength: 0)
-                    HStack {
-                        Text(BSLocalization.text("开场前"))
-                        Spacer()
-                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
-                    }
-                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
-                }
-                .padding(20 * scale)
-            }
-        }
-    }
-
-    private func showRow(_ show: Show, scale: CGFloat) -> some View {
-        HStack(spacing: 9 * scale) {
-            FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
-                .frame(width: 26 * scale, height: 30 * scale)
-                .clipShape(RoundedRectangle(cornerRadius: 5 * scale, style: .continuous))
-            VStack(alignment: .leading, spacing: 2 * scale) {
-                Text(show.name)
-                    .font(.system(size: 11 * scale, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .lineLimit(1)
-                Text([footprintFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 8 * scale))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 5 * scale)
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1) }
-    }
-}
-
-/// 回忆档案分享卡片:数量大数字 + 3×2 封面网格,风格对齐 FootprintArchiveSharePreview。
-private struct FootprintMemoriesSharePreview: View {
-    let shows: [Show]
-    let covers: [UUID: FootprintCover]
-
-    private var yearSpan: String {
-        guard let first = shows.last, let last = shows.first else { return "—" }
-        let firstYear = first.timingCalendar().component(.year, from: first.effectiveDate)
-        let lastYear = last.timingCalendar().component(.year, from: last.effectiveDate)
-        return firstYear == lastYear ? String(firstYear) : "\(firstYear) → \(lastYear)"
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / 361
-            ZStack {
-                Color(red: 0.035, green: 0.047, blue: 0.078)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center) {
-                        Text("BEFORESHOW · LIVE ARCHIVE")
-                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
-                        Spacer()
-                        Text(yearSpan)
-                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
-                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
-                            .background(Color.white.opacity(0.045), in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
-                    }
-
-                    Text("MEMORIES")
-                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
-                        .padding(.top, 14 * scale)
-
-                    HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
-                        Text("\(shows.count)")
-                            .font(.system(size: 38 * scale, weight: .ultraLight))
-                            .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), BSColor.Stage.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        Text(BSLocalization.text("场回忆"))
-                            .font(.system(size: 12 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground)
-                    }
-                    .padding(.top, 2 * scale)
-
-                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8 * scale), GridItem(.flexible(), spacing: 8 * scale), GridItem(.flexible(), spacing: 8 * scale)], spacing: 8 * scale) {
-                        ForEach(Array(shows.prefix(6))) { show in
-                            FootprintMemoryCard(show: show, cover: covers[show.id])
-                                .frame(height: 128 * scale)
-                                .clipShape(RoundedRectangle(cornerRadius: 12 * scale, style: .continuous))
-                        }
-                    }
-                    .padding(.top, 14 * scale)
-
-                    Spacer(minLength: 0)
-                    HStack {
-                        Text(BSLocalization.text("开场前"))
-                        Spacer()
-                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
-                    }
-                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
-                }
-                .padding(20 * scale)
+            let scale = geometry.size.width / FootprintDashboardExportView.layoutWidth
+            ScrollView {
+                FootprintPageExportView(title: title, kicker: kicker, content: content)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { contentHeight = $0.height }
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(
+                        width: geometry.size.width,
+                        height: contentHeight * scale,
+                        alignment: .topLeading
+                    )
             }
         }
     }

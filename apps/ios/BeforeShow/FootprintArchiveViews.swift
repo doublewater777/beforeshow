@@ -1347,7 +1347,7 @@ struct FootprintYearArchiveView: View {
     }
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("年度档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .year(selectedYear))) {
+        FootprintArchivePage(title: BSLocalization.text("年度档案"), kicker: "", shareCovers: covers) { isForExport in
             if let summary = selectedSummary {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(summary.year)")
@@ -1363,7 +1363,7 @@ struct FootprintYearArchiveView: View {
                         .foregroundColor(BSColor.Stage.muted)
                 }
 
-                yearPicker
+                yearPicker(isForExport: isForExport)
 
                 if let activity = selectedActivity {
                     yearRhythmCard(activity)
@@ -1386,27 +1386,32 @@ struct FootprintYearArchiveView: View {
         }
     }
 
-    private var yearPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(archive.years.map(\.year), id: \.self) { year in
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            selectedYear = year
-                        }
-                    } label: {
-                        Text(String(year))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(year == selectedYear ? BSColor.Stage.accent : Color.white.opacity(0.045), in: Capsule())
-                            .overlay(Capsule().stroke(year == selectedYear ? BSColor.Stage.accent : BSColor.Stage.border))
+    /// isForExport: ImageRenderer 快照里横向 ScrollView 会渲染成空白,导出时改用普通 HStack。
+    @ViewBuilder
+    private func yearPicker(isForExport: Bool) -> some View {
+        let pills = HStack(spacing: 8) {
+            ForEach(archive.years.map(\.year), id: \.self) { year in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedYear = year
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityAddTraits(year == selectedYear ? .isSelected : [])
+                } label: {
+                    Text(String(year))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(year == selectedYear ? BSColor.Stage.accent : Color.white.opacity(0.045), in: Capsule())
+                        .overlay(Capsule().stroke(year == selectedYear ? BSColor.Stage.accent : BSColor.Stage.border))
                 }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(year == selectedYear ? .isSelected : [])
             }
+        }
+        if isForExport {
+            pills
+        } else {
+            ScrollView(.horizontal, showsIndicators: false) { pills }
         }
     }
 
@@ -1535,7 +1540,7 @@ struct FootprintArtistArchiveView: View {
     @State private var heroWidth: CGFloat = 365
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("艺人档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.artist))) {
+        FootprintArchivePage(title: BSLocalization.text("艺人档案"), kicker: "", shareCovers: covers) { _ in
             let items = archive.artistArchiveItems
             if let first = archive.artistArchiveItems.first {
                 artistArchiveHero(first)
@@ -1672,7 +1677,7 @@ struct FootprintCityArchiveView: View {
     @State private var selectedCity: FootprintCityArchiveItem?
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("城市档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.city))) {
+        FootprintArchivePage(title: BSLocalization.text("城市档案"), kicker: "", shareCovers: covers) { _ in
             FootprintGeoMap(items: archive.cityArchiveItems, height: 360) { item in
                 selectedCity = item
             }
@@ -1724,7 +1729,7 @@ struct FootprintCityDetailView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .shows(title: item.name, stats: BSLocalization.format("%lld 场 · %lld 个场馆 · %@", item.count, item.venueCount, item.yearSpan.displayText), shows: shows))) {
+        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", shareCovers: covers) { _ in
             cityHero
             archiveSectionTitle(BSLocalization.text("这座城市里的现场"), BSLocalization.format("%lld 场 · 按时间倒序", item.count))
             ForEach(shows) { show in
@@ -1835,7 +1840,7 @@ struct FootprintVenueArchiveView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .category(.venue))) {
+        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", shareCovers: covers) { _ in
             if let first = archive.venueArchiveItems.first {
                 let firstShows = archive.shows(for: first.showIDs)
                 HStack(alignment: .center, spacing: 16) {
@@ -1994,7 +1999,7 @@ struct FootprintMemoriesArchiveView: View {
     }
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("回忆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .memories(memoryShows))) {
+        FootprintArchivePage(title: BSLocalization.text("回忆档案"), kicker: "", shareCovers: covers) { _ in
             if let latest = memoryShows.first {
                 memoryHero(latest)
             }
@@ -2113,7 +2118,7 @@ struct FootprintFilteredShowsView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .shows(title: title, stats: BSLocalization.format("%lld 场", shows.count), shows: shows))) {
+        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), shareCovers: covers) { _ in
             archiveSectionTitle(BSLocalization.text("全部现场"), BSLocalization.format("%lld 场", shows.count))
             ForEach(shows) { show in
                 NavigationLink {
@@ -2150,32 +2155,14 @@ func footprintYearPeakText(_ activity: FootprintYearActivity) -> String {
     return BSLocalization.format("%lld 月是这一年最密集的一个月", peak.month)
 }
 
-/// 档案二级页右上角分享入口分享的内容类型。
-enum FootprintArchiveShareKind {
-    /// 完整足迹长图
-    case fullArchive
-    /// 对应分类的档案卡片(艺人/城市/场馆)
-    case category(FootprintCategory)
-    /// 指定年份的年度档案卡片
-    case year(Int)
-    /// 现场清单卡片(城市详情/关联现场):标题 + 统计行 + 场次列表
-    case shows(title: String, stats: String, shows: [Show])
-    /// 回忆档案卡片:数量 + 封面网格
-    case memories([Show])
-}
-
-/// 档案二级页右上角分享入口的配置。
-struct FootprintArchiveShareContext {
-    let archive: FootprintArchiveSnapshot
-    let covers: [UUID: FootprintCover]
-    var kind: FootprintArchiveShareKind = .fullArchive
-}
-
 private struct FootprintArchivePage<Content: View>: View {
     let title: String
     let kicker: String
-    let share: FootprintArchiveShareContext
-    @ViewBuilder let content: () -> Content
+    /// 分享长图导出前用于预热封面缓存的封面表。
+    let shareCovers: [UUID: FootprintCover]
+    /// 页面内容。参数 isForExport 为 true 时表示用于整页长图导出:
+    /// ImageRenderer 快照里横向 ScrollView 等交互组件会渲染空白,需换静态布局。
+    @ViewBuilder let content: (_ isForExport: Bool) -> Content
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingShare = false
     @State private var toast: BSToastPayload?
@@ -2188,7 +2175,7 @@ private struct FootprintArchivePage<Content: View>: View {
                     if !kicker.isEmpty {
                         Text(kicker).font(.system(size: 10, weight: .semibold)).tracking(2).foregroundColor(BSColor.Stage.accent)
                     }
-                    content()
+                    content(false)
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, BSLayout.tabBarContentInset)
@@ -2226,63 +2213,22 @@ private struct FootprintArchivePage<Content: View>: View {
             .background(BSColor.Stage.background.opacity(0.96))
         }
         .sheet(isPresented: $isShowingShare) {
-            shareSheet(share)
+            shareSheet()
         }
         .bsToastOverlay(toast, bottomPadding: 100)
     }
 
-    @ViewBuilder
-    private func shareSheet(_ share: FootprintArchiveShareContext) -> some View {
-        switch share.kind {
-        case .category(let category):
-            FootprintArchiveShareSheet(
-                archive: share.archive,
-                category: category,
-                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-            )
-            .presentationDetents([.height(620)])
-            .presentationCornerRadius(26)
-            .presentationDragIndicator(.visible)
-       case .year(let year):
-           FootprintYearShareSheet(
-               archive: share.archive,
-               covers: share.covers,
-               year: year,
-               onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-           )
-           .presentationDetents([PresentationDetent.height(620)])
-           .presentationCornerRadius(26)
-           .presentationDragIndicator(.visible)
-        case .shows(let title, let stats, let shows):
-            FootprintShowsShareSheet(
-                title: title,
-                stats: stats,
-                shows: shows,
-                covers: share.covers,
-                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-            )
-            .presentationDetents([.height(620)])
-            .presentationCornerRadius(26)
-            .presentationDragIndicator(.visible)
-        case .memories(let shows):
-            FootprintMemoriesShareSheet(
-                shows: shows,
-                covers: share.covers,
-                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-            )
-            .presentationDetents([.height(620)])
-            .presentationCornerRadius(26)
-            .presentationDragIndicator(.visible)
-        case .fullArchive:
-            FootprintShareSheet(
-                archive: share.archive,
-                covers: share.covers,
-                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
-            )
-            .presentationDetents([.large])
-            .presentationCornerRadius(26)
-            .presentationDragIndicator(.visible)
-        }
+    private func shareSheet() -> some View {
+        FootprintPageShareSheet(
+            title: title,
+            kicker: kicker,
+            covers: shareCovers,
+            onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) },
+            content: { content(true) }
+        )
+        .presentationDetents([.large])
+        .presentationCornerRadius(26)
+        .presentationDragIndicator(.visible)
     }
 
     private func presentToast(_ message: String) {

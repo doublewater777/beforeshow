@@ -47,14 +47,15 @@ struct FootprintDashboardExportView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
 
-                if sections.visibility.showsTrend { sections.trendSection }
-                sections.artistSection
-                sections.citySection
-                sections.venueSection
-                sections.memorySection
-                sections.timelineSection
+               if sections.visibility.showsTrend { sections.trendSection }
+               sections.artistSection
+               sections.citySection
+               sections.venueSection
+               sections.memorySection
+               sections.timelineSection
+                   .padding(.bottom, 16)
 
-                footer
+               footer
             }
         }
         .frame(width: Self.layoutWidth)

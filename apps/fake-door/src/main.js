@@ -349,6 +349,7 @@ function renderFooter() {
       <span>开场前 · BeforeShow</span>
       <span>现场准备与本地记录工具。</span>
       <nav class="footer-links" aria-label="页脚链接">
+        <a class="footer-link" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">浙ICP备2026041359号-2</a>
         <a class="footer-link" href="/privacy/">隐私政策</a>
         <a class="footer-link" href="/terms/">用户协议</a>
         <a class="footer-link" href="/link-guide/">如何获取票务链接</a>
