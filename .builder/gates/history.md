@@ -357,3 +357,83 @@ Cycle: `.builder/cycles/2026-08-23-show-library-cover-view/`
 Decision: implementation and iPhone 17 simulator verification complete; repeat-user validation pending.
 
 Reason: people with many saved shows need a denser visual browsing option while retaining the existing detail-rich list and management actions.
+
+## 2026-08-25 · Footprints Final UI
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-footprints-final-ui/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the supplied final archive design replaces the less-direct heatmap with a one-dot-per-show rhythm and strengthens artist, city, and venue exploration without changing archive identity rules.
+
+## 2026-08-25 · Footprints Year Archive
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-footprints-year-archive/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the dashboard's existing “All Years” action now reaches a year-switching archive with derived stats, monthly rhythm, a highlight show, and detail-linked records.
+
+## 2026-08-25 · Footprints Rhythm Removal
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-footprints-rhythm-removal/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the standalone overview rhythm card duplicated the trend and yearly archive surfaces, so its view, dead helper logic, test, and dedicated strings were removed while those two review paths remain.
+
+## 2026-08-25 · Footprints Trajectory Entry
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-footprints-trajectory-entry/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the trend entry now follows the supplied reference with all twelve months, a current-month boundary, a highlighted peak, and an explicit busiest-month count while preserving the existing year archive and detail routes.
+
+## 2026-08-25 · Footprints Trajectory Polish
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-footprints-trajectory-polish/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the trajectory card now prioritizes the chart and peak callout with stronger contrast, lighter typography, a visible `全部年份 ›` route, and no redundant subtitle or footer copy.
+
+## 2026-08-25 · Year Detail Stat Trim
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-year-detail-stat-trim/`
+
+Decision: implementation and iPhone 17 verification complete; repeat-user validation pending.
+
+Reason: the annual detail header now keeps only the retained “现场时长” metric and removes the lower-value “新艺人” and “新城市” counts without changing the year rhythm, highlight, or show list.
+
+## 2026-08-25 · Artist Footprint Entry
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-artist-footprint-entry/`
+
+Decision: implementation and iPhone 17 verification complete; avatar-backed validation pending.
+
+Reason: the artist entry now keeps only its primary title and exposes stored Apple Music/iTunes avatar URLs as a clear circular avatar while preserving the fallback and archive route.
+
+## 2026-08-25 · Persistent Cover Cache
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-25-persistent-cover-cache/`
+
+Decision: implementation, regression test, and iPhone 17 cold-launch verification complete.
+
+Reason: previously loaded remote covers now survive process termination in the main App cache, while the existing Widget cover supplies an immediate preview during the first post-change launch.

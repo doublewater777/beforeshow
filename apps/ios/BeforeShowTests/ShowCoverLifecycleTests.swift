@@ -1,7 +1,35 @@
 import XCTest
+import UIKit
 @testable import BeforeShow
 
 final class ShowCoverLifecycleTests: XCTestCase {
+    func testRemoteCoverSurvivesImageCacheRecreationWithoutNetwork() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowCoverImageCacheTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceURL = URL(string: "https://example.com/cover.jpg")!
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 2, height: 2)).image { context in
+            UIColor.orange.setFill()
+            context.fill(CGRect(origin: .zero, size: CGSize(width: 2, height: 2)))
+        }
+        let sourceData = try XCTUnwrap(sourceImage.jpegData(compressionQuality: 0.9))
+
+        let firstProcess = ShowCoverImageCache(
+            directoryURL: directory,
+            fetchData: { _ in sourceData }
+        )
+        let firstImage = await firstProcess.image(from: sourceURL)
+        XCTAssertNotNil(firstImage)
+
+        let coldLaunch = ShowCoverImageCache(
+            directoryURL: directory,
+            fetchData: { _ in nil }
+        )
+        let coldLaunchImage = await coldLaunch.image(from: sourceURL)
+        XCTAssertNotNil(coldLaunchImage)
+    }
+
     func testRegisterRemovesPreviousTempAndTracksNew() {
         var removed: [String] = []
         var lifecycle = ShowCoverLifecycle(remove: { removed.append($0) })

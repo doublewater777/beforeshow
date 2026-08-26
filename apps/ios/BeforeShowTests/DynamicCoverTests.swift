@@ -1,4 +1,5 @@
 import XCTest
+import AVFoundation
 import SwiftData
 @testable import BeforeShow
 
@@ -265,5 +266,198 @@ final class DynamicCoverTests: XCTestCase {
 
         XCTAssertNil(show.dynamicCover)
         XCTAssertFalse(DynamicCoverFaceStore.isDynamicFace(for: show.id))
+    }
+
+    func testReplaceVideoUpdatesPosterRelativePath() {
+        let showID = UUID()
+        let cover = DynamicCover(
+            showID: showID,
+            relativePath: "\(showID.uuidString)/a.mov",
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 1
+        )
+
+        cover.replaceVideo(
+            relativePath: "\(showID.uuidString)/b.mov",
+            posterRelativePath: "\(showID.uuidString)/b-poster.jpg",
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 2
+        )
+
+        XCTAssertEqual(cover.relativePath, "\(showID.uuidString)/b.mov")
+        XCTAssertEqual(cover.posterRelativePath, "\(showID.uuidString)/b-poster.jpg")
+    }
+
+    func testCommitWritesPosterFrameNextToVideo() async throws {
+        let (root, store) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let showID = UUID()
+
+        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+
+        XCTAssertEqual(committed.relativePath, "\(showID.uuidString)/clip.mov")
+        let posterPath = try XCTUnwrap(committed.posterRelativePath)
+        XCTAssertEqual(posterPath, "\(showID.uuidString)/clip-poster.jpg")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed.relativePath).path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+    }
+
+    func testDeleteRemovesPosterAlongsideVideo() async throws {
+        let (root, store) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let showID = UUID()
+        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let posterPath = try XCTUnwrap(committed.posterRelativePath)
+
+        try await store.delete(relativePath: committed.relativePath, showID: showID)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed.relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+    }
+
+    func testRollbackRemovesPosterAlongsideVideo() async throws {
+        let (root, store) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let showID = UUID()
+        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let posterPath = try XCTUnwrap(committed.posterRelativePath)
+
+        try await store.rollbackCommittedFile(relativePath: committed.relativePath)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed.relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+    }
+
+    func testReconcileKeepsPosterInsideValidSet() async throws {
+        let (root, store) = makeTempStore()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let showID = UUID()
+        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let posterPath = try XCTUnwrap(committed.posterRelativePath)
+
+        try await store.reconcile(validRelativePaths: [committed.relativePath, posterPath])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+
+        try await store.reconcile(validRelativePaths: [committed.relativePath])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: root.appendingPathComponent(committed.relativePath).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(posterPath).path))
+    }
+
+    @MainActor
+    func testReconcileBoundaryCountsPosterAsValidPath() throws {
+        let container = try ModelContainer(
+            for: Show.self, DynamicCover.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let show = try Show(name: "带海报", date: Date(), startTime: Date())
+        let videoPath = "\(show.id.uuidString)/clip.mov"
+        let posterPath = "\(show.id.uuidString)/clip-poster.jpg"
+        let cover = DynamicCover(
+            showID: show.id,
+            relativePath: videoPath,
+            posterRelativePath: posterPath,
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 1
+        )
+        cover.show = show
+        show.dynamicCover = cover
+        container.mainContext.insert(show)
+        container.mainContext.insert(cover)
+        try container.mainContext.save()
+
+        let validPaths = try reconcileDynamicCoverModelBoundary(
+            in: container.mainContext,
+            existingRelativePaths: [videoPath, posterPath]
+        )
+
+        XCTAssertTrue(validPaths.contains(videoPath))
+        XCTAssertTrue(validPaths.contains(posterPath))
+        XCTAssertEqual(show.dynamicCover?.id, cover.id)
+    }
+
+    @MainActor
+    func testReconcileClearsStalePosterPathWhenFileIsMissing() throws {
+        let container = try ModelContainer(
+            for: Show.self, DynamicCover.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let show = try Show(name: "海报已丢", date: Date(), startTime: Date())
+        let videoPath = "\(show.id.uuidString)/clip.mov"
+        let posterPath = "\(show.id.uuidString)/clip-poster.jpg"
+        let cover = DynamicCover(
+            showID: show.id,
+            relativePath: videoPath,
+            posterRelativePath: posterPath,
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 1
+        )
+        cover.show = show
+        show.dynamicCover = cover
+        container.mainContext.insert(show)
+        container.mainContext.insert(cover)
+        try container.mainContext.save()
+
+        let validPaths = try reconcileDynamicCoverModelBoundary(
+            in: container.mainContext,
+            existingRelativePaths: [videoPath]
+        )
+
+        XCTAssertTrue(validPaths.contains(videoPath))
+        XCTAssertFalse(validPaths.contains(posterPath))
+        XCTAssertNil(show.dynamicCover?.posterRelativePath)
+    }
+
+    private func makeTempStore() -> (URL, DynamicCoverMediaStore) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DynamicCoverTests-\(UUID().uuidString)", isDirectory: true)
+        return (root, DynamicCoverMediaStore(location: DynamicCoverMediaLocation(rootDirectory: root)))
+    }
+
+    private func commitTestVideo(
+        store: DynamicCoverMediaStore,
+        root: URL,
+        showID: UUID
+    ) async throws -> DynamicCoverMediaCommittedVideo {
+        let draftID = UUID()
+        let stagingDirectory = root.appendingPathComponent("Staging/\(draftID.uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagingDirectory, withIntermediateDirectories: true)
+        try await makeTestVideo(at: stagingDirectory.appendingPathComponent("clip.mov"))
+        let staged = DynamicCoverMediaStagedVideo(
+            id: UUID(),
+            stagedRelativePath: "Staging/\(draftID.uuidString)/clip.mov",
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 0.5
+        )
+        return try await store.commit(draftID: draftID, showID: showID, video: staged)
+    }
+
+    private func makeTestVideo(at url: URL) async throws {
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: 64,
+            AVVideoHeightKey: 64
+        ])
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+                kCVPixelBufferWidthKey as String: 64,
+                kCVPixelBufferHeightKey as String: 64
+            ]
+        )
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        var buffer: CVPixelBuffer?
+        CVPixelBufferCreate(kCFAllocatorDefault, 64, 64, kCVPixelFormatType_32ARGB, nil, &buffer)
+        let pixelBuffer = try XCTUnwrap(buffer)
+        adaptor.append(pixelBuffer, withPresentationTime: .zero)
+        adaptor.append(pixelBuffer, withPresentationTime: CMTime(seconds: 0.5, preferredTimescale: 600))
+        input.markAsFinished()
+        await writer.finishWriting()
+        if let error = writer.error { throw error }
     }
 }

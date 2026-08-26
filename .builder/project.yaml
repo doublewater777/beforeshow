@@ -35,4 +35,12 @@ links:
   onboarding_feature_intro_cycle: .builder/cycles/2026-08-23-onboarding-feature-intro/
   show_library_cover_view_cycle: .builder/cycles/2026-08-23-show-library-cover-view/
   live_activity_rendering_reliability_cycle: .builder/cycles/2026-08-24-live-activity-rendering-reliability/
+  footprints_final_ui_cycle: .builder/cycles/2026-08-25-footprints-final-ui/
+  footprints_year_archive_cycle: .builder/cycles/2026-08-25-footprints-year-archive/
+  footprints_rhythm_removal_cycle: .builder/cycles/2026-08-25-footprints-rhythm-removal/
+  footprints_trajectory_entry_cycle: .builder/cycles/2026-08-25-footprints-trajectory-entry/
+  footprints_trajectory_polish_cycle: .builder/cycles/2026-08-25-footprints-trajectory-polish/
+  year_detail_stat_trim_cycle: .builder/cycles/2026-08-25-year-detail-stat-trim/
+  artist_footprint_entry_cycle: .builder/cycles/2026-08-25-artist-footprint-entry/
+  persistent_cover_cache_cycle: .builder/cycles/2026-08-25-persistent-cover-cache/
   manual_onboarding_stage: .builder/stages/06-manual-onboarding.md

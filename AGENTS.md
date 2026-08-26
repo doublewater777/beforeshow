@@ -8,6 +8,21 @@ i18n
 
 use iphone 17 simulator
 
+## iOS 命令行构建（重要）
+
+命令行构建必须显式带上开发团队，否则 xcodebuild 找不到项目里配置的 `"iPhone Developer"` 签名身份（钥匙串里只有 `"Apple Development"` 证书），会退回 "Sign to Run Locally" ad-hoc 签名，把 iCloud 容器 / App Groups / WeatherKit 等受限 entitlements 全部剥掉。后果：App 启动即闪退，`BeforeShowApp.init()` → `CKContainer(identifier:)` SIGTRAP（见 `CompanionSharing.swift` 的 `CloudKitCompanionSharingService.live()`）。
+
+```bash
+cd apps/ios
+xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+  -destination 'platform=iOS Simulator,name=iPhone 17' \
+  -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
+```
+
+验证方法：构建后检查 `Entitlements-Simulated.plist`（在 DerivedData 的 `BeforeShow.build/Debug-iphonesimulator/BeforeShow.build/DerivedSources/` 下）里应有 `com.apple.developer.icloud-container-identifiers`；装到模拟器后 `simctl launch` 进程应存活（旧 bug 下 2 秒内必崩）。从 Xcode GUI 里 Run 不受此问题影响。
+
+注意：entitlements 里新增了 WeatherKit，真机/上传签名时要求 App ID 在开发者后台开启 WeatherKit capability。
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.

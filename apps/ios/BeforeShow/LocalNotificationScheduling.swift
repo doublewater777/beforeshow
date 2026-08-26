@@ -758,6 +758,24 @@ final class LocalNotificationCenter {
 
         var requestsToSchedule = plan.requestsToSchedule
 
+        // 待发的补发不随重排丢弃：按记录原样重建（时刻和文案都是 mint 时定的，
+        // 重算会得到另一组）。已删除现场的补发不再续命；已触发的（fireDate <= now）
+        // 不重建，记录随下面的 recordsToCancel 清理。
+        let liveShowIDs = Set(allShows.map(\.id))
+        let rebuiltBackfill = existingRecords
+            .filter { $0.isBackfill == true && $0.fireDate > now && liveShowIDs.contains($0.showID) }
+            .map {
+                ScheduledShowNotification(
+                    showID: $0.showID,
+                    milestone: $0.milestone,
+                    fireDate: $0.fireDate,
+                    title: $0.title ?? "",
+                    body: $0.body ?? "",
+                    isBackfill: true
+                )
+            }
+        requestsToSchedule.append(contentsOf: rebuiltBackfill)
+
         // 过期期待节点的补发：只在现场从未 mint 过时生成，mint 完登记。
         // 之后任何重排（编辑、切焦点、reconcile 对齐）都不会再来一轮——
         // 补发是添加时刻的情绪曲线重放，重复发送比不发更糟糕。
@@ -771,27 +789,11 @@ final class LocalNotificationCenter {
                 context.insert(schedulingState)
             }
             if !schedulingState.hasMintedBackfill(for: show.id) {
-                requestsToSchedule.append(contentsOf: scheduler.backfillRequests(for: show, now: now))
+                let backfill = scheduler.backfillRequests(for: show, now: now)
+                requestsToSchedule.append(contentsOf: backfill)
                 schedulingState.markBackfillMinted(showID: show.id)
             }
         }
-
-        // 待发的补发不随重排丢弃：按记录原样重建（时刻和文案都是 mint 时定的，
-        // 重算会得到另一组）。已删除现场的补发不再续命；已触发的（fireDate <= now）
-        // 不重建，记录随下面的 recordsToCancel 清理。
-        let liveShowIDs = Set(allShows.map(\.id))
-        requestsToSchedule.append(contentsOf: existingRecords
-            .filter { $0.isBackfill == true && $0.fireDate > now && liveShowIDs.contains($0.showID) }
-            .map {
-                ScheduledShowNotification(
-                    showID: $0.showID,
-                    milestone: $0.milestone,
-                    fireDate: $0.fireDate,
-                    title: $0.title ?? "",
-                    body: $0.body ?? "",
-                    isBackfill: true
-                )
-            })
 
         let identifiersToCancel = plan.recordsToCancel.map(\.requestIdentifier)
         if !identifiersToCancel.isEmpty {
@@ -821,6 +823,7 @@ final class LocalNotificationCenter {
 
         do {
             try context.save()
+            WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(modelContext: context)
             return didScheduleEveryRequest
         } catch {
             center.removePendingNotificationRequests(

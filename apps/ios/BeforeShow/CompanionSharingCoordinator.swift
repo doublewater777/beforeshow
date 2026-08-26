@@ -10,7 +10,10 @@ import UIKit
 @Observable
 final class CompanionSharingCoordinator {
     private let service: any CompanionSharingService
-    private let container: CKContainer
+    private let explicitContainer: CKContainer?
+    var container: CKContainer {
+        explicitContainer ?? (service as? CloudKitCompanionSharingService)?.container ?? CKContainer(identifier: CloudKitCompanionSharingService.defaultContainerIdentifier)
+    }
 
     private(set) var pendingAcceptMessage: String?
     private(set) var lastErrorMessage: String?
@@ -29,14 +32,12 @@ final class CompanionSharingCoordinator {
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
-        container: CKContainer = CKContainer(
-            identifier: CloudKitCompanionSharingService.defaultContainerIdentifier
-        ),
+        container: CKContainer? = nil,
         userDefaults: UserDefaults = .standard,
         usesKeychainCloudSyncMarker: Bool = true
     ) {
         self.service = service
-        self.container = container
+        self.explicitContainer = container
         self.userDefaults = userDefaults
         self.usesKeychainCloudSyncMarker = usesKeychainCloudSyncMarker
         self.pendingShareMetadata = Self.loadPersistedAcceptedShares(from: userDefaults)

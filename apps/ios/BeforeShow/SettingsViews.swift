@@ -970,6 +970,7 @@ private struct AboutBeforeShowView: View {
     private static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!
     private static let termsURL = URL(string: "https://beforeshow.doublewaterapps.com/terms")!
     @State private var legalPage: BSInAppBrowserPage?
+    @State private var weatherLegalURL: URL?
 
     var body: some View {
         BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
@@ -1024,7 +1025,26 @@ private struct AboutBeforeShowView: View {
                     )
                 }
                 .buttonStyle(SettingsPressButtonStyle())
+
+                if let weatherLegalURL {
+                    SettingsDivider()
+                    Button {
+                        legalPage = BSInAppBrowserPage(url: weatherLegalURL)
+                    } label: {
+                        SettingsRowContent(
+                            iconName: "cloud.sun.fill",
+                            title: BSLocalization.text("weatherReminderLegalTitle"),
+                            subtitle: nil,
+                            value: nil,
+                            tint: BSColor.Stage.muted
+                        )
+                    }
+                    .buttonStyle(SettingsPressButtonStyle())
+                }
             }
+        }
+        .task {
+            weatherLegalURL = await WeatherKitLegalAttribution.legalPageURL()
         }
         .navigationTitle(BSLocalization.text("关于开场前"))
         .navigationBarTitleDisplayMode(.inline)

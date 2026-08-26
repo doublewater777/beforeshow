@@ -579,6 +579,7 @@ enum DynamicCoverImportCoordinator {
             if let oldCover {
                 oldCover.replaceVideo(
                     relativePath: committed.relativePath,
+                    posterRelativePath: committed.posterRelativePath,
                     contentTypeIdentifier: committed.contentTypeIdentifier,
                     videoDuration: committed.videoDuration
                 )
@@ -588,6 +589,7 @@ enum DynamicCoverImportCoordinator {
                     id: committed.id,
                     showID: show.id,
                     relativePath: committed.relativePath,
+                    posterRelativePath: committed.posterRelativePath,
                     contentTypeIdentifier: committed.contentTypeIdentifier,
                     source: .manual,
                     videoDuration: committed.videoDuration
