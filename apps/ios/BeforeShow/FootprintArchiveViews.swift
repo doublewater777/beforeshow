@@ -303,14 +303,15 @@ struct FootprintDashboardSections {
                                     .foregroundColor(BSColor.Stage.foreground)
                                     .lineLimit(1)
 
-                                if let city = item.cities.first, !city.isEmpty {
-                                    Text(city.uppercased())
-                                        .font(.system(size: 8, weight: .medium))
-                                        .tracking(0.6)
-                                        .foregroundColor(BSColor.Stage.muted)
-                                }
-                            }
-                            .frame(maxWidth: 130, alignment: .leading)
+                               if let city = item.cities.first, !city.isEmpty {
+                                   Text(city.uppercased())
+                                       .font(.system(size: 8, weight: .medium))
+                                       .tracking(0.6)
+                                       .foregroundColor(BSColor.Stage.muted)
+                               }
+                           }
+                           .frame(minWidth: 70, maxWidth: 160, alignment: .leading)
+                           .layoutPriority(1)
 
                             GeometryReader { proxy in
                                 ZStack(alignment: .leading) {
@@ -425,19 +426,19 @@ struct FootprintDashboardSections {
                 .padding(.horizontal, 20)
                 .padding(.top, 28)
 
-                ForEach(group.shows) { show in
-                    Button { onShowSelected(show) } label: {
-                        HStack(alignment: .top, spacing: 12) {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text(String(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar()).prefix(2)))
-                                    .font(.system(size: 20, weight: .bold))
-                                    .foregroundColor(BSColor.Stage.foreground)
-                                Text(footprintEnhancementMonthAbbreviation(show.effectiveDate, calendar: show.timingCalendar()))
-                                    .font(.system(size: 9, weight: .bold))
-                                    .tracking(1)
-                                    .foregroundColor(BSColor.Stage.accent)
-                            }
-                            .frame(width: 48, alignment: .trailing)
+               ForEach(group.shows) { show in
+                   Button { onShowSelected(show) } label: {
+                       HStack(alignment: .top, spacing: 12) {
+                           VStack(alignment: .trailing, spacing: 2) {
+                               Text(String(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar()).suffix(2)))
+                                   .font(.system(size: 20, weight: .bold))
+                                   .foregroundColor(BSColor.Stage.foreground)
+                               Text(footprintEnhancementMonthAbbreviation(show.effectiveDate, calendar: show.timingCalendar()))
+                                   .font(.system(size: 9, weight: .bold))
+                                   .tracking(1)
+                                   .foregroundColor(BSColor.Stage.accent)
+                           }
+                           .frame(width: 48, alignment: .trailing)
 
                             FootprintTimelineRail()
                                 .frame(width: 14)
@@ -791,20 +792,22 @@ private struct FootprintTrendChart: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let width = proxy.size.width
-            let chartHeight = proxy.size.height - 24
-            let chartTop: CGFloat = 18
-            let chartBottom = chartHeight - 8
-            let plotHeight = max(1, chartBottom - chartTop)
-            let visibleCount = max(1, min(currentMonth ?? months.count, months.count))
-            let visibleMonths = Array(months.prefix(visibleCount))
-            let maxCount = max(1, visibleMonths.map(\.showCount).max() ?? 1)
-            let points = months.enumerated().map { index, month in
-                CGPoint(
-                    x: width * CGFloat(index) / CGFloat(max(months.count - 1, 1)),
-                    y: chartBottom - plotHeight * CGFloat(month.showCount) / CGFloat(maxCount)
-                )
-            }
+           let width = proxy.size.width
+           let chartHeight = proxy.size.height - 24
+           let chartTop: CGFloat = 18
+           let chartBottom = chartHeight - 8
+           let plotHeight = max(1, chartBottom - chartTop)
+           let visibleCount = max(1, min(currentMonth ?? months.count, months.count))
+           let visibleMonths = Array(months.prefix(visibleCount))
+           let maxCount = max(1, visibleMonths.map(\.showCount).max() ?? 1)
+           let chartInset: CGFloat = 12
+           let plotWidth = max(1, width - chartInset * 2)
+           let points = months.enumerated().map { index, month in
+               CGPoint(
+                   x: chartInset + plotWidth * CGFloat(index) / CGFloat(max(months.count - 1, 1)),
+                   y: chartBottom - plotHeight * CGFloat(month.showCount) / CGFloat(maxCount)
+               )
+           }
             let visiblePoints = Array(points.prefix(visibleCount))
             ZStack(alignment: .topLeading) {
                 ForEach(0..<3, id: \.self) { index in
@@ -839,32 +842,28 @@ private struct FootprintTrendChart: View {
                     }
                     .stroke(BSColor.Stage.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
-                ForEach(Array(visiblePoints.enumerated()), id: \.offset) { index, point in
-                    let month = months[index]
-                    let isPeak = peakMonth == month.month
-                    let isCurrent = currentMonth == month.month
-                    Circle()
-                        .fill(isCurrent ? BSColor.Stage.accent : BSColor.Stage.background)
-                        .frame(width: isCurrent ? 10 : (isPeak ? 8 : 7), height: isCurrent ? 10 : (isPeak ? 8 : 7))
-                        .overlay(Circle().stroke(BSColor.Stage.accent, lineWidth: isCurrent ? 3 : 2))
-                        .shadow(color: BSColor.Stage.accent.opacity(isCurrent || isPeak ? 0.36 : 0.12), radius: isCurrent || isPeak ? 6 : 3)
-                        .position(point)
-                }
-                HStack(spacing: 0) {
-                    ForEach(months) { month in
-                        Text(BSLocalization.text(footprintMonthKey(month.month)))
-                            .font(.system(size: 6.5))
-                            .foregroundColor(
-                                month.month == currentMonth
-                                    ? BSColor.Stage.accent
-                                    : (currentMonth.map { month.month > $0 } ?? false ? BSColor.Stage.dim.opacity(0.68) : BSColor.Stage.foreground.opacity(0.58))
-                            )
-                            .frame(maxWidth: .infinity)
-                    }
-                }
-                .frame(width: width, height: 14)
-                .position(x: width / 2, y: proxy.size.height - 7)
-            }
+               ForEach(Array(visiblePoints.enumerated()), id: \.offset) { index, point in
+                   let month = months[index]
+                   let isPeak = peakMonth == month.month
+                   let isCurrent = currentMonth == month.month
+                   Circle()
+                       .fill(isCurrent ? BSColor.Stage.accent : BSColor.Stage.background)
+                       .frame(width: isCurrent ? 10 : (isPeak ? 8 : 7), height: isCurrent ? 10 : (isPeak ? 8 : 7))
+                       .overlay(Circle().stroke(BSColor.Stage.accent, lineWidth: isCurrent ? 3 : 2))
+                       .shadow(color: BSColor.Stage.accent.opacity(isCurrent || isPeak ? 0.36 : 0.12), radius: isCurrent || isPeak ? 6 : 3)
+                       .position(point)
+               }
+               ForEach(Array(months.enumerated()), id: \.element.id) { index, month in
+                   Text(BSLocalization.text(footprintMonthKey(month.month)))
+                       .font(.system(size: 8.5, weight: month.month == currentMonth ? .bold : .medium))
+                       .foregroundColor(
+                           month.month == currentMonth
+                               ? BSColor.Stage.accent
+                               : (currentMonth.map { month.month > $0 } ?? false ? BSColor.Stage.dim.opacity(0.68) : BSColor.Stage.foreground.opacity(0.65))
+                       )
+                       .position(x: points[index].x, y: proxy.size.height - 7)
+               }
+           }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(BSLocalization.format("%lld 年 1 月到 12 月现场轨迹", year))
             .accessibilityValue(
@@ -1426,9 +1425,9 @@ struct FootprintYearArchiveView: View {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(month.showCount == maxCount && month.showCount > 0 ? BSColor.Stage.accent : BSColor.Stage.accent.opacity(0.46))
                             .frame(height: max(4, CGFloat(month.showCount) / CGFloat(maxCount) * 82))
-                        Text(monthLabel(month.month))
-                            .font(.system(size: 6.5))
-                            .foregroundColor(BSColor.Stage.muted)
+                       Text(monthLabel(month.month))
+                           .font(.system(size: 8.5, weight: .medium))
+                           .foregroundColor(BSColor.Stage.muted)
                     }
                     .frame(maxWidth: .infinity, alignment: .bottom)
                 }
@@ -1725,7 +1724,7 @@ struct FootprintCityDetailView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers)) {
+        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .shows(title: item.name, stats: BSLocalization.format("%lld 场 · %lld 个场馆 · %@", item.count, item.venueCount, item.yearSpan.displayText), shows: shows))) {
             cityHero
             archiveSectionTitle(BSLocalization.text("这座城市里的现场"), BSLocalization.format("%lld 场 · 按时间倒序", item.count))
             ForEach(shows) { show in
@@ -1875,7 +1874,7 @@ struct FootprintVenueArchiveView: View {
                             Text("\(first.count)")
                                 .font(.system(size: 32, weight: .semibold, design: .rounded))
                                 .foregroundColor(BSColor.Stage.accent)
-                           Text("场现场")
+                            Text(BSLocalization.text("场现场"))
                                 .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(BSColor.Stage.muted)
                         }
@@ -1939,10 +1938,10 @@ struct FootprintVenueArchiveView: View {
                                 Text("\(item.count)")
                                     .font(.system(size: 26, weight: .semibold, design: .rounded))
                                     .foregroundColor(BSColor.Stage.accent)
-                                Text("场")
+                                Text(BSLocalization.text("场"))
                                     .font(.system(size: 9))
                                     .foregroundColor(BSColor.Stage.dim)
-                            }
+                           }
                         }
 
                         if !itemShows.isEmpty {
@@ -1995,7 +1994,7 @@ struct FootprintMemoriesArchiveView: View {
     }
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("回忆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers)) {
+        FootprintArchivePage(title: BSLocalization.text("回忆档案"), kicker: "", share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .memories(memoryShows))) {
             if let latest = memoryShows.first {
                 memoryHero(latest)
             }
@@ -2114,7 +2113,7 @@ struct FootprintFilteredShowsView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), share: FootprintArchiveShareContext(archive: archive, covers: covers)) {
+        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), share: FootprintArchiveShareContext(archive: archive, covers: covers, kind: .shows(title: title, stats: BSLocalization.format("%lld 场", shows.count), shows: shows))) {
             archiveSectionTitle(BSLocalization.text("全部现场"), BSLocalization.format("%lld 场", shows.count))
             ForEach(shows) { show in
                 NavigationLink {
@@ -2159,6 +2158,10 @@ enum FootprintArchiveShareKind {
     case category(FootprintCategory)
     /// 指定年份的年度档案卡片
     case year(Int)
+    /// 现场清单卡片(城市详情/关联现场):标题 + 统计行 + 场次列表
+    case shows(title: String, stats: String, shows: [Show])
+    /// 回忆档案卡片:数量 + 封面网格
+    case memories([Show])
 }
 
 /// 档案二级页右上角分享入口的配置。
@@ -2250,6 +2253,26 @@ private struct FootprintArchivePage<Content: View>: View {
            .presentationDetents([PresentationDetent.height(620)])
            .presentationCornerRadius(26)
            .presentationDragIndicator(.visible)
+        case .shows(let title, let stats, let shows):
+            FootprintShowsShareSheet(
+                title: title,
+                stats: stats,
+                shows: shows,
+                covers: share.covers,
+                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+            )
+            .presentationDetents([.height(620)])
+            .presentationCornerRadius(26)
+            .presentationDragIndicator(.visible)
+        case .memories(let shows):
+            FootprintMemoriesShareSheet(
+                shows: shows,
+                covers: share.covers,
+                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+            )
+            .presentationDetents([.height(620)])
+            .presentationCornerRadius(26)
+            .presentationDragIndicator(.visible)
         case .fullArchive:
             FootprintShareSheet(
                 archive: share.archive,

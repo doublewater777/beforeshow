@@ -1337,6 +1337,201 @@ private struct FootprintYearSharePreview: View {
     }
 }
 
+struct FootprintShowsShareSheet: View {
+    let title: String
+    let stats: String
+    let shows: [Show]
+    let covers: [UUID: FootprintCover]
+    let onSaved: () -> Void
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: BSLocalization.text("分享现场清单"),
+            subtitle: BSLocalization.text("这份清单里的场次、日期和场馆会汇总在同一张卡片。"),
+            previewHeight: 368,
+            exportSize: CGSize(width: 1080, height: 1100),
+            beforeExport: {
+                await FootprintCoverExportWarmup.warm(covers: covers)
+            },
+            preview: { FootprintShowsSharePreview(title: title, stats: stats, shows: shows, covers: covers) },
+            exportContent: { FootprintShowsSharePreview(title: title, stats: stats, shows: shows, covers: covers) },
+            onSaved: onSaved
+        )
+    }
+}
+
+struct FootprintMemoriesShareSheet: View {
+    let shows: [Show]
+    let covers: [UUID: FootprintCover]
+    let onSaved: () -> Void
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: BSLocalization.text("分享回忆档案"),
+            subtitle: BSLocalization.text("回忆场次和封面会汇总在同一张卡片。"),
+            previewHeight: 368,
+            exportSize: CGSize(width: 1080, height: 1100),
+            beforeExport: {
+                await FootprintCoverExportWarmup.warm(covers: covers)
+            },
+            preview: { FootprintMemoriesSharePreview(shows: shows, covers: covers) },
+            exportContent: { FootprintMemoriesSharePreview(shows: shows, covers: covers) },
+            onSaved: onSaved
+        )
+    }
+}
+
+/// 现场清单分享卡片:标题 + 统计行 + 最多 5 场场次列表,风格对齐 FootprintArchiveSharePreview。
+private struct FootprintShowsSharePreview: View {
+    let title: String
+    let stats: String
+    let shows: [Show]
+    let covers: [UUID: FootprintCover]
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = geometry.size.width / 361
+            ZStack {
+                Color(red: 0.035, green: 0.047, blue: 0.078)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center) {
+                        Text("BEFORESHOW · LIVE ARCHIVE")
+                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
+                        Spacer()
+                        Text(stats)
+                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
+                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
+                            .background(Color.white.opacity(0.045), in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
+                    }
+
+                    Text("LIVE TRAIL")
+                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
+                        .padding(.top, 14 * scale)
+
+                    Text(title)
+                        .font(.system(size: 24 * scale, weight: .bold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .lineLimit(2)
+                        .padding(.top, 6 * scale)
+                    Text(stats)
+                        .font(.system(size: 10 * scale))
+                        .foregroundColor(BSColor.Stage.muted)
+                        .padding(.top, 4 * scale)
+
+                    VStack(spacing: 0) {
+                        ForEach(Array(shows.prefix(5))) { show in
+                            showRow(show, scale: scale)
+                        }
+                    }
+                    .padding(.top, 10 * scale)
+
+                    Spacer(minLength: 0)
+                    HStack {
+                        Text(BSLocalization.text("开场前"))
+                        Spacer()
+                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
+                    }
+                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
+                }
+                .padding(20 * scale)
+            }
+        }
+    }
+
+    private func showRow(_ show: Show, scale: CGFloat) -> some View {
+        HStack(spacing: 9 * scale) {
+            FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
+                .frame(width: 26 * scale, height: 30 * scale)
+                .clipShape(RoundedRectangle(cornerRadius: 5 * scale, style: .continuous))
+            VStack(alignment: .leading, spacing: 2 * scale) {
+                Text(show.name)
+                    .font(.system(size: 11 * scale, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                Text([footprintFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: 8 * scale))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 5 * scale)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1) }
+    }
+}
+
+/// 回忆档案分享卡片:数量大数字 + 3×2 封面网格,风格对齐 FootprintArchiveSharePreview。
+private struct FootprintMemoriesSharePreview: View {
+    let shows: [Show]
+    let covers: [UUID: FootprintCover]
+
+    private var yearSpan: String {
+        guard let first = shows.last, let last = shows.first else { return "—" }
+        let firstYear = first.timingCalendar().component(.year, from: first.effectiveDate)
+        let lastYear = last.timingCalendar().component(.year, from: last.effectiveDate)
+        return firstYear == lastYear ? String(firstYear) : "\(firstYear) → \(lastYear)"
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = geometry.size.width / 361
+            ZStack {
+                Color(red: 0.035, green: 0.047, blue: 0.078)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
+                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
+
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center) {
+                        Text("BEFORESHOW · LIVE ARCHIVE")
+                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(BSColor.Stage.accent)
+                        Spacer()
+                        Text(yearSpan)
+                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
+                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
+                            .background(Color.white.opacity(0.045), in: Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
+                    }
+
+                    Text("MEMORIES")
+                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(BSColor.Stage.accent)
+                        .padding(.top, 14 * scale)
+
+                    HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
+                        Text("\(shows.count)")
+                            .font(.system(size: 38 * scale, weight: .ultraLight))
+                            .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), BSColor.Stage.accent], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        Text(BSLocalization.text("场回忆"))
+                            .font(.system(size: 12 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground)
+                    }
+                    .padding(.top, 2 * scale)
+
+                    LazyVGrid(columns: [GridItem(.flexible(), spacing: 8 * scale), GridItem(.flexible(), spacing: 8 * scale), GridItem(.flexible(), spacing: 8 * scale)], spacing: 8 * scale) {
+                        ForEach(Array(shows.prefix(6))) { show in
+                            FootprintMemoryCard(show: show, cover: covers[show.id])
+                                .frame(height: 128 * scale)
+                                .clipShape(RoundedRectangle(cornerRadius: 12 * scale, style: .continuous))
+                        }
+                    }
+                    .padding(.top, 14 * scale)
+
+                    Spacer(minLength: 0)
+                    HStack {
+                        Text(BSLocalization.text("开场前"))
+                        Spacer()
+                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
+                    }
+                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
+                }
+                .padding(20 * scale)
+            }
+        }
+    }
+}
+
 private struct FootprintArchiveSharePreview: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory

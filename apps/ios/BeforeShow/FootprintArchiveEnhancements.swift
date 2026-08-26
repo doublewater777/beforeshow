@@ -7,6 +7,11 @@ struct FootprintYearSpan: Equatable, Hashable {
     let latest: Int
 
     var isSingleYear: Bool { first == latest }
+
+    /// 展示用年份跨度文案(单年只显示一年)。
+    var displayText: String {
+        isSingleYear ? String(first) : BSLocalization.format("%lld–%lld", first, latest)
+    }
 }
 
 struct FootprintMonthActivity: Identifiable, Equatable, Hashable {
