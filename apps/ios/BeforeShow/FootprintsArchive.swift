@@ -1188,7 +1188,7 @@ struct FootprintPageShareSheet<Content: View>: View {
     var body: some View {
         FootprintShareActionSheet(
             title: BSLocalization.text("分享本页"),
-            subtitle: BSLocalization.text("当前页面会渲染成一张完整长图，可直接保存或分享。"),
+            subtitle: BSLocalization.text("整张长图包含本页的完整内容，可直接保存或分享。"),
             previewHeight: 368,
             exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
             usesIntrinsicHeight: true,
