@@ -19,6 +19,7 @@ enum FootprintDebugSeeder {
                 for sample in samples where !existingNames.contains(sample.name) {
                     modelContext.insert(try sample.makeShow())
                 }
+                try refreshDebugArtistArtwork(in: modelContext)
             }
             if arguments.contains("--seed-footprint-detail-v41"),
                !existingNames.contains(detailSampleName) {
@@ -54,6 +55,25 @@ enum FootprintDebugSeeder {
     }
 
     private static let detailSampleName = "落日飞车 · 夏夜回忆现场"
+
+    // 与 AppleMusicArtistSearchService 现有 iTunes Search 结果同源的演示头像。
+    // 仅用于 DEBUG 足迹样例，避免影响真实用户数据。
+    private static let debugArtistAvatarURL = "https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/3c/a2/21/3ca22123-14d6-57f4-9e52-aa4573a05b07/mzm.clkcarof.jpg/240x240bb.jpg"
+    private static let debugArtistAppleMusicURL = "https://music.apple.com/cn/artist/%E9%99%88%E7%BB%AE%E8%B4%9E/462564117?uo=4"
+
+    private static func refreshDebugArtistArtwork(in modelContext: ModelContext) throws {
+        let sampleNames = Set(samples.map(\.name))
+        let shows = try modelContext.fetch(FetchDescriptor<Show>())
+        for show in shows where sampleNames.contains(show.name) {
+            show.artists = show.artists.map { slot in
+                guard slot.name == "陈绮贞" else { return slot }
+                var updated = slot
+                updated.avatarURL = debugArtistAvatarURL
+                updated.appleMusicURL = debugArtistAppleMusicURL
+                return updated
+            }
+        }
+    }
 
     private static func seedDetailSamples(in modelContext: ModelContext) throws {
         let earlier = try sample(
@@ -275,13 +295,13 @@ enum FootprintDebugSeeder {
 
     private static var samples: [ShowDraft] {
         [
-            sample("陈绮贞「漫漫长夜 Cheer20」", 2026, 7, 12, "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "陈绮贞", avatarURL: nil)]),
-            sample("万能青年旅店 · 冀西南林路行", 2026, 5, 18, "北京", "国家奥林匹克体育中心", [ArtistSlot(name: "万能青年旅店", avatarURL: nil)]),
+            sample("陈绮贞「漫漫长夜 Cheer20」", 2026, 7, 12, "杭州", "杭州奥体中心体育馆", [ArtistSlot(name: "陈绮贞", avatarURL: debugArtistAvatarURL, appleMusicURL: debugArtistAppleMusicURL)]),
+            sample("万能青年旅店 · 冀西南林路行", 2026, 5, 18, "北京", "国家奥林匹克体育中心", [ArtistSlot(name: "万能青年旅店", avatarURL: nil)], coverImageURL: debugArtistAvatarURL),
             sample("草东没有派对 · 如常", 2026, 4, 9, "上海", "梅赛德斯-奔驰文化中心", [ArtistSlot(name: "草东没有派对", avatarURL: nil)]),
             sample("落日飞车 · Q Tour", 2026, 2, 21, "上海", "MAO Livehouse", [ArtistSlot(name: "落日飞车", avatarURL: nil)]),
             sample("新裤子 · 北海怪兽", 2025, 11, 15, "南京", "南京奥体中心体育场", [ArtistSlot(name: "新裤子", avatarURL: nil)]),
             sample("落日飞车「夕阳无限好听」", 2025, 9, 6, "杭州", "MAO Livehouse", [ArtistSlot(name: "落日飞车", avatarURL: nil)]),
-            sample("陈绮贞 · 房间里的音乐会", 2025, 5, 24, "上海", "梅赛德斯-奔驰文化中心", [ArtistSlot(name: "陈绮贞", avatarURL: nil)]),
+            sample("陈绮贞 · 房间里的音乐会", 2025, 5, 24, "上海", "梅赛德斯-奔驰文化中心", [ArtistSlot(name: "陈绮贞", avatarURL: debugArtistAvatarURL, appleMusicURL: debugArtistAppleMusicURL)]),
             sample("落日飞车 · Soft Storm", 2024, 8, 17, "南京", "南京奥体中心体育场", [ArtistSlot(name: "落日飞车", avatarURL: nil)])
         ]
     }
@@ -293,7 +313,8 @@ enum FootprintDebugSeeder {
         _ day: Int,
         _ city: String,
         _ venue: String,
-        _ artist: [ArtistSlot]
+        _ artist: [ArtistSlot],
+        coverImageURL: String = ""
     ) -> ShowDraft {
         ShowDraft(
             name: name,
@@ -303,6 +324,7 @@ enum FootprintDebugSeeder {
             city: city,
             venueName: venue,
             artists: artist,
+            coverImageURL: coverImageURL,
             source: .manual
         )
     }

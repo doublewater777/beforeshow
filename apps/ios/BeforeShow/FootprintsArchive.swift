@@ -297,9 +297,12 @@ struct FootprintsView: View {
     var pendingDetailTarget: FootprintDetailDestination?
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @Query private var fragments: [MemoryFragment]
+    @Query private var assets: [ShowAsset]
     @State private var isAddingShow = false
     @State private var detailTarget: FootprintDetailDestination?
     @State private var activeSheet: FootprintSheet?
+    @State private var lastScreenshotPromptAt: Date?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
     private let currentShowSession = CurrentShowSession()
@@ -353,7 +356,14 @@ struct FootprintsView: View {
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .search:
-                    FootprintSearchSheet(archive: archive) { show in
+                    FootprintSearchSheet(
+                        archive: archive,
+                        covers: FootprintCoverResolver.resolve(
+                            shows: archive.shows,
+                            fragments: fragments,
+                            assets: assets
+                        )
+                    ) { show in
                         activeSheet = nil
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(280))
@@ -364,52 +374,55 @@ struct FootprintsView: View {
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)
                 case .share:
+                    let covers = FootprintCoverResolver.resolve(
+                        shows: archive.shows,
+                        fragments: fragments,
+                        assets: assets
+                    )
                     FootprintShareSheet(
                         archive: archive,
+                        covers: covers,
                         onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
                     )
-                    .presentationDetents([.height(555)])
+                    .presentationDetents([.large])
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)
                 }
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
+                handleScreenshot(archive: archive)
+            }
             .bsToastOverlay(toast, bottomPadding: 100)
     }
 
+    /// Screenshot-to-share: taking a screenshot on the footprint dashboard
+    /// opens the full-page long-image share sheet (the system screenshot
+    /// itself is untouched). Throttled so burst screenshots don't retrigger.
+    private func handleScreenshot(archive: FootprintArchiveSnapshot) {
+        guard detailTarget == nil, activeSheet == nil, !isAddingShow, !archive.shows.isEmpty else { return }
+        let now = Date()
+        if let lastScreenshotPromptAt, now.timeIntervalSince(lastScreenshotPromptAt) < 2 { return }
+        lastScreenshotPromptAt = now
+        activeSheet = .share
+    }
+
     private func content(_ archive: FootprintArchiveSnapshot) -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                header(archive)
-                hero(archive)
-                metrics(archive)
-                if archive.shows.count == 1 {
-                    seedCard(archive)
-                } else {
-                    discovery(archive)
-                }
-                HStack(alignment: .firstTextBaseline) {
-                    sectionTitle(BSLocalization.text("现场记录"), BSLocalization.text("按年份收纳"))
-                    Spacer()
-                    Button(BSLocalization.text("补录历史")) { isAddingShow = true }
-                        .font(BSFont.tag)
-                        .foregroundColor(BSColor.Stage.accent)
-                }
-                .padding(.horizontal, BSSpacing.roomy)
-                .padding(.top, BSSpacing.lg)
-
-                timelineToolbar
-
-                ForEach(archive.years) { group in
-                    yearHeader(group)
-                    ForEach(group.shows) { show in
-                        showRow(show)
-                    }
-                }
-            }
-            .padding(.bottom, BSLayout.tabBarContentInset)
-        }
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
+        let covers = FootprintCoverResolver.resolve(
+            shows: archive.shows,
+            fragments: fragments,
+            assets: assets
+        )
+        return FootprintDashboardView(
+            archive: archive,
+            covers: covers,
+            onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
+            onAdd: { isAddingShow = true },
+            onSearch: { activeSheet = .search },
+            onShare: {
+                activeSheet = .share
+            },
+            onArchiveVisibilityChange: onArchiveVisibilityChange
+        )
     }
 
     private func header(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -511,6 +524,11 @@ struct FootprintsView: View {
         NavigationLink {
             FootprintArchiveDetailView(
                 archive: archive,
+                covers: FootprintCoverResolver.resolve(
+                    shows: archive.shows,
+                    fragments: fragments,
+                    assets: assets
+                ),
                 initialCategory: category,
                 onVisibilityChange: onArchiveVisibilityChange
             )
@@ -582,6 +600,11 @@ struct FootprintsView: View {
                     NavigationLink(BSLocalization.text("查看完整档案 →")) {
                         FootprintArchiveDetailView(
                             archive: archive,
+                            covers: FootprintCoverResolver.resolve(
+                                shows: archive.shows,
+                                fragments: fragments,
+                                assets: assets
+                            ),
                             onVisibilityChange: onArchiveVisibilityChange
                         )
                     }
@@ -766,6 +789,7 @@ private enum FootprintSheet: String, Identifiable {
 
 private struct FootprintSearchSheet: View {
     let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
     let onSelect: (Show) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -801,7 +825,6 @@ private struct FootprintSearchSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.18)).frame(width: 38, height: 4).frame(maxWidth: .infinity).padding(.bottom, 18)
             Text(BSLocalization.text("搜索与筛选")).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
             Text(BSLocalization.text("从历史记录中快速找到某位艺人、城市、场馆或年份。"))
                 .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
@@ -834,7 +857,7 @@ private struct FootprintSearchSheet: View {
                     ForEach(results) { show in
                         Button { onSelect(show) } label: {
                             HStack(spacing: 10) {
-                                FootprintMiniPoster(show: show).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
+                                FootprintMiniPoster(show: show, cover: covers[show.id]).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(show.name).font(BSFont.caption).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
                                     Text("\([show.city, show.venueName].compactMap { $0 }.joined(separator: " · ")) · \(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))")
@@ -861,9 +884,9 @@ private struct FootprintSearchSheet: View {
                 .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14))
                 .padding(.top, 12)
         }
-        .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
+        .padding(.horizontal, 16).padding(.top, 33).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
+        .background(BSColor.Stage.background.ignoresSafeArea())
     }
 }
 
@@ -877,6 +900,36 @@ private enum FootprintSearchFilter: Hashable {
         case .all: return BSLocalization.text("全部")
         case let .year(year): return String(year)
         case let .city(city): return city
+        }
+    }
+}
+
+/// Warms cover caches so a freshly-built export view tree can render covers
+/// synchronously (ImageRenderer snapshots before view `.task` loads finish).
+enum FootprintCoverExportWarmup {
+    static func warm(covers: [UUID: FootprintCover]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for cover in covers.values {
+                guard case let .remote(url) = cover.source else { continue }
+                group.addTask {
+                    _ = await ShowCoverImageCache.shared.image(from: url)
+                }
+            }
+        }
+    }
+
+    /// Warms artist artwork/avatar images so the export tree's synchronous
+    /// disk-cache reads hit (its `.task`/AsyncImage loads never complete
+    /// before the snapshot).
+    static func warm(artists: [FootprintArtistArchiveItem]) async {
+        await withTaskGroup(of: Void.self) { group in
+            for item in artists {
+                for url in [item.albumArtworkURL, item.artworkURL].compactMap({ $0 }) {
+                    group.addTask {
+                        _ = await ShowCoverImageCache.shared.image(from: url)
+                    }
+                }
+            }
         }
     }
 }
@@ -896,6 +949,45 @@ enum FootprintShareImageExport {
         return renderer.uiImage
     }
 
+    /// Renders content at a fixed width with its intrinsic (full) height —
+    /// the "long screenshot" path for the whole dashboard. Height is measured
+    /// via a hosting controller, then the image is rendered in vertical tiles
+    /// and stitched: ImageRenderer renders fully black once the pixel height
+    /// exceeds the ~8192px GPU texture cap, so each tile stays below it.
+    @MainActor
+    static func renderLong<Content: View>(
+        _ content: Content,
+        width: CGFloat,
+        scale: CGFloat = 1
+    ) -> UIImage? {
+        let controller = UIHostingController(rootView: content)
+        let size = controller.sizeThatFits(
+            in: CGSize(width: width, height: .greatestFiniteMagnitude)
+        )
+        guard size.height > 0 else { return nil }
+        let tileHeight = min(size.height, floor(7000 / scale))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        let stitcher = UIGraphicsImageRenderer(size: size, format: format)
+        return stitcher.image { _ in
+            var offsetY: CGFloat = 0
+            while offsetY < size.height {
+                let height = min(tileHeight, size.height - offsetY)
+                let tile = content
+                    .frame(width: width, height: size.height, alignment: .top)
+                    .offset(y: -offsetY)
+                    .frame(width: width, height: height, alignment: .top)
+                    .clipped()
+                let renderer = ImageRenderer(content: tile)
+                renderer.scale = scale
+                if let tileImage = renderer.uiImage {
+                    tileImage.draw(in: CGRect(x: 0, y: offsetY, width: width, height: height))
+                }
+                offsetY += height
+            }
+        }
+    }
+
     @MainActor
     static func save<Content: View>(
         _ content: Content,
@@ -906,31 +998,54 @@ enum FootprintShareImageExport {
         }
         try await FootprintPhotoLibrary.save(image)
     }
+
+    @MainActor
+    static func saveLong<Content: View>(
+        _ content: Content,
+        width: CGFloat,
+        scale: CGFloat = 1
+    ) async throws {
+        guard let image = renderLong(content, width: width, scale: scale) else {
+            throw FootprintPhotoSaveError.rendererFailed
+        }
+        try await FootprintPhotoLibrary.save(image)
+    }
 }
 
 /// Shared chrome for footprint share sheets: preview, save, share, cancel.
-private struct FootprintShareActionSheet<Preview: View>: View {
+private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
     let title: String
     let subtitle: String
     let previewHeight: CGFloat
     let exportSize: CGSize
+    /// When true, export renders at `exportSize.width` with intrinsic height
+    /// (long-screenshot mode) instead of the fixed `exportSize`.
+    var usesIntrinsicHeight = false
+    /// Pixel scale for long-screenshot export (ignored for fixed-size cards).
+    var exportScale: CGFloat = 1
+    /// Async hook (e.g. cover-cache warmup) run before every export render.
+    var beforeExport: (() async -> Void)? = nil
+    /// When true, the preview fills the sheet's remaining height instead of
+    /// the fixed `previewHeight` (used with the .large detent).
+    var flexiblePreviewHeight = false
     @ViewBuilder let preview: () -> Preview
-    @ViewBuilder let exportContent: () -> Preview
+    @ViewBuilder let exportContent: () -> ExportContent
     var onSaved: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSaving = false
+    @State private var isExporting = false
     @State private var toast: BSToastPayload?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Capsule().fill(Color.white.opacity(0.18)).frame(width: 38, height: 4).frame(maxWidth: .infinity).padding(.bottom, 18)
             Text(title).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
             Text(subtitle)
                 .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
 
             preview()
-                .frame(height: previewHeight)
+                .frame(height: flexiblePreviewHeight ? nil : previewHeight)
+                .frame(maxHeight: flexiblePreviewHeight ? .infinity : nil)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10)))
                 .padding(.top, 15)
@@ -938,16 +1053,24 @@ private struct FootprintShareActionSheet<Preview: View>: View {
             HStack(spacing: 8) {
                 Button(BSLocalization.text("保存图片")) { Task { await saveImage() } }
                     .footprintShareAction(primary: false)
-                    .disabled(isSaving)
-                Button(BSLocalization.text("分享图片")) { shareImage() }
+                    .disabled(isSaving || isExporting)
+                Button(BSLocalization.text("分享图片")) { Task { await shareImage() } }
                     .footprintShareAction(primary: true)
+                    .disabled(isSaving || isExporting)
             }
             .padding(.top, 12)
         }
-        .padding(.horizontal, 16).padding(.top, 11).padding(.bottom, 18)
+        .padding(.horizontal, 16).padding(.top, 33).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(BSColor.Stage.surfaceRaised.ignoresSafeArea())
         .bsToastOverlay(toast, bottomPadding: 24)
+    }
+
+    @MainActor
+    private func exportImage() -> UIImage? {
+        if usesIntrinsicHeight {
+            return FootprintShareImageExport.renderLong(exportContent(), width: exportSize.width, scale: exportScale)
+        }
+        return FootprintShareImageExport.render(exportContent(), size: exportSize)
     }
 
     @MainActor
@@ -955,8 +1078,13 @@ private struct FootprintShareActionSheet<Preview: View>: View {
         guard !isSaving else { return }
         isSaving = true
         defer { isSaving = false }
+        await beforeExport?()
         do {
-            try await FootprintShareImageExport.save(exportContent(), size: exportSize)
+            if usesIntrinsicHeight {
+                try await FootprintShareImageExport.saveLong(exportContent(), width: exportSize.width, scale: exportScale)
+            } else {
+                try await FootprintShareImageExport.save(exportContent(), size: exportSize)
+            }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
             presentToast(.failure, message: message)
@@ -967,8 +1095,12 @@ private struct FootprintShareActionSheet<Preview: View>: View {
     }
 
     @MainActor
-    private func shareImage() {
-        guard let image = FootprintShareImageExport.render(exportContent(), size: exportSize),
+    private func shareImage() async {
+        guard !isExporting else { return }
+        isExporting = true
+        defer { isExporting = false }
+        await beforeExport?()
+        guard let image = exportImage(),
               let data = image.pngData() else {
             presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
             return
@@ -1000,54 +1132,29 @@ private struct FootprintShareActionSheet<Preview: View>: View {
 
 private struct FootprintShareSheet: View {
     let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
     let onSaved: () -> Void
 
     var body: some View {
         FootprintShareActionSheet(
-            title: BSLocalization.text("分享我的足迹"),
-            subtitle: BSLocalization.text("默认隐藏具体日期和详细行程，只分享你选择的档案信息。"),
-            previewHeight: 330,
-            exportSize: CGSize(width: 1080, height: 1350),
-            preview: { FootprintSharePreview(archive: archive) },
-            exportContent: { FootprintSharePreview(archive: archive) },
+            title: BSLocalization.text("分享完整足迹"),
+            subtitle: BSLocalization.text("整张长图包含你的完整足迹档案，可直接保存或分享。"),
+            previewHeight: 368,
+            exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
+            usesIntrinsicHeight: true,
+            exportScale: FootprintDashboardExportView.exportScale,
+            beforeExport: {
+                await FootprintCoverExportWarmup.warm(covers: covers)
+                await FootprintCoverExportWarmup.warm(artists: archive.artistArchiveItems)
+                _ = await FootprintCityCoordinateResolver.shared.coordinates(
+                    for: archive.cityArchiveItems.map(\.name)
+                )
+            },
+            flexiblePreviewHeight: true,
+            preview: { FootprintDashboardExportPreview(archive: archive, covers: covers) },
+            exportContent: { FootprintDashboardExportView(archive: archive, covers: covers) },
             onSaved: onSaved
         )
-    }
-}
-
-private struct FootprintSharePreview: View {
-    let archive: FootprintArchiveSnapshot
-
-    var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / 361
-            ZStack {
-                Color(red: 0.035, green: 0.047, blue: 0.078)
-                RadialGradient(colors: [BSColor.Stage.accent.opacity(0.18), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.75)
-                RadialGradient(colors: [BSColor.Stage.glowBlue.opacity(0.20), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(BSLocalization.text("BEFORESHOW · 我的现场足迹"))
-                        .font(.system(size: 11 * scale, weight: .medium)).tracking(2 * scale).foregroundColor(BSColor.Stage.accent)
-                    HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
-                        Text("\(archive.shows.count)").font(.system(size: 82 * scale, weight: .ultraLight)).foregroundColor(BSColor.Stage.foreground)
-                        Text(BSLocalization.text("场现场")).font(.system(size: 17 * scale)).foregroundColor(BSColor.Stage.muted)
-                    }
-                    .padding(.top, 28 * scale)
-                    Text(BSLocalization.format("%lld 座城市 · %lld 个场馆 · %@", archive.cities.count, archive.venues.count, ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes)))
-                        .font(.system(size: 17 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-                    Text(BSLocalization.format("最常看：%@\n第一场：%@", archive.artists.first?.name ?? "—", archive.firstShow.map { footprintMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"))
-                        .font(.system(size: 12 * scale)).foregroundColor(BSColor.Stage.muted).lineSpacing(5 * scale).padding(.top, 7 * scale)
-                    Spacer()
-                    HStack {
-                        Text(BSLocalization.text("开场前"))
-                        Spacer()
-                        Text(String(Calendar.current.component(.year, from: Date())))
-                    }
-                    .font(.system(size: 10.5 * scale)).foregroundColor(BSColor.Stage.dim)
-                }
-                .padding(24 * scale)
-            }
-        }
     }
 }
 
@@ -1253,15 +1360,11 @@ private struct FootprintArchiveSharePreview: View {
 
 private struct FootprintMiniPoster: View {
     let show: Show
+    let cover: FootprintCover?
+
     var body: some View {
-        AsyncImage(url: URL(string: show.coverImageURL ?? "")) { phase in
-            if let image = phase.image { image.resizable().scaledToFill() }
-            else {
-                LinearGradient(colors: [BSColor.Stage.glowBlue, BSColor.Stage.prepare], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    .overlay(Image(systemName: "music.note").foregroundColor(.white.opacity(0.72)))
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 9))
+        FootprintResolvedCoverImage(show: show, cover: cover)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
     }
 }
 
@@ -1339,6 +1442,7 @@ private struct FootprintEmptyView: View {
 
 private struct FootprintArchiveDetailView: View {
     let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
     let onVisibilityChange: (Bool) -> Void
     @State private var category: FootprintCategory
     @State private var isShowingShare = false
@@ -1351,10 +1455,12 @@ private struct FootprintArchiveDetailView: View {
 
     init(
         archive: FootprintArchiveSnapshot,
+        covers: [UUID: FootprintCover],
         initialCategory: FootprintCategory = .overview,
         onVisibilityChange: @escaping (Bool) -> Void
     ) {
         self.archive = archive
+        self.covers = covers
         self.onVisibilityChange = onVisibilityChange
         _category = State(initialValue: initialCategory)
     }
@@ -1496,7 +1602,7 @@ private struct FootprintArchiveDetailView: View {
             if let first = archive.firstShow {
                 sectionTitle(BSLocalization.text("档案起点"), BSLocalization.text("第一场现场")).padding(.top, 10)
                 HStack(spacing: 12) {
-                    FootprintMiniPoster(show: first).frame(width: 47, height: 62).clipShape(RoundedRectangle(cornerRadius: 11))
+                    FootprintMiniPoster(show: first, cover: covers[first.id]).frame(width: 47, height: 62).clipShape(RoundedRectangle(cornerRadius: 11))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(footprintMonthText(first.effectiveDate, calendar: first.timingCalendar())).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.dim)
                         Text(first.name).font(.system(size: 13, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(2)
@@ -1688,7 +1794,7 @@ private func footprintDayText(_ date: Date, calendar: Calendar = .current) -> St
     return String(format: "%02d.%02d", components.month ?? 0, components.day ?? 0)
 }
 
-private func footprintFullDateText(_ date: Date, calendar: Calendar = .current) -> String {
+func footprintFullDateText(_ date: Date, calendar: Calendar = .current) -> String {
     let components = calendar.dateComponents([.year, .month, .day], from: date)
     return String(format: "%04d.%02d.%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
 }

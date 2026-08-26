@@ -589,15 +589,7 @@ struct CurrentShowManagementSection: View {
     /// 推导出「第 N 场现场」「与X第 N 次见面」。城市/艺人/年份在卡片里不显示,
     /// 不需要完整 archive 统计。
     private func footprintIdentityForCeremony() -> FootprintDetailIdentity {
-        let snapshot = FootprintArchiveSnapshot(
-            shows: candidateShows,
-            artists: [],
-            cities: [],
-            venues: [],
-            years: [],
-            currentYearCount: 0,
-            totalDurationMinutes: 0
-        )
+        let snapshot = FootprintArchiveSnapshot.identityOnly(shows: candidateShows)
         return FootprintDetailIdentityBuilder.make(
             show: show,
             archive: snapshot,

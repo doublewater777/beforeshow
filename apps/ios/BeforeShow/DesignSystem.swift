@@ -97,6 +97,7 @@ enum BSColor {
 
 }
 
+
 // MARK: - Typography
 // Matches the SplashView: light weights, generous tracking, cinematic spacing.
 
@@ -526,7 +527,7 @@ struct CurrentShowAmbientBackground: View {
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
         guard let urlString,
               let url = URL(string: urlString),
-              let image = await ImageCache.shared.image(from: url),
+              let image = await ShowCoverImageCache.shared.image(from: url),
               let stageColor = CoverAmbientColor.uiColor(from: image) else {
             return nil
         }
@@ -846,6 +847,23 @@ struct ShowCoverImageView: View {
         case idle, loading, failed
     }
 
+    init(
+        urlString: String?,
+        aspectRatio: CGFloat,
+        contentMode: ContentMode = .fit,
+        alignment: Alignment = .center,
+        enforcesAspectRatio: Bool = true,
+        cornerRadius: CGFloat = 8
+    ) {
+        self.urlString = urlString
+        self.aspectRatio = aspectRatio
+        self.contentMode = contentMode
+        self.alignment = alignment
+        self.enforcesAspectRatio = enforcesAspectRatio
+        self.cornerRadius = cornerRadius
+        _image = State(initialValue: Self.persistedImage(for: urlString))
+    }
+
     var body: some View {
         Group {
             if let image {
@@ -877,21 +895,89 @@ struct ShowCoverImageView: View {
               !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let url = URL(string: urlString) else { return }
         loadState = .loading
-        image = await ImageCache.shared.image(from: url)
+        let loadedImage = await ShowCoverImageCache.shared.image(from: url)
+        guard !Task.isCancelled else { return }
+        image = loadedImage
         loadState = image == nil ? .failed : .idle
+    }
+
+    private static func persistedImage(for urlString: String?) -> UIImage? {
+        guard let urlString,
+              let url = URL(string: urlString) else { return nil }
+        if let image = ShowCoverDiskCache.application.image(from: url) {
+            return image
+        }
+        guard let path = WidgetCoverCache.cachedCoverPath(matching: urlString) else {
+            return nil
+        }
+        return UIImage(contentsOfFile: path)
     }
 }
 
-private actor ImageCache {
-    static let shared = ImageCache()
+actor ShowCoverImageCache {
+    typealias FetchData = @Sendable (URL) async -> Data?
+
+    static let shared = ShowCoverImageCache()
     private let cache = NSCache<NSURL, UIImage>()
+    private let diskCache: ShowCoverDiskCache
+    private let fetchData: FetchData
+
+    init(
+        directoryURL: URL = ShowCoverDiskCache.application.directoryURL,
+        fetchData: @escaping FetchData = { url in
+            try? await URLSession.shared.data(from: url).0
+        }
+    ) {
+        diskCache = ShowCoverDiskCache(directoryURL: directoryURL)
+        self.fetchData = fetchData
+    }
 
     func image(from url: URL) async -> UIImage? {
         if let cached = cache.object(forKey: url as NSURL) { return cached }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
+        if let image = diskCache.image(from: url) {
+            cache.setObject(image, forKey: url as NSURL)
+            return image
+        }
+        guard let data = await fetchData(url),
               let image = UIImage(data: data) else { return nil }
+        diskCache.store(data, for: url)
         cache.setObject(image, forKey: url as NSURL)
         return image
+    }
+}
+
+struct ShowCoverDiskCache: Sendable {
+    let directoryURL: URL
+
+    static var application: ShowCoverDiskCache {
+        let cachesURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+        return ShowCoverDiskCache(
+            directoryURL: cachesURL.appendingPathComponent("ShowCovers", isDirectory: true)
+        )
+    }
+
+    func image(from sourceURL: URL) -> UIImage? {
+        let fileURL = sourceURL.isFileURL ? sourceURL : cachedFileURL(for: sourceURL)
+        return UIImage(contentsOfFile: fileURL.path)
+    }
+
+    func store(_ data: Data, for sourceURL: URL) {
+        guard !sourceURL.isFileURL else { return }
+        do {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+            try data.write(to: cachedFileURL(for: sourceURL), options: .atomic)
+        } catch {
+            #if DEBUG
+            print("[ShowCoverDiskCache] store failed: \(error)")
+            #endif
+        }
+    }
+
+    private func cachedFileURL(for sourceURL: URL) -> URL {
+        directoryURL.appendingPathComponent(
+            WidgetCoverCache.filename(for: sourceURL.absoluteString),
+            isDirectory: false
+        )
     }
 }
 
@@ -1171,5 +1257,3 @@ struct BSProLimitSheet: View {
         }
     }
 }
-
-

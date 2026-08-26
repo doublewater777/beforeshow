@@ -756,11 +756,35 @@ final class LocalNotificationCenter {
         )
         var didScheduleEveryRequest = true
 
-        var requestsToSchedule = plan.requestsToSchedule
+        // .oneDayBefore 由 WeatherReminderScheduler 接管：当天拼内容发；
+        // 老的 20:00 `UNCalendarNotificationTrigger` 一律不让排也不会重建。
+        var requestsToSchedule = plan.requestsToSchedule.filter {
+            $0.milestone != .oneDayBefore
+        }
+
+        // 待发的补发不随重排丢弃：按记录原样重建（时刻和文案都是 mint 时定的，
+        // 重算会得到另一组）。已删除现场的补发不再续命；已触发的（fireDate <= now）
+        // 不重建，记录随下面的 recordsToCancel 清理。
+        let liveShowIDs = Set(allShows.map(\.id))
+        let rebuiltBackfill = existingRecords
+            .filter { $0.isBackfill == true && $0.fireDate > now && liveShowIDs.contains($0.showID) }
+            .filter { $0.milestone != .oneDayBefore }
+            .map {
+                ScheduledShowNotification(
+                    showID: $0.showID,
+                    milestone: $0.milestone,
+                    fireDate: $0.fireDate,
+                    title: $0.title ?? "",
+                    body: $0.body ?? "",
+                    isBackfill: true
+                )
+            }
+        requestsToSchedule.append(contentsOf: rebuiltBackfill)
 
         // 过期期待节点的补发：只在现场从未 mint 过时生成，mint 完登记。
         // 之后任何重排（编辑、切焦点、reconcile 对齐）都不会再来一轮——
         // 补发是添加时刻的情绪曲线重放，重复发送比不发更糟糕。
+        // 同样排除 .oneDayBefore：交给 WeatherReminderScheduler 处理。
         if let show {
             let state = (try? context.fetch(FetchDescriptor<NotificationSchedulingState>()))?.first
             let schedulingState: NotificationSchedulingState
@@ -771,27 +795,12 @@ final class LocalNotificationCenter {
                 context.insert(schedulingState)
             }
             if !schedulingState.hasMintedBackfill(for: show.id) {
-                requestsToSchedule.append(contentsOf: scheduler.backfillRequests(for: show, now: now))
+                let backfill = scheduler.backfillRequests(for: show, now: now)
+                    .filter { $0.milestone != .oneDayBefore }
+                requestsToSchedule.append(contentsOf: backfill)
                 schedulingState.markBackfillMinted(showID: show.id)
             }
         }
-
-        // 待发的补发不随重排丢弃：按记录原样重建（时刻和文案都是 mint 时定的，
-        // 重算会得到另一组）。已删除现场的补发不再续命；已触发的（fireDate <= now）
-        // 不重建，记录随下面的 recordsToCancel 清理。
-        let liveShowIDs = Set(allShows.map(\.id))
-        requestsToSchedule.append(contentsOf: existingRecords
-            .filter { $0.isBackfill == true && $0.fireDate > now && liveShowIDs.contains($0.showID) }
-            .map {
-                ScheduledShowNotification(
-                    showID: $0.showID,
-                    milestone: $0.milestone,
-                    fireDate: $0.fireDate,
-                    title: $0.title ?? "",
-                    body: $0.body ?? "",
-                    isBackfill: true
-                )
-            })
 
         let identifiersToCancel = plan.recordsToCancel.map(\.requestIdentifier)
         if !identifiersToCancel.isEmpty {
@@ -848,6 +857,9 @@ final class LocalNotificationCenter {
         let endedShows = ((try? context.fetch(FetchDescriptor<Show>())) ?? [])
             .filter { $0.endedAt != nil && $0.id != show?.id }
         var desired = show.map { scheduler.futureRequests(for: $0, now: now) } ?? []
+        // .oneDayBefore 由 WeatherReminderScheduler 接管；不算在 desired 集合里
+        // 才能让旧的 .oneDayBefore 记录被 recordsToCancel 路径清理。
+        desired.removeAll { $0.milestone == .oneDayBefore }
         for ended in endedShows {
             if let request = scheduler.afterShowRequest(for: ended, now: now),
                !desired.contains(where: { $0.requestIdentifier == request.requestIdentifier }) {

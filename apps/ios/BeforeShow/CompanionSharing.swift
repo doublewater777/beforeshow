@@ -250,15 +250,20 @@ enum CompanionDebugLog {
 }
 
 struct CloudKitCompanionSharingService: CompanionSharingService {
-    let container: CKContainer
+    private let explicitContainer: CKContainer?
+    var container: CKContainer {
+        explicitContainer ?? CKContainer(identifier: Self.defaultContainerIdentifier)
+    }
     private static let log = Logger(subsystem: "com.doublewaterapps.beforeshow", category: "companion")
 
     static let defaultContainerIdentifier = "iCloud.com.doublewaterapps.beforeshow"
 
+    init(container: CKContainer? = nil) {
+        self.explicitContainer = container
+    }
+
     static func live() -> CloudKitCompanionSharingService {
-        CloudKitCompanionSharingService(
-            container: CKContainer(identifier: defaultContainerIdentifier)
-        )
+        CloudKitCompanionSharingService()
     }
 
     private var privateDB: CKDatabase { container.privateCloudDatabase }

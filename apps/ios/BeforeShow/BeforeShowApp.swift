@@ -84,6 +84,8 @@ struct BeforeShowApp: App {
         }
 
         UNUserNotificationCenter.current().delegate = BeforeShowNotificationDelegate.shared
+        // 演出前一天天气提醒：注册 BG handler，handler 真正跑时另开 ModelContext 拿数据。
+        WeatherReminderScheduler.shared.registerTaskHandler(modelContainer: modelContainer)
         // Wire CloudKit share acceptance dependencies before any scene callback can race.
         // RootView.onAppear is too late for cold-launch invitation acceptance.
     }
@@ -115,6 +117,13 @@ struct BeforeShowApp: App {
                         in: modelContainer.mainContext,
                         includesStagingCleanup: true
                     )
+                    // 冷启动时也跑一次天气兜底：iOS 17 BG 唤醒不可靠。
+                    await WeatherReminderScheduler.shared.runOpenCheck(
+                        modelContext: modelContainer.mainContext
+                    )
+                    WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(
+                        modelContext: modelContainer.mainContext
+                    )
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -125,6 +134,13 @@ struct BeforeShowApp: App {
                         await reconcileAllDynamicCovers(
                             in: modelContainer.mainContext,
                             includesStagingCleanup: false
+                        )
+                        // 回前台兜底：如果 BG 没跑，用户打开 App 也能收到天气提醒。
+                        await WeatherReminderScheduler.shared.runOpenCheck(
+                            modelContext: modelContainer.mainContext
+                        )
+                        WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(
+                            modelContext: modelContainer.mainContext
                         )
                     }
                 }

@@ -17,6 +17,9 @@ final class DynamicCover {
     @Attribute(.unique)
     private(set) var uniqueKey: String
     var relativePath: String
+    /// First-frame poster generated at import time; lets synchronous cover
+    /// resolvers use the dynamic cover without decoding the video.
+    var posterRelativePath: String?
     var contentTypeIdentifier: String
     private var sourceRawValue: String?
     var videoDuration: TimeInterval
@@ -32,6 +35,7 @@ final class DynamicCover {
         id: UUID = UUID(),
         showID: UUID,
         relativePath: String,
+        posterRelativePath: String? = nil,
         contentTypeIdentifier: String,
         source: DynamicCoverSource = .manual,
         videoDuration: TimeInterval,
@@ -42,6 +46,7 @@ final class DynamicCover {
         self.showID = showID
         self.uniqueKey = Self.makeUniqueKey(showID: showID)
         self.relativePath = relativePath
+        self.posterRelativePath = posterRelativePath
         self.contentTypeIdentifier = contentTypeIdentifier
         self.sourceRawValue = source.rawValue
         self.videoDuration = videoDuration
@@ -71,10 +76,12 @@ final class DynamicCover {
 
     func replaceVideo(
         relativePath: String,
+        posterRelativePath: String?,
         contentTypeIdentifier: String,
         videoDuration: TimeInterval
     ) {
         self.relativePath = relativePath
+        self.posterRelativePath = posterRelativePath
         self.contentTypeIdentifier = contentTypeIdentifier
         self.videoDuration = videoDuration
         updatedAt = Date()
