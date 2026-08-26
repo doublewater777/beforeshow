@@ -1040,8 +1040,10 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(subtitle)
-                .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+            }
 
             preview()
                 .frame(height: flexiblePreviewHeight ? nil : previewHeight)
@@ -1187,8 +1189,8 @@ struct FootprintPageShareSheet<Content: View>: View {
 
     var body: some View {
         FootprintShareActionSheet(
-            title: BSLocalization.text("分享本页"),
-            subtitle: BSLocalization.text("整张长图包含本页的完整内容，可直接保存或分享。"),
+            title: BSLocalization.text("分享这份档案"),
+            subtitle: "",
             previewHeight: 368,
             exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
             usesIntrinsicHeight: true,
