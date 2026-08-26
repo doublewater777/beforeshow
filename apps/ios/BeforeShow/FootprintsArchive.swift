@@ -1130,7 +1130,7 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
     }
 }
 
-private struct FootprintShareSheet: View {
+struct FootprintShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let onSaved: () -> Void
@@ -1158,7 +1158,7 @@ private struct FootprintShareSheet: View {
     }
 }
 
-private struct FootprintArchiveShareSheet: View {
+struct FootprintArchiveShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory
     let onSaved: () -> Void
@@ -1338,11 +1338,11 @@ private struct FootprintArchiveSharePreview: View {
         }
     }
 
-    private func shareRank(index: Int, item: FootprintRankItem, maximum: Int, scale: CGFloat) -> some View {
-        HStack(spacing: 8 * scale) {
-            Text(String(format: "%02d", index + 1)).font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim).frame(width: 17 * scale, alignment: .leading)
-            VStack(alignment: .leading, spacing: 6 * scale) {
-                HStack {
+   private func shareRank(index: Int, item: FootprintRankItem, maximum: Int, scale: CGFloat) -> some View {
+       HStack(spacing: 8 * scale) {
+            Text("\(index + 1)").font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim).frame(width: 17 * scale, alignment: .leading)
+           VStack(alignment: .leading, spacing: 6 * scale) {
+               HStack {
                     Text(item.name).font(.system(size: 11.5 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
                     Spacer(minLength: 0)
                     Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.muted)
@@ -1709,13 +1709,13 @@ private struct FootprintArchiveDetailView: View {
             sectionTitle(BSLocalization.text("完整排行"), BSLocalization.format("%lld 条记录", values.count))
             let maximum = archive.ranking(for: category).first?.count ?? 1
             ForEach(Array(values.enumerated()), id: \.element.id) { index, item in
-                let isFirst = index == 0
-                let accent = insightColor(category)
-                HStack(alignment: .top, spacing: 11) {
-                    Text(String(format: "%02d", index + 1))
-                        .font(isFirst ? .system(size: 12, weight: .bold) : BSFont.tag)
-                        .foregroundColor(isFirst ? accent : BSColor.Stage.dim)
-                        .frame(width: 28)
+               let isFirst = index == 0
+               let accent = insightColor(category)
+               HStack(alignment: .top, spacing: 11) {
+                    Text("\(index + 1)")
+                       .font(isFirst ? .system(size: 12, weight: .bold) : BSFont.tag)
+                       .foregroundColor(isFirst ? accent : BSColor.Stage.dim)
+                       .frame(width: 28)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
                             if isFirst {

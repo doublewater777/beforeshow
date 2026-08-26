@@ -258,7 +258,20 @@ struct FootprintDetailView: View {
                 .font(FootprintDetailTokens.navigationFont)
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()
-            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+            if shareMaterials.isEmpty {
+                Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+            } else {
+                Button { isShowingShareComposer = true } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .background(FootprintDetailTokens.navigationFill, in: Circle())
+                        .overlay(Circle().stroke(BSColor.Stage.border))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(BSLocalization.text("分享这场回忆"))
+            }
         }
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.vertical, BSSpacing.xs)
