@@ -1252,11 +1252,13 @@
 /* Weather reminder (演出前一天天气提醒) */
 "weatherReminderTitleAlert" = "极端天气";
 "weatherReminderTitleRain" = "明天可能有雨";
+"weatherReminderTitleSnow" = "明天可能有雪";
 "weatherReminderTitleHot" = "明天很热";
 "weatherReminderTitleCold" = "明天会冷";
 "weatherReminderTitleWindy" = "明天风大";
 "weatherReminderBodyAlert" = "%1$@ 在 %2$@ 有极端天气预警";
 "weatherReminderBodyRain" = "%1$@ 在 %2$@ 可能有雨，记得带伞";
+"weatherReminderBodySnow" = "%1$@ 在 %2$@ 可能有雪，穿暖和点";
 "weatherReminderBodyHot" = "%1$@ 在 %2$@ 最高 %3$d°，穿轻一点";
 "weatherReminderBodyCold" = "%1$@ 在 %2$@ 最低 %3$d°，套件外套";
 "weatherReminderBodyWindy" = "%1$@ 在 %2$@ 风大，留件挡风的";

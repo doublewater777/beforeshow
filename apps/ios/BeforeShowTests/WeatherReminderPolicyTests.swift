@@ -92,6 +92,47 @@ final class WeatherReminderPolicyTests: XCTestCase {
             place: "上海"
         )
         XCTAssertNil(decision)
+        XCTAssertEqual(decision?.isWeatherAlert, nil)
+    }
+
+    func testUnavailableForecastFallsBackToGeneric() {
+        let decision = WeatherReminderPolicy.decision(
+            forecast: .unavailable,
+            showName: "演出",
+            place: "上海"
+        )
+        XCTAssertEqual(
+            decision,
+            .genericReminder(showName: "演出", place: "上海")
+        )
+        XCTAssertEqual(decision?.isWeatherAlert, false)
+    }
+
+    func testSnowDoesNotUseRainCopy() {
+        let f = forecast(precip: 0.4, condition: .snow)
+        let decision = WeatherReminderPolicy.decision(
+            forecast: f,
+            showName: "冬巡",
+            place: "哈尔滨"
+        )
+        XCTAssertEqual(
+            decision,
+            .snow(showName: "冬巡", place: "哈尔滨", precipitationChance: 40)
+        )
+        XCTAssertTrue(decision?.isWeatherAlert ?? false)
+    }
+
+    func testSleetUsesSnowDecision() {
+        let f = forecast(precip: 0.2, condition: .sleet)
+        let decision = WeatherReminderPolicy.decision(
+            forecast: f,
+            showName: "冬巡",
+            place: "沈阳"
+        )
+        XCTAssertEqual(
+            decision,
+            .snow(showName: "冬巡", place: "沈阳", precipitationChance: 20)
+        )
     }
 
     func testNilForecastFallsBackToGeneric() {

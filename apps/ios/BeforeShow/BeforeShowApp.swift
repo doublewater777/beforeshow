@@ -431,10 +431,14 @@ func reconcileDynamicCoverModelBoundary(
         }
         keptByShowID[show.id] = cover
         validPaths.insert(cover.relativePath)
-        if let posterPath = cover.posterRelativePath,
-           DynamicCover.isValidRelativePath(posterPath, showID: show.id),
-           existingRelativePaths.contains(posterPath) {
-            validPaths.insert(posterPath)
+        if let posterPath = cover.posterRelativePath {
+            if DynamicCover.isValidRelativePath(posterPath, showID: show.id),
+               existingRelativePaths.contains(posterPath) {
+                validPaths.insert(posterPath)
+            } else {
+                cover.posterRelativePath = nil
+                mutated = true
+            }
         }
     }
     for show in shows {

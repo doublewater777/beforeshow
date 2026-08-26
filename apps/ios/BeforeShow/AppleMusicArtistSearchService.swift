@@ -116,9 +116,9 @@ actor ArtistAlbumArtworkResolver {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let key = "\(country)|\(trimmed)"
-        if let cached = cache[key] { return cached }
+        if cache.keys.contains(key) { return cache[key] ?? nil }
         let resolved = await resolve(artistName: trimmed, country: country)
-        cache[key] = resolved
+        cache.updateValue(resolved, forKey: key)
         return resolved
     }
 

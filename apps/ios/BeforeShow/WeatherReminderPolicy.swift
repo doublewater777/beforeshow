@@ -12,11 +12,21 @@ enum WeatherReminderPolicy {
     enum Decision: Equatable, Sendable {
         case severeAlert(showName: String, place: String)
         case rain(showName: String, place: String, precipitationChance: Int)
+        case snow(showName: String, place: String, precipitationChance: Int)
         case heat(showName: String, place: String, highC: Int)
         case cold(showName: String, place: String, lowC: Int)
         case wind(showName: String, place: String, windKmh: Int)
         /// 天气数据全无时的兜底：原 .oneDayBefore 的「明天见」。
         case genericReminder(showName: String, place: String)
+
+        var isWeatherAlert: Bool {
+            switch self {
+            case .genericReminder:
+                return false
+            case .severeAlert, .rain, .snow, .heat, .cold, .wind:
+                return true
+            }
+        }
     }
 
     /// 阈值在调用方固定传入（默认常量），方便测试时覆盖。
@@ -29,11 +39,18 @@ enum WeatherReminderPolicy {
         precipitationThreshold: Double = precipitationThreshold,
         windThreshold: Double = windSpeedThresholdKmh
     ) -> Decision? {
-        guard let forecast else {
+        guard let forecast, forecast != .unavailable else {
             return .genericReminder(showName: showName, place: place)
         }
         if forecast.condition == .thunderstorm {
             return .severeAlert(showName: showName, place: place)
+        }
+        if forecast.condition == .snow || forecast.condition == .sleet {
+            return .snow(
+                showName: showName,
+                place: place,
+                precipitationChance: Int((forecast.precipitationChance * 100).rounded())
+            )
         }
         if forecast.precipitationChance >= precipitationThreshold || forecast.condition.isWet {
             return .rain(
@@ -69,6 +86,14 @@ enum WeatherReminderPolicy {
             let title = BSLocalization.text("weatherReminderTitleRain")
             let body = BSLocalization.format(
                 "weatherReminderBodyRain",
+                showName,
+                place.isEmpty ? "—" : place
+            )
+            return (title, body)
+        case .snow(let showName, let place, _):
+            let title = BSLocalization.text("weatherReminderTitleSnow")
+            let body = BSLocalization.format(
+                "weatherReminderBodySnow",
                 showName,
                 place.isEmpty ? "—" : place
             )

@@ -43,6 +43,19 @@ final class ArtistAlbumArtworkResolverTests: XCTestCase {
         XCTAssertEqual(counter.count, 2, "第二次命中缓存,不应再发请求")
     }
 
+    func testCachesNilMissesSoFailedLookupsAreNotRetried() async {
+        let counter = RequestCounter()
+        let session = RoutingMockURLSession(counter: counter) { _ in #"{"resultCount":0,"results":[]}"# }
+        let resolver = ArtistAlbumArtworkResolver(session: session)
+
+        let first = await resolver.artworkURL(forArtistName: "不存在的艺人")
+        let second = await resolver.artworkURL(forArtistName: "不存在的艺人")
+
+        XCTAssertNil(first)
+        XCTAssertNil(second)
+        XCTAssertEqual(counter.count, 1)
+    }
+
     func testBestArtworkSkipsNonCollectionsAndMissingArtwork() {
         let collections = [
             ITunesCollection(wrapperType: "artist", artistId: 7, releaseDate: nil, artworkUrl100: nil),

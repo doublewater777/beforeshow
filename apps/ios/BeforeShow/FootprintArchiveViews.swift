@@ -699,17 +699,9 @@ private struct FootprintTopArtistCard: View {
     }
 
     private func persistAlbumArtwork(_ url: URL, forArtistNamed name: String, showIDs: [UUID]) {
-        guard let trimmed = FootprintTextNormalizer.nonEmptyTrimmed(name) else { return }
-        var changed = false
-        for show in archive.shows where showIDs.contains(show.id) {
-            for index in show.artists.indices {
-                guard FootprintTextNormalizer.nonEmptyTrimmed(show.artists[index].name) == trimmed,
-                      show.artists[index].albumArtworkURL == nil else { continue }
-                show.artists[index].albumArtworkURL = url.absoluteString
-                changed = true
-            }
+        if FootprintAlbumArtworkWriteback.persist(url, artistName: name, showIDs: showIDs, in: archive.shows) {
+            try? modelContext.save()
         }
-        if changed { try? modelContext.save() }
     }
 
     private func artistRangeText(_ item: FootprintArtistArchiveItem) -> String {

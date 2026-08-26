@@ -88,6 +88,80 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
+    func testSameVenueNameInDifferentCitiesAreSeparateIdentities() throws {
+        let beijing = try makeShow("北馆", year: 2026, month: 1, durationHours: 2, venue: "体育馆")
+        let shanghai = try makeShow("南馆", year: 2026, month: 3, durationHours: 2, venue: "体育馆")
+        beijing.city = "北京"
+        shanghai.city = "上海"
+        beijing.markEnded(at: date(2026, 1, 10, 22))
+        shanghai.markEnded(at: date(2026, 3, 10, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [beijing, shanghai],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.venueArchiveItems.count, 2)
+        XCTAssertEqual(Set(archive.venueArchiveItems.map(\.id)).count, 2)
+        XCTAssertTrue(archive.venueArchiveItems.allSatisfy { $0.count == 1 && $0.isRevisited == false })
+    }
+
+    func testSamePhysicalVenueAcrossShowsIsOneRevisitedIdentity() throws {
+        let first = try makeShow("第一场", year: 2025, month: 6, durationHours: 2, venue: "MAO")
+        let second = try makeShow("第二场", year: 2026, month: 6, durationHours: 2, venue: "MAO")
+        first.markEnded(at: date(2025, 6, 10, 22))
+        second.markEnded(at: date(2026, 6, 10, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [first, second],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        let venue = try XCTUnwrap(archive.venueArchiveItems.first)
+        XCTAssertEqual(archive.venueArchiveItems.count, 1)
+        XCTAssertEqual(venue.count, 2)
+        XCTAssertTrue(venue.isRevisited)
+        XCTAssertEqual(venue.cities, ["上海"])
+    }
+
+    func testArtistArchiveUsesLaterPersistedAlbumArtworkWhenEarliestSlotIsNil() throws {
+        let first = try makeShow("早场", year: 2024, month: 6, durationHours: 2, artist: "A")
+        let later = try makeShow("晚场", year: 2026, month: 6, durationHours: 2, artist: "A")
+        first.artists = [ArtistSlot(name: "A", avatarURL: nil, albumArtworkURL: nil)]
+        later.artists = [ArtistSlot(name: "A", avatarURL: nil, albumArtworkURL: "https://example.com/later.jpg")]
+        first.markEnded(at: date(2024, 6, 10, 22))
+        later.markEnded(at: date(2026, 6, 10, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [later, first],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(
+            archive.artistArchiveItems.first?.albumArtworkURL,
+            URL(string: "https://example.com/later.jpg")
+        )
+    }
+
+    func testAlbumArtworkWritebackPersistsOntoMatchingNilSlots() throws {
+        let show = try makeShow("待写回", year: 2026, month: 6, durationHours: 2, artist: "陈奕迅")
+        show.markEnded(at: date(2026, 6, 10, 22))
+        let url = URL(string: "https://example.com/eason-album.jpg")!
+
+        let changed = FootprintAlbumArtworkWriteback.persist(
+            url,
+            artistName: "陈奕迅",
+            showIDs: [show.id],
+            in: [show]
+        )
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(show.artists.first?.albumArtworkURL, url.absoluteString)
+    }
+
     func testArtistArchiveKeepsPersistedAlbumArtworkURL() throws {
         let show = try makeShow(
             "有专辑封面的现场",

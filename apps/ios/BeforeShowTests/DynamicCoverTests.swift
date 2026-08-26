@@ -364,6 +364,38 @@ final class DynamicCoverTests: XCTestCase {
         XCTAssertEqual(show.dynamicCover?.id, cover.id)
     }
 
+    @MainActor
+    func testReconcileClearsStalePosterPathWhenFileIsMissing() throws {
+        let container = try ModelContainer(
+            for: Show.self, DynamicCover.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let show = try Show(name: "海报已丢", date: Date(), startTime: Date())
+        let videoPath = "\(show.id.uuidString)/clip.mov"
+        let posterPath = "\(show.id.uuidString)/clip-poster.jpg"
+        let cover = DynamicCover(
+            showID: show.id,
+            relativePath: videoPath,
+            posterRelativePath: posterPath,
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 1
+        )
+        cover.show = show
+        show.dynamicCover = cover
+        container.mainContext.insert(show)
+        container.mainContext.insert(cover)
+        try container.mainContext.save()
+
+        let validPaths = try reconcileDynamicCoverModelBoundary(
+            in: container.mainContext,
+            existingRelativePaths: [videoPath]
+        )
+
+        XCTAssertTrue(validPaths.contains(videoPath))
+        XCTAssertFalse(validPaths.contains(posterPath))
+        XCTAssertNil(show.dynamicCover?.posterRelativePath)
+    }
+
     private func makeTempStore() -> (URL, DynamicCoverMediaStore) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("DynamicCoverTests-\(UUID().uuidString)", isDirectory: true)

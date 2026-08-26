@@ -87,7 +87,10 @@ struct FootprintVenueArchiveItem: Identifiable, Equatable, Hashable {
     let showIDs: [UUID]
     let yearSpan: FootprintYearSpan
 
-    var id: String { name }
+    var id: String {
+        let city = cities.sorted { $0.localizedStandardCompare($1) == .orderedAscending }.joined(separator: ",")
+        return city.isEmpty ? name : "\(city)|\(name)"
+    }
     var firstShowID: UUID? { showIDs.first }
     var latestShowID: UUID? { showIDs.last }
     var isRevisited: Bool { count > 1 }
@@ -184,20 +187,30 @@ enum FootprintArchiveRankingBuilder {
     }
 
     static func venues(in shows: [Show]) -> [FootprintVenueArchiveItem] {
-        let grouped = Dictionary(grouping: shows) { FootprintTextNormalizer.nonEmptyTrimmed($0.venueName) }
-        return grouped.compactMap { name, related in
-            guard let name else { return nil }
+        let grouped = Dictionary(grouping: shows) { venueIdentityKey(for: $0) }
+        return grouped.compactMap { key, related in
+            guard let key else { return nil }
             let ordered = chronological(related)
             let cities = Set(related.compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0.city) })
                 .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
             return FootprintVenueArchiveItem(
-                name: name,
+                name: key.venue,
                 count: related.count,
                 cities: cities,
                 showIDs: ordered.map(\.id),
                 yearSpan: span(for: ordered)
             )
         }.sorted(by: sortItems)
+    }
+
+    private struct VenueIdentityKey: Hashable {
+        let city: String
+        let venue: String
+    }
+
+    private static func venueIdentityKey(for show: Show) -> VenueIdentityKey? {
+        guard let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) else { return nil }
+        return VenueIdentityKey(city: FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? "", venue: venue)
     }
 
     static func months(in shows: [Show]) -> [FootprintMonthActivity] {
@@ -222,22 +235,23 @@ enum FootprintArchiveRankingBuilder {
     private static func makeArtist(name: String, shows: [Show]) -> FootprintArtistArchiveItem? {
         let ordered = chronological(shows)
         guard !ordered.isEmpty else { return nil }
-        let artworkURL = ordered.lazy
+        let matchingSlots = ordered.lazy
             .flatMap(\.artists)
-            .first { FootprintTextNormalizer.nonEmptyTrimmed($0.name) == name }
-            .flatMap { slot in
+            .filter { FootprintTextNormalizer.nonEmptyTrimmed($0.name) == name }
+        let artworkURL = matchingSlots
+            .compactMap { slot in
                 slot.avatarURL
                     .flatMap(FootprintTextNormalizer.nonEmptyTrimmed)
                     .flatMap(URL.init(string:))
             }
-        let albumArtworkURL = ordered.lazy
-            .flatMap(\.artists)
-            .first { FootprintTextNormalizer.nonEmptyTrimmed($0.name) == name }
-            .flatMap { slot in
+            .first
+        let albumArtworkURL = matchingSlots
+            .compactMap { slot in
                 slot.albumArtworkURL
                     .flatMap(FootprintTextNormalizer.nonEmptyTrimmed)
                     .flatMap(URL.init(string:))
             }
+            .first
         return FootprintArtistArchiveItem(
             name: name,
             count: ordered.count,
@@ -528,6 +542,29 @@ struct FootprintVisibility: Equatable {
     var showsTrend: Bool { showCount >= 5 }
     var showsYearComparison: Bool { yearCount >= 2 }
     var showsTopThree: Bool { showCount >= 3 }
+}
+
+enum FootprintAlbumArtworkWriteback {
+    @MainActor
+    @discardableResult
+    static func persist(
+        _ url: URL,
+        artistName: String,
+        showIDs: [UUID],
+        in shows: [Show]
+    ) -> Bool {
+        guard let trimmed = FootprintTextNormalizer.nonEmptyTrimmed(artistName) else { return false }
+        var changed = false
+        for show in shows where showIDs.contains(show.id) {
+            for index in show.artists.indices {
+                guard FootprintTextNormalizer.nonEmptyTrimmed(show.artists[index].name) == trimmed,
+                      show.artists[index].albumArtworkURL == nil else { continue }
+                show.artists[index].albumArtworkURL = url.absoluteString
+                changed = true
+            }
+        }
+        return changed
+    }
 }
 
 @MainActor
