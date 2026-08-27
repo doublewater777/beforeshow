@@ -142,7 +142,7 @@ struct FootprintDashboardSections {
         return dashboardSection(
             title: BSLocalization.text("现场轨迹"),
             subtitle: nil,
-            action: archive.years.isEmpty ? nil : BSLocalization.text("查看全部 →"),
+            action: isForExport || archive.years.isEmpty ? nil : BSLocalization.text("查看全部 →"),
             actionDestination: archive.years.isEmpty ? nil : AnyView(
                 FootprintYearArchiveView(
                     archive: archive,
@@ -189,41 +189,76 @@ struct FootprintDashboardSections {
 
     var artistSection: some View {
         let items = archive.artistArchiveItems
-        return dashboardSection(title: BSLocalization.text("艺人足迹"), action: items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+        return Group {
+            if items.isEmpty {
+                EmptyView()
+            } else {
+        dashboardSection(title: BSLocalization.text("艺人足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
             if let first = items.first {
-                NavigationLink {
-                    FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
-                } label: {
+                if isForExport {
                     FootprintTopArtistCard(
                         items: items,
                         first: first,
                         archive: archive,
                         onArchiveVisibilityChange: onArchiveVisibilityChange
                     )
+                } else {
+                    NavigationLink {
+                        FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
+                    } label: {
+                        FootprintTopArtistCard(
+                            items: items,
+                            first: first,
+                            archive: archive,
+                            onArchiveVisibilityChange: onArchiveVisibilityChange
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+            }
+        }
             }
         }
     }
 
     var citySection: some View {
         let items = archive.cityArchiveItems
-        return dashboardSection(title: BSLocalization.text("城市足迹"), action: items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
-            NavigationLink {
-                FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
-            } label: { FootprintGeoMap(items: items) }
-            .buttonStyle(.plain)
+        return Group {
+            if items.isEmpty {
+                EmptyView()
+            } else {
+        dashboardSection(title: BSLocalization.text("城市足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+            if isForExport {
+                FootprintGeoMap(items: items, showsControls: false)
+            } else {
+                NavigationLink {
+                    FootprintCityArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
+                } label: { FootprintGeoMap(items: items) }
+                .buttonStyle(.plain)
+            }
+        }
+            }
         }
     }
 
     var venueSection: some View {
         let items = archive.venueArchiveItems
-        return dashboardSection(title: BSLocalization.text("场馆足迹"), action: items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
+        return Group {
+            if items.isEmpty {
+                EmptyView()
+            } else {
+        dashboardSection(title: BSLocalization.text("场馆足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
             if let first = items.first {
-                NavigationLink {
-                    FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
-                } label: { venueFootprintCard(items: items, first: first) }
-                .buttonStyle(.plain)
+                if isForExport {
+                    venueFootprintCard(items: items, first: first)
+                } else {
+                    NavigationLink {
+                        FootprintVenueArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
+                    } label: { venueFootprintCard(items: items, first: first) }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
             }
         }
     }
@@ -364,54 +399,111 @@ struct FootprintDashboardSections {
         let memoryShows = archive.shows.filter { covers[$0.id]?.badge == .memory }
         return Group {
             if !memoryShows.isEmpty {
-                dashboardSection(
-                    title: BSLocalization.text("最近留下的回忆"),
-                    action: BSLocalization.text("查看全部 →"),
-                    actionDestination: AnyView(
-                        FootprintMemoriesArchiveView(
-                            archive: archive,
-                            covers: covers,
-                            onDetailVisibilityChange: onArchiveVisibilityChange
-                        )
-                    )
-                ) {
-                    let cards = HStack(spacing: 12) {
-                        ForEach(memoryShows.prefix(8)) { show in
-                            Button { onShowSelected(show) } label: {
-                                FootprintMemoryCard(show: show, cover: covers[show.id])
-                                    .frame(width: 144, height: 192)
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(BSLocalization.text("最近留下的回忆"))
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.foreground)
+                        }
+                        Spacer()
+                        if !isForExport {
+                            NavigationLink {
+                                FootprintMemoriesArchiveView(
+                                    archive: archive,
+                                    covers: covers,
+                                    onDetailVisibilityChange: onArchiveVisibilityChange
+                                )
+                            } label: {
+                                Text(BSLocalization.text("查看全部 ›"))
+                                    .font(.system(size: 10))
+                                    .foregroundColor(BSColor.Stage.accent)
                             }
                             .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 20)
+
                     if isForExport {
-                        cards.clipped()
+                        let shown = FootprintExportContentPolicy.prefix(
+                            memoryShows,
+                            limit: FootprintExportContentPolicy.memoryCardLimit
+                        )
+                        let rows = stride(from: 0, to: shown.count, by: 2).map { start in
+                            Array(shown[start..<min(start + 2, shown.count)])
+                        }
+                        VStack(spacing: 12) {
+                            ForEach(Array(rows.enumerated()), id: \.offset) { rowIndex, row in
+                                HStack(spacing: 12) {
+                                    ForEach(Array(row.enumerated()), id: \.element.id) { column, show in
+                                        FootprintMemoryCard(
+                                            show: show,
+                                            cover: covers[show.id],
+                                            index: rowIndex * 2 + column + 1
+                                        )
+                                        .aspectRatio(138.0 / 184.0, contentMode: .fit)
+                                        .frame(maxWidth: .infinity)
+                                    }
+                                    if row.count == 1 {
+                                        Color.clear
+                                            .aspectRatio(138.0 / 184.0, contentMode: .fit)
+                                            .frame(maxWidth: .infinity)
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                        footprintExportRemainingCaption(
+                            total: memoryShows.count,
+                            limit: FootprintExportContentPolicy.memoryCardLimit,
+                            style: .memories
+                        )
                     } else {
-                        ScrollView(.horizontal, showsIndicators: false) { cards }
-                            .padding(.horizontal, -15)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 12) {
+                                ForEach(Array(memoryShows.prefix(8).enumerated()), id: \.element.id) { index, show in
+                                    Button { onShowSelected(show) } label: {
+                                        FootprintMemoryCard(show: show, cover: covers[show.id], index: index + 1)
+                                            .frame(width: 138, height: 184)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                        }
                     }
                 }
+                .padding(.top, 28)
             }
         }
     }
 
     var timelineSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let groups = isForExport
+            ? FootprintExportContentPolicy.cappedYearGroups(
+                archive.years,
+                limit: FootprintExportContentPolicy.timelineShowLimit
+            )
+            : archive.years
+        let totalShows = archive.years.reduce(0) { $0 + $1.shows.count }
+        return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
                 sectionLabel(BSLocalization.text("现场记录"), nil)
                 Spacer()
-                Button(BSLocalization.text("补录历史"), action: onAdd)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
-                    .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 1))
+                if !isForExport {
+                    Button(BSLocalization.text("补录历史"), action: onAdd)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 1))
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 30)
 
-            ForEach(archive.years) { group in
+            ForEach(groups) { group in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Text(String(group.year))
                         .font(.system(size: 26, weight: .bold))
@@ -502,6 +594,14 @@ struct FootprintDashboardSections {
                     .padding(.top, 12)
                 }
             }
+            if isForExport {
+                footprintExportRemainingCaption(
+                    total: totalShows,
+                    limit: FootprintExportContentPolicy.timelineShowLimit
+                )
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+            }
         }
     }
 
@@ -518,7 +618,9 @@ struct FootprintDashboardSections {
                 }
                 Spacer(minLength: 8)
                 if let action {
-                    if let actionDestination {
+                    if isForExport {
+                        Text(action).font(.system(size: 10)).foregroundColor(BSColor.Stage.accent).lineLimit(1)
+                    } else if let actionDestination {
                         NavigationLink { actionDestination } label: {
                             Text(action).font(.system(size: 10)).foregroundColor(BSColor.Stage.accent).lineLimit(1)
                         }
@@ -898,6 +1000,7 @@ private struct FootprintMapStar {
 private struct FootprintGeoMap: View {
     let items: [FootprintCityArchiveItem]
     var height: CGFloat = 230
+    var showsControls = true
     var onSelect: ((FootprintCityArchiveItem) -> Void)? = nil
     @State private var resolvedCoordinates: [String: FootprintCityCoordinate]
     @State private var mapScale: CGFloat = 1
@@ -906,10 +1009,12 @@ private struct FootprintGeoMap: View {
     init(
         items: [FootprintCityArchiveItem],
         height: CGFloat = 230,
+        showsControls: Bool = true,
         onSelect: ((FootprintCityArchiveItem) -> Void)? = nil
     ) {
         self.items = items
         self.height = height
+        self.showsControls = showsControls
         self.onSelect = onSelect
         _resolvedCoordinates = State(
             initialValue: FootprintCityCoordinateResolver.shared.cachedCoordinates(for: items.map(\.name))
@@ -1025,7 +1130,7 @@ private struct FootprintGeoMap: View {
                 }
                 .scaleEffect(mapScale * pinchScale)
                 .simultaneousGesture(pinchZoomGesture)
-                mapControls
+                if showsControls { mapControls }
             }
         }
         .frame(height: height)
@@ -1370,12 +1475,22 @@ struct FootprintYearArchiveView: View {
                 }
 
                 if let highlight = highlightShow {
-                    yearHighlight(highlight)
+                    yearHighlight(highlight, isForExport: isForExport)
                 }
 
                 archiveSectionTitle(BSLocalization.text("全部现场"), BSLocalization.format("%lld 场", summary.showCount))
-                ForEach(selectedGroup?.shows ?? []) { show in
-                    yearShowRow(show)
+                let yearShows = selectedGroup?.shows ?? []
+                let visibleYearShows = isForExport
+                    ? FootprintExportContentPolicy.prefix(yearShows, limit: FootprintExportContentPolicy.yearShowLimit)
+                    : yearShows
+                ForEach(visibleYearShows) { show in
+                    yearShowRow(show, isForExport: isForExport)
+                }
+                if isForExport {
+                    footprintExportRemainingCaption(
+                        total: yearShows.count,
+                        limit: FootprintExportContentPolicy.yearShowLimit
+                    )
                 }
             } else {
                 Text(BSLocalization.text("暂无本地数据"))
@@ -1386,31 +1501,30 @@ struct FootprintYearArchiveView: View {
         }
     }
 
-    /// isForExport: ImageRenderer 快照里横向 ScrollView 会渲染成空白,导出时改用普通 HStack。
+    /// isForExport: 导出的静态长图里年份切换没有意义(大标题已含年份),直接省略;
+    /// 且 ImageRenderer 快照里横向 ScrollView 会渲染成空白。
     @ViewBuilder
     private func yearPicker(isForExport: Bool) -> some View {
-        let pills = HStack(spacing: 8) {
-            ForEach(archive.years.map(\.year), id: \.self) { year in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedYear = year
+        if !isForExport {
+            let pills = HStack(spacing: 8) {
+                ForEach(archive.years.map(\.year), id: \.self) { year in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            selectedYear = year
+                        }
+                    } label: {
+                        Text(String(year))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(year == selectedYear ? BSColor.Stage.accent : Color.white.opacity(0.045), in: Capsule())
+                            .overlay(Capsule().stroke(year == selectedYear ? BSColor.Stage.accent : BSColor.Stage.border))
                     }
-                } label: {
-                    Text(String(year))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(year == selectedYear ? BSColor.Stage.background : BSColor.Stage.dim)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(year == selectedYear ? BSColor.Stage.accent : Color.white.opacity(0.045), in: Capsule())
-                        .overlay(Capsule().stroke(year == selectedYear ? BSColor.Stage.accent : BSColor.Stage.border))
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(year == selectedYear ? .isSelected : [])
                 }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(year == selectedYear ? .isSelected : [])
             }
-        }
-        if isForExport {
-            pills
-        } else {
             ScrollView(.horizontal, showsIndicators: false) { pills }
         }
     }
@@ -1444,8 +1558,8 @@ struct FootprintYearArchiveView: View {
         .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(BSColor.Stage.border))
     }
 
-    private func yearHighlight(_ show: Show) -> some View {
-        NavigationLink {
+    private func yearHighlight(_ show: Show, isForExport: Bool) -> some View {
+        footprintExportAwareNavigationLink(isForExport: isForExport) {
             FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
         } label: {
             HStack(spacing: 12) {
@@ -1464,24 +1578,21 @@ struct FootprintYearArchiveView: View {
                     Text([footprintEnhancementFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 9))
                         .foregroundColor(BSColor.Stage.muted)
-                    Text(BSLocalization.text("今年记录最完整的一晚"))
+                    Text(BSLocalization.text("记录最完整的一晚"))
                         .font(.system(size: 8))
                         .foregroundColor(BSColor.Stage.dim)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10))
-                    .foregroundColor(BSColor.Stage.dim)
+                footprintRowChevron(isForExport: isForExport, size: 10)
             }
             .padding(12)
             .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(BSColor.Stage.border))
         }
-        .buttonStyle(.plain)
     }
 
-    private func yearShowRow(_ show: Show) -> some View {
-        NavigationLink {
+    private func yearShowRow(_ show: Show, isForExport: Bool) -> some View {
+        footprintExportAwareNavigationLink(isForExport: isForExport) {
             FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
         } label: {
             HStack(spacing: 10) {
@@ -1508,14 +1619,11 @@ struct FootprintYearArchiveView: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9))
-                    .foregroundColor(BSColor.Stage.dim)
+                footprintRowChevron(isForExport: isForExport, size: 9)
             }
             .padding(.vertical, 7)
             .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1) }
         }
-        .buttonStyle(.plain)
     }
 
     private var highlightShow: Show? {
@@ -1540,24 +1648,30 @@ struct FootprintArtistArchiveView: View {
     @State private var heroWidth: CGFloat = 365
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("艺人档案"), kicker: "", shareCovers: covers) { _ in
+        FootprintArchivePage(
+            title: BSLocalization.text("艺人档案"),
+            kicker: "",
+            shareCovers: covers,
+            extraWarmup: {
+                await FootprintCoverExportWarmup.warm(artists: archive.artistArchiveItems)
+            }
+        ) { isForExport in
             let items = archive.artistArchiveItems
             if let first = archive.artistArchiveItems.first {
                 artistArchiveHero(first)
             }
             archiveSectionTitle(BSLocalization.text("完整艺人排行"), BSLocalization.format("%lld 位艺人", archive.artistArchiveItems.count))
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                NavigationLink {
+                footprintExportAwareNavigationLink(isForExport: isForExport) {
                     FootprintFilteredShowsView(title: item.name, shows: archive.shows(for: item.showIDs), archive: archive, covers: covers, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
-                    artistArchiveRow(rank: index + 1, item: item)
+                    artistArchiveRow(rank: index + 1, item: item, isForExport: isForExport)
                 }
-                .buttonStyle(.plain)
             }
         }
     }
 
-    private func artistArchiveRow(rank: Int, item: FootprintArtistArchiveItem) -> some View {
+    private func artistArchiveRow(rank: Int, item: FootprintArtistArchiveItem, isForExport: Bool) -> some View {
         HStack(spacing: 12) {
             Text("\(rank)")
                 .font(.system(size: 11, weight: rank <= 3 ? .bold : .medium))
@@ -1592,9 +1706,7 @@ struct FootprintArtistArchiveView: View {
                 .background(rank == 1 ? BSColor.Stage.accent.opacity(0.12) : Color.white.opacity(0.05), in: Capsule())
                 .overlay(Capsule().stroke(rank == 1 ? BSColor.Stage.accent.opacity(0.3) : Color.clear, lineWidth: 1))
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(BSColor.Stage.dim)
+            footprintRowChevron(isForExport: isForExport, size: 11, weight: .bold)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -1677,18 +1789,30 @@ struct FootprintCityArchiveView: View {
     @State private var selectedCity: FootprintCityArchiveItem?
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("城市档案"), kicker: "", shareCovers: covers) { _ in
-            FootprintGeoMap(items: archive.cityArchiveItems, height: 360) { item in
-                selectedCity = item
+        FootprintArchivePage(
+            title: BSLocalization.text("城市档案"),
+            kicker: "",
+            shareCovers: covers,
+            extraWarmup: {
+                _ = await FootprintCityCoordinateResolver.shared.coordinates(
+                    for: archive.cityArchiveItems.map(\.name)
+                )
+            }
+        ) { isForExport in
+            if isForExport {
+                FootprintGeoMap(items: archive.cityArchiveItems, height: 360, showsControls: false)
+            } else {
+                FootprintGeoMap(items: archive.cityArchiveItems, height: 360) { item in
+                    selectedCity = item
+                }
             }
             archiveSectionTitle(BSLocalization.text("去过的城市"), BSLocalization.format("%lld 座城市", archive.cityArchiveItems.count))
             ForEach(archive.cityArchiveItems) { item in
-                Button {
+                footprintExportAwareButton(isForExport: isForExport) {
                     selectedCity = item
                 } label: {
-                    cityRow(item)
+                    cityRow(item, isForExport: isForExport)
                 }
-                .buttonStyle(.plain)
             }
         }
         .navigationDestination(item: $selectedCity) { item in
@@ -1702,14 +1826,14 @@ struct FootprintCityArchiveView: View {
         }
     }
 
-    private func cityRow(_ item: FootprintCityArchiveItem) -> some View {
+    private func cityRow(_ item: FootprintCityArchiveItem, isForExport: Bool) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(BSFont.headline).foregroundColor(BSColor.Stage.foreground)
                 Text(BSLocalization.format("%lld 场 · %lld 个场馆 · %@", item.count, item.venueCount, yearSpanText(item.yearSpan))).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted)
             }
             Spacer()
-            Image(systemName: "chevron.right").font(BSFont.V3.caption).foregroundColor(BSColor.Stage.dim)
+            footprintRowChevron(isForExport: isForExport)
         }
         .padding(13)
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))
@@ -1729,11 +1853,14 @@ struct FootprintCityDetailView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", shareCovers: covers) { _ in
+        FootprintArchivePage(title: BSLocalization.format("%@现场", item.name), kicker: "", shareCovers: covers) { isForExport in
             cityHero
             archiveSectionTitle(BSLocalization.text("这座城市里的现场"), BSLocalization.format("%lld 场 · 按时间倒序", item.count))
-            ForEach(shows) { show in
-                NavigationLink {
+            let visibleShows = isForExport
+                ? FootprintExportContentPolicy.prefix(shows, limit: FootprintExportContentPolicy.yearShowLimit)
+                : shows
+            ForEach(visibleShows) { show in
+                footprintExportAwareNavigationLink(isForExport: isForExport) {
                     FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     HStack(spacing: 11) {
@@ -1763,14 +1890,17 @@ struct FootprintCityDetailView: View {
                                 .lineLimit(2)
                         }
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9))
-                            .foregroundColor(BSColor.Stage.dim)
+                        footprintRowChevron(isForExport: isForExport, size: 9)
                     }
                     .padding(.vertical, 6)
                     .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1) }
                 }
-                .buttonStyle(.plain)
+            }
+            if isForExport {
+                footprintExportRemainingCaption(
+                    total: shows.count,
+                    limit: FootprintExportContentPolicy.yearShowLimit
+                )
             }
         }
     }
@@ -1815,7 +1945,7 @@ struct FootprintCityDetailView: View {
                         Text(BSLocalization.format("%lld 个场馆", item.venueCount))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(BSColor.Stage.foreground)
-                        Text(BSLocalization.format("%lld–%lld", item.yearSpan.first, item.yearSpan.latest))
+                        Text(item.yearSpan.displayText)
                             .font(.system(size: 9))
                             .foregroundColor(BSColor.Stage.muted)
                     }
@@ -1840,7 +1970,7 @@ struct FootprintVenueArchiveView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", shareCovers: covers) { _ in
+        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", shareCovers: covers) { isForExport in
             if let first = archive.venueArchiveItems.first {
                 let firstShows = archive.shows(for: first.showIDs)
                 HStack(alignment: .center, spacing: 16) {
@@ -1870,7 +2000,7 @@ struct FootprintVenueArchiveView: View {
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(BSColor.Stage.foreground)
                             }
-                            Text("\(first.yearSpan.first) → \(first.yearSpan.latest) · \(BSLocalization.format("全部现场的 %lld%% 在这里", percentage(first.count)))")
+                            Text("\(first.yearSpan.displayText) · \(BSLocalization.format("全部现场的 %lld%% 在这里", percentage(first.count)))")
                                 .font(.system(size: 10))
                                 .foregroundColor(BSColor.Stage.muted)
                         }
@@ -1902,11 +2032,11 @@ struct FootprintVenueArchiveView: View {
                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(BSColor.Stage.prepare.opacity(0.18)))
             }
 
-            archiveSectionTitle(BSLocalization.text("熟悉度排行"), BSLocalization.text("VISITS"))
+            archiveSectionTitle(BSLocalization.text("熟悉度排行"))
 
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 let itemShows = archive.shows(for: item.showIDs)
-                NavigationLink {
+                footprintExportAwareNavigationLink(isForExport: isForExport) {
                     FootprintFilteredShowsView(title: item.name, shows: itemShows, archive: archive, covers: covers, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     VStack(alignment: .leading, spacing: 12) {
@@ -1931,7 +2061,9 @@ struct FootprintVenueArchiveView: View {
                                             .font(.system(size: 9, weight: .medium))
                                             .foregroundColor(BSColor.Stage.muted)
                                     }
-                                    Text(BSLocalization.format("第一次 %lld · 最近 %lld", item.yearSpan.first, item.yearSpan.latest))
+                                    Text(item.yearSpan.isSingleYear
+                                        ? item.yearSpan.displayText
+                                        : BSLocalization.format("第一次 %lld · 最近 %lld", item.yearSpan.first, item.yearSpan.latest))
                                         .font(BSFont.V3.caption)
                                         .foregroundColor(BSColor.Stage.muted)
                                 }
@@ -1965,7 +2097,6 @@ struct FootprintVenueArchiveView: View {
                     .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(BSColor.Stage.border))
                 }
-                .buttonStyle(.plain)
             }
         }
     }
@@ -1977,6 +2108,12 @@ struct FootprintVenueArchiveView: View {
     }
 }
 
+private struct FootprintMemoryYearGroup: Identifiable {
+    let year: Int
+    let shows: [Show]
+    var id: Int { year }
+}
+
 struct FootprintMemoriesArchiveView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
@@ -1986,127 +2123,109 @@ struct FootprintMemoriesArchiveView: View {
         archive.shows.filter { covers[$0.id]?.badge == .memory }
     }
 
-    private let columns: [GridItem] = [
-        GridItem(.flexible(), spacing: 10),
-        GridItem(.flexible(), spacing: 10)
-    ]
-
-    private var yearSpan: String {
-        guard let first = memoryShows.last, let last = memoryShows.first else { return "—" }
-        let firstYear = first.timingCalendar().component(.year, from: first.effectiveDate)
-        let lastYear = last.timingCalendar().component(.year, from: last.effectiveDate)
-        return firstYear == lastYear ? String(firstYear) : "\(firstYear) → \(lastYear)"
-    }
-
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("回忆档案"), kicker: "", shareCovers: covers) { _ in
-            if let latest = memoryShows.first {
-                memoryHero(latest)
-            }
-            archiveSectionTitle(
-                BSLocalization.text("全部回忆"),
-                BSLocalization.format("%lld 场回忆", memoryShows.count)
-            )
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(memoryShows) { show in
-                    NavigationLink {
-                        FootprintDetailView(
-                            show: show,
-                            archive: archive,
-                            onDetailVisibilityChange: onDetailVisibilityChange
-                        )
-                    } label: {
-                        memoryCard(show)
+        FootprintArchivePage(title: BSLocalization.text("全部回忆"), kicker: "", shareCovers: covers) { isForExport in
+            if memoryShows.isEmpty {
+                emptyState
+            } else {
+                headerHero
+                let visible = isForExport
+                    ? FootprintExportContentPolicy.prefix(
+                        memoryShows,
+                        limit: FootprintExportContentPolicy.memoriesPageLimit
+                    )
+                    : memoryShows
+                let left = Array(visible.enumerated().filter { $0.offset % 2 == 0 })
+                let right = Array(visible.enumerated().filter { $0.offset % 2 != 0 })
+
+                HStack(alignment: .top, spacing: 10) {
+                    VStack(spacing: 10) {
+                        ForEach(left, id: \.element.id) { index, show in
+                            let isTall = index % 3 == 0
+                            footprintExportAwareNavigationLink(isForExport: isForExport) {
+                                FootprintDetailView(
+                                    show: show,
+                                    archive: archive,
+                                    onDetailVisibilityChange: onDetailVisibilityChange
+                                )
+                            } label: {
+                                FootprintMemoryCard(
+                                    show: show,
+                                    cover: covers[show.id],
+                                    index: index + 1,
+                                    isTall: isTall
+                                )
+                            }
+                        }
                     }
-                    .buttonStyle(.plain)
+                    VStack(spacing: 10) {
+                        ForEach(right, id: \.element.id) { index, show in
+                            let isTall = index % 3 == 0
+                            footprintExportAwareNavigationLink(isForExport: isForExport) {
+                                FootprintDetailView(
+                                    show: show,
+                                    archive: archive,
+                                    onDetailVisibilityChange: onDetailVisibilityChange
+                                )
+                            } label: {
+                                FootprintMemoryCard(
+                                    show: show,
+                                    cover: covers[show.id],
+                                    index: index + 1,
+                                    isTall: isTall
+                                )
+                            }
+                        }
+                    }
+                }
+                .padding(.top, 12)
+                if isForExport {
+                    footprintExportRemainingCaption(
+                        total: memoryShows.count,
+                        limit: FootprintExportContentPolicy.memoriesPageLimit,
+                        style: .memories
+                    )
                 }
             }
         }
     }
 
-    private func memoryHero(_ show: Show) -> some View {
-        let calendar = show.timingCalendar()
-        let venueAndCity = [show.city, show.venueName]
-            .compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0) }
-            .joined(separator: " · ")
-        return VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 5) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(BSColor.Stage.accent)
-                Text(BSLocalization.text("LATEST MEMORY"))
-                    .font(.system(size: 9, weight: .bold))
-                    .tracking(1.4)
-                    .foregroundColor(BSColor.Stage.accent)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
-            .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.3), lineWidth: 1))
-            .padding(.bottom, 12)
-
-            FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
-                .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(show.name)
-                    .font(.system(size: 20, weight: .bold))
+    private var headerHero: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(String(memoryShows.count))
+                    .font(.system(size: 48, weight: .thin, design: .rounded))
                     .foregroundColor(BSColor.Stage.foreground)
-                    .lineLimit(2)
-
-                HStack(spacing: 6) {
-                    Text(footprintEnhancementFullDateText(show.effectiveDate, calendar: calendar))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(BSColor.Stage.accent)
-                    if !venueAndCity.isEmpty {
-                        Text("·")
-                            .font(.system(size: 11))
-                            .foregroundColor(BSColor.Stage.dim)
-                        Text(venueAndCity)
-                            .font(.system(size: 11))
-                            .foregroundColor(BSColor.Stage.muted)
-                            .lineLimit(1)
-                    }
-                }
-            }
-            .padding(.top, 14)
-
-            HStack(alignment: .firstTextBaseline) {
-                Text(BSLocalization.format("%lld 场回忆", memoryShows.count))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text("·")
-                    .font(.system(size: 13))
-                    .foregroundColor(BSColor.Stage.dim)
-                Text(yearSpan)
-                    .font(.system(size: 13))
+                Text(BSLocalization.text("个画面"))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
-                Spacer()
             }
-            .padding(.top, 12)
+            Text(BSLocalization.text("照片、视频、票根和时刻表都留在对应的那一晚里。这里按时间把它们重新铺开。"))
+                .font(.system(size: 11))
+                .foregroundColor(BSColor.Stage.muted)
+                .lineSpacing(3)
         }
-        .padding(18)
-        .background(
-            LinearGradient(
-                colors: [BSColor.Stage.surface, Color(red: 0.10, green: 0.09, blue: 0.13)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            ),
-            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(BSColor.Stage.accent.opacity(0.18), lineWidth: 1)
-        )
+        .padding(.vertical, 4)
     }
 
-    private func memoryCard(_ show: Show) -> some View {
-        FootprintMemoryCard(show: show, cover: covers[show.id])
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sparkles.rectangle.stack")
+                .font(.system(size: 36, weight: .light))
+                .foregroundColor(BSColor.Stage.dim)
+            Text(BSLocalization.text("暂无回忆"))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+            Text(BSLocalization.text("散场后留下现场评价、动态封面或记忆碎片，在这里筑造你的现场回忆。"))
+                .font(.system(size: 12))
+                .foregroundColor(BSColor.Stage.muted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 48)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(BSColor.Stage.border))
     }
 }
 
@@ -2118,10 +2237,13 @@ struct FootprintFilteredShowsView: View {
     let onDetailVisibilityChange: (Bool) -> Void
 
     var body: some View {
-        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), shareCovers: covers) { _ in
+        FootprintArchivePage(title: title, kicker: BSLocalization.text("关联现场"), shareCovers: covers) { isForExport in
             archiveSectionTitle(BSLocalization.text("全部现场"), BSLocalization.format("%lld 场", shows.count))
-            ForEach(shows) { show in
-                NavigationLink {
+            let visibleShows = isForExport
+                ? FootprintExportContentPolicy.prefix(shows, limit: FootprintExportContentPolicy.yearShowLimit)
+                : shows
+            ForEach(visibleShows) { show in
+                footprintExportAwareNavigationLink(isForExport: isForExport) {
                     FootprintDetailView(show: show, archive: archive, onDetailVisibilityChange: onDetailVisibilityChange)
                 } label: {
                     HStack(spacing: 11) {
@@ -2135,15 +2257,78 @@ struct FootprintFilteredShowsView: View {
                             Text(footprintEnhancementDayText(show.effectiveDate, calendar: show.timingCalendar())).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.dim)
                         }
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(BSFont.V3.caption).foregroundColor(BSColor.Stage.dim)
+                        footprintRowChevron(isForExport: isForExport)
                     }
                     .padding(10)
                     .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
                 }
-                .buttonStyle(.plain)
+            }
+            if isForExport {
+                footprintExportRemainingCaption(
+                    total: shows.count,
+                    limit: FootprintExportContentPolicy.yearShowLimit
+                )
             }
         }
+    }
+}
+
+@ViewBuilder
+private func footprintRowChevron(
+    isForExport: Bool,
+    size: CGFloat = 11,
+    weight: Font.Weight = .regular
+) -> some View {
+    if !isForExport {
+        Image(systemName: "chevron.right")
+            .font(.system(size: size, weight: weight))
+            .foregroundColor(BSColor.Stage.dim)
+    }
+}
+
+@ViewBuilder
+private func footprintExportRemainingCaption(
+    total: Int,
+    limit: Int,
+    style: FootprintExportContentPolicy.RemainingStyle = .shows
+) -> some View {
+    if let text = FootprintExportContentPolicy.remainingText(total: total, limit: limit, style: style) {
+        Text(text)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundColor(BSColor.Stage.dim)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+    }
+}
+
+@ViewBuilder
+@MainActor
+private func footprintExportAwareNavigationLink<Destination: View, Label: View>(
+    isForExport: Bool,
+    @ViewBuilder destination: () -> Destination,
+    @ViewBuilder label: () -> Label
+) -> some View {
+    if isForExport {
+        label()
+    } else {
+        NavigationLink(destination: destination, label: label)
+            .buttonStyle(.plain)
+    }
+}
+
+@ViewBuilder
+@MainActor
+private func footprintExportAwareButton<Label: View>(
+    isForExport: Bool,
+    action: @escaping () -> Void,
+    @ViewBuilder label: () -> Label
+) -> some View {
+    if isForExport {
+        label()
+    } else {
+        Button(action: action, label: label)
+            .buttonStyle(.plain)
     }
 }
 
@@ -2160,6 +2345,7 @@ private struct FootprintArchivePage<Content: View>: View {
     let kicker: String
     /// 分享长图导出前用于预热封面缓存的封面表。
     let shareCovers: [UUID: FootprintCover]
+    var extraWarmup: (() async -> Void)? = nil
     /// 页面内容。参数 isForExport 为 true 时表示用于整页长图导出:
     /// ImageRenderer 快照里横向 ScrollView 等交互组件会渲染空白,需换静态布局。
     @ViewBuilder let content: (_ isForExport: Bool) -> Content
@@ -2194,7 +2380,7 @@ private struct FootprintArchivePage<Content: View>: View {
                         .overlay(Circle().stroke(BSColor.Stage.border))
                 }
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+                    Text(title).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
                     Text(BSLocalization.text("个人现场档案")).font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
                 }
                 Spacer()
@@ -2223,10 +2409,10 @@ private struct FootprintArchivePage<Content: View>: View {
             title: title,
             kicker: kicker,
             covers: shareCovers,
+            extraWarmup: extraWarmup,
             onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) },
             content: { content(true) }
         )
-        .presentationDetents([.large])
         .presentationCornerRadius(26)
         .presentationDragIndicator(.visible)
     }
@@ -2241,7 +2427,7 @@ private struct FootprintArchivePage<Content: View>: View {
     }
 }
 
-private func archiveSectionTitle(_ title: String, _ subtitle: String) -> some View {
+private func archiveSectionTitle(_ title: String, _ subtitle: String = "") -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 7) {
         Text(title.uppercased()).font(.system(size: 11, weight: .semibold)).tracking(1.2).foregroundColor(BSColor.Stage.muted)
         if !subtitle.isEmpty {
@@ -2360,68 +2546,97 @@ struct FootprintVenueShowsStrip: View {
 struct FootprintMemoryCard: View {
     let show: Show
     let cover: FootprintCover?
+    var index: Int? = nil
+    var isTall: Bool = false
+
+    private var calendar: Calendar { show.timingCalendar() }
+
+    private var memoryTagText: String {
+        if show.dynamicCover != nil {
+            return BSLocalization.text("视频")
+        } else {
+            return BSLocalization.text("照片")
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             FootprintCoverView(show: show, cover: cover, showsMetadata: false)
 
             LinearGradient(
-                colors: [
-                    Color.clear,
-                    Color.black.opacity(0.35),
-                    Color.black.opacity(0.82),
-                    Color.black.opacity(0.95)
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: .clear, location: 0.35),
+                    .init(color: Color.black.opacity(0.3), location: 0.60),
+                    .init(color: Color.black.opacity(0.78), location: 0.84),
+                    .init(color: Color.black.opacity(0.94), location: 1.0)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.16), Color.white.opacity(0.04), Color.clear],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+
             VStack(alignment: .leading, spacing: 0) {
-               HStack(spacing: 4) {
-                   Image(systemName: "sparkles")
-                       .font(.system(size: 7, weight: .bold))
-                       .foregroundColor(BSColor.Stage.accent)
-                   Text(footprintEnhancementFullDateText(show.effectiveDate, calendar: show.timingCalendar()))
-                        .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
-               }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3.5)
-                .background(Color.black.opacity(0.55), in: Capsule())
-                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 0.5))
+                HStack(alignment: .center, spacing: 6) {
+                    if let index {
+                        Text(String(format: "%02d", index))
+                            .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                            .foregroundColor(Color.white.opacity(0.55))
+                            .tracking(1)
+                    } else {
+                        Text(footprintEnhancementFullDateText(show.effectiveDate, calendar: calendar))
+                            .font(.system(size: 8.5, weight: .semibold, design: .rounded))
+                            .foregroundColor(BSColor.Stage.accent)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3.5)
+                            .background(Color.black.opacity(0.48), in: Capsule())
+                            .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.32), lineWidth: 0.5))
+                    }
 
-               Spacer()
+                    Spacer(minLength: 0)
 
-                VStack(alignment: .leading, spacing: 4) {
-                   Text(show.name)
-                       .font(.system(size: 13, weight: .bold))
-                       .foregroundColor(.white)
+                    Text(memoryTagText)
+                        .font(.system(size: 8, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.85))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black.opacity(0.45), in: Capsule())
+                        .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                }
+
+                Spacer(minLength: 12)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(show.name)
+                        .font(.system(size: 12.5, weight: .bold))
+                        .foregroundColor(.white)
                         .lineLimit(2)
                         .lineSpacing(1.5)
-                        .shadow(color: .black.opacity(0.7), radius: 2, y: 1)
+                        .shadow(color: Color.black.opacity(0.8), radius: 4, x: 0, y: 2)
 
-                   if let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "mappin")
-                                .font(.system(size: 7.5, weight: .semibold))
-                                .foregroundColor(.white.opacity(0.6))
-                            Text(city.uppercased())
-                                .font(.system(size: 8.5, weight: .medium))
-                                .tracking(0.8)
-                                .foregroundColor(.white.opacity(0.7))
-                                .lineLimit(1)
-                        }
-                   }
-               }
-           }
-           .padding(12)
-       }
-        .aspectRatio(3.0 / 4.0, contentMode: .fit)
-       .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    Text(footprintEnhancementFullDateText(show.effectiveDate, calendar: calendar))
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundColor(Color.white.opacity(0.65))
+                        .lineLimit(1)
+                }
+            }
+            .padding(11)
+        }
+        .frame(height: isTall ? 240 : 180)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 6, x: 0, y: 3)
+        .shadow(color: Color.black.opacity(0.3), radius: 10, x: 0, y: 4)
     }
 }

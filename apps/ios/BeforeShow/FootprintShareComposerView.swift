@@ -28,6 +28,8 @@ struct FootprintShareComposerView: View {
 
     @State private var selected: Set<UUID>
     @State private var images: [UUID: UIImage] = [:]
+    @State private var hasLoadedImages = false
+    @State private var isSharing = false
     @State private var toast: BSToastPayload?
 
     init(
@@ -76,8 +78,29 @@ struct FootprintShareComposerView: View {
                 }
             }
         }
+        .overlay {
+            if isSharing {
+                ZStack {
+                    Color.black.opacity(0.38)
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(BSLocalization.text("生成中…"))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(BSColor.Stage.foreground)
+                    }
+                }
+                .ignoresSafeArea()
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(BSLocalization.text("生成中…"))
+            }
+        }
         .bsToastOverlay(toast, bottomPadding: 36)
-        .task(id: materials.map(\.id)) { await loadImages() }
+        .task(id: materials.map(\.id)) {
+            hasLoadedImages = false
+            await loadImages()
+            hasLoadedImages = true
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -218,6 +241,10 @@ struct FootprintShareComposerView: View {
         )
     }
 
+    private var canShare: Bool {
+        !selected.isEmpty && hasLoadedImages && !isSharing
+    }
+
     private var selectedContainsTicket: Bool {
         materials.contains { $0.kind == .ticket && selected.contains($0.id) }
     }
@@ -254,17 +281,23 @@ struct FootprintShareComposerView: View {
         Button { renderAndShare() } label: {
             Label(BSLocalization.text("分享图片"), systemImage: "square.and.arrow.up")
                 .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(selected.isEmpty ? BSColor.Stage.dim : BSColor.Stage.background)
+                .foregroundColor(canShare ? BSColor.Stage.background : BSColor.Stage.dim)
                 .frame(maxWidth: .infinity)
                 .frame(height: FootprintShareComposerTokens.actionHeight)
                 .background(
-                    selected.isEmpty ? BSColor.Stage.surfaceRaised : BSColor.Stage.accent,
+                    canShare ? BSColor.Stage.accent : BSColor.Stage.surfaceRaised,
                     in: RoundedRectangle(cornerRadius: BSRadius.v3Medium)
                 )
         }
         .buttonStyle(.plain)
-        .disabled(selected.isEmpty)
-        .accessibilityHint(selected.isEmpty ? BSLocalization.text("至少选择一个画面") : BSLocalization.text("生成 PNG 并打开系统分享"))
+        .disabled(!canShare)
+        .accessibilityHint(
+            selected.isEmpty
+                ? BSLocalization.text("至少选择一个画面")
+                : (hasLoadedImages
+                    ? BSLocalization.text("生成 PNG 并打开系统分享")
+                    : BSLocalization.text("生成中…"))
+        )
     }
 
     private func toggle(_ material: FootprintShareMaterial) {
@@ -291,10 +324,14 @@ struct FootprintShareComposerView: View {
 
     @MainActor
     private func renderAndShare() {
-        guard !selected.isEmpty else {
-            presentToast(.failure, BSLocalization.text("至少选择一个画面"))
+        guard canShare else {
+            if selected.isEmpty {
+                presentToast(.failure, BSLocalization.text("至少选择一个画面"))
+            }
             return
         }
+        isSharing = true
+        defer { isSharing = false }
 
         let card = FootprintMemoryShareCard(
             show: show,

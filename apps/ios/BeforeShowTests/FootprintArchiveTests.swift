@@ -1,4 +1,6 @@
 import SwiftData
+import SwiftUI
+import UIKit
 import XCTest
 @testable import BeforeShow
 
@@ -282,6 +284,85 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertNil(identity.companionOrdinal)
     }
 
+    func testExportPolicyCapsTimelineYearGroupsAndReportsRemaining() {
+        XCTAssertEqual(FootprintExportContentPolicy.timelineShowLimit, 12)
+        XCTAssertEqual(FootprintExportContentPolicy.memoryCardLimit, 4)
+        XCTAssertEqual(FootprintExportContentPolicy.remainingCount(total: 20, limit: 12), 8)
+        XCTAssertNil(FootprintExportContentPolicy.remainingText(total: 4, limit: 12, style: .shows))
+        XCTAssertEqual(
+            FootprintExportContentPolicy.remainingText(total: 20, limit: 12, style: .shows),
+            "还有 8 场现场"
+        )
+        XCTAssertEqual(
+            FootprintExportContentPolicy.remainingText(total: 16, limit: 4, style: .memories),
+            "还有 12 个画面"
+        )
+    }
+
+    func testExportPolicyKeepsNewestShowsWhenCappingYearGroups() throws {
+        let newer = try makeShow("新", year: 2026, artist: "A", city: "上海", venue: "MAO")
+        let older = try makeShow("旧", year: 2025, artist: "A", city: "上海", venue: "MAO")
+        let mid = try makeShow("中", year: 2026, artist: "A", city: "杭州", venue: "MAO")
+        let years = [
+            FootprintYearGroup(year: 2026, shows: [newer, mid]),
+            FootprintYearGroup(year: 2025, shows: [older])
+        ]
+        let capped = FootprintExportContentPolicy.cappedYearGroups(years, limit: 2)
+        XCTAssertEqual(capped.map(\.year), [2026])
+        XCTAssertEqual(capped.first?.shows.map(\.name), ["新", "中"])
+        XCTAssertEqual(FootprintExportContentPolicy.remainingCount(total: 3, limit: 2), 1)
+    }
+
+    func testDetailShareRouteFallsBackToDispersalCardWhenNoMaterials() {
+        XCTAssertEqual(
+            FootprintDetailShareRoute.resolve(hasShareMaterials: true, rating: 5, note: "顶"),
+            .composer
+        )
+        XCTAssertEqual(
+            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: 5, note: nil),
+            .dispersalCard
+        )
+        XCTAssertEqual(
+            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: nil, note: "灯亮得很慢"),
+            .dispersalCard
+        )
+        XCTAssertEqual(
+            FootprintDetailShareRoute.resolve(hasShareMaterials: false, rating: nil, note: "   "),
+            .none
+        )
+    }
+
+    func testMemoryShareIdentitiesPreferCompanionAndCapAtTwo() {
+        let withCompanion = FootprintDetailIdentity(
+            showOrdinal: 12,
+            cityOrdinal: 3,
+            companions: [FootprintCompanionIdentity(name: "林嘉", ordinal: 2)]
+        )
+        XCTAssertEqual(
+            FootprintMemoryShareCopy.identities(from: withCompanion),
+            ["第 12 场现场", "与林嘉第 2 次见面"]
+        )
+
+        let withGroup = FootprintDetailIdentity(
+            showOrdinal: 12,
+            cityOrdinal: 3,
+            companions: [
+                FootprintCompanionIdentity(name: "林嘉", ordinal: 2),
+                FootprintCompanionIdentity(name: "王宁", ordinal: 1)
+            ]
+        )
+        XCTAssertEqual(
+            FootprintMemoryShareCopy.identities(from: withGroup),
+            ["第 12 场现场", "与林嘉、王宁同行"]
+        )
+
+        let solo = FootprintDetailIdentity(showOrdinal: 4, cityOrdinal: 2, companions: [])
+        XCTAssertEqual(
+            FootprintMemoryShareCopy.identities(from: solo),
+            ["第 4 场现场", "城市第 2 场"]
+        )
+    }
+
     func testShareDefaultsPreferChronologicalPhotosOverVideosAndKeepsakes() {
         let video = UUID()
         let firstPhoto = UUID()
@@ -377,6 +458,148 @@ final class FootprintArchiveTests: XCTestCase {
 
         XCTAssertEqual(memoryLabel, "打开记忆碎片，第 2 条，照片，20:18，内容：舞台灯光亮起来了")
         XCTAssertEqual(shareLabel, "照片，第 3 项，20:18，未选择")
+    }
+
+    func testArchiveCategoryShareCardIsShorterThanOverviewWhenRankingIsSparse() throws {
+        let show = try makeShow("一场", year: 2025, artist: "陈绮贞", city: "杭州", venue: "MAO")
+        let archive = FootprintArchiveBuilder.make(
+            shows: [show],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        guard let overview = FootprintShareImageExport.renderLong(
+            FootprintArchiveShareCard(archive: archive, category: .overview),
+            width: FootprintArchiveShareExportLayout.width,
+            scale: 3
+        )?.cgImage,
+              let artist = FootprintShareImageExport.renderLong(
+                FootprintArchiveShareCard(archive: archive, category: .artist),
+                width: FootprintArchiveShareExportLayout.width,
+                scale: 3
+              )?.cgImage else {
+            XCTFail("archive share card export produced no image")
+            return
+        }
+
+        XCTAssertEqual(overview.width, 1080)
+        XCTAssertEqual(artist.width, 1080)
+        XCTAssertLessThan(artist.height, overview.height)
+    }
+
+    func testArchiveCardExportFillsGeometryReaderAtExportSize() {
+        let size = FootprintArchiveShareExportLayout.size
+        let probe = GeometryReader { geometry in
+            Color.white.frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .background(Color.black)
+
+        guard let image = FootprintShareImageExport.render(probe, size: size, scale: 3),
+              let cgImage = image.cgImage else {
+            XCTFail("archive card export produced no image")
+            return
+        }
+
+        XCTAssertEqual(cgImage.width, 1080)
+        XCTAssertEqual(cgImage.height, 1100)
+        XCTAssertEqual(luminance(atX: 540, y: 550, in: cgImage), 255)
+        XCTAssertEqual(luminance(atX: 2, y: 2, in: cgImage), 255)
+        XCTAssertEqual(luminance(atX: 1077, y: 1097, in: cgImage), 255)
+    }
+
+    func testLongShareExportUsesIntegerRetinaScale() {
+        XCTAssertEqual(FootprintDashboardExportView.exportScale, 3)
+        XCTAssertEqual(
+            Int(FootprintDashboardExportView.layoutWidth * FootprintDashboardExportView.exportScale),
+            1260
+        )
+    }
+
+    func testPageSharePreviewShrinksForShortImagesAndCapsLongImages() {
+        XCTAssertEqual(FootprintPageSharePreviewLayout.height(for: nil), 368)
+        XCTAssertEqual(FootprintPageSharePreviewLayout.height(for: 241.2), 242)
+        XCTAssertEqual(FootprintPageSharePreviewLayout.height(for: 640), 368)
+        XCTAssertEqual(FootprintPageSharePreviewLayout.sheetHeight(for: 241.2), 390)
+        XCTAssertEqual(FootprintPageSharePreviewLayout.sheetHeight(for: 640), 516)
+    }
+
+    func testLongShareExportKeepsTileBoundarySharpAndOpaque() {
+        let content = VStack(spacing: 0) {
+            Color.black.frame(height: 2_333)
+            Color.white.frame(height: 1)
+            Color.black.frame(height: 100)
+        }
+        .frame(width: 20)
+
+        guard let image = FootprintShareImageExport.renderLong(content, width: 20, scale: 3),
+              let cgImage = image.cgImage,
+              let pixels = rgbaBytes(in: cgImage) else {
+            XCTFail("long share export produced no readable image")
+            return
+        }
+
+        XCTAssertEqual(cgImage.width, 60)
+        XCTAssertEqual(cgImage.height, 7_302)
+
+        let x = cgImage.width / 2
+        var whiteRows = 0
+        var intermediateRows = 0
+        var transparentRows = 0
+        var firstWhiteRow: Int?
+        for y in 0..<cgImage.height {
+            let offset = (y * cgImage.width + x) * 4
+            let red = pixels[offset]
+            let alpha = pixels[offset + 3]
+            if red == 255 {
+                if firstWhiteRow == nil { firstWhiteRow = y }
+                whiteRows += 1
+            } else if red != 0 {
+                intermediateRows += 1
+            }
+            if alpha != 255 {
+                transparentRows += 1
+            }
+        }
+
+        // The 1pt white line starts exactly at the 2333pt tile seam, so its
+        // 3px must begin at pixel 2333*3: tile boundaries stay pixel-aligned.
+        XCTAssertEqual(whiteRows, 3)
+        XCTAssertEqual(firstWhiteRow, 6_999)
+        XCTAssertEqual(intermediateRows, 0)
+        XCTAssertEqual(transparentRows, 0)
+    }
+
+    private func luminance(atX x: Int, y: Int, in image: CGImage) -> UInt8 {
+        precondition(x >= 0 && y >= 0 && x < image.width && y < image.height)
+        let colorSpace = CGColorSpaceCreateDeviceRGB()
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = CGContext(
+            data: &pixel,
+            width: 1,
+            height: 1,
+            bitsPerComponent: 8,
+            bytesPerRow: 4,
+            space: colorSpace,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: -x, y: -y, width: image.width, height: image.height))
+        return pixel[0]
+    }
+
+    private func rgbaBytes(in image: CGImage) -> [UInt8]? {
+        let bytesPerRow = image.width * 4
+        var pixels = [UInt8](repeating: 0, count: bytesPerRow * image.height)
+        guard let context = CGContext(
+            data: &pixels,
+            width: image.width,
+            height: image.height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return pixels
     }
 
     private func makeShow(

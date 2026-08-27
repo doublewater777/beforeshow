@@ -6,6 +6,8 @@
 
 i18n
 
+不要有非必要的解释性文字
+
 use iphone 17 simulator
 
 ## iOS 命令行构建（重要）

@@ -7,7 +7,6 @@
 "WHERE THE NIGHTS HAPPENED" = "WHERE THE NIGHTS HAPPENED";
 "THE PLACES THAT FEEL FAMILIAR" = "THE PLACES THAT FEEL FAMILIAR";
 "MEETINGS" = "MEETINGS";
-"VISITS" = "VISITS";
 "CITY FOOTPRINTS" = "CITY FOOTPRINTS";
 "ARTIST ARCHIVE" = "ARTIST ARCHIVE";
 "CITY ARCHIVE" = "CITY ARCHIVE";
@@ -767,6 +766,10 @@ First show: %@";
 "分享完整档案" = "Share Full Archive";
 "分享艺人档案" = "Share Artist Archive";
 "分享这份档案" = "Share This Archive";
+"分享%@" = "Share %@";
+"还有 %lld 场现场" = "%lld more shows";
+"还有 %lld 个画面" = "%lld more stills";
+"生成中…" = "Generating…";
 "删除后可以重新添加。App 内保存的图片会一起移除。" = "You can re-add it later. Images saved in the app are removed too.";
 "删除后，这场现场将无法恢复，也会从足迹统计中移除。" = "After deleting, this show can't be restored and will be removed from footprint stats.";
 "取消后会停止倒计时和提醒，这场仍会保留在“我的现场”。" = "Canceling stops the countdown and reminders; the show stays in My Shows.";
@@ -1207,7 +1210,7 @@ First show: %@";
 "YEAR IN LIVE" = "YEAR IN LIVE";
 "%lld 场现场" = "%lld live shows";
 "THE NIGHT OF THE YEAR" = "THE NIGHT OF THE YEAR";
-"今年记录最完整的一晚" = "Your most complete night this year";
+"记录最完整的一晚" = "Your most complete night on record";
 "%lld 月是这一年最密集的一个月" = "Month %lld was this year's busiest";
 "这一年还没有现场记录" = "No live shows recorded this year";
 
