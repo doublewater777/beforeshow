@@ -207,6 +207,15 @@ private struct AddShowEntryView: View {
 
                         VStack(spacing: BSSpacing.md) {
                             AddShowMethodCard(
+                                title: BSLocalization.text("链接解析"),
+                                subtitle: AddShowMethodCopy.link.subtitle,
+                                iconName: "link",
+                                tint: BSColor.Stage.accent
+                            ) {
+                                onSelect(.link)
+                            }
+
+                            AddShowMethodCard(
                                 title: BSLocalization.text("手动填写"),
                                 subtitle: AddShowMethodCopy.manual.subtitle,
                                 iconName: "square.and.pencil",
@@ -222,15 +231,6 @@ private struct AddShowEntryView: View {
                                 tint: BSColor.Accent.violet
                             ) {
                                 onSelect(.screenshot)
-                            }
-
-                            AddShowMethodCard(
-                                title: BSLocalization.text("链接解析"),
-                                subtitle: AddShowMethodCopy.link.subtitle,
-                                iconName: "link",
-                                tint: BSColor.Stage.accent
-                            ) {
-                                onSelect(.link)
                             }
                         }
 

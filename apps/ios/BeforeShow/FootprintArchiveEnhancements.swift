@@ -52,6 +52,7 @@ struct FootprintArtistArchiveItem: Identifiable, Equatable, Hashable {
     let name: String
     let count: Int
     let showIDs: [UUID]
+    let latestShowDate: Date
     let yearSpan: FootprintYearSpan
     let artworkURL: URL?
     /// 已持久化的代表专辑封面;nil 时由视图层触发解析并写回 ArtistSlot。
@@ -90,6 +91,7 @@ struct FootprintVenueArchiveItem: Identifiable, Equatable, Hashable {
     let count: Int
     let cities: [String]
     let showIDs: [UUID]
+    let latestShowDate: Date
     let yearSpan: FootprintYearSpan
 
     var id: String {
@@ -211,6 +213,7 @@ enum FootprintArchiveRankingBuilder {
                 count: related.count,
                 cities: cities,
                 showIDs: ordered.map(\.id),
+                latestShowDate: ordered.last.map(effectiveStart(for:)) ?? .distantPast,
                 yearSpan: span(for: ordered)
             )
         }.sorted(by: sortItems)
@@ -269,6 +272,7 @@ enum FootprintArchiveRankingBuilder {
             name: name,
             count: ordered.count,
             showIDs: ordered.map(\.id),
+            latestShowDate: ordered.last.map(effectiveStart(for:)) ?? .distantPast,
             yearSpan: span(for: ordered),
             artworkURL: artworkURL,
             albumArtworkURL: albumArtworkURL
@@ -276,9 +280,9 @@ enum FootprintArchiveRankingBuilder {
     }
 
     private static func sortItems(_ lhs: FootprintArtistArchiveItem, _ rhs: FootprintArtistArchiveItem) -> Bool {
-        lhs.count == rhs.count
-            ? lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-            : lhs.count > rhs.count
+        if lhs.count != rhs.count { return lhs.count > rhs.count }
+        if lhs.latestShowDate != rhs.latestShowDate { return lhs.latestShowDate > rhs.latestShowDate }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
     }
 
     private static func sortItems(_ lhs: FootprintCityArchiveItem, _ rhs: FootprintCityArchiveItem) -> Bool {
@@ -288,9 +292,9 @@ enum FootprintArchiveRankingBuilder {
     }
 
     private static func sortItems(_ lhs: FootprintVenueArchiveItem, _ rhs: FootprintVenueArchiveItem) -> Bool {
-        lhs.count == rhs.count
-            ? lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
-            : lhs.count > rhs.count
+        if lhs.count != rhs.count { return lhs.count > rhs.count }
+        if lhs.latestShowDate != rhs.latestShowDate { return lhs.latestShowDate > rhs.latestShowDate }
+        return lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
     }
 
     private static func span(for shows: [Show]) -> FootprintYearSpan {

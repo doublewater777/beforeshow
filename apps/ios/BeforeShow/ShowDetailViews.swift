@@ -1004,6 +1004,7 @@ private struct ShowCoverFullscreenPreview: View {
             .padding(.vertical, BSSpacing.roomy)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         .overlay(alignment: .topTrailing) {
             Button {
                 dismiss()

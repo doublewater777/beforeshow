@@ -195,26 +195,14 @@ struct FootprintDashboardSections {
             } else {
         dashboardSection(title: BSLocalization.text("艺人足迹"), action: isForExport || items.isEmpty ? nil : BSLocalization.text("查看全部 →"), actionDestination: items.isEmpty ? nil : AnyView(FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)), contentPadding: 0) {
             if let first = items.first {
-                if isForExport {
-                    FootprintTopArtistCard(
-                        items: items,
-                        first: first,
-                        archive: archive,
-                        onArchiveVisibilityChange: onArchiveVisibilityChange
-                    )
-                } else {
-                    NavigationLink {
-                        FootprintArtistArchiveView(archive: archive, covers: covers, onDetailVisibilityChange: onArchiveVisibilityChange)
-                    } label: {
-                        FootprintTopArtistCard(
-                            items: items,
-                            first: first,
-                            archive: archive,
-                            onArchiveVisibilityChange: onArchiveVisibilityChange
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
+                FootprintTopArtistCard(
+                    items: items,
+                    first: first,
+                    archive: archive,
+                    covers: covers,
+                    isForExport: isForExport,
+                    onArchiveVisibilityChange: onArchiveVisibilityChange
+                )
             }
         }
             }
@@ -314,12 +302,12 @@ struct FootprintDashboardSections {
                 VStack(spacing: 0) {
                     ForEach(Array(items.dropFirst().prefix(2).enumerated()), id: \.element.id) { offset, item in
                         let itemShows = archive.shows(for: item.showIDs)
-                        HStack(spacing: 12) {
-                            Text("#\(offset + 2)")
+                        HStack(spacing: 8) {
+                            Text("\(offset + 2)")
                                 .font(.system(size: 10, weight: .bold))
-                                .tracking(1)
+                                .tracking(0.6)
                                 .foregroundColor(BSColor.Stage.accent.opacity(0.85))
-                                .frame(width: 28, alignment: .leading)
+                                .frame(width: 16, alignment: .leading)
 
                             if let firstShow = itemShows.first {
                                 FootprintCoverView(show: firstShow, cover: covers[firstShow.id], showsMetadata: false)
@@ -345,32 +333,12 @@ struct FootprintDashboardSections {
                                        .foregroundColor(BSColor.Stage.muted)
                                }
                            }
-                           .frame(minWidth: 70, maxWidth: 160, alignment: .leading)
-                           .layoutPriority(1)
 
-                            GeometryReader { proxy in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.055))
-                                        .frame(height: 3)
-                                    Capsule()
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [BSColor.Stage.accent.opacity(0.45), BSColor.Stage.accent],
-                                                startPoint: .leading,
-                                                endPoint: .trailing
-                                            )
-                                        )
-                                        .frame(width: max(0, proxy.size.width * CGFloat(item.count) / CGFloat(max(first.count, 1))), height: 3)
-                                }
-                                .frame(maxHeight: .infinity, alignment: .center)
-                            }
-                            .frame(height: 3)
+                            Spacer(minLength: 8)
 
-                            Text("\(item.count) 次")
+                            Text(BSLocalization.format("%lld 场", item.count))
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(BSColor.Stage.accent)
-                                .frame(width: 32, alignment: .trailing)
                         }
                         .frame(minHeight: 44)
                         .padding(.horizontal, 14)
@@ -393,7 +361,6 @@ struct FootprintDashboardSections {
         .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(BSColor.Stage.border))
     }
-
 
     var memorySection: some View {
         let memoryShows = archive.shows.filter { covers[$0.id]?.badge == .memory }
@@ -676,8 +643,11 @@ private struct FootprintArtistAvatarView: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: max(6, size * 0.18), style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: max(6, size * 0.18), style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
     }
 
     private var initialFallback: some View {
@@ -694,195 +664,181 @@ private struct FootprintArtistAvatarView: View {
     }
 }
 
+@MainActor
+private enum FootprintArtistAlbumArtworkLoader {
+    static func resolveIfNeeded(
+        name: String,
+        existingURL: URL?,
+        showIDs: [UUID],
+        in shows: [Show],
+        modelContext: ModelContext
+    ) async -> URL? {
+        if let existingURL { return existingURL }
+        guard let url = await ArtistAlbumArtworkResolver.shared.artworkURL(forArtistName: name) else { return nil }
+        if FootprintAlbumArtworkWriteback.persist(url, artistName: name, showIDs: showIDs, in: shows) {
+            try? modelContext.save()
+        }
+        return url
+    }
+}
+
+private struct FootprintArtistCoverView: View {
+    let item: FootprintArtistArchiveItem
+    let shows: [Show]
+    let size: CGFloat
+
+    @Environment(\.modelContext) private var modelContext
+    @State private var resolvedAlbumArtworkURL: URL?
+
+    var body: some View {
+        FootprintArtistAvatarView(
+            url: item.albumArtworkURL ?? resolvedAlbumArtworkURL ?? item.artworkURL,
+            name: item.name,
+            size: size
+        )
+        .task(id: item.id) {
+            resolvedAlbumArtworkURL = await FootprintArtistAlbumArtworkLoader.resolveIfNeeded(
+                name: item.name,
+                existingURL: item.albumArtworkURL,
+                showIDs: item.showIDs,
+                in: shows,
+                modelContext: modelContext
+            )
+        }
+    }
+}
+
 private struct FootprintTopArtistCard: View {
     let items: [FootprintArtistArchiveItem]
     let first: FootprintArtistArchiveItem
     let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
+    let isForExport: Bool
     let onArchiveVisibilityChange: (Bool) -> Void
-
-    @Environment(\.modelContext) private var modelContext
-    @State private var topArtistAlbumArtworkURL: URL?
-    @State private var artistCardWidth: CGFloat = 365
 
     var body: some View {
         VStack(spacing: 0) {
-            FootprintArtistArtworkView(url: first.albumArtworkURL ?? topArtistAlbumArtworkURL ?? first.artworkURL)
-                .frame(height: max(180, artistCardWidth / 1.45))
-                .clipped()
-                .overlay(alignment: .topLeading) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "music.mic")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(BSColor.Stage.accent)
-                        Text("\(BSLocalization.text("最常看")) · #1")
-                            .font(.system(size: 9, weight: .bold))
-                            .tracking(1.4)
-                            .foregroundColor(BSColor.Stage.accent)
-                    }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(BSColor.Stage.accent.opacity(0.16), in: Capsule())
-                    .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.32), lineWidth: 1))
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
-                    .padding(16)
-                }
-                .overlay(alignment: .topTrailing) {
-                    FootprintArtistAvatarView(
-                        url: first.artworkURL ?? first.albumArtworkURL ?? topArtistAlbumArtworkURL,
-                        name: first.name,
-                        size: 42
-                    )
-                    .padding(16)
-                }
-                .overlay(alignment: .bottomLeading) {
-                    HStack(alignment: .bottom, spacing: 12) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(first.name)
-                                .font(.system(size: 24, weight: .bold))
-                                .foregroundColor(BSColor.Stage.foreground)
-                                .lineLimit(1)
-                            Text("\(artistRangeText(first)) · \(BSLocalization.format("%lld 场", first.count))")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(BSColor.Stage.muted)
-                        }
-                        Spacer()
-                        Text(BSLocalization.format("%lld 次", first.count))
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(BSColor.Stage.accent)
-                    }
-                    .padding(16)
-                }
+            footprintExportAwareNavigationLink(isForExport: isForExport) {
+                FootprintFilteredShowsView(
+                    title: first.name,
+                    shows: archive.shows(for: first.showIDs),
+                    archive: archive,
+                    covers: covers,
+                    onDetailVisibilityChange: onArchiveVisibilityChange
+                )
+            } label: {
+                artistHeroRow(first, showsChevron: true)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 14)
+            }
+
             VStack(spacing: 0) {
                 ForEach(Array(items.dropFirst().prefix(2).enumerated()), id: \.element.id) { offset, item in
-                    HStack(spacing: 12) {
-                        Text("#\(offset + 2)")
-                            .font(.system(size: 10, weight: .bold))
-                            .tracking(1)
-                            .foregroundColor(BSColor.Stage.accent.opacity(0.85))
-                            .frame(width: 28, alignment: .leading)
-
-                        FootprintArtistAvatarView(
-                            url: item.albumArtworkURL ?? item.artworkURL,
-                            name: item.name,
-                            size: 32
+                    footprintExportAwareNavigationLink(isForExport: isForExport) {
+                        FootprintFilteredShowsView(
+                            title: item.name,
+                            shows: archive.shows(for: item.showIDs),
+                            archive: archive,
+                            covers: covers,
+                            onDetailVisibilityChange: onArchiveVisibilityChange
                         )
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text(item.name)
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundColor(BSColor.Stage.foreground)
-                                    .lineLimit(1)
-                                Spacer(minLength: 0)
-                                Text(BSLocalization.format("%lld 次", item.count))
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(BSColor.Stage.accent)
+                    } label: {
+                        artistRankRow(rank: offset + 2, item: item, showsChevron: true)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                            .overlay(alignment: .top) {
+                                Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1)
                             }
-
-                            GeometryReader { proxy in
-                                ZStack(alignment: .leading) {
-                                    Capsule()
-                                        .fill(Color.white.opacity(0.06))
-                                        .frame(height: 4)
-                                    Capsule()
-                                        .fill(LinearGradient(
-                                            colors: [BSColor.Stage.accent.opacity(0.45), BSColor.Stage.accent],
-                                            startPoint: .leading,
-                                            endPoint: .trailing
-                                        ))
-                                        .frame(width: proxy.size.width * CGFloat(item.count) / CGFloat(max(first.count, 1)), height: 4)
-                                }
-                            }
-                            .frame(height: 4)
-                        }
-                    }
-                    .padding(.vertical, 10)
-                    .overlay(alignment: .bottom) {
-                        if offset < min(items.count - 2, 1) {
-                            Rectangle().fill(Color.white.opacity(0.045)).frame(height: 1)
-                        }
                     }
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
+            .padding(.bottom, 8)
         }
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { artistCardWidth = $0 }
-        .task(id: first.name) {
-            guard first.albumArtworkURL == nil else { return }
-            if let url = await ArtistAlbumArtworkResolver.shared.artworkURL(forArtistName: first.name) {
-                topArtistAlbumArtworkURL = url
-                persistAlbumArtwork(url, forArtistNamed: first.name, showIDs: first.showIDs)
-            }
-        }
     }
 
-    private func persistAlbumArtwork(_ url: URL, forArtistNamed name: String, showIDs: [UUID]) {
-        if FootprintAlbumArtworkWriteback.persist(url, artistName: name, showIDs: showIDs, in: archive.shows) {
-            try? modelContext.save()
-        }
-    }
-
-    private func artistRangeText(_ item: FootprintArtistArchiveItem) -> String {
-        let first = item.firstShowID
-            .flatMap { id in archive.shows.first(where: { $0.id == id }) }
-            .map { footprintEnhancementMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"
-        let latest = item.latestShowID
-            .flatMap { id in archive.shows.first(where: { $0.id == id }) }
-            .map { footprintEnhancementMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"
-        return "\(first) → \(latest)"
-    }
-}
-
-private struct FootprintArtistArtworkView: View {
-    let url: URL?
-
-    var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [BSColor.Stage.surface, BSColor.Stage.surfaceRaised],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            if let url {
-                // Export snapshots render before AsyncImage ever loads, so
-                // prefer the warmed disk cache synchronously when available.
-                if let cached = ShowCoverDiskCache.application.image(from: url) {
-                    Image(uiImage: cached)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .clipped()
-                } else {
-                    AsyncImage(url: url) { phase in
-                        if let image = phase.image {
-                            image
-                                .resizable()
-                                .scaledToFill()
-                        } else {
-                            artworkFallback
-                        }
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipped()
+    private func artistHeroRow(_ item: FootprintArtistArchiveItem, showsChevron: Bool) -> some View {
+        HStack(alignment: .center, spacing: 14) {
+            ZStack(alignment: .topLeading) {
+                FootprintArtistCoverView(item: item, shows: archive.shows, size: 108)
+                HStack(spacing: 4) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 8, weight: .bold))
+                    Text("\(BSLocalization.text("最常看")) · #1")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.6)
                 }
-            } else {
-                artworkFallback
+                .foregroundColor(BSColor.Stage.accent)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.62), in: Capsule())
+                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 0.5))
+                .padding(6)
             }
-            LinearGradient(colors: [.black.opacity(0.65), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.45))
-            LinearGradient(colors: [.clear, .black.opacity(0.54)], startPoint: .center, endPoint: .bottom)
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.name)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(1)
+                Text(BSLocalization.format("%lld 场", item.count))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+                Text(BSLocalization.text("你最常看的艺人"))
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .lineLimit(1)
+                if let city = latestCity(for: item) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(BSLocalization.format("最近观看 · %@", city))
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if showsChevron {
+                footprintRowChevron(isForExport: isForExport, size: 12, weight: .semibold)
+            }
         }
     }
 
-    private var artworkFallback: some View {
-        RadialGradient(
-            colors: [BSColor.Stage.accent.opacity(0.22), .clear],
-            center: .trailing,
-            startRadius: 4,
-            endRadius: 150
-        )
+    private func artistRankRow(rank: Int, item: FootprintArtistArchiveItem, showsChevron: Bool) -> some View {
+        HStack(spacing: 10) {
+            Text("\(rank)")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(BSColor.Stage.dim)
+                .frame(width: 16, alignment: .leading)
+
+            FootprintArtistCoverView(item: item, shows: archive.shows, size: 36)
+
+            Text(item.name)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .lineLimit(1)
+
+            Spacer(minLength: 8)
+
+            Text(BSLocalization.format("%lld 场", item.count))
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(BSColor.Stage.dim)
+
+            if showsChevron {
+                footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
+            }
+        }
+    }
+
+    private func latestCity(for item: FootprintArtistArchiveItem) -> String? {
+        guard let showID = item.latestShowID else { return nil }
+        return archive.shows(for: [showID]).first.flatMap { FootprintTextNormalizer.nonEmptyTrimmed($0.city) }
     }
 }
 
@@ -1645,25 +1601,40 @@ struct FootprintArtistArchiveView: View {
     let covers: [UUID: FootprintCover]
     let onDetailVisibilityChange: (Bool) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var heroWidth: CGFloat = 365
 
     var body: some View {
+        let items = archive.artistArchiveItems
         FootprintArchivePage(
-            title: BSLocalization.text("艺人档案"),
+            title: BSLocalization.text("艺人足迹"),
+            subtitle: BSLocalization.format("看过的 %lld 位艺人", items.count),
             kicker: "",
             shareCovers: covers,
             extraWarmup: {
-                await FootprintCoverExportWarmup.warm(artists: archive.artistArchiveItems)
+                await FootprintCoverExportWarmup.warm(artists: items)
             }
         ) { isForExport in
-            let items = archive.artistArchiveItems
-            if let first = archive.artistArchiveItems.first {
-                artistArchiveHero(first)
+            artistSummaryCard(items: items)
+
+            HStack(spacing: 6) {
+                Text(BSLocalization.text("同场次按最近观看排序"))
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(BSColor.Stage.dim)
             }
-            archiveSectionTitle(BSLocalization.text("完整艺人排行"), BSLocalization.format("%lld 位艺人", archive.artistArchiveItems.count))
+            .padding(.top, 4)
+            .accessibilityElement(children: .combine)
+
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 footprintExportAwareNavigationLink(isForExport: isForExport) {
-                    FootprintFilteredShowsView(title: item.name, shows: archive.shows(for: item.showIDs), archive: archive, covers: covers, onDetailVisibilityChange: onDetailVisibilityChange)
+                    FootprintFilteredShowsView(
+                        title: item.name,
+                        shows: archive.shows(for: item.showIDs),
+                        archive: archive,
+                        covers: covers,
+                        onDetailVisibilityChange: onDetailVisibilityChange
+                    )
                 } label: {
                     artistArchiveRow(rank: index + 1, item: item, isForExport: isForExport)
                 }
@@ -1671,114 +1642,110 @@ struct FootprintArtistArchiveView: View {
         }
     }
 
+    private func artistSummaryCard(items: [FootprintArtistArchiveItem]) -> some View {
+        HStack(spacing: 0) {
+            summaryMetric("\(items.count)", BSLocalization.text("位艺人"))
+            summaryDivider
+            summaryMetric("\(archive.shows.count)", BSLocalization.text("场现场"))
+            summaryDivider
+            VStack(spacing: 4) {
+                Text(BSLocalization.text("最常看"))
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+                Text(items.first?.name ?? "—")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .padding(.vertical, 18)
+        .padding(.horizontal, 8)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(BSColor.Stage.border))
+    }
+
+    private var summaryDivider: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.08))
+            .frame(width: 1, height: 36)
+    }
+
+    private func summaryMetric(_ value: String, _ label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(value)
+                .font(.system(size: 28, weight: .semibold))
+                .foregroundColor(BSColor.Stage.accent)
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(BSColor.Stage.dim)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
     private func artistArchiveRow(rank: Int, item: FootprintArtistArchiveItem, isForExport: Bool) -> some View {
         HStack(spacing: 12) {
-            Text("\(rank)")
-                .font(.system(size: 11, weight: rank <= 3 ? .bold : .medium))
-                .tracking(1)
-                .foregroundColor(rank == 1 ? BSColor.Stage.accent : (rank <= 3 ? BSColor.Stage.foreground : BSColor.Stage.dim))
-                .frame(width: 26, alignment: .leading)
+            rankBadge(rank)
 
-            FootprintArtistAvatarView(
-                url: item.albumArtworkURL ?? item.artworkURL,
-                name: item.name,
-                size: 40
-            )
+            FootprintArtistCoverView(item: item, shows: archive.shows, size: rank == 1 ? 64 : 52)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(item.name)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: rank == 1 ? 17 : 15, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
                     .lineLimit(1)
-
-                Text("\(yearSpanText(item.yearSpan)) · \(BSLocalization.format("%lld 场现场", item.count))")
-                    .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.muted)
+                if rank == 1 {
+                    Text("\(BSLocalization.text("最常看")) · #1")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 0.5))
+                }
+                if let city = latestCity(for: item) {
+                    Text(BSLocalization.format("最近观看 · %@", city))
+                        .font(.system(size: 11))
+                        .foregroundColor(BSColor.Stage.dim)
+                        .lineLimit(1)
+                }
             }
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
 
-            Text(BSLocalization.format("%lld 次", item.count))
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(rank == 1 ? BSColor.Stage.accent.opacity(0.12) : Color.white.opacity(0.05), in: Capsule())
-                .overlay(Capsule().stroke(rank == 1 ? BSColor.Stage.accent.opacity(0.3) : Color.clear, lineWidth: 1))
+            Text(BSLocalization.format("%lld 场", item.count))
+                .font(.system(size: 13, weight: rank == 1 ? .semibold : .medium))
+                .foregroundColor(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
 
-            footprintRowChevron(isForExport: isForExport, size: 11, weight: .bold)
+            footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
+        .padding(.vertical, rank == 1 ? 16 : 13)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(rank == 1 ? BSColor.Stage.accent.opacity(0.28) : BSColor.Stage.border, lineWidth: 1)
+        )
     }
 
-    private func artistArchiveHero(_ item: FootprintArtistArchiveItem) -> some View {
-        FootprintArtistArtworkView(url: item.albumArtworkURL ?? item.artworkURL)
-            .frame(maxWidth: .infinity)
-            .frame(height: max(200, heroWidth * 0.72))
-            .clipped()
-            .overlay(alignment: .topLeading) {
-                HStack(spacing: 5) {
-                    Image(systemName: "music.mic")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
-                    Text("\(BSLocalization.text("最常看")) · #1")
-                        .font(.system(size: 9, weight: .bold))
-                        .tracking(1.4)
-                        .foregroundColor(BSColor.Stage.accent)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(BSColor.Stage.accent.opacity(0.16), in: Capsule())
-                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.32), lineWidth: 1))
-                .shadow(color: .black.opacity(0.4), radius: 6, y: 2)
-                .padding(18)
+    private func rankBadge(_ rank: Int) -> some View {
+        ZStack {
+            if rank == 1 {
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .offset(y: -16)
             }
-            .overlay(alignment: .topTrailing) {
-                FootprintArtistAvatarView(
-                    url: item.artworkURL ?? item.albumArtworkURL,
-                    name: item.name,
-                    size: 44
-                )
-                .padding(18)
-            }
-            .overlay(alignment: .bottomLeading) {
-                HStack(alignment: .bottom, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.name)
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .lineLimit(1)
-                        Text("\(heroRangeText(item)) · \(BSLocalization.format("%lld 场现场", item.count))")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                    Spacer()
-                    Text(BSLocalization.format("%lld 次", item.count))
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundColor(BSColor.Stage.accent)
-                }
-                .padding(18)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(BSColor.Stage.border))
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { heroWidth = $0 }
+            Text("\(rank)")
+                .font(.system(size: rank == 1 ? 22 : 18, weight: .semibold))
+                .foregroundColor(rank == 1 ? BSColor.Stage.accent : BSColor.Stage.dim)
+        }
+        .frame(width: 28, height: rank == 1 ? 44 : 28)
     }
 
-    private func heroRangeText(_ item: FootprintArtistArchiveItem) -> String {
-        let first = item.firstShowID
-            .flatMap { id in archive.shows.first(where: { $0.id == id }) }
-            .map { footprintEnhancementMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"
-        let latest = item.latestShowID
-            .flatMap { id in archive.shows.first(where: { $0.id == id }) }
-            .map { footprintEnhancementMonthText($0.effectiveDate, calendar: $0.timingCalendar()) } ?? "—"
-        return "\(first) → \(latest)"
-    }
-
-    private func yearSpanText(_ span: FootprintYearSpan) -> String {
-        span.isSingleYear ? String(span.first) : BSLocalization.format("%lld–%lld", span.first, span.latest)
+    private func latestCity(for item: FootprintArtistArchiveItem) -> String? {
+        guard let showID = item.latestShowID else { return nil }
+        return archive.shows(for: [showID]).first.flatMap { FootprintTextNormalizer.nonEmptyTrimmed($0.city) }
     }
 }
 
@@ -1969,139 +1936,218 @@ struct FootprintVenueArchiveView: View {
     let covers: [UUID: FootprintCover]
     let onDetailVisibilityChange: (Bool) -> Void
 
+    private var items: [FootprintVenueArchiveItem] { archive.venueArchiveItems }
+    private var mostRecentVenueID: String? {
+        items.max(by: { $0.latestShowDate < $1.latestShowDate })?.id
+    }
+
     var body: some View {
-        FootprintArchivePage(title: BSLocalization.text("场馆档案"), kicker: "", shareCovers: covers) { isForExport in
-            if let first = archive.venueArchiveItems.first {
-                let firstShows = archive.shows(for: first.showIDs)
-                HStack(alignment: .center, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "mappin.circle.fill")
-                                .font(.system(size: 10))
-                                .foregroundColor(BSColor.Stage.accent)
-                            Text("\(BSLocalization.text("MOST FAMILIAR")) · #1")
-                                .font(.system(size: 9, weight: .bold))
-                                .tracking(1.4)
-                                .foregroundColor(BSColor.Stage.accent)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
-                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.3), lineWidth: 1))
-
-                        Text(first.name)
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .lineLimit(2)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            if !first.cities.isEmpty {
-                                Text(first.cities.joined(separator: " · "))
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundColor(BSColor.Stage.foreground)
-                            }
-                            Text("\(first.yearSpan.displayText) · \(BSLocalization.format("全部现场的 %lld%% 在这里", percentage(first.count)))")
-                                .font(.system(size: 10))
-                                .foregroundColor(BSColor.Stage.muted)
-                        }
-
-                       HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Text("\(first.count)")
-                                .font(.system(size: 32, weight: .semibold, design: .rounded))
-                                .foregroundColor(BSColor.Stage.accent)
-                            Text(BSLocalization.text("场现场"))
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(BSColor.Stage.muted)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    FootprintVenueCoverStack(shows: firstShows, covers: covers, maxCovers: 3, width: 72, height: 96)
-                        .padding(.trailing, 6)
-                }
-                .padding(20)
-                .background(
-                    LinearGradient(
-                        colors: [BSColor.Stage.surface, Color(red: 0.10, green: 0.10, blue: 0.12)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    in: RoundedRectangle(cornerRadius: 22, style: .continuous)
-                )
-                .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(BSColor.Stage.prepare.opacity(0.18)))
-            }
-
-            archiveSectionTitle(BSLocalization.text("熟悉度排行"))
-
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                let itemShows = archive.shows(for: item.showIDs)
+        FootprintArchivePage(
+            title: BSLocalization.text("场馆足迹"),
+            subtitle: BSLocalization.format("去过 %lld 个场馆", items.count),
+            kicker: "",
+            shareCovers: covers
+        ) { isForExport in
+            if let first = items.first {
                 footprintExportAwareNavigationLink(isForExport: isForExport) {
-                    FootprintFilteredShowsView(title: item.name, shows: itemShows, archive: archive, covers: covers, onDetailVisibilityChange: onDetailVisibilityChange)
+                    FootprintFilteredShowsView(
+                        title: first.name,
+                        shows: archive.shows(for: first.showIDs),
+                        archive: archive,
+                        covers: covers,
+                        onDetailVisibilityChange: onDetailVisibilityChange
+                    )
                 } label: {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .top, spacing: 12) {
-                            Text("#\(index + 1)")
-                                .font(.system(size: 10, weight: .bold))
-                                .tracking(1)
-                                .foregroundColor(index < 3 ? BSColor.Stage.accent : BSColor.Stage.dim)
-                                .padding(.horizontal, 7)
-                                .padding(.vertical, 3)
-                                .background(index < 3 ? BSColor.Stage.accent.opacity(0.12) : Color.white.opacity(0.04), in: Capsule())
-
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.name)
-                                    .font(BSFont.headline)
-                                    .foregroundColor(BSColor.Stage.foreground)
-                                    .lineLimit(2)
-
-                                HStack(spacing: 8) {
-                                    if let city = item.cities.first, !city.isEmpty {
-                                        Text(city)
-                                            .font(.system(size: 9, weight: .medium))
-                                            .foregroundColor(BSColor.Stage.muted)
-                                    }
-                                    Text(item.yearSpan.isSingleYear
-                                        ? item.yearSpan.displayText
-                                        : BSLocalization.format("第一次 %lld · 最近 %lld", item.yearSpan.first, item.yearSpan.latest))
-                                        .font(BSFont.V3.caption)
-                                        .foregroundColor(BSColor.Stage.muted)
-                                }
-                            }
-
-                            Spacer()
-
-                           VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(item.count)")
-                                    .font(.system(size: 26, weight: .semibold, design: .rounded))
-                                    .foregroundColor(BSColor.Stage.accent)
-                                Text(BSLocalization.text("场"))
-                                    .font(.system(size: 9))
-                                    .foregroundColor(BSColor.Stage.dim)
-                           }
-                        }
-
-                        if !itemShows.isEmpty {
-                            FootprintVenueShowsStrip(shows: itemShows, covers: covers)
-                        }
-
-                        HStack(spacing: 4) {
-                            ForEach(0..<min(items.first?.count ?? item.count, 10), id: \.self) { dotIndex in
-                                Circle()
-                                    .fill(dotIndex < item.count ? BSColor.Stage.accent : Color.white.opacity(0.07))
-                                    .frame(width: 5, height: 5)
-                            }
-                        }
-                    }
-                    .padding(14)
-                    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(BSColor.Stage.border))
+                    venueHeroCard(first)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(BSLocalization.format("全部场馆 · %lld", items.count))
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                HStack(spacing: 4) {
+                    Text(BSLocalization.text("按最近到访排序"))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .font(.system(size: 11))
+                .foregroundColor(BSColor.Stage.dim)
+            }
+            .padding(.top, 8)
+            .accessibilityElement(children: .combine)
+
+            ForEach(listedVenues) { item in
+                footprintExportAwareNavigationLink(isForExport: isForExport) {
+                    FootprintFilteredShowsView(
+                        title: item.name,
+                        shows: archive.shows(for: item.showIDs),
+                        archive: archive,
+                        covers: covers,
+                        onDetailVisibilityChange: onDetailVisibilityChange
+                    )
+                } label: {
+                    venueArchiveRow(item, isForExport: isForExport)
+                }
+            }
+
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 11, weight: .medium))
+                Text(BSLocalization.text("仅统计你有观演记录的场馆"))
+                    .font(.system(size: 11))
+            }
+            .foregroundColor(BSColor.Stage.dim)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+            .accessibilityElement(children: .combine)
         }
     }
 
-    private var items: [FootprintVenueArchiveItem] { archive.venueArchiveItems }
+    private var listedVenues: [FootprintVenueArchiveItem] {
+        let remaining = Array(items.dropFirst())
+        return remaining.sorted {
+            if $0.latestShowDate != $1.latestShowDate { return $0.latestShowDate > $1.latestShowDate }
+            return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
+    private func venueHeroCard(_ item: FootprintVenueArchiveItem) -> some View {
+        let shows = archive.shows(for: item.showIDs)
+        return HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 5) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 8, weight: .bold))
+                    Text("\(BSLocalization.text("MOST FAMILIAR")) · #1")
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.6)
+                }
+                .foregroundColor(BSColor.Stage.accent)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.black.opacity(0.28), in: Capsule())
+                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 0.5))
+
+                Text(item.name)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(2)
+
+                if let city = item.cities.first, !city.isEmpty {
+                    HStack(spacing: 4) {
+                        Image(systemName: "mappin")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(city)
+                            .lineLimit(1)
+                    }
+                    .font(.system(size: 12))
+                    .foregroundColor(BSColor.Stage.dim)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text("\(item.count)")
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .foregroundColor(BSColor.Stage.accent)
+                    Text(BSLocalization.text("场现场"))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+
+                Text(BSLocalization.format("占全部现场的 %lld%%", percentage(item.count)))
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text(BSLocalization.format("最近到访 %@", latestVisitText(for: item)))
+                }
+                .font(.system(size: 11))
+                .foregroundColor(BSColor.Stage.dim)
+            }
+
+            Spacer(minLength: 0)
+
+            FootprintVenueCoverStack(shows: shows.reversed(), covers: covers, maxCovers: 1, width: 108, height: 144)
+        }
+        .padding(20)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color(red: 0.08, green: 0.07, blue: 0.12),
+                    BSColor.Stage.surface
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 22, style: .continuous)
+        )
+        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(BSColor.Stage.accent.opacity(0.18)))
+    }
+
+    private func venueArchiveRow(_ item: FootprintVenueArchiveItem, isForExport: Bool) -> some View {
+        let shows = archive.shows(for: item.showIDs)
+        return HStack(spacing: 12) {
+            if let show = shows.last {
+                FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
+                    .frame(width: 52, height: 68)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.10), lineWidth: 0.5)
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(item.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(2)
+                Text(venueMetaText(for: item))
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .lineLimit(1)
+                if item.id == mostRecentVenueID {
+                    Text(BSLocalization.text("最近到访"))
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.accent)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 0.5))
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Text(BSLocalization.format("%lld 场", item.count))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(BSColor.Stage.accent)
+
+            footprintRowChevron(isForExport: isForExport, size: 11, weight: .semibold)
+        }
+        .padding(14)
+        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(BSColor.Stage.border))
+    }
+
+    private func venueMetaText(for item: FootprintVenueArchiveItem) -> String {
+        let city = item.cities.first.flatMap(FootprintTextNormalizer.nonEmptyTrimmed)
+        let date = latestVisitText(for: item)
+        if let city {
+            return "\(city) · \(date)"
+        }
+        return date
+    }
+
+    private func latestVisitText(for item: FootprintVenueArchiveItem) -> String {
+        guard let showID = item.latestShowID,
+              let show = archive.shows(for: [showID]).first else {
+            return footprintEnhancementMonthText(item.latestShowDate, calendar: Calendar.current)
+        }
+        return footprintEnhancementMonthText(show.effectiveDate, calendar: show.timingCalendar())
+    }
 
     private func percentage(_ count: Int) -> Int {
         Int((Double(count) / Double(max(archive.shows.count, 1)) * 100).rounded())
@@ -2342,6 +2388,7 @@ func footprintYearPeakText(_ activity: FootprintYearActivity) -> String {
 
 private struct FootprintArchivePage<Content: View>: View {
     let title: String
+    var subtitle: String? = nil
     let kicker: String
     /// 分享长图导出前用于预热封面缓存的封面表。
     let shareCovers: [UUID: FootprintCover]
@@ -2381,7 +2428,7 @@ private struct FootprintArchivePage<Content: View>: View {
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
-                    Text(BSLocalization.text("个人现场档案")).font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
+                    Text(subtitle ?? BSLocalization.text("个人现场档案")).font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
                 }
                 Spacer()
                 Button { isShowingShare = true } label: {
@@ -2474,7 +2521,6 @@ private func footprintEnhancementFullDateText(_ date: Date, calendar: Calendar) 
     return String(format: "%04d.%02d.%02d", components.year ?? 0, components.month ?? 0, components.day ?? 0)
 }
 
-
 private func footprintMonthKey(_ month: Int) -> String {
     "\(month)月"
 }
@@ -2515,33 +2561,6 @@ struct FootprintVenueCoverStack: View {
        .padding(.leading, 4)
    }
 }
-
-struct FootprintVenueShowsStrip: View {
-    let shows: [Show]
-    let covers: [UUID: FootprintCover]
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(shows.prefix(4)) { show in
-                FootprintCoverView(show: show, cover: covers[show.id], showsMetadata: false)
-                    .frame(width: 36, height: 48)
-                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .stroke(Color.white.opacity(0.1), lineWidth: 0.5)
-                    )
-            }
-            if shows.count > 4 {
-                Text("+\(shows.count - 4)")
-                    .font(.system(size: 9, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .frame(width: 28, height: 48)
-                    .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            }
-        }
-    }
-}
-
 
 struct FootprintMemoryCard: View {
     let show: Show

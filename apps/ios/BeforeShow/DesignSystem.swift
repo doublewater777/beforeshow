@@ -261,6 +261,61 @@ struct BSChromeIconButton: View {
     }
 }
 
+/// SwiftUI's NavigationStack does not engage `interactivePopGestureRecognizer` once
+/// `.toolbar(.hidden, for: .navigationBar)` hides the system bar, so the left-edge
+/// back-swipe does nothing. Hosting a UIScreenEdgePanGestureRecognizer re-creates the
+/// system back-swipe for views that draw their own custom nav bar with a back arrow.
+/// Use as `.background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))`.
+struct BSNavigationBackSwipeRestorer: UIViewControllerRepresentable {
+    let onBack: () -> Void
+
+    func makeUIViewController(context: Context) -> BSNavigationBackSwipeController {
+        BSNavigationBackSwipeController(onBack: onBack)
+    }
+
+    func updateUIViewController(_ uiViewController: BSNavigationBackSwipeController, context: Context) {
+        uiViewController.onBack = onBack
+    }
+}
+
+final class BSNavigationBackSwipeController: UIViewController {
+    var onBack: (() -> Void)?
+
+    init(onBack: @escaping () -> Void) {
+        self.onBack = onBack
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .clear
+        let recognizer = UIScreenEdgePanGestureRecognizer(target: self, action: #selector(handleEdgePan))
+        recognizer.edges = .left
+        recognizer.delegate = self
+        view.addGestureRecognizer(recognizer)
+    }
+
+    @objc private func handleEdgePan(_ g: UIScreenEdgePanGestureRecognizer) {
+        guard g.state == .ended, let onBack else { return }
+        let translation = g.translation(in: view)
+        let velocity = g.velocity(in: view)
+        // 镜像系统手势的触发阈值：距离或速度任一达到即可。
+        guard translation.x > 60 || velocity.x > 400 else { return }
+        onBack()
+    }
+}
+
+extension BSNavigationBackSwipeController: UIGestureRecognizerDelegate {
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+}
+
 /// Toolbar leading close control. Uses the system toolbar icon style so it matches
 /// sibling items like the trailing `plus` (same Liquid Glass size, no double chrome).
 struct BSChromeToolbarCloseButton: ToolbarContent {

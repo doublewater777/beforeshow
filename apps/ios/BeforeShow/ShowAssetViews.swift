@@ -562,6 +562,7 @@ struct ShowAssetViewerView: View {
                 .padding(.bottom, 28)
         }
         .navigationBarHidden(true)
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         .bsToastOverlay(toast, bottomPadding: 36)
         .task(id: "\(asset.relativePath)|\(asset.updatedAt.timeIntervalSince1970)") {
             scale = 1

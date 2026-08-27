@@ -1770,6 +1770,7 @@ private struct FootprintArchiveDetailView: View {
             .scrollIndicators(.hidden)
         }
         .toolbar(.hidden, for: .navigationBar)
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         .safeAreaInset(edge: .top, spacing: 0) {
             archiveNavigation
         }

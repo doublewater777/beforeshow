@@ -702,6 +702,7 @@ struct DispersalShareStep: View {
             }
         }
         .bsToastOverlay(toast, bottomPadding: 24)
+        .background(BSNavigationBackSwipeRestorer(onBack: onBack))
     }
 
     private var header: some View {

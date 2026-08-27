@@ -1417,6 +1417,7 @@ private struct MemoryTextFragmentViewer: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
     }
 }
 
@@ -1518,6 +1519,7 @@ private struct MemoryMediaViewer: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
         .onAppear { AppAudioSession.configureSoundPlayback() }

@@ -164,6 +164,21 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(show.artists.first?.albumArtworkURL, url.absoluteString)
     }
 
+    func testArtistArchiveBreaksCountTiesByLatestShow() throws {
+        let earlier = try makeShow("早看", year: 2025, month: 1, durationHours: 2, artist: "回声")
+        let later = try makeShow("晚看", year: 2026, month: 6, durationHours: 2, artist: "极光")
+        earlier.markEnded(at: date(2025, 1, 10, 22))
+        later.markEnded(at: date(2026, 6, 10, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [earlier, later],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.artistArchiveItems.map(\.name), ["极光", "回声"])
+    }
+
     func testArtistArchiveKeepsPersistedAlbumArtworkURL() throws {
         let show = try makeShow(
             "有专辑封面的现场",
@@ -387,12 +402,30 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(covers[photoShow.id]?.isVideoMemory, false)
     }
 
+    func testVenueArchiveBreaksCountTiesByLatestShow() throws {
+        let earlier = try makeShow("早场", year: 2025, month: 4, durationHours: 2, venue: "滇池草坪")
+        let later = try makeShow("晚场", year: 2026, month: 6, durationHours: 2, venue: "奥体中心体育馆")
+        earlier.city = "昆明"
+        later.city = "南京"
+        earlier.markEnded(at: date(2025, 4, 10, 22))
+        later.markEnded(at: date(2026, 6, 10, 22))
+
+        let archive = FootprintArchiveBuilder.make(
+            shows: [earlier, later],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.venueArchiveItems.map(\.name), ["奥体中心体育馆", "滇池草坪"])
+    }
+
     func testVenueRankItemIDsKeepCityIdentity() {
         let shanghai = FootprintVenueArchiveItem(
             name: "体育馆",
             count: 1,
             cities: ["上海"],
             showIDs: [UUID()],
+            latestShowDate: date(2026, 6, 10),
             yearSpan: FootprintYearSpan(first: 2026, latest: 2026)
         )
         let beijing = FootprintVenueArchiveItem(
@@ -400,6 +433,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
             count: 1,
             cities: ["北京"],
             showIDs: [UUID()],
+            latestShowDate: date(2026, 3, 10),
             yearSpan: FootprintYearSpan(first: 2026, latest: 2026)
         )
 

@@ -66,6 +66,11 @@ enum FootprintPlaybackPolicy {
     }
 }
 
+/// SwiftUI's NavigationStack does not engage `interactivePopGestureRecognizer` once
+/// `.toolbar(.hidden, for: .navigationBar)` hides the system bar, so the system
+/// left-edge swipe does nothing. Hosting a UIScreenEdgePanGestureRecognizer re-creates
+/// the system back-swipe for views that draw their own custom nav bar.
+
 struct FootprintDetailView: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
@@ -234,13 +239,14 @@ struct FootprintDetailView: View {
                 note: show.closingNote ?? "",
                 onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
             )
-            .presentationDetents([.height(620), .large])
+            .presentationDetents([.large])
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
         }
         .bsToastOverlay(toast, bottomPadding: 100)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
+        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         .preferredColorScheme(.dark)
     }
 
