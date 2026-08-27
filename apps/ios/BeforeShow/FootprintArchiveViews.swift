@@ -2200,7 +2200,7 @@ struct FootprintMemoriesArchiveView: View {
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
             }
-            Text(BSLocalization.text("照片、视频、票根和时刻表都留在对应的那一晚里。这里按时间把它们重新铺开。"))
+            Text(BSLocalization.text("照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。"))
                 .font(.system(size: 11))
                 .foregroundColor(BSColor.Stage.muted)
                 .lineSpacing(3)
@@ -2552,11 +2552,10 @@ struct FootprintMemoryCard: View {
     private var calendar: Calendar { show.timingCalendar() }
 
     private var memoryTagText: String {
-        if show.dynamicCover != nil {
-            return BSLocalization.text("视频")
-        } else {
-            return BSLocalization.text("照片")
+        if let cover, cover.badge == .memory {
+            return BSLocalization.text(cover.isVideoMemory ? "视频" : "照片")
         }
+        return BSLocalization.text(show.dynamicCover != nil ? "视频" : "照片")
     }
 
     var body: some View {

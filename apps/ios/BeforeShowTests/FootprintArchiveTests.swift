@@ -523,6 +523,15 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(FootprintPageSharePreviewLayout.sheetHeight(for: 640), 516)
     }
 
+    func testLongShareExportRejectsStitchedBitmapBeyondMemoryBudget() {
+        // 420pt × 3x = 1260px 宽,预算 50M px ≈ 高度上限约 13_227pt。
+        XCTAssertTrue(FootprintShareImageExport.fitsStitchedMemoryBudget(width: 420, height: 5_000, scale: 3))
+        XCTAssertTrue(FootprintShareImageExport.fitsStitchedMemoryBudget(width: 420, height: 13_000, scale: 3))
+        XCTAssertFalse(FootprintShareImageExport.fitsStitchedMemoryBudget(width: 420, height: 20_000, scale: 3))
+        XCTAssertFalse(FootprintShareImageExport.fitsStitchedMemoryBudget(width: 420, height: 100_000, scale: 3))
+        XCTAssertFalse(FootprintShareImageExport.fitsStitchedMemoryBudget(width: 0, height: 100, scale: 3))
+    }
+
     func testLongShareExportKeepsTileBoundarySharpAndOpaque() {
         let content = VStack(spacing: 0) {
             Color.black.frame(height: 2_333)
@@ -628,5 +637,40 @@ final class FootprintArchiveTests: XCTestCase {
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0) -> Date {
         calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    }
+}
+
+/// 新增 UI 文案必须在三套语言(en / zh-Hans / zh-Hant)都有条目,
+/// 否则非中文用户会看到 source key(中文原文)直接上屏。
+final class LocalizableCompletenessTests: XCTestCase {
+    private let requiredKeys = [
+        "回忆",
+        "留念",
+        "归档",
+        "个画面",
+        "暂无回忆",
+        "照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。",
+        "散场后留下现场评价、动态封面或记忆碎片，在这里筑造你的现场回忆。",
+        "记录最完整的一晚",
+        "weatherReminderLegalTitle",
+        "ICP备案号",
+        "法律信息"
+    ]
+
+    func testRequiredKeysExistInEveryLocalization() {
+        for localization in ["en", "zh-Hans", "zh-Hant"] {
+            let table = strings(localization)
+            for key in requiredKeys {
+                XCTAssertNotNil(table?[key], "\(localization).lproj 缺少 key: \(key)")
+            }
+        }
+    }
+
+    private func strings(_ localization: String) -> [String: String]? {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow/Resources/\(localization).lproj/Localizable.strings")
+        return NSDictionary(contentsOf: url) as? [String: String]
     }
 }

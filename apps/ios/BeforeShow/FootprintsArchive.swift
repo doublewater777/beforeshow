@@ -16,9 +16,16 @@ enum FootprintCategory: String, CaseIterable, Identifiable {
 }
 
 struct FootprintRankItem: Identifiable, Equatable, Hashable {
+    /// 默认用 name;同名不同实体的排行项(如不同城市的同名场馆)必须显式传 id。
+    let id: String
     let name: String
     let count: Int
-    var id: String { name }
+
+    init(name: String, count: Int, id: String? = nil) {
+        self.id = id ?? name
+        self.name = name
+        self.count = count
+    }
 }
 
 struct FootprintYearGroup: Identifiable {
@@ -958,6 +965,15 @@ enum FootprintShareImageExport {
     /// exceeds the ~8192px GPU texture cap, so each tile stays below it.
     /// Tiles are blitted 1:1 in pixel space so a scaled `UIImage.draw` cannot
     /// interpolate the whole image soft.
+    /// 最终拼接 bitmap 是一次性全尺寸分配(RGBA 4 字节/px)。50M px ≈ 200MB,
+    /// 超出预算直接放弃导出(调用方弹失败提示),避免超大档案长图把进程 jetsam。
+    static let maximumStitchedPixels: CGFloat = 50_000_000
+
+    static func fitsStitchedMemoryBudget(width: CGFloat, height: CGFloat, scale: CGFloat) -> Bool {
+        let pixels = (width * scale).rounded() * (height * scale).rounded()
+        return pixels > 0 && pixels <= maximumStitchedPixels
+    }
+
     @MainActor
     static func renderLong<Content: View>(
         _ content: Content,
@@ -973,6 +989,7 @@ enum FootprintShareImageExport {
         guard fitted.height.isFinite, fitted.height > 0, fitted.height < 100_000 else { return nil }
         let size = CGSize(width: width, height: ceil(fitted.height))
         let outputScale = max(scale, 1)
+        guard fitsStitchedMemoryBudget(width: size.width, height: size.height, scale: outputScale) else { return nil }
         let pixelWidth = (size.width * outputScale).rounded()
         let pixelHeight = (size.height * outputScale).rounded()
         let tileHeight = min(size.height, floor(7000 / outputScale))

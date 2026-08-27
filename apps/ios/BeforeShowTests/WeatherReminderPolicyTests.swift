@@ -188,4 +188,11 @@ final class WeatherReminderPolicyTests: XCTestCase {
         let (_, body) = WeatherReminderPolicy.copy(for: decision)
         XCTAssertTrue(body.contains("上海"))
     }
+
+    /// WeatherKit 使用条款要求展示 Apple 的 legal attribution 入口;
+    /// About 页的 Weather 法律链接依赖这个 URL,不能失效。
+    func testWeatherKitLegalAttributionExposesLegalPage() async {
+        let url = await WeatherKitLegalAttribution.legalPageURL()
+        XCTAssertNotNil(url)
+    }
 }

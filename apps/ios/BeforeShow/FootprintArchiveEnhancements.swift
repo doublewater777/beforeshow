@@ -99,7 +99,7 @@ struct FootprintVenueArchiveItem: Identifiable, Equatable, Hashable {
     var firstShowID: UUID? { showIDs.first }
     var latestShowID: UUID? { showIDs.last }
     var isRevisited: Bool { count > 1 }
-    var rankItem: FootprintRankItem { FootprintRankItem(name: name, count: count) }
+    var rankItem: FootprintRankItem { FootprintRankItem(name: name, count: count, id: id) }
 }
 
 @MainActor
@@ -448,6 +448,8 @@ struct FootprintCover: Identifiable, Equatable {
     let badge: FootprintCoverBadge
     let ordinal: Int
     let variant: Int
+    /// 记忆封面对应的原始媒体是否为视频;仅 badge == .memory 时有意义。
+    var isVideoMemory = false
 
     var id: UUID { showID }
 }
@@ -502,7 +504,8 @@ enum FootprintCoverResolver {
                 source: .local(MemoryMediaLocation.applicationSupport().url(for: path)),
                 badge: .memory,
                 ordinal: ordinal,
-                variant: FootprintArchiveCoverLayout.variant(for: show.id)
+                variant: FootprintArchiveCoverLayout.variant(for: show.id),
+                isVideoMemory: memory.kind == .video
             )
         }
 

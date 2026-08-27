@@ -352,6 +352,61 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(covers[ticketShow.id]?.badge, .keepsake)
     }
 
+    func testCoverResolverMarksVideoMemoryFlagFromSourceMedia() throws {
+        let videoShow = try makeShow("视频记忆", year: 2026, month: 1, durationHours: 2)
+        let photoShow = try makeShow("照片记忆", year: 2026, month: 2, durationHours: 2)
+
+        let videoFragment = try MemoryFragment(showID: videoShow.id)
+        try videoFragment.appendMedia(MemoryMediaItem(
+            id: UUID(),
+            kind: .video,
+            relativePath: "\(videoShow.id.uuidString)/video.mov",
+            thumbnailRelativePath: nil,
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 12,
+            sortOrder: 0
+        ))
+        let photoFragment = try MemoryFragment(showID: photoShow.id)
+        try photoFragment.appendMedia(MemoryMediaItem(
+            id: UUID(),
+            kind: .photo,
+            relativePath: "\(photoShow.id.uuidString)/photo.jpg",
+            thumbnailRelativePath: nil,
+            contentTypeIdentifier: "public.jpeg",
+            videoDuration: nil,
+            sortOrder: 0
+        ))
+
+        let covers = FootprintCoverResolver.resolve(
+            shows: [videoShow, photoShow],
+            fragments: [videoFragment, photoFragment],
+            assets: []
+        )
+
+        XCTAssertEqual(covers[videoShow.id]?.isVideoMemory, true)
+        XCTAssertEqual(covers[photoShow.id]?.isVideoMemory, false)
+    }
+
+    func testVenueRankItemIDsKeepCityIdentity() {
+        let shanghai = FootprintVenueArchiveItem(
+            name: "体育馆",
+            count: 1,
+            cities: ["上海"],
+            showIDs: [UUID()],
+            yearSpan: FootprintYearSpan(first: 2026, latest: 2026)
+        )
+        let beijing = FootprintVenueArchiveItem(
+            name: "体育馆",
+            count: 1,
+            cities: ["北京"],
+            showIDs: [UUID()],
+            yearSpan: FootprintYearSpan(first: 2026, latest: 2026)
+        )
+
+        XCTAssertEqual(shanghai.rankItem.name, beijing.rankItem.name)
+        XCTAssertNotEqual(shanghai.rankItem.id, beijing.rankItem.id)
+    }
+
     private func makeCoverContainer() throws -> ModelContainer {
         try ModelContainer(
             for: Show.self, DynamicCover.self,
