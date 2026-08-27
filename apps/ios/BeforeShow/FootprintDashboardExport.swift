@@ -2,14 +2,14 @@ import SwiftUI
 
 /// Full-page "long screenshot" of the footprint dashboard for sharing.
 /// Laid out at a phone-like width so sections keep their on-screen
-/// proportions; `FootprintShareImageExport.renderLong` renders it at 1080px
-/// wide via `exportScale`.
+/// proportions; `FootprintShareImageExport.renderLong` renders it at 3x
+/// so text and edges stay pixel-aligned on a Retina phone.
 struct FootprintDashboardExportView: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
 
     static let layoutWidth: CGFloat = 420
-    static let exportScale: CGFloat = 1080 / layoutWidth
+    static let exportScale: CGFloat = 3
 
     private var sections: FootprintDashboardSections {
         FootprintDashboardSections(
@@ -47,14 +47,15 @@ struct FootprintDashboardExportView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 16)
 
-                if sections.visibility.showsTrend { sections.trendSection }
-                sections.artistSection
-                sections.citySection
-                sections.venueSection
-                sections.memorySection
-                sections.timelineSection
+               if sections.visibility.showsTrend { sections.trendSection }
+               sections.artistSection
+               sections.citySection
+               sections.venueSection
+               sections.memorySection
+               sections.timelineSection
+                   .padding(.bottom, 16)
 
-                footer
+               footer
             }
         }
         .frame(width: Self.layoutWidth)

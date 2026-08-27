@@ -16,9 +16,16 @@ enum FootprintCategory: String, CaseIterable, Identifiable {
 }
 
 struct FootprintRankItem: Identifiable, Equatable, Hashable {
+    /// 默认用 name;同名不同实体的排行项(如不同城市的同名场馆)必须显式传 id。
+    let id: String
     let name: String
     let count: Int
-    var id: String { name }
+
+    init(name: String, count: Int, id: String? = nil) {
+        self.id = id ?? name
+        self.name = name
+        self.count = count
+    }
 }
 
 struct FootprintYearGroup: Identifiable {
@@ -940,12 +947,14 @@ enum FootprintShareImageExport {
     @MainActor
     static func render<Content: View>(
         _ content: Content,
-        size: CGSize
+        size: CGSize,
+        scale: CGFloat = 1
     ) -> UIImage? {
         let renderer = ImageRenderer(
             content: content.frame(width: size.width, height: size.height)
         )
-        renderer.scale = 1
+        renderer.proposedSize = ProposedViewSize(width: size.width, height: size.height)
+        renderer.scale = scale
         return renderer.uiImage
     }
 
@@ -954,6 +963,17 @@ enum FootprintShareImageExport {
     /// via a hosting controller, then the image is rendered in vertical tiles
     /// and stitched: ImageRenderer renders fully black once the pixel height
     /// exceeds the ~8192px GPU texture cap, so each tile stays below it.
+    /// Tiles are blitted 1:1 in pixel space so a scaled `UIImage.draw` cannot
+    /// interpolate the whole image soft.
+    /// 最终拼接 bitmap 是一次性全尺寸分配(RGBA 4 字节/px)。50M px ≈ 200MB,
+    /// 超出预算直接放弃导出(调用方弹失败提示),避免超大档案长图把进程 jetsam。
+    static let maximumStitchedPixels: CGFloat = 50_000_000
+
+    static func fitsStitchedMemoryBudget(width: CGFloat, height: CGFloat, scale: CGFloat) -> Bool {
+        let pixels = (width * scale).rounded() * (height * scale).rounded()
+        return pixels > 0 && pixels <= maximumStitchedPixels
+    }
+
     @MainActor
     static func renderLong<Content: View>(
         _ content: Content,
@@ -961,15 +981,28 @@ enum FootprintShareImageExport {
         scale: CGFloat = 1
     ) -> UIImage? {
         let controller = UIHostingController(rootView: content)
-        let size = controller.sizeThatFits(
+        controller.safeAreaRegions = []
+        controller.view.backgroundColor = .clear
+        let fitted = controller.sizeThatFits(
             in: CGSize(width: width, height: .greatestFiniteMagnitude)
         )
-        guard size.height > 0 else { return nil }
-        let tileHeight = min(size.height, floor(7000 / scale))
+        guard fitted.height.isFinite, fitted.height > 0, fitted.height < 100_000 else { return nil }
+        let size = CGSize(width: width, height: ceil(fitted.height))
+        let outputScale = max(scale, 1)
+        guard fitsStitchedMemoryBudget(width: size.width, height: size.height, scale: outputScale) else { return nil }
+        let pixelWidth = (size.width * outputScale).rounded()
+        let pixelHeight = (size.height * outputScale).rounded()
+        let tileHeight = min(size.height, floor(7000 / outputScale))
         let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        let stitcher = UIGraphicsImageRenderer(size: size, format: format)
-        return stitcher.image { _ in
+        format.scale = 1
+        format.opaque = false
+        let stitcher = UIGraphicsImageRenderer(
+            size: CGSize(width: pixelWidth, height: pixelHeight),
+            format: format
+        )
+        var didFail = false
+        let stitched = stitcher.image { ctx in
+            ctx.cgContext.interpolationQuality = .none
             var offsetY: CGFloat = 0
             while offsetY < size.height {
                 let height = min(tileHeight, size.height - offsetY)
@@ -979,21 +1012,34 @@ enum FootprintShareImageExport {
                     .frame(width: width, height: height, alignment: .top)
                     .clipped()
                 let renderer = ImageRenderer(content: tile)
-                renderer.scale = scale
-                if let tileImage = renderer.uiImage {
-                    tileImage.draw(in: CGRect(x: 0, y: offsetY, width: width, height: height))
+                renderer.proposedSize = ProposedViewSize(width: width, height: height)
+                renderer.scale = outputScale
+                guard let tileImage = renderer.uiImage, let cgImage = tileImage.cgImage else {
+                    didFail = true
+                    break
                 }
+                let dest = CGRect(
+                    x: 0,
+                    y: (offsetY * outputScale).rounded(),
+                    width: CGFloat(cgImage.width),
+                    height: CGFloat(cgImage.height)
+                )
+                UIImage(cgImage: cgImage, scale: 1, orientation: .up).draw(in: dest)
                 offsetY += height
             }
         }
+        guard !didFail else { return nil }
+        guard let cgImage = stitched.cgImage else { return stitched }
+        return UIImage(cgImage: cgImage, scale: outputScale, orientation: .up)
     }
 
     @MainActor
     static func save<Content: View>(
         _ content: Content,
-        size: CGSize
+        size: CGSize,
+        scale: CGFloat = 1
     ) async throws {
-        guard let image = render(content, size: size) else {
+        guard let image = render(content, size: size, scale: scale) else {
             throw FootprintPhotoSaveError.rendererFailed
         }
         try await FootprintPhotoLibrary.save(image)
@@ -1013,7 +1059,7 @@ enum FootprintShareImageExport {
 }
 
 /// Shared chrome for footprint share sheets: preview, save, share, cancel.
-private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
+struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
     let title: String
     let subtitle: String
     let previewHeight: CGFloat
@@ -1021,13 +1067,17 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
     /// When true, export renders at `exportSize.width` with intrinsic height
     /// (long-screenshot mode) instead of the fixed `exportSize`.
     var usesIntrinsicHeight = false
-    /// Pixel scale for long-screenshot export (ignored for fixed-size cards).
+    /// Pixel scale for export. Long screenshots and fixed cards both use this
+    /// so text is rasterized at integer Retina scale instead of 1x-upscaled.
     var exportScale: CGFloat = 1
     /// Async hook (e.g. cover-cache warmup) run before every export render.
     var beforeExport: (() async -> Void)? = nil
     /// When true, the preview fills the sheet's remaining height instead of
     /// the fixed `previewHeight` (used with the .large detent).
     var flexiblePreviewHeight = false
+    /// Natural scaled content height. Caps a flexible preview so short
+    /// content keeps the buttons close instead of leaving an empty box.
+    var previewMaxHeight: CGFloat? = nil
     @ViewBuilder let preview: () -> Preview
     @ViewBuilder let exportContent: () -> ExportContent
     var onSaved: (() -> Void)? = nil
@@ -1040,28 +1090,65 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title).font(.system(size: 21, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(subtitle)
-                .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted).padding(.top, 6)
+            }
 
             preview()
                 .frame(height: flexiblePreviewHeight ? nil : previewHeight)
-                .frame(maxHeight: flexiblePreviewHeight ? .infinity : nil)
+                .frame(maxHeight: flexiblePreviewHeight ? previewMaxHeight ?? .infinity : nil, alignment: .top)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10)))
                 .padding(.top, 15)
 
             HStack(spacing: 8) {
-                Button(BSLocalization.text("保存图片")) { Task { await saveImage() } }
-                    .footprintShareAction(primary: false)
+                Button { Task { await saveImage() } } label: {
+                    Text(BSLocalization.text("保存图片"))
+                        .footprintShareAction(primary: false)
+                }
+                .buttonStyle(.plain)
                     .disabled(isSaving || isExporting)
-                Button(BSLocalization.text("分享图片")) { Task { await shareImage() } }
-                    .footprintShareAction(primary: true)
+                Button { Task { await shareImage() } } label: {
+                    Text(BSLocalization.text("分享图片"))
+                        .footprintShareAction(primary: true)
+                }
+                .buttonStyle(.plain)
                     .disabled(isSaving || isExporting)
             }
             .padding(.top, 12)
         }
         .padding(.horizontal, 16).padding(.top, 33).padding(.bottom, 18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(
+            ZStack {
+                BSColor.Stage.background
+                RadialGradient(
+                    colors: [BSColor.Stage.glowBlue.opacity(0.12), .clear],
+                    center: .topTrailing,
+                    startRadius: .zero,
+                    endRadius: 280
+                )
+            }
+            .ignoresSafeArea()
+        )
+        .overlay {
+            if isSaving || isExporting {
+                ZStack {
+                    Color.black.opacity(0.38)
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(BSLocalization.text("生成中…"))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(BSColor.Stage.foreground)
+                    }
+                }
+                .ignoresSafeArea()
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(BSLocalization.text("生成中…"))
+            }
+        }
         .bsToastOverlay(toast, bottomPadding: 24)
     }
 
@@ -1070,7 +1157,7 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
         if usesIntrinsicHeight {
             return FootprintShareImageExport.renderLong(exportContent(), width: exportSize.width, scale: exportScale)
         }
-        return FootprintShareImageExport.render(exportContent(), size: exportSize)
+        return FootprintShareImageExport.render(exportContent(), size: exportSize, scale: exportScale)
     }
 
     @MainActor
@@ -1083,7 +1170,7 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
             if usesIntrinsicHeight {
                 try await FootprintShareImageExport.saveLong(exportContent(), width: exportSize.width, scale: exportScale)
             } else {
-                try await FootprintShareImageExport.save(exportContent(), size: exportSize)
+                try await FootprintShareImageExport.save(exportContent(), size: exportSize, scale: exportScale)
             }
         } catch {
             let message = (error as? LocalizedError)?.errorDescription ?? BSLocalization.text("照片保存失败，请重试。")
@@ -1130,7 +1217,7 @@ private struct FootprintShareActionSheet<Preview: View, ExportContent: View>: Vi
     }
 }
 
-private struct FootprintShareSheet: View {
+struct FootprintShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let covers: [UUID: FootprintCover]
     let onSaved: () -> Void
@@ -1158,25 +1245,213 @@ private struct FootprintShareSheet: View {
     }
 }
 
-private struct FootprintArchiveShareSheet: View {
+struct FootprintArchiveShareSheet: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory
     let onSaved: () -> Void
+    @State private var scaledContentHeight: CGFloat?
+    @State private var selectedDetent: PresentationDetent = .large
 
     var body: some View {
         FootprintShareActionSheet(
             title: FootprintArchiveShareCopy.title(for: category),
             subtitle: FootprintArchiveShareCopy.subtitle(for: category),
-            previewHeight: 368,
-            exportSize: CGSize(width: 1080, height: 1100),
-            preview: { FootprintArchiveSharePreview(archive: archive, category: category) },
-            exportContent: { FootprintArchiveSharePreview(archive: archive, category: category) },
+            previewHeight: FootprintPageSharePreviewLayout.height(for: scaledContentHeight),
+            exportSize: CGSize(width: FootprintArchiveShareExportLayout.width, height: 0),
+            usesIntrinsicHeight: true,
+            exportScale: FootprintArchiveShareExportLayout.scale,
+            flexiblePreviewHeight: true,
+            previewMaxHeight: scaledContentHeight,
+            preview: {
+                FootprintArchiveSharePreview(
+                    archive: archive,
+                    category: category,
+                    onScaledContentHeightChange: { scaledContentHeight = $0 }
+                )
+            },
+            exportContent: { FootprintArchiveShareCard(archive: archive, category: category) },
             onSaved: onSaved
+        )
+        .presentationDetents(
+            [
+                .height(FootprintPageSharePreviewLayout.sheetHeight(for: scaledContentHeight)),
+                .large
+            ],
+            selection: $selectedDetent
         )
     }
 }
 
+enum FootprintArchiveShareExportLayout {
+    static let width: CGFloat = 360
+    static let size = CGSize(width: width, height: 1100 / scale)
+    static let scale: CGFloat = 3
+}
+
+/// 档案二级页分享入口:把整个页面渲染成一张完整长图(页头 + 页面内容 + 落款),
+/// 布局宽度对齐 dashboard 导出,按 exportScale 放大出图。
+struct FootprintPageShareSheet<Content: View>: View {
+    let title: String
+    let kicker: String
+    let covers: [UUID: FootprintCover]
+    var extraWarmup: (() async -> Void)? = nil
+    let onSaved: () -> Void
+    @ViewBuilder let content: () -> Content
+    @State private var scaledContentHeight: CGFloat?
+    @State private var selectedDetent: PresentationDetent = .large
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: BSLocalization.format("分享%@", title),
+            subtitle: "",
+            previewHeight: FootprintPageSharePreviewLayout.height(for: scaledContentHeight),
+            exportSize: CGSize(width: FootprintDashboardExportView.layoutWidth, height: 0),
+            usesIntrinsicHeight: true,
+            exportScale: FootprintDashboardExportView.exportScale,
+            beforeExport: {
+                await FootprintCoverExportWarmup.warm(covers: covers)
+                await extraWarmup?()
+            },
+            flexiblePreviewHeight: true,
+            previewMaxHeight: scaledContentHeight,
+            preview: {
+                FootprintPageExportPreview(
+                    title: title,
+                    kicker: kicker,
+                    content: content,
+                    onScaledContentHeightChange: { scaledContentHeight = $0 }
+                )
+            },
+            exportContent: { FootprintPageExportView(title: title, kicker: kicker, content: content) },
+            onSaved: onSaved
+        )
+        .presentationDetents(
+            [
+                .height(FootprintPageSharePreviewLayout.sheetHeight(for: scaledContentHeight)),
+                .large
+            ],
+            selection: $selectedDetent
+        )
+    }
+}
+
+enum FootprintPageSharePreviewLayout {
+    static let maximumHeight: CGFloat = 368
+    static let sheetChromeHeight: CGFloat = 148
+
+    static func height(for scaledContentHeight: CGFloat?) -> CGFloat {
+        guard let scaledContentHeight, scaledContentHeight.isFinite, scaledContentHeight > 0 else {
+            return maximumHeight
+        }
+        return min(ceil(scaledContentHeight), maximumHeight)
+    }
+
+    static func sheetHeight(for scaledContentHeight: CGFloat?) -> CGFloat {
+        height(for: scaledContentHeight) + sheetChromeHeight
+    }
+}
+
+/// 整页长图的导出内容:页头(kicker + 页标题) + 页面内容 + 底部署名日期。
+struct FootprintPageExportView<Content: View>: View {
+    let title: String
+    let kicker: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("BEFORESHOW · LIVE ARCHIVE")
+                    .font(.system(size: 9.5, weight: .medium))
+                    .tracking(1.65)
+                    .foregroundColor(BSColor.Stage.accent)
+                Text(title)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(BSColor.Stage.foreground)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                if !kicker.isEmpty {
+                    Text(kicker)
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(2)
+                        .foregroundColor(BSColor.Stage.accent)
+                }
+                content()
+            }
+
+            HStack {
+                Text(BSLocalization.text("开场前"))
+                Spacer()
+                Text(footprintFullDateText(Date(), calendar: Calendar.current))
+            }
+            .font(.system(size: 9.5))
+            .foregroundColor(BSColor.Stage.dim)
+            .padding(.top, 8)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 26)
+        .padding(.bottom, 30)
+        .frame(width: FootprintDashboardExportView.layoutWidth, alignment: .leading)
+        .background(BSColor.Stage.background)
+    }
+}
+
+/// 整页长图在分享 sheet 里的可滚动缩放预览,做法对齐 FootprintDashboardExportPreview。
+private struct FootprintPageExportPreview<Content: View>: View {
+    let title: String
+    let kicker: String
+    @ViewBuilder let content: () -> Content
+    let onScaledContentHeightChange: (CGFloat) -> Void
+
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = geometry.size.width / FootprintDashboardExportView.layoutWidth
+            ScrollView {
+                FootprintPageExportView(title: title, kicker: kicker, content: content)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                        contentHeight = size.height
+                        onScaledContentHeightChange(size.height * scale)
+                    }
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(
+                        width: geometry.size.width,
+                        height: contentHeight * scale,
+                        alignment: .topLeading
+                    )
+            }
+        }
+    }
+}
+
 private struct FootprintArchiveSharePreview: View {
+    let archive: FootprintArchiveSnapshot
+    let category: FootprintCategory
+    var onScaledContentHeightChange: ((CGFloat) -> Void)? = nil
+    @State private var contentHeight: CGFloat = 0
+
+    var body: some View {
+        GeometryReader { geometry in
+            let scale = geometry.size.width / FootprintArchiveShareExportLayout.width
+            ScrollView {
+                FootprintArchiveShareCard(archive: archive, category: category)
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { size in
+                        contentHeight = size.height
+                        onScaledContentHeightChange?(size.height * scale)
+                    }
+                    .scaleEffect(scale, anchor: .topLeading)
+                    .frame(
+                        width: geometry.size.width,
+                        height: contentHeight * scale,
+                        alignment: .topLeading
+                    )
+            }
+        }
+    }
+}
+
+struct FootprintArchiveShareCard: View {
     let archive: FootprintArchiveSnapshot
     let category: FootprintCategory
 
@@ -1191,79 +1466,88 @@ private struct FootprintArchiveSharePreview: View {
     private var rankings: [FootprintRankItem] { archive.ranking(for: category) }
 
     var body: some View {
-        GeometryReader { geometry in
-            let scale = geometry.size.width / 361
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Text("BEFORESHOW · LIVE ARCHIVE")
+                    .font(.system(size: 9.5, weight: .medium)).tracking(1.65).foregroundColor(accent)
+                Spacer()
+                Text(FootprintArchiveShareCopy.chip(for: category))
+                    .font(.system(size: 9.5)).foregroundColor(BSColor.Stage.muted)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Color.white.opacity(0.045), in: Capsule())
+                    .overlay(Capsule().stroke(Color.white.opacity(0.10)))
+            }
+
+            Text(FootprintArchiveShareCopy.kicker(for: category))
+                .font(.system(size: 10, weight: .semibold)).tracking(1.2).foregroundColor(accent)
+                .padding(.top, 23)
+
+            if category == .overview {
+                overviewContent
+            } else {
+                categoryContent
+            }
+
+            HStack {
+                Text(BSLocalization.text("开场前"))
+                Spacer()
+                Text(footprintFullDateText(Date(), calendar: Calendar.current))
+            }
+            .font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
+            .padding(.top, 18)
+        }
+        .padding(20)
+        .frame(width: FootprintArchiveShareExportLayout.width, alignment: .leading)
+        .background {
             ZStack {
                 Color(red: 0.035, green: 0.047, blue: 0.078)
-                RadialGradient(colors: [accent.opacity(0.24), .clear], center: .topTrailing, startRadius: 0, endRadius: geometry.size.width * 0.85)
-                RadialGradient(colors: [accent.opacity(0.08), .clear], center: .topLeading, startRadius: 0, endRadius: geometry.size.width * 0.72)
-
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(alignment: .center) {
-                        Text("BEFORESHOW · LIVE ARCHIVE")
-                            .font(.system(size: 9.5 * scale, weight: .medium)).tracking(1.65 * scale).foregroundColor(accent)
-                        Spacer()
-                        Text(FootprintArchiveShareCopy.chip(for: category))
-                            .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.muted)
-                            .padding(.horizontal, 8 * scale).padding(.vertical, 5 * scale)
-                            .background(Color.white.opacity(0.045), in: Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.10)))
-                    }
-
-                    Text(FootprintArchiveShareCopy.kicker(for: category))
-                        .font(.system(size: 10 * scale, weight: .semibold)).tracking(1.2 * scale).foregroundColor(accent)
-                        .padding(.top, 23 * scale)
-
-                    if category == .overview {
-                        overviewContent(scale: scale)
-                    } else {
-                        categoryContent(scale: scale)
-                    }
-
-                    Spacer(minLength: 0)
-                    HStack {
-                        Text(BSLocalization.text("开场前"))
-                        Spacer()
-                        Text(footprintFullDateText(Date(), calendar: Calendar.current))
-                    }
-                    .font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
-                }
-                .padding(20 * scale)
+                RadialGradient(
+                    colors: [accent.opacity(0.24), .clear],
+                    center: .topTrailing,
+                    startRadius: 0,
+                    endRadius: FootprintArchiveShareExportLayout.width * 0.85
+                )
+                RadialGradient(
+                    colors: [accent.opacity(0.08), .clear],
+                    center: .topLeading,
+                    startRadius: 0,
+                    endRadius: FootprintArchiveShareExportLayout.width * 0.72
+                )
             }
         }
     }
 
     @ViewBuilder
-    private func overviewContent(scale: CGFloat) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8 * scale) {
+    private var overviewContent: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(archive.shows.count)")
-                .font(.system(size: 61 * scale, weight: .ultraLight))
+                .font(.system(size: 61, weight: .ultraLight))
                 .foregroundStyle(LinearGradient(colors: [Color(red: 0.96, green: 0.94, blue: 0.89), accent], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Text(BSLocalization.text("场现场")).font(.system(size: 14 * scale)).foregroundColor(BSColor.Stage.muted)
+            Text(BSLocalization.text("场现场")).font(.system(size: 14)).foregroundColor(BSColor.Stage.muted)
         }
-        .padding(.top, 6 * scale)
+        .padding(.top, 6)
 
         Text(BSLocalization.format("走过 %lld 座城市，留下 %lld 位艺人的现场记忆", archive.cities.count, archive.artists.count))
-            .font(.system(size: 11 * scale)).foregroundColor(BSColor.Stage.muted).lineSpacing(1.55 * scale)
-            .padding(.top, 7 * scale)
+            .font(.system(size: 11)).foregroundColor(BSColor.Stage.muted).lineSpacing(1.55)
+            .padding(.top, 7)
 
-        HStack(spacing: 7 * scale) {
-            shareMetric(archive.artists.count, BSLocalization.text("艺人"), scale: scale)
-            shareMetric(archive.cities.count, BSLocalization.text("城市"), scale: scale)
-            shareMetric(archive.venues.count, BSLocalization.text("场馆"), scale: scale)
-            shareMetric(ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes), BSLocalization.text("现场时长"), scale: scale)
+        HStack(spacing: 7) {
+            shareMetric(archive.artists.count, BSLocalization.text("艺人"))
+            shareMetric(archive.cities.count, BSLocalization.text("城市"))
+            shareMetric(archive.venues.count, BSLocalization.text("场馆"))
+            shareMetric(ShowDurationFormatter.aggregate(totalMinutes: archive.totalDurationMinutes), BSLocalization.text("现场时长"))
         }
-        .padding(.top, 14 * scale)
+        .padding(.top, 14)
 
-        VStack(spacing: 7 * scale) {
-            shareFocus(BSLocalization.text("最常看"), item: archive.artists.first, scale: scale)
-            shareFocus(BSLocalization.text("最多去"), item: archive.cities.first, scale: scale)
-            shareFocus(BSLocalization.text("最熟悉"), item: archive.venues.first, scale: scale)
+        VStack(spacing: 7) {
+            shareFocus(BSLocalization.text("最常看"), item: archive.artists.first)
+            shareFocus(BSLocalization.text("最多去"), item: archive.cities.first)
+            shareFocus(BSLocalization.text("最熟悉"), item: archive.venues.first)
         }
-        .padding(.top, 13 * scale)
+        .padding(.top, 13)
     }
 
-    private func categoryContent(scale: CGFloat) -> some View {
+    private var categoryContent: some View {
         let top = rankings.first
         let label: String
         let count: Int
@@ -1280,79 +1564,79 @@ private struct FootprintArchiveSharePreview: View {
         }
 
         return VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .lastTextBaseline, spacing: 12 * scale) {
-            VStack(alignment: .leading, spacing: 5 * scale) {
-                Text(label).font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.dim)
-                Text(top?.name ?? BSLocalization.text("还没有记录"))
-                    .font(.system(size: 24 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            if let top {
-                HStack(alignment: .lastTextBaseline, spacing: 4 * scale) {
-                    Text("\(top.count)").font(.system(size: 42 * scale, weight: .ultraLight)).foregroundColor(accent)
-                    Text(BSLocalization.text("场")).font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.muted)
+            HStack(alignment: .lastTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(label).font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+                    Text(top?.name ?? BSLocalization.text("还没有记录"))
+                        .font(.system(size: 24, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                Spacer(minLength: 0)
+                if let top {
+                    HStack(alignment: .lastTextBaseline, spacing: 4) {
+                        Text("\(top.count)").font(.system(size: 42, weight: .ultraLight)).foregroundColor(accent)
+                        Text(BSLocalization.text("场")).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted)
+                    }
                 }
             }
-        }
-        .padding(.top, 6 * scale)
+            .padding(.top, 6)
 
-        VStack(spacing: 10 * scale) {
-            ForEach(Array(rankings.prefix(3).enumerated()), id: \.element.id) { index, item in
-                shareRank(index: index, item: item, maximum: rankings.first?.count ?? 1, scale: scale)
+            VStack(spacing: 10) {
+                ForEach(Array(rankings.prefix(3).enumerated()), id: \.element.id) { index, item in
+                    shareRank(index: index, item: item, maximum: rankings.first?.count ?? 1)
+                }
             }
-        }
-        .padding(.top, 18 * scale)
+            .padding(.top, rankings.isEmpty ? 0 : 18)
 
-        HStack {
-            Text(BSLocalization.format("共记录 %lld %@", count, unit))
-            Spacer()
-            Text(BSLocalization.format("%lld 场现场", archive.shows.count))
-        }
-        .font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.dim)
-        .padding(.top, 16 * scale).padding(.bottom, 12 * scale)
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.075)).frame(height: 1) }
+            HStack {
+                Text(BSLocalization.format("共记录 %lld %@", count, unit))
+                Spacer()
+                Text(BSLocalization.format("%lld 场现场", archive.shows.count))
+            }
+            .font(.system(size: 10)).foregroundColor(BSColor.Stage.dim)
+            .padding(.top, 16).padding(.bottom, 4)
         }
     }
 
-    private func shareMetric(_ value: Int, _ label: String, scale: CGFloat) -> some View {
-        shareMetric("\(value)", label, scale: scale)
+    private func shareMetric(_ value: Int, _ label: String) -> some View {
+        shareMetric("\(value)", label)
     }
 
-    private func shareMetric(_ value: String, _ label: String, scale: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 3 * scale) {
-            Text(value).font(.system(size: 15 * scale, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-            Text(label).font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim)
+    private func shareMetric(_ value: String, _ label: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(value).font(.system(size: 15, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1).minimumScaleFactor(0.72)
+            Text(label).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(9 * scale)
-        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 12 * scale))
-        .overlay(RoundedRectangle(cornerRadius: 12 * scale).stroke(Color.white.opacity(0.075)))
+        .padding(9)
+        .background(Color.white.opacity(0.032), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.075)))
     }
 
-    private func shareFocus(_ label: String, item: FootprintRankItem?, scale: CGFloat) -> some View {
-        HStack(spacing: 9 * scale) {
-            Text(label).font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim).frame(width: 45 * scale, alignment: .leading)
-            Text(item?.name ?? BSLocalization.text("还没有记录")).font(.system(size: 11.5 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+    private func shareFocus(_ label: String, item: FootprintRankItem?) -> some View {
+        HStack(spacing: 9) {
+            Text(label).font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim).frame(width: 45, alignment: .leading)
+            Text(item?.name ?? BSLocalization.text("还没有记录")).font(.system(size: 11.5, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
             Spacer(minLength: 0)
-            if let item { Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10.5 * scale)).foregroundColor(BSColor.Stage.muted) }
+            if let item { Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10.5)).foregroundColor(BSColor.Stage.muted) }
         }
     }
 
-    private func shareRank(index: Int, item: FootprintRankItem, maximum: Int, scale: CGFloat) -> some View {
-        HStack(spacing: 8 * scale) {
-            Text(String(format: "%02d", index + 1)).font(.system(size: 9.5 * scale)).foregroundColor(BSColor.Stage.dim).frame(width: 17 * scale, alignment: .leading)
-            VStack(alignment: .leading, spacing: 6 * scale) {
+    private func shareRank(index: Int, item: FootprintRankItem, maximum: Int) -> some View {
+        HStack(spacing: 8) {
+            Text("\(index + 1)").font(.system(size: 9.5)).foregroundColor(BSColor.Stage.dim).frame(width: 17, alignment: .leading)
+            VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(item.name).font(.system(size: 11.5 * scale, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
+                    Text(item.name).font(.system(size: 11.5, weight: .medium)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
                     Spacer(minLength: 0)
-                    Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10 * scale)).foregroundColor(BSColor.Stage.muted)
+                    Text(BSLocalization.format("%lld 场", item.count)).font(.system(size: 10)).foregroundColor(BSColor.Stage.muted)
                 }
                 GeometryReader { geometry in
                     Capsule().fill(Color.white.opacity(0.065)).overlay(alignment: .leading) {
                         Capsule().fill(accent.opacity(0.86)).frame(width: geometry.size.width * CGFloat(item.count) / CGFloat(max(maximum, 1)))
                     }
                 }
-                .frame(height: 3 * scale)
+                .frame(height: 3)
             }
         }
     }
@@ -1376,6 +1660,7 @@ private extension View {
             .frame(maxWidth: .infinity).frame(height: 44)
             .background(primary ? BSColor.Stage.foreground : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(primary ? Color.clear : BSColor.Stage.border))
+            .contentShape(RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -1496,7 +1781,6 @@ private struct FootprintArchiveDetailView: View {
                 category: category,
                 onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
             )
-            .presentationDetents([.height(620)])
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
         }
@@ -1571,7 +1855,7 @@ private struct FootprintArchiveDetailView: View {
 
     private func archiveMetric(_ value: String, _ label: String) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(value).font(.system(size: 16, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
+            Text(value).font(.system(size: 16, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1).minimumScaleFactor(0.72)
             Text(label).font(BSFont.tag).foregroundColor(BSColor.Stage.dim)
         }
         .frame(maxWidth: .infinity, alignment: .leading).padding(9)
@@ -1709,13 +1993,13 @@ private struct FootprintArchiveDetailView: View {
             sectionTitle(BSLocalization.text("完整排行"), BSLocalization.format("%lld 条记录", values.count))
             let maximum = archive.ranking(for: category).first?.count ?? 1
             ForEach(Array(values.enumerated()), id: \.element.id) { index, item in
-                let isFirst = index == 0
-                let accent = insightColor(category)
-                HStack(alignment: .top, spacing: 11) {
-                    Text(String(format: "%02d", index + 1))
-                        .font(isFirst ? .system(size: 12, weight: .bold) : BSFont.tag)
-                        .foregroundColor(isFirst ? accent : BSColor.Stage.dim)
-                        .frame(width: 28)
+               let isFirst = index == 0
+               let accent = insightColor(category)
+               HStack(alignment: .top, spacing: 11) {
+                    Text("\(index + 1)")
+                       .font(isFirst ? .system(size: 12, weight: .bold) : BSFont.tag)
+                       .foregroundColor(isFirst ? accent : BSColor.Stage.dim)
+                       .frame(width: 28)
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 6) {
                             if isFirst {

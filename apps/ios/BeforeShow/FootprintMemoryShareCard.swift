@@ -11,7 +11,7 @@ private enum FootprintShareCardTokens {
     static let blueGlowOffset = CGSize(width: 160, height: 155)
     static let titleTopPadding: CGFloat = 8
     static let venueTopPadding: CGFloat = 4
-    static let collageHeight: CGFloat = 222
+    static let collageMinHeight: CGFloat = 140
     static let collageRadius: CGFloat = 16
     static let collageTopPadding: CGFloat = 14
     static let collageSpacing: CGFloat = 3
@@ -21,6 +21,7 @@ private enum FootprintShareCardTokens {
     static let identityTopPadding: CGFloat = 12
     static let cardPadding: CGFloat = 20
     static let trailingColumnWidth: CGFloat = 104
+    static let footerTopPadding: CGFloat = 12
 
     static let backgroundColors = [
         BSColor.Stage.background,
@@ -119,14 +120,19 @@ struct FootprintMemoryShareCard: View {
                         .lineLimit(2)
                         .minimumScaleFactor(0.72)
                         .padding(.top, FootprintShareCardTokens.titleTopPadding * scale)
-                    Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? "未填写场馆")
-                        .font(FootprintShareCardTokens.venueFont(scale: scale))
-                        .foregroundColor(FootprintShareCardTokens.venue)
-                        .lineLimit(1)
-                        .padding(.top, FootprintShareCardTokens.venueTopPadding * scale)
+                    if let venue = FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) {
+                        Text(venue)
+                            .font(FootprintShareCardTokens.venueFont(scale: scale))
+                            .foregroundColor(FootprintShareCardTokens.venue)
+                            .lineLimit(1)
+                            .padding(.top, FootprintShareCardTokens.venueTopPadding * scale)
+                    }
 
                     shareCollage(scale: scale)
-                        .frame(height: FootprintShareCardTokens.collageHeight * scale)
+                        .frame(
+                            minHeight: FootprintShareCardTokens.collageMinHeight * scale,
+                            maxHeight: .infinity
+                        )
                         .clipShape(
                             RoundedRectangle(cornerRadius: FootprintShareCardTokens.collageRadius * scale)
                         )
@@ -136,31 +142,20 @@ struct FootprintMemoryShareCard: View {
                         )
                         .padding(.top, FootprintShareCardTokens.collageTopPadding * scale)
 
-                    HStack(spacing: FootprintShareCardTokens.identitySpacing * scale) {
-                        ForEach(Array(cardIdentities.enumerated()), id: \.offset) { _, value in
-                            Text(value)
-                                .font(FootprintShareCardTokens.identityFont(scale: scale))
-                                .foregroundColor(FootprintShareCardTokens.identityText)
-                                .padding(
-                                    .horizontal,
-                                    FootprintShareCardTokens.identityHorizontalPadding * scale
-                                )
-                                .frame(height: FootprintShareCardTokens.identityHeight * scale)
-                                .background(FootprintShareCardTokens.identityFill, in: Capsule())
-                                .overlay(Capsule().stroke(FootprintShareCardTokens.identityBorder))
-                                .lineLimit(1)
-                        }
+                    ViewThatFits(in: .horizontal) {
+                        identityRow(cardIdentities, scale: scale)
+                        identityRow(Array(cardIdentities.prefix(1)), scale: scale)
                     }
                     .padding(.top, FootprintShareCardTokens.identityTopPadding * scale)
 
-                    Spacer(minLength: 0)
                     HStack {
-                        Text("一场现场，一份私人的回看")
+                        Text(BSLocalization.text("一场现场，一份私人的回看"))
                         Spacer()
-                        Text("开场前")
+                        Text(BSLocalization.text("开场前"))
                     }
                     .font(FootprintShareCardTokens.footerFont(scale: scale))
                     .foregroundColor(FootprintShareCardTokens.footer)
+                    .padding(.top, FootprintShareCardTokens.footerTopPadding * scale)
                 }
                 .padding(FootprintShareCardTokens.cardPadding * scale)
             }
@@ -181,15 +176,26 @@ struct FootprintMemoryShareCard: View {
     }
 
     private var cardIdentities: [String] {
-        var result = [BSLocalization.format("第 %lld 场现场", identity.showOrdinal)]
-        if identity.companions.count == 1, let companion = identity.companions.first {
-            result.append(BSLocalization.format("与%@第 %lld 次见面", companion.name, companion.ordinal))
-        } else if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
-            result.append(BSLocalization.format("与%@同行", names))
-        } else if let cityOrdinal = identity.cityOrdinal {
-            result.append(BSLocalization.format("城市第 %lld 场", cityOrdinal))
+        FootprintMemoryShareCopy.identities(from: identity)
+    }
+
+    private func identityRow(_ values: [String], scale: CGFloat) -> some View {
+        HStack(spacing: FootprintShareCardTokens.identitySpacing * scale) {
+            ForEach(Array(values.enumerated()), id: \.offset) { _, value in
+                Text(value)
+                    .font(FootprintShareCardTokens.identityFont(scale: scale))
+                    .foregroundColor(FootprintShareCardTokens.identityText)
+                    .padding(
+                        .horizontal,
+                        FootprintShareCardTokens.identityHorizontalPadding * scale
+                    )
+                    .frame(height: FootprintShareCardTokens.identityHeight * scale)
+                    .background(FootprintShareCardTokens.identityFill, in: Capsule())
+                    .overlay(Capsule().stroke(FootprintShareCardTokens.identityBorder))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+            }
         }
-        return Array(result.prefix(2))
     }
 
     @ViewBuilder

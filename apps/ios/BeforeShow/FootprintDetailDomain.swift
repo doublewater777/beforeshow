@@ -233,3 +233,73 @@ enum FootprintShareMaterialBuilder {
         }
     }
 }
+
+enum FootprintExportContentPolicy {
+    static let timelineShowLimit = 12
+    static let memoryCardLimit = 4
+    static let yearShowLimit = 12
+    static let memoriesPageLimit = 12
+
+    enum RemainingStyle {
+        case shows
+        case memories
+    }
+
+    static func prefix<T>(_ items: [T], limit: Int) -> [T] {
+        Array(items.prefix(limit))
+    }
+
+    static func remainingCount(total: Int, limit: Int) -> Int {
+        max(0, total - limit)
+    }
+
+    static func remainingText(total: Int, limit: Int, style: RemainingStyle) -> String? {
+        let remaining = remainingCount(total: total, limit: limit)
+        guard remaining > 0 else { return nil }
+        switch style {
+        case .shows:
+            return BSLocalization.format("还有 %lld 场现场", Int64(remaining))
+        case .memories:
+            return BSLocalization.format("还有 %lld 个画面", Int64(remaining))
+        }
+    }
+
+    static func cappedYearGroups(_ years: [FootprintYearGroup], limit: Int) -> [FootprintYearGroup] {
+        var remaining = limit
+        var result: [FootprintYearGroup] = []
+        for group in years {
+            guard remaining > 0 else { break }
+            let shows = Array(group.shows.prefix(remaining))
+            remaining -= shows.count
+            result.append(FootprintYearGroup(year: group.year, shows: shows))
+        }
+        return result
+    }
+}
+
+enum FootprintDetailShareRoute: Equatable {
+    case composer
+    case dispersalCard
+    case none
+
+    static func resolve(hasShareMaterials: Bool, rating: Int?, note: String?) -> Self {
+        if hasShareMaterials { return .composer }
+        if rating != nil { return .dispersalCard }
+        if FootprintTextNormalizer.nonEmptyTrimmed(note) != nil { return .dispersalCard }
+        return .none
+    }
+}
+
+enum FootprintMemoryShareCopy {
+    static func identities(from identity: FootprintDetailIdentity) -> [String] {
+        var result = [BSLocalization.format("第 %lld 场现场", identity.showOrdinal)]
+        if identity.companions.count == 1, let companion = identity.companions.first {
+            result.append(BSLocalization.format("与%@第 %lld 次见面", companion.name, companion.ordinal))
+        } else if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
+            result.append(BSLocalization.format("与%@同行", names))
+        } else if let cityOrdinal = identity.cityOrdinal {
+            result.append(BSLocalization.format("城市第 %lld 场", cityOrdinal))
+        }
+        return Array(result.prefix(2))
+    }
+}

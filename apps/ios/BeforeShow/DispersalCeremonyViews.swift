@@ -568,6 +568,80 @@ struct DispersalCombinedStep: View {
 
 // MARK: - 分享步
 
+enum DispersalCeremonyShareExport {
+    static let renderSize = CGSize(width: 360, height: 450)
+    static let renderScale: CGFloat = 3
+
+    @MainActor
+    static func renderImage(
+        show: Show,
+        identity: FootprintDetailIdentity,
+        rating: Int?,
+        note: String
+    ) -> UIImage? {
+        let card = DispersalCeremonyShareCard(
+            show: show,
+            identity: identity,
+            rating: rating,
+            note: note
+        )
+        .frame(width: renderSize.width, height: renderSize.height)
+
+        let renderer = ImageRenderer(content: card)
+        renderer.proposedSize = ProposedViewSize(
+            width: renderSize.width,
+            height: renderSize.height
+        )
+        renderer.scale = renderScale
+        return renderer.uiImage
+    }
+}
+
+struct DispersalCeremonyShareSheet: View {
+    let show: Show
+    let identity: FootprintDetailIdentity
+    let rating: Int?
+    let note: String
+    let onSaved: () -> Void
+
+    var body: some View {
+        FootprintShareActionSheet(
+            title: BSLocalization.text("分享这场回忆"),
+            subtitle: "",
+            previewHeight: 368,
+            exportSize: DispersalCeremonyShareExport.renderSize,
+            exportScale: DispersalCeremonyShareExport.renderScale,
+            flexiblePreviewHeight: true,
+            preview: {
+                DispersalCeremonyShareCard(
+                    show: show,
+                    identity: identity,
+                    rating: rating,
+                    note: note
+                )
+                .aspectRatio(
+                    DispersalCeremonyShareExport.renderSize.width
+                        / DispersalCeremonyShareExport.renderSize.height,
+                    contentMode: .fit
+                )
+            },
+            exportContent: {
+                DispersalCeremonyShareCard(
+                    show: show,
+                    identity: identity,
+                    rating: rating,
+                    note: note
+                )
+                .frame(
+                    width: DispersalCeremonyShareExport.renderSize.width,
+                    height: DispersalCeremonyShareExport.renderSize.height
+                )
+            },
+            onSaved: onSaved
+        )
+    }
+}
+
 struct DispersalShareStep: View {
     let show: Show
     let identity: FootprintDetailIdentity
@@ -578,9 +652,7 @@ struct DispersalShareStep: View {
 
     @State private var toast: BSToastPayload?
     @State private var isSaving = false
-
-    private static let renderSize = CGSize(width: 360, height: 450)
-    private static let renderScale: CGFloat = 3
+    @State private var isSharing = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -592,12 +664,42 @@ struct DispersalShareStep: View {
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            DispersalSheetBottomBar(
-                secondaryTitle: BSLocalization.text("保存图片"),
-                primaryTitle: BSLocalization.text("进入现场回忆"),
-                onSecondary: { Task { await saveToPhotos() } },
-                onPrimary: onEnterMemory
-            )
+            VStack(spacing: 9) {
+                HStack(spacing: 9) {
+                    Button(BSLocalization.text("保存图片")) {
+                        Task { await saveToPhotos() }
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                    .disabled(isSaving || isSharing)
+
+                    Button(BSLocalization.text("分享图片")) {
+                        Task { await shareImage() }
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                    .disabled(isSaving || isSharing)
+                }
+
+                Button(BSLocalization.text("进入现场回忆"), action: onEnterMemory)
+                    .buttonStyle(BSPrimaryButtonStyle())
+                    .disabled(isSaving || isSharing)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+        }
+        .overlay {
+            if isSaving || isSharing {
+                ZStack {
+                    Color.black.opacity(0.38)
+                    VStack(spacing: 10) {
+                        ProgressView()
+                            .tint(.white)
+                        Text(BSLocalization.text("生成中…"))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(BSColor.Stage.foreground)
+                    }
+                }
+                .ignoresSafeArea()
+            }
         }
         .bsToastOverlay(toast, bottomPadding: 24)
     }
@@ -627,7 +729,11 @@ struct DispersalShareStep: View {
             rating: rating,
             note: note
         )
-        .aspectRatio(Self.renderSize.width / Self.renderSize.height, contentMode: .fit)
+        .aspectRatio(
+            DispersalCeremonyShareExport.renderSize.width
+                / DispersalCeremonyShareExport.renderSize.height,
+            contentMode: .fit
+        )
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .overlay(
             RoundedRectangle(cornerRadius: 28)
@@ -637,40 +743,54 @@ struct DispersalShareStep: View {
     }
 
     @MainActor
-    private func renderImage() -> UIImage? {
-        let card = DispersalCeremonyShareCard(
+    private func saveToPhotos() async {
+        guard !isSaving, !isSharing else { return }
+        isSaving = true
+        defer { isSaving = false }
+        guard let image = DispersalCeremonyShareExport.renderImage(
             show: show,
             identity: identity,
             rating: rating,
             note: note
-        )
-        .frame(width: Self.renderSize.width, height: Self.renderSize.height)
-
-        let renderer = ImageRenderer(content: card)
-        renderer.proposedSize = ProposedViewSize(
-            width: Self.renderSize.width,
-            height: Self.renderSize.height
-        )
-        renderer.scale = Self.renderScale
-        return renderer.uiImage
-    }
-
-    @MainActor
-    private func saveToPhotos() async {
-        guard !isSaving else { return }
-        guard let image = renderImage() else {
+        ) else {
             presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
             return
         }
-        isSaving = true
-        presentToast(.neutral, message: BSLocalization.text("保存中…"))
         do {
             try await FootprintPhotoLibrary.save(image)
             presentToast(.success, message: BSLocalization.text("已保存到相册"))
         } catch {
             presentToast(.failure, message: BSLocalization.text("保存失败，请检查相册权限"))
         }
-        isSaving = false
+    }
+
+    @MainActor
+    private func shareImage() async {
+        guard !isSaving, !isSharing else { return }
+        isSharing = true
+        defer { isSharing = false }
+        guard let image = DispersalCeremonyShareExport.renderImage(
+            show: show,
+            identity: identity,
+            rating: rating,
+            note: note
+        ),
+              let data = image.pngData() else {
+            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+            return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("BeforeShow-dispersal-\(UUID().uuidString).png")
+        do {
+            try data.write(to: url, options: .atomic)
+            guard SystemPNGSharePresenter.present(url: url) else {
+                try? FileManager.default.removeItem(at: url)
+                presentToast(.failure, message: BSLocalization.text("系统分享面板暂时无法打开"))
+                return
+            }
+        } catch {
+            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+        }
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {

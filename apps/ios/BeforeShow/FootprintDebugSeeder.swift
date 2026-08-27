@@ -15,12 +15,21 @@ enum FootprintDebugSeeder {
         do {
             let existing = try modelContext.fetch(FetchDescriptor<Show>())
             let existingNames = Set(existing.map(\.name))
-            if arguments.contains("--seed-footprints-samples") {
-                for sample in samples where !existingNames.contains(sample.name) {
-                    modelContext.insert(try sample.makeShow())
-                }
-                try refreshDebugArtistArtwork(in: modelContext)
-            }
+           if arguments.contains("--seed-footprints-samples") {
+               var firstSeeded: Show?
+               for sample in samples where !existingNames.contains(sample.name) {
+                   let s = try sample.makeShow()
+                   modelContext.insert(s)
+                   if firstSeeded == nil { firstSeeded = s }
+               }
+               if firstSeeded == nil, let target = existing.first {
+                   firstSeeded = target
+               }
+               if let firstSeeded {
+                   try addMemorySamples(to: firstSeeded, in: modelContext)
+               }
+               try refreshDebugArtistArtwork(in: modelContext)
+           }
             if arguments.contains("--seed-footprint-detail-v41"),
                !existingNames.contains(detailSampleName) {
                 try seedDetailSamples(in: modelContext)

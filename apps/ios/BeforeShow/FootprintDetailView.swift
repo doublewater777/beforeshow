@@ -78,6 +78,8 @@ struct FootprintDetailView: View {
     @State private var memoryTarget: FootprintMemoryTarget?
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
+    @State private var isShowingDispersalShare = false
+    @State private var toast: BSToastPayload?
 
     private let formatter = ShowDisplayFormatter()
 
@@ -120,7 +122,15 @@ struct FootprintDetailView: View {
             sceneIsActive: scenePhase == .active,
             hasMemoryOverlay: memoryTarget != nil,
             hasAssetOverlay: showingAssetKind != nil,
-            hasShareOverlay: isShowingShareComposer
+            hasShareOverlay: isShowingShareComposer || isShowingDispersalShare
+        )
+    }
+
+    private var shareRoute: FootprintDetailShareRoute {
+        FootprintDetailShareRoute.resolve(
+            hasShareMaterials: !shareMaterials.isEmpty,
+            rating: show.rating,
+            note: show.closingNote
         )
     }
 
@@ -186,7 +196,7 @@ struct FootprintDetailView: View {
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
                 }
-                if !shareMaterials.isEmpty {
+                if shareRoute != .none {
                     shareButton
                 }
             }
@@ -216,6 +226,19 @@ struct FootprintDetailView: View {
                 onClose: { isShowingShareComposer = false }
             )
         }
+        .sheet(isPresented: $isShowingDispersalShare) {
+            DispersalCeremonyShareSheet(
+                show: show,
+                identity: identity,
+                rating: show.rating,
+                note: show.closingNote ?? "",
+                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+            )
+            .presentationDetents([.height(620), .large])
+            .presentationCornerRadius(26)
+            .presentationDragIndicator(.visible)
+        }
+        .bsToastOverlay(toast, bottomPadding: 100)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
         .preferredColorScheme(.dark)
@@ -258,7 +281,20 @@ struct FootprintDetailView: View {
                 .font(FootprintDetailTokens.navigationFont)
                 .foregroundColor(BSColor.Stage.foreground)
             Spacer()
-            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+            if shareRoute == .none {
+                Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+            } else {
+                Button { openShare() } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                        .background(FootprintDetailTokens.navigationFill, in: Circle())
+                        .overlay(Circle().stroke(BSColor.Stage.border))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(BSLocalization.text("分享这场回忆"))
+            }
         }
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.vertical, BSSpacing.xs)
@@ -584,7 +620,7 @@ struct FootprintDetailView: View {
     }
 
     private var shareButton: some View {
-        Button { isShowingShareComposer = true } label: {
+        Button { openShare() } label: {
             Label(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up")
                 .font(BSFont.caption.weight(.semibold))
                 .foregroundColor(BSColor.Stage.background)
@@ -609,6 +645,26 @@ struct FootprintDetailView: View {
         )
         .padding(.horizontal, BSSpacing.roomy)
         .padding(.bottom, BSSpacing.compact)
+    }
+
+    private func openShare() {
+        switch shareRoute {
+        case .composer:
+            isShowingShareComposer = true
+        case .dispersalCard:
+            isShowingDispersalShare = true
+        case .none:
+            break
+        }
+    }
+
+    private func presentToast(_ message: String) {
+        let payload = BSToastPayload(tone: .success, message: message)
+        toast = payload
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            if toast == payload { toast = nil }
+        }
     }
 
     private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {

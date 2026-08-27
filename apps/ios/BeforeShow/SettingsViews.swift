@@ -969,6 +969,8 @@ private struct LanguageSettingsView: View {
 private struct AboutBeforeShowView: View {
     private static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!
     private static let termsURL = URL(string: "https://beforeshow.doublewaterapps.com/terms")!
+    private static let icpFilingNumber = "浙ICP备2026041359号-3A"
+    private static let icpQueryURL = URL(string: "https://beian.miit.gov.cn/")!
     @State private var legalPage: BSInAppBrowserPage?
     @State private var weatherLegalURL: URL?
 
@@ -997,14 +999,14 @@ private struct AboutBeforeShowView: View {
                 .frame(maxWidth: .infinity)
             }
 
-            SettingsGroup(title: BSLocalization.text("查看隐私政策与用户协议")) {
+            SettingsGroup(title: BSLocalization.text("法律信息")) {
                 Button {
                     legalPage = BSInAppBrowserPage(url: localizedSiteURL(Self.privacyURL))
                 } label: {
                     SettingsRowContent(
                         iconName: "hand.raised.fill",
                         title: BSLocalization.text("隐私政策"),
-                        subtitle: "beforeshow.doublewaterapps.com/privacy",
+                        subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
                     )
@@ -1019,7 +1021,7 @@ private struct AboutBeforeShowView: View {
                     SettingsRowContent(
                         iconName: "doc.text.fill",
                         title: BSLocalization.text("用户协议"),
-                        subtitle: "beforeshow.doublewaterapps.com/terms",
+                        subtitle: nil,
                         value: nil,
                         tint: BSColor.Stage.muted
                     )
@@ -1041,13 +1043,28 @@ private struct AboutBeforeShowView: View {
                     }
                     .buttonStyle(SettingsPressButtonStyle())
                 }
+
+                SettingsDivider()
+
+                Button {
+                    legalPage = BSInAppBrowserPage(url: Self.icpQueryURL)
+                } label: {
+                    SettingsRowContent(
+                        iconName: "checkmark.seal.fill",
+                        title: BSLocalization.text("ICP备案号"),
+                        subtitle: Self.icpFilingNumber,
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
+                }
+                .buttonStyle(SettingsPressButtonStyle())
             }
-        }
-        .task {
-            weatherLegalURL = await WeatherKitLegalAttribution.legalPageURL()
         }
         .navigationTitle(BSLocalization.text("关于开场前"))
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            weatherLegalURL = await WeatherKitLegalAttribution.legalPageURL()
+        }
         .sheet(item: $legalPage) { page in
             BSInAppBrowser(page: page)
         }

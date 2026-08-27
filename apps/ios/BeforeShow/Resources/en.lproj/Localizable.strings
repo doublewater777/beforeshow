@@ -7,7 +7,6 @@
 "WHERE THE NIGHTS HAPPENED" = "WHERE THE NIGHTS HAPPENED";
 "THE PLACES THAT FEEL FAMILIAR" = "THE PLACES THAT FEEL FAMILIAR";
 "MEETINGS" = "MEETINGS";
-"VISITS" = "VISITS";
 "CITY FOOTPRINTS" = "CITY FOOTPRINTS";
 "ARTIST ARCHIVE" = "ARTIST ARCHIVE";
 "CITY ARCHIVE" = "CITY ARCHIVE";
@@ -31,7 +30,6 @@
 "%@ 还有三天，站场时间不短，选一双好走的鞋" = "Three days until %@. It is a long stand, pick comfortable shoes";
 "%@ 还有三天，防晒、雨具和折叠椅可以先备好" = "Three days until %@. Sun care, rain gear and a folding chair";
 "%lld 场" = "%lld shows";
-"%lld 场现场" = "%lld shows";
 "%lld 座城市 · %lld 个场馆" = "%lld cities · %lld venues";
 "%lld 条" = "%lld items";
 "%@排行" = "%@ ranking";
@@ -39,6 +37,7 @@
 "--" = "--";
 "BEFORESHOW" = "BEFORESHOW";
 "BEFORESHOW · LIVE ARCHIVE" = "BEFORESHOW · LIVE ARCHIVE";
+"LIVE ARCHIVE" = "LIVE ARCHIVE";
 "BEFORESHOW · 我的现场足迹" = "BEFORESHOW · My on-site footprints";
 "BeforeShow" = "BeforeShow";
 "TOGETHER · %@" = "TOGETHER · %@";
@@ -766,6 +765,11 @@ First show: %@";
 "分享城市档案" = "Share City Archive";
 "分享完整档案" = "Share Full Archive";
 "分享艺人档案" = "Share Artist Archive";
+"分享这份档案" = "Share This Archive";
+"分享%@" = "Share %@";
+"还有 %lld 场现场" = "%lld more shows";
+"还有 %lld 个画面" = "%lld more stills";
+"生成中…" = "Generating…";
 "删除后可以重新添加。App 内保存的图片会一起移除。" = "You can re-add it later. Images saved in the app are removed too.";
 "删除后，这场现场将无法恢复，也会从足迹统计中移除。" = "After deleting, this show can't be restored and will be removed from footprint stats.";
 "取消后会停止倒计时和提醒，这场仍会保留在“我的现场”。" = "Canceling stops the countdown and reminders; the show stays in My Shows.";
@@ -878,7 +882,8 @@ First show: %@";
 "跟随系统" = "Follow System";
 "语言" = "Language";
 "App 语言" = "App Language";
-"查看隐私政策与用户协议" = "View privacy policy and terms of use";
+"法律信息" = "Legal";
+"ICP备案号" = "ICP Filing Number";
 "%@/年" = "%@/yr";
 "/ 年" = "/yr";
 "一次性" = "once";
@@ -923,7 +928,6 @@ First show: %@";
 "%@ %@" = "%@ %@";
 "%@已保存" = "%@ saved";
 "%@已删除" = "%@ deleted";
-"%@现场" = "%@ venue";
 "%@记录已删除，图片将在下次启动继续清理" = "%@ record deleted. Images will be cleaned up on next launch.";
 "%@，%@，%lld 星" = "%@, %@, %lld stars";
 "%@，第 %lld 项，%@，%@" = "%@, item %lld, %@, %@";
@@ -1206,7 +1210,7 @@ First show: %@";
 "YEAR IN LIVE" = "YEAR IN LIVE";
 "%lld 场现场" = "%lld live shows";
 "THE NIGHT OF THE YEAR" = "THE NIGHT OF THE YEAR";
-"今年记录最完整的一晚" = "Your most complete night this year";
+"记录最完整的一晚" = "Your most complete night on record";
 "%lld 月是这一年最密集的一个月" = "Month %lld was this year's busiest";
 "这一年还没有现场记录" = "No live shows recorded this year";
 
@@ -1269,3 +1273,23 @@ First show: %@";
 "分享完整足迹" = "Share Full Footprints";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "The full-page image covers your entire footprint archive — save or share it directly.";
 "我的现场足迹" = "My Live Footprints";
+
+"回忆档案" = "Memory Archive";
+"全部回忆" = "All Memories";
+"%lld 场回忆" = "%lld memories";
+
+"LATEST MEMORY" = "LATEST MEMORY";
+
+"回忆" = "Memory";
+
+"留念" = "Keepsake";
+
+"归档" = "Archive";
+
+"场回忆" = "memories";
+
+"暂无回忆" = "No memories yet";
+
+"照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。" = "Photos and videos stay with the night they belong to, laid out here in time order.";
+
+"散场后留下照片或视频记忆，在这里筑造你的现场回忆。" = "Leave photo or video memories after the show, and build your live memories here.";

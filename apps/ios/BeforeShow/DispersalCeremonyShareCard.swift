@@ -18,6 +18,8 @@ private enum DispersalCeremonyCardTokens {
     static let quoteTopPadding: CGFloat = 22
     static let quoteLineSpacing: CGFloat = 6
 
+    static let footerMinSpacing: CGFloat = 10
+
     static let goldGlow = Color(red: 0.910, green: 0.780, blue: 0.557).opacity(0.26)
     static let blueGlow = Color(red: 0.322, green: 0.498, blue: 0.788).opacity(0.26)
     static let gradientTop = Color(red: 0.067, green: 0.094, blue: 0.153)
@@ -99,28 +101,11 @@ struct DispersalCeremonyShareCard: View {
             ZStack {
                 background
 
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(DispersalCeremonyCardCopy.brand)
-                        .font(DispersalCeremonyCardTokens.brandFont(scale: scale))
-                        .tracking(DispersalCeremonyCardTokens.brandTopTracking * scale)
-                        .foregroundColor(DispersalCeremonyCardTokens.brand)
-
-                    Text(dateLine)
-                        .font(DispersalCeremonyCardTokens.dateFont(scale: scale))
-                        .foregroundColor(DispersalCeremonyCardTokens.date)
-                        .padding(.top, DispersalCeremonyCardTokens.dateTopPadding * scale)
-
-                    eventBlock(scale: scale)
-
-                    ratingBlock(scale: scale)
-
-                    if let trimmedNote {
-                        quoteBlock(text: trimmedNote, scale: scale)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    footerBlock(scale: scale)
+                ViewThatFits(in: .vertical) {
+                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 6)
+                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 3)
+                    cardBody(scale: scale, eventLineLimit: 2, quoteMaxLines: 0)
+                    cardBody(scale: scale, eventLineLimit: 1, quoteMaxLines: 0)
                 }
                 .padding(DispersalCeremonyCardTokens.cardPadding * scale)
             }
@@ -172,13 +157,37 @@ struct DispersalCeremonyShareCard: View {
         }
     }
 
-    private func eventBlock(scale: CGFloat) -> some View {
+    private func cardBody(scale: CGFloat, eventLineLimit: Int, quoteMaxLines: Int) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(DispersalCeremonyCardCopy.brand)
+                .font(DispersalCeremonyCardTokens.brandFont(scale: scale))
+                .tracking(DispersalCeremonyCardTokens.brandTopTracking * scale)
+                .foregroundColor(DispersalCeremonyCardTokens.brand)
+
+            Text(dateLine)
+                .font(DispersalCeremonyCardTokens.dateFont(scale: scale))
+                .foregroundColor(DispersalCeremonyCardTokens.date)
+                .padding(.top, DispersalCeremonyCardTokens.dateTopPadding * scale)
+
+            eventBlock(scale: scale, lineLimit: eventLineLimit)
+            ratingBlock(scale: scale)
+
+            if let trimmedNote, quoteMaxLines > 0 {
+                quoteBlock(text: trimmedNote, scale: scale, lineLimit: quoteMaxLines)
+            }
+
+            Spacer(minLength: DispersalCeremonyCardTokens.footerMinSpacing * scale)
+            footerBlock(scale: scale)
+        }
+    }
+
+    private func eventBlock(scale: CGFloat, lineLimit: Int) -> some View {
         VStack(alignment: .leading, spacing: DispersalCeremonyCardTokens.eventLineSpacing * scale) {
             ForEach(Array(eventLines.enumerated()), id: \.offset) { _, line in
                 Text(line)
                     .font(DispersalCeremonyCardTokens.eventFont(scale: scale))
                     .foregroundColor(.white)
-                    .lineLimit(2)
+                    .lineLimit(lineLimit)
                     .minimumScaleFactor(0.72)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -195,7 +204,7 @@ struct DispersalCeremonyShareCard: View {
                     .minimumScaleFactor(0.72)
                     .lineLimit(1)
             } else {
-                Text("已落幕")
+                Text(BSLocalization.text("已落幕"))
                     .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
                     .foregroundColor(DispersalCeremonyCardTokens.neutralHeader)
             }
@@ -203,20 +212,22 @@ struct DispersalCeremonyShareCard: View {
         .padding(.top, DispersalCeremonyCardTokens.ratingTopPadding * scale)
     }
 
-    private func quoteBlock(text: String, scale: CGFloat) -> some View {
+    private func quoteBlock(text: String, scale: CGFloat, lineLimit: Int) -> some View {
         Text("\u{201C}\(text)\u{201D}")
             .font(DispersalCeremonyCardTokens.quoteFont(scale: scale))
             .foregroundColor(DispersalCeremonyCardTokens.quote)
             .lineSpacing(DispersalCeremonyCardTokens.quoteLineSpacing * scale)
             .multilineTextAlignment(.leading)
-            .fixedSize(horizontal: false, vertical: true)
+            .lineLimit(lineLimit)
             .padding(.top, DispersalCeremonyCardTokens.quoteTopPadding * scale)
     }
 
     private func footerBlock(scale: CGFloat) -> some View {
         HStack {
             Text(DispersalCeremonyCardCopy.footerLeading(identity: identity))
-            Spacer()
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+            Spacer(minLength: 8)
             Text(DispersalCeremonyCardCopy.footerTrailing)
         }
         .font(DispersalCeremonyCardTokens.footerFont(scale: scale))

@@ -7,6 +7,11 @@ struct FootprintYearSpan: Equatable, Hashable {
     let latest: Int
 
     var isSingleYear: Bool { first == latest }
+
+    /// 展示用年份跨度文案(单年只显示一年)。
+    var displayText: String {
+        isSingleYear ? String(first) : BSLocalization.format("%lld–%lld", first, latest)
+    }
 }
 
 struct FootprintMonthActivity: Identifiable, Equatable, Hashable {
@@ -94,7 +99,7 @@ struct FootprintVenueArchiveItem: Identifiable, Equatable, Hashable {
     var firstShowID: UUID? { showIDs.first }
     var latestShowID: UUID? { showIDs.last }
     var isRevisited: Bool { count > 1 }
-    var rankItem: FootprintRankItem { FootprintRankItem(name: name, count: count) }
+    var rankItem: FootprintRankItem { FootprintRankItem(name: name, count: count, id: id) }
 }
 
 @MainActor
@@ -136,6 +141,14 @@ extension FootprintArchiveSnapshot {
             showCount: group.shows.count,
             durationMinutes: activity.months.reduce(0) { $0 + $1.durationMinutes }
         )
+    }
+
+    /// 年度高光场:优先回忆/纪念徽章场,否则取当年第一场。
+    func yearHighlightShow(for year: Int, covers: [UUID: FootprintCover]) -> Show? {
+        guard let shows = years.first(where: { $0.year == year })?.shows else { return nil }
+        return shows.first(where: { covers[$0.id]?.badge == .memory })
+            ?? shows.first(where: { covers[$0.id]?.badge == .keepsake })
+            ?? shows.first
     }
 
     func shows(for ids: [UUID]) -> [Show] {
@@ -413,6 +426,14 @@ enum FootprintCoverBadge: String, Equatable {
     case memory = "MEMORY"
     case keepsake = "KEEPSAKE"
     case archive = "ARCHIVE"
+
+    var localizedTitle: String {
+        switch self {
+        case .memory: return BSLocalization.text("回忆")
+        case .keepsake: return BSLocalization.text("留念")
+        case .archive: return BSLocalization.text("归档")
+        }
+    }
 }
 
 enum FootprintCoverSource: Equatable {
@@ -427,6 +448,8 @@ struct FootprintCover: Identifiable, Equatable {
     let badge: FootprintCoverBadge
     let ordinal: Int
     let variant: Int
+    /// 记忆封面对应的原始媒体是否为视频;仅 badge == .memory 时有意义。
+    var isVideoMemory = false
 
     var id: UUID { showID }
 }
@@ -481,7 +504,8 @@ enum FootprintCoverResolver {
                 source: .local(MemoryMediaLocation.applicationSupport().url(for: path)),
                 badge: .memory,
                 ordinal: ordinal,
-                variant: FootprintArchiveCoverLayout.variant(for: show.id)
+                variant: FootprintArchiveCoverLayout.variant(for: show.id),
+                isVideoMemory: memory.kind == .video
             )
         }
 
