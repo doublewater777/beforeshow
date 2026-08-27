@@ -1286,10 +1286,10 @@ First show: %@";
 
 "归档" = "Archive";
 
-"个画面" = "stills";
+"场回忆" = "memories";
 
 "暂无回忆" = "No memories yet";
 
 "照片和视频都留在对应的那一晚里。这里按时间把它们重新铺开。" = "Photos and videos stay with the night they belong to, laid out here in time order.";
 
-"散场后留下现场评价、动态封面或记忆碎片，在这里筑造你的现场回忆。" = "Leave a rating, a live cover, or memory fragments after the show, and build your live memories here.";
+"散场后留下照片或视频记忆，在这里筑造你的现场回忆。" = "Leave photo or video memories after the show, and build your live memories here.";

@@ -2196,7 +2196,7 @@ struct FootprintMemoriesArchiveView: View {
                 Text(String(memoryShows.count))
                     .font(.system(size: 48, weight: .thin, design: .rounded))
                     .foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.text("个画面"))
+                Text(BSLocalization.text("场回忆"))
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(BSColor.Stage.muted)
             }
@@ -2216,7 +2216,7 @@ struct FootprintMemoriesArchiveView: View {
             Text(BSLocalization.text("暂无回忆"))
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
-            Text(BSLocalization.text("散场后留下现场评价、动态封面或记忆碎片，在这里筑造你的现场回忆。"))
+            Text(BSLocalization.text("散场后留下照片或视频记忆，在这里筑造你的现场回忆。"))
                 .font(.system(size: 12))
                 .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
