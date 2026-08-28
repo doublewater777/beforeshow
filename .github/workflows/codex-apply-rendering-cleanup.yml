@@ -13,10 +13,15 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: codex/remove-tab-scroll-reveals
-          fetch-depth: 0
+      - name: Checkout branch
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git init .
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --depth=1 origin codex/remove-tab-scroll-reveals
+          git checkout -B codex/remove-tab-scroll-reveals FETCH_HEAD
 
       - name: Apply scoped SwiftUI cleanup
         shell: bash
@@ -39,35 +44,30 @@ jobs:
               "",
               "footprint dashboard animation state",
           )
-
           footprint = replace_once(
               footprint,
               """                if sections.visibility.showsTrend {\n                    sections.trendSection.bsScrollReveal(reduceMotion: reduceMotion)\n                }\n                sections.artistSection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.citySection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.venueSection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.memorySection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.timelineSection.bsScrollReveal(reduceMotion: reduceMotion)\n""",
               """                if sections.visibility.showsTrend {\n                    sections.trendSection\n                }\n                sections.artistSection\n                sections.citySection\n                sections.venueSection\n                sections.memorySection\n                sections.timelineSection\n""",
               "footprint section scroll reveals",
           )
-
           footprint = replace_once(
               footprint,
               """        .scrollIndicators(.hidden)\n        .scrollClipDisabled()\n        .onAppear {\n            guard !hasAppeared else { return }\n            if reduceMotion { hasAppeared = true }\n            else { withAnimation(.easeOut(duration: 0.55)) { hasAppeared = true } }\n        }\n""",
               """        .scrollIndicators(.hidden)\n        .scrollClipDisabled()\n""",
               "footprint hero onAppear animation",
           )
-
           footprint = replace_once(
               footprint,
               """            .padding(.horizontal, 20)\n            .padding(.top, 16)\n            .opacity(hasAppeared || reduceMotion ? 1 : 0)\n            .offset(y: hasAppeared || reduceMotion ? 0 : 8)\n""",
               """            .padding(.horizontal, 20)\n            .padding(.top, 16)\n""",
               "footprint hero opacity offset",
           )
-
           if "bsScrollReveal(reduceMotion: reduceMotion)" in footprint.split("/// Dashboard sections shared", 1)[0]:
               raise SystemExit("footprint dashboard still contains bsScrollReveal")
           footprint_path.write_text(footprint)
 
           root_path = Path("apps/ios/BeforeShow/RootView.swift")
           root = root_path.read_text()
-
           root = replace_once(
               root,
               """            ScrollView(.vertical, showsIndicators: false) {\n                VStack(spacing: 0) {\n""",
@@ -76,26 +76,10 @@ jobs:
           )
 
           for label, old, new in [
-              (
-                  "current hero scroll reveal",
-                  """                    .offset(y: hasArrivedHero ? 0 : 24)\n                    .bsScrollReveal(reduceMotion: reduceMotion)\n""",
-                  """                    .offset(y: hasArrivedHero ? 0 : 24)\n""",
-              ),
-              (
-                  "current countdown scroll reveal",
-                  """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
-                  """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n""",
-              ),
-              (
-                  "current actions scroll reveal",
-                  """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
-                  """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n""",
-              ),
-              (
-                  "current follow-up scroll reveal",
-                  """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
-                  """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n""",
-              ),
+              ("current hero scroll reveal", """                    .offset(y: hasArrivedHero ? 0 : 24)\n                    .bsScrollReveal(reduceMotion: reduceMotion)\n""", """                    .offset(y: hasArrivedHero ? 0 : 24)\n"""),
+              ("current countdown scroll reveal", """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""", """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n"""),
+              ("current actions scroll reveal", """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""", """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n"""),
+              ("current follow-up scroll reveal", """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""", """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n"""),
           ]:
               root = replace_once(root, old, new, label)
 
@@ -106,7 +90,6 @@ jobs:
               raise SystemExit("current tab homeContent still contains bsScrollReveal")
           if "LazyVStack(spacing: 0)" not in home_content:
               raise SystemExit("current tab homeContent is not using LazyVStack")
-
           root_path.write_text(root)
           PY
 
