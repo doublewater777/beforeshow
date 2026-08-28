@@ -951,7 +951,7 @@ struct CurrentShowManagementSection: View {
         let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cityText = {
             guard let city, !city.isEmpty else { return nil as String? }
-            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil }
+            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil as String? }
             return city
         }()
 
