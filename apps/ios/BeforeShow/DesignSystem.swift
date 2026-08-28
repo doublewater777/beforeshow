@@ -1029,7 +1029,13 @@ actor ShowCoverImageCache {
     private func readDisk(for url: URL) async -> UIImage? {
         let cache = diskCache
         return await Task.detached(priority: .userInitiated) {
-            cache.image(from: url)
+            if let image = cache.image(from: url) {
+                return image
+            }
+            guard let path = WidgetCoverCache.cachedCoverPath(matching: url.absoluteString) else {
+                return nil
+            }
+            return UIImage(contentsOfFile: path)
         }.value
     }
 

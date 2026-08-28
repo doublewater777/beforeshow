@@ -1284,10 +1284,12 @@ struct FootprintResolvedCoverImage: View {
             FootprintCoverLocalImage(url: url) {
                 FootprintTypographyCover(show: show, cover: resolvedCover)
             }
+            .id(url)
         case let .remote(url):
             FootprintCoverRemoteImage(url: url) {
                 FootprintTypographyCover(show: show, cover: resolvedCover)
             }
+            .id(url)
         case .archive:
             FootprintTypographyCover(show: show, cover: resolvedCover)
         }
