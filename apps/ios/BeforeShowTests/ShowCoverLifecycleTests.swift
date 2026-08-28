@@ -204,6 +204,45 @@ final class ShowCoverLifecycleTests: XCTestCase {
         XCTAssertNotNil(image)
     }
 
+    func testWidgetFallbackDoesNotPreventNetworkUpgrade() async throws {
+        let widgetContainer = FileManager.default.temporaryDirectory
+            .appendingPathComponent("WidgetCoverUpgradeTests-\(UUID().uuidString)", isDirectory: true)
+        let diskDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowCoverUpgradeTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: widgetContainer, withIntermediateDirectories: true)
+        defer {
+            WidgetSnapshotStore.overrideContainerURL = nil
+            try? FileManager.default.removeItem(at: widgetContainer)
+            try? FileManager.default.removeItem(at: diskDirectory)
+        }
+        WidgetSnapshotStore.overrideContainerURL = widgetContainer
+
+        let sourceURL = URL(string: "https://example.com/widget-upgrade.jpg")!
+        let source = sourceURL.absoluteString
+        let widgetImageData = try XCTUnwrap(makeSolidImage(color: .green).jpegData(compressionQuality: 1))
+        let networkImage = makeSolidImage(color: .blue, size: CGSize(width: 16, height: 16))
+        let networkImageData = try XCTUnwrap(networkImage.pngData())
+        let fetchCounter = FetchCounter(result: networkImageData)
+        let cachedCoverURL = widgetContainer.appendingPathComponent(WidgetCoverCache.filename(for: source))
+        try widgetImageData.write(to: cachedCoverURL)
+        try source.write(
+            to: cachedCoverURL.appendingPathExtension("source"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        let cache = ShowCoverImageCache(
+            directoryURL: diskDirectory,
+            fetchData: { _ in await fetchCounter.fetch() }
+        )
+        let loaded = await cache.image(from: sourceURL)
+
+        let fetchCount = await fetchCounter.count
+        XCTAssertGreaterThanOrEqual(fetchCount, 1)
+        XCTAssertEqual(loaded?.cgImage?.width, networkImage.cgImage?.width)
+        XCTAssertEqual(loaded?.cgImage?.height, networkImage.cgImage?.height)
+    }
+
     @MainActor
     private func waitForRenderedColor(_ expected: UIColor, in view: UIView) async -> Bool {
         let deadline = Date().addingTimeInterval(2)
@@ -328,10 +367,27 @@ final class ShowCoverLifecycleTests: XCTestCase {
             && abs(lhsAlpha - rhsAlpha) < 0.03
     }
 
-    private func makeSolidImage(color: UIColor) -> UIImage {
-        UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8)).image { context in
+    private func makeSolidImage(
+        color: UIColor,
+        size: CGSize = CGSize(width: 8, height: 8)
+    ) -> UIImage {
+        UIGraphicsImageRenderer(size: size).image { context in
             color.setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+            context.fill(CGRect(origin: .zero, size: size))
+        }
+    }
+
+    private actor FetchCounter {
+        let result: Data
+        private(set) var count = 0
+
+        init(result: Data) {
+            self.result = result
+        }
+
+        func fetch() -> Data {
+            count += 1
+            return result
         }
     }
 }
