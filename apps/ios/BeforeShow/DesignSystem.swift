@@ -974,15 +974,11 @@ struct ShowCoverImageView: View {
     }
 
     private static func persistedImage(for urlString: String?) -> UIImage? {
+        // Sync memory-only lookup. Disk + widget cache + network are handled
+        // by `loadImage()` in the body `.task`, off the main thread.
         guard let urlString,
               let url = URL(string: urlString) else { return nil }
-        if let image = ShowCoverDiskCache.application.image(from: url) {
-            return image
-        }
-        guard let path = WidgetCoverCache.cachedCoverPath(matching: urlString) else {
-            return nil
-        }
-        return UIImage(contentsOfFile: path)
+        return ShowCoverImageCache.shared.memoryImage(for: url)
     }
 }
 
@@ -990,7 +986,10 @@ actor ShowCoverImageCache {
     typealias FetchData = @Sendable (URL) async -> Data?
 
     static let shared = ShowCoverImageCache()
-    private let cache = NSCache<NSURL, UIImage>()
+    /// NSCache is documented thread-safe, so the actor does not need to
+    /// mediate memory hits. `nonisolated(unsafe)` lets Views call the sync
+    /// memory lookup from `.init` without hopping the actor.
+    private nonisolated(unsafe) let memory = NSCache<NSURL, UIImage>()
     private let diskCache: ShowCoverDiskCache
     private let fetchData: FetchData
 
@@ -1004,17 +1003,41 @@ actor ShowCoverImageCache {
         self.fetchData = fetchData
     }
 
+    /// Synchronous memory lookup. Safe to call from any context, including
+    /// SwiftUI `View.init` and `body`. Returns nil on miss; callers should
+    /// fall through to `image(from:)` inside a `.task` to fill the disk /
+    /// network path off the main thread.
+    nonisolated func memoryImage(for url: URL) -> UIImage? {
+        memory.object(forKey: url as NSURL)
+    }
+
     func image(from url: URL) async -> UIImage? {
-        if let cached = cache.object(forKey: url as NSURL) { return cached }
-        if let image = diskCache.image(from: url) {
-            cache.setObject(image, forKey: url as NSURL)
+        if let hit = memory.object(forKey: url as NSURL) { return hit }
+        if let image = await readDisk(for: url) {
+            memory.setObject(image, forKey: url as NSURL)
             return image
         }
         guard let data = await fetchData(url),
               let image = UIImage(data: data) else { return nil }
-        diskCache.store(data, for: url)
-        cache.setObject(image, forKey: url as NSURL)
+        await writeDisk(data, for: url)
+        memory.setObject(image, forKey: url as NSURL)
         return image
+    }
+
+    /// Disk read runs off the actor's executor so a slow filesystem does
+    /// not block other callers queueing on this actor.
+    private func readDisk(for url: URL) async -> UIImage? {
+        let cache = diskCache
+        return await Task.detached(priority: .userInitiated) {
+            cache.image(from: url)
+        }.value
+    }
+
+    private func writeDisk(_ data: Data, for url: URL) async {
+        let cache = diskCache
+        await Task.detached(priority: .utility) {
+            cache.store(data, for: url)
+        }.value
     }
 }
 

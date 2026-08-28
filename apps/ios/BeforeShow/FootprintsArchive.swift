@@ -34,6 +34,20 @@ struct FootprintYearGroup: Identifiable {
     var id: Int { year }
 }
 
+/// Atomically-committed view model for the footprint dashboard.
+///
+/// `FootprintsView` previously updated `preparedArchive` and
+/// `preparedCovers` in two separate `@State` assignments. On cold start
+/// the dashboard would render with an empty `covers` dictionary, then
+/// re-render once covers arrived — a visible two-stage layout jump.
+/// `PreparedFootprint` is the single source of truth: archive and
+/// covers land together so the first paint of the dashboard already
+/// has the cover it will end with.
+struct PreparedFootprint {
+    let archive: FootprintArchiveSnapshot
+    let covers: [UUID: FootprintCover]
+}
+
 struct FootprintArchiveSnapshot {
     let shows: [Show]
     let artists: [FootprintRankItem]
@@ -268,7 +282,7 @@ enum FootprintArchiveBuilder {
 
         return FootprintArchiveSnapshot(
             shows: archived,
-            artists: rank(archived.flatMap { $0.artistNames }),
+            artists: FootprintArchiveRankingBuilder.artists(in: archived).map(\.rankItem),
             cities: rank(archived.compactMap { normalized($0.city) }),
             venues: FootprintArchiveRankingBuilder.venues(in: archived).map(\.rankItem),
             years: grouped.keys.sorted(by: >).map {
@@ -313,15 +327,14 @@ struct FootprintsView: View {
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var preparedArchive: FootprintArchiveSnapshot?
-    @State private var preparedCovers: [UUID: FootprintCover] = [:]
+    @State private var prepared: PreparedFootprint?
     private let currentShowSession = CurrentShowSession()
 
     var body: some View {
         NavigationStack {
-            if let preparedArchive {
+            if let prepared {
                 timelineContent(
-                    preparedArchive,
+                    prepared,
                     hasCurrentShow: currentShowSession.selectCurrentShow(
                         from: shows,
                         manualSelection: selections.first
@@ -331,19 +344,19 @@ struct FootprintsView: View {
                 FootprintBackground()
             }
         }
-        .task(id: preparationFingerprint) {
+        .task(id: preparationFingerprint()) {
+            // Build archive + covers in one pass, then commit atomically so
+            // the dashboard's first paint already has the cover it ends with.
+            // (Previously the two pieces landed in two `@State` writes and
+            // produced a visible two-stage layout jump on cold start.)
             await Task.yield()
             let archive = FootprintArchiveBuilder.make(shows: shows)
-            preparedArchive = archive
-
-            // 先显示足迹页结构和统计信息，封面解析随后补齐，避免首屏被图片准备阻塞。
-            await Task.yield()
             let covers = FootprintCoverResolver.resolve(
                 shows: archive.shows,
                 fragments: fragments,
                 assets: assets
             )
-            preparedCovers = covers
+            prepared = PreparedFootprint(archive: archive, covers: covers)
         }
         .onChange(of: pendingDetailTarget) { _, newValue in
             if let newValue, shows.contains(where: { $0.id == newValue.id }) {
@@ -353,10 +366,12 @@ struct FootprintsView: View {
     }
 
     private func timelineContent(
-        _ archive: FootprintArchiveSnapshot,
+        _ prepared: PreparedFootprint,
         hasCurrentShow: Bool
     ) -> some View {
-        ZStack {
+        let archive = prepared.archive
+        let covers = prepared.covers
+        return ZStack {
             FootprintBackground()
             if archive.shows.isEmpty {
                 FootprintEmptyView(
@@ -364,7 +379,7 @@ struct FootprintsView: View {
                     onAdd: { isAddingShow = true }
                 )
             } else {
-                content(archive)
+                content(prepared)
             }
         }
             .toolbar(.hidden, for: .navigationBar)
@@ -381,14 +396,7 @@ struct FootprintsView: View {
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
                 case .search:
-                    FootprintSearchSheet(
-                        archive: archive,
-                        covers: FootprintCoverResolver.resolve(
-                            shows: archive.shows,
-                            fragments: fragments,
-                            assets: assets
-                        )
-                    ) { show in
+                    FootprintSearchSheet(archive: archive, covers: covers) { show in
                         activeSheet = nil
                         Task { @MainActor in
                             try? await Task.sleep(for: .milliseconds(280))
@@ -399,11 +407,6 @@ struct FootprintsView: View {
                     .presentationCornerRadius(26)
                     .presentationDragIndicator(.visible)
                 case .share:
-                    let covers = FootprintCoverResolver.resolve(
-                        shows: archive.shows,
-                        fragments: fragments,
-                        assets: assets
-                    )
                     FootprintShareSheet(
                         archive: archive,
                         covers: covers,
@@ -431,10 +434,10 @@ struct FootprintsView: View {
         activeSheet = .share
     }
 
-    private func content(_ archive: FootprintArchiveSnapshot) -> some View {
+    private func content(_ prepared: PreparedFootprint) -> some View {
         return FootprintDashboardView(
-            archive: archive,
-            covers: preparedCovers,
+            archive: prepared.archive,
+            covers: prepared.covers,
             onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
             onAdd: { isAddingShow = true },
             onSearch: { activeSheet = .search },
@@ -445,9 +448,12 @@ struct FootprintsView: View {
         )
     }
 
-    private var preparationFingerprint: String {
-        let showPart = shows.map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: "|")
-        return "\(showPart)#\(fragments.count)#\(assets.count)"
+    private func preparationFingerprint() -> FootprintsPreparationFingerprint {
+        FootprintsPreparationFingerprint.make(
+            shows: shows,
+            fragments: fragments,
+            assets: assets
+        )
     }
 
     private func header(_ archive: FootprintArchiveSnapshot) -> some View {

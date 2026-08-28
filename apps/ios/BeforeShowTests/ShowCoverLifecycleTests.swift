@@ -107,4 +107,46 @@ final class ShowCoverLifecycleTests: XCTestCase {
 
         XCTAssertEqual(Set(removed), ["temp"])
     }
+
+    // MARK: - ShowCoverImageCache memory/disk/network split
+
+    func testMemoryImageReturnsNilForUnknownURL() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowCoverImageCacheMemHit-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let cache = ShowCoverImageCache(directoryURL: directory, fetchData: { _ in nil })
+        let url = URL(string: "https://example.com/never-loaded.jpg")!
+
+        XCTAssertNil(cache.memoryImage(for: url))
+    }
+
+    func testMemoryImageReturnsCachedImageAfterAsyncLoad() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowCoverImageCacheMemHit-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceURL = URL(string: "https://example.com/cover.jpg")!
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
+            UIColor.systemPink.setFill()
+            context.fill(CGRect(origin: .zero, size: CGSize(width: 4, height: 4)))
+        }
+        let sourceData = try XCTUnwrap(sourceImage.jpegData(compressionQuality: 0.9))
+
+        let cache = ShowCoverImageCache(
+            directoryURL: directory,
+            fetchData: { _ in sourceData }
+        )
+
+        // Cold start: no memory hit.
+        XCTAssertNil(cache.memoryImage(for: sourceURL))
+
+        // Async load populates the in-memory cache.
+        let loaded = await cache.image(from: sourceURL)
+        XCTAssertNotNil(loaded)
+
+        // Subsequent sync lookup hits memory and does not invoke the network.
+        let syncHit = cache.memoryImage(for: sourceURL)
+        XCTAssertNotNil(syncHit)
+    }
 }

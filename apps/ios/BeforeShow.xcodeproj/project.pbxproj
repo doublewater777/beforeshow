@@ -88,6 +88,7 @@
 		846B1880A0B959340E70874E /* LiveActivityAppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = BA8421A73E19F2CA0D776342 /* LiveActivityAppIcon.png */; };
 		89E52DDF4F35BF3591C4ADCC /* DynamicCover.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F77EFABFD38AC6EC5733E5C /* DynamicCover.swift */; };
 		8C985CBE71C9140C5217E52E /* FootprintsArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB790C703B76795E38524872 /* FootprintsArchive.swift */; };
+		5A6B7C8D9E0F1A2B3C4D5E6F /* FootprintsPreparationFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B7C8D9E0F1A2B3C4D5E70 /* FootprintsPreparationFingerprint.swift */; };
 		8E10204EA13439857D3BAB41 /* SettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31905CD68D1965DAF5837001 /* SettingsViews.swift */; };
 		8E108B6F641E977F168F530F /* FootprintShareComposerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAD7DA00B16AF8D62978AABA /* FootprintShareComposerView.swift */; };
 		8FD0DDCFE8C40048B55DD98A /* DispersalCeremonyShareCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D35FFBA392D3E8AFA250EA46 /* DispersalCeremonyShareCard.swift */; };
@@ -315,6 +316,7 @@
 		D9F73275EFB1EC83E825DA94 /* MemoryFragmentTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryFragmentTests.swift; sourceTree = "<group>"; };
 		DB6949FEE6731277E17AD80D /* CompanionSharing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSharing.swift; sourceTree = "<group>"; };
 		DB790C703B76795E38524872 /* FootprintsArchive.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintsArchive.swift; sourceTree = "<group>"; };
+		5A6B7C8D9E0F1A2B3C4D5E70 /* FootprintsPreparationFingerprint.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintsPreparationFingerprint.swift; sourceTree = "<group>"; };
 		DCE3090F4D8B89AEDC706CA4 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		DE866CEC83A04BA5D1FE6AE3 /* DispersalCeremony.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremony.swift; sourceTree = "<group>"; };
 		DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowCloudClientTests.swift; sourceTree = "<group>"; };
@@ -396,6 +398,7 @@
 				E223DC9BBF4ADD52ED2BC10A /* FootprintHeroViews.swift */,
 				BD70216A1816BFCDE446A456 /* FootprintMemoryShareCard.swift */,
 				DB790C703B76795E38524872 /* FootprintsArchive.swift */,
+				5A6B7C8D9E0F1A2B3C4D5E70 /* FootprintsPreparationFingerprint.swift */,
 				BAD7DA00B16AF8D62978AABA /* FootprintShareComposerView.swift */,
 				9A30915160ECAEE9BE3BB96F /* HomeCountdownCard.swift */,
 				C3B7AEA73682AAEA0BF9493D /* HomeHeroPresentation.swift */,
@@ -745,6 +748,7 @@
 				A06559928CCD8F4BB5AD5163 /* FootprintMemoryShareCard.swift in Sources */,
 				8E108B6F641E977F168F530F /* FootprintShareComposerView.swift in Sources */,
 				8C985CBE71C9140C5217E52E /* FootprintsArchive.swift in Sources */,
+				5A6B7C8D9E0F1A2B3C4D5E6F /* FootprintsPreparationFingerprint.swift in Sources */,
 				79018BC2864D314C6A1D2711 /* HomeCountdownCard.swift in Sources */,
 				C990EFFAAE6BB33C53D8C335 /* HomeHeroPresentation.swift in Sources */,
 				0C8F58FF0811E9E5B48327B6 /* HomeShowPhase.swift in Sources */,

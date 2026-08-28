@@ -386,11 +386,35 @@ final class FootprintCityCoordinateResolver {
 
     func coordinates(for cityNames: [String]) async -> [String: FootprintCityCoordinate] {
         let names = Array(Set(cityNames.compactMap(FootprintTextNormalizer.nonEmptyTrimmed))).sorted()
-        for name in names where cache[name] == nil {
-            if let coordinate = await resolve(name) {
-                cache[name] = coordinate
-                persist()
+        let missing = names.filter { cache[$0] == nil }
+        guard !missing.isEmpty else {
+            return cache.filter { names.contains($0.key) }
+        }
+
+        // Resolve each missing city in parallel. `resolve(_:)` is nonisolated
+        // so its `MKLocalSearch` await does not serialize on the main actor.
+        // The group collector re-enters `@MainActor` to write results into
+        // `cache`, keeping the dictionary single-writer.
+        let resolved = await withTaskGroup(
+            of: (String, FootprintCityCoordinate?).self
+        ) { group in
+            for name in missing {
+                group.addTask {
+                    let coordinate = await self.resolve(name)
+                    return (name, coordinate)
+                }
             }
+            var collected: [String: FootprintCityCoordinate] = [:]
+            for await (name, coordinate) in group {
+                if let coordinate {
+                    self.cache[name] = coordinate
+                    collected[name] = coordinate
+                }
+            }
+            return collected
+        }
+        if !resolved.isEmpty {
+            persist()
         }
         return cache.filter { names.contains($0.key) }
     }
@@ -402,7 +426,10 @@ final class FootprintCityCoordinateResolver {
         return cache.filter { names.contains($0.key) }
     }
 
-    private func resolve(_ name: String) async -> FootprintCityCoordinate? {
+    /// `nonisolated` so parallel `withTaskGroup` children can run their
+    /// `MKLocalSearch` await off the main actor. The class owns the
+    /// single-writer cache; this method must not touch `self.cache`.
+    private nonisolated func resolve(_ name: String) async -> FootprintCityCoordinate? {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = name
         request.resultTypes = .address

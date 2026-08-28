@@ -627,7 +627,7 @@ private struct FootprintArtistAvatarView: View {
     var body: some View {
         Group {
             if let url {
-                if let cached = ShowCoverDiskCache.application.image(from: url) {
+                if let cached = ShowCoverImageCache.shared.memoryImage(for: url) {
                     Image(uiImage: cached)
                         .resizable()
                         .scaledToFill()
@@ -982,6 +982,9 @@ private struct FootprintGeoMap: View {
     }
 
     private let fallbackPositions: [CGPoint] = [CGPoint(x: 0.72, y: 0.44), CGPoint(x: 0.58, y: 0.63), CGPoint(x: 0.44, y: 0.48), CGPoint(x: 0.82, y: 0.70), CGPoint(x: 0.28, y: 0.36), CGPoint(x: 0.64, y: 0.28), CGPoint(x: 0.16, y: 0.66), CGPoint(x: 0.38, y: 0.76)]
+    /// Cap on pins shown on the map (matches `fallbackPositions.count`).
+    /// Kept as a named constant so the limit is not buried in a magic number.
+    private static let visibleItemsLimit = 8
     private let starField: [FootprintMapStar] = [
         FootprintMapStar(x: 0.08, y: 0.14, radius: 1.1, opacity: 0.72, color: .white),
         FootprintMapStar(x: 0.19, y: 0.27, radius: 0.7, opacity: 0.46, color: .cyan),
@@ -1005,7 +1008,7 @@ private struct FootprintGeoMap: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let visibleItems = Array(items.prefix(fallbackPositions.count))
+            let visibleItems = Array(items.prefix(Self.visibleItemsLimit))
             let projected = FootprintCoordinateProjector.project(Array(resolvedCoordinates.values))
             ZStack {
                 ZStack {
@@ -1075,18 +1078,20 @@ private struct FootprintGeoMap: View {
                         }
                     }
                     ForEach(Array(visibleItems.enumerated()), id: \.element.id) { index, item in
-                        let point = point(for: item, index: index, size: proxy.size, projected: projected)
-                        if let onSelect {
-                            Button { onSelect(item) } label: {
-                                cityPin(item, isPrimary: index == 0)
-                            }
-                            .buttonStyle(.plain)
-                            .position(point)
-                        } else {
-                            cityPin(item, isPrimary: index == 0)
+                        if let point = point(for: item, size: proxy.size, projected: projected) {
+                            if let onSelect {
+                                Button { onSelect(item) } label: {
+                                    cityPin(item, isPrimary: index == 0)
+                                }
+                                .buttonStyle(.plain)
                                 .position(point)
+                            } else {
+                                cityPin(item, isPrimary: index == 0)
+                                    .position(point)
+                            }
                         }
                     }
+                    pendingDotsStrip(items: visibleItems)
                 }
                 .scaleEffect(mapScale * pinchScale)
                 .simultaneousGesture(pinchZoomGesture)
@@ -1143,14 +1148,47 @@ private struct FootprintGeoMap: View {
 
     private func point(
         for item: FootprintCityArchiveItem,
-        index: Int,
         size: CGSize,
         projected: [String: FootprintProjectedCoordinate]
-    ) -> CGPoint {
-        let normalized = projected[item.name]
-            .map { CGPoint(x: CGFloat($0.x), y: CGFloat($0.y)) }
-            ?? fallbackPositions[index % fallbackPositions.count]
-        return CGPoint(x: size.width * normalized.x, y: size.height * normalized.y)
+    ) -> CGPoint? {
+        // Only emit a position when the city is resolved. Unresolved cities
+        // surface as grey placeholder dots in `pendingDotsStrip`, not as
+        // pins at fake map positions.
+        guard let projected = projected[item.name] else { return nil }
+        return CGPoint(x: size.width * CGFloat(projected.x), y: size.height * CGFloat(projected.y))
+    }
+
+    /// Unresolved cities render as a small grey strip at the bottom of the
+    /// map. This is honest: the dot is not on the map area, it just signals
+    /// "this city is waiting for a real coordinate." Once a city resolves
+    /// it disappears from the strip and a solid pin appears in the map.
+    @ViewBuilder
+    private func pendingDotsStrip(items: [FootprintCityArchiveItem]) -> some View {
+        let pending = items.filter { resolvedCoordinates[$0.name] == nil }
+        if !pending.isEmpty {
+            HStack(alignment: .center, spacing: 8) {
+                ForEach(pending, id: \.id) { item in
+                    VStack(spacing: 2) {
+                        Circle()
+                            .fill(BSColor.Stage.dim.opacity(0.55))
+                            .frame(width: 6, height: 6)
+                        Text(item.name)
+                            .font(.system(size: 7, weight: .medium))
+                            .foregroundColor(BSColor.Stage.dim)
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule()
+                    .fill(BSColor.Stage.background.opacity(0.62))
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, 8)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+        }
     }
 
     private func cityPin(_ item: FootprintCityArchiveItem, isPrimary: Bool) -> some View {
@@ -1264,7 +1302,8 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
     init(url: URL, @ViewBuilder fallback: () -> Fallback) {
         self.url = url
         self.fallback = fallback()
-        _image = State(initialValue: UIImage(contentsOfFile: url.path))
+        // Local cover paths are read off the main thread by the `.task` below.
+        // Doing it in `init` would block SwiftUI's view-build phase.
     }
 
     var body: some View {
@@ -1294,7 +1333,9 @@ private struct FootprintCoverRemoteImage<Fallback: View>: View {
     init(url: URL, @ViewBuilder fallback: () -> Fallback) {
         self.url = url
         self.fallback = fallback()
-        _image = State(initialValue: ShowCoverDiskCache.application.image(from: url))
+        // Memory hit is the only sync read; disk + network fall through to
+        // the async `.task` so view init does not block on filesystem I/O.
+        _image = State(initialValue: ShowCoverImageCache.shared.memoryImage(for: url))
     }
 
     var body: some View {

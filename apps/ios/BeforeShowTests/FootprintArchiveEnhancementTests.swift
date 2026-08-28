@@ -177,6 +177,8 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
 
         XCTAssertEqual(archive.artistArchiveItems.map(\.name), ["极光", "回声"])
+        // Hero / 分享 / seed card 都消费 archive.artists,必须跟档案页同源。
+        XCTAssertEqual(archive.artists.first?.name, archive.artistArchiveItems.first?.name)
     }
 
     func testArtistArchiveKeepsPersistedAlbumArtworkURL() throws {
@@ -476,6 +478,81 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
             venueName: venue,
             artists: [ArtistSlot(name: artist, avatarURL: nil)]
         )
+    }
+
+    // MARK: - FootprintsPreparationFingerprint regression
+
+    func testFingerprintChangesWhenFragmentTextIsEditedWithoutChangingCount() throws {
+        let show = try makeShow("有碎片的现场", year: 2026, month: 5, durationHours: 2)
+        let fragment = try MemoryFragment(showID: show.id, text: "原始文字")
+
+        let before = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [fragment],
+            assets: []
+        )
+
+        // Sleep 5ms so updatedAt is observably different.
+        Thread.sleep(forTimeInterval: 0.005)
+        try fragment.updateText("更新后文字")
+
+        let after = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [fragment],
+            assets: []
+        )
+
+        XCTAssertNotEqual(before, after, "Editing fragment text must change the fingerprint even though fragment count is unchanged.")
+    }
+
+    func testFingerprintChangesWhenAssetImageIsReplacedWithoutChangingCount() throws {
+        let show = try makeShow("有票根的现场", year: 2026, month: 5, durationHours: 2)
+        let asset = ShowAsset(
+            showID: show.id,
+            kind: .ticket,
+            relativePath: "\(show.id.uuidString)/ticket/original.jpg"
+        )
+
+        let before = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [],
+            assets: [asset]
+        )
+
+        // Sleep 5ms so updatedAt is observably different.
+        Thread.sleep(forTimeInterval: 0.005)
+        asset.replaceImage(relativePath: "\(show.id.uuidString)/ticket/dirty.jpg")
+
+        let after = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [],
+            assets: [asset]
+        )
+
+        XCTAssertNotEqual(before, after, "Replacing an asset image must change the fingerprint even though asset count is unchanged.")
+    }
+
+    func testFingerprintIsStableWhenNothingMeaningfulChanges() throws {
+        let show = try makeShow("稳定现场", year: 2026, month: 5, durationHours: 2)
+        let fragment = try MemoryFragment(showID: show.id, text: "静止")
+        let asset = ShowAsset(
+            showID: show.id,
+            kind: .ticket,
+            relativePath: "\(show.id.uuidString)/ticket/a.jpg"
+        )
+
+        let first = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [fragment],
+            assets: [asset]
+        )
+        let second = FootprintsPreparationFingerprint.make(
+            shows: [show],
+            fragments: [fragment],
+            assets: [asset]
+        )
+
+        XCTAssertEqual(first, second, "Same inputs must produce the same fingerprint, otherwise .task(id:) will re-run spuriously.")
     }
 
     private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0) -> Date {
