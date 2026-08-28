@@ -580,14 +580,14 @@ struct ShowAssetViewerView: View {
                 replacingAsset: asset
             )
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.deleteAsset(kind).title,
-            isPresented: $isConfirmingDelete,
-            titleVisibility: .visible
+            isPresented: $isConfirmingDelete
         ) {
             Button(DangerConfirmation.deleteAsset(kind).confirmTitle, role: .destructive) {
                 deleteAsset()
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.deleteAsset(kind).message)
         }

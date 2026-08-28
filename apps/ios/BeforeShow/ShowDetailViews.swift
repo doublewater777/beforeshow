@@ -308,14 +308,14 @@ struct ShowDetailView: View {
         } message: {
             Text(DangerConfirmation.deleteShow.message)
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.cancelShow.title,
-            isPresented: $isShowingCancelConfirmation,
-            titleVisibility: .visible
+            isPresented: $isShowingCancelConfirmation
         ) {
             Button(DangerConfirmation.cancelShow.confirmTitle, role: .destructive) {
                 applyStatus(message: BSLocalization.text("已记录取消")) { show.markCanceled() }
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.cancelShow.message)
         }

@@ -28,12 +28,14 @@ struct FootprintDashboardView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 header
                 hero
-                if sections.visibility.showsTrend { sections.trendSection }
-                sections.artistSection
-                sections.citySection
-                sections.venueSection
-                sections.memorySection
-                sections.timelineSection
+                if sections.visibility.showsTrend {
+                    sections.trendSection.bsScrollReveal(reduceMotion: reduceMotion)
+                }
+                sections.artistSection.bsScrollReveal(reduceMotion: reduceMotion)
+                sections.citySection.bsScrollReveal(reduceMotion: reduceMotion)
+                sections.venueSection.bsScrollReveal(reduceMotion: reduceMotion)
+                sections.memorySection.bsScrollReveal(reduceMotion: reduceMotion)
+                sections.timelineSection.bsScrollReveal(reduceMotion: reduceMotion)
             }
             .padding(.bottom, BSLayout.tabBarContentInset)
         }
@@ -763,18 +765,18 @@ private struct FootprintTopArtistCard: View {
         HStack(alignment: .center, spacing: 14) {
             ZStack(alignment: .topLeading) {
                 FootprintArtistCoverView(item: item, shows: archive.shows, size: 108)
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Image(systemName: "crown.fill")
                         .font(.system(size: 8, weight: .bold))
-                    Text("\(BSLocalization.text("最常看")) · #1")
+                    Text("#1")
                         .font(.system(size: 9, weight: .bold))
-                        .tracking(0.6)
+                        .tracking(0.4)
                 }
-                .foregroundColor(BSColor.Stage.accent)
-                .padding(.horizontal, 7)
-                .padding(.vertical, 4)
-                .background(Color.black.opacity(0.62), in: Capsule())
-                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 0.5))
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(Color.black.opacity(0.55), in: Capsule())
+                .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.35), lineWidth: 0.5))
                 .padding(6)
             }
 
@@ -786,10 +788,6 @@ private struct FootprintTopArtistCard: View {
                 Text(BSLocalization.format("%lld 场", item.count))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(BSColor.Stage.accent)
-                Text(BSLocalization.text("你最常看的艺人"))
-                    .font(.system(size: 11))
-                    .foregroundColor(BSColor.Stage.muted)
-                    .lineLimit(1)
                 if let city = latestCity(for: item) {
                     HStack(spacing: 4) {
                         Image(systemName: "mappin")
@@ -804,8 +802,14 @@ private struct FootprintTopArtistCard: View {
 
             Spacer(minLength: 0)
 
-            if showsChevron {
-                footprintRowChevron(isForExport: isForExport, size: 12, weight: .semibold)
+            VStack(alignment: .trailing, spacing: 8) {
+                Text(BSLocalization.text("最常看").uppercased())
+                    .font(.system(size: 8.5, weight: .bold))
+                    .tracking(1.4)
+                    .foregroundColor(BSColor.Stage.accent)
+                if showsChevron {
+                    footprintRowChevron(isForExport: isForExport, size: 12, weight: .semibold)
+                }
             }
         }
     }
@@ -1606,7 +1610,6 @@ struct FootprintArtistArchiveView: View {
         let items = archive.artistArchiveItems
         FootprintArchivePage(
             title: BSLocalization.text("艺人足迹"),
-            subtitle: BSLocalization.format("看过的 %lld 位艺人", items.count),
             kicker: "",
             shareCovers: covers,
             extraWarmup: {
@@ -1797,7 +1800,7 @@ struct FootprintCityArchiveView: View {
         HStack {
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.name).font(BSFont.headline).foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.format("%lld 场 · %lld 个场馆 · %@", item.count, item.venueCount, yearSpanText(item.yearSpan))).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted)
+                Text(BSLocalization.format("%lld 场 · %@", item.count, yearSpanText(item.yearSpan))).font(BSFont.V3.caption).foregroundColor(BSColor.Stage.muted)
             }
             Spacer()
             footprintRowChevron(isForExport: isForExport)
@@ -1944,7 +1947,6 @@ struct FootprintVenueArchiveView: View {
     var body: some View {
         FootprintArchivePage(
             title: BSLocalization.text("场馆足迹"),
-            subtitle: BSLocalization.format("去过 %lld 个场馆", items.count),
             kicker: "",
             shareCovers: covers
         ) { isForExport in
@@ -2386,9 +2388,20 @@ func footprintYearPeakText(_ activity: FootprintYearActivity) -> String {
     return BSLocalization.format("%lld 月是这一年最密集的一个月", peak.month)
 }
 
+struct FootprintNavigationTitle: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundColor(BSColor.Stage.foreground)
+            .lineLimit(1)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct FootprintArchivePage<Content: View>: View {
     let title: String
-    var subtitle: String? = nil
     let kicker: String
     /// 分享长图导出前用于预热封面缓存的封面表。
     let shareCovers: [UUID: FootprintCover]
@@ -2396,7 +2409,6 @@ private struct FootprintArchivePage<Content: View>: View {
     /// 页面内容。参数 isForExport 为 true 时表示用于整页长图导出:
     /// ImageRenderer 快照里横向 ScrollView 等交互组件会渲染空白,需换静态布局。
     @ViewBuilder let content: (_ isForExport: Bool) -> Content
-    @Environment(\.dismiss) private var dismiss
     @State private var isShowingShare = false
     @State private var toast: BSToastPayload?
 
@@ -2414,36 +2426,21 @@ private struct FootprintArchivePage<Content: View>: View {
                 .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollIndicators(.hidden)
+            .bsNavigationScrollEdge()
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .safeAreaInset(edge: .top, spacing: 0) {
-            HStack(spacing: 12) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .frame(width: 42, height: 42)
-                        .background(Color.white.opacity(0.055), in: Circle())
-                        .overlay(Circle().stroke(BSColor.Stage.border))
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
-                    Text(subtitle ?? BSLocalization.text("个人现场档案")).font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
-                }
-                Spacer()
+        .navigationTitle(title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                FootprintNavigationTitle(title: title)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { isShowingShare = true } label: {
                     Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .frame(width: 42, height: 42)
-                        .background(Color.white.opacity(0.055), in: Circle())
-                        .overlay(Circle().stroke(BSColor.Stage.border))
                 }
                 .accessibilityLabel(BSLocalization.text("分享足迹"))
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 12)
-            .background(BSColor.Stage.background.opacity(0.96))
         }
         .sheet(isPresented: $isShowingShare) {
             shareSheet()

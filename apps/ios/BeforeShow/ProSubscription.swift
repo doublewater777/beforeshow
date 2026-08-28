@@ -43,6 +43,8 @@ struct ProSubscriptionProduct: Equatable {
     let isAvailable: Bool
     /// 年度方案按月折算的文案（如「约 $0.42 / 月」），仅当 store 提供真实价格时有值。
     let perMonthEquivalentText: String?
+    /// 免费试用文案（如「3 天免费试用」），仅当 store 提供零价 intro offer 且用户有试用资格时有值。
+    let trialText: String?
 
     init(
         id: String,
@@ -51,7 +53,8 @@ struct ProSubscriptionProduct: Equatable {
         priceText: String,
         benefitCopy: [String],
         isAvailable: Bool = false,
-        perMonthEquivalentText: String? = nil
+        perMonthEquivalentText: String? = nil,
+        trialText: String? = nil
     ) {
         self.id = id
         self.plan = plan
@@ -60,6 +63,7 @@ struct ProSubscriptionProduct: Equatable {
         self.benefitCopy = benefitCopy
         self.isAvailable = isAvailable
         self.perMonthEquivalentText = perMonthEquivalentText
+        self.trialText = trialText
     }
 
     func markingAvailable(_ available: Bool = true) -> ProSubscriptionProduct {
@@ -70,7 +74,8 @@ struct ProSubscriptionProduct: Equatable {
             priceText: priceText,
             benefitCopy: benefitCopy,
             isAvailable: available,
-            perMonthEquivalentText: perMonthEquivalentText
+            perMonthEquivalentText: perMonthEquivalentText,
+            trialText: trialText
         )
     }
 }
@@ -281,12 +286,13 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
     static let proEntitlementIDs: Set<String> = ["beforeshow Pro", "pro"]
 
     /// store product identifier → 内部 plan。
-    /// App Store ID 和当前 Test Store 短 ID（yearly / lifetime）都要认，
+    /// App Store ID 和 Test Store 短 ID 都要认，
     /// 否则 Test Store offering 拉回来后会被全部丢掉。
     static let planForProductID: [String: ProSubscriptionPlan] = [
         ProSubscriptionCatalog.yearlyProductID: .yearly,
         "yearly": .yearly,
         "yearly.v2": .yearly,
+        "yearly.trial3d": .yearly,
         ProSubscriptionCatalog.lifetimeProductID: .lifetime,
         "lifetime": .lifetime,
         "lifetime.v2": .lifetime,
@@ -299,8 +305,19 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
     func loadProducts() async throws -> [ProSubscriptionProduct] {
         let offerings = try await Purchases.shared.offerings()
         guard let current = offerings.current else { return [] }
-        return current.availablePackages
-            .compactMap(Self.product(from:))
+        let packages = current.availablePackages
+        // 试用资格必须在展示前确认：无资格用户看到「免费试用」会构成误导。
+        // unknown 也按无资格处理（RC 建议 unknown 时展示正常价格）。
+        let eligibility = await Purchases.shared.checkTrialOrIntroDiscountEligibility(
+            productIdentifiers: packages.map { $0.storeProduct.productIdentifier }
+        )
+        return packages
+            .compactMap { package in
+                Self.product(
+                    from: package,
+                    trialEligible: eligibility[package.storeProduct.productIdentifier]?.status == .eligible
+                )
+            }
             .sorted { lhs, rhs in
                 ProSubscriptionPlan.allCases.firstIndex(of: lhs.plan) ?? 0
                     < ProSubscriptionPlan.allCases.firstIndex(of: rhs.plan) ?? 0
@@ -388,7 +405,7 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
         return nil
     }
 
-    private static func product(from package: Package) -> ProSubscriptionProduct? {
+    private static func product(from package: Package, trialEligible: Bool) -> ProSubscriptionProduct? {
         let id = package.storeProduct.productIdentifier
         guard let plan = planForProductID[id] else { return nil }
         let fallback = ProSubscriptionCatalog.defaultProducts.first { $0.id == id }
@@ -401,8 +418,23 @@ struct RevenueCatProSubscriptionStore: ProSubscriptionStore {
             isAvailable: true,
             perMonthEquivalentText: plan == .yearly
                 ? Self.perMonthEquivalentText(for: package.storeProduct)
+                : nil,
+            trialText: plan == .yearly && trialEligible
+                ? Self.freeTrialText(for: package.storeProduct)
                 : nil
         )
+    }
+
+    /// 免费试用文案（如「3 天免费试用」）。仅识别零价 introductory offer；
+    /// 非天单位的配置不展示，避免与 ASC 实际配置不符的文案。
+    private static func freeTrialText(for product: StoreProduct) -> String? {
+        guard let discount = product.introductoryDiscount, discount.price == 0 else { return nil }
+        return freeTrialText(periodUnit: discount.subscriptionPeriod.unit, value: discount.subscriptionPeriod.value)
+    }
+
+    static func freeTrialText(periodUnit: SubscriptionPeriod.Unit, value: Int) -> String? {
+        guard periodUnit == .day else { return nil }
+        return BSLocalization.format("免费试用 %lld 天", value)
     }
 
     /// 年度方案按月折算（如 $4.99/年 → 约 $0.42/月），用 RC 真实价格计算。

@@ -330,15 +330,15 @@ private struct CurrentShowHomeView: View {
                 }
             }
             .alert(
-                "动态封面没有更新",
+                BSLocalization.text("动态封面没有更新"),
                 isPresented: Binding(
                     get: { dynamicCoverErrorMessage != nil },
                     set: { if !$0 { dynamicCoverErrorMessage = nil } }
                 )
             ) {
-                Button("知道了", role: .cancel) { dynamicCoverErrorMessage = nil }
+                Button(BSLocalization.text("知道了"), role: .cancel) { dynamicCoverErrorMessage = nil }
             } message: {
-                Text(dynamicCoverErrorMessage ?? "请重试")
+                Text(dynamicCoverErrorMessage ?? BSLocalization.text("请重试"))
             }
             .sheet(isPresented: $isShowingAddShowCoordinator, onDismiss: {
                 beginPreparedHomeArrivalIfPossible()
@@ -461,7 +461,7 @@ private struct CurrentShowHomeView: View {
         } catch let error as DynamicCoverMediaStoreError {
             dynamicCoverErrorMessage = DynamicCoverErrorMessagePolicy.message(for: error)
         } catch {
-            dynamicCoverErrorMessage = "视频没有载入，请重试。"
+            dynamicCoverErrorMessage = BSLocalization.text("视频没有载入，请重试。")
         }
     }
 
@@ -514,8 +514,8 @@ private struct CurrentShowHomeView: View {
                 presentToast(
                     didSync ? .success : .neutral,
                     message: didSync
-                        ? "已落幕，散场时间已计入现场记录"
-                        : "散场时间已保存，同步暂未更新"
+                        ? BSLocalization.text("已落幕，散场时间已计入现场记录")
+                        : BSLocalization.text("散场时间已保存，同步暂未更新")
                 )
                 // 仪式与结束现场解耦:即使 commit 同步未更新也已落库,
                 // 仍可升起仪式 sheet 让用户选择补写评价。
@@ -578,6 +578,7 @@ struct CurrentShowManagementSection: View {
     @State private var hasArrivedCountdown = true
     @State private var hasArrivedActions = true
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
+    @ObservedObject private var languageController = AppLanguageController.shared
 
     /// 内容左右边距(设计稿 --space-5 = 20pt;封面居中不受此约束)。
     private let contentInset: CGFloat = 20
@@ -721,13 +722,13 @@ struct CurrentShowManagementSection: View {
             }
         }
         .alert(
-            "同行",
+            BSLocalization.text("同行"),
             isPresented: Binding(
                 get: { companionErrorMessage != nil },
                 set: { if !$0 { companionErrorMessage = nil } }
             )
         ) {
-            Button("知道了", role: .cancel) { companionErrorMessage = nil }
+            Button(BSLocalization.text("知道了"), role: .cancel) { companionErrorMessage = nil }
         } message: {
             Text(companionErrorMessage ?? "")
         }
@@ -833,6 +834,7 @@ struct CurrentShowManagementSection: View {
                     .opacity(hasArrivedHero ? 1 : 0)
                     .scaleEffect(hasArrivedHero ? 1 : 0.94)
                     .offset(y: hasArrivedHero ? 0 : 24)
+                    .bsScrollReveal(reduceMotion: reduceMotion)
 
                     HomeCountdownLockup(
                         show: show,
@@ -853,6 +855,7 @@ struct CurrentShowManagementSection: View {
                         .padding(.top, 20)
                         .opacity(hasArrivedCountdown ? 1 : 0)
                         .offset(y: hasArrivedCountdown ? 0 : 18)
+                        .bsScrollReveal(reduceMotion: reduceMotion)
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
@@ -872,6 +875,7 @@ struct CurrentShowManagementSection: View {
                         .padding(.top, 17)
                         .opacity(hasArrivedActions ? 1 : 0)
                         .offset(y: hasArrivedActions ? 0 : 12)
+                        .bsScrollReveal(reduceMotion: reduceMotion)
 
                     if !followUpShows.isEmpty {
                         CurrentShowFollowUpSummary(
@@ -884,6 +888,7 @@ struct CurrentShowManagementSection: View {
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
                         .opacity(hasArrivedActions ? 1 : 0)
+                        .bsScrollReveal(reduceMotion: reduceMotion)
                     }
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
@@ -916,7 +921,7 @@ struct CurrentShowManagementSection: View {
 
     private var managementHeader: some View {
         HStack {
-            Text("当前")
+            Text(BSLocalization.text("当前"))
                 .font(.system(size: 32, weight: .bold))
                 .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
@@ -1132,7 +1137,7 @@ private struct CurrentShowFollowUpSummary: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .firstTextBaseline) {
-                Text("之后还有")
+                Text(BSLocalization.text("之后还有"))
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(1.3)
                     .foregroundColor(BSColor.Stage.muted)
@@ -1959,6 +1964,7 @@ private struct CurrentShowEmptyStateView: View {
     let onAddShow: () -> Void
     let onOpenSettings: () -> Void
     let onOpenShowLibrary: () -> Void
+    @ObservedObject private var languageController = AppLanguageController.shared
 
     var body: some View {
         VStack(spacing: BSSpacing.md) {
@@ -1975,19 +1981,19 @@ private struct CurrentShowEmptyStateView: View {
                         .stroke(BSColor.borderProminent, lineWidth: 1)
                 )
 
-            Text("先添加一场现场")
+            Text(BSLocalization.text("先添加一场现场"))
                 .font(BSFont.heroTitle)
                 .tracking(BSFont.titleTracking)
                 .foregroundColor(BSColor.textPrimary)
                 .multilineTextAlignment(.center)
 
-            Text("把要去的音乐现场放进来，\n慢慢靠近那一场。")
+            Text(BSLocalization.text("把要去的音乐现场放进来，\n慢慢靠近那一场。"))
                 .font(BSFont.body)
                 .foregroundColor(BSColor.textSecondary)
                 .multilineTextAlignment(.center)
 
             Button(action: onAddShow) {
-                Text("添加现场")
+                Text(BSLocalization.text("添加现场"))
                     .font(BSFont.caption)
                     .foregroundColor(.black)
                     .padding(.horizontal, 32)
@@ -2004,7 +2010,7 @@ private struct CurrentShowEmptyStateView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .overlay(alignment: .top) {
             HStack {
-                Text("当前")
+                Text(BSLocalization.text("当前"))
                     .font(.system(size: 32, weight: .bold))
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()

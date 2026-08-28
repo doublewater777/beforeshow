@@ -632,14 +632,14 @@ private struct PrivacyLocalDataView: View {
                 }
             }
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.clearLocalData.title,
-            isPresented: $showsClearConfirmation,
-            titleVisibility: .visible
+            isPresented: $showsClearConfirmation
         ) {
             Button(DangerConfirmation.clearLocalData.confirmTitle, role: .destructive) {
                 clearLocalData()
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.clearLocalData.message)
         }

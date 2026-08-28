@@ -59,21 +59,24 @@ Created with these fields:
 
 - Configure StoreKit subscriptions:
   - Product IDs must exactly match the app catalog and local StoreKit config:
-    - `com.doublewaterapps.beforeshow.pro.monthly`
     - `com.doublewaterapps.beforeshow.pro.yearly`
-  - Pro monthly: `¥12/月`
-  - Pro yearly: `¥68/年`
-  - No free trial in V2.1
+    - `com.doublewaterapps.beforeshow.pro.lifetime`
+    - `com.doublewaterapps.beforeshow.pro.yearly.discount`
+    - `com.doublewaterapps.beforeshow.pro.lifetime.discount`
+  - Pro yearly: `¥38/年`
+  - Pro lifetime: `¥58`
+  - Pro yearly win-back: `¥22/年`
+  - Pro lifetime win-back: `¥38`
+  - Pro yearly introductory offer: 3-day free trial; configured from 2026-08-27 in 175 territories, including China
   - App Store Connect group created:
     - Group ID: `22160385`
     - Reference name: `BeforeShow Pro`
     - Group localization: `Pro会员` (`zh-Hans`)
   - App Store Connect subscriptions created:
-    - Monthly subscription ID: `6780727285`, product ID `com.doublewaterapps.beforeshow.pro.monthly`, period `ONE_MONTH`, China price `CNY 12.0`
-    - Yearly subscription ID: `6780727360`, product ID `com.doublewaterapps.beforeshow.pro.yearly`, period `ONE_YEAR`, China price `CNY 68.0`
-  - Current subscription state on 2026-06-16: `MISSING_METADATA`; `asc validate subscriptions` can now see review screenshots for both products, but ASC still reports the state as missing metadata until the app has a build and remaining first-release setup is complete.
+    - Yearly subscription ID: `6780727360`, product ID `com.doublewaterapps.beforeshow.pro.yearly`, period `ONE_YEAR`, China price `CNY 38.0`
+  - Legacy monthly subscription `com.doublewaterapps.beforeshow.pro.monthly` remains in App Store Connect but is not part of the current app catalog or RevenueCat Offering.
+  - Current yearly subscription state on 2026-08-28: `READY_TO_SUBMIT`.
   - Review screenshot evidence from `asc validate subscriptions --app 6780078298`:
-    - Monthly: `id=49e34188-f880-4802-9a4b-caf47b5398a6`
     - Yearly: `id=20a44dc5-ac64-486f-a9c8-2bd81b761487`
 - Add privacy policy and support URLs before submission.
 - Add age rating honestly; target low rating without lyrics, community, ticketing, or self-hosted media claims.
@@ -84,9 +87,11 @@ Created with these fields:
 - Product name: `Pro会员`
 - Subscription model: App Store subscription only; BeforeShow does not create a BeforeShow account.
 - Pricing:
-  - Monthly: `¥12/月`
-  - Yearly: `¥68/年`
-  - No free trial in V2.1
+  - Yearly: `¥38/年`
+  - Lifetime: `¥58`
+  - Yearly win-back: `¥22/年`
+  - Lifetime win-back: `¥38`
+  - Eligible customers receive a 3-day free trial, then the yearly subscription auto-renews at the displayed annual price unless canceled.
 - Free allowance:
   - Save 1 `现场`.
 - Pro unlocks:

@@ -748,6 +748,56 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(RevenueCatProSubscriptionStore.proEntitlementIDs.contains("pro"))
     }
 
+    func testFreeTrialTextOnlyCoversDayBasedFreeTrials() {
+        XCTAssertEqual(
+            RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .day, value: 3),
+            BSLocalization.format("免费试用 %lld 天", 3)
+        )
+        XCTAssertNil(RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .week, value: 1))
+        XCTAssertNil(RevenueCatProSubscriptionStore.freeTrialText(periodUnit: .month, value: 1))
+    }
+
+    func testEligibleYearlyPlanShowsTrialTermsInPurchaseCopy() {
+        let product = ProSubscriptionProduct(
+            id: ProSubscriptionCatalog.yearlyProductID,
+            plan: .yearly,
+            displayName: "BeforeShow Pro Yearly",
+            priceText: "¥68",
+            benefitCopy: [],
+            isAvailable: true,
+            trialText: BSLocalization.format("免费试用 %lld 天", 3)
+        )
+
+        XCTAssertEqual(
+            ProPaywallCopy.ctaTitle(.yearly, product: product, price: "¥68/年"),
+            BSLocalization.format("开始%@", product.trialText!)
+        )
+        XCTAssertEqual(
+            ProPaywallCopy.ctaNote(.yearly, product: product, priceAmount: "¥68"),
+            BSLocalization.format("%@，之后按 %@/年 自动续订，可随时取消。", product.trialText!, "¥68")
+        )
+    }
+
+    func testIneligibleYearlyPlanShowsNormalPurchaseCopy() {
+        let product = ProSubscriptionProduct(
+            id: ProSubscriptionCatalog.yearlyProductID,
+            plan: .yearly,
+            displayName: "BeforeShow Pro Yearly",
+            priceText: "¥68",
+            benefitCopy: [],
+            isAvailable: true
+        )
+
+        XCTAssertEqual(
+            ProPaywallCopy.ctaTitle(.yearly, product: product, price: "¥68/年"),
+            BSLocalization.format("订阅年度 Pro · %@", "¥68/年")
+        )
+        XCTAssertEqual(
+            ProPaywallCopy.ctaNote(.yearly, product: product, priceAmount: "¥68"),
+            BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
+        )
+    }
+
     func testRevenueCatPurchaseCancelledErrorMapsToCancelled() {
         let cancelled = NSError(
             domain: "RevenueCat.ErrorCode",

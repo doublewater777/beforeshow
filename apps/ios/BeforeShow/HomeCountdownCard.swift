@@ -207,6 +207,7 @@ struct HomeCountdownLockup: View {
     var onMemoryCreate: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var languageController = AppLanguageController.shared
 
     // The countdown is the visual hero. Respect the user's Dynamic Type
     // setting so accessibility readers get the same weight, but cap at
@@ -438,7 +439,7 @@ struct HomeCountdownLockup: View {
                             .foregroundColor(BSColor.Stage.heroIvory)
                             // 设计稿 line-height .94:系统字行高约 1.19 倍,负 padding 收掉多余行高
                             .padding(.vertical, -9)
-                        Text("天")
+                        Text(BSLocalization.text("天"))
                             .font(.system(size: 20, weight: .regular))
                             .foregroundColor(BSColor.Stage.dim)
                     }
@@ -498,7 +499,7 @@ struct HomeCountdownLockup: View {
                     )
                     .tracking(-0.3)
                     .foregroundColor(BSColor.Stage.foreground)
-                Text("已开场")
+                Text(BSLocalization.text("已开场"))
                     .font(.system(size: 11, weight: .regular))
                     .foregroundColor(BSColor.Stage.dim)
             }
@@ -625,7 +626,7 @@ struct HomeCountdownLockup: View {
             hasEndHandler: hasEndHandler
         ) else { return nil }
         guard case let .end(live) = action else { return nil }
-        return live ? "结束现场" : "确认已结束"
+        return live ? BSLocalization.text("结束现场") : BSLocalization.text("确认已结束")
     }
 
     // MARK: ended:冷静收束
@@ -633,12 +634,12 @@ struct HomeCountdownLockup: View {
     private func endedStatus(timeState: CurrentShowTimeState) -> some View {
         let isDayEnded = timeState.kind == .dayEnded
         return VStack(alignment: .leading, spacing: 0) {
-            Text(isDayEnded ? "今天结束了" : "这一场结束了")
+            Text(isDayEnded ? BSLocalization.text("今天结束了") : BSLocalization.text("这一场结束了"))
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.foreground)
 
-            Text(isDayEnded ? "稍作休息，明天见" : "散场之后，回味还在")
+            Text(isDayEnded ? BSLocalization.text("稍作休息，明天见") : BSLocalization.text("散场之后，回味还在"))
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)
@@ -649,7 +650,7 @@ struct HomeCountdownLockup: View {
 
     private var askingEndStatus: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("这场已经结束了吗？")
+            Text(BSLocalization.text("这场已经结束了吗？"))
                 .font(.system(size: 30, weight: .light))
                 .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
@@ -662,12 +663,12 @@ struct HomeCountdownLockup: View {
     private func inactiveStatus(timeState: CurrentShowTimeState) -> some View {
         let canceled = timeState.kind == .canceled
         return VStack(alignment: .leading, spacing: 0) {
-            Text(canceled ? "这场取消了" : "还在等新的日期")
+            Text(canceled ? BSLocalization.text("这场取消了") : BSLocalization.text("还在等新的日期"))
                 .font(.system(size: 44, weight: .light))
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.dim)
 
-            Text(canceled ? "现场资料还帮你留着" : "新日期确定后，会继续倒数")
+            Text(canceled ? BSLocalization.text("现场资料还帮你留着") : BSLocalization.text("新日期确定后，会继续倒数"))
                 .font(.system(size: 12.5, weight: .regular))
                 .foregroundColor(BSColor.Stage.dim)
                 .lineLimit(2)

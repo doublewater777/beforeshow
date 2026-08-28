@@ -21,7 +21,6 @@ private enum FootprintDetailTokens {
     static let keepsakeMediaHeight: CGFloat = 96
     static let keepsakeInfoHeight: CGFloat = 60
 
-    static let navigationFont = BSFont.headline
     static let eyebrowFont = BSFont.V3.caption.weight(.semibold)
     static let identityDetailFont = BSFont.V3.caption
     static let iconFont = BSFont.caption.weight(.medium)
@@ -33,7 +32,6 @@ private enum FootprintDetailTokens {
 
     static let backgroundGlow = BSColor.Stage.glowBlue.opacity(0.14)
     static let backgroundAccent = BSColor.Stage.accent.opacity(0.08)
-    static let navigationFill = Color.white.opacity(0.055)
     static let heroSecondarySurface = BSColor.Stage.surface.opacity(0.84)
     static let heroBorder = BSColor.Stage.accent.opacity(0.15)
     static let identityFill = Color.white.opacity(0.035)
@@ -66,17 +64,11 @@ enum FootprintPlaybackPolicy {
     }
 }
 
-/// SwiftUI's NavigationStack does not engage `interactivePopGestureRecognizer` once
-/// `.toolbar(.hidden, for: .navigationBar)` hides the system bar, so the system
-/// left-edge swipe does nothing. Hosting a UIScreenEdgePanGestureRecognizer re-creates
-/// the system back-swipe for views that draw their own custom nav bar.
-
 struct FootprintDetailView: View {
     let show: Show
     let archive: FootprintArchiveSnapshot
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
@@ -176,7 +168,6 @@ struct FootprintDetailView: View {
         ZStack {
             footprintBackground
             VStack(spacing: 0) {
-                navigationBar
                 ScrollView(.vertical, showsIndicators: false) {
                     LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
                         hero
@@ -201,12 +192,25 @@ struct FootprintDetailView: View {
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
                 }
+                .bsNavigationScrollEdge()
                 if shareRoute != .none {
                     shareButton
                 }
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .navigationTitle(BSLocalization.text("足迹详情"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            if shareRoute != .none {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { openShare() } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .accessibilityLabel(BSLocalization.text("分享这场回忆"))
+                }
+            }
+        }
         .fullScreenCover(item: $memoryTarget) { target in
             MemoryFragmentReviewView(
                 showID: show.id,
@@ -246,7 +250,6 @@ struct FootprintDetailView: View {
         .bsToastOverlay(toast, bottomPadding: 100)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
         .preferredColorScheme(.dark)
     }
 
@@ -268,42 +271,6 @@ struct FootprintDetailView: View {
             )
             .ignoresSafeArea()
         }
-    }
-
-    private var navigationBar: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(FootprintDetailTokens.navigationFont)
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(FootprintDetailTokens.navigationFill, in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(BSLocalization.text("返回"))
-            Spacer()
-            Text(BSLocalization.text("足迹详情"))
-                .font(FootprintDetailTokens.navigationFont)
-                .foregroundColor(BSColor.Stage.foreground)
-            Spacer()
-            if shareRoute == .none {
-                Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-            } else {
-                Button { openShare() } label: {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.foreground)
-                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        .background(FootprintDetailTokens.navigationFill, in: Circle())
-                        .overlay(Circle().stroke(BSColor.Stage.border))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(BSLocalization.text("分享这场回忆"))
-            }
-        }
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.vertical, BSSpacing.xs)
     }
 
     private var hero: some View {

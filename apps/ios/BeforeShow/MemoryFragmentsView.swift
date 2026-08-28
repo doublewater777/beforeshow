@@ -383,19 +383,19 @@ struct MemoryFragmentsView: View {
             beginCreate(from: pendingCreate)
             performPendingCreateDestination()
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.deleteMemory.title,
             isPresented: Binding(
                 get: { deleteConfirmationTarget != nil },
                 set: { if !$0 { deleteConfirmationTarget = nil } }
             ),
-            titleVisibility: .visible,
             presenting: deleteConfirmationTarget
         ) { fragment in
             Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) {
                 deleteConfirmationTarget = nil
                 stageDelete(fragment)
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: { _ in
             Text(DangerConfirmation.deleteMemory.message)
         }
@@ -1299,19 +1299,19 @@ struct MemoryFragmentReviewView: View {
                 }
             )
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.deleteMemory.title,
             isPresented: Binding(
                 get: { deleteConfirmationTarget != nil },
                 set: { if !$0 { deleteConfirmationTarget = nil } }
             ),
-            titleVisibility: .visible,
             presenting: deleteConfirmationTarget
         ) { target in
             Button(DangerConfirmation.deleteMemory.confirmTitle, role: .destructive) {
                 deleteConfirmationTarget = nil
                 delete(target)
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: { _ in
             Text(DangerConfirmation.deleteMemory.message)
         }

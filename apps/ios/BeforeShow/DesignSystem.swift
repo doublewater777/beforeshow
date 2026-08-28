@@ -194,6 +194,25 @@ enum BSSettingsStyle {
 // MARK: - Reusable View Modifiers
 
 extension View {
+    /// Scroll-linked reveal for modules entering the viewport.
+    @ViewBuilder
+    func bsScrollReveal(reduceMotion: Bool) -> some View {
+        bsScrollReveal(reduceMotion: reduceMotion, delay: 0)
+    }
+
+    @ViewBuilder
+    func bsScrollReveal(reduceMotion: Bool, delay: TimeInterval) -> some View {
+        if reduceMotion {
+            self
+        } else {
+            self.scrollTransition(.animated(.easeOut(duration: BSMotion.interface).delay(delay))) { content, phase in
+                content
+                    .opacity(phase.isIdentity ? 1 : 0.72)
+                    .offset(y: phase.isIdentity ? 0 : 18)
+            }
+        }
+    }
+
     /// Splash-style gradient text, used sparingly for hero moments.
     func bsGradientText() -> some View {
         self
@@ -263,9 +282,8 @@ struct BSChromeIconButton: View {
 
 /// SwiftUI's NavigationStack does not engage `interactivePopGestureRecognizer` once
 /// `.toolbar(.hidden, for: .navigationBar)` hides the system bar, so the left-edge
-/// back-swipe does nothing. Hosting a UIScreenEdgePanGestureRecognizer re-creates the
-/// system back-swipe for views that draw their own custom nav bar with a back arrow.
-/// Use as `.background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))`.
+/// back-swipe does nothing. This fallback is kept for legacy screens that still draw
+/// their own navigation bar; new push destinations should use the system bar instead.
 struct BSNavigationBackSwipeRestorer: UIViewControllerRepresentable {
     let onBack: () -> Void
 
@@ -301,7 +319,6 @@ final class BSNavigationBackSwipeController: UIViewController {
         guard g.state == .ended, let onBack else { return }
         let translation = g.translation(in: view)
         let velocity = g.velocity(in: view)
-        // 镜像系统手势的触发阈值：距离或速度任一达到即可。
         guard translation.x > 60 || velocity.x > 400 else { return }
         onBack()
     }

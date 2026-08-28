@@ -407,8 +407,8 @@ struct CurrentShowLibraryManagementView: View {
     @State private var cancelTarget: Show?
     @State private var isShowingAdd = false
     @State private var toast: BSToastPayload?
-    /// 首次进入时列表逐行浮现;之后筛选 / 搜索不再重播,避免每次输入都闪一遍。
-    @State private var rowsAppeared = false
+    /// 冷启动时已有持久化数据必须直接可见；之后筛选 / 搜索不重播入场动画。
+    @State private var rowsAppeared = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let formatter = ShowDisplayFormatter()
@@ -433,6 +433,10 @@ struct CurrentShowLibraryManagementView: View {
                         ForEach(displayedSections) { section in
                             if !section.shows.isEmpty {
                                 managementSection(section)
+                                    .bsScrollReveal(
+                                        reduceMotion: reduceMotion,
+                                        delay: Double(min(displayedSections.firstIndex(where: { $0.id == section.id }) ?? 0, 6)) * 0.04
+                                    )
                             }
                         }
                     }
@@ -447,7 +451,6 @@ struct CurrentShowLibraryManagementView: View {
         }
         .navigationTitle("我的现场")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { rowsAppeared = true }
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
@@ -490,19 +493,19 @@ struct CurrentShowLibraryManagementView: View {
                 }
             )
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.cancelShowFromEditor.title,
             isPresented: Binding(
                 get: { cancelTarget != nil },
                 set: { if !$0 { cancelTarget = nil } }
             ),
-            titleVisibility: .visible,
             presenting: cancelTarget
         ) { show in
             Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
                 updateStatus(show, message: BSLocalization.text("已记录取消")) { show.markCanceled() }
                 cancelTarget = nil
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: { _ in
             Text(DangerConfirmation.cancelShowFromEditor.message)
         }

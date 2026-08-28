@@ -1427,29 +1427,29 @@ struct ShowDraftEditorView: View {
                 }
             )
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.cancelShowFromEditor.title,
-            isPresented: $showsCancelConfirm,
-            titleVisibility: .visible
+            isPresented: $showsCancelConfirm
         ) {
             Button(DangerConfirmation.cancelShowFromEditor.confirmTitle, role: .destructive) {
                 Task { @MainActor in
                     await applyStatusAction { await statusEditing?.onCancel() }
                 }
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.cancelShowFromEditor.message)
         }
-        .confirmationDialog(
+        .alert(
             DangerConfirmation.deleteShowFromEditor.title,
-            isPresented: $showsDeleteConfirm,
-            titleVisibility: .visible
+            isPresented: $showsDeleteConfirm
         ) {
             Button(DangerConfirmation.deleteShowFromEditor.confirmTitle, role: .destructive) {
                 Task { @MainActor in
                     await statusEditing?.onDelete()
                 }
             }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.deleteShowFromEditor.message)
         }

@@ -312,20 +312,38 @@ struct FootprintsView: View {
     @State private var lastScreenshotPromptAt: Date?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var preparedArchive: FootprintArchiveSnapshot?
+    @State private var preparedCovers: [UUID: FootprintCover] = [:]
     private let currentShowSession = CurrentShowSession()
 
     var body: some View {
         NavigationStack {
-            TimelineView(.periodic(from: Date(), by: 60)) { context in
+            if let preparedArchive {
                 timelineContent(
-                    FootprintArchiveBuilder.make(shows: shows, now: context.date),
+                    preparedArchive,
                     hasCurrentShow: currentShowSession.selectCurrentShow(
                         from: shows,
-                        manualSelection: selections.first,
-                        now: context.date
+                        manualSelection: selections.first
                     ) != nil
                 )
+            } else {
+                FootprintBackground()
             }
+        }
+        .task(id: preparationFingerprint) {
+            await Task.yield()
+            let archive = FootprintArchiveBuilder.make(shows: shows)
+            preparedArchive = archive
+
+            // 先显示足迹页结构和统计信息，封面解析随后补齐，避免首屏被图片准备阻塞。
+            await Task.yield()
+            let covers = FootprintCoverResolver.resolve(
+                shows: archive.shows,
+                fragments: fragments,
+                assets: assets
+            )
+            preparedCovers = covers
         }
         .onChange(of: pendingDetailTarget) { _, newValue in
             if let newValue, shows.contains(where: { $0.id == newValue.id }) {
@@ -414,14 +432,9 @@ struct FootprintsView: View {
     }
 
     private func content(_ archive: FootprintArchiveSnapshot) -> some View {
-        let covers = FootprintCoverResolver.resolve(
-            shows: archive.shows,
-            fragments: fragments,
-            assets: assets
-        )
         return FootprintDashboardView(
             archive: archive,
-            covers: covers,
+            covers: preparedCovers,
             onShowSelected: { detailTarget = FootprintDetailDestination(show: $0) },
             onAdd: { isAddingShow = true },
             onSearch: { activeSheet = .search },
@@ -430,6 +443,11 @@ struct FootprintsView: View {
             },
             onArchiveVisibilityChange: onArchiveVisibilityChange
         )
+    }
+
+    private var preparationFingerprint: String {
+        let showPart = shows.map { "\($0.id.uuidString):\($0.updatedAt.timeIntervalSince1970)" }.joined(separator: "|")
+        return "\(showPart)#\(fragments.count)#\(assets.count)"
     }
 
     private func header(_ archive: FootprintArchiveSnapshot) -> some View {
@@ -474,6 +492,11 @@ struct FootprintsView: View {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Text("\(archive.shows.count)")
                         .font(.system(size: archive.shows.count >= 100 ? 72 : 92, weight: .ultraLight))
+                        .contentTransition(.numericText())
+                        .animation(
+                            reduceMotion ? nil : .easeOut(duration: BSMotion.interface),
+                            value: archive.shows.count
+                        )
                         .foregroundStyle(LinearGradient(
                             colors: [Color(red: 0.96, green: 0.94, blue: 0.89), BSColor.Stage.accent],
                             startPoint: .topLeading,
@@ -1735,7 +1758,6 @@ private struct FootprintArchiveDetailView: View {
     /// 年度柱状图入场:柱子从 0 高度长到目标高度,逐根错开。
     @State private var barsGrown = false
 
-    @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -1768,11 +1790,21 @@ private struct FootprintArchiveDetailView: View {
                 .padding(.horizontal, 20).padding(.bottom, 32)
             }
             .scrollIndicators(.hidden)
+            .bsNavigationScrollEdge()
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
-        .safeAreaInset(edge: .top, spacing: 0) {
-            archiveNavigation
+        .navigationTitle(BSLocalization.text("完整档案"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                FootprintNavigationTitle(title: BSLocalization.text("完整档案"))
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { isShowingShare = true } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .accessibilityLabel(BSLocalization.format("分享%@档案", category.title))
+            }
         }
         .onAppear { onVisibilityChange(true) }
         .onDisappear { onVisibilityChange(false) }
@@ -1795,33 +1827,6 @@ private struct FootprintArchiveDetailView: View {
             try? await Task.sleep(for: .seconds(2))
             if toast == payload { toast = nil }
         }
-    }
-
-    private var archiveNavigation: some View {
-        HStack(spacing: 12) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: 42, height: 42).background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(BSLocalization.text("完整档案")).font(.system(size: 17, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.format("统计截至 %@", footprintFullDateText(Date())))
-                    .font(.system(size: 11)).foregroundColor(BSColor.Stage.dim)
-            }
-            Spacer()
-            Button { isShowingShare = true } label: {
-                Image(systemName: "square.and.arrow.up")
-                    .font(.system(size: 15, weight: .semibold)).foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: 42, height: 42).background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-            }
-            .accessibilityLabel(BSLocalization.format("分享%@档案", category.title))
-        }
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background(BSColor.Stage.background.opacity(0.96))
-        .overlay(alignment: .bottom) { Rectangle().fill(Color.white.opacity(0.055)).frame(height: 1) }
     }
 
     private var archiveHero: some View {

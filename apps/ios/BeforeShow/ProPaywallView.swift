@@ -383,18 +383,10 @@ struct ProPaywallView: View {
     }
 
     private var ctaTitle: String {
-        guard product(for: selectedPlan)?.isAvailable == true else {
+        guard let product = product(for: selectedPlan), product.isAvailable else {
             return BSLocalization.text("价格暂不可用")
         }
-        let price = ctaPrice(for: selectedPlan)
-        switch selectedPlan {
-        case .yearly:
-            return BSLocalization.format("订阅年度 Pro · %@", price)
-        case .lifetime:
-            return BSLocalization.format("买断终身 Pro · %@", price)
-        case .yearlyDiscount, .lifetimeDiscount:
-            return BSLocalization.format("以特惠价解锁 Pro · %@", price)
-        }
+        return ProPaywallCopy.ctaTitle(selectedPlan, product: product, price: ctaPrice(for: selectedPlan))
     }
 
     /// CTA 上的紧凑价格：金额 + 紧凑周期（/年；买断档不带周期）。
@@ -409,10 +401,16 @@ struct ProPaywallView: View {
         }
     }
 
+    private var ctaNoteText: String {
+        ProPaywallCopy.ctaNote(
+            selectedPlan,
+            product: product(for: selectedPlan),
+            priceAmount: priceAmount(for: selectedPlan)
+        )
+    }
+
     private var ctaNote: some View {
-        Text(selectedPlan.isLifetime
-             ? BSLocalization.text("一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。")
-             : BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。"))
+        Text(ctaNoteText)
             .font(.system(size: 10.5))
             .lineSpacing(3)
             .multilineTextAlignment(.center)
@@ -807,11 +805,44 @@ enum ProPaywallCopy {
     static func planNote(_ plan: ProSubscriptionPlan, product: ProSubscriptionProduct?) -> String {
         switch plan {
         case .yearly:
+            if let trial = product?.trialText { return trial }
             guard let perMonth = product?.perMonthEquivalentText else { return "" }
             return BSLocalization.format("约 %@ / 月", perMonth)
         case .lifetime: return BSLocalization.text("一次买断，永久有效")
         case .yearlyDiscount, .lifetimeDiscount: return ""
         }
+    }
+
+    static func ctaTitle(
+        _ plan: ProSubscriptionPlan,
+        product: ProSubscriptionProduct,
+        price: String
+    ) -> String {
+        switch plan {
+        case .yearly:
+            if let trial = product.trialText {
+                return BSLocalization.format("开始%@", trial)
+            }
+            return BSLocalization.format("订阅年度 Pro · %@", price)
+        case .lifetime:
+            return BSLocalization.format("买断终身 Pro · %@", price)
+        case .yearlyDiscount, .lifetimeDiscount:
+            return BSLocalization.format("以特惠价解锁 Pro · %@", price)
+        }
+    }
+
+    static func ctaNote(
+        _ plan: ProSubscriptionPlan,
+        product: ProSubscriptionProduct?,
+        priceAmount: String
+    ) -> String {
+        if plan.isLifetime {
+            return BSLocalization.text("一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。")
+        }
+        if plan == .yearly, let trial = product?.trialText {
+            return BSLocalization.format("%@，之后按 %@/年 自动续订，可随时取消。", trial, priceAmount)
+        }
+        return BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
     }
 
     static func winbackSaveLabel(_ plan: ProSubscriptionPlan) -> String {

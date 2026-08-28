@@ -156,7 +156,7 @@ final class ArchitectureModuleTests: XCTestCase {
 
         XCTAssertEqual(
             HomeShowIdentityPresentation.statusText(for: state, now: now),
-            "马上开场"
+            BSLocalization.text("马上开场")
         )
     }
 
@@ -168,7 +168,7 @@ final class ArchitectureModuleTests: XCTestCase {
 
         XCTAssertEqual(
             HomeShowIdentityPresentation.statusText(for: state, now: now),
-            "开场了"
+            BSLocalization.text("开场了")
         )
     }
 
