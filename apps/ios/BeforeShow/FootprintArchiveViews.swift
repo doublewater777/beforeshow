@@ -10,9 +10,6 @@ struct FootprintDashboardView: View {
     let onShare: () -> Void
     let onArchiveVisibilityChange: (Bool) -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hasAppeared = false
-
     private var sections: FootprintDashboardSections {
         FootprintDashboardSections(
             archive: archive,
@@ -29,23 +26,18 @@ struct FootprintDashboardView: View {
                 header
                 hero
                 if sections.visibility.showsTrend {
-                    sections.trendSection.bsScrollReveal(reduceMotion: reduceMotion)
+                    sections.trendSection
                 }
-                sections.artistSection.bsScrollReveal(reduceMotion: reduceMotion)
-                sections.citySection.bsScrollReveal(reduceMotion: reduceMotion)
-                sections.venueSection.bsScrollReveal(reduceMotion: reduceMotion)
-                sections.memorySection.bsScrollReveal(reduceMotion: reduceMotion)
-                sections.timelineSection.bsScrollReveal(reduceMotion: reduceMotion)
+                sections.artistSection
+                sections.citySection
+                sections.venueSection
+                sections.memorySection
+                sections.timelineSection
             }
             .padding(.bottom, BSLayout.tabBarContentInset)
         }
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
-        .onAppear {
-            guard !hasAppeared else { return }
-            if reduceMotion { hasAppeared = true }
-            else { withAnimation(.easeOut(duration: 0.55)) { hasAppeared = true } }
-        }
     }
 
     private var header: some View {
@@ -84,8 +76,6 @@ struct FootprintDashboardView: View {
         PassportCardHeroView(archive: archive, covers: covers)
             .padding(.horizontal, 20)
             .padding(.top, 16)
-            .opacity(hasAppeared || reduceMotion ? 1 : 0)
-            .offset(y: hasAppeared || reduceMotion ? 0 : 8)
     }
 
     private func dashboardMetric(_ value: Int, _ label: String) -> some View { dashboardMetric("\(value)", label) }
