@@ -1,0 +1,123 @@
+name: Apply rendering cleanup
+
+on:
+  push:
+    branches:
+      - codex/remove-tab-scroll-reveals
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/remove-tab-scroll-reveals
+          fetch-depth: 0
+
+      - name: Apply scoped SwiftUI cleanup
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          def replace_once(text: str, old: str, new: str, label: str) -> str:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{label}: expected exactly 1 match, found {count}")
+              return text.replace(old, new, 1)
+
+          footprint_path = Path("apps/ios/BeforeShow/FootprintArchiveViews.swift")
+          footprint = footprint_path.read_text()
+
+          footprint = replace_once(
+              footprint,
+              "    @Environment(\\.accessibilityReduceMotion) private var reduceMotion\n    @State private var hasAppeared = false\n\n",
+              "",
+              "footprint dashboard animation state",
+          )
+
+          footprint = replace_once(
+              footprint,
+              """                if sections.visibility.showsTrend {\n                    sections.trendSection.bsScrollReveal(reduceMotion: reduceMotion)\n                }\n                sections.artistSection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.citySection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.venueSection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.memorySection.bsScrollReveal(reduceMotion: reduceMotion)\n                sections.timelineSection.bsScrollReveal(reduceMotion: reduceMotion)\n""",
+              """                if sections.visibility.showsTrend {\n                    sections.trendSection\n                }\n                sections.artistSection\n                sections.citySection\n                sections.venueSection\n                sections.memorySection\n                sections.timelineSection\n""",
+              "footprint section scroll reveals",
+          )
+
+          footprint = replace_once(
+              footprint,
+              """        .scrollIndicators(.hidden)\n        .scrollClipDisabled()\n        .onAppear {\n            guard !hasAppeared else { return }\n            if reduceMotion { hasAppeared = true }\n            else { withAnimation(.easeOut(duration: 0.55)) { hasAppeared = true } }\n        }\n""",
+              """        .scrollIndicators(.hidden)\n        .scrollClipDisabled()\n""",
+              "footprint hero onAppear animation",
+          )
+
+          footprint = replace_once(
+              footprint,
+              """            .padding(.horizontal, 20)\n            .padding(.top, 16)\n            .opacity(hasAppeared || reduceMotion ? 1 : 0)\n            .offset(y: hasAppeared || reduceMotion ? 0 : 8)\n""",
+              """            .padding(.horizontal, 20)\n            .padding(.top, 16)\n""",
+              "footprint hero opacity offset",
+          )
+
+          if "bsScrollReveal(reduceMotion: reduceMotion)" in footprint.split("/// Dashboard sections shared", 1)[0]:
+              raise SystemExit("footprint dashboard still contains bsScrollReveal")
+          footprint_path.write_text(footprint)
+
+          root_path = Path("apps/ios/BeforeShow/RootView.swift")
+          root = root_path.read_text()
+
+          root = replace_once(
+              root,
+              """            ScrollView(.vertical, showsIndicators: false) {\n                VStack(spacing: 0) {\n""",
+              """            ScrollView(.vertical, showsIndicators: false) {\n                LazyVStack(spacing: 0) {\n""",
+              "current tab lazy stack",
+          )
+
+          for label, old, new in [
+              (
+                  "current hero scroll reveal",
+                  """                    .offset(y: hasArrivedHero ? 0 : 24)\n                    .bsScrollReveal(reduceMotion: reduceMotion)\n""",
+                  """                    .offset(y: hasArrivedHero ? 0 : 24)\n""",
+              ),
+              (
+                  "current countdown scroll reveal",
+                  """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
+                  """                        .opacity(hasArrivedCountdown ? 1 : 0)\n                        .offset(y: hasArrivedCountdown ? 0 : 18)\n""",
+              ),
+              (
+                  "current actions scroll reveal",
+                  """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
+                  """                        .opacity(hasArrivedActions ? 1 : 0)\n                        .offset(y: hasArrivedActions ? 0 : 12)\n""",
+              ),
+              (
+                  "current follow-up scroll reveal",
+                  """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n                        .bsScrollReveal(reduceMotion: reduceMotion)\n""",
+                  """                        .padding(.top, 25)\n                        .opacity(hasArrivedActions ? 1 : 0)\n""",
+              ),
+          ]:
+              root = replace_once(root, old, new, label)
+
+          home_start = root.index("    private func homeContent(now: Date()) -> some View {")
+          home_end = root.index("    private var managementHeader: some View {", home_start)
+          home_content = root[home_start:home_end]
+          if "bsScrollReveal" in home_content:
+              raise SystemExit("current tab homeContent still contains bsScrollReveal")
+          if "LazyVStack(spacing: 0)" not in home_content:
+              raise SystemExit("current tab homeContent is not using LazyVStack")
+
+          root_path.write_text(root)
+          PY
+
+          rm -f .github/workflows/codex-apply-rendering-cleanup.yml
+          git diff --check
+
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "refactor(ios): rely on lazy tab rendering"
+          git push origin HEAD:codex/remove-tab-scroll-reveals
