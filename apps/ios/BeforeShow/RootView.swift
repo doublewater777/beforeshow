@@ -811,7 +811,7 @@ struct CurrentShowManagementSection: View {
 
         ZStack(alignment: .top) {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 0) {
+                LazyVStack(spacing: 0) {
                     Color.clear
                         .frame(height: BSLayout.minTouchTarget + BSLayout.pageHeaderTopPadding)
 
@@ -834,7 +834,6 @@ struct CurrentShowManagementSection: View {
                     .opacity(hasArrivedHero ? 1 : 0)
                     .scaleEffect(hasArrivedHero ? 1 : 0.94)
                     .offset(y: hasArrivedHero ? 0 : 24)
-                    .bsScrollReveal(reduceMotion: reduceMotion)
 
                     HomeCountdownLockup(
                         show: show,
@@ -855,7 +854,6 @@ struct CurrentShowManagementSection: View {
                         .padding(.top, 20)
                         .opacity(hasArrivedCountdown ? 1 : 0)
                         .offset(y: hasArrivedCountdown ? 0 : 18)
-                        .bsScrollReveal(reduceMotion: reduceMotion)
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
@@ -875,7 +873,6 @@ struct CurrentShowManagementSection: View {
                         .padding(.top, 17)
                         .opacity(hasArrivedActions ? 1 : 0)
                         .offset(y: hasArrivedActions ? 0 : 12)
-                        .bsScrollReveal(reduceMotion: reduceMotion)
 
                     if !followUpShows.isEmpty {
                         CurrentShowFollowUpSummary(
@@ -888,7 +885,6 @@ struct CurrentShowManagementSection: View {
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
                         .opacity(hasArrivedActions ? 1 : 0)
-                        .bsScrollReveal(reduceMotion: reduceMotion)
                     }
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
@@ -955,7 +951,7 @@ struct CurrentShowManagementSection: View {
         let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
         let cityText = {
             guard let city, !city.isEmpty else { return nil as String? }
-            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil as String? }
+            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil }
             return city
         }()
 
