@@ -1017,11 +1017,13 @@ actor ShowCoverImageCache {
             memory.setObject(image, forKey: url as NSURL)
             return image
         }
-        guard let data = await fetchData(url),
-              let image = UIImage(data: data) else { return nil }
-        await writeDisk(data, for: url)
-        memory.setObject(image, forKey: url as NSURL)
-        return image
+        if let data = await fetchData(url),
+           let image = UIImage(data: data) {
+            await writeDisk(data, for: url)
+            memory.setObject(image, forKey: url as NSURL)
+            return image
+        }
+        return await readWidgetCache(for: url)
     }
 
     /// Disk read runs off the actor's executor so a slow filesystem does
@@ -1030,6 +1032,15 @@ actor ShowCoverImageCache {
         let cache = diskCache
         return await Task.detached(priority: .userInitiated) {
             cache.image(from: url)
+        }.value
+    }
+
+    private func readWidgetCache(for url: URL) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let path = WidgetCoverCache.cachedCoverPath(matching: url.absoluteString) else {
+                return nil
+            }
+            return UIImage(contentsOfFile: path)
         }.value
     }
 
