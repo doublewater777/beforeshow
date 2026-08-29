@@ -12,11 +12,11 @@ final class FootprintArchiveTests: XCTestCase {
         return value
     }
 
-    func testEmptyStateHidesAddActionWhenThereIsACurrentShow() {
+    func testEmptyStateOffersHistoricalBackfillWhenThereIsACurrentShow() {
         let withCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: true)
         let withoutCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: false)
 
-        XCTAssertNil(withCurrentShow.actionTitle)
+        XCTAssertEqual(withCurrentShow.actionTitle, "补录历史")
         XCTAssertEqual(withoutCurrentShow.actionTitle, "添加第一场现场")
     }
 
@@ -679,7 +679,10 @@ final class LocalizableCompletenessTests: XCTestCase {
         "记忆碎片",
         "结束现场",
         "约人同行",
-        "记一段记忆"
+        "记一段记忆",
+        "补录历史",
+        "继续添加",
+        "走过的现场，慢慢长成你的档案"
     ]
 
     func testRequiredKeysExistInEveryLocalization() {
