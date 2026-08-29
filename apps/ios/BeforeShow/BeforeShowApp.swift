@@ -4,12 +4,22 @@ import UserNotifications
 import PostHog
 import RevenueCat
 
+enum ForegroundMediaMaintenancePolicy {
+    static let minimumInterval: TimeInterval = 10 * 60
+
+    static func shouldRun(lastRun: Date?, now: Date = Date()) -> Bool {
+        guard let lastRun else { return true }
+        return now.timeIntervalSince(lastRun) >= minimumInterval
+    }
+}
+
 @main
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
+    @State private var lastLocalMediaMaintenanceAt: Date?
 
     private let modelContainer: ModelContainer = {
         // Companion sharing uses CloudKit CKRecord/CKShare APIs only.
@@ -111,6 +121,9 @@ struct BeforeShowApp: App {
                     appDelegate.noteDependenciesReady()
                     await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
+                    // Record the start before awaiting disk work so the initial .active
+                    // transition cannot launch a second full reconciliation in parallel.
+                    lastLocalMediaMaintenanceAt = Date()
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
                     await reconcileAllDynamicCovers(
@@ -127,14 +140,24 @@ struct BeforeShowApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
+                    let now = Date()
+                    let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
+                        lastRun: lastLocalMediaMaintenanceAt,
+                        now: now
+                    )
+                    if shouldRunMediaMaintenance {
+                        lastLocalMediaMaintenanceAt = now
+                    }
                     Task {
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
-                        await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
-                        await reconcileAllShowAssets(in: modelContainer.mainContext)
-                        await reconcileAllDynamicCovers(
-                            in: modelContainer.mainContext,
-                            includesStagingCleanup: false
-                        )
+                        if shouldRunMediaMaintenance {
+                            await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
+                            await reconcileAllShowAssets(in: modelContainer.mainContext)
+                            await reconcileAllDynamicCovers(
+                                in: modelContainer.mainContext,
+                                includesStagingCleanup: false
+                            )
+                        }
                         // 回前台兜底：如果 BG 没跑，用户打开 App 也能收到天气提醒。
                         await WeatherReminderScheduler.shared.runOpenCheck(
                             modelContext: modelContainer.mainContext
