@@ -242,24 +242,24 @@ actor MemoryFragmentMediaStore {
         try createParentDirectory(for: destination)
         try Task.checkCancellation()
         // Unknown source size must not bypass the capacity precheck (required <= 0
-        // returns early); fail closed instead of copying without a size check.
+        // returns early); fail closed instead of moving without a size check.
         guard let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) else {
             throw MemoryMediaStoreError.insufficientDiskSpace
         }
         try ensureAvailableCapacity(forByteCount: requiredBytes)
         do {
-            try fileManager.copyItem(at: imported.url, to: destination)
+            // The PhotosPicker transfer already made an app-owned temp copy. Moving it
+            // into staging avoids writing the entire photo/video a second time.
+            try fileManager.moveItem(at: imported.url, to: destination)
         } catch {
-            // Defensive cleanup: a partial copy left by an interrupted copyItem must not
-            // become an uncounted staging file.
             try? removeIfPresent(destination)
             throw MemoryMediaStoreError.map(error)
         }
 
         do {
-            // Post-copy work (thumbnail/duration) must roll back the copied staging
-            // file on failure; otherwise a failed single-item import leaves an orphan
-            // the composer's 20-item cap never accounts for.
+            // Post-move work (thumbnail/duration) must roll back the staging file on
+            // failure; otherwise a failed single-item import leaves an orphan the
+            // composer's item cap never accounts for.
             try Task.checkCancellation()
             if kind == .photo {
                 let thumbnail = try makePhotoThumbnail(sourceURL: destination, draftID: draftID, mediaID: id)
