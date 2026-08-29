@@ -82,7 +82,7 @@ enum FootprintEmptyStateCopy {
             return Content(
                 title: BSLocalization.text("这场结束后，会来到足迹"),
                 message: BSLocalization.text("当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。"),
-                actionTitle: nil
+                actionTitle: BSLocalization.text("补录历史")
             )
         }
 
@@ -1732,6 +1732,7 @@ private struct FootprintPreparingView: View {
             }
             Spacer()
             HStack(spacing: BSSpacing.sm) {
+                shellHeaderIcon("plus")
                 shellHeaderIcon("magnifyingglass")
                 shellHeaderIcon("square.and.arrow.up")
             }
@@ -1963,7 +1964,7 @@ private struct HistoricalBackfillSheet: View {
                     Text(BSLocalization.text("补录历史"))
                         .font(.system(size: 28, weight: .bold))
                         .foregroundColor(BSColor.Stage.foreground)
-                    Text(BSLocalization.text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。"))
+                    Text(BSLocalization.text("走过的现场，慢慢长成你的档案"))
                         .font(BSFont.body)
                         .foregroundColor(BSColor.Stage.muted)
                         .lineSpacing(3)
@@ -2043,7 +2044,7 @@ private struct HistoricalBackfillSheet: View {
                 Button {
                     savedShowID = nil
                 } label: {
-                    Text(BSLocalization.text("继续"))
+                    Text(BSLocalization.text("继续添加"))
                         .font(.system(size: 14.5, weight: .semibold))
                         .foregroundColor(BSColor.Stage.background)
                         .frame(maxWidth: .infinity)
