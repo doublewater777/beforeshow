@@ -189,7 +189,7 @@ actor DynamicCoverMediaStore {
         try ensureStorageAvailable()
     }
 
-    /// Copies and validates one movie into a draft staging directory.
+    /// Moves and validates one app-owned picker transfer into a draft staging directory.
     /// The returned path is temporary until `commit` succeeds.
     func stageTransferredFile(
         _ imported: DynamicCoverImportedFile,
@@ -220,7 +220,9 @@ actor DynamicCoverMediaStore {
         try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
         try DynamicCoverCapacity.throwIfInsufficient(at: destination, required: sourceSize)
         do {
-            try fileManager.copyItem(at: imported.url, to: destination)
+            // The Transferable representation already copied the picker result into an
+            // app-owned temp file, so staging can take ownership without another full write.
+            try fileManager.moveItem(at: imported.url, to: destination)
         } catch {
             try? removeIfPresent(destination)
             throw DynamicCoverMediaStoreError.map(error)
