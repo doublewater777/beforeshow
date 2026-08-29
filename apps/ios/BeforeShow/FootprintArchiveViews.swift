@@ -52,6 +52,7 @@ struct FootprintDashboardView: View {
             }
             Spacer()
             HStack(spacing: BSSpacing.sm) {
+                dashboardIcon("plus", label: BSLocalization.text("补录历史"), action: onAdd)
                 dashboardIcon("magnifyingglass", label: BSLocalization.text("搜索足迹"), action: onSearch)
                 dashboardIcon("square.and.arrow.up", label: BSLocalization.text("分享足迹"), action: onShare)
             }
@@ -449,15 +450,6 @@ struct FootprintDashboardSections {
             HStack(alignment: .firstTextBaseline) {
                 sectionLabel(BSLocalization.text("现场记录"), nil)
                 Spacer()
-                if !isForExport {
-                    Button(BSLocalization.text("补录历史"), action: onAdd)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(BSColor.Stage.accent)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(BSColor.Stage.accent.opacity(0.12), in: Capsule())
-                        .overlay(Capsule().stroke(BSColor.Stage.accent.opacity(0.28), lineWidth: 1))
-                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 30)
@@ -1011,7 +1003,6 @@ private struct FootprintGeoMap: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
-                    // 淡黄色暖金舞台光晕渐变
                     RadialGradient(
                         colors: [
                             Color(red: 0.98, green: 0.88, blue: 0.65).opacity(0.22),
@@ -1141,17 +1132,10 @@ private struct FootprintGeoMap: View {
         size: CGSize,
         projected: [String: FootprintProjectedCoordinate]
     ) -> CGPoint? {
-        // Only emit a position when the city is resolved. Unresolved cities
-        // surface as grey placeholder dots in `pendingDotsStrip`, not as
-        // pins at fake map positions.
         guard let projected = projected[item.name] else { return nil }
         return CGPoint(x: size.width * CGFloat(projected.x), y: size.height * CGFloat(projected.y))
     }
 
-    /// Unresolved cities render as a small grey strip at the bottom of the
-    /// map. This is honest: the dot is not on the map area, it just signals
-    /// "this city is waiting for a real coordinate." Once a city resolves
-    /// it disappears from the strip and a solid pin appears in the map.
     @ViewBuilder
     private func pendingDotsStrip(items: [FootprintCityArchiveItem]) -> some View {
         let pending = items.filter { resolvedCoordinates[$0.name] == nil }
@@ -1251,9 +1235,6 @@ struct FootprintCoverView: View {
     }
 }
 
-/// Shared footprint-cover rendering: `.local`/`.remote`/`.archive` all funnel
-/// through here, and any load failure or empty source falls back to
-/// `FootprintTypographyCover` — the single fallback inside the archive.
 struct FootprintResolvedCoverImage: View {
     let show: Show
     let cover: FootprintCover?
@@ -1294,8 +1275,6 @@ private struct FootprintCoverLocalImage<Fallback: View>: View {
     init(url: URL, @ViewBuilder fallback: () -> Fallback) {
         self.url = url
         self.fallback = fallback()
-        // Local cover paths are read off the main thread by the `.task` below.
-        // Doing it in `init` would block SwiftUI's view-build phase.
     }
 
     var body: some View {
@@ -1325,8 +1304,6 @@ private struct FootprintCoverRemoteImage<Fallback: View>: View {
     init(url: URL, @ViewBuilder fallback: () -> Fallback) {
         self.url = url
         self.fallback = fallback()
-        // Memory hit is the only sync read; disk + network fall through to
-        // the async `.task` so view init does not block on filesystem I/O.
         _image = State(initialValue: ShowCoverImageCache.shared.memoryImage(for: url))
     }
 
@@ -1494,8 +1471,6 @@ struct FootprintYearArchiveView: View {
         }
     }
 
-    /// isForExport: 导出的静态长图里年份切换没有意义(大标题已含年份),直接省略;
-    /// 且 ImageRenderer 快照里横向 ScrollView 会渲染成空白。
     @ViewBuilder
     private func yearPicker(isForExport: Bool) -> some View {
         if !isForExport {
@@ -2413,7 +2388,6 @@ private func footprintExportAwareButton<Label: View>(
     }
 }
 
-/// 年度节拍峰值文案:年度档案页与年度分享卡片共用。
 func footprintYearPeakText(_ activity: FootprintYearActivity) -> String {
     guard let peak = activity.months.max(by: { $0.showCount < $1.showCount }), peak.showCount > 0 else {
         return BSLocalization.text("这一年还没有现场记录")
@@ -2436,11 +2410,8 @@ struct FootprintNavigationTitle: View {
 private struct FootprintArchivePage<Content: View>: View {
     let title: String
     let kicker: String
-    /// 分享长图导出前用于预热封面缓存的封面表。
     let shareCovers: [UUID: FootprintCover]
     var extraWarmup: (() async -> Void)? = nil
-    /// 页面内容。参数 isForExport 为 true 时表示用于整页长图导出:
-    /// ImageRenderer 快照里横向 ScrollView 等交互组件会渲染空白,需换静态布局。
     @ViewBuilder let content: (_ isForExport: Bool) -> Content
     @State private var isShowingShare = false
     @State private var toast: BSToastPayload?
@@ -2555,7 +2526,6 @@ private func footprintMonthKey(_ month: Int) -> String {
     "\(month)月"
 }
 
-// MARK: - Footprint Venue Visual Components
 struct FootprintVenueCoverStack: View {
     let shows: [Show]
     let covers: [UUID: FootprintCover]
