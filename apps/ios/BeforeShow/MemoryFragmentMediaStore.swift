@@ -111,6 +111,17 @@ enum MemoryCapacity {
         return values?.volumeAvailableCapacityForImportantUsage
     }
 
+    static func requiresCopyCapacity(from source: URL, to destination: URL) -> Bool {
+        guard let sourceValues = try? source.resourceValues(forKeys: [.volumeIdentifierKey]),
+              let destinationValues = try? destination.deletingLastPathComponent()
+                .resourceValues(forKeys: [.volumeIdentifierKey]),
+              let sourceVolume = sourceValues.volumeIdentifier,
+              let destinationVolume = destinationValues.volumeIdentifier else {
+            return true
+        }
+        return !sourceVolume.isEqual(destinationVolume)
+    }
+
     /// Throws `insufficientDiskSpace` when `required` bytes are unavailable on the
     /// volume that contains `url`. A missing capacity value (no existing ancestor on
     /// the volume) is treated as insufficient rather than silently allowed.
@@ -241,25 +252,32 @@ actor MemoryFragmentMediaStore {
         let destination = location.url(for: relativePath)
         try createParentDirectory(for: destination)
         try Task.checkCancellation()
-        // Unknown source size must not bypass the capacity precheck (required <= 0
-        // returns early); fail closed instead of copying without a size check.
-        guard let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Int64.init) else {
-            throw MemoryMediaStoreError.insufficientDiskSpace
-        }
-        try ensureAvailableCapacity(forByteCount: requiredBytes)
+        let requiresCopyCapacity = MemoryCapacity.requiresCopyCapacity(
+            from: imported.url,
+            to: destination
+        )
         do {
-            try fileManager.copyItem(at: imported.url, to: destination)
+            if requiresCopyCapacity {
+                guard let requiredBytes = (try? imported.url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+                    .map(Int64.init) else {
+                    throw MemoryMediaStoreError.insufficientDiskSpace
+                }
+                try ensureAvailableCapacity(forByteCount: requiredBytes)
+                try fileManager.copyItem(at: imported.url, to: destination)
+            } else {
+                // Temp and staging are on the same volume: rename/move takes ownership
+                // without allocating another full copy of the source file.
+                try fileManager.moveItem(at: imported.url, to: destination)
+            }
         } catch {
-            // Defensive cleanup: a partial copy left by an interrupted copyItem must not
-            // become an uncounted staging file.
             try? removeIfPresent(destination)
             throw MemoryMediaStoreError.map(error)
         }
 
         do {
-            // Post-copy work (thumbnail/duration) must roll back the copied staging
-            // file on failure; otherwise a failed single-item import leaves an orphan
-            // the composer's 20-item cap never accounts for.
+            // Post-transfer work (thumbnail/duration) must roll back the staging file on
+            // failure; otherwise a failed single-item import leaves an orphan the
+            // composer's item cap never accounts for.
             try Task.checkCancellation()
             if kind == .photo {
                 let thumbnail = try makePhotoThumbnail(sourceURL: destination, draftID: draftID, mediaID: id)

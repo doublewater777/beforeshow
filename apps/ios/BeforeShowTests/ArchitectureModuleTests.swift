@@ -29,6 +29,58 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        XCTAssertTrue(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: nil,
+                isRunning: false,
+                now: now
+            )
+        )
+        XCTAssertFalse(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval + 1),
+                isRunning: false,
+                now: now
+            )
+        )
+        XCTAssertTrue(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval),
+                isRunning: false,
+                now: now
+            )
+        )
+    }
+
+    func testForegroundMediaMaintenanceDoesNotReenterWhileColdLaunchPassIsRunning() {
+        XCTAssertFalse(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: nil,
+                isRunning: true,
+                now: Date(timeIntervalSince1970: 2_000_000_000)
+            )
+        )
+    }
+
+    func testSameVolumePickerMoveDoesNotReserveAnotherFullSourceCopy() throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("MoveCapacityPolicyTests-\(UUID().uuidString)", isDirectory: true)
+        let source = root.appendingPathComponent("source.mov")
+        let destinationDirectory = root.appendingPathComponent("Staging", isDirectory: true)
+        let destination = destinationDirectory.appendingPathComponent("destination.mov")
+        defer { try? fileManager.removeItem(at: root) }
+
+        try fileManager.createDirectory(at: destinationDirectory, withIntermediateDirectories: true)
+        try Data(repeating: 0x2A, count: 1_024).write(to: source)
+
+        XCTAssertFalse(MemoryCapacity.requiresCopyCapacity(from: source, to: destination))
+        XCTAssertFalse(DynamicCoverCapacity.requiresCopyCapacity(from: source, to: destination))
+    }
+
     func testHomeHeroSnapshotFoldsPhaseAndTimeState() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "快照现场", date: start, startTime: start)

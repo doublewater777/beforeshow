@@ -1,4 +1,5 @@
 import AVFoundation
+import AVKit
 import SwiftUI
 import UIKit
 
@@ -40,6 +41,48 @@ struct DynamicCoverPlaybackView: UIViewRepresentable {
 
     static func dismantleUIView(_ view: DynamicCoverPlayerView, coordinator: ()) {
         view.stop()
+    }
+}
+
+/// Full-screen memory video page. Only the selected page owns an AVPlayer;
+/// adjacent TabView pages stay inert and release decoder resources immediately.
+struct MemoryViewerVideoPage: View {
+    let url: URL
+    let isActive: Bool
+
+    @State private var player: AVPlayer?
+
+    var body: some View {
+        Group {
+            if let player {
+                VideoPlayer(player: player)
+            } else {
+                Color.black
+            }
+        }
+        .onAppear { updatePlayer() }
+        .onChange(of: isActive) { _, _ in updatePlayer() }
+        .onChange(of: url) { _, _ in
+            releasePlayer()
+            updatePlayer()
+        }
+        .onDisappear { releasePlayer() }
+    }
+
+    private func updatePlayer() {
+        if isActive {
+            if player == nil {
+                player = AVPlayer(url: url)
+            }
+        } else {
+            releasePlayer()
+        }
+    }
+
+    private func releasePlayer() {
+        player?.pause()
+        player?.replaceCurrentItem(with: nil)
+        player = nil
     }
 }
 

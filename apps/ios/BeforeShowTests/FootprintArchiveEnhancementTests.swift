@@ -181,6 +181,28 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertEqual(archive.artists.first?.name, archive.artistArchiveItems.first?.name)
     }
 
+    func testRankingCacheInvalidatesAfterArtistMutation() throws {
+        let show = try makeShow("缓存现场", year: 2026, month: 6, durationHours: 2, artist: "旧艺人")
+        show.markEnded(at: date(2026, 6, 10, 22))
+        let archive = FootprintArchiveBuilder.make(
+            shows: [show],
+            now: date(2026, 8, 1, 12),
+            calendar: calendar
+        )
+
+        XCTAssertEqual(archive.artistArchiveItems.map(\.name), ["旧艺人"])
+        // Read twice first so the second read is definitely served from the cache.
+        XCTAssertEqual(archive.artistArchiveItems.map(\.name), ["旧艺人"])
+
+        show.artists = [ArtistSlot(name: "新艺人", avatarURL: nil)]
+
+        XCTAssertEqual(
+            archive.artistArchiveItems.map(\.name),
+            ["新艺人"],
+            "A cached ranking must invalidate when the underlying artist identity changes."
+        )
+    }
+
     func testArtistArchiveKeepsPersistedAlbumArtworkURL() throws {
         let show = try makeShow(
             "有专辑封面的现场",

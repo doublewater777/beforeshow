@@ -4,12 +4,28 @@ import UserNotifications
 import PostHog
 import RevenueCat
 
+enum ForegroundMediaMaintenancePolicy {
+    static let minimumInterval: TimeInterval = 10 * 60
+
+    static func shouldRun(
+        lastRun: Date?,
+        isRunning: Bool,
+        now: Date = Date()
+    ) -> Bool {
+        guard !isRunning else { return false }
+        guard let lastRun else { return true }
+        return now.timeIntervalSince(lastRun) >= minimumInterval
+    }
+}
+
 @main
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
+    @State private var lastLocalMediaMaintenanceAt: Date?
+    @State private var isLocalMediaMaintenanceRunning = false
 
     private let modelContainer: ModelContainer = {
         // Companion sharing uses CloudKit CKRecord/CKShare APIs only.
@@ -104,6 +120,11 @@ struct BeforeShowApp: App {
                     appDelegate.noteDependenciesReady()
                 }
                 .task {
+                    // Mark the cold-launch maintenance in flight before the first await.
+                    // The initial scenePhase=.active transition can now observe this and
+                    // avoid launching a second full reconciliation concurrently.
+                    isLocalMediaMaintenanceRunning = true
+
                                         ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
@@ -117,6 +138,8 @@ struct BeforeShowApp: App {
                         in: modelContainer.mainContext,
                         includesStagingCleanup: true
                     )
+                    lastLocalMediaMaintenanceAt = Date()
+                    isLocalMediaMaintenanceRunning = false
                     // 冷启动时也跑一次天气兜底：iOS 17 BG 唤醒不可靠。
                     await WeatherReminderScheduler.shared.runOpenCheck(
                         modelContext: modelContainer.mainContext
@@ -127,14 +150,27 @@ struct BeforeShowApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
+                    let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
+                        lastRun: lastLocalMediaMaintenanceAt,
+                        isRunning: isLocalMediaMaintenanceRunning
+                    )
+                    if shouldRunMediaMaintenance {
+                        isLocalMediaMaintenanceRunning = true
+                    }
                     Task {
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
-                        await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
-                        await reconcileAllShowAssets(in: modelContainer.mainContext)
-                        await reconcileAllDynamicCovers(
-                            in: modelContainer.mainContext,
-                            includesStagingCleanup: false
-                        )
+                        if shouldRunMediaMaintenance {
+                            await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
+                            await reconcileAllShowAssets(in: modelContainer.mainContext)
+                            await reconcileAllDynamicCovers(
+                                in: modelContainer.mainContext,
+                                includesStagingCleanup: false
+                            )
+                            // Throttle from completion, not start, so a long-running
+                            // maintenance pass still gets a full quiet window afterward.
+                            lastLocalMediaMaintenanceAt = Date()
+                            isLocalMediaMaintenanceRunning = false
+                        }
                         // 回前台兜底：如果 BG 没跑，用户打开 App 也能收到天气提醒。
                         await WeatherReminderScheduler.shared.runOpenCheck(
                             modelContext: modelContainer.mainContext

@@ -173,21 +173,47 @@ extension FootprintArchiveSnapshot {
 
 @MainActor
 enum FootprintArchiveRankingBuilder {
+    private struct CacheRevision: Equatable {
+        let id: UUID
+        let updatedAt: Date
+        let city: String?
+        let venueName: String?
+        let artistNames: [String]
+        let artistMedia: [String]
+    }
+
+    private struct RankingCache {
+        let revisions: [CacheRevision]
+        var artists: [FootprintArtistArchiveItem]?
+        var cities: [FootprintCityArchiveItem]?
+        var venues: [FootprintVenueArchiveItem]?
+    }
+
+    private static var rankingCache: RankingCache?
+
     static func artists(in shows: [Show]) -> [FootprintArtistArchiveItem] {
+        prepareCache(for: shows)
+        if let cached = rankingCache?.artists { return cached }
+
         var byName: [String: [Show]] = [:]
         for show in shows {
             for artist in Set(show.artistNames) {
                 byName[artist, default: []].append(show)
             }
         }
-        return byName.compactMap { name, related in
+        let result = byName.compactMap { name, related in
             makeArtist(name: name, shows: related)
         }.sorted(by: sortItems)
+        rankingCache?.artists = result
+        return result
     }
 
     static func cities(in shows: [Show]) -> [FootprintCityArchiveItem] {
+        prepareCache(for: shows)
+        if let cached = rankingCache?.cities { return cached }
+
         let grouped = Dictionary(grouping: shows) { FootprintTextNormalizer.nonEmptyTrimmed($0.city) }
-        return grouped.compactMap { name, related in
+        let result = grouped.compactMap { name, related in
             guard let name else { return nil }
             let ordered = chronological(related)
             let venues = Set(related.compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0.venueName) })
@@ -199,11 +225,16 @@ enum FootprintArchiveRankingBuilder {
                 yearSpan: span(for: ordered)
             )
         }.sorted(by: sortItems)
+        rankingCache?.cities = result
+        return result
     }
 
     static func venues(in shows: [Show]) -> [FootprintVenueArchiveItem] {
+        prepareCache(for: shows)
+        if let cached = rankingCache?.venues { return cached }
+
         let grouped = Dictionary(grouping: shows) { venueIdentityKey(for: $0) }
-        return grouped.compactMap { key, related in
+        let result = grouped.compactMap { key, related in
             guard let key else { return nil }
             let ordered = chronological(related)
             let cities = Set(related.compactMap { FootprintTextNormalizer.nonEmptyTrimmed($0.city) })
@@ -217,6 +248,32 @@ enum FootprintArchiveRankingBuilder {
                 yearSpan: span(for: ordered)
             )
         }.sorted(by: sortItems)
+        rankingCache?.venues = result
+        return result
+    }
+
+    private static func prepareCache(for shows: [Show]) {
+        let revisions = shows.map { show in
+            CacheRevision(
+                id: show.id,
+                updatedAt: show.updatedAt,
+                city: show.city,
+                venueName: show.venueName,
+                artistNames: show.artistNames,
+                artistMedia: show.artists.map { artist in
+                    [artist.name, artist.avatarURL ?? "", artist.albumArtworkURL ?? ""]
+                        .joined(separator: "\u{1F}")
+                }
+            )
+        }
+        if rankingCache?.revisions != revisions {
+            rankingCache = RankingCache(
+                revisions: revisions,
+                artists: nil,
+                cities: nil,
+                venues: nil
+            )
+        }
     }
 
     private struct VenueIdentityKey: Hashable {
