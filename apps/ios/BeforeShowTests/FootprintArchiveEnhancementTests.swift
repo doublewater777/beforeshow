@@ -239,19 +239,16 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
-    func testVisibilityEnablesTrendAtFiveShows() throws {
-        let shows = try (0..<5).map { index in
-            let show = try makeShow("现场 \(index)", year: 2026, month: index + 1, durationHours: 2)
-            show.markEnded(at: date(2026, index + 1, 10, 22))
-            return show
-        }
+    func testVisibilityEnablesTrendWithOneShow() throws {
+        let show = try makeShow("唯一现场", year: 2026, month: 1, durationHours: 2)
+        show.markEnded(at: date(2026, 1, 10, 22))
         let archive = FootprintArchiveBuilder.make(
-            shows: shows,
+            shows: [show],
             now: date(2026, 8, 1, 12),
             calendar: calendar
         )
 
-        XCTAssertFalse(archive.visibility.isSeed)
+        XCTAssertTrue(archive.visibility.isSeed)
         XCTAssertTrue(archive.visibility.showsTrend)
         XCTAssertFalse(archive.visibility.showsYearComparison)
     }

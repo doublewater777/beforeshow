@@ -594,7 +594,7 @@ struct FootprintVisibility: Equatable {
     let hasRevisitedVenue: Bool
 
     var isSeed: Bool { showCount == 1 }
-    var showsTrend: Bool { showCount >= 5 }
+    var showsTrend: Bool { showCount >= 1 }
     var showsYearComparison: Bool { yearCount >= 2 }
     var showsTopThree: Bool { showCount >= 3 }
 }
