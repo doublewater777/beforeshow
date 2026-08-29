@@ -32,17 +32,35 @@ final class ArchitectureModuleTests: XCTestCase {
     func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
-        XCTAssertTrue(ForegroundMediaMaintenancePolicy.shouldRun(lastRun: nil, now: now))
+        XCTAssertTrue(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: nil,
+                isRunning: false,
+                now: now
+            )
+        )
         XCTAssertFalse(
             ForegroundMediaMaintenancePolicy.shouldRun(
                 lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval + 1),
+                isRunning: false,
                 now: now
             )
         )
         XCTAssertTrue(
             ForegroundMediaMaintenancePolicy.shouldRun(
                 lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval),
+                isRunning: false,
                 now: now
+            )
+        )
+    }
+
+    func testForegroundMediaMaintenanceDoesNotReenterWhileColdLaunchPassIsRunning() {
+        XCTAssertFalse(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: nil,
+                isRunning: true,
+                now: Date(timeIntervalSince1970: 2_000_000_000)
             )
         )
     }
