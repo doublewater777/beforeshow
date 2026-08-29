@@ -119,7 +119,7 @@ enum MemoryCapacity {
               let destinationVolume = destinationValues.volumeIdentifier else {
             return true
         }
-        return sourceVolume != destinationVolume
+        return !sourceVolume.isEqual(destinationVolume)
     }
 
     /// Throws `insufficientDiskSpace` when `required` bytes are unavailable on the
