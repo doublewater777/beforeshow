@@ -7,7 +7,12 @@ import RevenueCat
 enum ForegroundMediaMaintenancePolicy {
     static let minimumInterval: TimeInterval = 10 * 60
 
-    static func shouldRun(lastRun: Date?, now: Date = Date()) -> Bool {
+    static func shouldRun(
+        lastRun: Date?,
+        isRunning: Bool,
+        now: Date = Date()
+    ) -> Bool {
+        guard !isRunning else { return false }
         guard let lastRun else { return true }
         return now.timeIntervalSince(lastRun) >= minimumInterval
     }
@@ -20,6 +25,7 @@ struct BeforeShowApp: App {
     @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
     @State private var lastLocalMediaMaintenanceAt: Date?
+    @State private var isLocalMediaMaintenanceRunning = false
 
     private let modelContainer: ModelContainer = {
         // Companion sharing uses CloudKit CKRecord/CKShare APIs only.
@@ -114,6 +120,12 @@ struct BeforeShowApp: App {
                     appDelegate.noteDependenciesReady()
                 }
                 .task {
+                    // Mark the cold-launch maintenance in flight before the first await.
+                    // The initial scenePhase=.active transition can now observe this and
+                    // avoid launching a second full reconciliation concurrently.
+                    isLocalMediaMaintenanceRunning = true
+                    defer { isLocalMediaMaintenanceRunning = false }
+
                                         ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
@@ -121,15 +133,13 @@ struct BeforeShowApp: App {
                     appDelegate.noteDependenciesReady()
                     await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
-                    // Record the start before awaiting disk work so the initial .active
-                    // transition cannot launch a second full reconciliation in parallel.
-                    lastLocalMediaMaintenanceAt = Date()
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
                     await reconcileAllShowAssets(in: modelContainer.mainContext)
                     await reconcileAllDynamicCovers(
                         in: modelContainer.mainContext,
                         includesStagingCleanup: true
                     )
+                    lastLocalMediaMaintenanceAt = Date()
                     // 冷启动时也跑一次天气兜底：iOS 17 BG 唤醒不可靠。
                     await WeatherReminderScheduler.shared.runOpenCheck(
                         modelContext: modelContainer.mainContext
@@ -140,15 +150,19 @@ struct BeforeShowApp: App {
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
-                    let now = Date()
                     let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
                         lastRun: lastLocalMediaMaintenanceAt,
-                        now: now
+                        isRunning: isLocalMediaMaintenanceRunning
                     )
                     if shouldRunMediaMaintenance {
-                        lastLocalMediaMaintenanceAt = now
+                        isLocalMediaMaintenanceRunning = true
                     }
                     Task {
+                        defer {
+                            if shouldRunMediaMaintenance {
+                                isLocalMediaMaintenanceRunning = false
+                            }
+                        }
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         if shouldRunMediaMaintenance {
                             await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
@@ -157,6 +171,9 @@ struct BeforeShowApp: App {
                                 in: modelContainer.mainContext,
                                 includesStagingCleanup: false
                             )
+                            // Throttle from completion, not start, so a long-running
+                            // maintenance pass still gets a full quiet window afterward.
+                            lastLocalMediaMaintenanceAt = Date()
                         }
                         // 回前台兜底：如果 BG 没跑，用户打开 App 也能收到天气提醒。
                         await WeatherReminderScheduler.shared.runOpenCheck(
