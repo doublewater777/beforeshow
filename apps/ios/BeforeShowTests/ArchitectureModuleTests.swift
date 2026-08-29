@@ -29,6 +29,24 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        XCTAssertTrue(ForegroundMediaMaintenancePolicy.shouldRun(lastRun: nil, now: now))
+        XCTAssertFalse(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval + 1),
+                now: now
+            )
+        )
+        XCTAssertTrue(
+            ForegroundMediaMaintenancePolicy.shouldRun(
+                lastRun: now.addingTimeInterval(-ForegroundMediaMaintenancePolicy.minimumInterval),
+                now: now
+            )
+        )
+    }
+
     func testHomeHeroSnapshotFoldsPhaseAndTimeState() throws {
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "快照现场", date: start, startTime: start)
