@@ -9,9 +9,9 @@
 - **App ID (Google Play):** N/A — iOS only (V2.1 坚定不做 Android)
 - **Category:** Music (primary), Lifestyle (secondary)
 - **Platform:** iOS only
-- **Price Model:** Freemium + Pro subscription (¥12/月, ¥68/年, no free trial)
+- **Price Model:** Freemium + Pro annual subscription and lifetime purchase (3-day free trial for eligible users)
 - **Launch Date:** Not yet launched
-- **Current Version:** 1.0 (state: PREPARE_FOR_SUBMISSION)
+- **Current Version:** 1.0 build 8 (state: WAITING_FOR_REVIEW)
 - **Bundle ID:** com.doublewaterapps.beforeshow
 - **App Store 名称:** 开场前 - 演唱会倒计时
 - **App Store 副标题:** 音乐节与Livehouse倒数提醒
@@ -49,9 +49,9 @@
 - **Locales on ASC:** zh-Hans, zh-Hant, en-US
 - **ASO research:** `docs/aso/keyword-research-cn-2026-08-19.md`（2026-08-19）
 - **Screenshots:** ASC 已有 6 张 6.7" 成稿（含小组件「不用打开，也在靠近」），三语 COMPLETE
-- **Version:** 1.0 build 2 `READY_FOR_REVIEW`（2026-08-19）
+- **Version:** 1.0 build 8 `WAITING_FOR_REVIEW`（2026-08-29）
 - **Icon:** 暗场灯缝，audit 44/50，V1 不重画
-- **Review:** 2026-08-19 已提交 6 项（App 1.0 + 年订/年挽回 + 终身/终身挽回 + 群组）。月订未送。
+- **Review:** App 1.0 is being resubmitted with annual subscription/discount, lifetime purchase/discount, and the subscription group. Monthly subscription was removed.
 
 ## Goals
 1. **iOS 中国区 Music 类目排名** — 目标：上线 3 个月内进入 Top 200
@@ -74,7 +74,7 @@
 - **Primary:** 中国大陆（zh-Hans 为主）
 - **Secondary:** 港澳台（zh-Hant）、海外华人 / 国际市场（en）
 - **Languages:** zh-Hans, zh-Hant, en
-- **App Store locales currently configured:** zh-Hans only
+- **App Store locales currently configured:** zh-Hans, zh-Hant, en-US
 
 ## Brand & Tone
 - **调性:** 克制、生活化、不打扰、情绪优先

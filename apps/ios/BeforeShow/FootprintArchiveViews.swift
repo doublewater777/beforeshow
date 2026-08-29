@@ -754,7 +754,7 @@ private struct FootprintTopArtistCard: View {
                         .font(.system(size: 9, weight: .bold))
                         .tracking(0.4)
                 }
-                .foregroundColor(.white)
+                .foregroundColor(BSColor.Stage.accent)
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
                 .background(Color.black.opacity(0.55), in: Capsule())
