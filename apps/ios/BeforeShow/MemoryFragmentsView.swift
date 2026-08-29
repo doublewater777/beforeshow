@@ -1485,10 +1485,9 @@ private struct MemoryMediaViewer: View {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
                             if item.kind == .video {
-                                VideoPlayer(
-                                    player: AVPlayer(
-                                        url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath)
-                                    )
+                                MemoryViewerVideoPage(
+                                    url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
+                                    isActive: itemIndex == index
                                 )
                             } else {
                                 MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
