@@ -341,7 +341,7 @@ struct FootprintsView: View {
                     ) != nil
                 )
             } else {
-                FootprintBackground()
+                FootprintPreparingView()
             }
         }
         .task(id: preparationFingerprint()) {
@@ -349,7 +349,6 @@ struct FootprintsView: View {
             // the dashboard's first paint already has the cover it ends with.
             // (Previously the two pieces landed in two `@State` writes and
             // produced a visible two-stage layout jump on cold start.)
-            await Task.yield()
             let archive = FootprintArchiveBuilder.make(shows: shows)
             let covers = FootprintCoverResolver.resolve(
                 shows: archive.shows,
@@ -1317,7 +1316,7 @@ enum FootprintArchiveShareExportLayout {
     static let scale: CGFloat = 3
 }
 
-/// 档案二级页分享入口:把整个页面渲染成一张完整长图(页头 + 页面内容 + 落款),
+/// 档案二级页分享入口:把整个页面渲染成一张完整长图(页头 + 页面内容 + 落款日期),
 /// 布局宽度对齐 dashboard 导出,按 exportScale 放大出图。
 struct FootprintPageShareSheet<Content: View>: View {
     let title: String
@@ -1690,6 +1689,147 @@ private extension View {
             .background(primary ? BSColor.Stage.foreground : Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
             .overlay(RoundedRectangle(cornerRadius: 14).stroke(primary ? Color.clear : BSColor.Stage.border))
             .contentShape(RoundedRectangle(cornerRadius: 14))
+    }
+}
+
+private struct FootprintPreparingView: View {
+    var body: some View {
+        ZStack {
+            FootprintBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    passportShell
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+                }
+                .padding(.bottom, BSLayout.tabBarContentInset)
+            }
+            .scrollDisabled(true)
+            .scrollIndicators(.hidden)
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .accessibilityHidden(true)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(BSLocalization.text("足迹"))
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundColor(BSColor.Stage.foreground)
+                Text(BSLocalization.text("走过的现场，慢慢长成你的档案"))
+                    .font(.system(size: 12))
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+            Spacer()
+            HStack(spacing: BSSpacing.sm) {
+                shellHeaderIcon("magnifyingglass")
+                shellHeaderIcon("square.and.arrow.up")
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, BSLayout.pageHeaderTopPadding)
+    }
+
+    private func shellHeaderIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(BSColor.Stage.foreground.opacity(0.55))
+            .frame(width: 40, height: 40)
+            .background(Color.white.opacity(0.05), in: Circle())
+            .overlay(Circle().stroke(BSColor.Stage.border))
+    }
+
+    private var passportShell: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            HStack(alignment: .center, spacing: BSSpacing.roomy) {
+                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                    .fill(Color.white.opacity(0.055))
+                    .frame(width: 78, height: 104)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                            .stroke(BSColor.Stage.accent.opacity(0.12), lineWidth: 0.75)
+                    )
+                    .padding(.leading, 6)
+                    .padding(.trailing, 2)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(BSColor.Stage.accent.opacity(0.16))
+                        .frame(width: 118, height: 34)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(Color.white.opacity(0.055))
+                        .frame(width: 148, height: 12)
+                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                        .fill(BSColor.Stage.accent.opacity(0.10))
+                        .frame(width: 104, height: 11)
+                }
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: BSSpacing.sm) {
+                metricShell
+                metricShell
+                metricShell
+            }
+        }
+        .padding(BSSpacing.roomy)
+        .background(shellBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            BSColor.Stage.accent.opacity(0.22),
+                            BSColor.Stage.border,
+                            BSColor.Stage.glowBlue.opacity(0.12)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: Color.black.opacity(0.24), radius: 18, x: 0, y: 10)
+    }
+
+    private var metricShell: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(BSColor.Stage.accent.opacity(0.13))
+                .frame(width: 34, height: 19)
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(Color.white.opacity(0.05))
+                .frame(width: 48, height: 9)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var shellBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            RadialGradient(
+                colors: [BSColor.Stage.accent.opacity(0.10), Color.clear],
+                center: .topLeading,
+                startRadius: 0,
+                endRadius: 190
+            )
+            RadialGradient(
+                colors: [BSColor.Stage.glowBlue.opacity(0.07), Color.clear],
+                center: .bottomTrailing,
+                startRadius: 0,
+                endRadius: 220
+            )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous))
     }
 }
 
