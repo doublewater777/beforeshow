@@ -390,7 +390,15 @@ struct FootprintsView: View {
                 )
             }
             .sheet(isPresented: $isAddingShow) {
-                AddShowCoordinatorSheet(intent: .historicalBackfill) { _ in }
+                HistoricalBackfillSheet { show in
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(280))
+                        detailTarget = .init(show: show)
+                    }
+                }
+                .presentationDetents([.large])
+                .presentationCornerRadius(26)
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $activeSheet) { sheet in
                 switch sheet {
@@ -1870,14 +1878,12 @@ private struct FootprintEmptyView: View {
                 .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
 
-            if let actionTitle = content.actionTitle {
-                Button(actionTitle, action: onAdd)
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundColor(BSColor.Stage.background)
-                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                    .padding(.top, BSSpacing.sm)
-            }
+            Button(content.actionTitle ?? BSLocalization.text("补录历史"), action: onAdd)
+                .font(.system(size: 14.5, weight: .semibold))
+                .foregroundColor(BSColor.Stage.background)
+                .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
+                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                .padding(.top, BSSpacing.sm)
 
             Spacer()
         }
@@ -1891,6 +1897,225 @@ private struct FootprintEmptyView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, BSLayout.pageHeaderTopPadding)
         }
+    }
+}
+
+/// 足迹专用的补录入口：把“选方式 → 录入 → 再补一场 / 查看这场”留在同一个上下文里，
+/// 但具体 OCR、链接解析、校验与持久化仍复用 AddShowFlowView，避免复制两套易漂移的录入内核。
+private struct HistoricalBackfillSheet: View {
+    let onOpenShow: (Show) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Show.date) private var shows: [Show]
+    @State private var selectedMethod: AddShowSheet?
+    @State private var savedShowID: UUID?
+
+    private var savedShow: Show? {
+        guard let savedShowID else { return nil }
+        return shows.first { $0.id == savedShowID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                FootprintBackground()
+                Group {
+                    if savedShowID == nil {
+                        methodPicker
+                    } else {
+                        completion
+                    }
+                }
+            }
+            .navigationTitle(BSLocalization.text("补录历史"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                BSChromeToolbarCloseButton(accessibilityLabel: "取消") {
+                    dismiss()
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .sheet(item: $selectedMethod) { method in
+            NavigationStack {
+                AddShowFlowView(
+                    sheet: method,
+                    intent: .historicalBackfill,
+                    onSaved: { showID in
+                        savedShowID = showID
+                        selectedMethod = nil
+                    }
+                )
+                .toolbar {
+                    BSChromeToolbarCloseButton(accessibilityLabel: "取消") {
+                        selectedMethod = nil
+                    }
+                }
+            }
+            .preferredColorScheme(.dark)
+        }
+    }
+
+    private var methodPicker: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(BSLocalization.text("补录历史"))
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text(BSLocalization.text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。"))
+                        .font(BSFont.body)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .lineSpacing(3)
+                }
+
+                VStack(spacing: BSSpacing.md) {
+                    HistoricalBackfillMethodCard(
+                        title: BSLocalization.text("截图识别"),
+                        subtitle: AddShowMethodCopy.screenshot.subtitle,
+                        iconName: "camera.fill",
+                        tint: BSColor.Accent.violet
+                    ) {
+                        selectedMethod = .screenshot
+                    }
+
+                    HistoricalBackfillMethodCard(
+                        title: BSLocalization.text("链接解析"),
+                        subtitle: AddShowMethodCopy.link.subtitle,
+                        iconName: "link",
+                        tint: BSColor.Stage.accent
+                    ) {
+                        selectedMethod = .link
+                    }
+
+                    HistoricalBackfillMethodCard(
+                        title: BSLocalization.text("手动填写"),
+                        subtitle: AddShowMethodCopy.manual.subtitle,
+                        iconName: "square.and.pencil",
+                        tint: BSColor.Accent.prepare
+                    ) {
+                        selectedMethod = .manual
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 20)
+            .padding(.top, 18)
+            .padding(.bottom, 36)
+        }
+        .scrollIndicators(.hidden)
+    }
+
+    private var completion: some View {
+        VStack(spacing: BSSpacing.lg) {
+            Spacer(minLength: BSSpacing.xl)
+
+            ZStack {
+                Circle()
+                    .fill(BSColor.Stage.accent.opacity(0.16))
+                    .frame(width: 68, height: 68)
+                Circle()
+                    .stroke(BSColor.Stage.accent.opacity(0.46), lineWidth: 1)
+                    .frame(width: 68, height: 68)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+
+            VStack(spacing: 7) {
+                Text(BSLocalization.text("已添加"))
+                    .font(BSFont.heroTitle)
+                    .foregroundColor(BSColor.Stage.foreground)
+
+                if let savedShow {
+                    Text(savedShow.name)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                    Text(footprintFullDateText(savedShow.effectiveDate, calendar: savedShow.timingCalendar()))
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+            }
+
+            VStack(spacing: 10) {
+                Button {
+                    savedShowID = nil
+                } label: {
+                    Text(BSLocalization.text("继续"))
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.background)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 50)
+                        .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    guard let savedShow else { return }
+                    dismiss()
+                    onOpenShow(savedShow)
+                } label: {
+                    Text(BSLocalization.text("查看现场"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
+                }
+                .buttonStyle(.plain)
+                .disabled(savedShow == nil)
+            }
+            .frame(maxWidth: 330)
+
+            Spacer(minLength: BSSpacing.xl)
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+private struct HistoricalBackfillMethodCard: View {
+    let title: String
+    let subtitle: String
+    let iconName: String
+    let tint: Color
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .center, spacing: BSSpacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(tint.opacity(0.13))
+                    Image(systemName: iconName)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(tint)
+                }
+                .frame(width: 50, height: 50)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(size: 16.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.foreground)
+                    Text(subtitle)
+                        .font(.system(size: 12.5))
+                        .foregroundColor(BSColor.Stage.muted)
+                        .lineLimit(2)
+                }
+
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.dim)
+            }
+            .padding(17)
+            .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 21, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 21, style: .continuous).stroke(BSColor.Stage.border))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
     }
 }
 
