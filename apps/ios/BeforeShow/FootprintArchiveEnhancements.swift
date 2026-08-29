@@ -582,6 +582,18 @@ enum FootprintCoverResolver {
         assets: [ShowAsset],
         ordinal: Int
     ) -> FootprintCover {
+        if let rawURL = show.coverImageURL,
+           let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+           !rawURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return FootprintCover(
+                showID: show.id,
+                source: url.isFileURL ? .local(url) : .remote(url),
+                badge: .archive,
+                ordinal: ordinal,
+                variant: FootprintArchiveCoverLayout.variant(for: show.id)
+            )
+        }
+
         let memoryItems = fragments
             .flatMap(\.orderedMediaItems)
             .sorted { $0.createdAt == $1.createdAt ? $0.id.uuidString < $1.id.uuidString : $0.createdAt < $1.createdAt }
@@ -614,18 +626,6 @@ enum FootprintCoverResolver {
             return FootprintCover(
                 showID: show.id,
                 source: .local(location.url(for: posterPath)),
-                badge: .archive,
-                ordinal: ordinal,
-                variant: FootprintArchiveCoverLayout.variant(for: show.id)
-            )
-        }
-
-        if let rawURL = show.coverImageURL,
-           let url = URL(string: rawURL.trimmingCharacters(in: .whitespacesAndNewlines)),
-           !rawURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return FootprintCover(
-                showID: show.id,
-                source: url.isFileURL ? .local(url) : .remote(url),
                 badge: .archive,
                 ordinal: ordinal,
                 variant: FootprintArchiveCoverLayout.variant(for: show.id)

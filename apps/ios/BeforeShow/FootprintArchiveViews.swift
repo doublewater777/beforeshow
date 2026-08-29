@@ -1218,15 +1218,6 @@ struct FootprintCoverView: View {
         ZStack(alignment: .bottomLeading) {
             coverContent
             LinearGradient(colors: [.clear, .black.opacity(0.66)], startPoint: .center, endPoint: .bottom)
-           if showsMetadata, let cover, cover.source != .archive {
-               VStack(alignment: .leading, spacing: 3) {
-                    Text(cover.badge.localizedTitle).font(.system(size: 8.5, weight: .bold)).tracking(0.8).foregroundColor(.white.opacity(0.78))
-                   if let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city) {
-                        Text(city.uppercased()).font(.system(size: 8.5, weight: .medium)).tracking(0.6).foregroundColor(.white.opacity(0.82)).lineLimit(1)
-                    }
-                }
-                .padding(8)
-            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
@@ -1478,7 +1469,7 @@ struct FootprintYearArchiveView: View {
 
     @ViewBuilder
     private func yearPicker(isForExport: Bool) -> some View {
-        if !isForExport {
+        if !isForExport, archive.years.count > 1 {
             let pills = HStack(spacing: 8) {
                 ForEach(archive.years.map(\.year), id: \.self) { year in
                     Button {
@@ -1551,9 +1542,6 @@ struct FootprintYearArchiveView: View {
                     Text([footprintEnhancementFullDateText(show.effectiveDate, calendar: show.timingCalendar()), FootprintTextNormalizer.nonEmptyTrimmed(show.city)].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 9))
                         .foregroundColor(BSColor.Stage.muted)
-                    Text(BSLocalization.text("记录最完整的一晚"))
-                        .font(.system(size: 8))
-                        .foregroundColor(BSColor.Stage.dim)
                 }
                 Spacer(minLength: 0)
                 footprintRowChevron(isForExport: isForExport, size: 10)

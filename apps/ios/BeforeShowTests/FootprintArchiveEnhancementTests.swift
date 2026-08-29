@@ -275,7 +275,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         XCTAssertFalse(archive.visibility.showsYearComparison)
     }
 
-    func testCoverResolverPrefersMemoryThenTicketThenArchive() throws {
+    func testCoverResolverPrefersOfficialCoverThenMemoryThenTicketThenArchive() throws {
         let memoryShow = try makeShow("有记忆", year: 2026, month: 1, durationHours: 2)
         let ticketShow = try makeShow("有票根", year: 2026, month: 2, durationHours: 2)
         let archiveShow = try makeShow("纯档案", year: 2026, month: 3, durationHours: 2)
@@ -316,7 +316,7 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
-    func testCoverResolverPrefersDynamicCoverPosterOverRemoteCover() throws {
+    func testCoverResolverPrefersRemoteCoverOverDynamicCoverPoster() throws {
         let container = try makeCoverContainer()
         let show = try makeShow("动态封面", year: 2026, month: 4, durationHours: 2)
         show.coverImageURL = "https://example.com/cover.jpg"
@@ -325,14 +325,14 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
 
         let covers = FootprintCoverResolver.resolve(shows: [show], fragments: [], assets: [])
 
-        guard case let .local(url) = covers[show.id]?.source else {
-            return XCTFail("动态封面海报应优先于 coverImageURL")
+        guard case let .remote(url) = covers[show.id]?.source else {
+            return XCTFail("coverImageURL 应优先于动态封面海报")
         }
-        XCTAssertTrue(url.path.hasSuffix(posterPath))
+        XCTAssertEqual(url.absoluteString, "https://example.com/cover.jpg")
         XCTAssertEqual(covers[show.id]?.badge, .archive)
     }
 
-    func testCoverResolverFallsBackToRemoteCoverWhenPosterMissing() throws {
+    func testCoverResolverUsesRemoteCoverWhenPosterMissing() throws {
         let container = try makeCoverContainer()
         let show = try makeShow("无海报", year: 2026, month: 5, durationHours: 2)
         show.coverImageURL = "https://example.com/cover.jpg"

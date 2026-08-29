@@ -324,7 +324,6 @@ struct FootprintsView: View {
     @State private var detailTarget: FootprintDetailDestination?
     @State private var pendingBackfillDetailID: UUID?
     @State private var activeSheet: FootprintSheet?
-    @State private var lastScreenshotPromptAt: Date?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -425,9 +424,6 @@ struct FootprintsView: View {
                     .presentationDragIndicator(.visible)
                 }
             }
-            .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
-                handleScreenshot(archive: archive)
-            }
             .bsToastOverlay(toast, bottomPadding: 100)
     }
 
@@ -440,17 +436,6 @@ struct FootprintsView: View {
               let show = prepared?.archive.shows.first(where: { $0.id == showID }) else { return }
         pendingBackfillDetailID = nil
         detailTarget = .init(show: show)
-    }
-
-    /// Screenshot-to-share: taking a screenshot on the footprint dashboard
-    /// opens the full-page long-image share sheet (the system screenshot
-    /// itself is untouched). Throttled so burst screenshots don't retrigger.
-    private func handleScreenshot(archive: FootprintArchiveSnapshot) {
-        guard detailTarget == nil, activeSheet == nil, !isAddingShow, !archive.shows.isEmpty else { return }
-        let now = Date()
-        if let lastScreenshotPromptAt, now.timeIntervalSince(lastScreenshotPromptAt) < 2 { return }
-        lastScreenshotPromptAt = now
-        activeSheet = .share
     }
 
     private func content(_ prepared: PreparedFootprint) -> some View {
