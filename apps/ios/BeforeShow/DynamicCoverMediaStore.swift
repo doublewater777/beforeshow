@@ -97,6 +97,17 @@ enum DynamicCoverCapacity {
         return values?.volumeAvailableCapacityForImportantUsage
     }
 
+    static func requiresCopyCapacity(from source: URL, to destination: URL) -> Bool {
+        guard let sourceValues = try? source.resourceValues(forKeys: [.volumeIdentifierKey]),
+              let destinationValues = try? destination.deletingLastPathComponent()
+                .resourceValues(forKeys: [.volumeIdentifierKey]),
+              let sourceVolume = sourceValues.volumeIdentifier,
+              let destinationVolume = destinationValues.volumeIdentifier else {
+            return true
+        }
+        return sourceVolume != destinationVolume
+    }
+
     static func throwIfInsufficient(
         at url: URL,
         required: Int64,
@@ -218,11 +229,19 @@ actor DynamicCoverMediaStore {
         let destination = location.url(for: relativePath)
         try prepareRootDirectory()
         try fileManager.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try DynamicCoverCapacity.throwIfInsufficient(at: destination, required: sourceSize)
+        let requiresCopyCapacity = DynamicCoverCapacity.requiresCopyCapacity(
+            from: imported.url,
+            to: destination
+        )
         do {
-            // The Transferable representation already copied the picker result into an
-            // app-owned temp file, so staging can take ownership without another full write.
-            try fileManager.moveItem(at: imported.url, to: destination)
+            if requiresCopyCapacity {
+                try DynamicCoverCapacity.throwIfInsufficient(at: destination, required: sourceSize)
+                try fileManager.copyItem(at: imported.url, to: destination)
+            } else {
+                // Temp and staging are on the same volume: rename/move takes ownership
+                // without allocating another full copy of the source video.
+                try fileManager.moveItem(at: imported.url, to: destination)
+            }
         } catch {
             try? removeIfPresent(destination)
             throw DynamicCoverMediaStoreError.map(error)
