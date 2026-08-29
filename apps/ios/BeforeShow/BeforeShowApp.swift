@@ -124,7 +124,6 @@ struct BeforeShowApp: App {
                     // The initial scenePhase=.active transition can now observe this and
                     // avoid launching a second full reconciliation concurrently.
                     isLocalMediaMaintenanceRunning = true
-                    defer { isLocalMediaMaintenanceRunning = false }
 
                                         ShowCreationOriginMigration.migrateIfNeeded(in: modelContainer.mainContext)
                     // Ensure delegate wiring even if onAppear ordering is delayed.
@@ -140,6 +139,7 @@ struct BeforeShowApp: App {
                         includesStagingCleanup: true
                     )
                     lastLocalMediaMaintenanceAt = Date()
+                    isLocalMediaMaintenanceRunning = false
                     // 冷启动时也跑一次天气兜底：iOS 17 BG 唤醒不可靠。
                     await WeatherReminderScheduler.shared.runOpenCheck(
                         modelContext: modelContainer.mainContext
@@ -158,11 +158,6 @@ struct BeforeShowApp: App {
                         isLocalMediaMaintenanceRunning = true
                     }
                     Task {
-                        defer {
-                            if shouldRunMediaMaintenance {
-                                isLocalMediaMaintenanceRunning = false
-                            }
-                        }
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         if shouldRunMediaMaintenance {
                             await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
@@ -174,6 +169,7 @@ struct BeforeShowApp: App {
                             // Throttle from completion, not start, so a long-running
                             // maintenance pass still gets a full quiet window afterward.
                             lastLocalMediaMaintenanceAt = Date()
+                            isLocalMediaMaintenanceRunning = false
                         }
                         // 回前台兜底：如果 BG 没跑，用户打开 App 也能收到天气提醒。
                         await WeatherReminderScheduler.shared.runOpenCheck(
