@@ -105,7 +105,7 @@ enum DynamicCoverCapacity {
               let destinationVolume = destinationValues.volumeIdentifier else {
             return true
         }
-        return sourceVolume != destinationVolume
+        return !sourceVolume.isEqual(destinationVolume)
     }
 
     static func throwIfInsufficient(
