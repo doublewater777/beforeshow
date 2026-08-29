@@ -62,7 +62,7 @@ struct AddShowLinkFailurePresentation: Equatable {
     }
 }
 
-enum AddShowSheet: String, Identifiable, Hashable {
+enum AddShowSheet: String, Identifiable, Hashable, CaseIterable {
     case manual
     case screenshot
     case link
@@ -100,7 +100,14 @@ struct AddShowCoordinatorSheet: View {
     var onShowAdded: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Show.date) private var shows: [Show]
     @State private var selectedSheet: AddShowSheet?
+    @State private var savedFootprintShowID: UUID?
+
+    private var savedFootprintShow: Show? {
+        guard let savedFootprintShowID else { return nil }
+        return shows.first { $0.id == savedFootprintShowID }
+    }
 
     init(
         intent: AddShowIntent = .upcoming,
@@ -115,10 +122,29 @@ struct AddShowCoordinatorSheet: View {
 
     var body: some View {
         NavigationStack {
-            AddShowEntryView { sheet in
-                selectedSheet = sheet
+            Group {
+                if intent == .historicalBackfill, let savedFootprintShowID {
+                    AddShowSavedConfirmationView(
+                        confirmation: SavedShowConfirmation(
+                            name: savedFootprintShow?.name ?? "",
+                            coverImageURL: savedFootprintShow?.coverImageURL
+                        ),
+                        intent: intent,
+                        onContinue: {
+                            self.savedFootprintShowID = nil
+                        },
+                        onOpen: {
+                            dismiss()
+                            onShowAdded(savedFootprintShowID)
+                        }
+                    )
+                } else {
+                    AddShowEntryView(methods: intent.methodOrder) { sheet in
+                        selectedSheet = sheet
+                    }
+                }
             }
-            .navigationTitle("添加现场")
+            .navigationTitle(intent.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
@@ -128,8 +154,13 @@ struct AddShowCoordinatorSheet: View {
                     sheet: sheet,
                     intent: intent,
                     onSaved: { showID in
-                        dismiss()
-                        onShowAdded(showID)
+                        if intent == .historicalBackfill {
+                            savedFootprintShowID = showID
+                            selectedSheet = nil
+                        } else {
+                            dismiss()
+                            onShowAdded(showID)
+                        }
                     }
                 )
             }
@@ -141,10 +172,33 @@ struct AddShowCoordinatorSheet: View {
 enum AddShowIntent: Equatable {
     case upcoming
     case historicalBackfill
+
+    var methodOrder: [AddShowSheet] {
+        [.link, .screenshot, .manual]
+    }
+
+    var navigationTitle: String {
+        switch self {
+        case .upcoming: return BSLocalization.text("添加现场")
+        case .historicalBackfill: return BSLocalization.text("补录足迹")
+        }
+    }
+
+    var saveButtonTitle: String { navigationTitle }
+
+    func initialManualDraft(now: Date = Date(), calendar: Calendar = .current) -> ShowDraft {
+        let today = calendar.startOfDay(for: now)
+        let date = self == .historicalBackfill
+            ? (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
+            : today
+        let startTime = calendar.date(bySettingHour: 19, minute: 30, second: 0, of: date)
+        return ShowDraft(date: date, startTime: startTime, source: .manual)
+    }
 }
 
 enum AddShowPersistenceError: Error, Equatable {
     case historicalBackfillRequiresCompletedShow
+    case upcomingRequiresActiveShow
 }
 
 @MainActor
@@ -154,12 +208,18 @@ enum AddShowPersistenceCoordinator {
         intent: AddShowIntent,
         selections: [CurrentShowSelection],
         notificationStates: [NotificationSchedulingState],
-        in modelContext: ModelContext
+        in modelContext: ModelContext,
+        now: Date = Date()
     ) throws -> NotificationSchedulingState? {
-        if intent == .historicalBackfill {
-            let timeState = CurrentShowTimeState(show: show, now: Date())
+        let timeState = CurrentShowTimeState(show: show, now: now)
+        switch intent {
+        case .historicalBackfill:
             guard timeState.kind == .postShow || timeState.kind == .ended else {
                 throw AddShowPersistenceError.historicalBackfillRequiresCompletedShow
+            }
+        case .upcoming:
+            guard timeState.kind == .before || timeState.kind == .today || timeState.kind == .dayEnded else {
+                throw AddShowPersistenceError.upcomingRequiresActiveShow
             }
         }
 
@@ -190,6 +250,7 @@ enum AddShowPersistenceCoordinator {
 }
 
 private struct AddShowEntryView: View {
+    let methods: [AddShowSheet]
     let onSelect: (AddShowSheet) -> Void
 
     var body: some View {
@@ -206,31 +267,15 @@ private struct AddShowEntryView: View {
                             .lineSpacing(3)
 
                         VStack(spacing: BSSpacing.md) {
-                            AddShowMethodCard(
-                                title: BSLocalization.text("链接解析"),
-                                subtitle: AddShowMethodCopy.link.subtitle,
-                                iconName: "link",
-                                tint: BSColor.Stage.accent
-                            ) {
-                                onSelect(.link)
-                            }
-
-                            AddShowMethodCard(
-                                title: BSLocalization.text("手动填写"),
-                                subtitle: AddShowMethodCopy.manual.subtitle,
-                                iconName: "square.and.pencil",
-                                tint: BSColor.Accent.prepare
-                            ) {
-                                onSelect(.manual)
-                            }
-
-                            AddShowMethodCard(
-                                title: BSLocalization.text("截图识别"),
-                                subtitle: AddShowMethodCopy.screenshot.subtitle,
-                                iconName: "camera.fill",
-                                tint: BSColor.Accent.violet
-                            ) {
-                                onSelect(.screenshot)
+                            ForEach(methods) { method in
+                                AddShowMethodCard(
+                                    title: method.navigationTitle,
+                                    subtitle: method.methodSubtitle,
+                                    iconName: method.iconName,
+                                    tint: method.tint
+                                ) {
+                                    onSelect(method)
+                                }
                             }
                         }
 
@@ -315,15 +360,9 @@ struct AddShowFlowView: View {
             _draft = State(initialValue: prefilledDraft)
             _hasImportedDraft = State(initialValue: true)
         } else {
-            var initialDraft = ShowDraft(source: sheet.draftSource)
-            if sheet == .manual {
-                initialDraft.startTime = Calendar.current.date(
-                    bySettingHour: 19,
-                    minute: 30,
-                    second: 0,
-                    of: initialDraft.date
-                )
-            }
+            let initialDraft = sheet == .manual
+                ? intent.initialManualDraft()
+                : ShowDraft(source: sheet.draftSource)
             _draft = State(initialValue: initialDraft)
         }
     }
@@ -338,7 +377,10 @@ struct AddShowFlowView: View {
                 .ignoresSafeArea()
 
             if let savedShowConfirmation {
-                AddShowSavedConfirmationView(confirmation: savedShowConfirmation)
+                AddShowSavedConfirmationView(
+                    confirmation: savedShowConfirmation,
+                    intent: intent
+                )
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             } else {
                 VStack(spacing: 0) {
@@ -749,7 +791,7 @@ struct AddShowFlowView: View {
                         ProgressView()
                             .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
                     }
-                    Text(isSaving ? BSLocalization.text("正在保存") : sheet.saveButtonTitle)
+                    Text(isSaving ? BSLocalization.text("正在保存") : intent.saveButtonTitle)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -758,7 +800,7 @@ struct AddShowFlowView: View {
             .accessibilityLabel(
                 isImportingDraft
                     ? BSLocalization.text("正在导入，暂不可保存")
-                    : (isSaving ? BSLocalization.text("正在保存") : sheet.saveButtonTitle)
+                    : (isSaving ? BSLocalization.text("正在保存") : intent.saveButtonTitle)
             )
         }
         .padding(.horizontal, 20)
@@ -1066,8 +1108,12 @@ struct AddShowFlowView: View {
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
         } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
-            message = BSLocalization.text("补录历史仅支持已经结束的现场。")
+            message = BSLocalization.text("补录足迹仅支持已经结束的现场。")
             presentToast(.failure, message: BSLocalization.text("日期还未结束"))
+            isSaving = false
+        } catch AddShowPersistenceError.upcomingRequiresActiveShow {
+            message = BSLocalization.text("已结束的现场请到足迹补录。")
+            presentToast(.failure, message: BSLocalization.text("现场已经结束"))
             isSaving = false
         } catch {
             modelContext.rollback()
@@ -1139,6 +1185,9 @@ private struct SavedShowConfirmation: Equatable {
 
 private struct AddShowSavedConfirmationView: View {
     let confirmation: SavedShowConfirmation
+    let intent: AddShowIntent
+    var onContinue: (() -> Void)? = nil
+    var onOpen: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1168,7 +1217,11 @@ private struct AddShowSavedConfirmationView: View {
                     .clipped()
 
                     VStack(spacing: BSSpacing.xs) {
-                        Text(BSLocalization.text("已加入当前现场"))
+                        Text(
+                            BSLocalization.text(
+                                intent == .upcoming ? "已加入当前现场" : "已补录足迹"
+                            )
+                        )
                             .font(BSFont.heroTitle)
                             .foregroundColor(BSColor.Stage.foreground)
                             .multilineTextAlignment(.center)
@@ -1179,9 +1232,37 @@ private struct AddShowSavedConfirmationView: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
 
-                        Text(BSLocalization.text("正在进入首页"))
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.dim)
+                        if intent == .upcoming {
+                            Text(BSLocalization.text("正在进入首页"))
+                                .font(BSFont.caption)
+                                .foregroundColor(BSColor.Stage.dim)
+                        }
+                    }
+
+                    if intent == .historicalBackfill {
+                        VStack(spacing: 10) {
+                            Button(BSLocalization.text("继续补录")) {
+                                onContinue?()
+                            }
+                            .font(.system(size: 14.5, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.background)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                            .buttonStyle(.plain)
+
+                            Button(BSLocalization.text("查看足迹")) {
+                                onOpen?()
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(BSColor.Stage.foreground)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                            .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
+                            .buttonStyle(.plain)
+                            .disabled(onOpen == nil)
+                        }
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -3402,7 +3483,27 @@ private extension AddShowSheet {
         }
     }
 
-    var saveButtonTitle: String {
-        BSLocalization.text("添加现场")
+    var methodSubtitle: String {
+        switch self {
+        case .manual: return AddShowMethodCopy.manual.subtitle
+        case .screenshot: return AddShowMethodCopy.screenshot.subtitle
+        case .link: return AddShowMethodCopy.link.subtitle
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .manual: return "square.and.pencil"
+        case .screenshot: return "camera.fill"
+        case .link: return "link"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .manual: return BSColor.Accent.prepare
+        case .screenshot: return BSColor.Accent.violet
+        case .link: return BSColor.Stage.accent
+        }
     }
 }

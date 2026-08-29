@@ -12,12 +12,30 @@ final class FootprintArchiveTests: XCTestCase {
         return value
     }
 
-    func testEmptyStateOffersHistoricalBackfillWhenThereIsACurrentShow() {
+    func testEmptyStateOffersFootprintBackfill() {
         let withCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: true)
         let withoutCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: false)
 
-        XCTAssertEqual(withCurrentShow.actionTitle, "补录历史")
-        XCTAssertEqual(withoutCurrentShow.actionTitle, "添加第一场现场")
+        XCTAssertEqual(withCurrentShow.actionTitle, "补录足迹")
+        XCTAssertEqual(withoutCurrentShow.actionTitle, "补录第一场足迹")
+    }
+
+    func testAddMethodsUseTheSameLinkScreenshotManualOrderForBothIntents() {
+        let expected: [AddShowSheet] = [.link, .screenshot, .manual]
+
+        XCTAssertEqual(AddShowIntent.upcoming.methodOrder, expected)
+        XCTAssertEqual(AddShowIntent.historicalBackfill.methodOrder, expected)
+    }
+
+    func testManualDraftDefaultsToTodayForCurrentAndYesterdayForFootprint() {
+        let now = date(2026, 8, 29, 10)
+        let current = AddShowIntent.upcoming.initialManualDraft(now: now, calendar: calendar)
+        let footprint = AddShowIntent.historicalBackfill.initialManualDraft(now: now, calendar: calendar)
+
+        XCTAssertEqual(current.date, date(2026, 8, 29))
+        XCTAssertEqual(current.startTime, date(2026, 8, 29, 19, 30))
+        XCTAssertEqual(footprint.date, date(2026, 8, 28))
+        XCTAssertEqual(footprint.startTime, date(2026, 8, 28, 19, 30))
     }
 
     func testArchiveIncludesOnlyEndedScheduledShows() throws {
@@ -165,6 +183,39 @@ final class FootprintArchiveTests: XCTestCase {
                 error as? AddShowPersistenceError,
                 .historicalBackfillRequiresCompletedShow
             )
+        }
+
+        XCTAssertEqual(selection.selectedShowID, current.id)
+        XCTAssertEqual(notificationState.focusedShowID, current.id)
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
+    }
+
+    func testCurrentAddRejectsCompletedShowsWithoutChangingFocus() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let current = try makeShow("当前现场", year: 2027, artist: "当前艺人", city: "上海", venue: "MAO")
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        context.insert(notificationState)
+        try context.save()
+
+        let completed = try makeShow("误填旧现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
+        XCTAssertThrowsError(
+            try AddShowPersistenceCoordinator.persist(
+                completed,
+                intent: .upcoming,
+                selections: [selection],
+                notificationStates: [notificationState],
+                in: context,
+                now: date(2026, 8, 29, 12)
+            )
+        ) { error in
+            XCTAssertEqual(error as? AddShowPersistenceError, .upcomingRequiresActiveShow)
         }
 
         XCTAssertEqual(selection.selectedShowID, current.id)
@@ -635,8 +686,8 @@ final class FootprintArchiveTests: XCTestCase {
         )
     }
 
-    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0) -> Date {
-        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour))!
+    private func date(_ year: Int, _ month: Int, _ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: hour, minute: minute))!
     }
 }
 
@@ -680,7 +731,14 @@ final class LocalizableCompletenessTests: XCTestCase {
         "结束现场",
         "约人同行",
         "记一段记忆",
-        "补录历史",
+        "补录足迹",
+        "补录第一场足迹",
+        "已补录足迹",
+        "继续补录",
+        "查看足迹",
+        "补录足迹仅支持已经结束的现场。",
+        "已结束的现场请到足迹补录。",
+        "现场已经结束",
         "继续添加",
         "走过的现场，慢慢长成你的档案"
     ]
