@@ -322,6 +322,7 @@ struct FootprintsView: View {
     @Query private var assets: [ShowAsset]
     @State private var isAddingShow = false
     @State private var detailTarget: FootprintDetailDestination?
+    @State private var pendingBackfillDetailID: UUID?
     @State private var activeSheet: FootprintSheet?
     @State private var lastScreenshotPromptAt: Date?
     @State private var rankCategory: FootprintCategory = .artist
@@ -356,6 +357,7 @@ struct FootprintsView: View {
                 assets: assets
             )
             prepared = PreparedFootprint(archive: archive, covers: covers)
+            resolvePendingBackfillDetail()
         }
         .onChange(of: pendingDetailTarget) { _, newValue in
             if let newValue, shows.contains(where: { $0.id == newValue.id }) {
@@ -389,12 +391,11 @@ struct FootprintsView: View {
                     onDetailVisibilityChange: onArchiveVisibilityChange
                 )
             }
-            .sheet(isPresented: $isAddingShow) {
+            .sheet(isPresented: $isAddingShow, onDismiss: {
+                resolvePendingBackfillDetail()
+            }) {
                 HistoricalBackfillSheet { show in
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(280))
-                        detailTarget = .init(show: show)
-                    }
+                    pendingBackfillDetailID = show.id
                 }
                 .presentationDetents([.large])
                 .presentationCornerRadius(26)
@@ -428,6 +429,17 @@ struct FootprintsView: View {
                 handleScreenshot(archive: archive)
             }
             .bsToastOverlay(toast, bottomPadding: 100)
+    }
+
+    /// Backfill detail navigation is state-driven rather than delay-driven:
+    /// only push once the sheet is gone and the freshly prepared archive
+    /// actually contains the persisted show. Either event may happen first.
+    private func resolvePendingBackfillDetail() {
+        guard !isAddingShow,
+              let showID = pendingBackfillDetailID,
+              let show = prepared?.archive.shows.first(where: { $0.id == showID }) else { return }
+        pendingBackfillDetailID = nil
+        detailTarget = .init(show: show)
     }
 
     /// Screenshot-to-share: taking a screenshot on the footprint dashboard
@@ -2055,8 +2067,8 @@ private struct HistoricalBackfillSheet: View {
 
                 Button {
                     guard let savedShow else { return }
-                    dismiss()
                     onOpenShow(savedShow)
+                    dismiss()
                 } label: {
                     Text(BSLocalization.text("查看现场"))
                         .font(.system(size: 14, weight: .semibold))
