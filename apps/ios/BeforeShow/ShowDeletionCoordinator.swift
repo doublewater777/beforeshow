@@ -31,25 +31,22 @@ enum ShowDeletionCoordinator {
         await ShowAssetMediaStore.shared.acquireCommitGate()
         do {
             let coverImageURL = show.coverImageURL
-            if selections.first?.selectedShowID == show.id {
+            let showID = show.id
+            let targetPersistentID = show.persistentModelID
+            let dynamicCoverPath = show.dynamicCover?.relativePath
+            let remainingShows = shows.filter { $0.persistentModelID != targetPersistentID }
+            let hasRemainingSameBusinessID = remainingShows.contains { $0.id == showID }
+
+            // Manual selection is keyed by the business UUID. If a malformed legacy
+            // store contains another row with the same UUID, keep the selection so it
+            // can still resolve to the surviving row instead of clearing both logically.
+            if selections.first?.selectedShowID == showID && !hasRemainingSameBusinessID {
                 selections.first?.clearManualSelection()
             }
 
-            let showID = show.id
-            let dynamicCoverPath = show.dynamicCover?.relativePath
-            let remainingShows = shows.filter { $0.id != showID }
-            let fragments = try modelContext.fetch(
-                FetchDescriptor<MemoryFragment>(predicate: #Predicate { $0.showID == showID })
-            )
-            for fragment in fragments {
-                modelContext.delete(fragment)
-            }
-            let assets = try modelContext.fetch(
-                FetchDescriptor<ShowAsset>(predicate: #Predicate { $0.showID == showID })
-            )
-            for asset in assets {
-                modelContext.delete(asset)
-            }
+            // Show owns fragments/assets/dynamic cover with cascade relationships.
+            // Deleting children explicitly before deleting the parent double-mutates the
+            // same SwiftData graph and can leave views observing invalidated models.
             modelContext.delete(show)
             let committedState = try ShowMutationCoordinator.commitCurrentShowState(
                 shows: remainingShows,
@@ -58,30 +55,35 @@ enum ShowDeletionCoordinator {
                 in: modelContext
             )
 
-            DynamicCoverFaceStore.clear(showID: showID)
-            try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
             var cleanupPending = false
-            if let dynamicCoverPath {
+            if !hasRemainingSameBusinessID {
+                // Disk stores are keyed only by the business UUID, so they are safe to
+                // purge only when no surviving row still owns that UUID. A later delete
+                // of the final surviving row will reclaim these files.
+                DynamicCoverFaceStore.clear(showID: showID)
+                try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
+                if let dynamicCoverPath {
+                    do {
+                        try await DynamicCoverMediaStore.shared.deleteShow(showID)
+                    } catch {
+                        ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
+                            showID: showID,
+                            relativePath: dynamicCoverPath
+                        )
+                        cleanupPending = true
+                    }
+                }
+                ShowAssetCleanupRetry.markShowCleanupPending(showID)
                 do {
-                    try await DynamicCoverMediaStore.shared.deleteShow(showID)
+                    try await ShowAssetMediaStore.shared.deleteShow(showID)
                 } catch {
-                    ShowAssetCleanupRetry.markDynamicCoverCleanupPending(
-                        showID: showID,
-                        relativePath: dynamicCoverPath
-                    )
                     cleanupPending = true
                 }
-            }
-            ShowAssetCleanupRetry.markShowCleanupPending(showID)
-            do {
-                try await ShowAssetMediaStore.shared.deleteShow(showID)
-            } catch {
-                cleanupPending = true
-            }
-            if cleanupPending {
-                ShowAssetCleanupRetry.markShowCleanupPending(showID)
-            } else {
-                ShowAssetCleanupRetry.clearShowCleanupPending(showID)
+                if cleanupPending {
+                    ShowAssetCleanupRetry.markShowCleanupPending(showID)
+                } else {
+                    ShowAssetCleanupRetry.clearShowCleanupPending(showID)
+                }
             }
 
             if let coverImageURL,
