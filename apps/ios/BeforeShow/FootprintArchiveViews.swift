@@ -1970,7 +1970,7 @@ struct FootprintVenueArchiveView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(BSColor.Stage.foreground)
                 HStack(spacing: 4) {
-                    Text(BSLocalization.text("按最近到访排序"))
+                    Text(BSLocalization.text("场次"))
                     Image(systemName: "chevron.down")
                         .font(.system(size: 9, weight: .semibold))
                 }
@@ -2010,7 +2010,7 @@ struct FootprintVenueArchiveView: View {
     private var listedVenues: [FootprintVenueArchiveItem] {
         let remaining = Array(items.dropFirst())
         return remaining.sorted {
-            if $0.latestShowDate != $1.latestShowDate { return $0.latestShowDate > $1.latestShowDate }
+            if $0.count != $1.count { return $0.count > $1.count }
             return $0.name.localizedStandardCompare($1.name) == .orderedAscending
         }
     }
