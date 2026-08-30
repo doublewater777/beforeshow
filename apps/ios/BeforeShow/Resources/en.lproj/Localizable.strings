@@ -1299,6 +1299,7 @@ First show: %@";
 "散场后留下照片或视频记忆，在这里筑造你的现场回忆。" = "Leave photo or video memories after the show, and build your live memories here.";
 "同场次按最近观看排序" = "Tied counts are ordered by most recent show";
 "全部场馆 · %lld" = "All venues · %lld";
+"场次" = "Shows";
 "按最近到访排序" = "Sorted by most recent visit";
 "最近到访" = "Latest visit";
 "最近到访 %@" = "Last visit %@";
