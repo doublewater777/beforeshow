@@ -303,7 +303,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         _ = try AddShowPersistenceCoordinator.persist(
             first,
-            intent: .upcoming,
+            lifecycle: .future,
             selections: [],
             notificationStates: [],
             in: context,
@@ -315,7 +315,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         XCTAssertThrowsError(
             try AddShowPersistenceCoordinator.persist(
                 duplicate,
-                intent: .upcoming,
+                lifecycle: .future,
                 selections: selections,
                 notificationStates: notificationStates,
                 in: context,

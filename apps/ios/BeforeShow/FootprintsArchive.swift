@@ -82,14 +82,14 @@ enum FootprintEmptyStateCopy {
             return Content(
                 title: BSLocalization.text("这场结束后，会来到足迹"),
                 message: BSLocalization.text("当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。"),
-                actionTitle: BSLocalization.text("补录足迹")
+                actionTitle: BSLocalization.text("添加现场")
             )
         }
 
         return Content(
             title: BSLocalization.text("这里会长出你的足迹"),
             message: BSLocalization.text("补进第一场看过的现场，\n场次、城市和回忆都会慢慢累积。"),
-            actionTitle: BSLocalization.text("补录第一场足迹")
+            actionTitle: BSLocalization.text("添加现场")
         )
     }
 }
@@ -322,7 +322,6 @@ struct FootprintsView: View {
     @Query private var assets: [ShowAsset]
     @State private var isAddingShow = false
     @State private var detailTarget: FootprintDetailDestination?
-    @State private var pendingBackfillDetailID: UUID?
     @State private var activeSheet: FootprintSheet?
     @State private var rankCategory: FootprintCategory = .artist
     @State private var toast: BSToastPayload?
@@ -356,7 +355,6 @@ struct FootprintsView: View {
                 assets: assets
             )
             prepared = PreparedFootprint(archive: archive, covers: covers)
-            resolvePendingBackfillDetail()
         }
         .onChange(of: pendingDetailTarget) { _, newValue in
             if let newValue, shows.contains(where: { $0.id == newValue.id }) {
@@ -390,12 +388,8 @@ struct FootprintsView: View {
                     onDetailVisibilityChange: onArchiveVisibilityChange
                 )
             }
-            .sheet(isPresented: $isAddingShow, onDismiss: {
-                resolvePendingBackfillDetail()
-            }) {
-                AddShowCoordinatorSheet(intent: .historicalBackfill) { showID in
-                    pendingBackfillDetailID = showID
-                }
+            .sheet(isPresented: $isAddingShow) {
+                AddShowCoordinatorSheet()
                 .presentationDetents([.large])
                 .presentationCornerRadius(26)
                 .presentationDragIndicator(.visible)
@@ -425,17 +419,6 @@ struct FootprintsView: View {
                 }
             }
             .bsToastOverlay(toast, bottomPadding: 100)
-    }
-
-    /// Backfill detail navigation is state-driven rather than delay-driven:
-    /// only push once the sheet is gone and the freshly prepared archive
-    /// actually contains the persisted show. Either event may happen first.
-    private func resolvePendingBackfillDetail() {
-        guard !isAddingShow,
-              let showID = pendingBackfillDetailID,
-              let show = prepared?.archive.shows.first(where: { $0.id == showID }) else { return }
-        pendingBackfillDetailID = nil
-        detailTarget = .init(show: show)
     }
 
     private func content(_ prepared: PreparedFootprint) -> some View {
@@ -1881,7 +1864,7 @@ private struct FootprintEmptyView: View {
                 .multilineTextAlignment(.center)
 
             Button(action: onAdd) {
-                Text(content.actionTitle ?? BSLocalization.text("补录足迹"))
+                Text(content.actionTitle ?? BSLocalization.text("添加现场"))
                     .font(.system(size: 14.5, weight: .semibold))
                     .foregroundColor(BSColor.Stage.background)
                     .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)

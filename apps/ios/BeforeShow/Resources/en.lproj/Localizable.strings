@@ -189,7 +189,7 @@
 "还没有记忆碎片" = "No memory fragments yet";
 "这一晚还没有留下记忆碎片" = "There are no memory fragments left from this night";
 "这场已延期。这里编辑的是原定信息；延期日期在下方「现场状态」中更新。" = "This one has been postponed. What is edited here is the original information; the postponement date is updated in the \"Site Status\" below.";
-"这场已经结束了吗？" = "Is this over?";
+"这场已经结束了吗？" = "Has this show ended?";
 "这场现场的记忆" = "Memories from this show";
 "这是整份现场档案开始生长的地方" = "This is where the whole live archive starts to grow";
 "这里不管理下一场，只记录你已经走过的现场和留下的偏好。" = "This is for the shows you’ve lived through and the preferences they left behind—not for managing what’s next.";
@@ -1318,3 +1318,15 @@ First show: %@";
 "补录足迹仅支持已经结束的现场。" = "Only completed shows can be added to Footprints.";
 "已结束的现场请到足迹补录。" = "Add ended shows from Footprints.";
 "现场已经结束" = "Show Has Ended";
+
+/* Unified add show */
+"我们看到这场已经开场，确认一下现在的状态。" = "This show has already started. Confirm its current status.";
+"还在现场" = "Still at the show";
+"已经结束" = "It has ended";
+"实际几点结束？" = "What time did it end?";
+"确认结束时间" = "Confirm End Time";
+"已加入我的现场" = "Added to My Shows";
+"已收进足迹" = "Added to Footprints";
+"查看现场" = "View Show";
+"查看这场现场" = "View This Show";
+"这场已经在 BeforeShow 里了" = "This show is already in BeforeShow";

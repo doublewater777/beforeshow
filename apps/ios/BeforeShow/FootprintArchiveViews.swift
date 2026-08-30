@@ -52,6 +52,7 @@ struct FootprintDashboardView: View {
             }
             Spacer()
             HStack(spacing: BSSpacing.sm) {
+                dashboardIcon("plus", label: BSLocalization.text("添加现场"), action: onAdd)
                 dashboardIcon("magnifyingglass", label: BSLocalization.text("搜索足迹"), action: onSearch)
                 dashboardIcon("square.and.arrow.up", label: BSLocalization.text("分享足迹"), action: onShare)
             }
@@ -450,7 +451,7 @@ struct FootprintDashboardSections {
                 sectionLabel(BSLocalization.text("现场记录"), BSLocalization.text("按年份收纳"))
                 Spacer()
                 if !isForExport {
-                    Button(BSLocalization.text("补录足迹"), action: onAdd)
+                    Button(BSLocalization.text("添加现场"), action: onAdd)
                         .font(BSFont.tag)
                         .foregroundColor(BSColor.Stage.accent)
                         .buttonStyle(.plain)

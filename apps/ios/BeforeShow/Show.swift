@@ -23,7 +23,7 @@ enum ShowCompanionStatus: String, CaseIterable, Codable {
 /// 名称+日期+场馆 匹配），那条路径同样会把 `companionIsOwner` 置为 false，
 /// 于是用户自己添加、已经占用额度的现场会被「退还」额度。
 enum ShowCreationOrigin: String, Codable {
-    /// 用户在本机添加（手动 / 链接 / 截图 / 足迹补录）。
+    /// 用户在本机添加（手动 / 链接 / 截图）。
     case user
     /// 仅因为接受同行邀请而新建的 participant 侧现场。
     case companionImport
