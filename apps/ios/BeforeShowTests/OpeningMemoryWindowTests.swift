@@ -50,15 +50,14 @@ final class OpeningMemoryWindowTests: XCTestCase {
         )
     }
 
-    func testNotificationBackfillsTenMinutesWhenAddedInsideWindow() {
+    func testNotificationDoesNotBackfillWhenAddedInsideWindow() {
         let now = start.addingTimeInterval(20 * 60)
-        XCTAssertEqual(
+        XCTAssertNil(
             OpeningMemoryWindow.notificationFireDate(
                 now: now,
                 showStart: start,
                 hasConfirmedEnd: false
-            ),
-            now.addingTimeInterval(10 * 60)
+            )
         )
     }
 

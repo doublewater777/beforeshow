@@ -12,30 +12,74 @@ final class FootprintArchiveTests: XCTestCase {
         return value
     }
 
-    func testEmptyStateOffersFootprintBackfill() {
+    func testFootprintEmptyStateUsesUnifiedAddShowAction() {
         let withCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: true)
         let withoutCurrentShow = FootprintEmptyStateCopy.content(hasCurrentShow: false)
 
-        XCTAssertEqual(withCurrentShow.actionTitle, "补录足迹")
-        XCTAssertEqual(withoutCurrentShow.actionTitle, "补录第一场足迹")
+        XCTAssertEqual(withCurrentShow.actionTitle, "添加现场")
+        XCTAssertEqual(withoutCurrentShow.actionTitle, "添加现场")
     }
 
-    func testAddMethodsUseTheSameLinkScreenshotManualOrderForBothIntents() {
-        let expected: [AddShowSheet] = [.link, .screenshot, .manual]
-
-        XCTAssertEqual(AddShowIntent.upcoming.methodOrder, expected)
-        XCTAssertEqual(AddShowIntent.historicalBackfill.methodOrder, expected)
+    func testUnifiedAddSuccessCopyExplainsEveryOutcomeAndDuplicate() {
+        XCTAssertEqual(AddShowSuccessCopy.title(isDuplicate: false), "已添加现场")
+        XCTAssertEqual(AddShowSuccessCopy.title(isDuplicate: true), "这场已经在 BeforeShow 里了")
+        XCTAssertEqual(AddShowSuccessCopy.status(for: .future), "已加入我的现场")
+        XCTAssertEqual(AddShowSuccessCopy.status(for: .current), "已设为当前现场")
+        XCTAssertEqual(AddShowSuccessCopy.status(for: .footprint), "已收进足迹")
     }
 
-    func testManualDraftDefaultsToTodayForCurrentAndYesterdayForFootprint() {
+    func testUnifiedAddConfigurationUsesOneTitleMethodOrderAndManualDefault() {
         let now = date(2026, 8, 29, 10)
-        let current = AddShowIntent.upcoming.initialManualDraft(now: now, calendar: calendar)
-        let footprint = AddShowIntent.historicalBackfill.initialManualDraft(now: now, calendar: calendar)
+        let draft = AddShowConfiguration.initialManualDraft(now: now, calendar: calendar)
 
-        XCTAssertEqual(current.date, date(2026, 8, 29))
-        XCTAssertEqual(current.startTime, date(2026, 8, 29, 20))
-        XCTAssertEqual(footprint.date, date(2026, 8, 28))
-        XCTAssertEqual(footprint.startTime, date(2026, 8, 28, 20))
+        XCTAssertEqual(AddShowConfiguration.navigationTitle, "添加现场")
+        XCTAssertEqual(AddShowConfiguration.methodOrder, [.link, .screenshot, .manual])
+        XCTAssertEqual(draft.date, date(2026, 8, 29))
+        XCTAssertEqual(draft.startTime, date(2026, 8, 29, 20))
+    }
+
+    func testUnifiedAddLifecycleClassifiesFutureAmbiguousAndClearlyEndedShows() throws {
+        let now = date(2026, 8, 29, 21)
+        let future = try Show(
+            name: "未来现场",
+            date: date(2026, 8, 30),
+            startTime: date(2026, 8, 30, 20)
+        )
+        let live = try Show(
+            name: "正在现场",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 20)
+        )
+        let justPastEstimate = try Show(
+            name: "刚过预计散场",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 16)
+        )
+        let clearlyEnded = try Show(
+            name: "旧现场",
+            date: date(2026, 8, 1),
+            startTime: date(2026, 8, 1, 20)
+        )
+
+        XCTAssertEqual(AddShowLifecyclePolicy.resolution(for: future, now: now, calendar: calendar), .future)
+        XCTAssertEqual(AddShowLifecyclePolicy.resolution(for: live, now: now, calendar: calendar), .needsEndConfirmation)
+        XCTAssertEqual(AddShowLifecyclePolicy.resolution(for: justPastEstimate, now: now, calendar: calendar), .needsEndConfirmation)
+        XCTAssertEqual(AddShowLifecyclePolicy.resolution(for: clearlyEnded, now: now, calendar: calendar), .ended)
+    }
+
+    func testUnifiedEndConfirmationAllowsAnyTimeAfterMultiDayOpening() throws {
+        let show = try Show(
+            name: "三日音乐节",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 14),
+            endDate: date(2026, 8, 31),
+            endTime: date(2026, 8, 29, 23)
+        )
+
+        XCTAssertEqual(
+            AddShowLifecyclePolicy.minimumEndTime(for: show, calendar: calendar),
+            date(2026, 8, 29, 14)
+        )
     }
 
     func testArchiveIncludesOnlyEndedScheduledShows() throws {
@@ -125,43 +169,45 @@ final class FootprintArchiveTests: XCTestCase {
         ]))
     }
 
-    func testHistoricalBackfillPreservesCurrentSelectionAndNotificationFocus() throws {
+    func testUnifiedEndedAddPreservesCurrentSelectionAndNotificationFocus() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
-        let future = try makeShow("未来现场", year: 2027, artist: "未来艺人", city: "上海", venue: "MAO")
-        let selection = CurrentShowSelection(selectedShowID: future.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: future.id)
-        context.insert(future)
+        let current = try makeShow("未来现场", year: 2027, artist: "未来艺人", city: "上海", venue: "MAO")
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        context.insert(current)
         context.insert(selection)
         context.insert(notificationState)
         try context.save()
 
-        let historical = try makeShow("补录现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
-        XCTAssertNil(
-            try AddShowPersistenceCoordinator.persist(
-                historical,
-                intent: .historicalBackfill,
-                selections: [selection],
-                notificationStates: [notificationState],
-                in: context
-            )
+        let ended = try makeShow("过去现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
+        let result = try AddShowPersistenceCoordinator.persist(
+            ended,
+            lifecycle: .ended,
+            selections: [selection],
+            notificationStates: [notificationState],
+            in: context,
+            now: date(2026, 8, 29, 12)
         )
 
-        XCTAssertEqual(selection.selectedShowID, future.id)
-        XCTAssertEqual(notificationState.focusedShowID, future.id)
+        XCTAssertEqual(result.outcome, .footprint)
+        XCTAssertNil(result.notificationState)
+        XCTAssertEqual(selection.selectedShowID, current.id)
+        XCTAssertEqual(notificationState.focusedShowID, current.id)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
-    func testHistoricalBackfillRejectsFutureShowsWithoutChangingFocus() throws {
+    func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
-        let current = try makeShow("当前现场", year: 2027, artist: "当前艺人", city: "上海", venue: "MAO")
+        let current = try makeShow("近场", year: 2027, artist: "A", city: "上海", venue: "MAO")
+        let farther = try makeShow("远场", year: 2028, artist: "B", city: "北京", venue: "工体")
         let selection = CurrentShowSelection(selectedShowID: current.id)
         let notificationState = NotificationSchedulingState(focusedShowID: current.id)
         context.insert(current)
@@ -169,58 +215,76 @@ final class FootprintArchiveTests: XCTestCase {
         context.insert(notificationState)
         try context.save()
 
-        let future = try makeShow("误填未来现场", year: 2027, artist: "未来艺人", city: "北京", venue: "工体")
-        XCTAssertThrowsError(
-            try AddShowPersistenceCoordinator.persist(
-                future,
-                intent: .historicalBackfill,
-                selections: [selection],
-                notificationStates: [notificationState],
-                in: context
-            )
-        ) { error in
-            XCTAssertEqual(
-                error as? AddShowPersistenceError,
-                .historicalBackfillRequiresCompletedShow
-            )
-        }
+        let result = try AddShowPersistenceCoordinator.persist(
+            farther,
+            lifecycle: .future,
+            selections: [selection],
+            notificationStates: [notificationState],
+            in: context,
+            now: date(2026, 8, 29, 12)
+        )
 
+        XCTAssertEqual(result.outcome, .future)
+        XCTAssertNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
         XCTAssertEqual(notificationState.focusedShowID, current.id)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
     }
 
-    func testCurrentAddRejectsCompletedShowsWithoutChangingFocus() throws {
+    func testUnifiedFirstFutureAddBecomesCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
-        let current = try makeShow("当前现场", year: 2027, artist: "当前艺人", city: "上海", venue: "MAO")
-        let selection = CurrentShowSelection(selectedShowID: current.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
-        context.insert(current)
+        let future = try makeShow("第一场未来现场", year: 2027, artist: "A", city: "上海", venue: "MAO")
+
+        let result = try AddShowPersistenceCoordinator.persist(
+            future,
+            lifecycle: .future,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: date(2026, 8, 29, 12)
+        )
+
+        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(result.notificationState?.focusedShowID, future.id)
+        let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
+        XCTAssertEqual(selections.first?.selectedShowID, future.id)
+    }
+
+    func testUnifiedConfirmedLiveAddForcesCurrentShow() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let existing = try makeShow("明天的现场", year: 2027, artist: "A", city: "上海", venue: "MAO")
+        let live = try Show(
+            name: "正在看的现场",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 20)
+        )
+        let selection = CurrentShowSelection(selectedShowID: existing.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: existing.id)
+        context.insert(existing)
         context.insert(selection)
         context.insert(notificationState)
         try context.save()
 
-        let completed = try makeShow("误填旧现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
-        XCTAssertThrowsError(
-            try AddShowPersistenceCoordinator.persist(
-                completed,
-                intent: .upcoming,
-                selections: [selection],
-                notificationStates: [notificationState],
-                in: context,
-                now: date(2026, 8, 29, 12)
-            )
-        ) { error in
-            XCTAssertEqual(error as? AddShowPersistenceError, .upcomingRequiresActiveShow)
-        }
+        let result = try AddShowPersistenceCoordinator.persist(
+            live,
+            lifecycle: .live,
+            selections: [selection],
+            notificationStates: [notificationState],
+            in: context,
+            now: date(2026, 8, 29, 21)
+        )
 
-        XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(notificationState.focusedShowID, current.id)
-        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
+        XCTAssertEqual(result.outcome, .current)
+        XCTAssertEqual(result.notificationState?.focusedShowID, live.id)
+        XCTAssertEqual(selection.selectedShowID, live.id)
+        XCTAssertEqual(notificationState.focusedShowID, live.id)
     }
 
     func testArchiveShareCopyIsSpecificToEveryCategory() throws {

@@ -343,7 +343,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         )
     }
 
-    func testOpeningMemoryBackfillsWhenAddedInsideWindow() throws {
+    func testOpeningMemoryDoesNotBackfillWhenAddedInsideWindow() throws {
         let show = try Show(
             name: "到场才添加的现场",
             date: makeDate(year: 2026, month: 6, day: 15),
@@ -355,8 +355,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             now: now
         )
 
-        let opening = try XCTUnwrap(requests.first { $0.milestone == .openingMemory })
-        XCTAssertEqual(opening.fireDate, makeDate(year: 2026, month: 6, day: 15, hour: 10, minute: 10))
+        XCTAssertFalse(requests.contains { $0.milestone == .openingMemory })
     }
 
     func testOpeningMemoryDoesNotBackfillAfterWindow() throws {

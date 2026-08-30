@@ -94,27 +94,17 @@ enum ShowDraftEditorExitPolicy {
 }
 
 struct AddShowCoordinatorSheet: View {
-    var intent: AddShowIntent = .upcoming
     /// Skip method picker and open a specific flow. Only for tests / deep links — normal entry leaves this nil.
     var initialSheet: AddShowSheet? = nil
     var onShowAdded: (UUID) -> Void = { _ in }
 
     @Environment(\.dismiss) private var dismiss
-    @Query(sort: \Show.date) private var shows: [Show]
     @State private var selectedSheet: AddShowSheet?
-    @State private var savedFootprintShowID: UUID?
-
-    private var savedFootprintShow: Show? {
-        guard let savedFootprintShowID else { return nil }
-        return shows.first { $0.id == savedFootprintShowID }
-    }
 
     init(
-        intent: AddShowIntent = .upcoming,
         initialSheet: AddShowSheet? = nil,
         onShowAdded: @escaping (UUID) -> Void = { _ in }
     ) {
-        self.intent = intent
         self.initialSheet = initialSheet
         self.onShowAdded = onShowAdded
         _selectedSheet = State(initialValue: initialSheet)
@@ -122,29 +112,10 @@ struct AddShowCoordinatorSheet: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if intent == .historicalBackfill, let savedFootprintShowID {
-                    AddShowSavedConfirmationView(
-                        confirmation: SavedShowConfirmation(
-                            name: savedFootprintShow?.name ?? "",
-                            coverImageURL: savedFootprintShow?.coverImageURL
-                        ),
-                        intent: intent,
-                        onContinue: {
-                            self.savedFootprintShowID = nil
-                        },
-                        onOpen: {
-                            dismiss()
-                            onShowAdded(savedFootprintShowID)
-                        }
-                    )
-                } else {
-                    AddShowEntryView(methods: intent.methodOrder) { sheet in
-                        selectedSheet = sheet
-                    }
-                }
+            AddShowEntryView(methods: AddShowConfiguration.methodOrder) { sheet in
+                selectedSheet = sheet
             }
-            .navigationTitle(intent.navigationTitle)
+            .navigationTitle(AddShowConfiguration.navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 BSChromeToolbarCloseButton(accessibilityLabel: "取消") { dismiss() }
@@ -152,16 +123,8 @@ struct AddShowCoordinatorSheet: View {
             .navigationDestination(item: $selectedSheet) { sheet in
                 AddShowFlowView(
                     sheet: sheet,
-                    intent: intent,
-                    onSaved: { showID in
-                        if intent == .historicalBackfill {
-                            savedFootprintShowID = showID
-                            selectedSheet = nil
-                        } else {
-                            dismiss()
-                            onShowAdded(showID)
-                        }
-                    }
+                    onSaved: onShowAdded,
+                    onFinished: { dismiss() }
                 )
             }
         }
@@ -169,36 +132,92 @@ struct AddShowCoordinatorSheet: View {
     }
 }
 
-enum AddShowIntent: Equatable {
-    case upcoming
-    case historicalBackfill
+enum AddShowConfiguration {
+    static let methodOrder: [AddShowSheet] = [.link, .screenshot, .manual]
+    static var navigationTitle: String { BSLocalization.text("添加现场") }
+    static var saveButtonTitle: String { navigationTitle }
 
-    var methodOrder: [AddShowSheet] {
-        [.link, .screenshot, .manual]
-    }
-
-    var navigationTitle: String {
-        switch self {
-        case .upcoming: return BSLocalization.text("添加现场")
-        case .historicalBackfill: return BSLocalization.text("补录足迹")
-        }
-    }
-
-    var saveButtonTitle: String { navigationTitle }
-
-    func initialManualDraft(now: Date = Date(), calendar: Calendar = .current) -> ShowDraft {
+    static func initialManualDraft(now: Date = Date(), calendar: Calendar = .current) -> ShowDraft {
         let today = calendar.startOfDay(for: now)
-        let date = self == .historicalBackfill
-            ? (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
-            : today
-        let startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: date)
-        return ShowDraft(date: date, startTime: startTime, source: .manual)
+        let startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: today)
+        return ShowDraft(date: today, startTime: startTime, source: .manual)
     }
 }
 
+enum AddShowLifecycleResolution: Equatable {
+    case future
+    case needsEndConfirmation
+    case ended
+}
+
+enum AddShowLifecyclePolicy {
+    static func minimumEndTime(for show: Show, calendar: Calendar = .current) -> Date {
+        CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+    }
+
+    static func resolution(
+        for show: Show,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> AddShowLifecycleResolution {
+        if show.endedAt != nil {
+            return .ended
+        }
+
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+        switch state.kind {
+        case .before:
+            return .future
+        case .today:
+            guard let start = state.effectiveStartTime, now >= start else {
+                return .future
+            }
+            return .needsEndConfirmation
+        case .dayEnded, .postShow:
+            return .needsEndConfirmation
+        case .ended:
+            return .ended
+        case .canceled, .postponed:
+            return .future
+        }
+    }
+}
+
+enum AddShowFinalLifecycle: Equatable {
+    case future
+    case live
+    case ended
+}
+
+enum AddShowSaveOutcome: String, Equatable {
+    case future
+    case current
+    case footprint
+}
+
+enum AddShowSuccessCopy {
+    static func title(isDuplicate: Bool) -> String {
+        BSLocalization.text(isDuplicate ? "这场已经在 BeforeShow 里了" : "已添加现场")
+    }
+
+    static func status(for outcome: AddShowSaveOutcome) -> String {
+        switch outcome {
+        case .future:
+            return BSLocalization.text("已加入我的现场")
+        case .current:
+            return BSLocalization.text("已设为当前现场")
+        case .footprint:
+            return BSLocalization.text("已收进足迹")
+        }
+    }
+}
+
+struct AddShowPersistenceResult {
+    let outcome: AddShowSaveOutcome
+    let notificationState: NotificationSchedulingState?
+}
+
 enum AddShowPersistenceError: Error, Equatable {
-    case historicalBackfillRequiresCompletedShow
-    case upcomingRequiresActiveShow
     case duplicateShow(existingShowID: UUID)
 }
 
@@ -206,52 +225,56 @@ enum AddShowPersistenceError: Error, Equatable {
 enum AddShowPersistenceCoordinator {
     static func persist(
         _ show: Show,
-        intent: AddShowIntent,
+        lifecycle: AddShowFinalLifecycle,
         selections: [CurrentShowSelection],
         notificationStates: [NotificationSchedulingState],
         in modelContext: ModelContext,
         now: Date = Date()
-    ) throws -> NotificationSchedulingState? {
-        let timeState = CurrentShowTimeState(show: show, now: now)
-        switch intent {
-        case .historicalBackfill:
-            guard timeState.kind == .postShow || timeState.kind == .ended else {
-                throw AddShowPersistenceError.historicalBackfillRequiresCompletedShow
-            }
-        case .upcoming:
-            guard timeState.kind == .before || timeState.kind == .today || timeState.kind == .dayEnded else {
-                throw AddShowPersistenceError.upcomingRequiresActiveShow
-            }
-        }
-
+    ) throws -> AddShowPersistenceResult {
         let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
         if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: persistedShows) {
             throw AddShowPersistenceError.duplicateShow(existingShowID: duplicate.id)
         }
 
+        let existingCurrent = CurrentShowSession().selectCurrentShow(
+            from: persistedShows,
+            manualSelection: selections.first,
+            now: now
+        )
+
         modelContext.insert(show)
 
-        guard intent == .upcoming else {
+        switch lifecycle {
+        case .ended:
             try modelContext.save()
-            return nil
-        }
+            return AddShowPersistenceResult(
+                outcome: .footprint,
+                notificationState: nil
+            )
+        case .future where existingCurrent != nil:
+            try modelContext.save()
+            return AddShowPersistenceResult(outcome: .future, notificationState: nil)
+        case .future, .live:
+            let selection = selections.first ?? CurrentShowSelection()
+            if selections.isEmpty {
+                modelContext.insert(selection)
+            }
+            selection.select(showID: show.id)
 
-        let selection = selections.first ?? CurrentShowSelection()
-        if selections.isEmpty {
-            modelContext.insert(selection)
-        }
-        selection.select(showID: show.id)
+            let notificationState = notificationStates.first
+                ?? NotificationSchedulingState(focusedShowID: show.id)
+            if notificationStates.isEmpty {
+                modelContext.insert(notificationState)
+            } else {
+                notificationState.focus(showID: show.id)
+            }
 
-        let notificationState = notificationStates.first
-            ?? NotificationSchedulingState(focusedShowID: show.id)
-        if notificationStates.isEmpty {
-            modelContext.insert(notificationState)
-        } else {
-            notificationState.focus(showID: show.id)
+            try modelContext.save()
+            return AddShowPersistenceResult(
+                outcome: lifecycle == .live ? .current : .future,
+                notificationState: notificationState
+            )
         }
-
-        try modelContext.save()
-        return notificationState
     }
 }
 
@@ -306,9 +329,9 @@ struct AddShowFlowView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
 
     let sheet: AddShowSheet
-    let intent: AddShowIntent
     let linkParser: ShowLinkDraftParser
     private let onSaved: ((UUID) -> Void)?
+    private let onFinished: (() -> Void)?
 
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
@@ -351,23 +374,26 @@ struct AddShowFlowView: View {
     @State private var importTask: Task<Void, Never>?
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
+    @State private var pendingLifecycleConfirmation: PendingAddShowLifecycleConfirmation?
+    @State private var detailTarget: AddShowDetailDestination?
+
     init(
         sheet: AddShowSheet,
-        intent: AddShowIntent = .upcoming,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
         prefilledDraft: ShowDraft? = nil,
-        onSaved: ((UUID) -> Void)? = nil
+        onSaved: ((UUID) -> Void)? = nil,
+        onFinished: (() -> Void)? = nil
     ) {
         self.sheet = sheet
-        self.intent = intent
         self.linkParser = linkParser
         self.onSaved = onSaved
+        self.onFinished = onFinished
         if let prefilledDraft {
             _draft = State(initialValue: prefilledDraft)
             _hasImportedDraft = State(initialValue: true)
         } else {
             let initialDraft = sheet == .manual
-                ? intent.initialManualDraft()
+                ? AddShowConfiguration.initialManualDraft()
                 : ShowDraft(source: sheet.draftSource)
             _draft = State(initialValue: initialDraft)
         }
@@ -385,7 +411,8 @@ struct AddShowFlowView: View {
             if let savedShowConfirmation {
                 AddShowSavedConfirmationView(
                     confirmation: savedShowConfirmation,
-                    intent: intent
+                    onOpen: { presentDetail(for: savedShowConfirmation) },
+                    onDone: finishFlow
                 )
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
             } else {
@@ -457,6 +484,46 @@ struct AddShowFlowView: View {
             abandonInFlightImport()
             guard !didSave else { return }
             coverLifecycle.cancel()
+        }
+        .navigationDestination(item: $detailTarget) { target in
+            Group {
+                if let show = shows.first(where: { $0.id == target.showID }) {
+                    switch target.kind {
+                    case .show:
+                        ShowDetailView(show: show)
+                    case .footprint:
+                        FootprintDetailView(
+                            show: show,
+                            archive: FootprintArchiveBuilder.make(shows: shows)
+                        )
+                    }
+                } else {
+                    EmptyView()
+                }
+            }
+        }
+        .sheet(item: $pendingLifecycleConfirmation) { pending in
+            AddShowLifecycleConfirmationSheet(
+                showName: pending.show.name,
+                showStart: AddShowLifecyclePolicy.minimumEndTime(
+                    for: pending.show,
+                    calendar: pending.show.timingCalendar()
+                ),
+                calendar: pending.show.endTimingCalendar(),
+                onLive: {
+                    pendingLifecycleConfirmation = nil
+                    Task { @MainActor in
+                        await persistPreparedShow(pending.show, lifecycle: .live)
+                    }
+                },
+                onEnded: { endTime in
+                    pending.show.markEnded(at: endTime)
+                    pendingLifecycleConfirmation = nil
+                    Task { @MainActor in
+                        await persistPreparedShow(pending.show, lifecycle: .ended)
+                    }
+                }
+            )
         }
         .sheet(item: $paywallSheet) { sheet in
             switch sheet {
@@ -797,7 +864,7 @@ struct AddShowFlowView: View {
                         ProgressView()
                             .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
                     }
-                    Text(isSaving ? BSLocalization.text("正在保存") : intent.saveButtonTitle)
+                    Text(isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -806,7 +873,7 @@ struct AddShowFlowView: View {
             .accessibilityLabel(
                 isImportingDraft
                     ? BSLocalization.text("正在导入，暂不可保存")
-                    : (isSaving ? BSLocalization.text("正在保存") : intent.saveButtonTitle)
+                    : (isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
             )
         }
         .padding(.horizontal, 20)
@@ -1046,9 +1113,7 @@ struct AddShowFlowView: View {
     @MainActor
     private func save() async {
         guard !isSaving else { return }
-        // 重新解析 / 识别期间只允许保存新结果，避免写入上一次草稿
         guard !isImportingDraft else { return }
-        // OCR 回退日期未确认时不允许保存，与保存栏状态文案一致
         guard !needsDateConfirmation else { return }
         isSaving = true
         dismissKeyboard()
@@ -1060,8 +1125,13 @@ struct AddShowFlowView: View {
                     "method": sheet.rawValue,
                     "existing_show_id": duplicate.id.uuidString
                 ])
-                message = BSLocalization.text("这个现场已经添加过了")
-                presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
+                savedShowConfirmation = SavedShowConfirmation(
+                    showID: duplicate.id,
+                    name: duplicate.name,
+                    coverImageURL: duplicate.coverImageURL,
+                    kind: .duplicate(detailOutcome(for: duplicate))
+                )
+                UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 isSaving = false
                 return
             }
@@ -1077,40 +1147,14 @@ struct AddShowFlowView: View {
                 return
             }
 
-            let notificationState = try AddShowPersistenceCoordinator.persist(
-                show,
-                intent: intent,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext
-            )
-
-            if let notificationState {
-                await activateNotifications(for: show, state: notificationState)
-            }
-            PostHogSDK.shared.capture("show_added", properties: [
-                "method": sheet.rawValue,
-                "intent": intent == .upcoming ? "upcoming" : "historical_backfill"
-            ])
-            AppReviewPrompt.consider(.addedShow)
-            didSave = true
-            coverLifecycle.finalize(keeping: draft.coverImageURL)
-
-            if intent == .upcoming {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.88)) {
-                    savedShowConfirmation = SavedShowConfirmation(
-                        name: show.name,
-                        coverImageURL: show.coverImageURL
-                    )
-                }
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
-                try? await Task.sleep(for: .milliseconds(420))
-            }
-
-            if let onSaved {
-                onSaved(show.id)
-            } else {
-                dismiss()
+            switch AddShowLifecyclePolicy.resolution(for: show) {
+            case .future:
+                await persistPreparedShow(show, lifecycle: .future)
+            case .ended:
+                await persistPreparedShow(show, lifecycle: .ended)
+            case .needsEndConfirmation:
+                pendingLifecycleConfirmation = PendingAddShowLifecycleConfirmation(show: show)
+                isSaving = false
             }
         } catch ShowValidationError.invalidEndTime {
             message = BSLocalization.text("结束时间需要晚于开始时间。")
@@ -1124,23 +1168,101 @@ struct AddShowFlowView: View {
             message = BSLocalization.text("请填写现场名称。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
-        } catch AddShowPersistenceError.duplicateShow(_) {
-            message = BSLocalization.text("这个现场已经添加过了")
-            presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
+        } catch {
+            modelContext.rollback()
+            message = BSLocalization.text("请填写必填信息。")
+            presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
-        } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
-            message = BSLocalization.text("补录足迹仅支持已经结束的现场。")
-            presentToast(.failure, message: BSLocalization.text("日期还未结束"))
+        }
+    }
+
+    @MainActor
+    private func persistPreparedShow(
+        _ show: Show,
+        lifecycle: AddShowFinalLifecycle
+    ) async {
+        isSaving = true
+        do {
+            let result = try AddShowPersistenceCoordinator.persist(
+                show,
+                lifecycle: lifecycle,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+
+            if let notificationState = result.notificationState {
+                await activateNotifications(for: show, state: notificationState)
+            }
+
+            PostHogSDK.shared.capture("show_added", properties: [
+                "method": sheet.rawValue,
+                "lifecycle": result.outcome.rawValue
+            ])
+            AppReviewPrompt.consider(.addedShow)
+            didSave = true
+            coverLifecycle.finalize(keeping: draft.coverImageURL)
+
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.88)) {
+                savedShowConfirmation = SavedShowConfirmation(
+                    showID: show.id,
+                    name: show.name,
+                    coverImageURL: show.coverImageURL,
+                    kind: .saved(result.outcome)
+                )
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
-        } catch AddShowPersistenceError.upcomingRequiresActiveShow {
-            message = BSLocalization.text("已结束的现场请到足迹补录。")
-            presentToast(.failure, message: BSLocalization.text("现场已经结束"))
+            onSaved?(show.id)
+        } catch AddShowPersistenceError.duplicateShow(let existingShowID) {
+            modelContext.rollback()
+            if let duplicate = shows.first(where: { $0.id == existingShowID }) {
+                savedShowConfirmation = SavedShowConfirmation(
+                    showID: duplicate.id,
+                    name: duplicate.name,
+                    coverImageURL: duplicate.coverImageURL,
+                    kind: .duplicate(detailOutcome(for: duplicate))
+                )
+            } else {
+                message = BSLocalization.text("这场已经在 BeforeShow 里了")
+                presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
+            }
             isSaving = false
         } catch {
             modelContext.rollback()
             message = BSLocalization.text("请填写必填信息。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
+        }
+    }
+
+    private func detailOutcome(for show: Show) -> AddShowSaveOutcome {
+        let state = CurrentShowTimeState(show: show)
+        if state.kind == .postShow || state.kind == .ended {
+            return .footprint
+        }
+        if CurrentShowSession().isCurrent(
+            show,
+            among: shows,
+            manualSelection: selections.first
+        ) {
+            return .current
+        }
+        return .future
+    }
+
+    private func presentDetail(for confirmation: SavedShowConfirmation) {
+        detailTarget = AddShowDetailDestination(
+            showID: confirmation.showID,
+            kind: confirmation.outcome == .footprint ? .footprint : .show
+        )
+    }
+
+    private func finishFlow() {
+        if let onFinished {
+            onFinished()
+        } else {
+            dismiss()
         }
     }
 
@@ -1199,16 +1321,142 @@ struct AddShowFlowView: View {
     }
 }
 
+private enum AddShowConfirmationKind: Equatable {
+    case saved(AddShowSaveOutcome)
+    case duplicate(AddShowSaveOutcome)
+
+    var outcome: AddShowSaveOutcome {
+        switch self {
+        case .saved(let outcome), .duplicate(let outcome):
+            return outcome
+        }
+    }
+
+    var isDuplicate: Bool {
+        if case .duplicate = self { return true }
+        return false
+    }
+}
+
 private struct SavedShowConfirmation: Equatable {
+    let showID: UUID
     let name: String
     let coverImageURL: String?
+    let kind: AddShowConfirmationKind
+
+    var outcome: AddShowSaveOutcome { kind.outcome }
+}
+
+private enum AddShowDetailKind: Hashable {
+    case show
+    case footprint
+}
+
+private struct AddShowDetailDestination: Identifiable, Hashable {
+    let showID: UUID
+    let kind: AddShowDetailKind
+
+    var id: String { "\(showID.uuidString)-\(kind)" }
+}
+
+private struct PendingAddShowLifecycleConfirmation: Identifiable {
+    let id = UUID()
+    let show: Show
+}
+
+private struct AddShowLifecycleConfirmationSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let showName: String
+    let showStart: Date
+    let calendar: Calendar
+    let onLive: () -> Void
+    let onEnded: (Date) -> Void
+
+    @State private var isConfirmingEndTime = false
+    @State private var endTime: Date
+
+    init(
+        showName: String,
+        showStart: Date,
+        calendar: Calendar,
+        now: Date = Date(),
+        onLive: @escaping () -> Void,
+        onEnded: @escaping (Date) -> Void
+    ) {
+        self.showName = showName
+        self.showStart = showStart
+        self.calendar = calendar
+        self.onLive = onLive
+        self.onEnded = onEnded
+        _endTime = State(initialValue: max(showStart, now))
+    }
+
+    var body: some View {
+        BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+            if isConfirmingEndTime {
+                BSStageSheetHeader(
+                    icon: "clock",
+                    title: BSLocalization.text("实际几点结束？"),
+                    subtitle: showName,
+                    tint: BSColor.Stage.accent
+                )
+
+                BSSurfacePanel {
+                    VStack(spacing: BSSpacing.sm) {
+                        DatePicker(
+                            BSLocalization.text("散场日期"),
+                            selection: $endTime,
+                            in: showStart...Date(),
+                            displayedComponents: .date
+                        )
+                        DatePicker(
+                            BSLocalization.text("散场时间"),
+                            selection: $endTime,
+                            in: showStart...Date(),
+                            displayedComponents: .hourAndMinute
+                        )
+                    }
+                    .tint(BSColor.Stage.accent)
+                    .environment(\.calendar, calendar)
+                    .environment(\.timeZone, calendar.timeZone)
+                }
+
+                Button(BSLocalization.text("确认结束时间")) {
+                    let confirmed = endTime
+                    dismiss()
+                    onEnded(confirmed)
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+            } else {
+                BSStageSheetHeader(
+                    icon: "music.note",
+                    title: BSLocalization.text("这场已经结束了吗？"),
+                    subtitle: BSLocalization.text("我们看到这场已经开场，确认一下现在的状态。"),
+                    tint: BSColor.Stage.accent
+                )
+
+                VStack(spacing: BSSpacing.sm) {
+                    Button(BSLocalization.text("还在现场")) {
+                        dismiss()
+                        onLive()
+                    }
+                    .buttonStyle(BSPrimaryButtonStyle())
+
+                    Button(BSLocalization.text("已经结束")) {
+                        isConfirmingEndTime = true
+                    }
+                    .buttonStyle(BSSecondaryButtonStyle())
+                }
+            }
+        }
+    }
 }
 
 private struct AddShowSavedConfirmationView: View {
     let confirmation: SavedShowConfirmation
-    let intent: AddShowIntent
-    var onContinue: (() -> Void)? = nil
-    var onOpen: (() -> Void)? = nil
+    let onOpen: () -> Void
+    let onDone: () -> Void
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1223,7 +1471,7 @@ private struct AddShowSavedConfirmationView: View {
                         Circle()
                             .stroke(BSColor.Stage.accent.opacity(0.46), lineWidth: 1)
                             .frame(width: 58, height: 58)
-                        Image(systemName: "checkmark")
+                        Image(systemName: confirmation.kind.isDuplicate ? "rectangle.on.rectangle" : "checkmark")
                             .font(.system(size: 23, weight: .bold))
                             .foregroundColor(BSColor.Stage.accent)
                     }
@@ -1238,11 +1486,7 @@ private struct AddShowSavedConfirmationView: View {
                     .clipped()
 
                     VStack(spacing: BSSpacing.xs) {
-                        Text(
-                            BSLocalization.text(
-                                intent == .upcoming ? "已加入当前现场" : "已补录足迹"
-                            )
-                        )
+                        Text(AddShowSuccessCopy.title(isDuplicate: confirmation.kind.isDuplicate))
                             .font(BSFont.heroTitle)
                             .foregroundColor(BSColor.Stage.foreground)
                             .multilineTextAlignment(.center)
@@ -1253,43 +1497,36 @@ private struct AddShowSavedConfirmationView: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.center)
 
-                        if intent == .upcoming {
-                            Text(BSLocalization.text("正在进入首页"))
+                        if !confirmation.kind.isDuplicate {
+                            Text(AddShowSuccessCopy.status(for: confirmation.outcome))
                                 .font(BSFont.caption)
                                 .foregroundColor(BSColor.Stage.dim)
                         }
                     }
 
-                    if intent == .historicalBackfill {
-                        VStack(spacing: 10) {
-                            Button {
-                                onContinue?()
-                            } label: {
-                                Text(BSLocalization.text("继续补录"))
-                                    .font(.system(size: 14.5, weight: .semibold))
-                                    .foregroundColor(BSColor.Stage.background)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 50)
-                                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                            }
-                            .buttonStyle(.plain)
-
-                            Button {
-                                onOpen?()
-                            } label: {
-                                Text(BSLocalization.text("查看足迹"))
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundColor(BSColor.Stage.foreground)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 48)
-                                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
-                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
-                                    .contentShape(RoundedRectangle(cornerRadius: 16))
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(onOpen == nil)
+                    VStack(spacing: 10) {
+                        Button(action: onOpen) {
+                            Text(BSLocalization.text(confirmation.kind.isDuplicate ? "查看这场现场" : "查看现场"))
+                                .font(.system(size: 14.5, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.background)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 50)
+                                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                                .contentShape(RoundedRectangle(cornerRadius: 16))
                         }
+                        .buttonStyle(.plain)
+
+                        Button(action: onDone) {
+                            Text(BSLocalization.text("完成"))
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundColor(BSColor.Stage.foreground)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
+                                .contentShape(RoundedRectangle(cornerRadius: 16))
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .frame(maxWidth: .infinity)
@@ -1300,7 +1537,6 @@ private struct AddShowSavedConfirmationView: View {
             Spacer(minLength: BSSpacing.xl)
         }
         .padding(.horizontal, 20)
-        .accessibilityElement(children: .combine)
     }
 }
 
