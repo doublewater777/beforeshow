@@ -88,6 +88,61 @@ final class FootprintArchiveEnhancementTests: XCTestCase {
         )
     }
 
+    func testArtistArtworkPolicyPrefersAvatarAndSkipsAlbumResolution() {
+        let avatar = URL(string: "https://example.com/avatar.jpg")!
+        let persistedAlbum = URL(string: "https://example.com/persisted-album.jpg")!
+        let resolvedAlbum = URL(string: "https://example.com/resolved-album.jpg")!
+
+        XCTAssertEqual(
+            FootprintArtistArtworkPolicy.displayURL(
+                avatarURL: avatar,
+                persistedAlbumURL: persistedAlbum,
+                resolvedAlbumURL: resolvedAlbum
+            ),
+            avatar
+        )
+        XCTAssertFalse(
+            FootprintArtistArtworkPolicy.shouldResolveAlbumArtwork(
+                avatarURL: avatar,
+                persistedAlbumURL: persistedAlbum
+            )
+        )
+    }
+
+    func testArtistArtworkPolicyFallsBackToPersistedThenResolvedAlbum() {
+        let persistedAlbum = URL(string: "https://example.com/persisted-album.jpg")!
+        let resolvedAlbum = URL(string: "https://example.com/resolved-album.jpg")!
+
+        XCTAssertEqual(
+            FootprintArtistArtworkPolicy.displayURL(
+                avatarURL: nil,
+                persistedAlbumURL: persistedAlbum,
+                resolvedAlbumURL: resolvedAlbum
+            ),
+            persistedAlbum
+        )
+        XCTAssertFalse(
+            FootprintArtistArtworkPolicy.shouldResolveAlbumArtwork(
+                avatarURL: nil,
+                persistedAlbumURL: persistedAlbum
+            )
+        )
+        XCTAssertEqual(
+            FootprintArtistArtworkPolicy.displayURL(
+                avatarURL: nil,
+                persistedAlbumURL: nil,
+                resolvedAlbumURL: resolvedAlbum
+            ),
+            resolvedAlbum
+        )
+        XCTAssertTrue(
+            FootprintArtistArtworkPolicy.shouldResolveAlbumArtwork(
+                avatarURL: nil,
+                persistedAlbumURL: nil
+            )
+        )
+    }
+
     func testSameVenueNameInDifferentCitiesAreSeparateIdentities() throws {
         let beijing = try makeShow("北馆", year: 2026, month: 1, durationHours: 2, venue: "体育馆")
         let shanghai = try makeShow("南馆", year: 2026, month: 3, durationHours: 2, venue: "体育馆")

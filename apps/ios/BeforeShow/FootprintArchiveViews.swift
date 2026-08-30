@@ -604,6 +604,23 @@ struct FootprintDashboardSections {
     }
 }
 
+enum FootprintArtistArtworkPolicy {
+    static func displayURL(
+        avatarURL: URL?,
+        persistedAlbumURL: URL?,
+        resolvedAlbumURL: URL?
+    ) -> URL? {
+        avatarURL ?? persistedAlbumURL ?? resolvedAlbumURL
+    }
+
+    static func shouldResolveAlbumArtwork(
+        avatarURL: URL?,
+        persistedAlbumURL: URL?
+    ) -> Bool {
+        avatarURL == nil && persistedAlbumURL == nil
+    }
+}
+
 /// Top-artist card; owns its artwork-resolution state so
 /// `FootprintDashboardSections` stays a pure value type.
 private struct FootprintArtistAvatarView: View {
@@ -681,11 +698,22 @@ private struct FootprintArtistCoverView: View {
 
     var body: some View {
         FootprintArtistAvatarView(
-            url: item.albumArtworkURL ?? resolvedAlbumArtworkURL ?? item.artworkURL,
+            url: FootprintArtistArtworkPolicy.displayURL(
+                avatarURL: item.artworkURL,
+                persistedAlbumURL: item.albumArtworkURL,
+                resolvedAlbumURL: resolvedAlbumArtworkURL
+            ),
             name: item.name,
             size: size
         )
         .task(id: item.id) {
+            guard FootprintArtistArtworkPolicy.shouldResolveAlbumArtwork(
+                avatarURL: item.artworkURL,
+                persistedAlbumURL: item.albumArtworkURL
+            ) else {
+                resolvedAlbumArtworkURL = nil
+                return
+            }
             resolvedAlbumArtworkURL = await FootprintArtistAlbumArtworkLoader.resolveIfNeeded(
                 name: item.name,
                 existingURL: item.albumArtworkURL,
