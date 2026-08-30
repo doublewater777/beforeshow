@@ -34,6 +34,8 @@ const TICKETMASTER_DOMAINS = [
   "ticketmaster.ae"
 ];
 
+const REDIRECT_DOMAINS = ["dpurl.cn"];
+
 export class UnsupportedPlatformError extends Error {
   constructor(url) {
     super(`Unsupported show link platform: ${url}`);
@@ -216,6 +218,34 @@ export function normalizeUrl(urlString) {
 }
 
 /**
+ * 解析受信任短链的第一跳，保留 Location 中的 hash 路由。
+ * Node fetch 自动跟随重定向时会丢掉 hash，猫眼分享链接的现场 ID 正在 hash 中。
+ */
+export async function resolveRedirectUrl(urlString, { fetch = globalThis.fetch } = {}) {
+  const extractedUrl = extractShowUrl(urlString);
+  if (!isRedirectDomain(extractedUrl)) {
+    return extractedUrl;
+  }
+
+  let currentUrl = extractedUrl;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const response = await fetch(currentUrl, { redirect: "manual" });
+    const location = response?.headers?.get?.("location");
+    if (!location) {
+      throw new UnsupportedPlatformError(urlString);
+    }
+
+    const nextUrl = new URL(location, currentUrl).toString();
+    if (!isRedirectDomain(nextUrl)) {
+      return nextUrl;
+    }
+    currentUrl = nextUrl;
+  }
+
+  throw new UnsupportedPlatformError(urlString);
+}
+
+/**
  * 从粘贴文本中取出可解析的票务 URL。
  * 无协议的域名路径会补上 https://，与客户端来源 chip 行为一致。
  */
@@ -264,6 +294,11 @@ function hostnameOf(urlString) {
 
 function matchesDomain(host, domain) {
   return host === domain || host.endsWith(`.${domain}`);
+}
+
+function isRedirectDomain(urlString) {
+  const host = hostnameOf(urlString);
+  return Boolean(host && REDIRECT_DOMAINS.some((domain) => matchesDomain(host, domain)));
 }
 
 function httpsUrlWithoutQuery(url) {

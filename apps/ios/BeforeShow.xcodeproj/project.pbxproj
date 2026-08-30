@@ -1051,23 +1051,24 @@
 			name = Debug;
 		};
 		4FE8DFBC5B65490A912F5A3D /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = BeforeShowWidgets/BeforeShowWidgets.entitlements;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				INFOPLIST_FILE = BeforeShowWidgets/Supporting/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.doublewaterapps.beforeshow.widgets;
-				PRODUCT_NAME = BeforeShowWidgets;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Debug;
-		};
+	buildSettings = {
+		"CODE_SIGN_ENTITLEMENTS" = "BeforeShowWidgets/BeforeShowWidgets.entitlements";
+		"CURRENT_PROJECT_VERSION" = 11;
+		"ENABLE_USER_SCRIPT_SANDBOXING" = YES;
+		"INFOPLIST_FILE" = "BeforeShowWidgets/Supporting/Info.plist";
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+			"@executable_path/../../Frameworks",
+		);
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.doublewaterapps.beforeshow.widgets";
+		"PRODUCT_NAME" = BeforeShowWidgets;
+		SDKROOT = iphoneos;
+		"TARGETED_DEVICE_FAMILY" = 1;
+	};
+	isa = XCBuildConfiguration;
+	name = Debug;
+};
 		69C066AD6889B162B0F9DB5A /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1086,49 +1087,51 @@
 			name = Release;
 		};
 		6BC7E62ADB8FD8997C092148 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				CODE_SIGN_ENTITLEMENTS = BeforeShowWidgets/BeforeShowWidgets.entitlements;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				INFOPLIST_FILE = BeforeShowWidgets/Supporting/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.doublewaterapps.beforeshow.widgets;
-				PRODUCT_NAME = BeforeShowWidgets;
-				SDKROOT = iphoneos;
-				TARGETED_DEVICE_FAMILY = 1;
-			};
-			name = Release;
-		};
+	buildSettings = {
+		"CODE_SIGN_ENTITLEMENTS" = "BeforeShowWidgets/BeforeShowWidgets.entitlements";
+		"CURRENT_PROJECT_VERSION" = 11;
+		"ENABLE_USER_SCRIPT_SANDBOXING" = YES;
+		"INFOPLIST_FILE" = "BeforeShowWidgets/Supporting/Info.plist";
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+			"@executable_path/../../Frameworks",
+		);
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.doublewaterapps.beforeshow.widgets";
+		"PRODUCT_NAME" = BeforeShowWidgets;
+		SDKROOT = iphoneos;
+		"TARGETED_DEVICE_FAMILY" = 1;
+	};
+	isa = XCBuildConfiguration;
+	name = Release;
+};
 		88FA85BCB0A40C1D8543447F /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BeforeShow/BeforeShow.Debug.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				INFOPLIST_FILE = BeforeShow/Supporting/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				POSTHOG_API_KEY = phc_zLnN7zxFf2zTS5XkNd9um5DgNPmv4ZZejgR6Ln2uudVm;
-				POSTHOG_HOST = "https://us.i.posthog.com";
-				PRODUCT_BUNDLE_IDENTIFIER = com.doublewaterapps.beforeshow;
-				PRODUCT_NAME = BeforeShow;
-				REVENUECAT_API_KEY = test_hBPlDvelppaflbazKfzVpfjTnEV;
-				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = 1;
-				UILAUNCHSTORYBOARDNAME = LaunchScreen;
-			};
-			name = Debug;
-		};
+	buildSettings = {
+		"ASSETCATALOG_COMPILER_APPICON_NAME" = AppIcon;
+		"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = AccentColor;
+		"CODE_SIGN_ENTITLEMENTS" = "BeforeShow/BeforeShow.Debug.entitlements";
+		"CODE_SIGN_IDENTITY" = "iPhone Developer";
+		"CURRENT_PROJECT_VERSION" = 11;
+		"ENABLE_USER_SCRIPT_SANDBOXING" = YES;
+		"INFOPLIST_FILE" = "BeforeShow/Supporting/Info.plist";
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+		);
+		"POSTHOG_API_KEY" = "phc_zLnN7zxFf2zTS5XkNd9um5DgNPmv4ZZejgR6Ln2uudVm";
+		"POSTHOG_HOST" = "https://us.i.posthog.com";
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.doublewaterapps.beforeshow";
+		"PRODUCT_NAME" = BeforeShow;
+		"REVENUECAT_API_KEY" = "test_hBPlDvelppaflbazKfzVpfjTnEV";
+		SDKROOT = iphoneos;
+		"SUPPORTS_MACCATALYST" = NO;
+		"SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD" = NO;
+		"TARGETED_DEVICE_FAMILY" = 1;
+		UILAUNCHSTORYBOARDNAME = LaunchScreen;
+	};
+	isa = XCBuildConfiguration;
+	name = Debug;
+};
 		AB77FDF7FA071F47ECCE9B53 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1147,31 +1150,32 @@
 			name = Debug;
 		};
 		C7AC604CA902FE217FF73C62 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = BeforeShow/BeforeShow.entitlements;
-				CODE_SIGN_IDENTITY = "iPhone Developer";
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				INFOPLIST_FILE = BeforeShow/Supporting/Info.plist;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				POSTHOG_API_KEY = phc_zLnN7zxFf2zTS5XkNd9um5DgNPmv4ZZejgR6Ln2uudVm;
-				POSTHOG_HOST = "https://us.i.posthog.com";
-				PRODUCT_BUNDLE_IDENTIFIER = com.doublewaterapps.beforeshow;
-				PRODUCT_NAME = BeforeShow;
-				REVENUECAT_API_KEY = appl_FWKFhestdOkpZpYZCMTNHDpCfFZ;
-				SDKROOT = iphoneos;
-				SUPPORTS_MACCATALYST = NO;
-				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
-				TARGETED_DEVICE_FAMILY = 1;
-				UILAUNCHSTORYBOARDNAME = LaunchScreen;
-			};
-			name = Release;
-		};
+	buildSettings = {
+		"ASSETCATALOG_COMPILER_APPICON_NAME" = AppIcon;
+		"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = AccentColor;
+		"CODE_SIGN_ENTITLEMENTS" = "BeforeShow/BeforeShow.entitlements";
+		"CODE_SIGN_IDENTITY" = "iPhone Developer";
+		"CURRENT_PROJECT_VERSION" = 11;
+		"ENABLE_USER_SCRIPT_SANDBOXING" = YES;
+		"INFOPLIST_FILE" = "BeforeShow/Supporting/Info.plist";
+		"LD_RUNPATH_SEARCH_PATHS" = (
+			"$(inherited)",
+			"@executable_path/Frameworks",
+		);
+		"POSTHOG_API_KEY" = "phc_zLnN7zxFf2zTS5XkNd9um5DgNPmv4ZZejgR6Ln2uudVm";
+		"POSTHOG_HOST" = "https://us.i.posthog.com";
+		"PRODUCT_BUNDLE_IDENTIFIER" = "com.doublewaterapps.beforeshow";
+		"PRODUCT_NAME" = BeforeShow;
+		"REVENUECAT_API_KEY" = "appl_FWKFhestdOkpZpYZCMTNHDpCfFZ";
+		SDKROOT = iphoneos;
+		"SUPPORTS_MACCATALYST" = NO;
+		"SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD" = NO;
+		"TARGETED_DEVICE_FAMILY" = 1;
+		UILAUNCHSTORYBOARDNAME = LaunchScreen;
+	};
+	isa = XCBuildConfiguration;
+	name = Release;
+};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */

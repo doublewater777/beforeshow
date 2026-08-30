@@ -1,8 +1,37 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { normalizeUrl } from "../src/functions/parseShowLink/platformDetector.js";
+import {
+  normalizeUrl,
+  resolveRedirectUrl
+} from "../src/functions/parseShowLink/platformDetector.js";
 
 describe("real-world domestic ticket share URLs", () => {
+  it("preserves the Maoyan hash route when resolving a dpurl.cn short link", async () => {
+    const resolved = await resolveRedirectUrl("http://dpurl.cn/wudOxhJz", {
+      fetch: async (url, options) => {
+        assert.equal(url, "http://dpurl.cn/wudOxhJz");
+        assert.equal(options.redirect, "manual");
+        return {
+          status: 302,
+          headers: {
+            get(name) {
+              return name === "location"
+                ? "https://show.maoyan.com/qqw?utm_source=share#/detail/248879?fromTag=mtshare"
+                : null;
+            }
+          }
+        };
+      }
+    });
+
+    assert.equal(
+      resolved,
+      "https://show.maoyan.com/qqw?utm_source=share#/detail/248879?fromTag=mtshare"
+    );
+    assert.equal(normalizeUrl(resolved).platform, "maoyan");
+    assert.equal(normalizeUrl(resolved).eventId, "248879");
+  });
+
   it("extracts Maoyan performance ID from the qqw hash-route share URL", () => {
     const normalized = normalizeUrl(
       "https://show.maoyan.com/qqw?nonce=574a3351686368637548454253394c4c35316e3541773d3d#/detail/381177"

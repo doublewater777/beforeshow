@@ -196,6 +196,46 @@ describe("public event page parser", () => {
 });
 
 describe("additional platform dispatch", () => {
+  it("parses a dpurl.cn short link as a Maoyan event", async () => {
+    const fetch = async (url) => {
+      if (url === "http://dpurl.cn/wudOxhJz") {
+        return {
+          status: 302,
+          headers: {
+            get(name) {
+              return name === "location"
+                ? "https://show.maoyan.com/qqw#/detail/248879"
+                : null;
+            }
+          }
+        };
+      }
+
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          code: 0,
+          data: {
+            performanceId: 248879,
+            name: "猫眼短链测试现场",
+            shopName: "测试场馆",
+            address: "测试地址",
+            posterUrl: "https://example.com/maoyan-short-link.jpg",
+            showTimeRange: "2026.09.16 19:00",
+            cityName: "上海",
+            lowestPrice: "380"
+          }
+        })
+      };
+    };
+
+    const draft = await parseShowLink("http://dpurl.cn/wudOxhJz", { fetch });
+    assert.equal(draft.source, "maoyan");
+    assert.equal(draft.date, "2026-09-16");
+    assert.equal(draft.name, "猫眼短链测试现场");
+  });
+
   it("parses Maoyan through the performance adapter", async () => {
     const fetch = async () => ({
       ok: true,

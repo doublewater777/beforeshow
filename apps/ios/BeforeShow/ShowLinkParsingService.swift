@@ -16,6 +16,7 @@ enum ShowLinkPlatformCatalog {
         ("damai.cn", "大麦"),
         ("showstart.com", "秀动"),
         ("maoyan.com", "猫眼"),
+        ("dpurl.cn", "猫眼"),
         ("piaoxingqiu.com", "票星球"),
         ("livelab.com.cn", "纷玩岛"),
         ("st.music.163.com", "网易云"),

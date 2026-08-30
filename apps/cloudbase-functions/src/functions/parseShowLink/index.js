@@ -1,4 +1,4 @@
-import { normalizeUrl, UnsupportedPlatformError } from "./platformDetector.js";
+import { normalizeUrl, resolveRedirectUrl, UnsupportedPlatformError } from "./platformDetector.js";
 import { fetchDamaiDetail, parseDamaiDetail, NotAShowError } from "./damaiParser.js";
 import { fetchShowStartDetail, parseShowStartDetail } from "./showstartParser.js";
 import { fetchMaoyanPerformance, parseMaoyanPerformance } from "./maoyanParser.js";
@@ -18,7 +18,8 @@ const PUBLIC_PAGE_PLATFORMS = new Set([
 export { UnsupportedPlatformError, NotAShowError };
 
 export async function parseShowLink(url, options = {}) {
-  const normalized = normalizeUrl(url);
+  const resolvedUrl = await resolveRedirectUrl(url, { fetch: options.fetch });
+  const normalized = normalizeUrl(resolvedUrl);
 
   if (normalized.platform === "damai") {
     const detail = await fetchDamaiDetail({

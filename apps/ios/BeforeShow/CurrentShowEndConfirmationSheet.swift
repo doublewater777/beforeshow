@@ -57,17 +57,20 @@ struct CurrentShowEndConfirmationSheet: View {
                 Button("早就结束") { step = .earlier }
                     .buttonStyle(BSSecondaryButtonStyle())
                 if allowsJustEnded {
-                    Button("刚刚结束") { onConfirm(Date()) }
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.liveTitle)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(BSColor.Stage.live.opacity(0.13))
-                        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.md)
-                                .stroke(BSColor.Stage.live.opacity(0.34), lineWidth: 1)
-                        )
+                    Button { onConfirm(Date()) } label: {
+                        Text("刚刚结束")
+                            .font(BSFont.caption)
+                            .foregroundColor(BSColor.Stage.liveTitle)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(BSColor.Stage.live.opacity(0.13))
+                            .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: BSRadius.md)
+                                    .stroke(BSColor.Stage.live.opacity(0.34), lineWidth: 1)
+                            )
+                            .contentShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    }
                 }
             }
         }

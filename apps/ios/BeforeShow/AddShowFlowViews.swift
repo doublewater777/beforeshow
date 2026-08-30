@@ -191,7 +191,7 @@ enum AddShowIntent: Equatable {
         let date = self == .historicalBackfill
             ? (calendar.date(byAdding: .day, value: -1, to: today) ?? today)
             : today
-        let startTime = calendar.date(bySettingHour: 19, minute: 30, second: 0, of: date)
+        let startTime = calendar.date(bySettingHour: 20, minute: 0, second: 0, of: date)
         return ShowDraft(date: date, startTime: startTime, source: .manual)
     }
 }
@@ -1241,25 +1241,31 @@ private struct AddShowSavedConfirmationView: View {
 
                     if intent == .historicalBackfill {
                         VStack(spacing: 10) {
-                            Button(BSLocalization.text("继续补录")) {
+                            Button {
                                 onContinue?()
+                            } label: {
+                                Text(BSLocalization.text("继续补录"))
+                                    .font(.system(size: 14.5, weight: .semibold))
+                                    .foregroundColor(BSColor.Stage.background)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 50)
+                                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                                    .contentShape(RoundedRectangle(cornerRadius: 16))
                             }
-                            .font(.system(size: 14.5, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.background)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
                             .buttonStyle(.plain)
 
-                            Button(BSLocalization.text("查看足迹")) {
+                            Button {
                                 onOpen?()
+                            } label: {
+                                Text(BSLocalization.text("查看足迹"))
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(BSColor.Stage.foreground)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 48)
+                                    .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
+                                    .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
+                                    .contentShape(RoundedRectangle(cornerRadius: 16))
                             }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
                             .buttonStyle(.plain)
                             .disabled(onOpen == nil)
                         }
@@ -2002,15 +2008,15 @@ private struct ShowDraftFormFields: View {
         let initialDraft = draft.wrappedValue
         let eventCalendar = initialDraft.timingCalendar()
         let fallbackStart = eventCalendar.date(
-            bySettingHour: 19,
-            minute: 30,
+            bySettingHour: 20,
+            minute: 0,
             second: 0,
             of: initialDraft.date
         ) ?? initialDraft.date
         let initialEndDate = initialDraft.endDate ?? initialDraft.date
         let fallbackEnd = initialDraft.endTimingCalendar().date(
             bySettingHour: 23,
-            minute: 55,
+            minute: 0,
             second: 0,
             of: initialEndDate
         ) ?? initialEndDate

@@ -745,11 +745,16 @@ struct FootprintsView: View {
                 .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.border))
             }
-            Button(BSLocalization.text("筛选")) { activeSheet = .search }
-                .font(.system(size: 12.5)).foregroundColor(BSColor.Stage.muted)
-                .padding(.horizontal, 13).frame(height: 42)
-                .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.border))
+            Button { activeSheet = .search } label: {
+                Text(BSLocalization.text("筛选"))
+                    .font(.system(size: 12.5))
+                    .foregroundColor(BSColor.Stage.muted)
+                    .padding(.horizontal, 13)
+                    .frame(height: 42)
+                    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(BSColor.Stage.border))
+                    .contentShape(RoundedRectangle(cornerRadius: 14))
+            }
         }
         .padding(.horizontal, BSSpacing.roomy).padding(.top, 11)
     }
@@ -1875,11 +1880,14 @@ private struct FootprintEmptyView: View {
                 .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
 
-            Button(content.actionTitle ?? BSLocalization.text("补录足迹"), action: onAdd)
-                .font(.system(size: 14.5, weight: .semibold))
-                .foregroundColor(BSColor.Stage.background)
-                .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+            Button(action: onAdd) {
+                Text(content.actionTitle ?? BSLocalization.text("补录足迹"))
+                    .font(.system(size: 14.5, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.background)
+                    .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
+                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
+            }
                 .padding(.top, BSSpacing.sm)
 
             Spacer()

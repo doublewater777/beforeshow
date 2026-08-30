@@ -33,9 +33,9 @@ final class FootprintArchiveTests: XCTestCase {
         let footprint = AddShowIntent.historicalBackfill.initialManualDraft(now: now, calendar: calendar)
 
         XCTAssertEqual(current.date, date(2026, 8, 29))
-        XCTAssertEqual(current.startTime, date(2026, 8, 29, 19, 30))
+        XCTAssertEqual(current.startTime, date(2026, 8, 29, 20))
         XCTAssertEqual(footprint.date, date(2026, 8, 28))
-        XCTAssertEqual(footprint.startTime, date(2026, 8, 28, 19, 30))
+        XCTAssertEqual(footprint.startTime, date(2026, 8, 28, 20))
     }
 
     func testArchiveIncludesOnlyEndedScheduledShows() throws {
