@@ -1,0 +1,81 @@
+name: Temporary venue sort patch
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/venue-sort-by-count'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+          fetch-depth: 0
+
+      - name: Apply venue count sorting
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          view_path = Path('apps/ios/BeforeShow/FootprintArchiveViews.swift')
+          text = view_path.read_text()
+
+          old_sort = '''    private var listedVenues: [FootprintVenueArchiveItem] {
+              let remaining = Array(items.dropFirst())
+              return remaining.sorted {
+                  if $0.latestShowDate != $1.latestShowDate { return $0.latestShowDate > $1.latestShowDate }
+                  return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+              }
+          }'''
+          new_sort = '''    private var listedVenues: [FootprintVenueArchiveItem] {
+              let remaining = Array(items.dropFirst())
+              return remaining.sorted {
+                  if $0.count != $1.count { return $0.count > $1.count }
+                  return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+              }
+          }'''
+
+          if text.count(old_sort) != 1:
+              raise SystemExit(f'expected one venue sort block, found {text.count(old_sort)}')
+          text = text.replace(old_sort, new_sort)
+
+          old_label = 'Text(BSLocalization.text("按最近到访排序"))'
+          new_label = 'Text(BSLocalization.text("按场次排序"))'
+          if text.count(old_label) != 1:
+              raise SystemExit(f'expected one venue sort label, found {text.count(old_label)}')
+          text = text.replace(old_label, new_label)
+          view_path.write_text(text)
+
+          translations = {
+              Path('apps/ios/BeforeShow/Resources/zh-Hans.lproj/Localizable.strings'): '"按场次排序" = "按场次排序";',
+              Path('apps/ios/BeforeShow/Resources/zh-Hant.lproj/Localizable.strings'): '"按场次排序" = "按場次排序";',
+              Path('apps/ios/BeforeShow/Resources/en.lproj/Localizable.strings'): '"按场次排序" = "Sort by show count";',
+          }
+          pattern = re.compile(r'^"按最近到访排序"\s*=\s*".*";$', re.MULTILINE)
+          for path, replacement in translations.items():
+              source = path.read_text()
+              updated, count = pattern.subn(replacement, source, count=1)
+              if count != 1:
+                  raise SystemExit(f'expected one localization entry in {path}, found {count}')
+              path.write_text(updated)
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/ios/BeforeShow/FootprintArchiveViews.swift \
+                  apps/ios/BeforeShow/Resources/en.lproj/Localizable.strings \
+                  apps/ios/BeforeShow/Resources/zh-Hans.lproj/Localizable.strings \
+                  apps/ios/BeforeShow/Resources/zh-Hant.lproj/Localizable.strings
+          if git diff --cached --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git commit -m "fix: sort venue archive by show count"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
