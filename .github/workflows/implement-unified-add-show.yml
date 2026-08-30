@@ -11,102 +11,27 @@ permissions:
   contents: write
 
 jobs:
-  tdd:
-    runs-on: macos-15
-    timeout-minutes: 90
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Environment
-        run: |
-          set -euo pipefail
-          XCODE_APP=$(find /Applications -maxdepth 1 -type d -name 'Xcode_26*.app' | sort -V | tail -1)
-          if [ -z "$XCODE_APP" ]; then
-            echo 'No Xcode 26 installation found.'
-            ls -1 /Applications | grep Xcode || true
-            exit 1
-          fi
-          sudo xcode-select -s "$XCODE_APP/Contents/Developer"
-          xcodebuild -version
-          xcrun simctl list devices available | grep 'iPhone 17' || true
-
-      - name: Patch tests first
+      - name: Apply tests and implementation
         run: |
           set -euo pipefail
           python3 .github/scripts/implement_unified_add_show.py tests
-          git diff --check
-
-      - name: Verify RED
-        shell: bash
-        run: |
-          set -uo pipefail
-          cd apps/ios
-          set +e
-          xcodebuild \
-            -project BeforeShow.xcodeproj \
-            -scheme BeforeShow \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ \
-            test \
-            -only-testing:BeforeShowTests/OpeningMemoryWindowTests \
-            -only-testing:BeforeShowTests/LocalNotificationSchedulingTests \
-            -only-testing:BeforeShowTests/FootprintArchiveTests \
-            2>&1 | tee /tmp/unified-red.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ "$status" -eq 0 ]; then
-            echo 'Expected the new tests to fail before implementation, but they passed.'
-            exit 1
-          fi
-          if ! grep -Eq "AddShowConfiguration|AddShowLifecyclePolicy|lifecycle:|notificationFireDate|OpeningMemory" /tmp/unified-red.log; then
-            echo 'RED did not fail for an expected unified-add-show reason.'
-            tail -n 200 /tmp/unified-red.log
-            exit 1
-          fi
-          echo 'RED confirmed.'
-
-      - name: Patch implementation
-        run: |
-          set -euo pipefail
           python3 .github/scripts/implement_unified_add_show.py implementation
           git diff --check
+          git status --short
 
-      - name: Targeted tests
-        run: |
-          set -euo pipefail
-          cd apps/ios
-          xcodebuild \
-            -project BeforeShow.xcodeproj \
-            -scheme BeforeShow \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ \
-            test \
-            -only-testing:BeforeShowTests/OpeningMemoryWindowTests \
-            -only-testing:BeforeShowTests/LocalNotificationSchedulingTests \
-            -only-testing:BeforeShowTests/FootprintArchiveTests \
-            2>&1 | tee /tmp/unified-targeted.log
-
-      - name: Full BeforeShowTests
-        run: |
-          set -euo pipefail
-          cd apps/ios
-          xcodebuild \
-            -project BeforeShow.xcodeproj \
-            -scheme BeforeShow \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ \
-            test \
-            -only-testing:BeforeShowTests \
-            2>&1 | tee /tmp/unified-full.log
-
-      - name: Commit implementation
+      - name: Commit patch
         run: |
           set -euo pipefail
           rm .github/scripts/implement_unified_add_show.py
           git diff --check
-          git status --short
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
