@@ -374,6 +374,7 @@
 "当前为%@" = "Currently %@";
 "当前方案" = "Current Plan";
 "当前状态不能设为当前现场" = "Current status can't be set as the current show";
+"这个现场已经添加过了" = "This show has already been added.";
 "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。" = "When the current show ends it's filed here automatically;\\nshows, cities, and memories will slowly accumulate.";
 "待确认" = "Pending";
 "意见反馈" = "Feedback";
