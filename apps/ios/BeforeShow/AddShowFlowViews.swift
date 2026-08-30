@@ -152,7 +152,15 @@ enum AddShowLifecycleResolution: Equatable {
 
 enum AddShowLifecyclePolicy {
     static func minimumEndTime(for show: Show, calendar: Calendar = .current) -> Date {
-        CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+        CurrentShowTimeState.minimumConfirmableEnd(for: show, calendar: calendar)
+    }
+
+    static func canConfirmEnd(
+        for show: Show,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> Bool {
+        minimumEndTime(for: show, calendar: calendar) <= now
     }
 
     static func resolution(
@@ -252,6 +260,14 @@ enum AddShowPersistenceCoordinator {
                 notificationState: nil
             )
         case .future where existingCurrent != nil:
+            if let existingCurrent,
+               selections.first?.selectedShowID != existingCurrent.id {
+                let selection = selections.first ?? CurrentShowSelection()
+                if selections.isEmpty {
+                    modelContext.insert(selection)
+                }
+                selection.select(showID: existingCurrent.id)
+            }
             try modelContext.save()
             return AddShowPersistenceResult(outcome: .future, notificationState: nil)
         case .future, .live:
@@ -506,6 +522,10 @@ struct AddShowFlowView: View {
             AddShowLifecycleConfirmationSheet(
                 showName: pending.show.name,
                 showStart: AddShowLifecyclePolicy.minimumEndTime(
+                    for: pending.show,
+                    calendar: pending.show.timingCalendar()
+                ),
+                canConfirmEnd: AddShowLifecyclePolicy.canConfirmEnd(
                     for: pending.show,
                     calendar: pending.show.timingCalendar()
                 ),
@@ -1369,6 +1389,7 @@ private struct AddShowLifecycleConfirmationSheet: View {
 
     let showName: String
     let showStart: Date
+    let canConfirmEnd: Bool
     let calendar: Calendar
     let onLive: () -> Void
     let onEnded: (Date) -> Void
@@ -1379,6 +1400,7 @@ private struct AddShowLifecycleConfirmationSheet: View {
     init(
         showName: String,
         showStart: Date,
+        canConfirmEnd: Bool,
         calendar: Calendar,
         now: Date = Date(),
         onLive: @escaping () -> Void,
@@ -1386,6 +1408,7 @@ private struct AddShowLifecycleConfirmationSheet: View {
     ) {
         self.showName = showName
         self.showStart = showStart
+        self.canConfirmEnd = canConfirmEnd
         self.calendar = calendar
         self.onLive = onLive
         self.onEnded = onEnded
@@ -1443,10 +1466,12 @@ private struct AddShowLifecycleConfirmationSheet: View {
                     }
                     .buttonStyle(BSPrimaryButtonStyle())
 
-                    Button(BSLocalization.text("已经结束")) {
-                        isConfirmingEndTime = true
+                    if canConfirmEnd {
+                        Button(BSLocalization.text("已经结束")) {
+                            isConfirmingEndTime = true
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
                     }
-                    .buttonStyle(BSSecondaryButtonStyle())
                 }
             }
         }

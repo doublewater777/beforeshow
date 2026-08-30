@@ -67,7 +67,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(AddShowLifecyclePolicy.resolution(for: clearlyEnded, now: now, calendar: calendar), .ended)
     }
 
-    func testUnifiedEndConfirmationAllowsAnyTimeAfterMultiDayOpening() throws {
+    func testUnifiedEndConfirmationRequiresFinalDailySessionForMultiDayShow() throws {
         let show = try Show(
             name: "三日音乐节",
             date: date(2026, 8, 29),
@@ -78,7 +78,25 @@ final class FootprintArchiveTests: XCTestCase {
 
         XCTAssertEqual(
             AddShowLifecyclePolicy.minimumEndTime(for: show, calendar: calendar),
-            date(2026, 8, 29, 14)
+            date(2026, 8, 31, 14)
+        )
+    }
+
+    func testUnifiedEndConfirmationIsUnavailableBeforeFinalDailySession() throws {
+        let show = try Show(
+            name: "三日音乐节",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 14),
+            endDate: date(2026, 8, 31),
+            endTime: date(2026, 8, 29, 23)
+        )
+
+        XCTAssertFalse(
+            AddShowLifecyclePolicy.canConfirmEnd(
+                for: show,
+                now: date(2026, 8, 29, 23, 30),
+                calendar: calendar
+            )
         )
     }
 
@@ -227,6 +245,48 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .future)
         XCTAssertNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
+        XCTAssertEqual(notificationState.focusedShowID, current.id)
+    }
+
+    func testUnifiedFutureAddPreservesAutomaticallySelectedCurrentShow() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let now = date(2026, 8, 29, 12)
+        let current = try Show(
+            name: "原本自动选中的现场",
+            date: date(2026, 9, 20),
+            startTime: date(2026, 9, 20, 20)
+        )
+        let closer = try Show(
+            name: "新增的更近现场",
+            date: date(2026, 9, 5),
+            startTime: date(2026, 9, 5, 20)
+        )
+        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        context.insert(current)
+        context.insert(notificationState)
+        try context.save()
+
+        _ = try AddShowPersistenceCoordinator.persist(
+            closer,
+            lifecycle: .future,
+            selections: [],
+            notificationStates: [notificationState],
+            in: context,
+            now: now
+        )
+
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let selection = try XCTUnwrap(context.fetch(FetchDescriptor<CurrentShowSelection>()).first)
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: shows,
+            manualSelection: selection,
+            now: now
+        )
+        XCTAssertEqual(selected?.id, current.id)
         XCTAssertEqual(notificationState.focusedShowID, current.id)
     }
 
