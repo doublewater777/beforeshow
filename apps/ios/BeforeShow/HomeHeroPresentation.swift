@@ -69,6 +69,11 @@ struct HomeHeroStage: View {
                 cornerRadius: 26
             )
         }
+        // CurrentShowManagementSection is structurally reused when the selected
+        // show changes. Give the cover subtree a show-bound identity so its @State
+        // reloads DynamicCoverFaceStore instead of leaking the previous show's face
+        // and media URL into the newly selected show.
+        .id(show.id)
         .frame(width: width, height: height)
         .saturation(phase == .inactive ? 0.35 : (phase == .ended ? 0.72 : 1.0))
         .brightness(phase == .inactive ? -0.18 : (phase == .ended ? -0.05 : 0))
