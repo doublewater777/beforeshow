@@ -54,7 +54,11 @@ struct MemoryViewerVideoPage: View {
 
     var body: some View {
         Group {
-            if let player {
+            // Drive AVKit teardown from the page-selection state first. Clearing
+            // the player while VideoPlayer is still mounted can race the backing
+            // AVPlayerViewController teardown and crash when a memory video opens
+            // or a paged viewer changes selection.
+            if isActive, let player {
                 VideoPlayer(player: player)
             } else {
                 Color.black
@@ -66,7 +70,9 @@ struct MemoryViewerVideoPage: View {
             releasePlayer()
             updatePlayer()
         }
-        .onDisappear { releasePlayer() }
+        // When the whole viewer disappears, let SwiftUI/AVKit dismantle its
+        // controller before ARC releases the player state. Pausing is enough.
+        .onDisappear { player?.pause() }
     }
 
     private func updatePlayer() {
@@ -81,7 +87,9 @@ struct MemoryViewerVideoPage: View {
 
     private func releasePlayer() {
         player?.pause()
-        player?.replaceCurrentItem(with: nil)
+        // Do not mutate currentItem while an AVPlayerViewController may still be
+        // dismantling. Dropping our reference is sufficient once the page is no
+        // longer rendering VideoPlayer.
         player = nil
     }
 }
