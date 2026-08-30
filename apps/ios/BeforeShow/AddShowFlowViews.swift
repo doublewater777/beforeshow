@@ -199,6 +199,7 @@ enum AddShowIntent: Equatable {
 enum AddShowPersistenceError: Error, Equatable {
     case historicalBackfillRequiresCompletedShow
     case upcomingRequiresActiveShow
+    case duplicateShow(existingShowID: UUID)
 }
 
 @MainActor
@@ -221,6 +222,11 @@ enum AddShowPersistenceCoordinator {
             guard timeState.kind == .before || timeState.kind == .today || timeState.kind == .dayEnded else {
                 throw AddShowPersistenceError.upcomingRequiresActiveShow
             }
+        }
+
+        let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
+        if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: persistedShows) {
+            throw AddShowPersistenceError.duplicateShow(existingShowID: duplicate.id)
         }
 
         modelContext.insert(show)
@@ -1048,6 +1054,18 @@ struct AddShowFlowView: View {
         dismissKeyboard()
 
         do {
+            let show = try draft.makeShow()
+            if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: shows) {
+                PostHogSDK.shared.capture("duplicate_show_blocked", properties: [
+                    "method": sheet.rawValue,
+                    "existing_show_id": duplicate.id.uuidString
+                ])
+                message = BSLocalization.text("这个现场已经添加过了")
+                presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
+                isSaving = false
+                return
+            }
+
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             let gate = ProFeatureGate()
             let addedThisMonth = gate.showsAddedThisMonth(from: shows)
@@ -1059,7 +1077,6 @@ struct AddShowFlowView: View {
                 return
             }
 
-            let show = try draft.makeShow()
             let notificationState = try AddShowPersistenceCoordinator.persist(
                 show,
                 intent: intent,
@@ -1106,6 +1123,10 @@ struct AddShowFlowView: View {
         } catch ShowValidationError.emptyName {
             message = BSLocalization.text("请填写现场名称。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
+            isSaving = false
+        } catch AddShowPersistenceError.duplicateShow(_) {
+            message = BSLocalization.text("这个现场已经添加过了")
+            presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
             isSaving = false
         } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {
             message = BSLocalization.text("补录足迹仅支持已经结束的现场。")
