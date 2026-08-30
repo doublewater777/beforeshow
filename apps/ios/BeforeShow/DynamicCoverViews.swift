@@ -681,9 +681,6 @@ struct FootprintDynamicCoverSection: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(effectiveIsPlaying ? BSLocalization.text("暂停动态封面") : BSLocalization.text("播放动态封面"))
             }
-            .onChange(of: scenePhase) { _, newPhase in
-                if newPhase != .active { isPlaying = false }
-            }
             .onDisappear { isPlaying = false }
         }
     }
