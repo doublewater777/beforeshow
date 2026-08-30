@@ -1,6 +1,76 @@
 import Foundation
 import SwiftData
 
+/// Conservative content identity used only by the user-facing add-show flow.
+/// A match requires the same normalized name and venue-local start minute; optional
+/// location / artist fields only veto a match when both sides provide conflicting data.
+enum ShowDuplicateMatcher {
+    private struct TimingSignature: Equatable {
+        let year: Int
+        let month: Int
+        let day: Int
+        let hour: Int
+        let minute: Int
+    }
+
+    static func firstDuplicate(of candidate: Show, in shows: [Show]) -> Show? {
+        shows.first { isDuplicate(candidate, $0) }
+    }
+
+    static func isDuplicate(_ lhs: Show, _ rhs: Show) -> Bool {
+        guard normalized(lhs.name) == normalized(rhs.name),
+              timingSignature(lhs) == timingSignature(rhs) else {
+            return false
+        }
+
+        if let lhsVenue = normalized(lhs.venueName),
+           let rhsVenue = normalized(rhs.venueName),
+           lhsVenue != rhsVenue {
+            return false
+        }
+        if let lhsCity = normalized(lhs.city),
+           let rhsCity = normalized(rhs.city),
+           lhsCity != rhsCity {
+            return false
+        }
+
+        let lhsArtists = Set(lhs.artistNames.compactMap { normalized($0) })
+        let rhsArtists = Set(rhs.artistNames.compactMap { normalized($0) })
+        if !lhsArtists.isEmpty,
+           !rhsArtists.isEmpty,
+           lhsArtists.isDisjoint(with: rhsArtists) {
+            return false
+        }
+
+        return true
+    }
+
+    private static func timingSignature(_ show: Show) -> TimingSignature {
+        let calendar = show.timingCalendar()
+        let day = calendar.dateComponents([.year, .month, .day], from: show.date)
+        let clock = calendar.dateComponents([.hour, .minute], from: show.startTime)
+        return TimingSignature(
+            year: day.year ?? 0,
+            month: day.month ?? 0,
+            day: day.day ?? 0,
+            hour: clock.hour ?? 0,
+            minute: clock.minute ?? 0
+        )
+    }
+
+    private static func normalized(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let folded = raw.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        let value = folded
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+        return value.isEmpty ? nil : value
+    }
+}
+
 @MainActor
 struct CurrentShowPostCommitEffects {
     let applyNotificationFocus: @MainActor (Show?, ModelContext) async -> Bool
