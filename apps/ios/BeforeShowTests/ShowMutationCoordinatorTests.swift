@@ -238,6 +238,180 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         XCTAssertEqual(widgetShowIDs, [next.id])
     }
 
+    func testDuplicateMatcherNormalizesFormattingAndRejectsNearDuplicates() throws {
+        let start = Date(timeIntervalSince1970: 2_000_100_000)
+        let first = try Show(
+            name: "TEST Live",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "MAO Livehouse",
+            artists: [ArtistSlot(name: "Example Band")]
+        )
+        let formattingVariant = try Show(
+            name: "test-live",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "MAO Livehouse",
+            artists: [ArtistSlot(name: "example band")]
+        )
+        let otherVenue = try Show(
+            name: "TEST Live",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "另一场馆",
+            artists: [ArtistSlot(name: "Example Band")]
+        )
+        let nextNight = try Show(
+            name: "TEST Live",
+            date: start.addingTimeInterval(86_400),
+            startTime: start.addingTimeInterval(86_400),
+            city: "上海",
+            venueName: "MAO Livehouse",
+            artists: [ArtistSlot(name: "Example Band")]
+        )
+
+        XCTAssertTrue(ShowDuplicateMatcher.isDuplicate(first, formattingVariant))
+        XCTAssertFalse(ShowDuplicateMatcher.isDuplicate(first, otherVenue))
+        XCTAssertFalse(ShowDuplicateMatcher.isDuplicate(first, nextNight))
+    }
+
+    @MainActor
+    func testAddShowPersistenceRejectsSecondLogicalDuplicate() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let start = now.addingTimeInterval(7 * 86_400)
+        let first = try Show(
+            name: "重复现场",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "测试场馆",
+            artists: [ArtistSlot(name: "测试艺人")]
+        )
+        let duplicate = try Show(
+            name: " 重复现场 ",
+            date: start,
+            startTime: start,
+            city: "上海",
+            venueName: "测试场馆",
+            artists: [ArtistSlot(name: "测试艺人")]
+        )
+
+        _ = try AddShowPersistenceCoordinator.persist(
+            first,
+            intent: .upcoming,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+        let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
+        let notificationStates = try context.fetch(FetchDescriptor<NotificationSchedulingState>())
+
+        XCTAssertThrowsError(
+            try AddShowPersistenceCoordinator.persist(
+                duplicate,
+                intent: .upcoming,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: context,
+                now: now
+            )
+        ) { error in
+            XCTAssertEqual(
+                error as? AddShowPersistenceError,
+                .duplicateShow(existingShowID: first.id)
+            )
+        }
+        XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
+    }
+
+    @MainActor
+    func testDeletionKeepsContentDuplicateWithDistinctIDs() async throws {
+        let container = try makeContainer(
+            MemoryFragment.self,
+            MemoryMediaItem.self,
+            ShowAsset.self,
+            DynamicCover.self
+        )
+        let context = container.mainContext
+        let start = Date(timeIntervalSinceNow: 7 * 86_400)
+        let first = try Show(name: "历史重复现场", date: start, startTime: start)
+        let second = try Show(name: "历史重复现场", date: start, startTime: start)
+        context.insert(first)
+        context.insert(second)
+        try context.save()
+
+        let effects = CurrentShowPostCommitEffects(
+            applyNotificationFocus: { _, _ in true },
+            syncWidget: { _, _ in true }
+        )
+        _ = try await ShowDeletionCoordinator.delete(
+            first,
+            from: [first, second],
+            selections: [],
+            notificationStates: [],
+            in: context,
+            effects: effects
+        )
+
+        let remaining = try context.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.persistentModelID, second.persistentModelID)
+    }
+
+    @MainActor
+    func testDeletionKeepsLegacyRowThatSharesBusinessUUID() async throws {
+        let container = try makeContainer(
+            MemoryFragment.self,
+            MemoryMediaItem.self,
+            ShowAsset.self,
+            DynamicCover.self
+        )
+        let context = container.mainContext
+        let sharedID = UUID()
+        let firstStart = Date(timeIntervalSinceNow: 7 * 86_400)
+        let secondStart = Date(timeIntervalSinceNow: 8 * 86_400)
+        let first = try Show(
+            id: sharedID,
+            name: "坏数据 A",
+            date: firstStart,
+            startTime: firstStart
+        )
+        let second = try Show(
+            id: sharedID,
+            name: "坏数据 B",
+            date: secondStart,
+            startTime: secondStart
+        )
+        let selection = CurrentShowSelection(selectedShowID: sharedID)
+        context.insert(first)
+        context.insert(second)
+        context.insert(selection)
+        try context.save()
+
+        let effects = CurrentShowPostCommitEffects(
+            applyNotificationFocus: { _, _ in true },
+            syncWidget: { _, _ in true }
+        )
+        _ = try await ShowDeletionCoordinator.delete(
+            first,
+            from: [first, second],
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            effects: effects
+        )
+
+        let remaining = try context.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.persistentModelID, second.persistentModelID)
+        XCTAssertEqual(selection.selectedShowID, sharedID)
+    }
 }
 
 private extension ShowDraft {
