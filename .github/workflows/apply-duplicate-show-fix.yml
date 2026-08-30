@@ -1,0 +1,298 @@
+name: Apply duplicate show fix
+
+on:
+  push:
+    branches:
+      - fix/duplicate-show-delete-crash
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/duplicate-show-delete-crash
+          fetch-depth: 0
+
+      - name: Patch add-show flow and regression tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          flow = Path('apps/ios/BeforeShow/AddShowFlowViews.swift')
+          text = flow.read_text()
+
+          old = '''enum AddShowPersistenceError: Error, Equatable {
+              case historicalBackfillRequiresCompletedShow
+              case upcomingRequiresActiveShow
+          }'''
+          new = '''enum AddShowPersistenceError: Error, Equatable {
+              case historicalBackfillRequiresCompletedShow
+              case upcomingRequiresActiveShow
+              case duplicateShow(existingShowID: UUID)
+          }'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''        modelContext.insert(show)
+
+                  guard intent == .upcoming else {'''
+          new = '''        let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
+                  if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: persistedShows) {
+                      throw AddShowPersistenceError.duplicateShow(existingShowID: duplicate.id)
+                  }
+
+                  modelContext.insert(show)
+
+                  guard intent == .upcoming else {'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''        do {
+                      let entitlement = ProEntitlementStorage.decode(entitlementRawValue)'''
+          new = '''        do {
+                      let show = try draft.makeShow()
+                      if let duplicate = ShowDuplicateMatcher.firstDuplicate(of: show, in: shows) {
+                          PostHogSDK.shared.capture("duplicate_show_blocked", properties: [
+                              "method": sheet.rawValue,
+                              "existing_show_id": duplicate.id.uuidString
+                          ])
+                          message = BSLocalization.text("这个现场已经添加过了")
+                          presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
+                          isSaving = false
+                          return
+                      }
+
+                      let entitlement = ProEntitlementStorage.decode(entitlementRawValue)'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''
+                      let show = try draft.makeShow()
+                      let notificationState = try AddShowPersistenceCoordinator.persist('''
+          new = '''
+                      let notificationState = try AddShowPersistenceCoordinator.persist('''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+
+          old = '''        } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {'''
+          new = '''        } catch AddShowPersistenceError.duplicateShow(_) {
+                      message = BSLocalization.text("这个现场已经添加过了")
+                      presentToast(.neutral, message: BSLocalization.text("这个现场已经添加过了"))
+                      isSaving = false
+                  } catch AddShowPersistenceError.historicalBackfillRequiresCompletedShow {'''
+          assert text.count(old) == 1
+          text = text.replace(old, new)
+          flow.write_text(text)
+
+          tests = Path('apps/ios/BeforeShowTests/ShowDraftTests.swift')
+          text = tests.read_text()
+          assert text.startswith('import XCTest\n')
+          text = text.replace('import XCTest\n', 'import SwiftData\nimport XCTest\n', 1)
+
+          marker = '''    private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0, minute: Int = 0) -> Date {'''
+          assert text.count(marker) == 1
+          addition = r'''    func testDuplicateMatcherNormalizesFormattingButKeepsDifferentShowsDistinct() throws {
+                  let first = try Show(
+                      name: "TEST Live",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20),
+                      city: "上海",
+                      venueName: "MAO Livehouse",
+                      artists: [ArtistSlot(name: "Example Band")]
+                  )
+                  let formattingVariant = try Show(
+                      name: "test-live",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20),
+                      city: "上海",
+                      venueName: "MAO Livehouse",
+                      artists: [ArtistSlot(name: "example band")]
+                  )
+                  let nextNight = try Show(
+                      name: "TEST Live",
+                      date: makeDate(year: 2026, month: 9, day: 16),
+                      startTime: makeDate(year: 2026, month: 9, day: 16, hour: 20),
+                      city: "上海",
+                      venueName: "MAO Livehouse",
+                      artists: [ArtistSlot(name: "Example Band")]
+                  )
+
+                  XCTAssertTrue(ShowDuplicateMatcher.isDuplicate(first, formattingVariant))
+                  XCTAssertFalse(ShowDuplicateMatcher.isDuplicate(first, nextNight))
+              }
+
+              @MainActor
+              func testAddShowPersistenceRejectsSecondLogicalDuplicate() throws {
+                  let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+                  let container = try ModelContainer(
+                      for: Show.self,
+                      CurrentShowSelection.self,
+                      NotificationSchedulingState.self,
+                      configurations: configuration
+                  )
+                  let context = container.mainContext
+                  let now = makeDate(year: 2026, month: 8, day: 30, hour: 12)
+                  let first = try Show(
+                      name: "重复现场",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20),
+                      city: "上海",
+                      venueName: "测试场馆",
+                      artists: [ArtistSlot(name: "测试艺人")]
+                  )
+                  let duplicate = try Show(
+                      name: " 重复现场 ",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20),
+                      city: "上海",
+                      venueName: "测试场馆",
+                      artists: [ArtistSlot(name: "测试艺人")]
+                  )
+
+                  _ = try AddShowPersistenceCoordinator.persist(
+                      first,
+                      intent: .upcoming,
+                      selections: [],
+                      notificationStates: [],
+                      in: context,
+                      now: now
+                  )
+
+                  XCTAssertThrowsError(
+                      try AddShowPersistenceCoordinator.persist(
+                          duplicate,
+                          intent: .upcoming,
+                          selections: try context.fetch(FetchDescriptor<CurrentShowSelection>()),
+                          notificationStates: try context.fetch(FetchDescriptor<NotificationSchedulingState>()),
+                          in: context,
+                          now: now
+                      )
+                  ) { error in
+                      XCTAssertEqual(
+                          error as? AddShowPersistenceError,
+                          .duplicateShow(existingShowID: first.id)
+                      )
+                  }
+                  XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 1)
+              }
+
+              @MainActor
+              func testDeletionKeepsContentDuplicateWithDistinctIDs() async throws {
+                  let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+                  let container = try ModelContainer(
+                      for: Show.self,
+                      CurrentShowSelection.self,
+                      NotificationSchedulingState.self,
+                      configurations: configuration
+                  )
+                  let context = container.mainContext
+                  let first = try Show(
+                      name: "历史重复现场",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20)
+                  )
+                  let second = try Show(
+                      name: "历史重复现场",
+                      date: first.date,
+                      startTime: first.startTime
+                  )
+                  context.insert(first)
+                  context.insert(second)
+                  try context.save()
+
+                  let effects = CurrentShowPostCommitEffects(
+                      applyNotificationFocus: { _, _ in true },
+                      syncWidget: { _, _ in true }
+                  )
+                  _ = try await ShowDeletionCoordinator.delete(
+                      first,
+                      from: [first, second],
+                      selections: [],
+                      notificationStates: [],
+                      in: context,
+                      effects: effects
+                  )
+
+                  let remaining = try context.fetch(FetchDescriptor<Show>())
+                  XCTAssertEqual(remaining.count, 1)
+                  XCTAssertEqual(remaining.first?.persistentModelID, second.persistentModelID)
+              }
+
+              @MainActor
+              func testDeletionKeepsLegacyRowThatSharesBusinessUUID() async throws {
+                  let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+                  let container = try ModelContainer(
+                      for: Show.self,
+                      CurrentShowSelection.self,
+                      NotificationSchedulingState.self,
+                      configurations: configuration
+                  )
+                  let context = container.mainContext
+                  let sharedID = UUID()
+                  let first = try Show(
+                      id: sharedID,
+                      name: "坏数据 A",
+                      date: makeDate(year: 2026, month: 9, day: 15),
+                      startTime: makeDate(year: 2026, month: 9, day: 15, hour: 20)
+                  )
+                  let second = try Show(
+                      id: sharedID,
+                      name: "坏数据 B",
+                      date: makeDate(year: 2026, month: 9, day: 16),
+                      startTime: makeDate(year: 2026, month: 9, day: 16, hour: 20)
+                  )
+                  let selection = CurrentShowSelection(selectedShowID: sharedID)
+                  context.insert(first)
+                  context.insert(second)
+                  context.insert(selection)
+                  try context.save()
+
+                  let effects = CurrentShowPostCommitEffects(
+                      applyNotificationFocus: { _, _ in true },
+                      syncWidget: { _, _ in true }
+                  )
+                  _ = try await ShowDeletionCoordinator.delete(
+                      first,
+                      from: [first, second],
+                      selections: [selection],
+                      notificationStates: [],
+                      in: context,
+                      effects: effects
+                  )
+
+                  let remaining = try context.fetch(FetchDescriptor<Show>())
+                  XCTAssertEqual(remaining.count, 1)
+                  XCTAssertEqual(remaining.first?.persistentModelID, second.persistentModelID)
+                  XCTAssertEqual(selection.selectedShowID, sharedID)
+              }
+
+          '''
+          text = text.replace(marker, addition + marker)
+          tests.write_text(text)
+
+          translations = {
+              'apps/ios/BeforeShow/Resources/zh-Hans.lproj/Localizable.strings': '"这个现场已经添加过了" = "这个现场已经添加过了";\n',
+              'apps/ios/BeforeShow/Resources/zh-Hant.lproj/Localizable.strings': '"这个现场已经添加过了" = "這個現場已經加入過了";\n',
+              'apps/ios/BeforeShow/Resources/en.lproj/Localizable.strings': '"这个现场已经添加过了" = "This show is already in your list.";\n',
+          }
+          for filename, line in translations.items():
+              path = Path(filename)
+              value = path.read_text()
+              if '"这个现场已经添加过了"' not in value:
+                  if not value.endswith('\n'):
+                      value += '\n'
+                  value += line
+                  path.write_text(value)
+          PY
+
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add apps/ios/BeforeShow/AddShowFlowViews.swift apps/ios/BeforeShowTests/ShowDraftTests.swift apps/ios/BeforeShow/Resources/*/Localizable.strings
+          git commit -m "fix(ios): block duplicate show imports and cover deletion regressions"
+          git push origin HEAD:fix/duplicate-show-delete-crash
