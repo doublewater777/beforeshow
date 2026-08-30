@@ -29,6 +29,38 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
+    func testDynamicCoverSoundControlOnlyAppearsForActiveVideoWithAudio() {
+        XCTAssertTrue(
+            DynamicCoverSoundPolicy.shouldExposeControl(
+                hasAudioTrack: true,
+                isPlaying: true
+            )
+        )
+        XCTAssertFalse(
+            DynamicCoverSoundPolicy.shouldExposeControl(
+                hasAudioTrack: false,
+                isPlaying: true
+            )
+        )
+        XCTAssertFalse(
+            DynamicCoverSoundPolicy.shouldExposeControl(
+                hasAudioTrack: true,
+                isPlaying: false
+            )
+        )
+    }
+
+    func testDynamicCoverSoundIconsReflectMuteState() {
+        XCTAssertEqual(
+            DynamicCoverSoundPolicy.iconName(isMuted: true),
+            "speaker.slash.fill"
+        )
+        XCTAssertEqual(
+            DynamicCoverSoundPolicy.iconName(isMuted: false),
+            "speaker.wave.2.fill"
+        )
+    }
+
     func testForegroundMediaMaintenanceRunsInitiallyAndAfterThrottleWindow() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
