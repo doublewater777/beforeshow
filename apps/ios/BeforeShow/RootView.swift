@@ -17,7 +17,6 @@ struct RootView: View {
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var isTabBarHidden = false
     /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
     /// 在 onChange 触发自己的 push。详见 `presentCeremonyMemoryNavigation`。
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
@@ -131,12 +130,11 @@ struct RootView: View {
     }
 
     /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
-    /// Both tabs stay mounted; hiding the bar uses the system toolbar API.
+    /// Both tabs stay mounted and keep the system tab bar visible across in-tab navigation.
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             CurrentShowHomeView(
                 isPlaybackActive: selectedTab == .current,
-                onDetailVisibilityChange: { isTabBarHidden = $0 },
                 ceremonyPendingDetail: $ceremonyPendingDetail
             )
             .tabItem {
@@ -146,10 +144,8 @@ struct RootView: View {
                 )
             }
             .tag(BeforeShowTab.current)
-            .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
 
             FootprintsView(
-                onArchiveVisibilityChange: { isTabBarHidden = $0 },
                 pendingDetailTarget: ceremonyPendingDetail
             )
             .tabItem {
@@ -159,7 +155,6 @@ struct RootView: View {
                 )
             }
             .tag(BeforeShowTab.footprints)
-            .toolbar(isTabBarHidden ? .hidden : .automatic, for: .tabBar)
         }
         // 系统 TabView(Liquid Glass)自带交叉淡入,自定义 transition 会和它打架;
         // 这里只补一个轻触觉,让切 tab 有确认感。
