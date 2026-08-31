@@ -32,7 +32,7 @@ private struct MemoryViewerTarget: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-/// Scoped memory task: sheet for the list, push for viewer / editor.
+/// Scoped memory task: sheet for the list, push for editor, full-screen cover for media viewer.
 struct MemoryFragmentsSheet: View {
     let show: Show
     var pendingCreate: MemoryCreateSourceOption? = nil
@@ -98,18 +98,13 @@ private struct MemoryInternalPushes: ViewModifier {
                     onSaveEdit: onEdit
                 )
             }
-            .navigationDestination(item: $viewerTarget) { target in
+            .fullScreenCover(item: $viewerTarget, onDismiss: onViewerDismissed) { target in
                 MemoryMediaViewer(
                     fragment: target.fragment,
                     initialIndex: target.initialIndex,
                     onEdit: { onViewerEdit(target.fragment) },
                     onDelete: { onViewerDelete(target.fragment) }
                 )
-            }
-            .onChange(of: viewerTarget) { oldTarget, newTarget in
-                if oldTarget != nil, newTarget == nil {
-                    onViewerDismissed()
-                }
             }
     }
 }
@@ -1423,6 +1418,28 @@ private struct MemoryTextFragmentViewer: View {
 
 // MARK: - Viewer
 
+private struct MemoryMediaInteractionSurface: View {
+    let kind: MemoryMediaKind
+    let onDismiss: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onDismiss)
+            .contextMenu {
+                Button("编辑记忆", action: onEdit)
+                Button("删除这条记忆", role: .destructive, action: onDelete)
+            }
+            .accessibilityLabel(kind == .video ? "视频" : "照片")
+            .accessibilityHint("轻点关闭，长按管理")
+            .accessibilityAction(named: "关闭", onDismiss)
+            .accessibilityAction(named: "编辑记忆", onEdit)
+            .accessibilityAction(named: "删除这条记忆", onDelete)
+    }
+}
+
 private struct MemoryMediaViewer: View {
     let fragment: MemoryFragment
     let initialIndex: Int
@@ -1450,79 +1467,42 @@ private struct MemoryMediaViewer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 0) {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
+            TabView(selection: $index) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
+                    ZStack {
+                        mediaPage(item: item, isActive: itemIndex == index)
+                        MemoryMediaInteractionSurface(
+                            kind: item.kind,
+                            onDismiss: { dismiss() },
+                            onEdit: onEdit,
+                            onDelete: onDelete
+                        )
                     }
-                    Spacer()
-                    Text(items.isEmpty ? "0 / 0" : "\(index + 1) / \(items.count)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Menu {
-                        Button("编辑记忆", action: onEdit)
-                        Button("删除这条记忆", role: .destructive, action: onDelete)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    .accessibilityLabel("管理这条记忆")
+                    .tag(itemIndex)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-
-                TabView(selection: $index) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
-                        Group {
-                            if item.kind == .video {
-                                MemoryViewerVideoPage(
-                                    url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
-                                    isActive: itemIndex == index
-                                )
-                            } else {
-                                MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
-                                    .scaledToFit()
-                            }
-                        }
-                        .tag(itemIndex)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    if let text = fragment.text, !text.isEmpty {
-                        Text(text)
-                            .font(.system(size: 13.5))
-                            .foregroundStyle(.white)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    TimelineView(.periodic(from: .now, by: 30)) { context in
-                        Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
+        .interactiveDismissDisabled()
+        .preferredColorScheme(.dark)
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
         .onAppear { AppAudioSession.configureSoundPlayback() }
         .onDisappear { AppAudioSession.configureAmbient() }
+    }
+
+    @ViewBuilder
+    private func mediaPage(item: MemoryMediaItem, isActive: Bool) -> some View {
+        if item.kind == .video {
+            MemoryViewerVideoPage(
+                url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
+                isActive: isActive
+            )
+        } else {
+            MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
+                .scaledToFit()
+        }
     }
 }
 
