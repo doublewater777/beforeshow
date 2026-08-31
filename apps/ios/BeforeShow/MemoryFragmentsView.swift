@@ -1467,40 +1467,22 @@ private struct MemoryMediaViewer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VStack(spacing: 0) {
-                TabView(selection: $index) {
-                    ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
-                        ZStack {
-                            mediaPage(item: item, isActive: itemIndex == index)
-                            MemoryMediaInteractionSurface(
-                                kind: item.kind,
-                                onDismiss: { dismiss() },
-                                onEdit: onEdit,
-                                onDelete: onDelete
-                            )
-                        }
-                        .tag(itemIndex)
+            TabView(selection: $index) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
+                    ZStack {
+                        mediaPage(item: item, isActive: itemIndex == index)
+                        MemoryMediaInteractionSurface(
+                            kind: item.kind,
+                            onDismiss: { dismiss() },
+                            onEdit: onEdit,
+                            onDelete: onDelete
+                        )
                     }
+                    .tag(itemIndex)
                 }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-
-                VStack(alignment: .leading, spacing: 8) {
-                    if let text = fragment.text, !text.isEmpty {
-                        Text(text)
-                            .font(.system(size: 13.5))
-                            .foregroundStyle(.white)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    TimelineView(.periodic(from: .now, by: 30)) { context in
-                        Text(MemoryFragmentRelativeTime.format(fragment.createdAt, now: context.date))
-                            .font(.system(size: 11))
-                            .foregroundStyle(.white.opacity(0.45))
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 16)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .ignoresSafeArea()
         }
         .interactiveDismissDisabled()
         .preferredColorScheme(.dark)
@@ -2011,7 +1993,7 @@ errorMessage = BSLocalization.text("没有相机权限。你可以在系统设�
     private func importCamera(_ result: MemoryCameraResult) {
         let generation = beginImport()
         activeImportTask = Task { @MainActor in
-            defer { finishImport(generation) }
+            defer { finishSave(generation) }
             guard items.count < MemoryFragment.maximumMediaCount else {
                 errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体。", MemoryFragment.maximumMediaCount)
                 return
