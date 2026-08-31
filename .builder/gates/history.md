@@ -437,3 +437,13 @@ Cycle: `.builder/cycles/2026-08-25-persistent-cover-cache/`
 Decision: implementation, regression test, and iPhone 17 cold-launch verification complete.
 
 Reason: previously loaded remote covers now survive process termination in the main App cache, while the existing Widget cover supplies an immediate preview during the first post-change launch.
+
+# 2026-08-31 · Local Verifier Loop
+
+Stage: manual-onboarding
+
+Cycle: `.builder/cycles/2026-08-31-local-verifier-loop/`
+
+Decision: implementation and local iPhone 17 verification complete; first real PR fetch/comment cycle remains.
+
+Reason: Chat can own the remote repository workflow, but simulator and feature-level UI verification need a local process with an exact PR HEAD gate.

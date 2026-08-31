@@ -30,6 +30,7 @@ links:
   home_live_status_copy_cycle: .builder/cycles/2026-08-23-home-live-status-copy/
   share_image_actions_and_keepsake_clearance_cycle: .builder/cycles/2026-08-23-share-image-actions-and-keepsake-clearance/
   medium_widget_cover_corners_cycle: .builder/cycles/2026-08-23-medium-widget-cover-corners/
+  local_verifier_loop_cycle: .builder/cycles/2026-08-31-local-verifier-loop/
   add_show_home_arrival_cycle: .builder/cycles/2026-08-23-add-show-home-arrival/
   netease_music_link_import_cycle: .builder/cycles/2026-08-23-netease-music-link-import/
   onboarding_feature_intro_cycle: .builder/cycles/2026-08-23-onboarding-feature-intro/

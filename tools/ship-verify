@@ -1,0 +1,461 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+ARTIFACT_ROOT="${VERIFY_ARTIFACT_ROOT:-$ROOT/.artifacts/local-verifier}"
+SIMULATOR_NAME="${VERIFY_SIMULATOR_NAME:-iPhone 17}"
+DEVELOPMENT_TEAM="${VERIFY_DEVELOPMENT_TEAM:-29C8MS76CZ}"
+BUNDLE_ID="${VERIFY_BUNDLE_ID:-com.doublewaterapps.beforeshow}"
+DESTINATION="platform=iOS Simulator,name=${SIMULATOR_NAME}"
+INTERVAL_SECONDS="${VERIFY_INTERVAL_SECONDS:-30}"
+VERBOSE="${VERIFY_VERBOSE:-0}"
+DERIVED_DATA_OVERRIDE="${VERIFY_DERIVED_DATA:-}"
+
+MODE="once"
+REF="HEAD"
+PR_NUMBER=""
+PUBLISH=0
+MAX_RUNS=0
+UI_COMMAND="${VERIFY_UI_COMMAND:-}"
+
+TARGET_SHA=""
+TARGET_URL=""
+WORKTREE_ROOT=""
+RUN_DIR=""
+LOG_PATH=""
+REPORT_PATH=""
+DERIVED_DATA=""
+APP_PATH=""
+SIMULATOR_UDID=""
+WORKTREE_STATE=""
+STEPS=()
+
+usage() {
+  cat <<'EOF'
+Usage:
+  tools/ship-verify once [options]
+  tools/ship-verify watch [options]
+
+Options:
+  --pr NUMBER             Follow a GitHub PR. Each HEAD is verified in a worktree.
+  --ref REF               Follow a local or fetched git ref (default: HEAD).
+  --interval SECONDS      Poll interval for watch mode (default: 30).
+  --max-runs NUMBER       Stop watch mode after NUMBER new HEADs (useful for tests).
+  --ui-command COMMAND    Run an optional local agent/UI scenario after the smoke test.
+  --publish               Add the report as a comment on the PR via gh.
+  --verbose               Stream build output as well as saving it to the report log.
+  -h, --help              Show this help.
+
+Examples:
+  tools/ship-verify once --ref HEAD
+  tools/ship-verify once --pr 61 --publish
+  tools/ship-verify watch --pr 61 --interval 20 --publish
+  VERIFY_UI_COMMAND='./tools/ship-verify/ui-scenario.sh' \
+    tools/ship-verify once --pr 61
+
+The optional UI command receives:
+  VERIFY_REPO_ROOT VERIFY_HEAD_SHA VERIFY_APP_PATH VERIFY_SIMULATOR_UDID
+  VERIFY_BUNDLE_ID VERIFY_REPORT_PATH
+EOF
+}
+
+die() {
+  echo "ship-verify: $*" >&2
+  exit 2
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+}
+
+parse_args() {
+  if [[ $# -gt 0 && "$1" != -* ]]; then
+    case "$1" in
+      once|watch) MODE="$1"; shift ;;
+      *) die "unknown mode: $1" ;;
+    esac
+  fi
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --pr)
+        [[ $# -ge 2 ]] || die "--pr requires a number"
+        PR_NUMBER="$2"
+        shift 2
+        ;;
+      --ref)
+        [[ $# -ge 2 ]] || die "--ref requires a git ref"
+        REF="$2"
+        shift 2
+        ;;
+      --interval)
+        [[ $# -ge 2 ]] || die "--interval requires seconds"
+        INTERVAL_SECONDS="$2"
+        shift 2
+        ;;
+      --max-runs)
+        [[ $# -ge 2 ]] || die "--max-runs requires a number"
+        MAX_RUNS="$2"
+        shift 2
+        ;;
+      --ui-command)
+        [[ $# -ge 2 ]] || die "--ui-command requires a shell command"
+        UI_COMMAND="$2"
+        shift 2
+        ;;
+      --publish)
+        PUBLISH=1
+        shift
+        ;;
+      --verbose)
+        VERBOSE=1
+        shift
+        ;;
+      -h|--help)
+        usage
+        exit 0
+        ;;
+      *)
+        die "unknown option: $1"
+        ;;
+    esac
+  done
+
+  [[ -z "$PR_NUMBER" || "$REF" == "HEAD" ]] || die "use either --pr or --ref, not both"
+  [[ "$INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || die "--interval must be a non-negative integer"
+  [[ "$MAX_RUNS" =~ ^[0-9]+$ ]] || die "--max-runs must be a non-negative integer"
+}
+
+resolve_target() {
+  TARGET_URL=""
+
+  if [[ -n "$PR_NUMBER" ]]; then
+    require_command gh
+    TARGET_URL="$(gh pr view "$PR_NUMBER" --json url --jq '.url')" \
+      || die "could not read PR #$PR_NUMBER"
+    git fetch --quiet origin "pull/${PR_NUMBER}/head" \
+      || die "could not fetch PR #$PR_NUMBER from origin"
+    TARGET_SHA="$(git rev-parse FETCH_HEAD)"
+    return
+  fi
+
+  TARGET_SHA="$(git -C "$ROOT" rev-parse "${REF}^{commit}")" \
+    || die "could not resolve git ref: $REF"
+}
+
+prepare_run_directory() {
+  local short_sha="${TARGET_SHA:0:12}"
+  local timestamp
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  RUN_DIR="$ARTIFACT_ROOT/runs/${timestamp}-${short_sha}-$$"
+  mkdir -p "$RUN_DIR"
+  LOG_PATH="$RUN_DIR/verify.log"
+  REPORT_PATH="$RUN_DIR/report.md"
+  : > "$LOG_PATH"
+}
+
+prepare_worktree() {
+  WORKTREE_ROOT="$ROOT"
+
+  if [[ -n "$PR_NUMBER" || "$REF" != "HEAD" ]]; then
+    WORKTREE_ROOT="$RUN_DIR/worktree"
+    git worktree add --detach "$WORKTREE_ROOT" "$TARGET_SHA" >/dev/null \
+      || die "could not create isolated worktree for $TARGET_SHA"
+  else
+    WORKTREE_STATE="$(git -C "$ROOT" status --porcelain)"
+  fi
+}
+
+prepare_derived_data() {
+  if [[ -n "$DERIVED_DATA_OVERRIDE" ]]; then
+    DERIVED_DATA="$DERIVED_DATA_OVERRIDE"
+  elif [[ -n "$WORKTREE_STATE" && "$WORKTREE_ROOT" == "$ROOT" ]]; then
+    DERIVED_DATA="$RUN_DIR/DerivedData"
+  else
+    DERIVED_DATA="$ARTIFACT_ROOT/derived-data/$TARGET_SHA"
+  fi
+  mkdir -p "$DERIVED_DATA"
+}
+
+remove_worktree() {
+  if [[ "$WORKTREE_ROOT" != "$ROOT" && -n "$WORKTREE_ROOT" && -d "$WORKTREE_ROOT" ]]; then
+    git worktree remove --force "$WORKTREE_ROOT" >/dev/null 2>&1 || true
+  fi
+  WORKTREE_ROOT=""
+}
+
+run_step() {
+  local name="$1"
+  shift
+  local started
+  local finished
+  local duration
+  local status
+
+  started="$(date +%s)"
+  echo "==> $name"
+  echo "\n===== $name =====" >> "$LOG_PATH"
+  echo "+ $*" >> "$LOG_PATH"
+
+  set +e
+  if [[ "$VERBOSE" == "1" ]]; then
+    (cd "$WORKTREE_ROOT" && "$@") 2>&1 | tee -a "$LOG_PATH"
+    status="${PIPESTATUS[0]}"
+  else
+    (cd "$WORKTREE_ROOT" && "$@") >> "$LOG_PATH" 2>&1
+    status="$?"
+  fi
+  set -e
+
+  finished="$(date +%s)"
+  duration=$((finished - started))
+  if [[ "$status" == "0" ]]; then
+    STEPS+=("PASS|$name|${duration}s")
+    echo "PASS $name (${duration}s)"
+    return 0
+  fi
+
+  STEPS+=("FAIL|$name|${duration}s")
+  echo "FAIL $name (${duration}s)"
+  echo "---- last 80 lines of $LOG_PATH ----"
+  tail -n 80 "$LOG_PATH" || true
+  return 1
+}
+
+abort_verification() {
+  render_report "FAIL"
+  publish_report || true
+  remove_worktree
+}
+
+required_step() {
+  if run_step "$@"; then
+    return 0
+  fi
+  abort_verification
+  return 1
+}
+
+find_simulator() {
+  local udid
+  udid="$(xcrun simctl list devices available \
+    | sed -n "s/.*${SIMULATOR_NAME} (\([A-Fa-f0-9-]*\)).*/\1/p" \
+    | head -n 1)"
+  [[ -n "$udid" ]] || return 1
+  printf '%s\n' "$udid"
+}
+
+launch_startup_smoke() {
+  local output
+  local pid
+
+  output="$(xcrun simctl launch "$SIMULATOR_UDID" "$BUNDLE_ID" 2>&1)" || {
+    echo "$output"
+    return 1
+  }
+  echo "$output"
+  pid="$(printf '%s\n' "$output" | sed -n 's/.*: \([0-9][0-9]*\).*/\1/p' | tail -n 1)"
+  sleep 2
+
+  [[ -n "$pid" ]] || {
+    echo "simctl did not return a process id"
+    return 1
+  }
+  xcrun simctl spawn "$SIMULATOR_UDID" /bin/kill -0 "$pid"
+}
+
+write_entitlements_check() {
+  local entitlements
+  entitlements="$(find "$DERIVED_DATA" -path '*/BeforeShow.build/DerivedSources/Entitlements-Simulated.plist' -print -quit)"
+  [[ -n "$entitlements" ]] || {
+    echo "Entitlements-Simulated.plist not found under $DERIVED_DATA"
+    return 1
+  }
+  rg -q 'com\.apple\.developer\.icloud-container-identifiers' "$entitlements" || {
+    echo "iCloud container entitlement missing from $entitlements"
+    return 1
+  }
+  echo "$entitlements"
+}
+
+check_diff() {
+  if [[ -n "$WORKTREE_STATE" && "$WORKTREE_ROOT" == "$ROOT" ]]; then
+    git diff --check
+    git diff --cached --check
+    echo "working tree changes included"
+    return 0
+  fi
+  git -C "$WORKTREE_ROOT" diff --check "${TARGET_SHA}^" "$TARGET_SHA"
+}
+
+render_report() {
+  local result="$1"
+  local updated_at
+  updated_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  {
+    echo "# LOCAL_AGENT_VERIFY"
+    echo
+    echo "- HEAD: \`$TARGET_SHA\`"
+    echo "- RESULT: **$result**"
+    echo "- Environment: $SIMULATOR_NAME Simulator"
+    echo "- Bundle: \`$BUNDLE_ID\`"
+    echo "- Development team: \`$DEVELOPMENT_TEAM\`"
+    if [[ -n "$WORKTREE_STATE" && "$WORKTREE_ROOT" == "$ROOT" ]]; then
+      echo "- Working tree: dirty; uncommitted changes were included"
+    else
+      echo "- Working tree: clean isolated checkout"
+    fi
+    echo "- Started: \`$RUN_STARTED_AT\`"
+    echo "- Finished: \`$updated_at\`"
+    if [[ -n "$TARGET_URL" ]]; then
+      echo "- PR: $TARGET_URL"
+    fi
+    echo
+    echo "## Checks"
+    echo
+    for step in "${STEPS[@]}"; do
+      IFS='|' read -r step_result step_name step_duration <<< "$step"
+      if [[ "$step_result" == "PASS" ]]; then
+        echo "- ✅ $step_name ($step_duration)"
+      else
+        echo "- ❌ $step_name ($step_duration)"
+      fi
+    done
+    echo
+    echo "## Evidence"
+    echo
+    echo "- Log: \`$LOG_PATH\`"
+    echo "- Derived data: \`$DERIVED_DATA\`"
+    if [[ -n "$UI_COMMAND" ]]; then
+      echo "- UI agent hook: configured"
+    else
+      echo "- UI agent hook: not configured; startup smoke was used"
+    fi
+  } > "$REPORT_PATH"
+
+  mkdir -p "$ARTIFACT_ROOT"
+  cat > "$ARTIFACT_ROOT/latest.json" <<EOF
+{"head":"$TARGET_SHA","result":"$result","report":"$REPORT_PATH","updatedAt":"$updated_at"}
+EOF
+}
+
+publish_report() {
+  [[ "$PUBLISH" == "1" ]] || return 0
+  [[ -n "$PR_NUMBER" ]] || {
+    echo "Report kept locally; --publish requires --pr NUMBER"
+    return 0
+  }
+  gh pr comment "$PR_NUMBER" --body-file "$REPORT_PATH"
+}
+
+verify_target() {
+  local result="FAIL"
+  local test_args
+  local build_args
+
+  STEPS=()
+  prepare_run_directory
+  prepare_worktree
+  prepare_derived_data
+  RUN_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+  test_args=(
+    -project "$WORKTREE_ROOT/apps/ios/BeforeShow.xcodeproj"
+    -scheme BeforeShow
+    -destination "$DESTINATION"
+    -allowProvisioningUpdates
+    "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
+    -derivedDataPath "$DERIVED_DATA"
+    test
+  )
+  build_args=(
+    -project "$WORKTREE_ROOT/apps/ios/BeforeShow.xcodeproj"
+    -scheme BeforeShow
+    -destination "$DESTINATION"
+    -allowProvisioningUpdates
+    "DEVELOPMENT_TEAM=$DEVELOPMENT_TEAM"
+    -derivedDataPath "$DERIVED_DATA"
+    build
+  )
+
+  required_step "Git diff check" check_diff || return 1
+  required_step "iOS tests" xcodebuild "${test_args[@]}" || return 1
+  required_step "iOS simulator build" xcodebuild "${build_args[@]}" || return 1
+
+  APP_PATH="$DERIVED_DATA/Build/Products/Debug-iphonesimulator/BeforeShow.app"
+  required_step "Entitlements check" write_entitlements_check || return 1
+  if ! SIMULATOR_UDID="$(find_simulator)"; then
+    echo "ship-verify: simulator not found: $SIMULATOR_NAME" >&2
+    abort_verification
+    return 1
+  fi
+  STEPS+=("PASS|Locate iPhone 17 simulator|0s")
+  echo "PASS Locate iPhone 17 simulator (0s): $SIMULATOR_UDID"
+  required_step "Boot iPhone 17 simulator" xcrun simctl bootstatus "$SIMULATOR_UDID" -b || return 1
+  required_step "Install app" xcrun simctl install "$SIMULATOR_UDID" "$APP_PATH" || return 1
+  required_step "Launch startup smoke" launch_startup_smoke || return 1
+
+  if [[ -n "$UI_COMMAND" ]]; then
+    export VERIFY_REPO_ROOT="$WORKTREE_ROOT"
+    export VERIFY_HEAD_SHA="$TARGET_SHA"
+    export VERIFY_APP_PATH="$APP_PATH"
+    export VERIFY_SIMULATOR_UDID="$SIMULATOR_UDID"
+    export VERIFY_BUNDLE_ID="$BUNDLE_ID"
+    export VERIFY_REPORT_PATH="$REPORT_PATH"
+    required_step "Local agent UI scenario" bash -lc "$UI_COMMAND" || return 1
+  fi
+
+  result="PASS"
+  render_report "$result"
+  publish_report || true
+  echo "Report: $REPORT_PATH"
+  remove_worktree
+  return 0
+}
+
+run_once() {
+  resolve_target
+  echo "Verifying $TARGET_SHA${TARGET_URL:+ ($TARGET_URL)}"
+  verify_target
+}
+
+run_watch() {
+  local last_sha=""
+  local run_count=0
+  local status=0
+
+  while true; do
+    resolve_target
+    if [[ "$TARGET_SHA" != "$last_sha" ]]; then
+      echo "Detected new HEAD: $TARGET_SHA"
+      set +e
+      verify_target
+      status="$?"
+      set -e
+      last_sha="$TARGET_SHA"
+      run_count=$((run_count + 1))
+      if [[ "$MAX_RUNS" != "0" && "$run_count" -ge "$MAX_RUNS" ]]; then
+        return "$status"
+      fi
+    fi
+    sleep "$INTERVAL_SECONDS"
+  done
+}
+
+main() {
+  parse_args "$@"
+  require_command git
+  require_command xcodebuild
+  require_command xcrun
+  require_command rg
+
+  if [[ "$MODE" == "watch" ]]; then
+    run_watch
+  else
+    run_once
+  fi
+}
+
+main "$@"

@@ -1,0 +1,54 @@
+# Local verifier loop
+
+`tools/ship-verify` is the local execution side of the feature loop described by `.agents/skills/ship-feature/SKILL.md`.
+
+## One committed HEAD
+
+Run this from a clean checkout:
+
+```bash
+tools/ship-verify once --ref HEAD
+```
+
+The default iOS checks are:
+
+1. `git diff --check`
+2. `xcodebuild test` on iPhone 17
+3. `xcodebuild build` with `DEVELOPMENT_TEAM=29C8MS76CZ`
+4. `Entitlements-Simulated.plist` contains the iCloud container entitlement
+5. install and launch `com.doublewaterapps.beforeshow` on iPhone 17
+6. keep the launched process alive for two seconds
+
+Reports and logs are local-only under `.artifacts/local-verifier/`, which is ignored by Git.
+
+## Follow a PR
+
+```bash
+tools/ship-verify watch --pr 123 --interval 20 --publish
+```
+
+Every new PR HEAD is fetched and checked out in a temporary detached worktree, so the verifier does not alter the working tree where you are developing. `--publish` adds the resulting `LOCAL_AGENT_VERIFY` report as a PR comment; without it, the report remains local.
+
+For a bounded smoke test of the watcher:
+
+```bash
+tools/ship-verify watch --pr 123 --max-runs 1
+```
+
+## Add a real UI scenario
+
+Pass a command that drives the already-installed app with the local tool of your choice:
+
+```bash
+VERIFY_UI_COMMAND="$PWD/path/to/your-simulator-scenario" \
+  tools/ship-verify once --pr 123
+```
+
+The command receives:
+
+```text
+VERIFY_REPO_ROOT VERIFY_HEAD_SHA VERIFY_APP_PATH VERIFY_SIMULATOR_UDID
+VERIFY_BUNDLE_ID VERIFY_REPORT_PATH
+```
+
+This is the seam for Codex, Claude Code, AXe, or another Computer Use runner. The first version deliberately keeps that runner injectable because the correct UI scenario depends on the feature being changed.
