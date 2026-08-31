@@ -1487,7 +1487,6 @@ private struct MemoryMediaViewer: View {
             }
         }
         .navigationBarTitleDisplayMode(.inline)
-        .navigationBarBackButtonDisplayMode(.minimal)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
