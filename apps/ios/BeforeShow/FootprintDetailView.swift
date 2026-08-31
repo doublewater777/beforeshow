@@ -339,8 +339,13 @@ struct FootprintDetailView: View {
                 .font(FootprintDetailTokens.identityDetailFont.weight(.semibold))
                 .foregroundColor(BSColor.Stage.accent.opacity(0.88))
             }
-            .frame(minHeight: FootprintDetailTokens.heroCoverHeight, alignment: .top)
+            .frame(
+                maxWidth: .infinity,
+                minHeight: FootprintDetailTokens.heroCoverHeight,
+                alignment: .topLeading
+            )
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(BSSpacing.md)
         .background(
             LinearGradient(
