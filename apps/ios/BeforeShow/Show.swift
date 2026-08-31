@@ -160,6 +160,10 @@ final class Show {
     var postponedDate: Date?
     /// 用户确认的真实散场时刻。存在时高于录入的结束时间与默认时长估算。
     var endedAt: Date?
+    /// 明确历史现场直接收进足迹时的生命周期事实。与 `endedAt` 分开，
+    /// 因为这类录入没有用户提供的真实散场时刻，不能伪造一个结束时间。
+    /// Optional keeps the property lightweight-migration safe for existing rows.
+    var wasAddedAsHistorical: Bool?
     /// 「散场仪式」五档情绪评分，nil = 未评分或主动跳过。
     var rating: Int? = nil
     /// 散场后留下的私人感受，nil = 未填写或主动跳过。trim 后的纯空白视为未填。
@@ -290,6 +294,7 @@ final class Show {
         coverImageURL: String? = nil,
         changeStatus: ShowChangeStatus = .scheduled,
         endedAt: Date? = nil,
+        wasAddedAsHistorical: Bool = false,
         companionStatus: ShowCompanionStatus = .none,
         companionName: String? = nil,
         companionNames: [String] = [],
@@ -344,6 +349,7 @@ final class Show {
         self.coverImageURL = coverImageURL
         self.changeStatusRawValue = changeStatus.rawValue
         self.endedAt = endedAt
+        self.wasAddedAsHistorical = wasAddedAsHistorical
         self.companionStatusRawValue = companionStatus.rawValue
         self.companionNames = CompanionNameList.normalized(
             companionNames.isEmpty ? [companionName].compactMap { $0 } : companionNames
@@ -382,11 +388,18 @@ final class Show {
 
     func markEnded(at date: Date = Date()) {
         endedAt = date
+        wasAddedAsHistorical = false
+        touch()
+    }
+
+    func markAddedAsHistorical() {
+        wasAddedAsHistorical = true
         touch()
     }
 
     func clearEnded() {
         endedAt = nil
+        wasAddedAsHistorical = false
         touch()
     }
 

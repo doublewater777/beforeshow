@@ -81,6 +81,30 @@ final class WidgetSnapshotTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testWidgetProjectionDoesNotSelectClearlyHistoricalShow() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("widget-historical-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        WidgetSnapshotStore.overrideContainerURL = tempDir
+        defer {
+            WidgetSnapshotStore.overrideContainerURL = nil
+            try? FileManager.default.removeItem(at: tempDir)
+        }
+
+        let historical = try makeShow()
+        historical.markAddedAsHistorical()
+
+        XCTAssertTrue(
+            WidgetDataSync.sync(
+                shows: [historical],
+                manualSelection: nil,
+                now: Calendar.current.startOfDay(for: Date())
+            )
+        )
+        XCTAssertNil(WidgetSnapshotStore.read())
+    }
+
     func testAppGroupStoreWriteReadClear() throws {
         // 注入临时目录,不动开发机真实 App Group 快照
         let tempDir = FileManager.default.temporaryDirectory

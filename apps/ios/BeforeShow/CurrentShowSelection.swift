@@ -5,16 +5,31 @@ import SwiftData
 final class CurrentShowSelection {
     var id: UUID
     var selectedShowID: UUID?
+    /// Optional for lightweight migration: old rows were all explicit user selections.
+    var isManual: Bool?
     var updatedAt: Date
 
-    init(id: UUID = UUID(), selectedShowID: UUID? = nil, updatedAt: Date = Date()) {
+    init(
+        id: UUID = UUID(),
+        selectedShowID: UUID? = nil,
+        isManual: Bool = true,
+        updatedAt: Date = Date()
+    ) {
         self.id = id
         self.selectedShowID = selectedShowID
+        self.isManual = isManual
         self.updatedAt = updatedAt
     }
 
     func select(showID: UUID) {
         selectedShowID = showID
+        isManual = true
+        updatedAt = Date()
+    }
+
+    func preserveAutomaticallySelected(showID: UUID) {
+        selectedShowID = showID
+        isManual = false
         updatedAt = Date()
     }
 
@@ -41,7 +56,8 @@ struct CurrentShowSelector {
         // Manual selection wins only while the selected show is eligible for the
         // current focus. A show that has passed its estimated boundary remains
         // eligible until the user confirms its end.
-        if let selectedShowID = manualSelection?.selectedShowID,
+        if manualSelection?.isManual != false,
+           let selectedShowID = manualSelection?.selectedShowID,
            let selectedShow = shows.first(where: { $0.id == selectedShowID }),
            isManuallySelectable(selectedShow, now: now) {
             return selectedShow
@@ -79,6 +95,18 @@ struct CurrentShowSelector {
             }
             .map { show, _ in show }
 
+        if let automaticallySelected = automaticallySelectableShows.first,
+           isActuallyLive(timeState(for: automaticallySelected, now: now), now: now) {
+            return automaticallySelected
+        }
+
+        if manualSelection?.isManual == false,
+           let selectedShowID = manualSelection?.selectedShowID,
+           let selectedShow = shows.first(where: { $0.id == selectedShowID }),
+           isManuallySelectable(selectedShow, now: now) {
+            return selectedShow
+        }
+
         return automaticallySelectableShows.first
     }
 
@@ -102,6 +130,9 @@ struct CurrentShowSelector {
     }
 
     private func isAutomaticallySelectable(_ show: Show, state: CurrentShowTimeState) -> Bool {
+        if show.wasAddedAsHistorical == true {
+            return false
+        }
         if state.kind == .ended {
             return show.endedAt == nil
         }
