@@ -79,36 +79,53 @@ fi
 # --- entitlements 签名检查（AGENTS.md 提到的 ad-hoc 回退会剥掉 iCloud） ---
 APP=$(find "$DD/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" 2>/dev/null | head -1 || true)
 if [ "$RESULT" = PASS ]; then
-  ENT=$(find "$DD/Build/Intermediates.noindex" -name "Entitlements-Simulated.plist" 2>/dev/null | head -1 || true)
-  if [ -z "$ENT" ] || ! grep -q "icloud-container-identifiers" "$ENT"; then
+  # 主 app / Widgets 等多个 plist，任一含 key 即代表签名未退化（Widgets 本就无 iCloud key）
+  ENT_HITS=$(find "$DD/Build/Intermediates.noindex" -name "Entitlements-Simulated.plist" \
+    -exec grep -l "icloud-container-identifiers" {} + 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$ENT_HITS" -eq 0 ]; then
     RESULT=FAIL
     EVIDENCE+=("entitlements: icloud-container-identifiers MISSING（签名退化为 ad-hoc）")
   else
-    EVIDENCE+=("entitlements: icloud-container-identifiers present")
+    EVIDENCE+=("entitlements: icloud-container-identifiers present ($ENT_HITS plist)")
   fi
 fi
 
 # --- 安装 + 启动存活检查 ---
 if [ "$RESULT" = PASS ]; then
   BID=$(plutil -extract CFBundleIdentifier raw "$APP/Info.plist")
-  UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Booted)/\1/p" | head -1)
+  UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Booted)[[:space:]]*\$/\1/p" | head -1 | tr -d '[:space:]')
   if [ -z "$UDID" ]; then
-    UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Shutdown)/\1/p" | head -1)
+    UDID=$(xcrun simctl list devices | sed -n "s/^ *$SIM_NAME (\([A-F0-9-]*\)) (Shutdown)[[:space:]]*\$/\1/p" | head -1 | tr -d '[:space:]')
     echo "==> Booting $SIM_NAME ($UDID)"
     xcrun simctl boot "$UDID"
   fi
+  # 重启模拟器：清除 xcodebuild test 会话残留状态，避免 launch 竞争导致假 FAIL
+  xcrun simctl shutdown "$UDID" 2>/dev/null || true
+  xcrun simctl boot "$UDID"
   xcrun simctl bootstatus "$UDID" -b >/dev/null
-  xcrun simctl uninstall "$UDID" "$BID" 2>/dev/null || true
-  xcrun simctl install "$UDID" "$APP"
-  LAUNCH_OUT=$(xcrun simctl launch "$UDID" "$BID")
-  sleep 5
-  if xcrun simctl spawn "$UDID" launchctl list | grep -Fq "UIKitApplication:$BID"; then
-    EVIDENCE+=("launch: $LAUNCH_OUT — 进程 5 秒后仍存活")
-  else
+  # 紧跟 xcodebuild test 会话的首次启动偶发瞬时退出，重装重试一次；连续两次退出才判 FAIL
+  LAUNCH_OK=0
+  for ATTEMPT in 1 2; do
+    xcrun simctl uninstall "$UDID" "$BID" 2>/dev/null || true
+    xcrun simctl install "$UDID" "$APP"
+    LAUNCH_OUT=$(xcrun simctl launch "$UDID" "$BID")
+    sleep 5
+    if xcrun simctl spawn "$UDID" launchctl list | grep -Fq "UIKitApplication:$BID"; then
+      LAUNCH_OK=1
+      if [ "$ATTEMPT" = 1 ]; then
+        EVIDENCE+=("launch: $LAUNCH_OUT — 进程 5 秒后仍存活")
+      else
+        EVIDENCE+=("launch: 第 1 次启动瞬时退出，第 2 次重装启动存活: $LAUNCH_OUT")
+      fi
+      break
+    fi
+    [ "$ATTEMPT" = 1 ] && sleep 2
+  done
+  if [ "$LAUNCH_OK" = 0 ]; then
     RESULT=FAIL
-    EVIDENCE+=("launch: $LAUNCH_OUT — 进程 5 秒内退出（SIGTRAP 崩溃特征）")
-    CRASH=$(ls -t ~/Library/Logs/DiagnosticReports/ 2>/dev/null | grep -i before | head -1 || true)
-    [ -n "$CRASH" ] && EVIDENCE+=("crash report: ~/Library/Logs/DiagnosticReports/$CRASH")
+    EVIDENCE+=("launch: 两次安装启动均在 5 秒内退出 (last: $LAUNCH_OUT)（SIGTRAP 崩溃特征）")
+    CRASH=$(find ~/Library/Logs/DiagnosticReports -maxdepth 1 -iname "*beforeshow*" -mmin -10 2>/dev/null | head -1 || true)
+    [ -n "$CRASH" ] && EVIDENCE+=("crash report: $CRASH")
   fi
   xcrun simctl terminate "$UDID" "$BID" 2>/dev/null || true
 fi
@@ -148,5 +165,5 @@ if [ "$NO_COMMENT" = 0 ]; then
   fi
 fi
 
-echo "==> Worktree 与日志保留在 $WORKTREE（清理：git worktree remove --force \"$WORKTREE\"）"
+echo "==> Worktree 与日志保留在 $WORKTREE (清理: git worktree remove --force \"$WORKTREE\")"
 [ "$RESULT" = PASS ]

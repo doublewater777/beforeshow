@@ -61,5 +61,6 @@ For changes where launch-survival is not enough (navigation flows, dynamic UI), 
 
 ## Handoff
 
-- Report PASS/FAIL plus the exact HEAD SHA to `pr-builder` (it loops on FAIL) and to `pr-reviewer` (it consumes the report as a merge gate).
+- The result reaches the PR as a `LOCAL_AGENT_VERIFY` comment — this is the script's default behavior; never run with `--no-comment` in the normal flow.
+- After the comment is posted, hand off to `pr-builder` in a new conversation: use computer use to open Chrome, start a new chat, and give it the PR number, the exact HEAD SHA, and the PASS/FAIL result. `pr-builder` loops on FAIL and proceeds to review on PASS.
 - Never claim a PASS that the script did not print, and never upgrade a FAIL to PASS without re-running.

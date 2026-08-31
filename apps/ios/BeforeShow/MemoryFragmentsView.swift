@@ -993,6 +993,28 @@ private struct MemoryAddMediaSheet: View {
     }
 }
 
+private struct MemoryMediaActionsSheet: View {
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        BSDrawerSheet(detent: .height(278), fitsContent: true) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(BSLocalization.text("管理这条记忆"))
+                    .font(.system(size: 18, weight: .semibold))
+
+                VStack(spacing: 10) {
+                    Button(BSLocalization.text("编辑记忆"), action: onEdit)
+                        .buttonStyle(BSSecondaryButtonStyle())
+                    Button(BSLocalization.text("删除这条记忆"), role: .destructive, action: onDelete)
+                        .buttonStyle(BSDangerButtonStyle())
+                }
+                .padding(.top, 17)
+            }
+        }
+    }
+}
+
 private struct MemorySourceOptionCard: View {
     let title: String
     let icon: String
@@ -1424,19 +1446,39 @@ private struct MemoryMediaInteractionSurface: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
+    @State private var isShowingActions = false
+
     var body: some View {
         Color.clear
             .contentShape(Rectangle())
             .onTapGesture(perform: onDismiss)
-            .contextMenu {
-                Button("编辑记忆", action: onEdit)
-                Button("删除这条记忆", role: .destructive, action: onDelete)
+            .onLongPressGesture(minimumDuration: 0.4) {
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                isShowingActions = true
             }
-            .accessibilityLabel(kind == .video ? "视频" : "照片")
-            .accessibilityHint("轻点关闭，长按管理")
-            .accessibilityAction(named: "关闭", onDismiss)
-            .accessibilityAction(named: "编辑记忆", onEdit)
-            .accessibilityAction(named: "删除这条记忆", onDelete)
+            .sheet(isPresented: $isShowingActions) {
+                MemoryMediaActionsSheet(
+                    onEdit: {
+                        isShowingActions = false
+                        Task { @MainActor in
+                            await Task.yield()
+                            onEdit()
+                        }
+                    },
+                    onDelete: {
+                        isShowingActions = false
+                        Task { @MainActor in
+                            await Task.yield()
+                            onDelete()
+                        }
+                    }
+                )
+            }
+            .accessibilityLabel(kind == .video ? BSLocalization.text("视频") : BSLocalization.text("照片"))
+            .accessibilityHint(BSLocalization.text("轻点关闭，长按管理"))
+            .accessibilityAction(named: BSLocalization.text("关闭"), onDismiss)
+            .accessibilityAction(named: BSLocalization.text("编辑记忆"), onEdit)
+            .accessibilityAction(named: BSLocalization.text("删除这条记忆"), onDelete)
     }
 }
 
@@ -1598,62 +1640,71 @@ private struct MemoryUnifiedEditorView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
-            VStack(spacing: 0) {
-                        if isMediaComposer {
-                            if !items.isEmpty {
-                                draftPreview
-                                    .padding(.top, 4)
-                            }
-                            HStack {
-                                Text("点击查看 · 拖动调整顺序")
-                                Spacer()
-                                Text(BSLocalization.format("最多 %lld 项", MemoryFragment.maximumMediaCount))
-                            }
-                            .font(.system(size: 9.5))
-                            .foregroundColor(BSColor.Stage.dim)
-                            .padding(.horizontal, 2)
-                            .padding(.top, 13)
-                            mediaThumbs
-                                .padding(.top, 8)
+        GeometryReader { geometry in
+            let contentWidth = max(0, geometry.size.width - (BSSpacing.roomy * 2))
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    if isMediaComposer {
+                        if !items.isEmpty {
+                            draftPreview(width: contentWidth)
+                                .padding(.top, 4)
                         }
-
-                        TextField(
-                            items.isEmpty ? BSLocalization.text("这一刻，你想记下什么？") : BSLocalization.text("写点什么……（可选）"),
-                            text: $caption,
-                            axis: .vertical
-                        )
-                        .lineLimit(items.isEmpty ? 10...14 : 4...7)
-                        .onChange(of: caption) { _, value in
-                            if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
-                        }
-                        .padding(13)
-                        .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
-                        .overlay(RoundedRectangle(cornerRadius: 18).stroke(BSColor.Stage.border, lineWidth: 1))
-                        .frame(minHeight: items.isEmpty ? 270 : 105, alignment: .top)
-                        .padding(.top, 15)
-
                         HStack {
-                            Text(items.isEmpty ? BSLocalization.text("最多 500 字") : BSLocalization.text("整组媒体共用一段文字"))
+                            Text(BSLocalization.text("点击查看 · 拖动调整顺序"))
                             Spacer()
-                            Text("\(caption.count) / \(captionLimit)")
+                            Text(BSLocalization.format("最多 %lld 项", MemoryFragment.maximumMediaCount))
                         }
-                        .font(.system(size: 11))
+                        .font(.system(size: 9.5))
                         .foregroundColor(BSColor.Stage.dim)
-                        .padding(.top, 10)
-
-                        Button(isSaving ? "保存中…" : (isEditing ? "保存修改" : "加入这场现场")) {
-                            save()
-                        }
-                        .buttonStyle(BSPrimaryButtonStyle())
-                        .disabled(operationBusy || !canSave)
-                        .padding(.top, 15)
+                        .padding(.horizontal, 2)
+                        .padding(.top, 13)
+                        mediaThumbs
+                            .frame(width: contentWidth)
+                            .padding(.top, 8)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 34)
+
+                    TextField(
+                        items.isEmpty ? BSLocalization.text("这一刻，你想记下什么？") : BSLocalization.text("写点什么……（可选）"),
+                        text: $caption,
+                        axis: .vertical
+                    )
+                    .lineLimit(items.isEmpty ? 10...14 : 4...7)
+                    .onChange(of: caption) { _, value in
+                        if value.count > captionLimit { caption = String(value.prefix(captionLimit)) }
+                    }
+                    .padding(13)
+                    .background(BSColor.Stage.surface, in: RoundedRectangle(cornerRadius: 18))
+                    .overlay(RoundedRectangle(cornerRadius: 18).stroke(BSColor.Stage.border, lineWidth: 1))
+                    .frame(maxWidth: .infinity, minHeight: items.isEmpty ? 270 : 105, alignment: .top)
+                    .padding(.top, 15)
+
+                    HStack {
+                        Text(items.isEmpty ? BSLocalization.text("最多 500 字") : BSLocalization.text("整组媒体共用一段文字"))
+                        Spacer()
+                        Text("\(caption.count) / \(captionLimit)")
+                    }
+                    .font(.system(size: 11))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .padding(.top, 10)
+                }
+                .frame(width: contentWidth, alignment: .top)
+                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.bottom, BSSpacing.lg)
+            }
         }
         .scrollDismissesKeyboard(.interactively)
         .background(BSColor.Stage.background.ignoresSafeArea())
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Button(isSaving ? BSLocalization.text("保存中…") : (isEditing ? BSLocalization.text("保存修改") : BSLocalization.text("加入这场现场"))) {
+                save()
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(operationBusy || !canSave)
+            .padding(.horizontal, BSSpacing.roomy)
+            .padding(.top, BSSpacing.sm)
+            .padding(.bottom, BSSpacing.sm)
+            .background(BSColor.Stage.background)
+        }
         .navigationTitle(editorTitle)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(true)
@@ -1774,7 +1825,7 @@ private struct MemoryUnifiedEditorView: View {
 
     private var captionLimit: Int { 500 }
 
-    private var draftPreview: some View {
+    private func draftPreview(width: CGFloat) -> some View {
         VStack(spacing: 0) {
             ZStack {
                 if items.indices.contains(selection) {
@@ -1787,7 +1838,7 @@ private struct MemoryUnifiedEditorView: View {
                     }
                 }
             }
-            .frame(height: 365)
+            .frame(width: width, height: 365)
             .clipShape(RoundedRectangle(cornerRadius: 22))
             .overlay(RoundedRectangle(cornerRadius: 22).stroke(BSColor.Stage.border, lineWidth: 1))
             .overlay(alignment: .topTrailing) {

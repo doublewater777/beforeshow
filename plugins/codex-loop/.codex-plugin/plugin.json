@@ -1,0 +1,24 @@
+{
+  "name": "codex-loop",
+  "version": "0.1.0",
+  "description": "Run bounded, inspectable Codex exec loops in a local project.",
+  "author": {
+    "name": "BeforeShow"
+  },
+  "license": "MIT",
+  "keywords": ["codex", "loop", "automation", "productivity"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Loop",
+    "shortDescription": "Run bounded Codex tasks on a schedule.",
+    "longDescription": "Start, inspect, and stop repeatable Codex exec runs in the current project, with safe defaults and temporary logs.",
+    "developerName": "BeforeShow",
+    "category": "Productivity",
+    "capabilities": ["Interactive", "Write"],
+    "defaultPrompt": [
+      "Start a loop to run the current task every minute.",
+      "Show the status of the current Codex loop.",
+      "Stop the current Codex loop."
+    ]
+  }
+}

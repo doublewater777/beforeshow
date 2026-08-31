@@ -37,7 +37,7 @@ struct PostponeShowSheet: View {
             )
 
             BSSurfacePanel {
-                DatePicker("新日期", selection: $newDate, displayedComponents: .date)
+                DatePicker(BSLocalization.text("新日期"), selection: $newDate, displayedComponents: .date)
                     .datePickerStyle(.compact)
                     .tint(BSColor.Accent.violet)
                     .environment(\.calendar, calendar)
@@ -45,9 +45,9 @@ struct PostponeShowSheet: View {
             }
 
             VStack(spacing: BSSpacing.sm) {
-                Button("日期待定", action: onUndated)
+                Button(BSLocalization.text("日期待定"), action: onUndated)
                     .buttonStyle(BSSecondaryButtonStyle())
-                Button("按选择日期延期", action: onDated)
+                Button(BSLocalization.text("按选择日期延期"), action: onDated)
                     .buttonStyle(BSPrimaryButtonStyle())
             }
         }
@@ -90,7 +90,7 @@ private struct ConfirmedEndTimeEditorSheet: View {
                         displayedComponents: .date
                     )
                     DatePicker(
-                        "散场时间",
+                        BSLocalization.text("散场时间"),
                         selection: $endTime,
                         in: showStart...Date(),
                         displayedComponents: .hourAndMinute
@@ -102,10 +102,10 @@ private struct ConfirmedEndTimeEditorSheet: View {
             }
 
             VStack(spacing: BSSpacing.sm) {
-                Button("保存散场时间", action: onSave)
+                Button(BSLocalization.text("保存散场时间"), action: onSave)
                     .buttonStyle(BSPrimaryButtonStyle())
                 if hasConfirmedEnd {
-                    Button("撤销结束", action: onUndo)
+                    Button(BSLocalization.text("撤销结束"), action: onUndo)
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.Stage.liveTitle)
                         .frame(maxWidth: .infinity)
@@ -198,29 +198,29 @@ struct ShowDetailView: View {
             }
         }
         .bsToastOverlay(toast, bottomPadding: 90)
-        .navigationTitle("现场详情")
+        .navigationTitle(BSLocalization.text("现场详情"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Button("编辑", systemImage: "square.and.pencil") {
+                    Button(BSLocalization.text("编辑"), systemImage: "square.and.pencil") {
                         presentedSheet = .editor
                     }
                     if isCurrentShow {
                         Button {} label: {
-                            Label("当前展示中", systemImage: "checkmark.circle")
+                            Label(BSLocalization.text("当前展示中"), systemImage: "checkmark.circle")
                         }
                         .disabled(true)
                     } else if session.isManuallySelectable(show) {
-                        Button("设为展示", systemImage: "music.note.house", action: selectCurrent)
+                        Button(BSLocalization.text("设为展示"), systemImage: "music.note.house", action: selectCurrent)
                     }
                     Menu {
                         eventStatusMenuActions
                     } label: {
                         Label(statusTitle, systemImage: eventStatusIcon)
                     }
-                    Button("删除", systemImage: "trash", role: .destructive) {
+                    Button(BSLocalization.text("删除"), systemImage: "trash", role: .destructive) {
                         isShowingDeleteConfirmation = true
                     }
                 } label: {
@@ -304,7 +304,7 @@ struct ShowDetailView: View {
             Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
                 Task { @MainActor in await deleteShow() }
             }
-            Button("取消", role: .cancel) {}
+            Button(BSLocalization.text("取消"), role: .cancel) {}
         } message: {
             Text(DangerConfirmation.deleteShow.message)
         }
@@ -413,7 +413,7 @@ struct ShowDetailView: View {
 
     private var showInformationSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("演出信息")
+            Text(BSLocalization.text("演出信息"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.foreground)
 
@@ -482,7 +482,7 @@ struct ShowDetailView: View {
     private var lineupSection: some View {
         if !show.artists.isEmpty {
             VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text("阵容")
+                Text(BSLocalization.text("阵容"))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.foreground)
 
@@ -493,7 +493,7 @@ struct ShowDetailView: View {
 
     private var assetManagementSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("现场资料")
+            Text(BSLocalization.text("现场资料"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.foreground)
 
@@ -530,7 +530,7 @@ struct ShowDetailView: View {
 
     private var experienceSection: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("现场体验")
+            Text(BSLocalization.text("现场体验"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.foreground)
 
@@ -591,17 +591,17 @@ struct ShowDetailView: View {
     private var eventStatusMenuActions: some View {
         switch show.changeStatus {
         case .scheduled:
-            Button("延期", systemImage: "calendar.badge.clock") {
+            Button(BSLocalization.text("延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button("取消演出", systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
         case .postponed:
-            Button("修改延期", systemImage: "calendar.badge.clock") {
+            Button(BSLocalization.text("修改延期"), systemImage: "calendar.badge.clock") {
                 beginPostpone()
             }
-            Button("取消演出", systemImage: "xmark.circle", role: .destructive) {
+            Button(BSLocalization.text("取消演出"), systemImage: "xmark.circle", role: .destructive) {
                 isShowingCancelConfirmation = true
             }
             Button(restoreActionTitle, systemImage: "arrow.clockwise") {
@@ -648,7 +648,7 @@ format: BSLocalization.text("M月d日 HH:mm"),
         action: @escaping () -> Void
     ) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text("散场时间")
+            Text(BSLocalization.text("散场时间"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.foreground)
             Button(action: action) {
