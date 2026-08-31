@@ -14,7 +14,7 @@ Install the macOS background listener once:
 tools/ship-verify install
 ```
 
-It starts at login and polls all open GitHub PRs. You do not pass a PR number. Every new PR HEAD is verified once, and the result is published to that PR. The listener keeps per-PR HEAD state in ignored `.artifacts/local-verifier/watch-state.tsv`.
+It starts at login and polls all open GitHub PRs. You do not pass a PR number. Every new PR HEAD is verified once, and the result is published to that PR. The installer keeps a private Git cache, state, reports, and logs under `~/Library/Application Support/BeforeShow/local-verifier/`, outside Desktop/Documents protection.
 
 If launchd reports `Operation not permitted` for a checkout under macOS Desktop/Documents, grant the shell/host app Full Disk Access or place the checkout outside those protected folders, then run `tools/ship-verify install` again.
 

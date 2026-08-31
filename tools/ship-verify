@@ -2,7 +2,8 @@
 
 set -Eeuo pipefail
 
-ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+SOURCE_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="${VERIFY_CHECKOUT_ROOT:-$SOURCE_ROOT}"
 ARTIFACT_ROOT="${VERIFY_ARTIFACT_ROOT:-$ROOT/.artifacts/local-verifier}"
 SIMULATOR_NAME="${VERIFY_SIMULATOR_NAME:-iPhone 17}"
 DEVELOPMENT_TEAM="${VERIFY_DEVELOPMENT_TEAM:-29C8MS76CZ}"
@@ -456,10 +457,30 @@ run_watch_all() {
 install_launch_agent() {
   local launch_agents_dir="$HOME/Library/LaunchAgents"
   local plist_path="$launch_agents_dir/$LAUNCH_AGENT_LABEL.plist"
+  local runtime_root="$HOME/Library/Application Support/BeforeShow/local-verifier"
+  local cache_root="$runtime_root/repository"
+  local runtime_script="$runtime_root/ship-verify"
+  local artifact_root="$cache_root/.artifacts"
+  local remote_url
   local user_id
-  local script_path="$ROOT/tools/ship-verify"
+  local source_script="$SOURCE_ROOT/tools/ship-verify"
 
   require_command launchctl
+  remote_url="$(git -C "$SOURCE_ROOT" remote get-url origin)" \
+    || die "could not read origin URL from $SOURCE_ROOT"
+  if [[ -e "$cache_root/.git" ]]; then
+    git -C "$cache_root" remote set-url origin "$remote_url"
+    git -C "$cache_root" fetch --quiet origin \
+      || die "could not update the local verifier repository cache"
+  else
+    [[ ! -e "$cache_root" ]] || die "verifier cache path is not a Git repository: $cache_root"
+    mkdir -p "$(dirname -- "$cache_root")"
+    git clone --quiet "$remote_url" "$cache_root" \
+      || die "could not create the local verifier repository cache"
+  fi
+  mkdir -p "$runtime_root" "$artifact_root"
+  cp "$source_script" "$runtime_script"
+  chmod 755 "$runtime_script"
   mkdir -p "$launch_agents_dir"
   user_id="$(id -u)"
   launchctl bootout "gui/$user_id" "$plist_path" >/dev/null 2>&1 || true
@@ -473,7 +494,7 @@ install_launch_agent() {
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>$script_path</string>
+    <string>$runtime_script</string>
     <string>watch</string>
     <string>--publish</string>
   </array>
@@ -481,6 +502,10 @@ install_launch_agent() {
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>VERIFY_CHECKOUT_ROOT</key>
+    <string>$cache_root</string>
+    <key>VERIFY_ARTIFACT_ROOT</key>
+    <string>$artifact_root</string>
   </dict>
   <key>WorkingDirectory</key>
   <string>$HOME</string>
@@ -491,9 +516,9 @@ install_launch_agent() {
   <key>ProcessType</key>
   <string>Background</string>
   <key>StandardOutPath</key>
-  <string>$ARTIFACT_ROOT/launchd.out.log</string>
+  <string>$artifact_root/launchd.out.log</string>
   <key>StandardErrorPath</key>
-  <string>$ARTIFACT_ROOT/launchd.err.log</string>
+  <string>$artifact_root/launchd.err.log</string>
 </dict>
 </plist>
 EOF
