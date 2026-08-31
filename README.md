@@ -28,10 +28,16 @@ For a hosted test with server-side event capture, set `VITE_BEFORESHOW_EVENT_END
 
 ## Run the local verification loop
 
-The primary mode listens to a GitHub PR. For each new PR HEAD it creates an isolated worktree, runs tests, performs an explicitly team-signed simulator build, checks entitlements, boots iPhone 17, launches the app, and writes a SHA-stamped PR report under `.artifacts/local-verifier/`:
+The primary mode listens to all open GitHub PRs. For each new PR HEAD it creates an isolated worktree, runs tests, performs an explicitly team-signed simulator build, checks entitlements, boots iPhone 17, launches the app, and writes a SHA-stamped report back to that PR:
 
 ```bash
-tools/ship-verify watch --pr 123 --interval 20 --publish
+tools/ship-verify install
+```
+
+The foreground equivalent is:
+
+```bash
+tools/ship-verify watch --interval 20 --publish
 ```
 
 For a one-shot local check:

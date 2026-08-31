@@ -18,6 +18,9 @@ PR_NUMBER=""
 PUBLISH=0
 MAX_RUNS=0
 UI_COMMAND="${VERIFY_UI_COMMAND:-}"
+PR_LIMIT="${VERIFY_PR_LIMIT:-100}"
+STATE_PATH="${VERIFY_STATE_PATH:-$ARTIFACT_ROOT/watch-state.tsv}"
+LAUNCH_AGENT_LABEL="com.doublewaterapps.beforeshow.ship-verify"
 
 TARGET_SHA=""
 TARGET_URL=""
@@ -36,10 +39,12 @@ usage() {
 Usage:
   tools/ship-verify once [options]
   tools/ship-verify watch [options]
+  tools/ship-verify install
 
 Options:
-  --pr NUMBER             Follow a GitHub PR. Each HEAD is verified in a worktree.
+  --pr NUMBER             Follow one GitHub PR. Each HEAD is verified in a worktree.
   --ref REF               Follow a local or fetched git ref (default: HEAD).
+  --limit NUMBER          Maximum number of open PRs discovered per poll (default: 100).
   --interval SECONDS      Poll interval for watch mode (default: 30).
   --max-runs NUMBER       Stop watch mode after NUMBER new HEADs (useful for tests).
   --ui-command COMMAND    Run an optional local agent/UI scenario after the smoke test.
@@ -48,6 +53,8 @@ Options:
   -h, --help              Show this help.
 
 Examples:
+  tools/ship-verify install
+  tools/ship-verify watch --interval 20
   tools/ship-verify once --ref HEAD
   tools/ship-verify once --pr 61 --publish
   tools/ship-verify watch --pr 61 --interval 20 --publish
@@ -57,6 +64,9 @@ Examples:
 The optional UI command receives:
   VERIFY_REPO_ROOT VERIFY_HEAD_SHA VERIFY_APP_PATH VERIFY_SIMULATOR_UDID
   VERIFY_BUNDLE_ID VERIFY_REPORT_PATH
+
+With no --pr or --ref, watch mode discovers every open PR and publishes a
+SHA-stamped report for each new HEAD.
 EOF
 }
 
@@ -72,7 +82,7 @@ require_command() {
 parse_args() {
   if [[ $# -gt 0 && "$1" != -* ]]; then
     case "$1" in
-      once|watch) MODE="$1"; shift ;;
+      once|watch|install) MODE="$1"; shift ;;
       *) die "unknown mode: $1" ;;
     esac
   fi
@@ -92,6 +102,11 @@ parse_args() {
       --interval)
         [[ $# -ge 2 ]] || die "--interval requires seconds"
         INTERVAL_SECONDS="$2"
+        shift 2
+        ;;
+      --limit)
+        [[ $# -ge 2 ]] || die "--limit requires a number"
+        PR_LIMIT="$2"
         shift 2
         ;;
       --max-runs)
@@ -125,6 +140,7 @@ parse_args() {
   [[ -z "$PR_NUMBER" || "$REF" == "HEAD" ]] || die "use either --pr or --ref, not both"
   [[ "$INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || die "--interval must be a non-negative integer"
   [[ "$MAX_RUNS" =~ ^[0-9]+$ ]] || die "--max-runs must be a non-negative integer"
+  [[ "$PR_LIMIT" =~ ^[0-9]+$ && "$PR_LIMIT" != "0" ]] || die "--limit must be a positive integer"
 }
 
 resolve_target() {
@@ -132,7 +148,7 @@ resolve_target() {
 
   if [[ -n "$PR_NUMBER" ]]; then
     require_command gh
-    TARGET_URL="$(gh pr view "$PR_NUMBER" --json url --jq '.url')" \
+    TARGET_URL="$(cd "$ROOT" && gh pr view "$PR_NUMBER" --json url --jq '.url')" \
       || die "could not read PR #$PR_NUMBER"
     git fetch --quiet origin "pull/${PR_NUMBER}/head" \
       || die "could not fetch PR #$PR_NUMBER from origin"
@@ -347,7 +363,145 @@ publish_report() {
     echo "Report kept locally; --publish requires --pr NUMBER"
     return 0
   }
-  gh pr comment "$PR_NUMBER" --body-file "$REPORT_PATH"
+  (cd "$ROOT" && gh pr comment "$PR_NUMBER" --body-file "$REPORT_PATH")
+}
+
+discover_pull_requests() {
+  require_command gh
+  (cd "$ROOT" && gh pr list --state open --limit "$PR_LIMIT" \
+    --json number,headRefOid,url \
+    --jq '.[] | [.number, .headRefOid, .url] | @tsv')
+}
+
+last_verified_sha() {
+  [[ -f "$STATE_PATH" ]] || return 0
+  awk -F '\t' -v pr="$1" '$1 == pr { print $2; exit }' "$STATE_PATH"
+}
+
+record_watch_state() {
+  local pr_number="$1"
+  local sha="$2"
+  local result="$3"
+  local report="$4"
+  local timestamp
+  local state_dir
+  local temp_state
+
+  timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  state_dir="$(dirname -- "$STATE_PATH")"
+  temp_state="$STATE_PATH.$$"
+  mkdir -p "$state_dir"
+  if [[ -f "$STATE_PATH" ]]; then
+    awk -F '\t' -v pr="$pr_number" '$1 != pr' "$STATE_PATH" > "$temp_state"
+  else
+    : > "$temp_state"
+  fi
+  printf '%s\t%s\t%s\t%s\t%s\n' "$pr_number" "$sha" "$result" "$report" "$timestamp" >> "$temp_state"
+  mv "$temp_state" "$STATE_PATH"
+}
+
+run_watch_all() {
+  local pr_number
+  local discovered_sha
+  local pr_url
+  local previous_sha
+  local status
+  local result
+  local run_count=0
+  local discovered_prs
+
+  PUBLISH=1
+  mkdir -p "$(dirname -- "$STATE_PATH")"
+  echo "Watching all open PRs (poll interval: ${INTERVAL_SECONDS}s)"
+
+  while true; do
+    if ! discovered_prs="$(discover_pull_requests)"; then
+      echo "Could not discover open PRs; retrying in ${INTERVAL_SECONDS}s" >&2
+      sleep "$INTERVAL_SECONDS"
+      continue
+    fi
+    while IFS=$'\t' read -r pr_number discovered_sha pr_url; do
+      [[ -n "$pr_number" && -n "$discovered_sha" ]] || continue
+      previous_sha="$(last_verified_sha "$pr_number")"
+      if [[ "$previous_sha" == "$discovered_sha" ]]; then
+        continue
+      fi
+
+      PR_NUMBER="$pr_number"
+      REF="HEAD"
+      TARGET_URL="$pr_url"
+      TARGET_SHA=""
+      echo "Detected PR #$pr_number HEAD: $discovered_sha"
+      set +e
+      run_once
+      status="$?"
+      set -e
+      if [[ "$status" == "0" ]]; then
+        result="PASS"
+      else
+        result="FAIL"
+      fi
+      if [[ -n "$TARGET_SHA" && -n "$REPORT_PATH" ]]; then
+        record_watch_state "$pr_number" "$TARGET_SHA" "$result" "$REPORT_PATH"
+      fi
+      run_count=$((run_count + 1))
+      if [[ "$MAX_RUNS" != "0" && "$run_count" -ge "$MAX_RUNS" ]]; then
+        return "$status"
+      fi
+    done <<< "$discovered_prs"
+    sleep "$INTERVAL_SECONDS"
+  done
+}
+
+install_launch_agent() {
+  local launch_agents_dir="$HOME/Library/LaunchAgents"
+  local plist_path="$launch_agents_dir/$LAUNCH_AGENT_LABEL.plist"
+  local user_id
+  local script_path="$ROOT/tools/ship-verify"
+
+  require_command launchctl
+  mkdir -p "$launch_agents_dir"
+  user_id="$(id -u)"
+  launchctl bootout "gui/$user_id" "$plist_path" >/dev/null 2>&1 || true
+  cat > "$plist_path" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>$LAUNCH_AGENT_LABEL</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>$script_path</string>
+    <string>watch</string>
+    <string>--publish</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>WorkingDirectory</key>
+  <string>$ROOT</string>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>ProcessType</key>
+  <string>Background</string>
+  <key>StandardOutPath</key>
+  <string>$ARTIFACT_ROOT/launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>$ARTIFACT_ROOT/launchd.err.log</string>
+</dict>
+</plist>
+EOF
+  mkdir -p "$ARTIFACT_ROOT"
+  launchctl bootstrap "gui/$user_id" "$plist_path"
+  launchctl enable "gui/$user_id/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
+  launchctl kickstart -k "gui/$user_id/$LAUNCH_AGENT_LABEL"
+  echo "Installed and started $LAUNCH_AGENT_LABEL"
+  echo "Plist: $plist_path"
 }
 
 verify_target() {
@@ -451,7 +605,11 @@ main() {
   require_command xcrun
   require_command rg
 
-  if [[ "$MODE" == "watch" ]]; then
+  if [[ "$MODE" == "install" ]]; then
+    install_launch_agent
+  elif [[ "$MODE" == "watch" && -z "$PR_NUMBER" && "$REF" == "HEAD" ]]; then
+    run_watch_all
+  elif [[ "$MODE" == "watch" ]]; then
     run_watch
   else
     run_once

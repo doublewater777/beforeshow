@@ -6,6 +6,24 @@
 GitHub PR HEAD → isolated worktree → tests → team build → iPhone 17 Simulator → launch smoke → optional UI agent → PR report
 ```
 
+## Automatic discovery
+
+Install the macOS background listener once:
+
+```bash
+tools/ship-verify install
+```
+
+It starts at login and polls all open GitHub PRs. You do not pass a PR number. Every new PR HEAD is verified once, and the result is published to that PR. The listener keeps per-PR HEAD state in ignored `.artifacts/local-verifier/watch-state.tsv`.
+
+To run it in the foreground instead:
+
+```bash
+tools/ship-verify watch --interval 20 --publish
+```
+
+The optional `--pr NUMBER` form remains available when you want to focus on one PR.
+
 ## One committed HEAD
 
 Run this from a clean checkout:
