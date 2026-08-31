@@ -24,6 +24,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py
 
       - name: Build for simulator
         run: |

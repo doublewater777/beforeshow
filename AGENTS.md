@@ -25,6 +25,17 @@ xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
 
 注意：entitlements 里新增了 WeatherKit，真机/上传签名时要求 App ID 在开发者后台开启 WeatherKit capability。
 
+## iOS 架构边界（重要）
+
+非 trivial 的 iOS 改动先读 `apps/ios/ARCHITECTURE.md`。
+
+- 新 Swift 源文件不要再放进 `apps/ios/BeforeShow/` 根目录；feature 默认进 `BeforeShow/Features/<Feature>/`。
+- `RootView.swift` 只保留 app/root routing，不再新增 feature 级 UI、媒体 I/O 或业务 mutation。
+- SwiftData model 文件只放持久化字段、校验和 domain mutation；展示格式化、sheet/navigation 状态不要塞进 model。
+- `Shared/` 只放 App 与 Widget 真正共同需要的代码，不能作为“不知道放哪”的兜底目录。
+- `RootView.swift`、`AddShowFlowViews.swift`、`FootprintsArchive.swift`、`FootprintArchiveViews.swift`、`MemoryFragmentsView.swift` 等 legacy hotspot 原则上只缩不涨；先运行 `python3 apps/ios/scripts/check_architecture.py`。
+- 新增/移动 Swift 源文件后，以 `apps/ios/project.yml` 为真源运行 `xcodegen generate`，并提交生成后的 `BeforeShow.xcodeproj`；不要只手改 pbxproj。
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
