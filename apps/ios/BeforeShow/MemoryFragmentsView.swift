@@ -1993,7 +1993,7 @@ errorMessage = BSLocalization.text("没有相机权限。你可以在系统设�
     private func importCamera(_ result: MemoryCameraResult) {
         let generation = beginImport()
         activeImportTask = Task { @MainActor in
-            defer { finishSave(generation) }
+            defer { finishImport(generation) }
             guard items.count < MemoryFragment.maximumMediaCount else {
                 errorMessage = BSLocalization.format("一条记忆最多 %lld 个媒体。", MemoryFragment.maximumMediaCount)
                 return
