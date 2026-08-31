@@ -1429,7 +1429,6 @@ private struct MemoryMediaViewer: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
 
-    @Environment(\.dismiss) private var dismiss
     @State private var index: Int
 
     init(
@@ -1451,36 +1450,6 @@ private struct MemoryMediaViewer: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    Spacer()
-                    Text(items.isEmpty ? "0 / 0" : "\(index + 1) / \(items.count)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Menu {
-                        Button("编辑记忆", action: onEdit)
-                        Button("删除这条记忆", role: .destructive, action: onDelete)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
-                    }
-                    .accessibilityLabel("管理这条记忆")
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-
                 TabView(selection: $index) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
@@ -1517,8 +1486,28 @@ private struct MemoryMediaViewer: View {
                 .padding(.vertical, 16)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
-        .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonDisplayMode(.minimal)
+        .toolbar(.visible, for: .navigationBar)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(items.isEmpty ? "0 / 0" : "\(index + 1) / \(items.count)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button("编辑记忆", action: onEdit)
+                    Button("删除这条记忆", role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
+                }
+                .accessibilityLabel("管理这条记忆")
+            }
+        }
+        .toolbarBackground(Color.black, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
         .onAppear { AppAudioSession.configureSoundPlayback() }
