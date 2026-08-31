@@ -180,6 +180,7 @@ struct MemoryViewerVideoPage: View {
             if player == nil {
                 player = AVPlayer(url: url)
             }
+            player?.play()
         } else {
             releasePlayer()
         }
