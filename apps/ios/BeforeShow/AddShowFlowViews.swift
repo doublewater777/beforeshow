@@ -254,10 +254,26 @@ enum AddShowPersistenceCoordinator {
 
         switch lifecycle {
         case .ended:
+            if show.endedAt == nil {
+                show.markAddedAsHistorical()
+            }
+            let notificationState: NotificationSchedulingState?
+            if show.endedAt != nil {
+                let state = notificationStates.first
+                    ?? NotificationSchedulingState(focusedShowID: existingCurrent?.id)
+                if notificationStates.isEmpty {
+                    modelContext.insert(state)
+                } else {
+                    state.focus(showID: existingCurrent?.id)
+                }
+                notificationState = state
+            } else {
+                notificationState = nil
+            }
             try modelContext.save()
             return AddShowPersistenceResult(
                 outcome: .footprint,
-                notificationState: nil
+                notificationState: notificationState
             )
         case .future where existingCurrent != nil:
             if let existingCurrent,
@@ -266,7 +282,7 @@ enum AddShowPersistenceCoordinator {
                 if selections.isEmpty {
                     modelContext.insert(selection)
                 }
-                selection.select(showID: existingCurrent.id)
+                selection.preserveAutomaticallySelected(showID: existingCurrent.id)
             }
             try modelContext.save()
             return AddShowPersistenceResult(outcome: .future, notificationState: nil)
@@ -275,7 +291,11 @@ enum AddShowPersistenceCoordinator {
             if selections.isEmpty {
                 modelContext.insert(selection)
             }
-            selection.select(showID: show.id)
+            if lifecycle == .live {
+                selection.select(showID: show.id)
+            } else {
+                selection.preserveAutomaticallySelected(showID: show.id)
+            }
 
             let notificationState = notificationStates.first
                 ?? NotificationSchedulingState(focusedShowID: show.id)
@@ -1212,7 +1232,13 @@ struct AddShowFlowView: View {
             )
 
             if let notificationState = result.notificationState {
-                await activateNotifications(for: show, state: notificationState)
+                let notificationFocusShow = notificationState.focusedShowID.flatMap { focusedShowID in
+                    if focusedShowID == show.id {
+                        return show
+                    }
+                    return shows.first(where: { $0.id == focusedShowID })
+                }
+                await activateNotifications(for: notificationFocusShow, state: notificationState)
             }
 
             PostHogSDK.shared.capture("show_added", properties: [
@@ -1288,7 +1314,7 @@ struct AddShowFlowView: View {
 
     @MainActor
     private func activateNotifications(
-        for show: Show,
+        for show: Show?,
         state: NotificationSchedulingState
     ) async {
         let center = LocalNotificationCenter.shared

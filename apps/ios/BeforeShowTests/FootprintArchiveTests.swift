@@ -218,6 +218,94 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
+    func testUnifiedClearlyHistoricalAddCannotBecomeCurrent() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let historical = try Show(
+            name: "明确历史现场",
+            date: date(2024, 6, 1),
+            startTime: date(2024, 6, 1, 20)
+        )
+
+        let result = try AddShowPersistenceCoordinator.persist(
+            historical,
+            lifecycle: .ended,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: date(2026, 8, 29, 12)
+        )
+
+        XCTAssertEqual(result.outcome, .footprint)
+        XCTAssertEqual(historical.wasAddedAsHistorical, true)
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let selection = try context.fetch(FetchDescriptor<CurrentShowSelection>()).first
+        XCTAssertNil(
+            CurrentShowSession(calendar: calendar).selectCurrentShow(
+                from: shows,
+                manualSelection: selection,
+                now: date(2026, 8, 29, 12)
+            )
+        )
+    }
+
+    func testUnifiedConfirmedEndedAddReplansAfterShowWithoutStealingCurrent() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let now = date(2026, 8, 29, 22)
+        let current = try Show(
+            name: "原本的未来现场",
+            date: date(2026, 9, 20),
+            startTime: date(2026, 9, 20, 20)
+        )
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        context.insert(notificationState)
+        try context.save()
+
+        let ended = try Show(
+            name: "刚结束的现场",
+            date: date(2026, 8, 29),
+            startTime: date(2026, 8, 29, 20)
+        )
+        ended.markEnded(at: date(2026, 8, 29, 21, 30))
+
+        let result = try AddShowPersistenceCoordinator.persist(
+            ended,
+            lifecycle: .ended,
+            selections: [selection],
+            notificationStates: [notificationState],
+            in: context,
+            now: now
+        )
+
+        XCTAssertEqual(result.outcome, .footprint)
+        XCTAssertNotNil(result.notificationState)
+        XCTAssertEqual(result.notificationState?.focusedShowID, current.id)
+
+        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
+            from: [],
+            to: current,
+            preservingAfterShowOf: [ended],
+            now: now
+        )
+        XCTAssertTrue(plan.requestsToSchedule.contains { $0.showID == current.id })
+        XCTAssertTrue(plan.requestsToSchedule.contains {
+            $0.showID == ended.id && $0.milestone == .afterShow
+        })
+        XCTAssertFalse(plan.requestsToSchedule.contains {
+            $0.showID == ended.id && $0.milestone != .afterShow
+        })
+    }
+
     func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
@@ -288,6 +376,45 @@ final class FootprintArchiveTests: XCTestCase {
         )
         XCTAssertEqual(selected?.id, current.id)
         XCTAssertEqual(notificationState.focusedShowID, current.id)
+    }
+
+    func testUnifiedFutureAddDoesNotPreventNewShowFromBecomingLiveCurrent() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let addedAt = date(2026, 8, 29, 12)
+        let current = try Show(
+            name: "原本自动选中的现场",
+            date: date(2026, 9, 20),
+            startTime: date(2026, 9, 20, 20)
+        )
+        let closer = try Show(
+            name: "之后真正开演的现场",
+            date: date(2026, 9, 5),
+            startTime: date(2026, 9, 5, 20)
+        )
+        context.insert(current)
+        try context.save()
+
+        _ = try AddShowPersistenceCoordinator.persist(
+            closer,
+            lifecycle: .future,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: addedAt
+        )
+
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let selection = try XCTUnwrap(context.fetch(FetchDescriptor<CurrentShowSelection>()).first)
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: shows,
+            manualSelection: selection,
+            now: date(2026, 9, 5, 21)
+        )
+        XCTAssertEqual(selected?.id, closer.id)
     }
 
     func testUnifiedFirstFutureAddBecomesCurrentShow() throws {
