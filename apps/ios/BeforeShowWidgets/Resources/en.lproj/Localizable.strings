@@ -15,6 +15,7 @@
 "已落幕 · %@" = "Ended · %@";
 "已落幕 · 回味还在" = "Show ended · The afterglow remains";
 "已到预计散场时间" = "Past expected end time";
+"已到预计结束时间" = "Past expected end time";
 "待确认" = "Pending";
 "待确认 · %@" = "Pending · %@";
 "已进行" = "Elapsed";

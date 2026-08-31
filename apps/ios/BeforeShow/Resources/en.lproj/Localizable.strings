@@ -40,11 +40,13 @@
 "LIVE ARCHIVE" = "LIVE ARCHIVE";
 "BEFORESHOW · 我的现场足迹" = "BEFORESHOW · My on-site footprints";
 "BeforeShow" = "BeforeShow";
+"BeforeShow 开场前" = "BeforeShow · Before the Show";
 "TOGETHER · %@" = "TOGETHER · %@";
 "YOUR LIVE ARCHIVE" = "YOUR LIVE ARCHIVE";
 "“%@”删除后无法恢复，也会从足迹统计中移除。" = "\"%@\" cannot be recovered after being deleted and will also be removed from the footprint statistics.";
 "一场现场，一份私人的回看" = "One show, a private look back";
 "不会自动包含现场内容、截图、照片、视频、语音或生成结果。" = "No live content, screenshots, photos, videos, voices or generated results are automatically included.";
+"不会自动包含现场内容、截图、照片或视频。" = "No live content, screenshots, photos, or videos are automatically included.";
 "之后还有" = "There will be more after that";
 "今天 %1$@ 在 %2$@ 开场，路上和取票都留够时间" = "Doors at %1$@ today at %2$@. Leave time to travel and collect tickets";
 "今天 %1$@ 开场，%2$@ 的路上留够时间" = "Doors at %1$@ today. Leave enough time to get to %2$@";

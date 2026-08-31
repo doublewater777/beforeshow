@@ -1723,7 +1723,7 @@ struct CurrentShowCompanionSheet: View {
 
     private var sharedMemoryCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("TOGETHER · \(String(format: "%02d", sharedHistory.count))")
+            Text(BSLocalization.format("TOGETHER · %@", String(format: "%02d", sharedHistory.count)))
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
                 .foregroundColor(BSColor.Stage.accent)

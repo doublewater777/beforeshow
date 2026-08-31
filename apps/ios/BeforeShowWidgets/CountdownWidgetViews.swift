@@ -459,7 +459,7 @@ private struct InlineCountdownView: View {
     private var statusText: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("还有 \(days) 天")
+            Text(BSLocalization.format("还有 %lld 天", days))
         case .near(let start):
             Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
                 .monospacedDigit()
@@ -596,7 +596,7 @@ private struct RectangularCountdownView: View {
     private var headline: some View {
         switch presentation.hero {
         case .far(let days):
-            Text("还有 \(days) 天")
+            Text(BSLocalization.format("还有 %lld 天", days))
         case .near(let start):
             Text(timerInterval: widgetCountdownRange(to: start), countsDown: true)
                 .monospacedDigit()
