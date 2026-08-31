@@ -1418,6 +1418,28 @@ private struct MemoryTextFragmentViewer: View {
 
 // MARK: - Viewer
 
+private struct MemoryMediaInteractionSurface: View {
+    let kind: MemoryMediaKind
+    let onDismiss: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        Color.clear
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onDismiss)
+            .contextMenu {
+                Button("编辑记忆", action: onEdit)
+                Button("删除这条记忆", role: .destructive, action: onDelete)
+            }
+            .accessibilityLabel(kind == .video ? "视频" : "照片")
+            .accessibilityHint("轻点关闭，长按管理")
+            .accessibilityAction(named: "关闭", onDismiss)
+            .accessibilityAction(named: "编辑记忆", onEdit)
+            .accessibilityAction(named: "删除这条记忆", onDelete)
+    }
+}
+
 private struct MemoryMediaViewer: View {
     let fragment: MemoryFragment
     let initialIndex: Int
@@ -1448,30 +1470,14 @@ private struct MemoryMediaViewer: View {
             VStack(spacing: 0) {
                 TabView(selection: $index) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
-                        Group {
-                            if item.kind == .video {
-                                MemoryViewerVideoPage(
-                                    url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
-                                    isActive: itemIndex == index
-                                )
-                            } else {
-                                MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
-                                    .scaledToFit()
-                            }
-                        }
-                        .overlay {
-                            Color.clear
-                                .contentShape(Rectangle())
-                                .onTapGesture { dismiss() }
-                                .contextMenu {
-                                    Button("编辑记忆", action: onEdit)
-                                    Button("删除这条记忆", role: .destructive, action: onDelete)
-                                }
-                                .accessibilityLabel(item.kind == .video ? "视频" : "照片")
-                                .accessibilityHint("轻点关闭，长按管理")
-                                .accessibilityAction(named: "关闭") { dismiss() }
-                                .accessibilityAction(named: "编辑记忆", onEdit)
-                                .accessibilityAction(named: "删除这条记忆", onDelete)
+                        ZStack {
+                            mediaPage(item: item, isActive: itemIndex == index)
+                            MemoryMediaInteractionSurface(
+                                kind: item.kind,
+                                onDismiss: { dismiss() },
+                                onEdit: onEdit,
+                                onDelete: onDelete
+                            )
                         }
                         .tag(itemIndex)
                     }
@@ -1502,6 +1508,19 @@ private struct MemoryMediaViewer: View {
         // ambient policy on exit so covers stay non-interrupting.
         .onAppear { AppAudioSession.configureSoundPlayback() }
         .onDisappear { AppAudioSession.configureAmbient() }
+    }
+
+    @ViewBuilder
+    private func mediaPage(item: MemoryMediaItem, isActive: Bool) -> some View {
+        if item.kind == .video {
+            MemoryViewerVideoPage(
+                url: MemoryMediaLocation.applicationSupport().url(for: item.relativePath),
+                isActive: isActive
+            )
+        } else {
+            MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
+                .scaledToFit()
+        }
     }
 }
 
