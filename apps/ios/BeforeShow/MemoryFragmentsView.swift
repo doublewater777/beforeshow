@@ -1446,35 +1446,6 @@ private struct MemoryMediaViewer: View {
         ZStack {
             Color.black.ignoresSafeArea()
             VStack(spacing: 0) {
-                HStack {
-                    Button { dismiss() } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12), in: Circle())
-                    }
-                    .accessibilityLabel("关闭")
-                    Spacer()
-                    Text(items.isEmpty ? "0 / 0" : "\(index + 1) / \(items.count)")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                    Spacer()
-                    Menu {
-                        Button("编辑记忆", action: onEdit)
-                        Button("删除这条记忆", role: .destructive, action: onDelete)
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 42, height: 42)
-                            .background(Color.white.opacity(0.12), in: Circle())
-                    }
-                    .accessibilityLabel("管理这条记忆")
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 8)
-
                 TabView(selection: $index) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { itemIndex, item in
                         Group {
@@ -1487,6 +1458,20 @@ private struct MemoryMediaViewer: View {
                                 MemoryThumbnail(relativePath: item.thumbnailRelativePath ?? item.relativePath)
                                     .scaledToFit()
                             }
+                        }
+                        .overlay {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { dismiss() }
+                                .contextMenu {
+                                    Button("编辑记忆", action: onEdit)
+                                    Button("删除这条记忆", role: .destructive, action: onDelete)
+                                }
+                                .accessibilityLabel(item.kind == .video ? "视频" : "照片")
+                                .accessibilityHint("轻点关闭，长按管理")
+                                .accessibilityAction(named: "关闭") { dismiss() }
+                                .accessibilityAction(named: "编辑记忆", onEdit)
+                                .accessibilityAction(named: "删除这条记忆", onDelete)
                         }
                         .tag(itemIndex)
                     }
@@ -1511,6 +1496,7 @@ private struct MemoryMediaViewer: View {
                 .padding(.vertical, 16)
             }
         }
+        .interactiveDismissDisabled()
         .preferredColorScheme(.dark)
         // The viewer plays video with sound, so it needs `playback`; restore the
         // ambient policy on exit so covers stay non-interrupting.
