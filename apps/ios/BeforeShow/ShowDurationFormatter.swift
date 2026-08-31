@@ -67,3 +67,99 @@ enum ShowDurationFormatter {
         return BSLocalization.format("%lld 天", days)
     }
 }
+
+/// Show 的日期/时间展示格式化。
+///
+/// 展示文案属于 presentation concern，不放在 SwiftData `Show` 模型文件里；
+/// 这样模型文件只保留持久化字段、校验和领域 mutation。
+struct ShowDisplayFormatter {
+    private let calendar: Calendar
+
+    init(calendar: Calendar = .current) {
+        self.calendar = calendar
+    }
+
+    func dateText(for show: Show) -> String {
+        let calendar = show.timingCalendar(fallback: calendar)
+        let endCalendar = show.endTimingCalendar(fallback: calendar)
+        let startDay = show.effectiveDate
+        let startClock = CurrentShowTimeState.effectiveStartTime(for: show, calendar: calendar)
+        let endDay = CurrentShowTimeState.effectiveEndDate(for: show, calendar: calendar)
+        let endClock = CurrentShowTimeState.effectiveEndTime(
+            for: show,
+            calendar: calendar,
+            effectiveDate: show.effectiveDate,
+            effectiveStartTime: startClock
+        )
+
+        // 多日每日循环：共用 startTime / endTime 钟点，展示「日期区间 · 每日 HH:mm[-HH:mm]」。
+        if CurrentShowTimeState.isMultiDayDailyCycle(for: show, calendar: calendar),
+           let endDay {
+            let range = dayRangeText(from: startDay, to: endDay, calendar: calendar)
+            if let endTime = show.endTime {
+                return BSLocalization.format("%@ · 每日 %@-%@", range, timeText(startClock, calendar: calendar), timeText(endTime, calendar: endCalendar))
+            }
+            return BSLocalization.format("%@ · 每日 %@", range, timeText(startClock, calendar: calendar))
+        }
+
+        var text = dateText(startDay, calendar: calendar)
+        text += " \(timeText(startClock, calendar: calendar))"
+
+        if let endClock {
+            let formattedEnd = shortDateTimeText(
+                endClock,
+                includeDateWhenSameDayAs: startDay,
+                calendar: endCalendar,
+                sameDayCalendar: calendar
+            )
+            text += " - \(formattedEnd)"
+        } else if let endDay,
+                  calendar.startOfDay(for: endDay) > calendar.startOfDay(for: startDay) {
+            text += " - \(shortDateText(endDay, calendar: endCalendar))"
+        }
+
+        return text
+    }
+
+    private func dayRangeText(from start: Date, to end: Date, calendar: Calendar) -> String {
+        let startComponents = calendar.dateComponents([.year, .month, .day], from: start)
+        let endComponents = calendar.dateComponents([.year, .month, .day], from: end)
+        let year = startComponents.year ?? calendar.component(.year, from: start)
+        let startMonth = startComponents.month ?? 1
+        let startDay = startComponents.day ?? 1
+        let endMonth = endComponents.month ?? 1
+        let endDay = endComponents.day ?? 1
+
+        if startMonth == endMonth {
+            return BSLocalization.format("%lld年%lld月%lld日-%lld日", year, startMonth, startDay, endDay)
+        }
+        return BSLocalization.format("%lld年%lld月%lld日-%lld月%lld日", year, startMonth, startDay, endMonth, endDay)
+    }
+
+    private func dateText(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.year, .month, .day], from: date)
+        return BSLocalization.format("%lld年%lld月%lld日", components.year ?? 0, components.month ?? 1, components.day ?? 1)
+    }
+
+    private func shortDateText(_ date: Date, calendar: Calendar? = nil) -> String {
+        let components = (calendar ?? self.calendar).dateComponents([.month, .day], from: date)
+        return BSLocalization.format("%lld月%lld日", components.month ?? 1, components.day ?? 1)
+    }
+
+    private func shortDateTimeText(
+        _ date: Date,
+        includeDateWhenSameDayAs startDay: Date,
+        calendar: Calendar,
+        sameDayCalendar: Calendar
+    ) -> String {
+        if sameDayCalendar.isDate(date, inSameDayAs: startDay) {
+            return timeText(date, calendar: calendar)
+        }
+        return "\(shortDateText(date, calendar: calendar)) \(timeText(date, calendar: calendar))"
+    }
+
+    private func timeText(_ date: Date, calendar: Calendar) -> String {
+        let components = calendar.dateComponents([.hour, .minute], from: date)
+        return String(format: "%02d:%02d", components.hour ?? 0, components.minute ?? 0)
+    }
+}
