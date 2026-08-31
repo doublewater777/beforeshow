@@ -501,6 +501,11 @@ EOF
   launchctl bootstrap "gui/$user_id" "$plist_path"
   launchctl enable "gui/$user_id/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || true
   launchctl kickstart -k "gui/$user_id/$LAUNCH_AGENT_LABEL"
+  sleep 1
+  if ! launchctl print "gui/$user_id/$LAUNCH_AGENT_LABEL" | rg -q '^\s*state = running$'; then
+    echo "LaunchAgent was registered but did not start. Check $ARTIFACT_ROOT/launchd.err.log" >&2
+    return 1
+  fi
   echo "Installed and started $LAUNCH_AGENT_LABEL"
   echo "Plist: $plist_path"
 }

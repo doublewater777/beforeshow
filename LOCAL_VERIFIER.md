@@ -16,6 +16,8 @@ tools/ship-verify install
 
 It starts at login and polls all open GitHub PRs. You do not pass a PR number. Every new PR HEAD is verified once, and the result is published to that PR. The listener keeps per-PR HEAD state in ignored `.artifacts/local-verifier/watch-state.tsv`.
 
+If launchd reports `Operation not permitted` for a checkout under macOS Desktop/Documents, grant the shell/host app Full Disk Access or place the checkout outside those protected folders, then run `tools/ship-verify install` again.
+
 To run it in the foreground instead:
 
 ```bash
