@@ -1,0 +1,33 @@
+name: iOS build verify
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-build-verify.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/ios/**"
+      - ".github/workflows/ios-build-verify.yml"
+
+concurrency:
+  group: ios-build-verify-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build for simulator
+        run: |
+          cd apps/ios
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
