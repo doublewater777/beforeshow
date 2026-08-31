@@ -43,6 +43,8 @@ If the repository has no applicable CI, record that fact rather than pretending 
 
 Some changes require a real local runtime, simulator/emulator, credentials, hardware, or Computer Use. In that case, rely on the repository's local verifier or local coding agent rather than asking the user to manually reproduce routine checks.
 
+In this repository the local verifier is the `pr-verifier` skill (`scripts/verify-pr.sh`): it runs tests, a signed simulator build, entitlements check, and launch-survival on the iPhone 17 simulator, and posts the `LOCAL_AGENT_VERIFY` report to the PR. Invoke it for every HEAD that needs local verification, and loop on its FAIL reports.
+
 A local result is valid only when it identifies the exact current PR HEAD. Expected shape:
 
 ```text
