@@ -7,13 +7,13 @@ private enum FootprintDetailTokens {
     static let backgroundGlowRadius: CGFloat = 260
     static let backgroundAccentRadius: CGFloat = 240
     static let heroCornerRadius = BSRadius.sheet
+    static let heroCoverWidth: CGFloat = 112
+    static let heroCoverHeight: CGFloat = 154
     static let emptyMemoryHeight: CGFloat = 132
     static let avatarSize: CGFloat = 48
     static let infoIconSize: CGFloat = 32
     static let infoTitleWidth: CGFloat = 36
     static let infoRowHeight: CGFloat = 58
-    static let shareButtonHeight: CGFloat = 50
-    static let shareShellRadius: CGFloat = 18
     static let memoryTileHeight: CGFloat = 168
     static let memoryMediaHeight: CGFloat = 132
     static let memoryInfoHeight: CGFloat = 36
@@ -34,13 +34,9 @@ private enum FootprintDetailTokens {
     static let backgroundAccent = BSColor.Stage.accent.opacity(0.08)
     static let heroSecondarySurface = BSColor.Stage.surface.opacity(0.84)
     static let heroBorder = BSColor.Stage.accent.opacity(0.15)
-    static let identityFill = Color.white.opacity(0.035)
     static let companionAccent = BSColor.Stage.accent.opacity(0.38)
     static let companionGlow = BSColor.Stage.glowBlue.opacity(0.32)
     static let infoIconFill = Color.white.opacity(0.05)
-    static let shareShellFill = BSColor.Stage.surfaceRaised.opacity(0.94)
-    static let shareShellBorder = Color.white.opacity(0.07)
-    static let shareShadow = Color.black.opacity(0.38)
     static let memoryScrim = Color.black.opacity(0.72)
     static let keepsakeScrim = Color.black.opacity(0.74)
     static let savedKeepsakeText = Color.white.opacity(0.74)
@@ -69,13 +65,20 @@ struct FootprintDetailView: View {
     let archive: FootprintArchiveSnapshot
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
 
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @Environment(\.scenePhase) private var scenePhase
+    @Query(sort: \Show.date) private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
+    @Query private var notificationStates: [NotificationSchedulingState]
     @Query private var fragments: [MemoryFragment]
     @Query private var assets: [ShowAsset]
     @State private var memoryTarget: FootprintMemoryTarget?
     @State private var showingAssetKind: ShowAssetKind?
     @State private var isShowingShareComposer = false
     @State private var isShowingDispersalShare = false
+    @State private var isShowingDeleteConfirmation = false
+    @State private var isDeleting = false
     @State private var toast: BSToastPayload?
 
     private let formatter = ShowDisplayFormatter()
@@ -104,6 +107,14 @@ struct FootprintDetailView: View {
 
     private var identity: FootprintDetailIdentity {
         FootprintDetailIdentityBuilder.make(show: show, archive: archive)
+    }
+
+    private var detailCover: FootprintCover? {
+        FootprintCoverResolver.resolve(
+            shows: archive.shows,
+            fragments: fragments,
+            assets: assets
+        )[show.id]
     }
 
     /// 单场观看时长:已确认散场用真实时刻,否则用录入结束时间或默认估算。
@@ -167,48 +178,51 @@ struct FootprintDetailView: View {
     var body: some View {
         ZStack {
             footprintBackground
-            VStack(spacing: 0) {
-                ScrollView(.vertical, showsIndicators: false) {
-                    LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        hero
-                        FootprintDynamicCoverSection(
-                            show: show,
-                            isPlaybackActive: isDynamicCoverPlaybackActive
-                        )
-                        if show.rating != nil || (show.closingNote?.isEmpty == false) {
-                            dispersalRitualSection
-                        }
-                        memorySection
-                        keepsakesSection
-                        if show.companionStatus == .confirmed {
-                            companionSection
-                        }
-                        informationSection
-                        if !show.artists.isEmpty {
-                            lineupSection
-                        }
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: BSSpacing.lg) {
+                    hero
+                    FootprintDynamicCoverSection(
+                        show: show,
+                        isPlaybackActive: isDynamicCoverPlaybackActive
+                    )
+                    if show.rating != nil || (show.closingNote?.isEmpty == false) {
+                        dispersalRitualSection
                     }
-                    .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.sm)
-                    .padding(.bottom, BSSpacing.xl)
+                    memorySection
+                    keepsakesSection
+                    if show.companionStatus == .confirmed {
+                        companionSection
+                    }
+                    informationSection
+                    if !show.artists.isEmpty {
+                        lineupSection
+                    }
                 }
-                .bsNavigationScrollEdge()
-                if shareRoute != .none {
-                    shareButton
-                }
+                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.top, BSSpacing.sm)
+                .padding(.bottom, BSSpacing.xl)
             }
+            .bsNavigationScrollEdge()
         }
         .navigationTitle(BSLocalization.text("足迹详情"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.visible, for: .navigationBar)
         .toolbar {
-            if shareRoute != .none {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { openShare() } label: {
-                        Image(systemName: "square.and.arrow.up")
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    if shareRoute != .none {
+                        Button(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up") {
+                            openShare()
+                        }
                     }
-                    .accessibilityLabel(BSLocalization.text("分享这场回忆"))
+                    Button(BSLocalization.text("删除现场"), systemImage: "trash", role: .destructive) {
+                        isShowingDeleteConfirmation = true
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
                 }
+                .disabled(isDeleting)
+                .accessibilityLabel(BSLocalization.text("更多操作"))
             }
         }
         .fullScreenCover(item: $memoryTarget) { target in
@@ -241,13 +255,24 @@ struct FootprintDetailView: View {
                 identity: identity,
                 rating: show.rating,
                 note: show.closingNote ?? "",
-                onSaved: { presentToast(BSLocalization.text("足迹图片已保存")) }
+                onSaved: { presentToast(.success, message: BSLocalization.text("足迹图片已保存")) }
             )
             .presentationDetents([.large])
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
         }
-        .bsToastOverlay(toast, bottomPadding: 100)
+        .alert(
+            DangerConfirmation.deleteShow.title,
+            isPresented: $isShowingDeleteConfirmation
+        ) {
+            Button(DangerConfirmation.deleteShow.confirmTitle, role: .destructive) {
+                Task { @MainActor in await deleteShow() }
+            }
+            Button(BSLocalization.text("取消"), role: .cancel) {}
+        } message: {
+            Text(DangerConfirmation.deleteShow.message)
+        }
+        .bsToastOverlay(toast, bottomPadding: BSSpacing.lg)
         .onAppear { onDetailVisibilityChange(true) }
         .onDisappear { onDetailVisibilityChange(false) }
         .preferredColorScheme(.dark)
@@ -274,25 +299,49 @@ struct FootprintDetailView: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(heroEyebrow)
-                .font(FootprintDetailTokens.eyebrowFont)
-                .tracking(1.7)
-                .foregroundColor(BSColor.Stage.accent)
-            Text(show.name)
-                .font(BSFont.V3.title1)
-                .foregroundColor(BSColor.Stage.foreground)
-                .lineLimit(3)
-                .padding(.top, BSSpacing.compact)
-            Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? BSLocalization.text("未填写场馆"))
-                .font(BSFont.body)
-                .foregroundColor(BSColor.Stage.muted)
-                .padding(.top, BSSpacing.sm)
+        HStack(alignment: .top, spacing: BSSpacing.md) {
+            FootprintCoverView(show: show, cover: detailCover, showsMetadata: false)
+                .frame(
+                    width: FootprintDetailTokens.heroCoverWidth,
+                    height: FootprintDetailTokens.heroCoverHeight
+                )
+                .accessibilityHidden(true)
 
-            identityGrid
-                .padding(.top, BSSpacing.lg)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(heroEyebrow)
+                    .font(FootprintDetailTokens.eyebrowFont)
+                    .tracking(1.4)
+                    .foregroundColor(BSColor.Stage.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+
+                Text(show.name)
+                    .font(BSFont.V3.title2)
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .lineLimit(3)
+                    .minimumScaleFactor(0.88)
+                    .padding(.top, BSSpacing.sm)
+
+                Text(FootprintTextNormalizer.nonEmptyTrimmed(show.venueName) ?? BSLocalization.text("未填写场馆"))
+                    .font(BSFont.V3.small)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .lineLimit(2)
+                    .padding(.top, BSSpacing.sm)
+
+                Spacer(minLength: BSSpacing.sm)
+
+                HStack(spacing: 6) {
+                    Image(systemName: "bookmark.fill")
+                    Text(heroArchiveContext)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .font(FootprintDetailTokens.identityDetailFont.weight(.semibold))
+                .foregroundColor(BSColor.Stage.accent.opacity(0.88))
+            }
+            .frame(minHeight: FootprintDetailTokens.heroCoverHeight, alignment: .top)
         }
-        .padding(BSSpacing.roomy)
+        .padding(BSSpacing.md)
         .background(
             LinearGradient(
                 colors: [BSColor.Stage.surfaceRaised, FootprintDetailTokens.heroSecondarySurface],
@@ -320,44 +369,13 @@ struct FootprintDetailView: View {
             .joined(separator: " · ")
     }
 
-    private var identityGrid: some View {
-        let values = identityValues
-        return HStack(spacing: BSSpacing.sm) {
-            ForEach(Array(values.enumerated()), id: \.offset) { _, item in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(item.headline)
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Text(item.detail)
-                        .font(FootprintDetailTokens.identityDetailFont)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .lineLimit(2)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(BSSpacing.compact)
-                .background(FootprintDetailTokens.identityFill, in: RoundedRectangle(cornerRadius: BSRadius.md))
-                .overlay(RoundedRectangle(cornerRadius: BSRadius.md).stroke(BSColor.Stage.border))
-            }
+    private var heroArchiveContext: String {
+        var values = [BSLocalization.format("第 %lld 场现场", identity.showOrdinal)]
+        if let cityOrdinal = identity.cityOrdinal,
+           let city = FootprintTextNormalizer.nonEmptyTrimmed(show.city) {
+            values.append("\(city) · \(BSLocalization.format("第 %lld 场", cityOrdinal))")
         }
-    }
-
-    private var identityValues: [(headline: String, detail: String)] {
-        var values = [(BSLocalization.format("第 %lld 场", identity.showOrdinal), BSLocalization.text("现场档案"))]
-        if let cityOrdinal = identity.cityOrdinal {
-            values.append((
-                BSLocalization.format("第 %lld 场", cityOrdinal),
-                BSLocalization.format("%@现场", FootprintTextNormalizer.nonEmptyTrimmed(show.city) ?? BSLocalization.text("这座城市"))
-            ))
-        }
-        if identity.companions.count == 1, let companion = identity.companions.first {
-            values.append((
-                BSLocalization.format("第 %lld 次", companion.ordinal),
-                BSLocalization.format("与%@同行", companion.name)
-            ))
-        } else if let names = CompanionNameList.joined(identity.companions.map(\.name)) {
-            values.append((BSLocalization.text("同行"), BSLocalization.format("与%@同行", names)))
-        }
-        return values
+        return values.joined(separator: "  ·  ")
     }
 
     private var memorySection: some View {
@@ -592,34 +610,6 @@ struct FootprintDetailView: View {
         .accessibilityElement(children: .combine)
     }
 
-    private var shareButton: some View {
-        Button { openShare() } label: {
-            Label(BSLocalization.text("分享这场回忆"), systemImage: "square.and.arrow.up")
-                .font(BSFont.caption.weight(.semibold))
-                .foregroundColor(BSColor.Stage.background)
-                .frame(maxWidth: .infinity)
-                .frame(height: FootprintDetailTokens.shareButtonHeight)
-                .background(BSColor.Stage.accent, in: RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-        }
-        .buttonStyle(.plain)
-        .padding(BSSpacing.xs)
-        .background(
-            FootprintDetailTokens.shareShellFill,
-            in: RoundedRectangle(cornerRadius: FootprintDetailTokens.shareShellRadius)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: FootprintDetailTokens.shareShellRadius)
-                .stroke(FootprintDetailTokens.shareShellBorder)
-        )
-        .shadow(
-            color: FootprintDetailTokens.shareShadow,
-            radius: BSSpacing.lg,
-            y: BSSpacing.xs
-        )
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.bottom, BSSpacing.compact)
-    }
-
     private func openShare() {
         switch shareRoute {
         case .composer:
@@ -631,8 +621,28 @@ struct FootprintDetailView: View {
         }
     }
 
-    private func presentToast(_ message: String) {
-        let payload = BSToastPayload(tone: .success, message: message)
+    @MainActor
+    private func deleteShow() async {
+        guard !isDeleting else { return }
+        isDeleting = true
+        do {
+            _ = try await ShowDeletionCoordinator.delete(
+                show,
+                from: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext
+            )
+            dismiss()
+        } catch {
+            modelContext.rollback()
+            isDeleting = false
+            presentToast(.failure, message: BSLocalization.text("删除失败，请重试"))
+        }
+    }
+
+    private func presentToast(_ tone: BSToastTone, message: String) {
+        let payload = BSToastPayload(tone: tone, message: message)
         toast = payload
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
