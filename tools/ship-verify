@@ -150,9 +150,9 @@ resolve_target() {
     require_command gh
     TARGET_URL="$(cd "$ROOT" && gh pr view "$PR_NUMBER" --json url --jq '.url')" \
       || die "could not read PR #$PR_NUMBER"
-    git fetch --quiet origin "pull/${PR_NUMBER}/head" \
+    git -C "$ROOT" fetch --quiet origin "pull/${PR_NUMBER}/head" \
       || die "could not fetch PR #$PR_NUMBER from origin"
-    TARGET_SHA="$(git rev-parse FETCH_HEAD)"
+    TARGET_SHA="$(git -C "$ROOT" rev-parse FETCH_HEAD)"
     return
   fi
 
@@ -176,7 +176,7 @@ prepare_worktree() {
 
   if [[ -n "$PR_NUMBER" || "$REF" != "HEAD" ]]; then
     WORKTREE_ROOT="$RUN_DIR/worktree"
-    git worktree add --detach "$WORKTREE_ROOT" "$TARGET_SHA" >/dev/null \
+    git -C "$ROOT" worktree add --detach "$WORKTREE_ROOT" "$TARGET_SHA" >/dev/null \
       || die "could not create isolated worktree for $TARGET_SHA"
   else
     WORKTREE_STATE="$(git -C "$ROOT" status --porcelain)"
@@ -196,7 +196,7 @@ prepare_derived_data() {
 
 remove_worktree() {
   if [[ "$WORKTREE_ROOT" != "$ROOT" && -n "$WORKTREE_ROOT" && -d "$WORKTREE_ROOT" ]]; then
-    git worktree remove --force "$WORKTREE_ROOT" >/dev/null 2>&1 || true
+    git -C "$ROOT" worktree remove --force "$WORKTREE_ROOT" >/dev/null 2>&1 || true
   fi
   WORKTREE_ROOT=""
 }
@@ -472,6 +472,7 @@ install_launch_agent() {
   <string>$LAUNCH_AGENT_LABEL</string>
   <key>ProgramArguments</key>
   <array>
+    <string>/bin/bash</string>
     <string>$script_path</string>
     <string>watch</string>
     <string>--publish</string>
@@ -482,7 +483,7 @@ install_launch_agent() {
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
   </dict>
   <key>WorkingDirectory</key>
-  <string>$ROOT</string>
+  <string>$HOME</string>
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>
