@@ -28,16 +28,16 @@ For a hosted test with server-side event capture, set `VITE_BEFORESHOW_EVENT_END
 
 ## Run the local verification loop
 
-The iOS loop verifies a committed HEAD with tests, an explicitly team-signed simulator build, entitlements, and an iPhone 17 launch smoke test. It writes a SHA-stamped report under `.artifacts/local-verifier/`:
-
-```bash
-tools/ship-verify once --ref HEAD
-```
-
-To follow a pull request and publish each result back to GitHub:
+The primary mode listens to a GitHub PR. For each new PR HEAD it creates an isolated worktree, runs tests, performs an explicitly team-signed simulator build, checks entitlements, boots iPhone 17, launches the app, and writes a SHA-stamped PR report under `.artifacts/local-verifier/`:
 
 ```bash
 tools/ship-verify watch --pr 123 --interval 20 --publish
+```
+
+For a one-shot local check:
+
+```bash
+tools/ship-verify once --ref HEAD
 ```
 
 Use `--ui-command` (or `VERIFY_UI_COMMAND`) to add a local Codex, Claude Code, AXe, or other simulator scenario. The command receives `VERIFY_REPO_ROOT`, `VERIFY_HEAD_SHA`, `VERIFY_APP_PATH`, `VERIFY_SIMULATOR_UDID`, `VERIFY_BUNDLE_ID`, and `VERIFY_REPORT_PATH`.

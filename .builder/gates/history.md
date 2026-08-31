@@ -446,4 +446,4 @@ Cycle: `.builder/cycles/2026-08-31-local-verifier-loop/`
 
 Decision: implementation and local iPhone 17 verification complete; first real PR fetch/comment cycle remains.
 
-Reason: Chat can own the remote repository workflow, but simulator and feature-level UI verification need a local process with an exact PR HEAD gate.
+Reason: the local listener owns PR HEAD polling, simulator verification, and SHA-stamped PR reporting; no Chat orchestration layer is required.

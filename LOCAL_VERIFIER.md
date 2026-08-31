@@ -1,6 +1,10 @@
-# Local verifier loop
+# GitHub PR local verifier
 
-`tools/ship-verify` is the local execution side of the feature loop described by `.agents/skills/ship-feature/SKILL.md`.
+`tools/ship-verify` is a single-purpose local listener for GitHub PRs. It does not require a Chat workflow or Plugin.
+
+```text
+GitHub PR HEAD → isolated worktree → tests → team build → iPhone 17 Simulator → launch smoke → optional UI agent → PR report
+```
 
 ## One committed HEAD
 
