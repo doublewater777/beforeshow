@@ -13,15 +13,14 @@ REPO_ROOT = IOS_ROOT.parents[1]
 # Legacy files that are already too large, plus isolated feature files whose
 # responsibilities should remain bounded after extraction.
 HOTSPOT_BUDGETS = {
-    "BeforeShow/RootView.swift": 60_000,
+    "BeforeShow/RootView.swift": 12_000,
     "BeforeShow/UI/DesignSystem.swift": 55_000,
     "BeforeShow/Features/Settings/SettingsViews.swift": 48_000,
     "BeforeShow/Features/Shows/ShowDetailViews.swift": 48_000,
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift": 45_000,
     "BeforeShow/Features/Shows/ShowLibraryViews.swift": 44_000,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
-    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 38_000,
-    "BeforeShow/Features/AddShow/ShowDraft.swift": 38_000,
+    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 38_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift": 35_000,
     "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 35_000,
@@ -102,6 +101,13 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
     "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
     "BeforeShow/Domain/Shows/Show.swift": 24_000,
+    "BeforeShow/Domain/Shows/ShowDraft.swift": 10_000,
+    "BeforeShow/Infrastructure/Parsing/ShowScreenshotRecognitionService.swift": 20_000,
+    "BeforeShow/Infrastructure/Vision/OnDeviceShowScreenshotRecognizer.swift": 5_000,
+    "BeforeShow/Infrastructure/Parsing/ShowLinkDraftParser.swift": 8_000,
+    "BeforeShow/App/CompanionAppDelegates.swift": 6_000,
+    "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 30_000,
+    "BeforeShow/Supporting/Debug/AppStoreWidgetPreviewView.swift": 7_000,
 }
 
 # Once a hotspot has been retired, do not allow a later change to recreate it
@@ -113,12 +119,15 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/MemoryFragmentsView.swift",
     "BeforeShow/BeforeShowApp.swift",
     "BeforeShow/CompanionSharing.swift",
+    "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
 ROOT_SWIFT_ALLOWLIST = ("RootView.swift",)
 
 ROOT_VIEW_FORBIDDEN_TOKENS = (
+    "struct AppStoreWidgetPreviewView",
+    "enum DebugSampleShowSeeder",
     "import PhotosUI",
     "PhotosPickerItem",
     "DynamicCoverImportCoordinator",
@@ -225,6 +234,12 @@ APP_ENTRY_FORBIDDEN_TOKENS = (
     "func reconcileShowAssetShowBoundary",
 )
 
+COMPANION_COORDINATOR_FORBIDDEN_TOKENS = (
+    "final class BeforeShowAppDelegate",
+    "final class BeforeShowSceneDelegate",
+    "extension Show",
+)
+
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
     "protocol CompanionSharingService",
     "struct CloudKitCompanionSharingService",
@@ -302,6 +317,22 @@ def check_hotspot_budgets(errors: list[str]) -> None:
                 f"{relative_path} is {size:,} bytes (budget {max_bytes:,}). "
                 "Split responsibilities before adding more code, or move code out and update the budget intentionally."
             )
+
+
+def check_domain_imports(errors: list[str]) -> None:
+    forbidden = ("SwiftUI", "UIKit", "Photos", "PhotosUI", "RevenueCat", "PostHog", "Vision", "CloudKit")
+    domain = IOS_ROOT / "BeforeShow" / "Domain"
+    if not domain.exists():
+        return
+    for source in sorted(domain.rglob("*.swift")):
+        for line in source.read_text().splitlines():
+            stripped = line.strip()
+            if not stripped.startswith("import "):
+                continue
+            module = stripped.removeprefix("import ").split()[0]
+            if module in forbidden:
+                relative = source.relative_to(IOS_ROOT)
+                errors.append(f"{relative} imports forbidden domain dependency {module}. Move framework-specific behavior to Infrastructure or Features.")
 
 
 def check_root_swift_layout(errors: list[str]) -> None:
@@ -397,6 +428,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         errors,
     )
     check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift",
+        COMPANION_COORDINATOR_FORBIDDEN_TOKENS,
+        "Keep Companion orchestration separate from app lifecycle delegates and Show mapping.",
+        errors,
+    )
+    check_forbidden_tokens(
         "BeforeShow/Features/Companion/CompanionSharingModels.swift",
         COMPANION_MODELS_FORBIDDEN_TOKENS,
         "Keep Companion models/policies separate from the service protocol, CloudKit implementation, and Show persistence mapping.",
@@ -433,6 +470,7 @@ def main() -> int:
     check_hotspot_budgets(errors)
     check_retired_legacy_files(errors)
     check_root_swift_layout(errors)
+    check_domain_imports(errors)
     check_presentation_boundaries(errors)
     check_new_file_locations(base_ref, errors)
 
