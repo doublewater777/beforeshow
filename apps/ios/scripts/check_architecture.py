@@ -40,7 +40,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift": 27_000,
     "BeforeShow/Features/Shows/CurrentShowLibraryPolicies.swift": 6_000,
     "BeforeShow/Features/Shows/CurrentShowLibraryRows.swift": 11_000,
-    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
+    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 33_000,
+    "BeforeShow/Features/Footprints/FootprintDetailPresentationSupport.swift": 7_000,
+    "BeforeShow/Features/Footprints/FootprintDetailMediaComponents.swift": 12_000,
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
@@ -236,6 +238,14 @@ FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS = (
     "struct FootprintVenueArchiveView",
     "struct FootprintMemoriesArchiveView",
     "struct FootprintCoverView",
+)
+
+FOOTPRINT_DETAIL_VIEW_FORBIDDEN_TOKENS = (
+    "enum FootprintDetailTokens",
+    "enum FootprintPlaybackPolicy",
+    "struct FootprintMemoryTile",
+    "struct FootprintKeepsakeTile",
+    "struct FootprintLocalImage",
 )
 
 MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS = (
@@ -487,6 +497,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Footprints/FootprintDashboardView.swift",
         FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS,
         "Keep the dashboard root limited to page composition; sections, archive screens, and cover presentation belong in their dedicated Footprints files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintDetailView.swift",
+        FOOTPRINT_DETAIL_VIEW_FORBIDDEN_TOKENS,
+        "Keep FootprintDetail page state separate from reusable detail tokens, playback policy, and media/keepsake presentation components.",
         errors,
     )
     check_forbidden_tokens(
