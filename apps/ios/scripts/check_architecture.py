@@ -14,7 +14,10 @@ REPO_ROOT = IOS_ROOT.parents[1]
 # rewrite; it prevents these hotspots from growing without an explicit budget change.
 HOTSPOT_BUDGETS = {
     "BeforeShow/RootView.swift": 60_000,
-    "BeforeShow/HomeHeroPresentation.swift": 100_000,
+    "BeforeShow/HomeHeroPresentation.swift": 12_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowHomeView.swift": 24_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 40_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 28_000,
     "BeforeShow/AddShowFlowViews.swift": 155_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
@@ -29,6 +32,13 @@ ROOT_VIEW_FORBIDDEN_TOKENS = (
     "DynamicCoverImportCoordinator",
     "WidgetDataSync.sync",
     "LocalNotificationCenter.shared.reconcileFocus",
+    "struct CurrentShowManagementSection",
+    "struct CurrentShowCompanionSheet",
+)
+
+HOME_HERO_FORBIDDEN_TOKENS = (
+    "import PhotosUI",
+    "struct CurrentShowHomeView",
     "struct CurrentShowManagementSection",
     "struct CurrentShowCompanionSheet",
 )
@@ -93,17 +103,36 @@ def check_hotspot_budgets(errors: list[str]) -> None:
             )
 
 
-def check_root_view_boundaries(errors: list[str]) -> None:
-    path = IOS_ROOT / "BeforeShow/RootView.swift"
+def check_forbidden_tokens(
+    relative_path: str,
+    tokens: tuple[str, ...],
+    boundary_description: str,
+    errors: list[str],
+) -> None:
+    path = IOS_ROOT / relative_path
     if not path.exists():
         return
     content = path.read_text()
-    for token in ROOT_VIEW_FORBIDDEN_TOKENS:
+    for token in tokens:
         if token in content:
             errors.append(
-                f"BeforeShow/RootView.swift contains forbidden CurrentShow token {token!r}. "
-                "Keep RootView limited to app/root routing and DEBUG support."
+                f"{relative_path} contains forbidden token {token!r}. {boundary_description}"
             )
+
+
+def check_presentation_boundaries(errors: list[str]) -> None:
+    check_forbidden_tokens(
+        "BeforeShow/RootView.swift",
+        ROOT_VIEW_FORBIDDEN_TOKENS,
+        "Keep RootView limited to app/root routing and DEBUG support.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/HomeHeroPresentation.swift",
+        HOME_HERO_FORBIDDEN_TOKENS,
+        "Keep this file limited to reusable hero snapshot/stage presentation.",
+        errors,
+    )
 
 
 def check_new_file_locations(base_ref: str | None, errors: list[str]) -> None:
@@ -127,7 +156,7 @@ def main() -> int:
     errors: list[str] = []
     base_ref = resolve_base_ref(args.base_ref)
     check_hotspot_budgets(errors)
-    check_root_view_boundaries(errors)
+    check_presentation_boundaries(errors)
     check_new_file_locations(base_ref, errors)
 
     if errors:
