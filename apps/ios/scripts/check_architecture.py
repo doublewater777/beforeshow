@@ -37,7 +37,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Infrastructure/Notifications/ScheduledNotificationRequest.swift": 5_000,
     "BeforeShow/Infrastructure/Notifications/LocalNotificationCenter.swift": 14_000,
     "BeforeShow/Infrastructure/Notifications/NotificationDeepLinkRouting.swift": 8_000,
-    "BeforeShow/Features/Shows/ShowLibraryViews.swift": 44_000,
+    "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift": 27_000,
+    "BeforeShow/Features/Shows/CurrentShowLibraryPolicies.swift": 6_000,
+    "BeforeShow/Features/Shows/CurrentShowLibraryRows.swift": 11_000,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
@@ -143,6 +145,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Features/Settings/SettingsViews.swift",
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
     "BeforeShow/Features/Shows/ShowDetailViews.swift",
+    "BeforeShow/Features/Shows/ShowLibraryViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
@@ -296,6 +299,19 @@ SHOW_DETAIL_VIEW_FORBIDDEN_TOKENS = (
     "struct ConfirmedEndTimeEditorSheet",
     "struct ShowDetailExperienceTile",
     "struct ShowCoverFullscreenPreview",
+)
+
+SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS = (
+    "enum CurrentShowLibraryFilter",
+    "enum CurrentShowLibraryLayout",
+    "enum CurrentShowLibraryMenuAction",
+    "enum CurrentShowLibraryMenuPolicy",
+    "struct CurrentShowLibraryCoverCard",
+    "struct CurrentShowLibraryRow",
+    "struct LibraryRowEntrance",
+    "struct MyShowsEmptyView",
+    "struct ShowRowView",
+    "struct CurrentShowListHeroCard",
 )
 
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
@@ -519,6 +535,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Shows/ShowDetailView.swift",
         SHOW_DETAIL_VIEW_FORBIDDEN_TOKENS,
         "Keep ShowDetail state ownership separate from sheets, preview, and presentation helpers.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift",
+        SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS,
+        "Keep ShowLibrary policy/rows out of the state owner and do not reintroduce removed legacy UI.",
         errors,
     )
     check_forbidden_tokens(
