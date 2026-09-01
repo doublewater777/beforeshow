@@ -52,7 +52,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 24_000,
     "BeforeShow/Features/CurrentShow/HomeCountdownPresentation.swift": 14_000,
     "BeforeShow/Features/CurrentShow/HomeLivePulse.swift": 3_000,
-    "BeforeShow/Features/CurrentShow/ShowAssetViews.swift": 33_000,
+    "BeforeShow/Features/CurrentShow/ShowAssetSheet.swift": 8_000,
+    "BeforeShow/Features/CurrentShow/ShowAssetUploadView.swift": 19_000,
+    "BeforeShow/Features/CurrentShow/ShowAssetViewerView.swift": 14_000,
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 33_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
@@ -151,6 +153,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Features/Settings/SettingsViews.swift",
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
     "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift",
+    "BeforeShow/Features/CurrentShow/ShowAssetViews.swift",
     "BeforeShow/Features/Shows/ShowDetailViews.swift",
     "BeforeShow/Features/Shows/ShowLibraryViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
@@ -258,6 +261,12 @@ DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS = (
     "enum DispersalCeremonyShareExport",
     "struct DispersalCeremonyShareSheet",
     "struct DispersalShareStep",
+)
+
+SHOW_ASSET_SHEET_FORBIDDEN_TOKENS = (
+    "enum ShowAssetEditorOperation",
+    "struct ShowAssetUploadView",
+    "struct ShowAssetViewerView",
 )
 
 HOME_COUNTDOWN_CARD_FORBIDDEN_TOKENS = (
@@ -492,6 +501,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift",
         MANAGEMENT_VIEW_FORBIDDEN_TOKENS,
         "Keep follow-up, quick-action, and route presentation in their dedicated CurrentShow files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/CurrentShow/ShowAssetSheet.swift",
+        SHOW_ASSET_SHEET_FORBIDDEN_TOKENS,
+        "Keep asset routing separate from upload-editor and viewer state owners.",
         errors,
     )
     check_forbidden_tokens(
