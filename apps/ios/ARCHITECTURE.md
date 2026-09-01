@@ -27,6 +27,7 @@ BeforeShow/
 │   └── Pure domain values
 ├── Features/
 │   ├── CurrentShow/
+│   ├── DynamicCover/
 │   ├── AddShow/
 │   ├── Footprints/
 │   ├── Memory/
@@ -89,6 +90,8 @@ App -> Shared
 - 只服务该 feature 的 formatter/policy
 
 如果一个类型只有一个 feature 使用，不要提前放到全局 `UI` 或 `Shared`。
+
+`DynamicCover` 是可被 `CurrentShow` 与 `Footprints` 复用的窄子 feature；可共享无状态展示入口，但导入、持久化与页面状态仍由各自 owner 管理。
 
 ### Infrastructure
 
