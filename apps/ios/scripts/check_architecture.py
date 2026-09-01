@@ -63,7 +63,13 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaFileSupport.swift": 4_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
-    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 27_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 7_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift": 9_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStaging.swift": 8_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaCommit.swift": 7_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaMaintenance.swift": 11_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaFileSupport.swift": 5_000,
+    "BeforeShow/Features/CurrentShow/DynamicCoverPresentationSupport.swift": 4_000,
     "BeforeShow/Features/Subscription/ProSubscription.swift": 25_000,
     "BeforeShow/Features/Settings/SettingsSupport.swift": 22_000,
     "BeforeShow/Infrastructure/Widgets/WidgetDataSync.swift": 20_000,
@@ -392,6 +398,27 @@ MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
     "func reconcileAll(",
 )
 
+DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
+    "struct DynamicCoverImportedFile",
+    "enum DynamicCoverMediaStoreError",
+    "enum DynamicCoverCapacity",
+    "struct DynamicCoverMediaStagedVideo",
+    "struct DynamicCoverMediaCommittedVideo",
+    "enum DynamicCoverErrorMessagePolicy",
+    "func stageTransferredFile(",
+    "func commit(",
+    "func cleanupStaging(",
+    "func cleanupImportTemp(",
+    "func reconcile(",
+    "func verifiedExistingRelativePaths(",
+    "static func posterRelativePath(",
+)
+
+DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS = (
+    "BSLocalization",
+    "enum DynamicCoverErrorMessagePolicy",
+)
+
 
 def git(*args: str) -> str:
     return subprocess.check_output(
@@ -642,6 +669,18 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift",
         MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS,
         "Keep the Memory media store core limited to actor construction and commit/reconciliation serialization; media values, staging, commits, cleanup/reconciliation, and file helpers belong in their dedicated files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift",
+        DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS,
+        "Keep the DynamicCover media store core limited to actor construction, storage availability, URL resolution, and commit-gate access; media values, staging, commits, cleanup/reconciliation, and file helpers belong in their dedicated files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift",
+        DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS,
+        "Keep user-facing DynamicCover error copy in CurrentShow presentation support, not Infrastructure media types.",
         errors,
     )
 
