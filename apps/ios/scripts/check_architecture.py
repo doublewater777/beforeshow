@@ -40,7 +40,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift": 27_000,
     "BeforeShow/Features/Shows/CurrentShowLibraryPolicies.swift": 6_000,
     "BeforeShow/Features/Shows/CurrentShowLibraryRows.swift": 11_000,
-    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
+    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 32_000,
+    "BeforeShow/Features/Footprints/FootprintDetailPresentationSupport.swift": 6_000,
+    "BeforeShow/Features/Footprints/FootprintDetailTiles.swift": 12_000,
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
@@ -314,6 +316,15 @@ SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS = (
     "struct CurrentShowListHeroCard",
 )
 
+FOOTPRINT_DETAIL_OWNER_FORBIDDEN_TOKENS = (
+    "enum FootprintDetailTokens",
+    "struct FootprintMemoryTarget",
+    "enum FootprintPlaybackPolicy",
+    "struct FootprintMemoryTile",
+    "struct FootprintKeepsakeTile",
+    "struct FootprintLocalImage",
+)
+
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
     "protocol CompanionSharingService",
     "struct CloudKitCompanionSharingService",
@@ -541,6 +552,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Shows/CurrentShowLibraryManagementView.swift",
         SHOW_LIBRARY_MANAGEMENT_FORBIDDEN_TOKENS,
         "Keep ShowLibrary policy/rows out of the state owner and do not reintroduce removed legacy UI.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintDetailView.swift",
+        FOOTPRINT_DETAIL_OWNER_FORBIDDEN_TOKENS,
+        "Keep Footprint detail tokens, overlay models, and tile/media presentation outside the page state owner.",
         errors,
     )
     check_forbidden_tokens(
