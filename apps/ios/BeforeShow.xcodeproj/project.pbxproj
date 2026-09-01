@@ -43,6 +43,7 @@
 		2799BE17D85CCFE1EC0A5444 /* CurrentShowSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CA495B67F0985C5F9EE88B4 /* CurrentShowSessionTests.swift */; };
 		2853A861890DE6DDC7D74CE6 /* FootprintShareActionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46B914672382EBB3B23E88BC /* FootprintShareActionSheet.swift */; };
 		298AA52E59C6A63900222197 /* ShowLiveActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93756E7EEFF577D4B2A54093 /* ShowLiveActivity.swift */; };
+		2ED953EA83EAB4643C984778 /* CloudKitCompanionInvitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */; };
 		30A54D046AA6BAB1A3E53175 /* AddShowLinkGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BD494F1279BCADFCBB49069 /* AddShowLinkGuideView.swift */; };
 		32B649F4B9B6E273712514DA /* CoverAmbientColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */; };
 		341379097CF1EEC13FB37B1F /* DynamicCoverViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F353878C061AF5B4E5B9CA /* DynamicCoverViews.swift */; };
@@ -51,6 +52,7 @@
 		39101B2A8D6FA5C68CE5240D /* ShowDraftFieldComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72B3587927F28D0941257C9 /* ShowDraftFieldComponents.swift */; };
 		395F372A1231776B7608FEA4 /* Show.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8A5EEB027689D8D88E05F1A /* Show.swift */; };
 		3A0F19C971F2BF35DC3F4362 /* ShowDeletionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F7DBDA8CC991B8147F14762 /* ShowDeletionCoordinator.swift */; };
+		3F0E8E5DE5F2EEDF6416BDEB /* CloudKitCompanionSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCED72F79D338D7BEDD7F090 /* CloudKitCompanionSupport.swift */; };
 		3F6FD1A433D516D49C9D9874 /* ShowAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEA7FEFA388CAD4D1860BEC3 /* ShowAsset.swift */; };
 		41ADEF1E75C28FDD2FC712AF /* WidgetLanguageSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB3FAAC596B27CBFAB55044 /* WidgetLanguageSelection.swift */; };
 		42F1E02A269136EF1EAC7245 /* DynamicCoverPlayback.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5EDB62514AF67A4F13DC2B /* DynamicCoverPlayback.swift */; };
@@ -152,6 +154,7 @@
 		B8EDEF780D7F04E461B8EF82 /* CurrentShowCompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59153E7457D318B5DDFD1885 /* CurrentShowCompanionView.swift */; };
 		BA8FFCFDC791D184272AB7BC /* CurrentShowSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16BC0D41B89058E361123A3F /* CurrentShowSelectionTests.swift */; };
 		BC35FE8EAD2F7DD7B4183757 /* FootprintYearArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93461C62DBE725E2DEEA196F /* FootprintYearArchiveView.swift */; };
+		BF28973FC8DEBD3C14466C18 /* CloudKitCompanionSessionOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */; };
 		BFCD8C1EDD4C6FAA3DA841B7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 34699F311920DC7843E40363 /* Assets.xcassets */; };
 		C0516098DF153110A524DC92 /* ProductAnalyticsPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66AE36EB400C6B3E066F2BAD /* ProductAnalyticsPreferences.swift */; };
 		C14CC9DFA6BC0AACC8A0F9F4 /* FootprintSearchSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 583DF44ADD924F3F8071D664 /* FootprintSearchSheet.swift */; };
@@ -331,6 +334,7 @@
 		6BEB3E873030FDF3495C0D87 /* ShowDraftPresentationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftPresentationSupport.swift; sourceTree = "<group>"; };
 		6C3783CE0AC57333272E6766 /* WeatherFallbackTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherFallbackTest.swift; sourceTree = "<group>"; };
 		6D0207F6A65C4565EEE6742B /* zh-Hant */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hant"; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionInvitation.swift; sourceTree = "<group>"; };
 		6E093EF6A3D3EBC5FFA65129 /* LiveActivityPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlanner.swift; sourceTree = "<group>"; };
 		6EDA0EA772B60E3B5CF21C92 /* LocalNotificationSchedulingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationSchedulingTests.swift; sourceTree = "<group>"; };
 		70EA39AEEA47B90F87C8C06B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -397,6 +401,7 @@
 		C266320392E096A6FE13737F /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C2DB55A4FDBD80873C2A0EAC /* AppReviewPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReviewPrompt.swift; sourceTree = "<group>"; };
 		C3B7AEA73682AAEA0BF9493D /* HomeHeroPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHeroPresentation.swift; sourceTree = "<group>"; };
+		C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionSessionOperations.swift; sourceTree = "<group>"; };
 		C62F86B29B59E872ACEFEF9C /* WeatherReminderWeatherKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherReminderWeatherKit.swift; sourceTree = "<group>"; };
 		C6F781E3CB45DCFDC26A8EB8 /* CloudSharingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSharingView.swift; sourceTree = "<group>"; };
 		C700798DDDDD4B5C219293A2 /* AddShowConfirmationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddShowConfirmationView.swift; sourceTree = "<group>"; };
@@ -404,6 +409,7 @@
 		CA3B00DAA4DCAC5C577BB3A9 /* ShowTimingFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowTimingFields.swift; sourceTree = "<group>"; };
 		CBAAF5AA9E30BFB8C74BB2FD /* BeforeShowTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowTab.swift; sourceTree = "<group>"; };
 		CC7B98456FA55FEC5823B0DB /* BeforeShow.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShow.entitlements; sourceTree = "<group>"; };
+		CCED72F79D338D7BEDD7F090 /* CloudKitCompanionSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionSupport.swift; sourceTree = "<group>"; };
 		CD2166154E49F32CF4F0F4EA /* ShowDraftFormFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftFormFields.swift; sourceTree = "<group>"; };
 		CEAB366E85A80812507B5453 /* AppLifecycleMaintenance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLifecycleMaintenance.swift; sourceTree = "<group>"; };
 		CED8DA0D0DA732B1B9DD0E41 /* BeforeShow.Debug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShow.Debug.entitlements; sourceTree = "<group>"; };
@@ -768,7 +774,10 @@
 		F032883FD90DE224A174FAEC /* Companion */ = {
 			isa = PBXGroup;
 			children = (
+				6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */,
+				C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */,
 				55FE597F63F6F59C15362AB5 /* CloudKitCompanionSharingService.swift */,
+				CCED72F79D338D7BEDD7F090 /* CloudKitCompanionSupport.swift */,
 				9EAF07787A587CD1B1DDE560 /* CompanionSharingModels.swift */,
 				8AF9150BD6860947380C2915 /* CompanionSharingService.swift */,
 				326FD307A0AFE2BB69BB5C17 /* CompanionShowMapping.swift */,
@@ -934,7 +943,10 @@
 				94FD1E49ECEE4FF062056C9F /* BeforeShowCloudClient.swift in Sources */,
 				689BEC3D340B67A07D1914F1 /* BeforeShowTab.swift in Sources */,
 				0FEC8F4CF309E230F5AF36DF /* BeforeShowWidgetKind.swift in Sources */,
+				2ED953EA83EAB4643C984778 /* CloudKitCompanionInvitation.swift in Sources */,
+				BF28973FC8DEBD3C14466C18 /* CloudKitCompanionSessionOperations.swift in Sources */,
 				1685174592E658DB074ADF49 /* CloudKitCompanionSharingService.swift in Sources */,
+				3F0E8E5DE5F2EEDF6416BDEB /* CloudKitCompanionSupport.swift in Sources */,
 				CF368D664AB88721779E5AE4 /* CloudSharingView.swift in Sources */,
 				9DA1241BEB689DC0F074544C /* CompanionSharingCoordinator.swift in Sources */,
 				155D2A2B0615CDCEA940C20F /* CompanionSharingModels.swift in Sources */,
