@@ -21,11 +21,16 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
     "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
-    "BeforeShow/AddShowFlowViews.swift": 112_000,
+    "BeforeShow/AddShowFlowViews.swift": 70_000,
     "BeforeShow/Features/AddShow/AddShowCoordinatorView.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowPersistence.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowConfirmationView.swift": 12_000,
     "BeforeShow/Features/AddShow/ShowDraftEditorView.swift": 26_000,
+    "BeforeShow/Features/AddShow/ShowDraftFormFields.swift": 20_000,
+    "BeforeShow/Features/AddShow/ShowDraftScheduleFields.swift": 13_000,
+    "BeforeShow/Features/AddShow/ShowDraftArtistFields.swift": 9_000,
+    "BeforeShow/Features/AddShow/ShowDraftCoverFields.swift": 7_000,
+    "BeforeShow/Features/AddShow/ShowDraftFieldComponents.swift": 4_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
     "BeforeShow/MemoryFragmentsView.swift": 95_000,
@@ -69,6 +74,21 @@ ADD_SHOW_FLOW_FORBIDDEN_TOKENS = (
     "struct ShowStatusActionResult",
     "struct ShowStatusEditingContext",
     "struct ShowDraftEditorView",
+    "struct ShowDraftFormFields",
+    "struct AddShowScheduleFields",
+    "struct AddShowCoverActions",
+    "struct ArtistInputRow",
+    "struct AddShowLabeledTextField",
+)
+
+SHOW_DRAFT_FORM_FORBIDDEN_TOKENS = (
+    "struct AddShowScheduleFields",
+    "struct AddShowCoverActions",
+    "struct AddShowCoverActionChip",
+    "struct ArtistInputRow",
+    "struct ArtistSearchPicker",
+    "struct AddShowLabeledTextField",
+    "struct AddShowFieldLabel",
 )
 
 
@@ -170,7 +190,13 @@ def check_presentation_boundaries(errors: list[str]) -> None:
     check_forbidden_tokens(
         "BeforeShow/AddShowFlowViews.swift",
         ADD_SHOW_FLOW_FORBIDDEN_TOKENS,
-        "Keep AddShow coordinator, lifecycle/persistence, confirmation, and draft-editor responsibilities in their dedicated feature files.",
+        "Keep AddShow coordinator, persistence, confirmation, editor, and draft-form presentation in their dedicated feature files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/AddShow/ShowDraftFormFields.swift",
+        SHOW_DRAFT_FORM_FORBIDDEN_TOKENS,
+        "Keep schedule, cover, artist, and reusable field presentation in their dedicated AddShow form files.",
         errors,
     )
 
