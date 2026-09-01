@@ -35,17 +35,31 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/AddShow/ShowDraftArtistFields.swift": 9_000,
     "BeforeShow/Features/AddShow/ShowDraftCoverFields.swift": 7_000,
     "BeforeShow/Features/AddShow/ShowDraftFieldComponents.swift": 4_000,
-    "BeforeShow/FootprintsArchive.swift": 105_000,
+    "BeforeShow/Features/Footprints/FootprintsView.swift": 17_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveDetailView.swift": 21_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveDomain.swift": 7_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveShareCopy.swift": 7_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveShareView.swift": 14_000,
+    "BeforeShow/Features/Footprints/FootprintDateFormatting.swift": 2_000,
+    "BeforeShow/Features/Footprints/FootprintOverviewShareSheet.swift": 3_000,
+    "BeforeShow/Features/Footprints/FootprintPageShareView.swift": 7_000,
+    "BeforeShow/Features/Footprints/FootprintPhotoLibrary.swift": 3_000,
+    "BeforeShow/Features/Footprints/FootprintPresentationSupport.swift": 2_000,
+    "BeforeShow/Features/Footprints/FootprintSearchSheet.swift": 8_000,
+    "BeforeShow/Features/Footprints/FootprintShareActionSheet.swift": 10_000,
+    "BeforeShow/Features/Footprints/FootprintShareExport.swift": 8_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
     "BeforeShow/MemoryFragmentsView.swift": 95_000,
     "BeforeShow/BeforeShowApp.swift": 26_000,
     "BeforeShow/Show.swift": 24_000,
 }
 
-# Once a legacy root hotspot has been retired, do not allow a later change to
-# recreate it and silently restart the flat-file architecture.
+# Once a hotspot has been retired, do not allow a later change to recreate it
+# and silently restart the flat-file architecture.
 RETIRED_LEGACY_FILES = (
     "BeforeShow/AddShowFlowViews.swift",
+    "BeforeShow/FootprintsArchive.swift",
+    "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
 ROOT_VIEW_FORBIDDEN_TOKENS = (
@@ -100,6 +114,26 @@ SHOW_DRAFT_FORM_FORBIDDEN_TOKENS = (
     "struct ArtistSearchPicker",
     "struct AddShowLabeledTextField",
     "struct AddShowFieldLabel",
+)
+
+FOOTPRINTS_VIEW_FORBIDDEN_TOKENS = (
+    "enum FootprintCategory",
+    "struct FootprintRankItem",
+    "struct FootprintYearGroup",
+    "struct PreparedFootprint",
+    "struct FootprintArchiveSnapshot",
+    "enum FootprintArchiveBuilder",
+    "enum FootprintArchiveShareCopy",
+    "enum FootprintPhotoLibrary",
+    "struct FootprintSearchSheet",
+    "struct FootprintArchiveDetailView",
+    "struct FootprintShareActionSheet",
+    "struct FootprintArchiveShareSheet",
+    "struct FootprintArchiveShareCard",
+    "private func header(_ archive: FootprintArchiveSnapshot)",
+    "private func discovery(_ archive: FootprintArchiveSnapshot)",
+    "private func showRow(_ show: Show)",
+    "private func showDurationText(_ show: Show)",
 )
 
 
@@ -166,8 +200,8 @@ def check_retired_legacy_files(errors: list[str]) -> None:
     for relative_path in RETIRED_LEGACY_FILES:
         if (IOS_ROOT / relative_path).exists():
             errors.append(
-                f"retired legacy source {relative_path} exists again. "
-                "Keep AddShow implementation under BeforeShow/Features/AddShow/."
+                f"retired source {relative_path} exists again. "
+                "Keep the implementation in its dedicated feature files instead of recreating a hotspot."
             )
 
 
@@ -217,6 +251,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/AddShow/ShowDraftFormFields.swift",
         SHOW_DRAFT_FORM_FORBIDDEN_TOKENS,
         "Keep schedule, cover, artist, and reusable field presentation in their dedicated AddShow form files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintsView.swift",
+        FOOTPRINTS_VIEW_FORBIDDEN_TOKENS,
+        "Keep the Footprints root limited to page state/routing; archive domain, search, detail, export, share presentation, and legacy dashboard helpers belong elsewhere.",
         errors,
     )
 
