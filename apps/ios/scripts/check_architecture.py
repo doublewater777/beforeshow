@@ -75,6 +75,8 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Companion/CompanionSharingModels.swift": 8_000,
     "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
     "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
+    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 38_000,
+    "BeforeShow/Features/Companion/CloudSharingView.swift": 7_000,
     "BeforeShow/Show.swift": 24_000,
 }
 
@@ -87,6 +89,8 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/MemoryFragmentsView.swift",
     "BeforeShow/BeforeShowApp.swift",
     "BeforeShow/CompanionSharing.swift",
+    "BeforeShow/CompanionSharingCoordinator.swift",
+    "BeforeShow/CloudSharingView.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
