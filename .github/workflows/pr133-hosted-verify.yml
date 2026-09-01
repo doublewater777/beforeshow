@@ -1,0 +1,34 @@
+name: PR133 hosted verify
+
+on:
+  push:
+    branches:
+      - validate/pr133-hosted
+    paths:
+      - ".github/workflows/pr133-hosted-verify.yml"
+
+jobs:
+  verify:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Verify exact iOS tree
+        run: |
+          expected=$(git rev-parse 74eee4abb1e59daf16f33508e38ea314df8c297f:apps/ios)
+          actual=$(git rev-parse HEAD:apps/ios)
+          test "$actual" = "$expected"
+          echo "apps/ios tree $actual matches PR #133 exact head"
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py --base-ref 1be3da95f561329ca6f8e284cba385925938535b
+
+      - name: Build for simulator
+        run: |
+          cd apps/ios
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination 'generic/platform=iOS Simulator' \
+            DEVELOPMENT_TEAM=29C8MS76CZ build
