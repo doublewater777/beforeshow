@@ -46,7 +46,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
-    "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift": 35_000,
+    "BeforeShow/Features/CurrentShow/DispersalLightsOutView.swift": 8_000,
+    "BeforeShow/Features/CurrentShow/DispersalCeremonySheet.swift": 18_000,
+    "BeforeShow/Features/CurrentShow/DispersalCeremonyShareView.swift": 10_000,
     "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 35_000,
     "BeforeShow/Features/CurrentShow/ShowAssetViews.swift": 33_000,
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 33_000,
@@ -146,6 +148,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/UI/DesignSystem.swift",
     "BeforeShow/Features/Settings/SettingsViews.swift",
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
+    "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift",
     "BeforeShow/Features/Shows/ShowDetailViews.swift",
     "BeforeShow/Features/Shows/ShowLibraryViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
@@ -246,6 +249,13 @@ FOOTPRINT_DETAIL_VIEW_FORBIDDEN_TOKENS = (
     "struct FootprintMemoryTile",
     "struct FootprintKeepsakeTile",
     "struct FootprintLocalImage",
+)
+
+DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS = (
+    "struct DispersalLightsOutOverlay",
+    "enum DispersalCeremonyShareExport",
+    "struct DispersalCeremonyShareSheet",
+    "struct DispersalShareStep",
 )
 
 MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS = (
@@ -497,6 +507,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Footprints/FootprintDashboardView.swift",
         FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS,
         "Keep the dashboard root limited to page composition; sections, archive screens, and cover presentation belong in their dedicated Footprints files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/CurrentShow/DispersalCeremonySheet.swift",
+        DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS,
+        "Keep ceremony flow state separate from lights-out and share presentation responsibilities.",
         errors,
     )
     check_forbidden_tokens(
