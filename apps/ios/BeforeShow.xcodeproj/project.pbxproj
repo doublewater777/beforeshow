@@ -28,6 +28,7 @@
 		1334653173495DE07B7DF546 /* BeforeShowWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 7B46048CB6FE0401F7494316 /* BeforeShowWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		139793E7F8784E714606B08D /* WidgetTimelinePlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA1A165A2C555CC97C803683 /* WidgetTimelinePlanner.swift */; };
 		144AC13E807C61EAA44EA068 /* FootprintVenueArchiveView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2912C8E43F44D329789FDB1F /* FootprintVenueArchiveView.swift */; };
+		14D8B69F69BB334108B8B8B6 /* FootprintDetailPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B5A18B96BD4AB2F73F4AEE5 /* FootprintDetailPresentationSupport.swift */; };
 		155D2A2B0615CDCEA940C20F /* CompanionSharingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAF07787A587CD1B1DDE560 /* CompanionSharingModels.swift */; };
 		163D652E2E33DEF7F72B867A /* ShowDurationFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35188C47DA2B4ACD61C821E0 /* ShowDurationFormatterTests.swift */; };
 		1685174592E658DB074ADF49 /* CloudKitCompanionSharingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55FE597F63F6F59C15362AB5 /* CloudKitCompanionSharingService.swift */; };
@@ -214,6 +215,7 @@
 		E614E3EDD378DBA8A4FF3EC7 /* ShowDraftPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEB3E873030FDF3495C0D87 /* ShowDraftPresentationSupport.swift */; };
 		E6DABBF0C49B56CB4602C3C0 /* OnboardingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4A78B82F018B3CC4289403D /* OnboardingTests.swift */; };
 		E746F0E8E592F7AE15C15A0B /* CountdownWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACF97DF4FB82150D04E8ED3 /* CountdownWidget.swift */; };
+		E821420C8540E3ACCA14A987 /* FootprintDetailMediaComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */; };
 		E8E8C2DD401340922DBC21DF /* MemoryTimelineViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7779D9890FFED3D56D8D2AC8 /* MemoryTimelineViews.swift */; };
 		EB86A04317E0AACC2246AD8F /* BeforeShowCloudClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */; };
 		ED14AC1311DF7525CF149535 /* OnboardingFeatureVisuals.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BF800B87B36281A2B5A5CCB /* OnboardingFeatureVisuals.swift */; };
@@ -293,6 +295,7 @@
 		16BC0D41B89058E361123A3F /* CurrentShowSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowSelectionTests.swift; sourceTree = "<group>"; };
 		1720135166D8C1885D456AF7 /* WeatherReminderPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherReminderPolicyTests.swift; sourceTree = "<group>"; };
 		1C5030CC5C7822DC0BF4175B /* DynamicCoverMediaStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverMediaStore.swift; sourceTree = "<group>"; };
+		1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailMediaComponents.swift; sourceTree = "<group>"; };
 		1CDAFFFF478D277E6B2F922D /* FootprintCityArchiveViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintCityArchiveViews.swift; sourceTree = "<group>"; };
 		1CE3907BDB4E36A956335898 /* ShowCreationOriginMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowCreationOriginMigration.swift; sourceTree = "<group>"; };
 		1D7144299FE6A306CB514CCC /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
@@ -340,6 +343,7 @@
 		4A051577C2F323E226F0FB3F /* BeforeShowWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShowWidgets.entitlements; sourceTree = "<group>"; };
 		4A9C841F2491749D5A9E528A /* CurrentShowLibraryPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowLibraryPolicies.swift; sourceTree = "<group>"; };
 		4B39A4E64872B01B1D5ACD2C /* CurrentShowTimeState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowTimeState.swift; sourceTree = "<group>"; };
+		4B5A18B96BD4AB2F73F4AEE5 /* FootprintDetailPresentationSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintDetailPresentationSupport.swift; sourceTree = "<group>"; };
 		4CE71FA9CA8370F5E2494DE7 /* LocalNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationCenter.swift; sourceTree = "<group>"; };
 		503017ACE9228A563B0CA7AC /* CurrentShowLibraryManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowLibraryManagementView.swift; sourceTree = "<group>"; };
 		508DB68B83B2097DF18FB49D /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
@@ -952,6 +956,8 @@
 				413830B83BEA5AFCAA368F70 /* FootprintDateFormatting.swift */,
 				F230E93BAB2AA006202C2C0C /* FootprintDebugSeeder.swift */,
 				60C48B90971F3F97D8DC3E11 /* FootprintDetailDomain.swift */,
+				1CC0D6D5C034B7F3AAA47499 /* FootprintDetailMediaComponents.swift */,
+				4B5A18B96BD4AB2F73F4AEE5 /* FootprintDetailPresentationSupport.swift */,
 				3BCCB27E81B3A5E694AEAEC9 /* FootprintDetailView.swift */,
 				33ADA3F53E262A5225D431E5 /* FootprintHeroViews.swift */,
 				8C610F4814399A6493914DE9 /* FootprintMemoriesArchiveView.swift */,
@@ -1280,6 +1286,8 @@
 				B217212979FF3A3D2A5C8374 /* FootprintDateFormatting.swift in Sources */,
 				63BF9F4A8D558EFD0FD8953E /* FootprintDebugSeeder.swift in Sources */,
 				65CDB5F238AEED753D18BA2B /* FootprintDetailDomain.swift in Sources */,
+				E821420C8540E3ACCA14A987 /* FootprintDetailMediaComponents.swift in Sources */,
+				14D8B69F69BB334108B8B8B6 /* FootprintDetailPresentationSupport.swift in Sources */,
 				1A8D401C461EFE73B20025F8 /* FootprintDetailView.swift in Sources */,
 				F403A8E948E3A38515689119 /* FootprintHeroViews.swift in Sources */,
 				981B99666149E24D1E84A177 /* FootprintMemoriesArchiveView.swift in Sources */,
