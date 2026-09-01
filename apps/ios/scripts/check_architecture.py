@@ -43,7 +43,11 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 33_000,
     "BeforeShow/Features/Footprints/FootprintDetailPresentationSupport.swift": 7_000,
     "BeforeShow/Features/Footprints/FootprintDetailMediaComponents.swift": 12_000,
-    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
+    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 22_000,
+    "BeforeShow/Features/Companion/CompanionAcceptedShareInbox.swift": 5_000,
+    "BeforeShow/Features/Companion/CompanionCloudSyncMarker.swift": 5_000,
+    "BeforeShow/Features/Companion/CompanionAcceptedSessionImporter.swift": 8_000,
+    "BeforeShow/Features/Companion/CompanionSharingPresentation.swift": 6_000,
     "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
     "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
     "BeforeShow/Features/CurrentShow/DispersalLightsOutView.swift": 8_000,
@@ -328,6 +332,42 @@ COMPANION_COORDINATOR_FORBIDDEN_TOKENS = (
     "final class BeforeShowAppDelegate",
     "final class BeforeShowSceneDelegate",
     "extension Show",
+    "NSKeyedArchiver",
+    "NSKeyedUnarchiver",
+    "SecItem",
+    "ShowCreationOriginMigration",
+    "BSLocalization",
+)
+
+COMPANION_ACCEPTED_INBOX_FORBIDDEN_TOKENS = (
+    "import Security",
+    "ModelContext",
+    "ShowCreationOriginMigration",
+    "BSLocalization",
+)
+
+COMPANION_CLOUD_SYNC_MARKER_FORBIDDEN_TOKENS = (
+    "import CloudKit",
+    "CKShare.Metadata",
+    "ModelContext",
+    "BSLocalization",
+)
+
+COMPANION_SESSION_IMPORTER_FORBIDDEN_TOKENS = (
+    "UserDefaults",
+    "NSKeyedArchiver",
+    "NSKeyedUnarchiver",
+    "SecItem",
+    "BSLocalization",
+)
+
+COMPANION_PRESENTATION_FORBIDDEN_TOKENS = (
+    "UserDefaults",
+    "ModelContext",
+    "NSKeyedArchiver",
+    "NSKeyedUnarchiver",
+    "SecItem",
+    "ShowCreationOriginMigration",
 )
 
 SETTINGS_ROOT_FORBIDDEN_TOKENS = (
@@ -690,7 +730,31 @@ def check_presentation_boundaries(errors: list[str]) -> None:
     check_forbidden_tokens(
         "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift",
         COMPANION_COORDINATOR_FORBIDDEN_TOKENS,
-        "Keep Companion orchestration separate from app lifecycle delegates and Show mapping.",
+        "Keep Companion orchestration limited to invite/accept/cancel/refresh flow timing; durable inbox, cloud-sync markers, local import matching, and user copy belong in focused Companion owners.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionAcceptedShareInbox.swift",
+        COMPANION_ACCEPTED_INBOX_FORBIDDEN_TOKENS,
+        "Keep accepted-share durable queue serialization separate from Keychain state, SwiftData import behavior, and presentation copy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionCloudSyncMarker.swift",
+        COMPANION_CLOUD_SYNC_MARKER_FORBIDDEN_TOKENS,
+        "Keep Companion cloud-sync opt-in persistence limited to UserDefaults/Keychain marker state.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionAcceptedSessionImporter.swift",
+        COMPANION_SESSION_IMPORTER_FORBIDDEN_TOKENS,
+        "Keep accepted-session local Show matching/import separate from durable queue storage, Keychain state, and presentation copy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionSharingPresentation.swift",
+        COMPANION_PRESENTATION_FORBIDDEN_TOKENS,
+        "Keep Companion user-facing error/status copy as stateless presentation policy without persistence or SwiftData responsibilities.",
         errors,
     )
     check_forbidden_tokens(

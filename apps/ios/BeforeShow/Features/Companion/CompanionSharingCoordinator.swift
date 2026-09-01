@@ -1,9 +1,6 @@
 import CloudKit
 import Foundation
-import os
-import Security
 import SwiftData
-import UIKit
 
 /// Orchestrates CloudKit companion invite / accept / cancel against local `Show` cache.
 @MainActor
@@ -25,10 +22,7 @@ final class CompanionSharingCoordinator {
     private let userDefaults: UserDefaults
     private let usesKeychainCloudSyncMarker: Bool
 
-    private static let acceptedShareInboxKey = "companion.accepted-share-inbox.v1"
-    static let cloudSyncEnabledKey = "companion.cloud-sync-enabled.v1"
-    private static let cloudSyncMarkerService = "com.doublewaterapps.beforeshow.companion"
-    private static let cloudSyncMarkerAccount = "cloud-sync-enabled"
+    static let cloudSyncEnabledKey = CompanionCloudSyncMarker.userDefaultsKey
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
@@ -40,7 +34,7 @@ final class CompanionSharingCoordinator {
         self.explicitContainer = container
         self.userDefaults = userDefaults
         self.usesKeychainCloudSyncMarker = usesKeychainCloudSyncMarker
-        self.pendingShareMetadata = Self.loadPersistedAcceptedShares(from: userDefaults)
+        self.pendingShareMetadata = CompanionAcceptedShareInbox.load(from: userDefaults)
         if !pendingShareMetadata.isEmpty {
             enableCloudSync()
         }
@@ -126,8 +120,8 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: participantDisplayName
             )
-            try applyAcceptedSession(session, in: modelContext)
-            pendingAcceptMessage = BSLocalization.format("已与%@确认同行", session.ownerDisplayName ?? BSLocalization.text("朋友"))
+            try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+            pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(ownerDisplayName: session.ownerDisplayName)
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
@@ -142,16 +136,16 @@ final class CompanionSharingCoordinator {
 
     func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
         enableCloudSync()
-        let key = Self.metadataKey(metadata)
-        guard !pendingShareMetadata.contains(where: { Self.metadataKey($0) == key }) else {
+        let key = CompanionAcceptedShareInbox.metadataKey(metadata)
+        guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
         pendingShareMetadata.append(metadata)
-        Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
+        CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
 
     func reloadPersistedAcceptedShares() {
-        for metadata in Self.loadPersistedAcceptedShares(from: userDefaults) {
+        for metadata in CompanionAcceptedShareInbox.load(from: userDefaults) {
             enqueueAcceptedShare(metadata)
         }
     }
@@ -165,12 +159,12 @@ final class CompanionSharingCoordinator {
         var processedKeys = Set<String>()
         while true {
             let batch = pendingShareMetadata.filter {
-                !processedKeys.contains(Self.metadataKey($0))
+                !processedKeys.contains(CompanionAcceptedShareInbox.metadataKey($0))
             }
             guard !batch.isEmpty else { break }
 
             for metadata in batch {
-                let key = Self.metadataKey(metadata)
+                let key = CompanionAcceptedShareInbox.metadataKey(metadata)
                 processedKeys.insert(key)
                 lastErrorKind = nil
                 await handleAcceptedShare(
@@ -189,64 +183,24 @@ final class CompanionSharingCoordinator {
                 }
                 if !shouldRetry {
                     pendingShareMetadata.removeAll {
-                        Self.metadataKey($0) == key
+                        CompanionAcceptedShareInbox.metadataKey($0) == key
                     }
-                    Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
+                    CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
                 }
             }
         }
-        Self.persistAcceptedShares(pendingShareMetadata, to: userDefaults)
+        CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
 
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
-
-    private static func metadataKey(_ metadata: CKShare.Metadata) -> String {
-        let root = metadata.hierarchicalRootRecordID ?? metadata.share.recordID
-        let share = metadata.share.recordID
-        return "\(root.zoneID.ownerName)|\(root.zoneID.zoneName)|\(root.recordName)|\(share.recordName)"
-    }
-
-    private static func loadPersistedAcceptedShares(from userDefaults: UserDefaults) -> [CKShare.Metadata] {
-        guard let entries = userDefaults.array(forKey: acceptedShareInboxKey) as? [Data] else {
-            return []
-        }
-        return entries.compactMap { data in
-            try? NSKeyedUnarchiver.unarchivedObject(ofClass: CKShare.Metadata.self, from: data)
-        }
-    }
-
-    private static func persistAcceptedShares(
-        _ metadata: [CKShare.Metadata],
-        to userDefaults: UserDefaults
-    ) {
-        var entries: [Data] = []
-        for item in metadata {
-            guard let data = try? NSKeyedArchiver.archivedData(
-                withRootObject: item,
-                requiringSecureCoding: true
-            ) else {
-                // Keep the previous durable queue intact if an archive unexpectedly fails.
-                // The in-memory item remains retryable and will be written on a later flush.
-                return
-            }
-            entries.append(data)
-        }
-        userDefaults.set(entries, forKey: acceptedShareInboxKey)
-    }
 
     /// Used when a cold-launch scene callback arrives before the coordinator is installed.
     static func persistAcceptedShare(
         _ metadata: CKShare.Metadata,
         userDefaults: UserDefaults = .standard
     ) {
-        var current = loadPersistedAcceptedShares(from: userDefaults)
-        let key = metadataKey(metadata)
-        if !current.contains(where: { metadataKey($0) == key }) {
-            current.append(metadata)
-        }
-        persistAcceptedShares(current, to: userDefaults)
-        userDefaults.set(true, forKey: cloudSyncEnabledKey)
-        persistKeychainCloudSyncMarker()
+        CompanionAcceptedShareInbox.append(metadata, to: userDefaults)
+        CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
     }
 
     // MARK: Cancel / sync
@@ -309,7 +263,7 @@ final class CompanionSharingCoordinator {
                 // Every accepted member left. Close the root and revoke the remaining share
                 // so the owner does not keep a phantom confirmed relationship.
                 try await cancelCompanion(for: show, in: modelContext)
-                lastErrorMessage = BSLocalization.text("同行者已退出，同行关系已取消")
+                lastErrorMessage = CompanionSharingPresentation.companionLeftMessage
                 lastErrorKind = .permissionDenied
                 return
             }
@@ -427,7 +381,7 @@ final class CompanionSharingCoordinator {
             let sessions = try await service.listAcceptedSharedSessions()
             for session in sessions {
                 // Recover accepted shared sessions after a reinstall or local-store reset.
-                try? applyAcceptedSession(session, in: modelContext)
+                try? CompanionAcceptedSessionImporter.apply(session, in: modelContext)
             }
         } catch {
             lastErrorMessage = Self.userMessage(for: error)
@@ -487,41 +441,17 @@ final class CompanionSharingCoordinator {
     // MARK: Private
 
     private var isCloudSyncEnabled: Bool {
-        userDefaults.bool(forKey: Self.cloudSyncEnabledKey)
-            || (usesKeychainCloudSyncMarker && Self.hasKeychainCloudSyncMarker())
+        CompanionCloudSyncMarker.isEnabled(
+            in: userDefaults,
+            usesKeychain: usesKeychainCloudSyncMarker
+        )
     }
 
     private func enableCloudSync() {
-        userDefaults.set(true, forKey: Self.cloudSyncEnabledKey)
-        if usesKeychainCloudSyncMarker {
-            Self.persistKeychainCloudSyncMarker()
-        }
-    }
-
-    private static func hasKeychainCloudSyncMarker() -> Bool {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: cloudSyncMarkerService,
-            kSecAttrAccount as String: cloudSyncMarkerAccount,
-            kSecReturnData as String: false,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
-    }
-
-    private static func persistKeychainCloudSyncMarker() {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: cloudSyncMarkerService,
-            kSecAttrAccount as String: cloudSyncMarkerAccount
-        ]
-        let attributes: [String: Any] = [
-            kSecValueData as String: Data([1]),
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
-        ]
-        let status = SecItemAdd((query.merging(attributes, uniquingKeysWith: { _, new in new })) as CFDictionary, nil)
-        guard status == errSecDuplicateItem else { return }
-        SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+        CompanionCloudSyncMarker.enable(
+            in: userDefaults,
+            usesKeychain: usesKeychainCloudSyncMarker
+        )
     }
 
     private func reconcileOwnerShareMembership(
@@ -536,141 +466,14 @@ final class CompanionSharingCoordinator {
                 return .removed
             }
             // Transport failures are non-terminal and must be surfaced as a warning.
-            return .warning("同行成员状态暂时无法同步，请稍后重试")
+            return .warning(CompanionSharingPresentation.membershipSyncWarning)
         }
-    }
-
-    private func applyAcceptedSession(
-        _ session: CompanionSessionSnapshot,
-        in modelContext: ModelContext
-    ) throws {
-        let descriptor = FetchDescriptor<Show>()
-        let shows = try modelContext.fetch(descriptor)
-
-        // 接受邀请会把匹配到的现场标成 participant 侧（companionIsOwner = false）。
-        // 一旦发生，就再也分不清「用户自己添加的旧现场」和「升级前纯导入的旧现场」。
-        // 所以在任何合并/新建之前，先把尚未标记来源的旧数据定格下来 —— 这样
-        // 免费额度的归属不依赖启动期各条路径的先后顺序。
-        ShowCreationOriginMigration.resolveUnresolvedOrigins(in: shows)
-
-        if let existing = shows.first(where: {
-            $0.companionCloudRecordName == session.sessionLocator.recordName
-        }) {
-            existing.applyCompanionSession(session, isOwner: false)
-            try modelContext.save()
-            return
-        }
-
-        if let byID = shows.first(where: { $0.id.uuidString == session.show.showID }) {
-            byID.applyCompanionSession(session, isOwner: false)
-            try modelContext.save()
-            return
-        }
-
-        let calendar = Calendar.current
-        let location = session.show.showLocation
-        let parts = location?.split(separator: "·").map {
-            $0.trimmingCharacters(in: .whitespacesAndNewlines)
-        } ?? []
-        let venue: String? = parts.first.map { String($0) }
-        let city: String? = parts.count > 1 ? parts.last.map { String($0) } : nil
-
-        let candidates = shows.filter { candidate in
-            guard candidate.companionStatus == .none else { return false }
-            guard candidate.name == session.show.showName else { return false }
-            guard calendar.isDate(candidate.effectiveDate, inSameDayAs: session.show.showDate) else {
-                return false
-            }
-            if let venue {
-                guard let candidateVenue = candidate.venueName,
-                      !candidateVenue.isEmpty,
-                      candidateVenue == venue else {
-                    return false
-                }
-            }
-            if let city {
-                guard let candidateCity = candidate.city,
-                      !candidateCity.isEmpty,
-                      candidateCity == city else {
-                    return false
-                }
-            }
-            let delta = abs(candidate.startTime.timeIntervalSince(session.show.showStartTime))
-            if delta > 60 { return false }
-            return true
-        }
-
-        if candidates.count == 1, let match = candidates.first {
-            match.applyCompanionSession(session, isOwner: false)
-            try modelContext.save()
-            return
-        }
-
-        let show = try Show(
-            name: session.show.showName,
-            date: session.show.showDate,
-            startTime: session.show.showStartTime,
-            city: city.flatMap { $0.isEmpty ? nil : $0 },
-            venueName: venue.flatMap { $0.isEmpty ? nil : $0 },
-            // 仅因接受邀请而新建：不占用本人的每月免费额度。
-            // 上面的合并分支不改来源，用户自己添加的现场额度不会被退还。
-            creationOrigin: .companionImport
-        )
-        show.applyCompanionSession(session, isOwner: false)
-        modelContext.insert(show)
-        try modelContext.save()
     }
 
     static func userMessage(for error: Error) -> String {
-        if let sharing = error as? CompanionSharingError {
-            switch sharing {
-            case .iCloudAccountUnavailable:
-                return BSLocalization.text("需要登录 iCloud 才能邀请同行")
-            case .networkFailure:
-                return BSLocalization.text("网络不可用，请稍后重试")
-            case .sharePreparationFailed:
-                return BSLocalization.text("邀请创建失败，请稍后重试")
-            case .acceptFailed:
-                return BSLocalization.text("接受邀请失败，请确认链接有效")
-            case .sessionNotFound:
-                return BSLocalization.text("找不到这场同行邀请")
-            case .invalidPayload:
-                return BSLocalization.text("邀请内容无效")
-            case .permissionDenied:
-                return BSLocalization.text("没有权限更新同行状态")
-            case .conflict:
-                return BSLocalization.text("同行状态已变更，请刷新后重试")
-            case .statusSyncPending:
-                return BSLocalization.text("已接受邀请，但状态同步失败，请稍后刷新")
-            }
-        }
-        if error is ShowCompanionMutationError {
-            return BSLocalization.text("同行状态无法更新")
-        }
-        if let ck = error as? CKError {
-            return message(forCloudKit: ck)
-        }
-        return BSLocalization.format("同行操作失败：%@", error.localizedDescription)
+        CompanionSharingPresentation.userMessage(for: error)
     }
 
-    private static func message(forCloudKit error: CKError) -> String {
-        switch error.code {
-        case .notAuthenticated, .managedAccountRestricted:
-            return BSLocalization.text("需要登录 iCloud 才能邀请同行")
-        case .networkUnavailable, .networkFailure, .serviceUnavailable, .zoneBusy, .requestRateLimited:
-            return BSLocalization.text("网络不可用，请稍后重试")
-        case .permissionFailure:
-            return BSLocalization.text("没有权限创建同行邀请，请确认 iCloud 云盘已打开")
-        case .quotaExceeded:
-            return BSLocalization.text("iCloud 空间不足，无法创建同行邀请")
-        case .invalidArguments, .constraintViolation:
-            return BSLocalization.text("邀请创建失败：CloudKit 拒绝了这次请求")
-        case .serverRejectedRequest:
-            return BSLocalization.text("邀请创建失败：CloudKit 容器未就绪，请在 Xcode 打开 iCloud 能力并确认 Development 环境可用")
-        default:
-            return BSLocalization.format("邀请创建失败：%@", error.localizedDescription)
-        }
-    }
 }
 
 // MARK: - Cloud linkage snapshot helpers
