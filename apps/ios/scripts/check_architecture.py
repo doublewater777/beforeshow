@@ -55,7 +55,12 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/ShowAssetSheet.swift": 8_000,
     "BeforeShow/Features/CurrentShow/ShowAssetUploadView.swift": 19_000,
     "BeforeShow/Features/CurrentShow/ShowAssetViewerView.swift": 14_000,
-    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 33_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 4_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaTypes.swift": 10_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStaging.swift": 12_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaCommit.swift": 9_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaMaintenance.swift": 9_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaFileSupport.swift": 4_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 27_000,
@@ -371,6 +376,22 @@ CLOUDKIT_COMPANION_CORE_FORBIDDEN_TOKENS = (
     "static func mapError(",
 )
 
+MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
+    "struct MemoryDraftMedia",
+    "struct MemoryCommittedMedia",
+    "struct MemoryImportedFile",
+    "enum MemoryMediaStoreError",
+    "enum MemoryCapacity",
+    "func stageCameraPhoto(",
+    "func stageTransferredFile(",
+    "func commit(",
+    "func commitAdditions(",
+    "func cleanupStaging(",
+    "func cleanupImportTemp(",
+    "func reconcileFragmentFiles(",
+    "func reconcileAll(",
+)
+
 
 def git(*args: str) -> str:
     return subprocess.check_output(
@@ -615,6 +636,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift",
         CLOUDKIT_COMPANION_CORE_FORBIDDEN_TOKENS,
         "Keep the CloudKit service core limited to construction/database access; invitation, session operations, and shared CloudKit support belong in their dedicated extension files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift",
+        MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS,
+        "Keep the Memory media store core limited to actor construction and commit/reconciliation serialization; media values, staging, commits, cleanup/reconciliation, and file helpers belong in their dedicated files.",
         errors,
     )
 
