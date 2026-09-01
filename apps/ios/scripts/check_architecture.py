@@ -49,7 +49,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/DispersalLightsOutView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonySheet.swift": 18_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonyShareView.swift": 10_000,
-    "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 35_000,
+    "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 24_000,
+    "BeforeShow/Features/CurrentShow/HomeCountdownPresentation.swift": 14_000,
+    "BeforeShow/Features/CurrentShow/HomeLivePulse.swift": 3_000,
     "BeforeShow/Features/CurrentShow/ShowAssetViews.swift": 33_000,
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 33_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
@@ -256,6 +258,13 @@ DISPERSAL_CEREMONY_SHEET_FORBIDDEN_TOKENS = (
     "enum DispersalCeremonyShareExport",
     "struct DispersalCeremonyShareSheet",
     "struct DispersalShareStep",
+)
+
+HOME_COUNTDOWN_CARD_FORBIDDEN_TOKENS = (
+    "enum HomeCountdownDisplayState",
+    "enum HomeCountdownPresentationPolicy",
+    "enum HomeShowIdentityPresentation",
+    "struct HomeLivePulse",
 )
 
 MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS = (
@@ -483,6 +492,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift",
         MANAGEMENT_VIEW_FORBIDDEN_TOKENS,
         "Keep follow-up, quick-action, and route presentation in their dedicated CurrentShow files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift",
+        HOME_COUNTDOWN_CARD_FORBIDDEN_TOKENS,
+        "Keep countdown state/identity policy and the reusable live pulse outside the HomeCountdownLockup state owner.",
         errors,
     )
     check_forbidden_tokens(
