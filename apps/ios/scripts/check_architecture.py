@@ -61,7 +61,14 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaCommit.swift": 9_000,
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaMaintenance.swift": 9_000,
     "BeforeShow/Infrastructure/Media/MemoryFragmentMediaFileSupport.swift": 4_000,
-    "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
+    "BeforeShow/Features/DynamicCover/DynamicCoverPresentation.swift": 20_000,
+    "BeforeShow/Features/DynamicCover/DynamicCoverPlaybackView.swift": 14_000,
+    "BeforeShow/Features/CurrentShow/DynamicCoverManagementSection.swift": 16_000,
+    "BeforeShow/Features/CurrentShow/DynamicCoverImportCoordinator.swift": 11_000,
+    "BeforeShow/Features/Footprints/FootprintDynamicCoverSection.swift": 8_000,
+    "BeforeShow/Features/Memory/MemoryViewerVideoPage.swift": 7_000,
+    "BeforeShow/Infrastructure/Media/AppAudioSession.swift": 5_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverAudioTrackProbe.swift": 4_000,
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 7_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift": 9_000,
@@ -165,6 +172,8 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
     "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift",
     "BeforeShow/Features/CurrentShow/ShowAssetViews.swift",
+    "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift",
+    "BeforeShow/Features/CurrentShow/DynamicCoverPlayback.swift",
     "BeforeShow/Features/Shows/ShowDetailViews.swift",
     "BeforeShow/Features/Shows/ShowLibraryViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
@@ -417,6 +426,34 @@ DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
 DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS = (
     "BSLocalization",
     "enum DynamicCoverErrorMessagePolicy",
+)
+
+DYNAMIC_COVER_PRESENTATION_FORBIDDEN_TOKENS = (
+    "struct DynamicCoverManagementSection",
+    "enum DynamicCoverImportCoordinator",
+    "struct FootprintDynamicCoverSection",
+    "struct MemoryViewerVideoPage",
+    "enum AppAudioSession",
+    "enum DynamicCoverAudioTrackProbe",
+)
+
+DYNAMIC_COVER_PLAYBACK_FORBIDDEN_TOKENS = (
+    "struct MemoryViewerVideoPage",
+    "enum AppAudioSession",
+    "enum DynamicCoverAudioTrackProbe",
+)
+
+DYNAMIC_COVER_MANAGEMENT_FORBIDDEN_TOKENS = (
+    "enum DynamicCoverImportCoordinator",
+    "struct FootprintDynamicCoverSection",
+    "struct DynamicCoverFlipView",
+    "struct MemoryViewerVideoPage",
+)
+
+APP_AUDIO_SESSION_FORBIDDEN_TOKENS = (
+    "import SwiftUI",
+    "struct DynamicCoverPlaybackView",
+    "struct MemoryViewerVideoPage",
 )
 
 
@@ -681,6 +718,30 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift",
         DYNAMIC_COVER_MEDIA_TYPES_FORBIDDEN_TOKENS,
         "Keep user-facing DynamicCover error copy in CurrentShow presentation support, not Infrastructure media types.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/DynamicCover/DynamicCoverPresentation.swift",
+        DYNAMIC_COVER_PRESENTATION_FORBIDDEN_TOKENS,
+        "Keep reusable DynamicCover face/preview presentation separate from CurrentShow management, Footprints composition, Memory playback, and infrastructure services.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/DynamicCover/DynamicCoverPlaybackView.swift",
+        DYNAMIC_COVER_PLAYBACK_FORBIDDEN_TOKENS,
+        "Keep reusable DynamicCover playback separate from Memory video pages and infrastructure audio/probe services.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/CurrentShow/DynamicCoverManagementSection.swift",
+        DYNAMIC_COVER_MANAGEMENT_FORBIDDEN_TOKENS,
+        "Keep CurrentShow DynamicCover management focused on page UI state; import transactions and reusable/other-feature presentation belong elsewhere.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Media/AppAudioSession.swift",
+        APP_AUDIO_SESSION_FORBIDDEN_TOKENS,
+        "Keep the app-wide audio session adapter framework-only and free of feature presentation.",
         errors,
     )
 
