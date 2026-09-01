@@ -60,6 +60,7 @@
 		5A8AF2CF74CA5D6E9A78E2B4 /* WidgetCoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */; };
 		5BB2F65C49A077E5B8BAD207 /* CurrentShowTimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B39A4E64872B01B1D5ACD2C /* CurrentShowTimeState.swift */; };
 		5C23B023B4DE55079A691C2F /* MemoryFragmentPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EC32232824329CB18F8942B /* MemoryFragmentPhase.swift */; };
+		5D1200893726357C3F246040 /* ShowDraftEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0EF9D309E457D17CC9DFA5E /* ShowDraftEditorView.swift */; };
 		60178CBCA7C8320FC96455F2 /* ShowMutationCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E93A9E42A34E7825013D1B3B /* ShowMutationCoordinatorTests.swift */; };
 		608E14A38ED2DED1CAE15474 /* ShowLiveActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB322889B3E6C99CC494F371 /* ShowLiveActivityAttributes.swift */; };
 		60A376DC94AC48285892F140 /* ShowAssetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 642098E9ABEEC286F694278F /* ShowAssetViews.swift */; };
@@ -337,6 +338,7 @@
 		DCE3090F4D8B89AEDC706CA4 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		DE866CEC83A04BA5D1FE6AE3 /* DispersalCeremony.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremony.swift; sourceTree = "<group>"; };
 		DFDB001AD89D32CEDC33E72F /* BeforeShowCloudClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowCloudClientTests.swift; sourceTree = "<group>"; };
+		E0EF9D309E457D17CC9DFA5E /* ShowDraftEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftEditorView.swift; sourceTree = "<group>"; };
 		E223DC9BBF4ADD52ED2BC10A /* FootprintHeroViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintHeroViews.swift; sourceTree = "<group>"; };
 		E3579A72CB30A5394056D930 /* FootprintArchiveTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArchiveTests.swift; sourceTree = "<group>"; };
 		E93A9E42A34E7825013D1B3B /* ShowMutationCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowMutationCoordinatorTests.swift; sourceTree = "<group>"; };
@@ -499,6 +501,7 @@
 				C700798DDDDD4B5C219293A2 /* AddShowConfirmationView.swift */,
 				3318771F1067657E44FFA460 /* AddShowCoordinatorView.swift */,
 				288C13297E704676457A8947 /* AddShowPersistence.swift */,
+				E0EF9D309E457D17CC9DFA5E /* ShowDraftEditorView.swift */,
 			);
 			path = AddShow;
 			sourceTree = "<group>";
@@ -838,6 +841,7 @@
 				3A0F19C971F2BF35DC3F4362 /* ShowDeletionCoordinator.swift in Sources */,
 				CBA501D5DB755FE43736114D /* ShowDetailViews.swift in Sources */,
 				47A3CC86422EA3F3150AC7AF /* ShowDraft.swift in Sources */,
+				5D1200893726357C3F246040 /* ShowDraftEditorView.swift in Sources */,
 				9BC38546930B9CA86FAE4487 /* ShowDurationFormatter.swift in Sources */,
 				9E85BC62D53B4E1C8D6899B6 /* ShowLibraryViews.swift in Sources */,
 				630D46A29F90B296BE998CDA /* ShowLinkParsingService.swift in Sources */,

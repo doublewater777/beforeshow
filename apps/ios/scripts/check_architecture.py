@@ -21,10 +21,11 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
     "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
-    "BeforeShow/AddShowFlowViews.swift": 136_000,
+    "BeforeShow/AddShowFlowViews.swift": 112_000,
     "BeforeShow/Features/AddShow/AddShowCoordinatorView.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowPersistence.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowConfirmationView.swift": 12_000,
+    "BeforeShow/Features/AddShow/ShowDraftEditorView.swift": 26_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
     "BeforeShow/MemoryFragmentsView.swift": 95_000,
@@ -64,6 +65,10 @@ ADD_SHOW_FLOW_FORBIDDEN_TOKENS = (
     "enum AddShowPersistenceCoordinator",
     "struct AddShowSavedConfirmationView",
     "struct AddShowLifecycleConfirmationSheet",
+    "enum ShowDraftEditorExitPolicy",
+    "struct ShowStatusActionResult",
+    "struct ShowStatusEditingContext",
+    "struct ShowDraftEditorView",
 )
 
 
@@ -165,7 +170,7 @@ def check_presentation_boundaries(errors: list[str]) -> None:
     check_forbidden_tokens(
         "BeforeShow/AddShowFlowViews.swift",
         ADD_SHOW_FLOW_FORBIDDEN_TOKENS,
-        "Keep AddShow coordinator, lifecycle/persistence, and confirmation presentation in their dedicated feature files.",
+        "Keep AddShow coordinator, lifecycle/persistence, confirmation, and draft-editor responsibilities in their dedicated feature files.",
         errors,
     )
 
