@@ -1,0 +1,61 @@
+name: Footprint detail presentation once
+
+on:
+  push:
+    branches:
+      - refactor/footprint-detail-presentation-boundaries
+    paths:
+      - ".github/workflows/footprint-detail-presentation-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  refactor:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply refactor
+        shell: bash
+        run: |
+          set -o pipefail
+          python3 apps/ios/scripts/stage_footprint_detail_presentation_refactor.py 2>&1 | tee /tmp/footprint-detail-stage.log
+      - name: Upload staging log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: footprint-detail-stage-log
+          path: /tmp/footprint-detail-stage.log
+          if-no-files-found: ignore
+      - name: Regenerate Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios
+          xcodegen generate --spec project.yml
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py --base-ref HEAD^
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          cd apps/ios
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination 'generic/platform=iOS Simulator' \
+            DEVELOPMENT_TEAM=29C8MS76CZ build 2>&1 | tee /tmp/footprint-detail-build.log
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: footprint-detail-build-log
+          path: /tmp/footprint-detail-build.log
+          if-no-files-found: ignore
+      - name: Commit refactor
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A apps/ios
+          git diff --cached --check
+          git commit -m "refactor(ios): split Footprint detail presentation"
+          git push origin HEAD:refactor/footprint-detail-presentation-boundaries
