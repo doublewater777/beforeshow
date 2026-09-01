@@ -93,6 +93,8 @@ App -> Shared
 
 `DynamicCover` 是可被 `CurrentShow` 与 `Footprints` 复用的窄子 feature；可共享无状态展示入口，但导入、持久化与页面状态仍由各自 owner 管理。
 
+`Footprints` 的 archive 计算、城市映射、封面解析、可见性策略和艺人媒体回写分别保持独立 owner；不要重新聚合成单个 archive helper 大文件。
+
 ### Infrastructure
 
 负责文件系统、CloudKit、WeatherKit、通知、网络、系统权限、分析等副作用。尽量暴露窄接口，不让 View 直接拼接多个底层 store 的事务。
