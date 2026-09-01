@@ -28,7 +28,12 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Settings/LanguageSettingsView.swift": 4_000,
     "BeforeShow/Features/Settings/AboutBeforeShowView.swift": 6_000,
     "BeforeShow/Features/Shows/ShowDetailViews.swift": 48_000,
-    "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift": 45_000,
+    "BeforeShow/Infrastructure/Notifications/NotificationSchedulingModels.swift": 13_000,
+    "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduler.swift": 19_000,
+    "BeforeShow/Infrastructure/Notifications/NotificationDeepLink.swift": 6_000,
+    "BeforeShow/Infrastructure/Notifications/ScheduledNotificationRequest.swift": 5_000,
+    "BeforeShow/Infrastructure/Notifications/LocalNotificationCenter.swift": 14_000,
+    "BeforeShow/Infrastructure/Notifications/NotificationDeepLinkRouting.swift": 8_000,
     "BeforeShow/Features/Shows/ShowLibraryViews.swift": 44_000,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
@@ -133,6 +138,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/CompanionSharing.swift",
     "BeforeShow/UI/DesignSystem.swift",
     "BeforeShow/Features/Settings/SettingsViews.swift",
+    "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
@@ -265,6 +271,18 @@ SETTINGS_ROOT_FORBIDDEN_TOKENS = (
 PRO_PAYWALL_FORBIDDEN_TOKENS = (
     "struct ProPaywallSheetView",
     "enum ProPaywallCopy",
+)
+
+NOTIFICATION_CENTER_FORBIDDEN_TOKENS = (
+    "struct LocalNotificationScheduler",
+    "final class NotificationDeepLinkRouter",
+    "final class BeforeShowNotificationDelegate",
+    "@Model",
+)
+
+NOTIFICATION_SCHEDULER_FORBIDDEN_TOKENS = (
+    "final class LocalNotificationCenter",
+    "UNUserNotificationCenter",
 )
 
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
@@ -470,6 +488,18 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Subscription/ProPaywallView.swift",
         PRO_PAYWALL_FORBIDDEN_TOKENS,
         "Keep paywall sheet/copy support outside the primary paywall state owner.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Notifications/LocalNotificationCenter.swift",
+        NOTIFICATION_CENTER_FORBIDDEN_TOKENS,
+        "Keep notification models, scheduling policy, and tap routing outside the center orchestrator.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduler.swift",
+        NOTIFICATION_SCHEDULER_FORBIDDEN_TOKENS,
+        "Keep LocalNotificationScheduler as pure scheduling policy without notification-center orchestration.",
         errors,
     )
     check_forbidden_tokens(
