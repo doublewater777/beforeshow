@@ -21,7 +21,10 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
     "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
-    "BeforeShow/AddShowFlowViews.swift": 155_000,
+    "BeforeShow/AddShowFlowViews.swift": 136_000,
+    "BeforeShow/Features/AddShow/AddShowCoordinatorView.swift": 9_000,
+    "BeforeShow/Features/AddShow/AddShowPersistence.swift": 9_000,
+    "BeforeShow/Features/AddShow/AddShowConfirmationView.swift": 12_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
     "BeforeShow/MemoryFragmentsView.swift": 95_000,
@@ -52,6 +55,15 @@ MANAGEMENT_VIEW_FORBIDDEN_TOKENS = (
     "struct CurrentShowQuickActionTile",
     "struct CompanionAvatarStack",
     "struct MapChooserSheet",
+)
+
+ADD_SHOW_FLOW_FORBIDDEN_TOKENS = (
+    "struct AddShowCoordinatorSheet",
+    "enum AddShowConfiguration",
+    "enum AddShowLifecyclePolicy",
+    "enum AddShowPersistenceCoordinator",
+    "struct AddShowSavedConfirmationView",
+    "struct AddShowLifecycleConfirmationSheet",
 )
 
 
@@ -148,6 +160,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift",
         MANAGEMENT_VIEW_FORBIDDEN_TOKENS,
         "Keep follow-up, quick-action, and route presentation in their dedicated CurrentShow files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/AddShowFlowViews.swift",
+        ADD_SHOW_FLOW_FORBIDDEN_TOKENS,
+        "Keep AddShow coordinator, lifecycle/persistence, and confirmation presentation in their dedicated feature files.",
         errors,
     )
 
