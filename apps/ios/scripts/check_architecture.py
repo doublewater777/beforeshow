@@ -13,7 +13,8 @@ REPO_ROOT = IOS_ROOT.parents[1]
 # Legacy files that are already too large. The guard does not demand an immediate
 # rewrite; it prevents these hotspots from growing without an explicit budget change.
 HOTSPOT_BUDGETS = {
-    "BeforeShow/RootView.swift": 120_000,
+    "BeforeShow/RootView.swift": 60_000,
+    "BeforeShow/HomeHeroPresentation.swift": 100_000,
     "BeforeShow/AddShowFlowViews.swift": 155_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
@@ -21,6 +22,16 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/BeforeShowApp.swift": 26_000,
     "BeforeShow/Show.swift": 24_000,
 }
+
+ROOT_VIEW_FORBIDDEN_TOKENS = (
+    "import PhotosUI",
+    "PhotosPickerItem",
+    "DynamicCoverImportCoordinator",
+    "WidgetDataSync.sync",
+    "LocalNotificationCenter.shared.reconcileFocus",
+    "struct CurrentShowManagementSection",
+    "struct CurrentShowCompanionSheet",
+)
 
 
 def git(*args: str) -> str:
@@ -82,6 +93,19 @@ def check_hotspot_budgets(errors: list[str]) -> None:
             )
 
 
+def check_root_view_boundaries(errors: list[str]) -> None:
+    path = IOS_ROOT / "BeforeShow/RootView.swift"
+    if not path.exists():
+        return
+    content = path.read_text()
+    for token in ROOT_VIEW_FORBIDDEN_TOKENS:
+        if token in content:
+            errors.append(
+                f"BeforeShow/RootView.swift contains forbidden CurrentShow token {token!r}. "
+                "Keep RootView limited to app/root routing and DEBUG support."
+            )
+
+
 def check_new_file_locations(base_ref: str | None, errors: list[str]) -> None:
     for relative_path in added_swift_files(base_ref):
         if not relative_path.startswith("BeforeShow/"):
@@ -103,6 +127,7 @@ def main() -> int:
     errors: list[str] = []
     base_ref = resolve_base_ref(args.base_ref)
     check_hotspot_budgets(errors)
+    check_root_view_boundaries(errors)
     check_new_file_locations(base_ref, errors)
 
     if errors:
