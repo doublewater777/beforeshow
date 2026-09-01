@@ -69,7 +69,11 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Memory/MemoryViewerVideoPage.swift": 7_000,
     "BeforeShow/Infrastructure/Media/AppAudioSession.swift": 5_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverAudioTrackProbe.swift": 4_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveRanking.swift": 20_000,
+    "BeforeShow/Features/Footprints/FootprintCityMapping.swift": 12_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveCovers.swift": 10_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveVisibility.swift": 5_000,
+    "BeforeShow/Features/Footprints/FootprintArtistArtworkWriteback.swift": 4_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 7_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaTypes.swift": 9_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaStaging.swift": 8_000,
@@ -178,6 +182,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Features/Shows/ShowLibraryViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
+    "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift",
 )
 
 ROOT_SWIFT_ALLOWLIST = ("RootView.swift",)
@@ -405,6 +410,40 @@ MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
     "func cleanupImportTemp(",
     "func reconcileFragmentFiles(",
     "func reconcileAll(",
+)
+
+FOOTPRINT_ARCHIVE_RANKING_FORBIDDEN_TOKENS = (
+    "final class FootprintCityCoordinateResolver",
+    "enum FootprintCoverResolver",
+    "struct FootprintVisibility",
+    "enum FootprintAlbumArtworkWriteback",
+)
+
+FOOTPRINT_CITY_MAPPING_FORBIDDEN_TOKENS = (
+    "enum FootprintArchiveRankingBuilder",
+    "enum FootprintCoverResolver",
+    "struct FootprintVisibility",
+    "enum FootprintAlbumArtworkWriteback",
+)
+
+FOOTPRINT_ARCHIVE_COVERS_FORBIDDEN_TOKENS = (
+    "final class FootprintCityCoordinateResolver",
+    "struct FootprintVisibility",
+    "enum FootprintAlbumArtworkWriteback",
+)
+
+FOOTPRINT_ARCHIVE_VISIBILITY_FORBIDDEN_TOKENS = (
+    "enum FootprintArchiveRankingBuilder",
+    "final class FootprintCityCoordinateResolver",
+    "enum FootprintCoverResolver",
+    "enum FootprintAlbumArtworkWriteback",
+)
+
+FOOTPRINT_ARTIST_WRITEBACK_FORBIDDEN_TOKENS = (
+    "enum FootprintArchiveRankingBuilder",
+    "final class FootprintCityCoordinateResolver",
+    "enum FootprintCoverResolver",
+    "struct FootprintVisibility",
 )
 
 DYNAMIC_COVER_MEDIA_STORE_CORE_FORBIDDEN_TOKENS = (
@@ -706,6 +745,36 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift",
         MEMORY_MEDIA_STORE_CORE_FORBIDDEN_TOKENS,
         "Keep the Memory media store core limited to actor construction and commit/reconciliation serialization; media values, staging, commits, cleanup/reconciliation, and file helpers belong in their dedicated files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintArchiveRanking.swift",
+        FOOTPRINT_ARCHIVE_RANKING_FORBIDDEN_TOKENS,
+        "Keep archive ranking/year metrics separate from city mapping, cover resolution, visibility, and artist media writeback.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintCityMapping.swift",
+        FOOTPRINT_CITY_MAPPING_FORBIDDEN_TOKENS,
+        "Keep city mapping/MapKit resolution separate from archive ranking, cover selection, visibility, and model writeback.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintArchiveCovers.swift",
+        FOOTPRINT_ARCHIVE_COVERS_FORBIDDEN_TOKENS,
+        "Keep archive cover selection separate from city services, visibility policy, and artist media writeback.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintArchiveVisibility.swift",
+        FOOTPRINT_ARCHIVE_VISIBILITY_FORBIDDEN_TOKENS,
+        "Keep archive visibility policy separate from ranking, city services, cover resolution, and model writeback.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintArtistArtworkWriteback.swift",
+        FOOTPRINT_ARTIST_WRITEBACK_FORBIDDEN_TOKENS,
+        "Keep artist artwork model mutation as a narrow writeback helper rather than an archive aggregate.",
         errors,
     )
     check_forbidden_tokens(
