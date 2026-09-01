@@ -1,0 +1,84 @@
+name: Companion feature ownership once
+
+on:
+  push:
+    branches:
+      - refactor/companion-feature-ownership
+    paths:
+      - ".github/workflows/companion-feature-ownership-once.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  move:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Move Companion-owned sources
+        run: |
+          set -euo pipefail
+          mkdir -p apps/ios/BeforeShow/Features/Companion
+          git mv apps/ios/BeforeShow/CompanionSharingCoordinator.swift apps/ios/BeforeShow/Features/Companion/CompanionSharingCoordinator.swift
+          git mv apps/ios/BeforeShow/CloudSharingView.swift apps/ios/BeforeShow/Features/Companion/CloudSharingView.swift
+
+      - name: Regenerate Xcode project
+        run: |
+          brew install xcodegen
+          cd apps/ios
+          xcodegen generate --spec project.yml
+
+      - name: Tighten architecture guard
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          path = Path("apps/ios/scripts/check_architecture.py")
+          text = path.read_text()
+
+          anchor = '    "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,\n'
+          addition = (
+              '    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 38_000,\n'
+              '    "BeforeShow/Features/Companion/CloudSharingView.swift": 7_000,\n'
+          )
+          if addition not in text:
+              if text.count(anchor) != 1:
+                  raise SystemExit("Companion budget anchor mismatch")
+              text = text.replace(anchor, anchor + addition, 1)
+
+          retired_anchor = '    "BeforeShow/CompanionSharing.swift",\n'
+          retired_addition = (
+              '    "BeforeShow/CompanionSharingCoordinator.swift",\n'
+              '    "BeforeShow/CloudSharingView.swift",\n'
+          )
+          if retired_addition not in text:
+              if text.count(retired_anchor) != 1:
+                  raise SystemExit("Companion retired-file anchor mismatch")
+              text = text.replace(retired_anchor, retired_anchor + retired_addition, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Verify architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py --base-ref HEAD^
+
+      - name: Compile moved tree
+        run: |
+          cd apps/ios
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination 'generic/platform=iOS Simulator' \
+            DEVELOPMENT_TEAM=29C8MS76CZ build
+
+      - name: Commit move
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A apps/ios
+          git diff --cached --check
+          git diff --cached --stat
+          git commit -m "refactor(ios): move Companion sources into feature boundary"
+          git push origin HEAD:refactor/companion-feature-ownership
