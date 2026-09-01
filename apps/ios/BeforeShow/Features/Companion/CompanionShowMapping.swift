@@ -86,3 +86,37 @@ extension Show {
         )
     }
 }
+
+extension Show {
+    struct CompanionCloudLinkageSnapshot: Equatable {
+        var record: String?
+        var zone: String?
+        var owner: String?
+        var share: String?
+        var shareZone: String?
+        var shareOwner: String?
+        var isOwner: Bool?
+    }
+
+    func companionCloudLinkageSnapshot() -> CompanionCloudLinkageSnapshot {
+        CompanionCloudLinkageSnapshot(
+            record: companionCloudRecordName,
+            zone: companionCloudZoneName,
+            owner: companionCloudOwnerName,
+            share: companionShareRecordName,
+            shareZone: companionShareZoneName,
+            shareOwner: companionShareOwnerName,
+            isOwner: companionIsOwner
+        )
+    }
+
+    func restoreCompanionCloudLinkage(_ snapshot: CompanionCloudLinkageSnapshot) {
+        companionCloudRecordName = snapshot.record
+        companionCloudZoneName = snapshot.zone
+        companionCloudOwnerName = snapshot.owner
+        companionShareRecordName = snapshot.share
+        companionShareZoneName = snapshot.shareZone
+        companionShareOwnerName = snapshot.shareOwner
+        companionIsOwner = snapshot.isOwner
+    }
+}
