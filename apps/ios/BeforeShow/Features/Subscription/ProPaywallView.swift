@@ -1,12 +1,6 @@
 import PostHog
 import SwiftUI
 
-/// V2 Paywall：标准双档（年度 $4.99 / 终身 $8.99）+ 挽留双档
-///（特惠年度 $2.99 / 特惠终身 $5.99）。布局以参考稿
-/// beforeshow-settings-paywall-v2-winback.html 为准：居中 hero + 横向并排方案卡。
-///
-/// sheet 形态（设置 / 限额 / 长按图标 deep link）：`ProPaywallSheetView`，
-/// 关闭且未购买时每次弹一次挽留卡片；`initiallyShowsWinback: true` 直接进入挽留态。
 struct ProPaywallView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @State private var products = ProSubscriptionCatalog.defaultProducts
@@ -741,6 +735,7 @@ struct ProPaywallView: View {
 // MARK: - Sheet 形态（设置 / 限额 / 长按图标入口）
 
 /// Paywall 顶部的光锥:顶点在下的三角,顶点即光源(星标处)。
+
 private struct PaywallBeamShape: Shape {
     func path(in rect: CGRect) -> Path {
         Path { p in
@@ -748,108 +743,6 @@ private struct PaywallBeamShape: Shape {
             p.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
             p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
             p.closeSubpath()
-        }
-    }
-}
-
-struct ProPaywallSheetView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    private let store: any ProSubscriptionStore
-    private let initiallyShowsWinback: Bool
-
-    init(
-        initiallyShowsWinback: Bool = false,
-        store: any ProSubscriptionStore = ProPaywallView.defaultStore()
-    ) {
-        self.initiallyShowsWinback = initiallyShowsWinback
-        self.store = store
-    }
-
-    var body: some View {
-        ProPaywallView(
-            store: store,
-            showsCloseButton: true,
-            initiallyShowsWinback: initiallyShowsWinback,
-            onRequestDismiss: { dismiss() }
-        )
-    }
-}
-
-// MARK: - 文案
-
-enum ProPaywallCopy {
-    static var summary: String {
-        BSLocalization.text("免费版每月可以添加 1 场现场。Pro 让你的足迹继续累积，不限制新增场次。")
-    }
-
-    static let privacyURL = URL(string: "https://beforeshow.doublewaterapps.com/privacy")!
-    static let termsURL = URL(string: "https://beforeshow.doublewaterapps.com/terms")!
-
-    static func planName(_ plan: ProSubscriptionPlan) -> String {
-        switch plan {
-        case .yearly: return BSLocalization.text("年度")
-        case .lifetime: return BSLocalization.text("终身")
-        case .yearlyDiscount: return BSLocalization.text("特惠年度")
-        case .lifetimeDiscount: return BSLocalization.text("特惠终身")
-        }
-    }
-
-    static func periodLabel(_ plan: ProSubscriptionPlan) -> String {
-        switch plan {
-        case .yearly, .yearlyDiscount: return BSLocalization.text("/ 年")
-        case .lifetime, .lifetimeDiscount: return BSLocalization.text("一次性")
-        }
-    }
-
-    static func planNote(_ plan: ProSubscriptionPlan, product: ProSubscriptionProduct?) -> String {
-        switch plan {
-        case .yearly:
-            if let trial = product?.trialText { return trial }
-            guard let perMonth = product?.perMonthEquivalentText else { return "" }
-            return BSLocalization.format("约 %@ / 月", perMonth)
-        case .lifetime: return BSLocalization.text("一次买断，永久有效")
-        case .yearlyDiscount, .lifetimeDiscount: return ""
-        }
-    }
-
-    static func ctaTitle(
-        _ plan: ProSubscriptionPlan,
-        product: ProSubscriptionProduct,
-        price: String
-    ) -> String {
-        switch plan {
-        case .yearly:
-            if let trial = product.trialText {
-                return BSLocalization.format("开始%@", trial)
-            }
-            return BSLocalization.format("订阅年度 Pro · %@", price)
-        case .lifetime:
-            return BSLocalization.format("买断终身 Pro · %@", price)
-        case .yearlyDiscount, .lifetimeDiscount:
-            return BSLocalization.format("以特惠价解锁 Pro · %@", price)
-        }
-    }
-
-    static func ctaNote(
-        _ plan: ProSubscriptionPlan,
-        product: ProSubscriptionProduct?,
-        priceAmount: String
-    ) -> String {
-        if plan.isLifetime {
-            return BSLocalization.text("一次性购买，永久有效。不升级 Pro，已有现场也仍可查看和编辑。")
-        }
-        if plan == .yearly, let trial = product?.trialText {
-            return BSLocalization.format("%@，之后按 %@/年 自动续订，可随时取消。", trial, priceAmount)
-        }
-        return BSLocalization.text("订阅将通过 App Store 自动续订，直到取消。已有现场即使 Pro 到期，也仍可查看和编辑。")
-    }
-
-    static func winbackSaveLabel(_ plan: ProSubscriptionPlan) -> String {
-        switch plan {
-        case .yearlyDiscount: return BSLocalization.text("省 40%")
-        case .lifetimeDiscount: return BSLocalization.text("省 33%")
-        default: return ""
         }
     }
 }
