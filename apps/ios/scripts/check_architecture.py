@@ -16,8 +16,11 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/RootView.swift": 60_000,
     "BeforeShow/HomeHeroPresentation.swift": 12_000,
     "BeforeShow/Features/CurrentShow/CurrentShowHomeView.swift": 24_000,
-    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 40_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 26_000,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 28_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
+    "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
     "BeforeShow/AddShowFlowViews.swift": 155_000,
     "BeforeShow/FootprintsArchive.swift": 105_000,
     "BeforeShow/FootprintArchiveViews.swift": 125_000,
@@ -41,6 +44,14 @@ HOME_HERO_FORBIDDEN_TOKENS = (
     "struct CurrentShowHomeView",
     "struct CurrentShowManagementSection",
     "struct CurrentShowCompanionSheet",
+)
+
+MANAGEMENT_VIEW_FORBIDDEN_TOKENS = (
+    "struct CurrentShowFollowUpSummary",
+    "enum CurrentShowQuickAction",
+    "struct CurrentShowQuickActionTile",
+    "struct CompanionAvatarStack",
+    "struct MapChooserSheet",
 )
 
 
@@ -131,6 +142,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/HomeHeroPresentation.swift",
         HOME_HERO_FORBIDDEN_TOKENS,
         "Keep this file limited to reusable hero snapshot/stage presentation.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift",
+        MANAGEMENT_VIEW_FORBIDDEN_TOKENS,
+        "Keep follow-up, quick-action, and route presentation in their dedicated CurrentShow files.",
         errors,
     )
 
