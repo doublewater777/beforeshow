@@ -57,7 +57,14 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Footprints/FootprintShareExport.swift": 8_000,
     "BeforeShow/Features/Footprints/FootprintVenueArchiveView.swift": 14_000,
     "BeforeShow/Features/Footprints/FootprintYearArchiveView.swift": 19_000,
-    "BeforeShow/MemoryFragmentsView.swift": 95_000,
+    "BeforeShow/Features/Memory/MemoryFragmentsView.swift": 32_000,
+    "BeforeShow/Features/Memory/MemoryUnifiedEditorView.swift": 32_000,
+    "BeforeShow/Features/Memory/MemoryPresentationModels.swift": 6_000,
+    "BeforeShow/Features/Memory/MemoryCreateSheets.swift": 6_000,
+    "BeforeShow/Features/Memory/MemoryFragmentEditCoordinator.swift": 6_000,
+    "BeforeShow/Features/Memory/MemoryTimelineViews.swift": 11_000,
+    "BeforeShow/Features/Memory/MemoryReviewViewer.swift": 13_000,
+    "BeforeShow/Features/Memory/MemoryCameraPicker.swift": 4_000,
     "BeforeShow/BeforeShowApp.swift": 26_000,
     "BeforeShow/Show.swift": 24_000,
 }
@@ -68,6 +75,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/AddShowFlowViews.swift",
     "BeforeShow/FootprintsArchive.swift",
     "BeforeShow/FootprintArchiveViews.swift",
+    "BeforeShow/MemoryFragmentsView.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
@@ -153,6 +161,16 @@ FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS = (
     "struct FootprintVenueArchiveView",
     "struct FootprintMemoriesArchiveView",
     "struct FootprintCoverView",
+)
+
+MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS = (
+    "struct MemoryUnifiedEditorView",
+    "struct MemoryTimelineSection",
+    "struct MemoryFragmentReviewView",
+    "struct MemoryMediaViewer",
+    "struct SystemMemoryCameraPicker",
+    "enum MemoryFragmentEditCoordinator",
+    "struct MemoryAddMediaSheet",
 )
 
 
@@ -282,6 +300,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Footprints/FootprintDashboardView.swift",
         FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS,
         "Keep the dashboard root limited to page composition; sections, archive screens, and cover presentation belong in their dedicated Footprints files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Memory/MemoryFragmentsView.swift",
+        MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS,
+        "Keep the Memory root limited to page state/routing; editor, timeline, viewer, camera, and edit coordination belong in their dedicated Memory files.",
         errors,
     )
 
