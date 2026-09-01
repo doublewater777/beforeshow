@@ -14,14 +14,26 @@ REPO_ROOT = IOS_ROOT.parents[1]
 # responsibilities should remain bounded after extraction.
 HOTSPOT_BUDGETS = {
     "BeforeShow/RootView.swift": 12_000,
-    "BeforeShow/UI/DesignSystem.swift": 55_000,
-    "BeforeShow/Features/Settings/SettingsViews.swift": 48_000,
+    "BeforeShow/UI/DesignSystem/BSTokens.swift": 11_000,
+    "BeforeShow/UI/DesignSystem/BSChrome.swift": 8_000,
+    "BeforeShow/UI/DesignSystem/BSStagePresentation.swift": 14_000,
+    "BeforeShow/UI/DesignSystem/BSInteractionComponents.swift": 10_000,
+    "BeforeShow/UI/DesignSystem/BSShowCoverComponents.swift": 12_000,
+    "BeforeShow/UI/DesignSystem/BSArtistComponents.swift": 5_000,
+    "BeforeShow/UI/DesignSystem/BSDrawerComponents.swift": 8_000,
+    "BeforeShow/Features/Settings/SettingsView.swift": 22_000,
+    "BeforeShow/Features/Settings/SettingsDebugViews.swift": 6_000,
+    "BeforeShow/Features/Settings/PrivacyLocalDataView.swift": 13_000,
+    "BeforeShow/Features/Settings/FeedbackView.swift": 8_000,
+    "BeforeShow/Features/Settings/LanguageSettingsView.swift": 4_000,
+    "BeforeShow/Features/Settings/AboutBeforeShowView.swift": 6_000,
     "BeforeShow/Features/Shows/ShowDetailViews.swift": 48_000,
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift": 45_000,
     "BeforeShow/Features/Shows/ShowLibraryViews.swift": 44_000,
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
     "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 32_000,
-    "BeforeShow/Features/Subscription/ProPaywallView.swift": 38_000,
+    "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
+    "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift": 35_000,
     "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 35_000,
     "BeforeShow/Features/CurrentShow/ShowAssetViews.swift": 33_000,
@@ -119,6 +131,8 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/MemoryFragmentsView.swift",
     "BeforeShow/BeforeShowApp.swift",
     "BeforeShow/CompanionSharing.swift",
+    "BeforeShow/UI/DesignSystem.swift",
+    "BeforeShow/Features/Settings/SettingsViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
@@ -238,6 +252,19 @@ COMPANION_COORDINATOR_FORBIDDEN_TOKENS = (
     "final class BeforeShowAppDelegate",
     "final class BeforeShowSceneDelegate",
     "extension Show",
+)
+
+SETTINGS_ROOT_FORBIDDEN_TOKENS = (
+    "struct PrivacyLocalDataView",
+    "struct FeedbackView",
+    "struct LanguageSettingsView",
+    "struct AboutBeforeShowView",
+    "enum DebugProEntitlementOption",
+)
+
+PRO_PAYWALL_FORBIDDEN_TOKENS = (
+    "struct ProPaywallSheetView",
+    "enum ProPaywallCopy",
 )
 
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
@@ -431,6 +458,18 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift",
         COMPANION_COORDINATOR_FORBIDDEN_TOKENS,
         "Keep Companion orchestration separate from app lifecycle delegates and Show mapping.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Settings/SettingsView.swift",
+        SETTINGS_ROOT_FORBIDDEN_TOKENS,
+        "Keep settings destination pages and debug controls in focused Settings files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProPaywallView.swift",
+        PRO_PAYWALL_FORBIDDEN_TOKENS,
+        "Keep paywall sheet/copy support outside the primary paywall state owner.",
         errors,
     )
     check_forbidden_tokens(
