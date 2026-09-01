@@ -10,8 +10,8 @@ from pathlib import Path
 IOS_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = IOS_ROOT.parents[1]
 
-# Legacy files that are already too large. The guard does not demand an immediate
-# rewrite; it prevents these hotspots from growing without an explicit budget change.
+# Legacy files that are already too large, plus isolated feature files whose
+# responsibilities should remain bounded after extraction.
 HOTSPOT_BUDGETS = {
     "BeforeShow/RootView.swift": 60_000,
     "BeforeShow/HomeHeroPresentation.swift": 12_000,
@@ -21,7 +21,11 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/CurrentShow/CurrentShowFollowUpView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/CurrentShowQuickActionsView.swift": 9_000,
     "BeforeShow/Features/CurrentShow/CurrentShowRoutePresentation.swift": 5_000,
-    "BeforeShow/AddShowFlowViews.swift": 70_000,
+    "BeforeShow/Features/AddShow/AddShowFlowView.swift": 48_000,
+    "BeforeShow/Features/AddShow/AddShowImportPresentation.swift": 15_000,
+    "BeforeShow/Features/AddShow/AddShowPresentationPrimitives.swift": 6_000,
+    "BeforeShow/Features/AddShow/ShowCoverLifecycle.swift": 4_000,
+    "BeforeShow/Features/AddShow/ShowDraftPresentationSupport.swift": 3_000,
     "BeforeShow/Features/AddShow/AddShowCoordinatorView.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowPersistence.swift": 9_000,
     "BeforeShow/Features/AddShow/AddShowConfirmationView.swift": 12_000,
@@ -37,6 +41,12 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/BeforeShowApp.swift": 26_000,
     "BeforeShow/Show.swift": 24_000,
 }
+
+# Once a legacy root hotspot has been retired, do not allow a later change to
+# recreate it and silently restart the flat-file architecture.
+RETIRED_LEGACY_FILES = (
+    "BeforeShow/AddShowFlowViews.swift",
+)
 
 ROOT_VIEW_FORBIDDEN_TOKENS = (
     "import PhotosUI",
@@ -64,16 +74,17 @@ MANAGEMENT_VIEW_FORBIDDEN_TOKENS = (
 )
 
 ADD_SHOW_FLOW_FORBIDDEN_TOKENS = (
-    "struct AddShowCoordinatorSheet",
-    "enum AddShowConfiguration",
-    "enum AddShowLifecyclePolicy",
-    "enum AddShowPersistenceCoordinator",
-    "struct AddShowSavedConfirmationView",
-    "struct AddShowLifecycleConfirmationSheet",
-    "enum ShowDraftEditorExitPolicy",
-    "struct ShowStatusActionResult",
-    "struct ShowStatusEditingContext",
-    "struct ShowDraftEditorView",
+    "struct AddShowLinkFailurePresentation",
+    "struct AddShowMultilineInput",
+    "struct AddShowNoteCard",
+    "struct AddShowLinkFailureCard",
+    "struct AddShowImportedBanner",
+    "struct AddShowOCRStepsView",
+    "struct EditShowFormCard",
+    "struct AddShowInputChrome",
+    "struct EditShowSaveButtonStyle",
+    "enum ShowCoverLocalImageStore",
+    "struct ShowCoverLifecycle",
     "struct ShowDraftFormFields",
     "struct AddShowScheduleFields",
     "struct AddShowCoverActions",
@@ -151,6 +162,15 @@ def check_hotspot_budgets(errors: list[str]) -> None:
             )
 
 
+def check_retired_legacy_files(errors: list[str]) -> None:
+    for relative_path in RETIRED_LEGACY_FILES:
+        if (IOS_ROOT / relative_path).exists():
+            errors.append(
+                f"retired legacy source {relative_path} exists again. "
+                "Keep AddShow implementation under BeforeShow/Features/AddShow/."
+            )
+
+
 def check_forbidden_tokens(
     relative_path: str,
     tokens: tuple[str, ...],
@@ -188,9 +208,9 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         errors,
     )
     check_forbidden_tokens(
-        "BeforeShow/AddShowFlowViews.swift",
+        "BeforeShow/Features/AddShow/AddShowFlowView.swift",
         ADD_SHOW_FLOW_FORBIDDEN_TOKENS,
-        "Keep AddShow coordinator, persistence, confirmation, editor, and draft-form presentation in their dedicated feature files.",
+        "Keep flow orchestration separate from import UI, form UI, presentation primitives, and cover lifecycle support.",
         errors,
     )
     check_forbidden_tokens(
@@ -222,6 +242,7 @@ def main() -> int:
     errors: list[str] = []
     base_ref = resolve_base_ref(args.base_ref)
     check_hotspot_budgets(errors)
+    check_retired_legacy_files(errors)
     check_presentation_boundaries(errors)
     check_new_file_locations(base_ref, errors)
 
