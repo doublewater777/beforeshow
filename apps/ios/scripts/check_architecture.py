@@ -38,9 +38,16 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Footprints/FootprintsView.swift": 17_000,
     "BeforeShow/Features/Footprints/FootprintArchiveDetailView.swift": 21_000,
     "BeforeShow/Features/Footprints/FootprintArchiveDomain.swift": 7_000,
+    "BeforeShow/Features/Footprints/FootprintArchivePresentationSupport.swift": 12_000,
     "BeforeShow/Features/Footprints/FootprintArchiveShareCopy.swift": 7_000,
     "BeforeShow/Features/Footprints/FootprintArchiveShareView.swift": 14_000,
+    "BeforeShow/Features/Footprints/FootprintArtistViews.swift": 19_000,
+    "BeforeShow/Features/Footprints/FootprintCityArchiveViews.swift": 24_000,
+    "BeforeShow/Features/Footprints/FootprintCoverViews.swift": 8_000,
+    "BeforeShow/Features/Footprints/FootprintDashboardSections.swift": 30_000,
+    "BeforeShow/Features/Footprints/FootprintDashboardView.swift": 6_000,
     "BeforeShow/Features/Footprints/FootprintDateFormatting.swift": 2_000,
+    "BeforeShow/Features/Footprints/FootprintMemoriesArchiveView.swift": 12_000,
     "BeforeShow/Features/Footprints/FootprintOverviewShareSheet.swift": 3_000,
     "BeforeShow/Features/Footprints/FootprintPageShareView.swift": 7_000,
     "BeforeShow/Features/Footprints/FootprintPhotoLibrary.swift": 3_000,
@@ -48,7 +55,8 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Footprints/FootprintSearchSheet.swift": 8_000,
     "BeforeShow/Features/Footprints/FootprintShareActionSheet.swift": 10_000,
     "BeforeShow/Features/Footprints/FootprintShareExport.swift": 8_000,
-    "BeforeShow/FootprintArchiveViews.swift": 125_000,
+    "BeforeShow/Features/Footprints/FootprintVenueArchiveView.swift": 14_000,
+    "BeforeShow/Features/Footprints/FootprintYearArchiveView.swift": 19_000,
     "BeforeShow/MemoryFragmentsView.swift": 95_000,
     "BeforeShow/BeforeShowApp.swift": 26_000,
     "BeforeShow/Show.swift": 24_000,
@@ -59,6 +67,7 @@ HOTSPOT_BUDGETS = {
 RETIRED_LEGACY_FILES = (
     "BeforeShow/AddShowFlowViews.swift",
     "BeforeShow/FootprintsArchive.swift",
+    "BeforeShow/FootprintArchiveViews.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
@@ -134,6 +143,16 @@ FOOTPRINTS_VIEW_FORBIDDEN_TOKENS = (
     "private func discovery(_ archive: FootprintArchiveSnapshot)",
     "private func showRow(_ show: Show)",
     "private func showDurationText(_ show: Show)",
+)
+
+FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS = (
+    "struct FootprintDashboardSections",
+    "struct FootprintYearArchiveView",
+    "struct FootprintArtistArchiveView",
+    "struct FootprintCityArchiveView",
+    "struct FootprintVenueArchiveView",
+    "struct FootprintMemoriesArchiveView",
+    "struct FootprintCoverView",
 )
 
 
@@ -257,6 +276,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Footprints/FootprintsView.swift",
         FOOTPRINTS_VIEW_FORBIDDEN_TOKENS,
         "Keep the Footprints root limited to page state/routing; archive domain, search, detail, export, share presentation, and legacy dashboard helpers belong elsewhere.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Footprints/FootprintDashboardView.swift",
+        FOOTPRINT_DASHBOARD_VIEW_FORBIDDEN_TOKENS,
+        "Keep the dashboard root limited to page composition; sections, archive screens, and cover presentation belong in their dedicated Footprints files.",
         errors,
     )
 
