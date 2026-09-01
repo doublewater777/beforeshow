@@ -1,0 +1,61 @@
+name: iOS hotspot inventory
+
+on:
+  push:
+    branches:
+      - analysis/ios-hotspot-inventory
+    paths:
+      - ".github/workflows/ios-hotspot-inventory.yml"
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory declarations
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path('apps/ios/BeforeShow')
+          decl = re.compile(r'^(?:@\w+(?:\([^)]*\))?\s*)*(?:(?:public|internal|private|fileprivate|final|indirect|nonisolated|@MainActor)\s+)*(?:struct|class|enum|protocol|actor|extension)\s+([^\s:{<(]+)')
+          paths = sorted(
+              (p for p in root.rglob('*.swift') if p.stat().st_size >= 14000),
+              key=lambda p: p.stat().st_size,
+              reverse=True,
+          )
+          for path in paths:
+              text = path.read_text()
+              lines = text.splitlines(keepends=True)
+              offsets=[]; total=0
+              for line in lines:
+                  offsets.append(total); total += len(line)
+              starts=[]; depth=0; block=False
+              for i,line in enumerate(lines):
+                  if depth==0 and not block:
+                      m=decl.match(line)
+                      if m:
+                          starts.append((offsets[i],i+1,line.strip()))
+                  j=0; string=False; escape=False
+                  while j<len(line):
+                      if block:
+                          k=line.find('*/',j)
+                          if k<0: break
+                          block=False; j=k+2; continue
+                      if not string and line.startswith('//',j): break
+                      if not string and line.startswith('/*',j): block=True; j+=2; continue
+                      ch=line[j]
+                      if ch=='"' and not escape: string=not string
+                      if not string:
+                          if ch=='{': depth+=1
+                          elif ch=='}': depth-=1
+                      escape=(ch=='\\' and not escape)
+                      if ch!='\\': escape=False
+                      j+=1
+              rel=path.relative_to(root)
+              print(f'=== {rel}: {len(text)} bytes / {len(lines)} lines / {len(starts)} top-level declarations ===')
+              for idx,(start,line_no,signature) in enumerate(starts):
+                  end=starts[idx+1][0] if idx+1<len(starts) else len(text)
+                  print(f'{line_no:4d} {end-start:6d}  {signature}')
+          PY
