@@ -27,7 +27,10 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Settings/FeedbackView.swift": 8_000,
     "BeforeShow/Features/Settings/LanguageSettingsView.swift": 4_000,
     "BeforeShow/Features/Settings/AboutBeforeShowView.swift": 6_000,
-    "BeforeShow/Features/Shows/ShowDetailViews.swift": 48_000,
+    "BeforeShow/Features/Shows/ShowDetailView.swift": 35_000,
+    "BeforeShow/Features/Shows/ShowDetailSheets.swift": 9_000,
+    "BeforeShow/Features/Shows/ShowDetailPresentationSupport.swift": 7_000,
+    "BeforeShow/Features/Shows/ShowCoverFullscreenPreview.swift": 8_000,
     "BeforeShow/Infrastructure/Notifications/NotificationSchedulingModels.swift": 13_000,
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduler.swift": 19_000,
     "BeforeShow/Infrastructure/Notifications/NotificationDeepLink.swift": 6_000,
@@ -139,6 +142,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/UI/DesignSystem.swift",
     "BeforeShow/Features/Settings/SettingsViews.swift",
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
+    "BeforeShow/Features/Shows/ShowDetailViews.swift",
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
@@ -283,6 +287,15 @@ NOTIFICATION_CENTER_FORBIDDEN_TOKENS = (
 NOTIFICATION_SCHEDULER_FORBIDDEN_TOKENS = (
     "final class LocalNotificationCenter",
     "UNUserNotificationCenter",
+)
+
+SHOW_DETAIL_VIEW_FORBIDDEN_TOKENS = (
+    "enum ShowDetailInformationPolicy",
+    "enum ShowDetailExperienceAction",
+    "struct PostponeShowSheet",
+    "struct ConfirmedEndTimeEditorSheet",
+    "struct ShowDetailExperienceTile",
+    "struct ShowCoverFullscreenPreview",
 )
 
 COMPANION_MODELS_FORBIDDEN_TOKENS = (
@@ -500,6 +513,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduler.swift",
         NOTIFICATION_SCHEDULER_FORBIDDEN_TOKENS,
         "Keep LocalNotificationScheduler as pure scheduling policy without notification-center orchestration.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Shows/ShowDetailView.swift",
+        SHOW_DETAIL_VIEW_FORBIDDEN_TOKENS,
+        "Keep ShowDetail state ownership separate from sheets, preview, and presentation helpers.",
         errors,
     )
     check_forbidden_tokens(
