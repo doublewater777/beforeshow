@@ -65,7 +65,9 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Memory/MemoryTimelineViews.swift": 11_000,
     "BeforeShow/Features/Memory/MemoryReviewViewer.swift": 13_000,
     "BeforeShow/Features/Memory/MemoryCameraPicker.swift": 4_000,
-    "BeforeShow/BeforeShowApp.swift": 26_000,
+    "BeforeShow/App/BeforeShowApp.swift": 12_000,
+    "BeforeShow/App/AppLifecycleMaintenance.swift": 9_000,
+    "BeforeShow/App/AppPersistenceReconciliation.swift": 10_000,
     "BeforeShow/Show.swift": 24_000,
 }
 
@@ -76,6 +78,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/FootprintsArchive.swift",
     "BeforeShow/FootprintArchiveViews.swift",
     "BeforeShow/MemoryFragmentsView.swift",
+    "BeforeShow/BeforeShowApp.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
@@ -171,6 +174,19 @@ MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS = (
     "struct SystemMemoryCameraPicker",
     "enum MemoryFragmentEditCoordinator",
     "struct MemoryAddMediaSheet",
+)
+
+APP_ENTRY_FORBIDDEN_TOKENS = (
+    "enum ForegroundMediaMaintenancePolicy",
+    "func retryPendingShowAssetCleanupIfNeeded",
+    "func retryPendingFullCleanup",
+    "func reconcileAllMemoryMedia",
+    "func reconcileMemoryFragmentShowBoundary",
+    "func saveModelContextRollingBackOnFailure",
+    "func reconcileAllShowAssets",
+    "func reconcileAllDynamicCovers",
+    "func reconcileDynamicCoverModelBoundary",
+    "func reconcileShowAssetShowBoundary",
 )
 
 
@@ -306,6 +322,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Memory/MemoryFragmentsView.swift",
         MEMORY_FRAGMENTS_VIEW_FORBIDDEN_TOKENS,
         "Keep the Memory root limited to page state/routing; editor, timeline, viewer, camera, and edit coordination belong in their dedicated Memory files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/App/BeforeShowApp.swift",
+        APP_ENTRY_FORBIDDEN_TOKENS,
+        "Keep the App entry focused on SDK/bootstrap, scene wiring, and lifecycle orchestration; maintenance and persistence reconciliation belong in their dedicated App files.",
         errors,
     )
 
