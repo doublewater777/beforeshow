@@ -14,7 +14,33 @@ REPO_ROOT = IOS_ROOT.parents[1]
 # responsibilities should remain bounded after extraction.
 HOTSPOT_BUDGETS = {
     "BeforeShow/RootView.swift": 60_000,
-    "BeforeShow/HomeHeroPresentation.swift": 12_000,
+    "BeforeShow/UI/DesignSystem.swift": 55_000,
+    "BeforeShow/Features/Settings/SettingsViews.swift": 48_000,
+    "BeforeShow/Features/Shows/ShowDetailViews.swift": 48_000,
+    "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift": 45_000,
+    "BeforeShow/Features/Shows/ShowLibraryViews.swift": 44_000,
+    "BeforeShow/Features/Footprints/FootprintDetailView.swift": 40_000,
+    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 38_000,
+    "BeforeShow/Features/AddShow/ShowDraft.swift": 38_000,
+    "BeforeShow/Features/Subscription/ProPaywallView.swift": 38_000,
+    "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift": 35_000,
+    "BeforeShow/Features/CurrentShow/HomeCountdownCard.swift": 35_000,
+    "BeforeShow/Features/CurrentShow/ShowAssetViews.swift": 33_000,
+    "BeforeShow/Infrastructure/Media/MemoryFragmentMediaStore.swift": 33_000,
+    "BeforeShow/Features/CurrentShow/DynamicCoverViews.swift": 32_000,
+    "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift": 30_000,
+    "BeforeShow/Infrastructure/Media/DynamicCoverMediaStore.swift": 27_000,
+    "BeforeShow/Features/Subscription/ProSubscription.swift": 25_000,
+    "BeforeShow/Features/Settings/SettingsSupport.swift": 22_000,
+    "BeforeShow/Infrastructure/Widgets/WidgetDataSync.swift": 20_000,
+    "BeforeShow/Features/Footprints/FootprintDebugSeeder.swift": 18_000,
+    "BeforeShow/Features/Footprints/FootprintShareComposerView.swift": 18_000,
+    "BeforeShow/Infrastructure/Parsing/ShowLinkParsingService.swift": 18_000,
+    "BeforeShow/Infrastructure/Media/ShowAssetMediaStore.swift": 17_000,
+    "BeforeShow/Features/Onboarding/OnboardingFeatureVisuals.swift": 16_000,
+    "BeforeShow/Infrastructure/Places/VenueAddressAutocomplete.swift": 16_000,
+    "BeforeShow/Domain/Shows/ShowMutationCoordinator.swift": 15_000,
+    "BeforeShow/Features/CurrentShow/HomeHeroPresentation.swift": 12_000,
     "BeforeShow/Features/CurrentShow/CurrentShowHomeView.swift": 24_000,
     "BeforeShow/Features/CurrentShow/CurrentShowManagementView.swift": 26_000,
     "BeforeShow/Features/CurrentShow/CurrentShowCompanionView.swift": 28_000,
@@ -75,7 +101,7 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Companion/CompanionSharingModels.swift": 8_000,
     "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
     "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
-    "BeforeShow/Show.swift": 24_000,
+    "BeforeShow/Domain/Shows/Show.swift": 24_000,
 }
 
 # Once a hotspot has been retired, do not allow a later change to recreate it
@@ -89,6 +115,8 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/CompanionSharing.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
+
+ROOT_SWIFT_ALLOWLIST = ("RootView.swift",)
 
 ROOT_VIEW_FORBIDDEN_TOKENS = (
     "import PhotosUI",
@@ -276,6 +304,17 @@ def check_hotspot_budgets(errors: list[str]) -> None:
             )
 
 
+def check_root_swift_layout(errors: list[str]) -> None:
+    root = IOS_ROOT / "BeforeShow"
+    allowed = set(ROOT_SWIFT_ALLOWLIST)
+    for source in sorted(root.glob("*.swift")):
+        if source.name not in allowed:
+            errors.append(
+                f"root app source BeforeShow/{source.name} remains in the legacy flat directory. "
+                "Move it into App, Domain, Features, Infrastructure, UI, or Supporting according to ownership."
+            )
+
+
 def check_retired_legacy_files(errors: list[str]) -> None:
     for relative_path in RETIRED_LEGACY_FILES:
         if (IOS_ROOT / relative_path).exists():
@@ -310,7 +349,7 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         errors,
     )
     check_forbidden_tokens(
-        "BeforeShow/HomeHeroPresentation.swift",
+        "BeforeShow/Features/CurrentShow/HomeHeroPresentation.swift",
         HOME_HERO_FORBIDDEN_TOKENS,
         "Keep this file limited to reusable hero snapshot/stage presentation.",
         errors,
@@ -393,6 +432,7 @@ def main() -> int:
     base_ref = resolve_base_ref(args.base_ref)
     check_hotspot_budgets(errors)
     check_retired_legacy_files(errors)
+    check_root_swift_layout(errors)
     check_presentation_boundaries(errors)
     check_new_file_locations(base_ref, errors)
 
