@@ -68,6 +68,10 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/App/BeforeShowApp.swift": 12_000,
     "BeforeShow/App/AppLifecycleMaintenance.swift": 9_000,
     "BeforeShow/App/AppPersistenceReconciliation.swift": 10_000,
+    "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift": 32_000,
+    "BeforeShow/Features/Companion/CompanionSharingModels.swift": 8_000,
+    "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
+    "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
     "BeforeShow/Show.swift": 24_000,
 }
 
@@ -79,6 +83,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/FootprintArchiveViews.swift",
     "BeforeShow/MemoryFragmentsView.swift",
     "BeforeShow/BeforeShowApp.swift",
+    "BeforeShow/CompanionSharing.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
 )
 
@@ -187,6 +192,12 @@ APP_ENTRY_FORBIDDEN_TOKENS = (
     "func reconcileAllDynamicCovers",
     "func reconcileDynamicCoverModelBoundary",
     "func reconcileShowAssetShowBoundary",
+)
+
+COMPANION_MODELS_FORBIDDEN_TOKENS = (
+    "protocol CompanionSharingService",
+    "struct CloudKitCompanionSharingService",
+    "extension Show",
 )
 
 
@@ -328,6 +339,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/App/BeforeShowApp.swift",
         APP_ENTRY_FORBIDDEN_TOKENS,
         "Keep the App entry focused on SDK/bootstrap, scene wiring, and lifecycle orchestration; maintenance and persistence reconciliation belong in their dedicated App files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CompanionSharingModels.swift",
+        COMPANION_MODELS_FORBIDDEN_TOKENS,
+        "Keep Companion models/policies separate from the service protocol, CloudKit implementation, and Show persistence mapping.",
         errors,
     )
 
