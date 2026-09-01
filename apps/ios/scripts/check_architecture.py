@@ -68,7 +68,10 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/App/BeforeShowApp.swift": 12_000,
     "BeforeShow/App/AppLifecycleMaintenance.swift": 9_000,
     "BeforeShow/App/AppPersistenceReconciliation.swift": 10_000,
-    "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift": 32_000,
+    "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift": 4_000,
+    "BeforeShow/Features/Companion/CloudKitCompanionInvitation.swift": 8_000,
+    "BeforeShow/Features/Companion/CloudKitCompanionSessionOperations.swift": 18_000,
+    "BeforeShow/Features/Companion/CloudKitCompanionSupport.swift": 9_000,
     "BeforeShow/Features/Companion/CompanionSharingModels.swift": 8_000,
     "BeforeShow/Features/Companion/CompanionSharingService.swift": 3_000,
     "BeforeShow/Features/Companion/CompanionShowMapping.swift": 5_000,
@@ -198,6 +201,19 @@ COMPANION_MODELS_FORBIDDEN_TOKENS = (
     "protocol CompanionSharingService",
     "struct CloudKitCompanionSharingService",
     "extension Show",
+)
+
+CLOUDKIT_COMPANION_CORE_FORBIDDEN_TOKENS = (
+    "func prepareInvitation(",
+    "func loadShareSystemFields(",
+    "func acceptShare(",
+    "func cancelSession(",
+    "func fetchSession(",
+    "func listAcceptedSharedSessions(",
+    "func reconcileOwnerMembership(",
+    "func ensureAccountAvailable(",
+    "func modifyRecords(",
+    "static func mapError(",
 )
 
 
@@ -345,6 +361,12 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Companion/CompanionSharingModels.swift",
         COMPANION_MODELS_FORBIDDEN_TOKENS,
         "Keep Companion models/policies separate from the service protocol, CloudKit implementation, and Show persistence mapping.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Companion/CloudKitCompanionSharingService.swift",
+        CLOUDKIT_COMPANION_CORE_FORBIDDEN_TOKENS,
+        "Keep the CloudKit service core limited to construction/database access; invitation, session operations, and shared CloudKit support belong in their dedicated extension files.",
         errors,
     )
 
