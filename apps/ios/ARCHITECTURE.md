@@ -101,6 +101,8 @@ App -> Shared
 
 `ProPaywallView` 只拥有商品加载、购买/恢复、方案选择和 winback 开关等流程状态；页面 chrome、方案卡渲染、winback 视觉和默认 Store 构造保持独立 owner。
 
+`Settings` 的入口目录、语言切换、会员摘要、通知状态文案、版本信息、反馈构造和本地数据盘点分别保持独立 owner；跨 Feature 使用的媒体清理 retry journal 属于 `Infrastructure/Media`，不能寄存在 Settings support 聚合文件。
+
 ### Infrastructure
 
 负责文件系统、CloudKit、WeatherKit、通知、网络、系统权限、分析等副作用。尽量暴露窄接口，不让 View 直接拼接多个底层 store 的事务。

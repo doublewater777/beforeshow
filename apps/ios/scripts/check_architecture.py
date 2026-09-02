@@ -97,7 +97,14 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Subscription/RevenueCatProSubscriptionStore.swift": 13_000,
     "BeforeShow/Features/Subscription/ProLimitPresentation.swift": 4_000,
     "BeforeShow/Features/Subscription/ProFeatureGate.swift": 6_000,
-    "BeforeShow/Features/Settings/SettingsSupport.swift": 22_000,
+    "BeforeShow/Features/Settings/SettingsCatalog.swift": 3_000,
+    "BeforeShow/Features/Settings/SettingsLanguageSupport.swift": 8_000,
+    "BeforeShow/Features/Settings/SettingsMembershipPresentation.swift": 3_000,
+    "BeforeShow/Features/Settings/SettingsNotificationPresentation.swift": 3_000,
+    "BeforeShow/Features/Settings/AppVersionInformation.swift": 3_000,
+    "BeforeShow/Features/Settings/SettingsFeedbackSupport.swift": 8_000,
+    "BeforeShow/Features/Settings/LocalDataInventory.swift": 6_000,
+    "BeforeShow/Infrastructure/Media/ShowAssetCleanupRetry.swift": 8_000,
     "BeforeShow/Infrastructure/Widgets/WidgetDataSync.swift": 20_000,
     "BeforeShow/Features/Footprints/FootprintDebugSeeder.swift": 18_000,
     "BeforeShow/Features/Footprints/FootprintShareComposerView.swift": 18_000,
@@ -188,6 +195,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/CompanionSharing.swift",
     "BeforeShow/UI/DesignSystem.swift",
     "BeforeShow/Features/Settings/SettingsViews.swift",
+    "BeforeShow/Features/Settings/SettingsSupport.swift",
     "BeforeShow/Infrastructure/Notifications/LocalNotificationScheduling.swift",
     "BeforeShow/Features/CurrentShow/DispersalCeremonyViews.swift",
     "BeforeShow/Features/CurrentShow/ShowAssetViews.swift",
@@ -388,6 +396,48 @@ SETTINGS_ROOT_FORBIDDEN_TOKENS = (
     "struct LanguageSettingsView",
     "struct AboutBeforeShowView",
     "enum DebugProEntitlementOption",
+)
+
+SETTINGS_CATALOG_FORBIDDEN_TOKENS = (
+    "AppLanguageManager",
+    "FeedbackPayloadBuilder",
+    "LocalDataInventoryService",
+    "ShowAssetCleanupRetry",
+)
+
+SETTINGS_LANGUAGE_FORBIDDEN_TOKENS = (
+    "ModelContext",
+    "FeedbackPayloadBuilder",
+    "LocalDataInventoryService",
+    "ShowAssetCleanupRetry",
+)
+
+SETTINGS_PRESENTATION_FORBIDDEN_TOKENS = (
+    "UserDefaults",
+    "WidgetCenter",
+    "ModelContext",
+    "UIApplication",
+)
+
+SETTINGS_FEEDBACK_FORBIDDEN_TOKENS = (
+    "ModelContext",
+    "WidgetCenter",
+    "ShowAssetCleanupRetry",
+    "ProEntitlementState",
+)
+
+SETTINGS_LOCAL_DATA_FORBIDDEN_TOKENS = (
+    "UserDefaults",
+    "WidgetCenter",
+    "UIApplication",
+    "FeedbackPayloadBuilder",
+)
+
+SHOW_ASSET_CLEANUP_RETRY_FORBIDDEN_TOKENS = (
+    "BSLocalization",
+    "UIApplication",
+    "WidgetCenter",
+    "ModelContext",
 )
 
 PRO_PAYWALL_FORBIDDEN_TOKENS = (
@@ -852,6 +902,47 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Settings/SettingsView.swift",
         SETTINGS_ROOT_FORBIDDEN_TOKENS,
         "Keep settings destination pages and debug controls in focused Settings files.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Settings/SettingsCatalog.swift",
+        SETTINGS_CATALOG_FORBIDDEN_TOKENS,
+        "Keep the Settings entry catalog free of language, feedback, local-data, and media-cleanup responsibilities.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Settings/SettingsLanguageSupport.swift",
+        SETTINGS_LANGUAGE_FORBIDDEN_TOKENS,
+        "Keep app-language persistence/runtime switching separate from Settings data and media responsibilities.",
+        errors,
+    )
+    for settings_presentation_path in (
+        "BeforeShow/Features/Settings/SettingsMembershipPresentation.swift",
+        "BeforeShow/Features/Settings/SettingsNotificationPresentation.swift",
+        "BeforeShow/Features/Settings/AppVersionInformation.swift",
+    ):
+        check_forbidden_tokens(
+            settings_presentation_path,
+            SETTINGS_PRESENTATION_FORBIDDEN_TOKENS,
+            "Keep Settings presentation/value owners free of persistence, SwiftData, and UIKit action orchestration.",
+            errors,
+        )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Settings/SettingsFeedbackSupport.swift",
+        SETTINGS_FEEDBACK_FORBIDDEN_TOKENS,
+        "Keep feedback payload/delivery support separate from SwiftData, media cleanup, and subscription state.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Settings/LocalDataInventory.swift",
+        SETTINGS_LOCAL_DATA_FORBIDDEN_TOKENS,
+        "Keep local-data inventory focused on Settings data inspection without UI actions or unrelated persistence policy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Infrastructure/Media/ShowAssetCleanupRetry.swift",
+        SHOW_ASSET_CLEANUP_RETRY_FORBIDDEN_TOKENS,
+        "Keep the cross-feature media cleanup retry journal framework-neutral and free of Settings presentation concerns.",
         errors,
     )
     check_forbidden_tokens(
