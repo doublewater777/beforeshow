@@ -85,7 +85,14 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaMaintenance.swift": 11_000,
     "BeforeShow/Infrastructure/Media/DynamicCoverMediaFileSupport.swift": 5_000,
     "BeforeShow/Features/CurrentShow/DynamicCoverPresentationSupport.swift": 4_000,
-    "BeforeShow/Features/Subscription/ProSubscription.swift": 25_000,
+    "BeforeShow/Features/Subscription/ProOfferDeepLinkRouter.swift": 3_000,
+    "BeforeShow/Features/Subscription/ProSubscriptionCatalog.swift": 9_000,
+    "BeforeShow/Features/Subscription/ProEntitlement.swift": 6_000,
+    "BeforeShow/Features/Subscription/ProSubscriptionStore.swift": 3_000,
+    "BeforeShow/Features/Subscription/MockProSubscriptionStore.swift": 6_000,
+    "BeforeShow/Features/Subscription/RevenueCatProSubscriptionStore.swift": 13_000,
+    "BeforeShow/Features/Subscription/ProLimitPresentation.swift": 4_000,
+    "BeforeShow/Features/Subscription/ProFeatureGate.swift": 6_000,
     "BeforeShow/Features/Settings/SettingsSupport.swift": 22_000,
     "BeforeShow/Infrastructure/Widgets/WidgetDataSync.swift": 20_000,
     "BeforeShow/Features/Footprints/FootprintDebugSeeder.swift": 18_000,
@@ -187,6 +194,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Features/AddShow/ShowDraft.swift",
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift",
+    "BeforeShow/Features/Subscription/ProSubscription.swift",
 )
 
 ROOT_SWIFT_ALLOWLIST = ("RootView.swift",)
@@ -381,6 +389,64 @@ SETTINGS_ROOT_FORBIDDEN_TOKENS = (
 PRO_PAYWALL_FORBIDDEN_TOKENS = (
     "struct ProPaywallSheetView",
     "enum ProPaywallCopy",
+)
+
+PRO_OFFER_ROUTER_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "BSLocalization",
+    "ProFeatureGate",
+)
+
+PRO_CATALOG_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "ObservableObject",
+    "ProFeatureGate",
+)
+
+PRO_ENTITLEMENT_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "BSLocalization",
+    "struct ProSubscriptionProduct",
+    "ProFeatureGate",
+)
+
+PRO_STORE_CONTRACT_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "actor MockProSubscriptionStore",
+    "struct RevenueCatProSubscriptionStore",
+    "BSLocalization",
+)
+
+PRO_MOCK_STORE_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "BSLocalization",
+    "struct ProFeatureGate",
+)
+
+PRO_REVENUECAT_STORE_FORBIDDEN_TOKENS = (
+    "UserDefaults",
+    "ObservableObject",
+    "struct ProFeatureGate",
+    "enum ProLimitReason",
+)
+
+PRO_LIMIT_PRESENTATION_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "struct ProFeatureGate",
+    "ProSubscriptionStore",
+)
+
+PRO_FEATURE_GATE_FORBIDDEN_TOKENS = (
+    "import RevenueCat",
+    "UserDefaults",
+    "BSLocalization",
+    "ProSubscriptionStore",
+    "ProSubscriptionProduct",
 )
 
 NOTIFICATION_CENTER_FORBIDDEN_TOKENS = (
@@ -767,6 +833,54 @@ def check_presentation_boundaries(errors: list[str]) -> None:
         "BeforeShow/Features/Subscription/ProPaywallView.swift",
         PRO_PAYWALL_FORBIDDEN_TOKENS,
         "Keep paywall sheet/copy support outside the primary paywall state owner.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProOfferDeepLinkRouter.swift",
+        PRO_OFFER_ROUTER_FORBIDDEN_TOKENS,
+        "Keep the Pro offer router limited to presentation routing state.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProSubscriptionCatalog.swift",
+        PRO_CATALOG_FORBIDDEN_TOKENS,
+        "Keep subscription plans/products/catalog mapping separate from RevenueCat, persistence, routing, and quota policy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProEntitlement.swift",
+        PRO_ENTITLEMENT_FORBIDDEN_TOKENS,
+        "Keep entitlement value/storage encoding separate from store adapters, catalog presentation, and quota policy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProSubscriptionStore.swift",
+        PRO_STORE_CONTRACT_FORBIDDEN_TOKENS,
+        "Keep the subscription store contract/errors independent of concrete store implementations and presentation copy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/MockProSubscriptionStore.swift",
+        PRO_MOCK_STORE_FORBIDDEN_TOKENS,
+        "Keep the mock store focused on deterministic store behavior without RevenueCat or presentation concerns.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/RevenueCatProSubscriptionStore.swift",
+        PRO_REVENUECAT_STORE_FORBIDDEN_TOKENS,
+        "Keep RevenueCat product/purchase/restore mapping separate from persistence, routing, and quota presentation.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProLimitPresentation.swift",
+        PRO_LIMIT_PRESENTATION_FORBIDDEN_TOKENS,
+        "Keep free-limit user copy as stateless presentation policy.",
+        errors,
+    )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProFeatureGate.swift",
+        PRO_FEATURE_GATE_FORBIDDEN_TOKENS,
+        "Keep free monthly quota calculations as pure policy without store, persistence, or presentation responsibilities.",
         errors,
     )
     check_forbidden_tokens(

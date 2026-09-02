@@ -97,6 +97,8 @@ App -> Shared
 
 `CompanionSharingCoordinator` 只拥有邀请、接受、取消和刷新流程时序；接受邀请的 durable inbox、云同步 opt-in 标记、本地 Show 导入匹配和用户错误文案保持独立 owner。
 
+`Subscription` 的 offer 路由、产品目录、entitlement 编解码、store contract、Mock、RevenueCat 适配、免费额度 policy 和限额文案分别保持独立 owner；不要重新聚合成 `ProSubscription.swift`。
+
 ### Infrastructure
 
 负责文件系统、CloudKit、WeatherKit、通知、网络、系统权限、分析等副作用。尽量暴露窄接口，不让 View 直接拼接多个底层 store 的事务。
