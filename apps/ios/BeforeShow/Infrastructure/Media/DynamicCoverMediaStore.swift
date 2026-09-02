@@ -62,6 +62,28 @@ actor DynamicCoverMediaStore {
         try ensureStorageAvailable()
     }
 
+    /// FileManager can expose the same sandbox through aliased paths (for
+    /// example `/var` vs `/private/var`). Normalize both URLs before deriving
+    /// a persisted relative path so reconciliation does not discard a valid
+    /// dynamic cover after relaunch.
+    nonisolated static func relativePath(for fileURL: URL, under rootDirectory: URL) throws -> String {
+        let root = rootDirectory.resolvingSymlinksInPath().standardizedFileURL
+        let file = fileURL.resolvingSymlinksInPath().standardizedFileURL
+        let rootComponents = root.pathComponents
+        let fileComponents = file.pathComponents
+
+        guard fileComponents.count > rootComponents.count,
+              Array(fileComponents.prefix(rootComponents.count)) == rootComponents else {
+            throw DynamicCoverMediaStoreError.invalidRelativePath
+        }
+
+        let relativePath = fileComponents.dropFirst(rootComponents.count).joined(separator: "/")
+        guard isSafeRelativePath(relativePath) else {
+            throw DynamicCoverMediaStoreError.invalidRelativePath
+        }
+        return relativePath
+    }
+
     nonisolated private static func isSafeRelativePath(_ relativePath: String) -> Bool {
         guard !relativePath.isEmpty, !relativePath.hasPrefix("/") else { return false }
         let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)

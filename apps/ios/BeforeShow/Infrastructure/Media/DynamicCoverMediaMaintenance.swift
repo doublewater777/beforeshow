@@ -68,7 +68,9 @@ extension DynamicCoverMediaStore {
     /// Keeps only paths referenced by valid `DynamicCover` records.
     func verifiedExistingRelativePaths() throws -> Set<String> {
         try ensureStorageAvailable()
-        guard fileManager.fileExists(atPath: location.rootDirectory.path) else { return [] }
+        guard fileManager.fileExists(atPath: location.rootDirectory.path) else {
+            throw DynamicCoverMediaStoreError.storageUnavailable
+        }
         guard let enumerator = fileManager.enumerator(
             at: location.rootDirectory,
             includingPropertiesForKeys: [.isRegularFileKey],
@@ -80,7 +82,7 @@ extension DynamicCoverMediaStore {
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
             guard values.isRegularFile == true else { continue }
-            let relativePath = fileURL.path.replacingOccurrences(of: location.rootDirectory.path + "/", with: "")
+            let relativePath = try Self.relativePath(for: fileURL, under: location.rootDirectory)
             guard !relativePath.hasPrefix("Staging/") else { continue }
             paths.insert(relativePath)
         }
@@ -100,7 +102,7 @@ extension DynamicCoverMediaStore {
         for case let fileURL as URL in enumerator {
             let values = try fileURL.resourceValues(forKeys: [.isRegularFileKey])
             guard values.isRegularFile == true else { continue }
-            let relativePath = fileURL.path.replacingOccurrences(of: location.rootDirectory.path + "/", with: "")
+            let relativePath = try Self.relativePath(for: fileURL, under: location.rootDirectory)
             guard !relativePath.hasPrefix("Staging/"), !validRelativePaths.contains(relativePath) else { continue }
             try removeIfPresent(fileURL)
         }

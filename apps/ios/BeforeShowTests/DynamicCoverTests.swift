@@ -204,6 +204,144 @@ final class DynamicCoverTests: XCTestCase {
     }
 
     @MainActor
+    func testDynamicCoverScanKeepsMissingRootOutOfModelReconciliation() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DynamicCoverMissingRoot-\(UUID().uuidString)", isDirectory: true)
+        let container = try ModelContainer(
+            for: Show.self, DynamicCover.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let show = try Show(name: "动态封面", date: Date(), startTime: Date())
+        let cover = DynamicCover(
+            showID: show.id,
+            relativePath: "\(show.id.uuidString)/clip.mov",
+            contentTypeIdentifier: "public.movie",
+            videoDuration: 1
+        )
+        cover.show = show
+        show.dynamicCover = cover
+        context.insert(show)
+        context.insert(cover)
+        try context.save()
+
+        let store = DynamicCoverMediaStore(
+            location: DynamicCoverMediaLocation(rootDirectory: root)
+        )
+
+        do {
+            let existingPaths = try await store.verifiedExistingRelativePaths()
+            _ = try reconcileDynamicCoverModelBoundary(
+                in: context,
+                existingRelativePaths: existingPaths
+            )
+            XCTFail("A missing media root must not be treated as an authoritative empty set")
+        } catch {
+            XCTAssertEqual(error as? DynamicCoverMediaStoreError, .storageUnavailable)
+        }
+
+        let fetchedCovers = try context.fetch(FetchDescriptor<DynamicCover>())
+        XCTAssertEqual(fetchedCovers.count, 1)
+        XCTAssertEqual(show.dynamicCover?.id, cover.id)
+    }
+
+    func testDynamicCoverRelativePathResolvesAliasedRoot() throws {
+        let parent = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DynamicCoverAlias-\(UUID().uuidString)", isDirectory: true)
+        let realRoot = parent.appendingPathComponent("real/DynamicCovers", isDirectory: true)
+        let aliasedRoot = parent.appendingPathComponent("DynamicCoversAlias", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: parent) }
+
+        try FileManager.default.createDirectory(at: realRoot, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: aliasedRoot, withDestinationURL: realRoot)
+
+        let showID = UUID()
+        let relativePath = "\(showID.uuidString)/clip.mov"
+        let realFile = realRoot.appendingPathComponent(relativePath)
+        try FileManager.default.createDirectory(
+            at: realFile.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try Data([0x01]).write(to: realFile)
+
+        XCTAssertEqual(
+            try DynamicCoverMediaStore.relativePath(for: realFile, under: aliasedRoot),
+            relativePath
+        )
+    }
+
+    @MainActor
+    func testDynamicCoverPersistsAcrossDiskStoreRestart() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("DynamicCoverRestart-\(UUID().uuidString)", isDirectory: true)
+        let databaseURL = root.appendingPathComponent("dynamic-cover.store")
+        let mediaRoot = root.appendingPathComponent("DynamicCovers", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        let showID: UUID
+        let expectedVideoPath: String
+        let expectedPosterPath: String
+
+        do {
+            let container = try ModelContainer(
+                for: Show.self, DynamicCover.self,
+                configurations: ModelConfiguration(url: databaseURL, cloudKitDatabase: .none)
+            )
+            let context = container.mainContext
+            let show = try Show(name: "重启动态封面", date: Date(), startTime: Date())
+            showID = show.id
+            context.insert(show)
+
+            let store = DynamicCoverMediaStore(
+                location: DynamicCoverMediaLocation(rootDirectory: mediaRoot)
+            )
+            let committed = try await Self.commitTestVideo(store: store, root: mediaRoot, showID: show.id)
+            expectedVideoPath = committed.relativePath
+            expectedPosterPath = try XCTUnwrap(committed.posterRelativePath)
+
+            let cover = DynamicCover(
+                id: committed.id,
+                showID: show.id,
+                relativePath: committed.relativePath,
+                posterRelativePath: committed.posterRelativePath,
+                contentTypeIdentifier: committed.contentTypeIdentifier,
+                videoDuration: committed.videoDuration
+            )
+            cover.show = show
+            show.dynamicCover = cover
+            context.insert(cover)
+            try context.save()
+        }
+
+        do {
+            let container = try ModelContainer(
+                for: Show.self, DynamicCover.self,
+                configurations: ModelConfiguration(url: databaseURL, cloudKitDatabase: .none)
+            )
+            let context = container.mainContext
+            let store = DynamicCoverMediaStore(
+                location: DynamicCoverMediaLocation(rootDirectory: mediaRoot)
+            )
+            let existingPaths = try await store.verifiedExistingRelativePaths()
+            XCTAssertEqual(existingPaths, Set([expectedVideoPath, expectedPosterPath]))
+
+            let validPaths = try reconcileDynamicCoverModelBoundary(
+                in: context,
+                existingRelativePaths: existingPaths
+            )
+            XCTAssertEqual(validPaths, Set([expectedVideoPath, expectedPosterPath]))
+
+            let shows = try context.fetch(FetchDescriptor<Show>())
+            let covers = try context.fetch(FetchDescriptor<DynamicCover>())
+            XCTAssertEqual(shows.map(\.id), [showID])
+            XCTAssertEqual(covers.count, 1)
+            XCTAssertEqual(covers.first?.relativePath, expectedVideoPath)
+            XCTAssertEqual(shows.first?.dynamicCover?.relativePath, expectedVideoPath)
+        }
+    }
+
+    @MainActor
     func testFullCleanupRetryKeepsMarkerUntilBothMediaStoresSucceed() async {
         ShowAssetCleanupRetry.clearFullCleanupPending()
         ShowAssetCleanupRetry.markFullCleanupPending()
@@ -293,7 +431,7 @@ final class DynamicCoverTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: root) }
         let showID = UUID()
 
-        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let committed = try await Self.commitTestVideo(store: store, root: root, showID: showID)
 
         XCTAssertEqual(committed.relativePath, "\(showID.uuidString)/clip.mov")
         let posterPath = try XCTUnwrap(committed.posterRelativePath)
@@ -306,7 +444,7 @@ final class DynamicCoverTests: XCTestCase {
         let (root, store) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let showID = UUID()
-        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let committed = try await Self.commitTestVideo(store: store, root: root, showID: showID)
         let posterPath = try XCTUnwrap(committed.posterRelativePath)
 
         try await store.delete(relativePath: committed.relativePath, showID: showID)
@@ -319,7 +457,7 @@ final class DynamicCoverTests: XCTestCase {
         let (root, store) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let showID = UUID()
-        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let committed = try await Self.commitTestVideo(store: store, root: root, showID: showID)
         let posterPath = try XCTUnwrap(committed.posterRelativePath)
 
         try await store.rollbackCommittedFile(relativePath: committed.relativePath)
@@ -332,7 +470,7 @@ final class DynamicCoverTests: XCTestCase {
         let (root, store) = makeTempStore()
         defer { try? FileManager.default.removeItem(at: root) }
         let showID = UUID()
-        let committed = try await commitTestVideo(store: store, root: root, showID: showID)
+        let committed = try await Self.commitTestVideo(store: store, root: root, showID: showID)
         let posterPath = try XCTUnwrap(committed.posterRelativePath)
 
         try await store.reconcile(validRelativePaths: [committed.relativePath, posterPath])
@@ -415,7 +553,7 @@ final class DynamicCoverTests: XCTestCase {
         return (root, DynamicCoverMediaStore(location: DynamicCoverMediaLocation(rootDirectory: root)))
     }
 
-    private func commitTestVideo(
+    nonisolated private static func commitTestVideo(
         store: DynamicCoverMediaStore,
         root: URL,
         showID: UUID
@@ -433,7 +571,7 @@ final class DynamicCoverTests: XCTestCase {
         return try await store.commit(draftID: draftID, showID: showID, video: staged)
     }
 
-    private func makeTestVideo(at url: URL) async throws {
+    nonisolated private static func makeTestVideo(at url: URL) async throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.h264,
