@@ -99,6 +99,8 @@ App -> Shared
 
 `Subscription` 的 offer 路由、产品目录、entitlement 编解码、store contract、Mock、RevenueCat 适配、免费额度 policy 和限额文案分别保持独立 owner；不要重新聚合成 `ProSubscription.swift`。
 
+`ProPaywallView` 只拥有商品加载、购买/恢复、方案选择和 winback 开关等流程状态；页面 chrome、方案卡渲染、winback 视觉和默认 Store 构造保持独立 owner。
+
 ### Infrastructure
 
 负责文件系统、CloudKit、WeatherKit、通知、网络、系统权限、分析等副作用。尽量暴露窄接口，不让 View 直接拼接多个底层 store 的事务。

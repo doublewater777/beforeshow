@@ -48,8 +48,12 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Companion/CompanionCloudSyncMarker.swift": 5_000,
     "BeforeShow/Features/Companion/CompanionAcceptedSessionImporter.swift": 8_000,
     "BeforeShow/Features/Companion/CompanionSharingPresentation.swift": 6_000,
-    "BeforeShow/Features/Subscription/ProPaywallView.swift": 32_000,
+    "BeforeShow/Features/Subscription/ProPaywallView.swift": 21_000,
     "BeforeShow/Features/Subscription/ProPaywallSupport.swift": 6_000,
+    "BeforeShow/Features/Subscription/ProPaywallPresentation.swift": 12_000,
+    "BeforeShow/Features/Subscription/ProPaywallPlanSelectionView.swift": 7_000,
+    "BeforeShow/Features/Subscription/ProPaywallWinbackView.swift": 9_000,
+    "BeforeShow/Features/Subscription/ProPaywallStoreFactory.swift": 3_000,
     "BeforeShow/Features/CurrentShow/DispersalLightsOutView.swift": 8_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonySheet.swift": 18_000,
     "BeforeShow/Features/CurrentShow/DispersalCeremonyShareView.swift": 10_000,
@@ -389,6 +393,27 @@ SETTINGS_ROOT_FORBIDDEN_TOKENS = (
 PRO_PAYWALL_FORBIDDEN_TOKENS = (
     "struct ProPaywallSheetView",
     "enum ProPaywallCopy",
+    "struct ProPaywallHero",
+    "struct ProPaywallPlanSelectionView",
+    "struct ProPaywallWinbackView",
+    "struct PaywallBeamShape",
+    "Bundle.main.object(forInfoDictionaryKey: \"RevenueCatAPIKey\")",
+)
+
+PRO_PAYWALL_VISUAL_FORBIDDEN_TOKENS = (
+    "@AppStorage",
+    "ProEntitlementStorage",
+    "PostHogSDK",
+    "ProSubscriptionStore",
+    "loadProducts(",
+    "restorePurchases(",
+)
+
+PRO_PAYWALL_STORE_FACTORY_FORBIDDEN_TOKENS = (
+    "import SwiftUI",
+    "BSLocalization",
+    "PostHogSDK",
+    "ProPaywallCopy",
 )
 
 PRO_OFFER_ROUTER_FORBIDDEN_TOKENS = (
@@ -832,7 +857,24 @@ def check_presentation_boundaries(errors: list[str]) -> None:
     check_forbidden_tokens(
         "BeforeShow/Features/Subscription/ProPaywallView.swift",
         PRO_PAYWALL_FORBIDDEN_TOKENS,
-        "Keep paywall sheet/copy support outside the primary paywall state owner.",
+        "Keep the primary paywall owner limited to product loading, purchase/restore, plan selection, and winback flow state; visual sections and store construction belong elsewhere.",
+        errors,
+    )
+    for paywall_visual_path in (
+        "BeforeShow/Features/Subscription/ProPaywallPresentation.swift",
+        "BeforeShow/Features/Subscription/ProPaywallPlanSelectionView.swift",
+        "BeforeShow/Features/Subscription/ProPaywallWinbackView.swift",
+    ):
+        check_forbidden_tokens(
+            paywall_visual_path,
+            PRO_PAYWALL_VISUAL_FORBIDDEN_TOKENS,
+            "Keep paywall visual components stateless with respect to entitlement/store orchestration and analytics side effects.",
+            errors,
+        )
+    check_forbidden_tokens(
+        "BeforeShow/Features/Subscription/ProPaywallStoreFactory.swift",
+        PRO_PAYWALL_STORE_FACTORY_FORBIDDEN_TOKENS,
+        "Keep default paywall store construction free of SwiftUI, user copy, and analytics responsibilities.",
         errors,
     )
     check_forbidden_tokens(
