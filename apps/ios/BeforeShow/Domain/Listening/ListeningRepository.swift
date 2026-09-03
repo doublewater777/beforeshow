@@ -130,6 +130,7 @@ struct ListeningRepository {
 
     @discardableResult
     func confirmManualFamiliarity(songID: String, at date: Date = Date()) throws -> SongFamiliarityRecord {
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
         let records = try modelContext.fetch(FetchDescriptor<SongFamiliarityRecord>())
         if let existing = records.first(where: { $0.songID == songID }) {
             existing.confirmManual(at: date)
@@ -142,6 +143,7 @@ struct ListeningRepository {
 
     @discardableResult
     func confirmActualFamiliarity(songID: String, at date: Date = Date()) throws -> SongFamiliarityRecord {
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
         let records = try modelContext.fetch(FetchDescriptor<SongFamiliarityRecord>())
         if let existing = records.first(where: { $0.songID == songID }) {
             existing.confirmActualListening(at: date)
@@ -153,6 +155,7 @@ struct ListeningRepository {
     }
 
     func undoManualFamiliarity(songID: String, at date: Date = Date()) throws {
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
         let records = try modelContext.fetch(FetchDescriptor<SongFamiliarityRecord>())
         guard let existing = records.first(where: { $0.songID == songID }) else { return }
         existing.clearManual(at: date)
@@ -161,7 +164,40 @@ struct ListeningRepository {
         }
     }
 
+    @discardableResult
+    func addSetlistMemory(
+        showID: UUID,
+        catalogSongID: String? = nil,
+        manualTitle: String? = nil,
+        manualArtistName: String? = nil,
+        mostSurprising: Bool = false,
+        at date: Date = Date()
+    ) throws -> ShowSetlistMemory {
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
+        let memory = ShowSetlistMemory(
+            showID: showID,
+            catalogSongID: catalogSongID,
+            manualTitle: manualTitle,
+            manualArtistName: manualArtistName,
+            mostSurprising: mostSurprising,
+            createdAt: date,
+            updatedAt: date
+        )
+        modelContext.insert(memory)
+        return memory
+    }
+
+    func deleteSetlistMemory(_ memory: ShowSetlistMemory, at date: Date = Date()) throws {
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
+        modelContext.delete(memory)
+    }
+
     func setWantsLive(showID: UUID, songID: String, isWanted: Bool, at date: Date = Date()) throws {
+        if let show = try modelContext.fetch(FetchDescriptor<Show>()).first(where: { $0.id == showID }),
+           !WantsLivePolicy.isMutable(show: show, now: date) {
+            throw ListeningMutationError.wantsLiveFrozen(showID)
+        }
+
         let key = ShowWantsLiveSong.makeUniqueKey(showID: showID, songID: songID)
         let rows = try modelContext.fetch(FetchDescriptor<ShowWantsLiveSong>())
         let existing = rows.first(where: { $0.uniqueKey == key })
