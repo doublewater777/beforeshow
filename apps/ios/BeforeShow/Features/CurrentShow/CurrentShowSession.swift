@@ -1,31 +1,22 @@
 import Foundation
 
-/// Read model for one 现场 under 当前现场 policy: selection result and phase.
+/// Read model for one 现场 under 当前现场 policy: durable selection result and phase.
 struct CurrentShowSnapshot {
     let show: Show
     let phase: CurrentShowTimeState
 }
 
-/// Deep module for 当前现场 assembly.
+/// Product-level read seam for the user-owned Current Show.
 ///
-/// Callers get show + phase (and selection) through one interface instead of
-/// re-wiring `CurrentShowSelector` + `CurrentShowTimeState` at each site.
-///
-/// Deletion test: without this session, home / detail / list re-scatter selection,
-/// phase clocks, and tool summary with inconsistent calendar/retention. The kernels
-/// remain deep; this is the product-level seam that joins them.
+/// The selected show remains current until an explicit user choice changes it or
+/// the selected record no longer exists. Time progression affects only `phase`.
 struct CurrentShowSession {
     let postShowRetentionDays: Int
     let calendar: Calendar
-    private let selector: CurrentShowSelector
 
     init(postShowRetentionDays: Int = 3, calendar: Calendar = .current) {
         self.postShowRetentionDays = postShowRetentionDays
         self.calendar = calendar
-        self.selector = CurrentShowSelector(
-            postShowRetentionDays: postShowRetentionDays,
-            calendar: calendar
-        )
     }
 
     // MARK: - Selection
@@ -33,9 +24,10 @@ struct CurrentShowSession {
     func selectCurrentShow(
         from shows: [Show],
         manualSelection: CurrentShowSelection? = nil,
-        now: Date = Date()
+        now _: Date = Date()
     ) -> Show? {
-        selector.selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)
+        guard let selectedShowID = manualSelection?.selectedShowID else { return nil }
+        return shows.first(where: { $0.id == selectedShowID })
     }
 
     func isCurrent(
@@ -47,8 +39,10 @@ struct CurrentShowSession {
         selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)?.id == show.id
     }
 
-    func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
-        selector.isManuallySelectable(show, now: now)
+    /// Any persisted show can be chosen by the user, regardless of lifecycle state.
+    func isManuallySelectable(_ show: Show, now _: Date = Date()) -> Bool {
+        _ = show
+        return true
     }
 
     // MARK: - Phase
@@ -62,7 +56,6 @@ struct CurrentShowSession {
         )
     }
 
-    /// Phase for a known 现场 (detail, content home).
     func snapshot(
         for show: Show,
         now: Date = Date()
@@ -73,7 +66,6 @@ struct CurrentShowSession {
         )
     }
 
-    /// Select 当前现场 then build its snapshot (home entry).
     func resolve(
         shows: [Show],
         manualSelection: CurrentShowSelection? = nil,
@@ -86,9 +78,6 @@ struct CurrentShowSession {
         ) else {
             return nil
         }
-        return snapshot(
-            for: show,
-            now: now
-        )
+        return snapshot(for: show, now: now)
     }
 }
