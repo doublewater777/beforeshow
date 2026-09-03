@@ -73,12 +73,15 @@ enum ShowDuplicateMatcher {
 
 @MainActor
 struct CurrentShowPostCommitEffects {
-    let applyNotificationFocus: @MainActor (Show?, ModelContext) async -> Bool
+    let reconcileNotifications: @MainActor (ModelContext) async -> Bool
     let syncWidget: @MainActor ([Show], CurrentShowSelection?) -> Bool
 
     static let live = CurrentShowPostCommitEffects(
-        applyNotificationFocus: { show, modelContext in
-            await LocalNotificationCenter.shared.applyFocusChange(to: show, in: modelContext)
+        reconcileNotifications: { modelContext in
+            await LocalNotificationCenter.shared.reconcilePortfolio(
+                reason: .mutation,
+                in: modelContext
+            )
         },
         syncWidget: { shows, selection in
             WidgetDataSync.sync(shows: shows, manualSelection: selection)
@@ -90,16 +93,12 @@ struct CurrentShowPostCommitEffects {
 struct CurrentShowCommittedState {
     let currentShow: Show?
     let shows: [Show]
-    let manualSelection: CurrentShowSelection?
+    let selection: CurrentShowSelection?
 }
 
-/// Save / 现场状态 / notification-sync for a single `Show`.
-/// Detail screen and draft editor both call through here so apply + status +
-/// reschedule stay consistent and unit-testable without a SwiftUI view.
+/// Save / show state / cross-surface sync for a single `Show`.
+/// Current Show ownership is durable and independent from notification scheduling.
 enum ShowMutationCoordinator {
-    /// Apply draft fields to an existing show, persist, then reschedule notifications
-    /// for the current focus. Throws on draft apply / save failure (after rollback).
-    /// Returns whether notification reschedule succeeded.
     @MainActor
     static func applyDraft(
         _ draft: ShowDraft,
@@ -123,8 +122,6 @@ enum ShowMutationCoordinator {
         }
     }
 
-    /// Commit one model change together with the derived current-show selection and
-    /// notification focus. External notification/widget work starts only after save.
     @MainActor
     static func commitCurrentShowChange(
         shows: [Show],
@@ -158,38 +155,29 @@ enum ShowMutationCoordinator {
     @MainActor
     static func commitCurrentShowState(
         shows: [Show],
-        selections: [CurrentShowSelection],
-        notificationStates: [NotificationSchedulingState],
+        selections _: [CurrentShowSelection],
+        notificationStates _: [NotificationSchedulingState],
         in modelContext: ModelContext,
-        session: CurrentShowSession = CurrentShowSession()
+        session: CurrentShowSession = CurrentShowSession(),
+        now: Date = Date()
     ) throws -> CurrentShowCommittedState {
-        let effectiveSelections = selections.isEmpty
-            ? try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
-            : selections
-        reconcileManualSelection(
+        let store = CurrentShowSelectionStore(modelContext: modelContext)
+        let selection = try store.bootstrapIfNeeded(
             shows: shows,
-            selections: effectiveSelections,
-            session: session
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: session.calendar)
         )
-
         let currentShow = session.selectCurrentShow(
             from: shows,
-            manualSelection: effectiveSelections.first
-        )
-        let effectiveNotificationStates = notificationStates.isEmpty
-            ? try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
-            : notificationStates
-        updateNotificationFocus(
-            showID: currentShow?.id,
-            notificationStates: effectiveNotificationStates,
-            in: modelContext
+            manualSelection: selection,
+            now: now
         )
         try modelContext.save()
 
         return CurrentShowCommittedState(
             currentShow: currentShow,
             shows: shows,
-            manualSelection: effectiveSelections.first
+            selection: selection
         )
     }
 
@@ -200,20 +188,14 @@ enum ShowMutationCoordinator {
         effects: CurrentShowPostCommitEffects = .live
     ) async -> Bool {
         let notificationContext = ModelContext(modelContext.container)
-        let didSyncNotifications = await effects.applyNotificationFocus(
-            committedState.currentShow,
-            notificationContext
-        )
+        let didSyncNotifications = await effects.reconcileNotifications(notificationContext)
         let didSyncWidget = effects.syncWidget(
             committedState.shows,
-            committedState.manualSelection
+            committedState.selection
         )
         return didSyncNotifications && didSyncWidget
     }
 
-    /// Apply a status mutation (postpone / cancel / restore), clear manual current
-    /// when the resulting show is no longer eligible, persist, then reschedule.
-    /// Returns toast tone + message.
     @MainActor
     static func updateStatus(
         show: Show,
@@ -246,8 +228,6 @@ enum ShowMutationCoordinator {
         }
     }
 
-    /// Persist a manual current-show selection together with its notification focus,
-    /// then refresh notification and widget surfaces from the committed state.
     @MainActor
     static func commitClosingRitual(
         rating: Int?,
@@ -282,27 +262,16 @@ enum ShowMutationCoordinator {
         session: CurrentShowSession = CurrentShowSession(),
         effects: CurrentShowPostCommitEffects = .live
     ) async throws -> Bool {
-        var effectiveSelections = selections
-        if effectiveSelections.isEmpty {
-            effectiveSelections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
-        }
-
-        if let selection = effectiveSelections.first {
-            if let showID {
-                selection.select(showID: showID)
-            } else {
-                selection.clearManualSelection()
-            }
-        } else if let showID {
-            let selection = CurrentShowSelection(selectedShowID: showID)
-            modelContext.insert(selection)
-            effectiveSelections = [selection]
-        }
-
+        let store = CurrentShowSelectionStore(modelContext: modelContext)
         do {
+            if let showID {
+                _ = try store.select(showID: showID)
+            } else {
+                _ = try store.clear()
+            }
             let committedState = try commitCurrentShowState(
                 shows: shows,
-                selections: effectiveSelections,
+                selections: selections,
                 notificationStates: notificationStates,
                 in: modelContext,
                 session: session
@@ -318,34 +287,21 @@ enum ShowMutationCoordinator {
         }
     }
 
+    /// Compatibility seam retained for tests and older callers. A selection is only
+    /// invalid when its Show record is gone; lifecycle state never clears it.
     static func reconcileManualSelection(
         shows: [Show],
         selections: [CurrentShowSelection],
-        session: CurrentShowSession = CurrentShowSession(),
-        now: Date = Date()
+        session _: CurrentShowSession = CurrentShowSession(),
+        now _: Date = Date()
     ) {
-        guard let selection = selections.first,
+        guard let selection = CurrentShowSelectionStore.canonical(in: selections),
               let selectedShowID = selection.selectedShowID else {
             return
         }
-
-        guard let selectedShow = shows.first(where: { $0.id == selectedShowID }),
-              session.isManuallySelectable(selectedShow, now: now) else {
-            selection.clearManualSelection()
+        guard shows.contains(where: { $0.id == selectedShowID }) else {
+            selection.clearSelection()
             return
-        }
-    }
-
-    @MainActor
-    private static func updateNotificationFocus(
-        showID: UUID?,
-        notificationStates: [NotificationSchedulingState],
-        in modelContext: ModelContext
-    ) {
-        if let notificationState = notificationStates.first {
-            notificationState.focus(showID: showID)
-        } else if showID != nil {
-            modelContext.insert(NotificationSchedulingState(focusedShowID: showID))
         }
     }
 }
