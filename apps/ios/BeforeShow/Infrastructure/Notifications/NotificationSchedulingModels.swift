@@ -342,45 +342,6 @@ final class NotificationSchedulingState {
     }
 }
 
-@MainActor
-enum NotificationSchedulingStateStore {
-    static func canonicalize(in modelContext: ModelContext) throws -> NotificationSchedulingState {
-        let states = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
-            .sorted(by: canonicalOrder)
-        let canonical: NotificationSchedulingState
-        if let existing = states.first {
-            canonical = existing
-        } else {
-            canonical = NotificationSchedulingState()
-            modelContext.insert(canonical)
-        }
-
-        if states.count > 1 {
-            canonical.hasRequestedPermissionAfterFirstShow = states.contains {
-                $0.hasRequestedPermissionAfterFirstShow
-            }
-            canonical.backfillMintedShowIDs = Array(
-                Set(states.flatMap { $0.backfillMintedShowIDs ?? [] })
-            )
-            canonical.portfolioMigrationVersion = states
-                .compactMap(\.portfolioMigrationVersion)
-                .max()
-            for duplicate in states.dropFirst() {
-                modelContext.delete(duplicate)
-            }
-        }
-        return canonical
-    }
-
-    private static func canonicalOrder(
-        _ lhs: NotificationSchedulingState,
-        _ rhs: NotificationSchedulingState
-    ) -> Bool {
-        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-        return lhs.id.uuidString < rhs.id.uuidString
-    }
-}
-
 @Model
 final class ShowNotificationScheduleRecord {
     var id: UUID
@@ -432,44 +393,5 @@ final class ShowNotificationScheduleRecord {
         isBackfill = request.isBackfill
         title = request.title
         body = request.body
-    }
-}
-
-struct NotificationPortfolioRecordNormalization {
-    let canonicalByIdentifier: [String: ShowNotificationScheduleRecord]
-    let duplicates: [ShowNotificationScheduleRecord]
-}
-
-enum NotificationPortfolioRecordStore {
-    static func normalize(
-        records: [ShowNotificationScheduleRecord],
-        modelRequests: [ScheduledShowNotification]
-    ) -> NotificationPortfolioRecordNormalization {
-        let desired = Dictionary(
-            uniqueKeysWithValues: modelRequests.map { ($0.requestIdentifier, $0) }
-        )
-        let grouped = Dictionary(grouping: records, by: \.requestIdentifier)
-        var canonical: [String: ShowNotificationScheduleRecord] = [:]
-        var duplicates: [ShowNotificationScheduleRecord] = []
-
-        for (identifier, candidates) in grouped {
-            let expected = desired[identifier]
-            let sorted = candidates.sorted { lhs, rhs in
-                let lhsMatches = expected.map(lhs.matches) ?? false
-                let rhsMatches = expected.map(rhs.matches) ?? false
-                if lhsMatches != rhsMatches { return lhsMatches && !rhsMatches }
-                if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-            if let keeper = sorted.first {
-                canonical[identifier] = keeper
-                duplicates.append(contentsOf: sorted.dropFirst())
-            }
-        }
-
-        return NotificationPortfolioRecordNormalization(
-            canonicalByIdentifier: canonical,
-            duplicates: duplicates
-        )
     }
 }
