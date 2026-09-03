@@ -3,26 +3,17 @@ import ImageIO
 import UniformTypeIdentifiers
 
 // MARK: - Widget Cover Cache
-// 封面按来源 URL 哈希落盘;只有来源匹配才返回路径。
-// 下载后限制体积并下采样到展示尺寸,避免 Live Activity 因图过大启动失败。
-// app(为 Live Activity 准备封面)与 widget provider 共用。
-//
-// 并发:refresh 经 actor 串行;旧下载在 await 后若已被更新请求取代则丢弃写盘。
-// 非空 source 不在 refresh 内 prune——旧下载后至 prune 会删掉新场封面;清理由调用方在
-// 确认当前 source 后显式调用 pruneCovers(except:)。空 source 则作为清空指令处理。
+// Covers are hashed by source URL and shared by the app, widget and Live Activity.
+// Refresh never prunes non-empty sources; the app prunes only after it has resolved
+// every surface that currently needs a cover.
 
 enum WidgetCoverCache {
-    /// 中号 widget 展示边长上限(108pt×3≈324px,留余量)。
     fileprivate static let maxPixelDimension: CGFloat = 400
-    /// Live Activity 封面只有 40×40pt;按 3x 限制到 120px——
-    /// Apple 要求 LA 图片不超过展示区域,否则活动可能无法启动。
     fileprivate static let liveActivityMaxPixelDimension: CGFloat = 120
     fileprivate static let maxDownloadBytes = 100 * 1_024 * 1_024
 
-    /// 串行化写盘 / 下载完成检查,避免 reentrancy 下旧 refresh 覆盖新场。
     private static let mutator = CoverCacheMutator()
 
-    /// 与 `source` 匹配的缓存路径;无封面或来源不一致时返回 nil。
     static func cachedCoverPath(matching source: String?) -> String? {
         guard let source,
               let filename = freshCoverFilename(for: source),
@@ -33,7 +24,6 @@ enum WidgetCoverCache {
         return url.path
     }
 
-    /// 缓存存在且来源一致时返回文件名,否则 nil(调用方应触发 refresh)。
     static func freshCoverFilename(for source: String) -> String? {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -45,7 +35,6 @@ enum WidgetCoverCache {
         return cacheURL.lastPathComponent
     }
 
-    /// Live Activity 小图规格;同样要求来源匹配。
     static func freshLiveActivityCoverFilename(for source: String) -> String? {
         let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
@@ -65,22 +54,34 @@ enum WidgetCoverCache {
         return cached == source
     }
 
-    /// 下载、下采样(两档)并写入 App Group;来源未变时直接返回。
-    /// `source` 为空表示当前不应有封面,会串行清理全部哈希缓存和旧固定路径。
     static func refresh(for source: String?) async {
         await mutator.refresh(for: source)
     }
 
-    /// 只保留当前来源的封面文件;无来源时清理全部哈希封面。
-    /// 由 app 在同步当前现场后调用,避免 refresh 内后至 prune。
+    /// Compatibility helper for single-surface call sites.
     static func pruneCovers(except currentSource: String?) {
-        let trimmed = currentSource?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        guard !trimmed.isEmpty else {
+        let source = currentSource?.trimmingCharacters(in: .whitespacesAndNewlines)
+        pruneCovers(keeping: Set([source].compactMap { value in
+            guard let value, !value.isEmpty else { return nil }
+            return value
+        }))
+    }
+
+    /// Keeps the union of every currently resolved surface source. This is required
+    /// now that Widget may show a user-owned historical Current Show while Live
+    /// Activity follows a different live/upcoming show.
+    static func pruneCovers(keeping sources: Set<String>) {
+        let normalized = Set(
+            sources
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
+        guard !normalized.isEmpty else {
             clearHashedCovers()
             clearLegacyFixedCover()
             return
         }
-        pruneCoversExcept(currentSource: trimmed)
+        pruneCoversKeeping(normalized)
         clearLegacyFixedCover()
     }
 
@@ -99,13 +100,11 @@ enum WidgetCoverCache {
         coverFileURL(for: source)?.appendingPathExtension("source")
     }
 
-    /// 不可变文件名:URL 哈希,避免换场后仍读到上一场固定路径封面。
     static func filename(for source: String) -> String {
         let digest = stableHash(source.trimmingCharacters(in: .whitespacesAndNewlines))
         return "cover-\(digest).jpg"
     }
 
-    /// Live Activity 小图文件名。
     static func liveActivityFilename(for source: String) -> String {
         let digest = stableHash(source.trimmingCharacters(in: .whitespacesAndNewlines))
         return "cover-\(digest)-la.jpg"
@@ -119,7 +118,6 @@ enum WidgetCoverCache {
         return String(hash, radix: 16)
     }
 
-    /// 清理旧版固定文件名 `current-show-cover.jpg`,避免失配残留。
     fileprivate static func clearLegacyFixedCover() {
         guard let base = WidgetSnapshotStore.containerURL else { return }
         let legacy = base.appendingPathComponent(WidgetSnapshotStore.legacyCoverCacheFilename, isDirectory: false)
@@ -128,7 +126,6 @@ enum WidgetCoverCache {
         try? FileManager.default.removeItem(at: legacyMarker)
     }
 
-    /// 无当前封面来源时删除所有哈希缓存及 marker,避免切换到无封面现场后永久残留。
     private static func clearHashedCovers() {
         guard let base = WidgetSnapshotStore.containerURL,
               let files = try? FileManager.default.contentsOfDirectory(atPath: base.path) else {
@@ -139,17 +136,17 @@ enum WidgetCoverCache {
         }
     }
 
-    /// 只保留当前来源的封面文件;历史哈希缓存(含对应 marker)随换场清理,避免长期积累。
-    private static func pruneCoversExcept(currentSource: String) {
+    private static func pruneCoversKeeping(_ sources: Set<String>) {
         guard let base = WidgetSnapshotStore.containerURL,
               let files = try? FileManager.default.contentsOfDirectory(atPath: base.path) else {
             return
         }
-        let keep: Set<String> = [
-            filename(for: currentSource),
-            liveActivityFilename(for: currentSource),
-            filename(for: currentSource) + ".source",
-        ]
+        var keep = Set<String>()
+        for source in sources {
+            keep.insert(filename(for: source))
+            keep.insert(liveActivityFilename(for: source))
+            keep.insert(filename(for: source) + ".source")
+        }
         for file in files where file.hasPrefix("cover-") && !keep.contains(file) {
             try? FileManager.default.removeItem(at: base.appendingPathComponent(file, isDirectory: false))
         }
@@ -192,9 +189,6 @@ enum WidgetCoverCache {
     }
 }
 
-// MARK: - Serial mutator
-
-/// 单飞 refresh:generation 在 await 前后校验,旧下载完成后不再写盘。
 private actor CoverCacheMutator {
     private var generation: UInt64 = 0
 
@@ -205,7 +199,7 @@ private actor CoverCacheMutator {
         let trimmed = source?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard !trimmed.isEmpty else {
             guard ticket == generation else { return }
-            WidgetCoverCache.pruneCovers(except: nil)
+            WidgetCoverCache.pruneCovers(keeping: [])
             return
         }
 
@@ -229,9 +223,7 @@ private actor CoverCacheMutator {
                 data = try Data(contentsOf: remoteURL)
             } else {
                 let (tempURL, response) = try await URLSession.shared.download(from: remoteURL)
-                // 新下载期间又来了更新的 refresh → 丢弃本结果,不写不删
                 guard ticket == generation else { return }
-
                 guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
                     #if DEBUG
                     print("[WidgetCoverCache] non-200 for \(trimmed)")
@@ -273,7 +265,6 @@ private actor CoverCacheMutator {
             try liveActivityJPEG.write(to: liveActivityURL, options: .atomic)
             try trimmed.write(to: markerURL, atomically: true, encoding: .utf8)
             WidgetCoverCache.clearLegacyFixedCover()
-            // 故意不 prune:旧 ticket 后至时若 prune 会删掉新场封面
         } catch {
             #if DEBUG
             print("[WidgetCoverCache] refresh failed: \(error)")
