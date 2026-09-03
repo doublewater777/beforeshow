@@ -25,6 +25,7 @@ struct BeforeShowApp: App {
         // Run development-store repairs exactly once before RootView can read state.
         MainActor.assumeIsolated {
             AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
+            try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
         }
 
         let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
@@ -117,6 +118,7 @@ struct BeforeShowApp: App {
                         isLocalMediaMaintenanceRunning = true
                     }
                     Task {
+                        try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                         if shouldRunMediaMaintenance {
                             await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)

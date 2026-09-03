@@ -134,6 +134,16 @@ enum ShowMutationCoordinator {
     ) async throws -> Bool {
         do {
             try mutation()
+            let listeningNow = Date()
+            _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(
+                in: modelContext,
+                now: listeningNow
+            )
+            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(
+                in: modelContext,
+                now: listeningNow,
+                saveChanges: false
+            )
             let committedState = try commitCurrentShowState(
                 shows: shows,
                 selections: selections,

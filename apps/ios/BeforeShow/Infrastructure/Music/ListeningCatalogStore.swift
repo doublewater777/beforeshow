@@ -88,6 +88,14 @@ final class ListeningCatalogStore {
                 fetchedAt: payload.fetchedAt
             )
             try modelContext.save()
+            // A show may have opened before its artist catalog arrived. Resolve the
+            // immutable opening tier from the frozen baseline as soon as a complete
+            // denominator becomes available; catalog refresh remains successful even
+            // if the derived tier repair itself cannot be persisted.
+            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
+                in: modelContext,
+                now: now
+            )
             return snapshot
         } catch {
             modelContext.rollback()
