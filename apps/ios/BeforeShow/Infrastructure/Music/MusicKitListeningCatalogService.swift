@@ -196,7 +196,6 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 matching: \.id,
                 memberOf: musicIDs
             )
-            request.options = [.findEquivalents]
             request.limit = chunk.count
             request.properties = [.artists, .albums]
             let response = try await request.response()
