@@ -11,8 +11,9 @@ enum AppleMusicArtistIdentityMigration {
             var artists = show.artists
             var showChanged = false
             for index in artists.indices where artists[index].appleMusicArtistID == nil {
-                guard let rawURL = artists[index].appleMusicURL,
-                      let artistID = artistID(from: rawURL) else {
+                guard let artistID = AppleMusicArtistIdentity.artistID(
+                    from: artists[index].appleMusicURL
+                ) else {
                     continue
                 }
                 artists[index].appleMusicArtistID = artistID
@@ -30,13 +31,6 @@ enum AppleMusicArtistIdentityMigration {
     }
 
     static func artistID(from rawURL: String) -> String? {
-        guard let url = URL(string: rawURL),
-              url.host?.lowercased() == "music.apple.com",
-              let last = url.pathComponents.last,
-              !last.isEmpty,
-              last.allSatisfy(\.isNumber) else {
-            return nil
-        }
-        return last
+        AppleMusicArtistIdentity.artistID(from: rawURL)
     }
 }
