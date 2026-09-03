@@ -40,6 +40,8 @@ struct ArtistSlot: Codable, Hashable, Equatable {
     var avatarURL: String?
     /// 识别到的 Apple Music 艺人页链接,详情页点阵容头像直接跳转;未识别为 nil。
     var appleMusicURL: String? = nil
+    /// 稳定的 Apple Music catalog artist ID；旧数据由轻量 migration 从 URL 回填。
+    var appleMusicArtistID: String? = nil
     /// 足迹 #01 卡片背景用的代表专辑封面,由 ArtistAlbumArtworkResolver 解析后写回;未解析为 nil。
     var albumArtworkURL: String? = nil
 }
@@ -411,6 +413,7 @@ final class Show {
         for index in 0..<common where oldSlots[index].name != newSlots[index].name {
             newSlots[index].avatarURL = nil
             newSlots[index].appleMusicURL = nil
+            newSlots[index].appleMusicArtistID = nil
             newSlots[index].albumArtworkURL = nil
         }
         name = prepared.name
@@ -491,7 +494,13 @@ final class Show {
             guard !name.isEmpty else { return nil }
             let trimmedURL = slot.avatarURL?.trimmingCharacters(in: .whitespacesAndNewlines)
             let avatar = (trimmedURL?.isEmpty ?? true) ? nil : trimmedURL
-            return ArtistSlot(name: name, avatarURL: avatar, appleMusicURL: slot.appleMusicURL, albumArtworkURL: slot.albumArtworkURL)
+            return ArtistSlot(
+                name: name,
+                avatarURL: avatar,
+                appleMusicURL: slot.appleMusicURL,
+                appleMusicArtistID: slot.appleMusicArtistID,
+                albumArtworkURL: slot.albumArtworkURL
+            )
         }
     }
 
