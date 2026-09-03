@@ -73,10 +73,8 @@ struct CurrentShowSession {
 
 // MARK: - Notification-owned Current Show feature root
 
-/// CurrentShowManagementSection still contains its pre-Phase-1 notification observer,
-/// but the router no longer publishes new delivery to that legacy property. This root
-/// is now the only live owner of notification navigation and can open any Show without
-/// changing the user's durable Current Show.
+/// Owns notification navigation for the Current tab. Notification routing may open
+/// any persisted show, but never mutates the user's durable CurrentShowSelection.
 struct CurrentShowFeatureRootView: View {
     var isPlaybackActive = true
     @Binding var ceremonyPendingDetail: FootprintDetailDestination?
@@ -165,7 +163,7 @@ private struct PendingNotificationMemoryCreate {
 
 private struct CurrentShowNotificationPresentation: Identifiable {
     let showID: UUID
-    let destination: NotificationDeepLinkDestination
+    let destination: NotificationDeepLink.Destination
     let pendingCreate: MemoryCreateSourceOption?
 
     var id: String {
