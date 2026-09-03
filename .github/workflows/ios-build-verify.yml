@@ -6,20 +6,41 @@ on:
       - main
     paths:
       - "apps/ios/**"
+      - "scripts/verify-pr.sh"
       - ".github/workflows/ios-build-verify.yml"
   pull_request:
     branches:
       - main
     paths:
       - "apps/ios/**"
+      - "scripts/verify-pr.sh"
       - ".github/workflows/ios-build-verify.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: ios-build-verify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Phase 1 PR verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/verify-pr.sh "${{ github.event.pull_request.number }}" --no-comment
+
+  verify-main:
+    if: github.event_name == 'push'
     runs-on: [self-hosted, xcode-26]
     steps:
       - name: Checkout
@@ -30,7 +51,7 @@ jobs:
       - name: Architecture guard
         run: python3 apps/ios/scripts/check_architecture.py
 
-      - name: Build for simulator
+      - name: Signed simulator build
         run: |
           cd apps/ios
           xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
