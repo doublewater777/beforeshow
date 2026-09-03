@@ -5,7 +5,8 @@ import XCTest
 @MainActor
 final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
     func testManualConfirmationCapturesBaselineBeforeNewEvidence() throws {
-        let (context, show, now) = try makeDueShowContext()
+        let (container, context, show, now) = try makeDueShowContext()
+        defer { withExtendedLifetime(container) {} }
         let repository = ListeningRepository(modelContext: context)
 
         _ = try repository.confirmManualFamiliarity(songID: "new-manual", at: now)
@@ -15,7 +16,8 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
     }
 
     func testActualConfirmationCapturesBaselineBeforeNewEvidence() throws {
-        let (context, show, now) = try makeDueShowContext()
+        let (container, context, show, now) = try makeDueShowContext()
+        defer { withExtendedLifetime(container) {} }
         let repository = ListeningRepository(modelContext: context)
 
         _ = try repository.confirmActualFamiliarity(songID: "new-actual", at: now)
@@ -25,7 +27,8 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
     }
 
     func testSetlistAddCapturesBaselineBeforeNewRecall() throws {
-        let (context, show, now) = try makeDueShowContext()
+        let (container, context, show, now) = try makeDueShowContext()
+        defer { withExtendedLifetime(container) {} }
         let repository = ListeningRepository(modelContext: context)
 
         _ = try repository.addSetlistMemory(
@@ -39,7 +42,8 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
     }
 
     func testManualUndoCapturesExistingEvidenceBeforeRemovingIt() throws {
-        let (context, show, now) = try makeDueShowContext()
+        let (container, context, show, now) = try makeDueShowContext()
+        defer { withExtendedLifetime(container) {} }
         context.insert(SongFamiliarityRecord(
             songID: "manual-before-opening",
             manualConfirmedAt: now.addingTimeInterval(-100)
@@ -54,7 +58,8 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
     }
 
     func testSetlistDeleteCapturesExistingRecallBeforeRemovingIt() throws {
-        let (context, show, now) = try makeDueShowContext()
+        let (container, context, show, now) = try makeDueShowContext()
+        defer { withExtendedLifetime(container) {} }
         let memory = ShowSetlistMemory(
             showID: show.id,
             catalogSongID: "recall-before-opening",
@@ -70,7 +75,7 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
         XCTAssertTrue(baseline.familiarSongIDsAtCapture.contains("recall-before-opening"))
     }
 
-    private func makeDueShowContext() throws -> (ModelContext, Show, Date) {
+    private func makeDueShowContext() throws -> (ModelContainer, ModelContext, Show, Date) {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let now = Date(timeIntervalSince1970: 2_000_000_000)
@@ -78,7 +83,7 @@ final class OpeningFamiliarityMutationOrderingTests: XCTestCase {
         let show = try Show(name: "Due", date: start, startTime: start)
         context.insert(show)
         try context.save()
-        return (context, show, now)
+        return (container, context, show, now)
     }
 
     private func baseline(
