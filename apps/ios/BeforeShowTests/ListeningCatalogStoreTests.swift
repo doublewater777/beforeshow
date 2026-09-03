@@ -229,9 +229,7 @@ private final class StubListeningMusicCatalogService: ListeningMusicCatalogServi
     }
 
     var fetchCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return storedFetchCount
+        lock.withLock { storedFetchCount }
     }
 
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
@@ -250,9 +248,7 @@ private final class StubListeningMusicCatalogService: ListeningMusicCatalogServi
         artistID: String,
         fetchedAt: Date
     ) async throws -> ListeningArtistCatalogPayload {
-        lock.lock()
-        storedFetchCount += 1
-        lock.unlock()
+        lock.withLock { storedFetchCount += 1 }
 
         if delayNanoseconds > 0 {
             try await Task.sleep(nanoseconds: delayNanoseconds)
