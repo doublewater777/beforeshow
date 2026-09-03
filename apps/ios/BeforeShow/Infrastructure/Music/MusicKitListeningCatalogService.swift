@@ -2,8 +2,6 @@ import Foundation
 import MusicKit
 
 struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
-    private let songBatchSize = 25
-
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
         Self.authorizationStatus(from: MusicAuthorization.currentStatus)
     }
@@ -190,27 +188,29 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         baseSongsByID: [String: Song]
     ) async throws -> [String: Song] {
         var result: [String: Song] = [:]
-        for chunk in songIDs.chunked(into: songBatchSize) {
-            let musicIDs = chunk.map(MusicItemID.init)
+
+        // iOS 17 MusicKit doesn't expose a catalog request `properties` surface for
+        // relationship expansion. Fetch each stable ID with an explicit equality
+        // filter, then load the Song relationships through MusicItem.with(_:).
+        for rawID in songIDs {
+            let musicID = MusicItemID(rawID)
             var request = MusicCatalogResourceRequest<Song>(
                 matching: \.id,
-                memberOf: musicIDs
+                equalTo: musicID
             )
-            request.limit = chunk.count
-            request.properties = [.artists, .albums]
+            request.limit = 1
             let response = try await request.response()
 
-            for rawID in chunk {
-                let id = MusicItemID(rawID)
-                if let song = response.item(for: id) {
-                    result[rawID] = song
-                    continue
-                }
-                guard let baseSong = baseSongsByID[rawID] else {
-                    throw ListeningCatalogError.incompleteCatalog(rawID)
-                }
-                result[rawID] = try await baseSong.with([.artists, .albums])
+            let baseSong: Song
+            if let fetchedSong = response.items.first {
+                baseSong = fetchedSong
+            } else if let fallback = baseSongsByID[rawID] {
+                baseSong = fallback
+            } else {
+                throw ListeningCatalogError.incompleteCatalog(rawID)
             }
+
+            result[rawID] = try await baseSong.with([.artists, .albums])
         }
         return result
     }
@@ -316,14 +316,5 @@ private struct DetailedAlbum {
 
     func containsSong(_ songID: String) -> Bool {
         songs.contains { $0.id.rawValue == songID }
-    }
-}
-
-private extension Array {
-    func chunked(into size: Int) -> [[Element]] {
-        guard size > 0 else { return [self] }
-        return stride(from: 0, to: count, by: size).map { start in
-            Array(self[start..<Swift.min(start + size, count)])
-        }
     }
 }
