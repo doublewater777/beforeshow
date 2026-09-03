@@ -16,17 +16,11 @@ struct RootView: View {
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
-    /// 仪式结束后,RootView 写入这个目标 → 切到 .footprints → FootprintsView
-    /// 在 onChange 触发自己的 push。详见 `presentCeremonyMemoryNavigation`。
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
-    /// 长按图标「Pro 限时优惠」Quick Action 的 deep link 路由。
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
-    /// 点击本地通知的 deep link 路由。RootView 只负责切到「当前」tab，
-    /// 具体目标（首页 / 记忆碎片）由 CurrentShowHomeView 消费。
+    /// Root owns only cross-feature tab dispatch. The Current Show feature root owns
+    /// the concrete notification destination and never mutates CurrentShowSelection.
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
-    /// 语言变化要刷新所有 BSLocalization 文案，但不能换掉 RootView 的身份：
-    /// 用 .id(language) 会重建整棵树，把 tab / Settings / 仪式等状态一起丢掉。
-    /// 这里只订阅变化触发 body 重算，导航与呈现状态原样保留。
     @ObservedObject private var languageController = AppLanguageController.shared
 
     var body: some View {
@@ -56,13 +50,15 @@ struct RootView: View {
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
-        .onChange(of: notificationRouter.pendingDeepLink) { _, deepLink in
-            // 通知落地的前提是先站在「当前」tab；目标的消费在首页。
+        .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
             selectedTab = .current
         }
         .task {
             resolveOnboardingRouteIfNeeded()
+            if notificationRouter.featureRootDeepLink != nil {
+                selectedTab = .current
+            }
         }
         #if DEBUG
         .task {
@@ -129,10 +125,9 @@ struct RootView: View {
     }
 
     /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
-    /// Both tabs stay mounted and keep the system tab bar visible across in-tab navigation.
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
-            CurrentShowHomeView(
+            CurrentShowFeatureRootView(
                 isPlaybackActive: selectedTab == .current,
                 ceremonyPendingDetail: $ceremonyPendingDetail
             )
@@ -155,12 +150,8 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
         }
-        // 系统 TabView(Liquid Glass)自带交叉淡入,自定义 transition 会和它打架;
-        // 这里只补一个轻触觉,让切 tab 有确认感。
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
-            // 仪式 sheet 关闭并要求跳到足迹时,切到 footprints tab。
-            // FootprintsView 自己的 onChange 监听同一值并触发 push。
             if newValue != nil, selectedTab != .footprints {
                 selectedTab = .footprints
             }
