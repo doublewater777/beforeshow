@@ -20,4 +20,8 @@ enum AppAudioSession {
     static func configureSoundPlayback() {
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
     }
+
+    static func configureMusicPlayback() {
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+    }
 }
