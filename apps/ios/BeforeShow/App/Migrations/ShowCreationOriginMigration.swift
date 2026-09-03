@@ -60,8 +60,17 @@ enum CurrentShowOwnershipMigration {
             modelContext.delete(duplicate)
         }
 
-        let resolvedShow: Show?
         if let canonical {
+            if canonical.isManual == true,
+               let selectedShowID = canonical.selectedShowID,
+               shows.contains(where: { $0.id == selectedShowID }) {
+                if selections.count > 1 {
+                    try? modelContext.save()
+                }
+                return
+            }
+
+            let resolvedShow: Show?
             if canonical.isManual == false {
                 resolvedShow = LegacyCurrentShowSelectionResolver(
                     calendar: calendar
@@ -70,9 +79,6 @@ enum CurrentShowOwnershipMigration {
                     automaticSelection: canonical,
                     now: now
                 )
-            } else if let selectedShowID = canonical.selectedShowID,
-                      let selected = shows.first(where: { $0.id == selectedShowID }) {
-                resolvedShow = selected
             } else {
                 resolvedShow = InitialCurrentShowPolicy(calendar: calendar)
                     .candidate(from: shows, now: now)
