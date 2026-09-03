@@ -3,6 +3,84 @@ import SwiftData
 import UserNotifications
 
 @MainActor
+enum NotificationSchedulingStateStore {
+    static func canonicalize(in modelContext: ModelContext) throws -> NotificationSchedulingState {
+        let states = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
+            .sorted(by: canonicalOrder)
+        let canonical: NotificationSchedulingState
+        if let existing = states.first {
+            canonical = existing
+        } else {
+            canonical = NotificationSchedulingState()
+            modelContext.insert(canonical)
+        }
+
+        if states.count > 1 {
+            canonical.hasRequestedPermissionAfterFirstShow = states.contains {
+                $0.hasRequestedPermissionAfterFirstShow
+            }
+            canonical.backfillMintedShowIDs = Array(
+                Set(states.flatMap { $0.backfillMintedShowIDs ?? [] })
+            )
+            canonical.portfolioMigrationVersion = states
+                .compactMap(\.portfolioMigrationVersion)
+                .max()
+            for duplicate in states.dropFirst() {
+                modelContext.delete(duplicate)
+            }
+        }
+        return canonical
+    }
+
+    private static func canonicalOrder(
+        _ lhs: NotificationSchedulingState,
+        _ rhs: NotificationSchedulingState
+    ) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+}
+
+struct NotificationPortfolioRecordNormalization {
+    let canonicalByIdentifier: [String: ShowNotificationScheduleRecord]
+    let duplicates: [ShowNotificationScheduleRecord]
+}
+
+enum NotificationPortfolioRecordStore {
+    static func normalize(
+        records: [ShowNotificationScheduleRecord],
+        modelRequests: [ScheduledShowNotification]
+    ) -> NotificationPortfolioRecordNormalization {
+        let desired = Dictionary(
+            uniqueKeysWithValues: modelRequests.map { ($0.requestIdentifier, $0) }
+        )
+        let grouped = Dictionary(grouping: records, by: \.requestIdentifier)
+        var canonical: [String: ShowNotificationScheduleRecord] = [:]
+        var duplicates: [ShowNotificationScheduleRecord] = []
+
+        for (identifier, candidates) in grouped {
+            let expected = desired[identifier]
+            let sorted = candidates.sorted { lhs, rhs in
+                let lhsMatches = expected.map(lhs.matches) ?? false
+                let rhsMatches = expected.map(rhs.matches) ?? false
+                if lhsMatches != rhsMatches { return lhsMatches && !rhsMatches }
+                if lhs.createdAt != rhs.createdAt { return lhs.createdAt > rhs.createdAt }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            if let keeper = sorted.first {
+                canonical[identifier] = keeper
+                duplicates.append(contentsOf: sorted.dropFirst())
+            }
+        }
+
+        return NotificationPortfolioRecordNormalization(
+            canonicalByIdentifier: canonical,
+            duplicates: duplicates
+        )
+    }
+}
+
+@MainActor
 final class LocalNotificationCenter {
     static let shared = LocalNotificationCenter()
 
@@ -78,8 +156,6 @@ final class LocalNotificationCenter {
             let scheduledIdentifiers = Set(scheduledByIdentifier.keys)
             let modelIdentifiers = Set(modelByIdentifier.keys)
 
-            // Records no longer desired are stale. Deferred backfills remain in the
-            // model set, so their minted timing/copy survives notification capacity.
             let staleRecords = normalization.canonicalByIdentifier.filter {
                 !modelIdentifiers.contains($0.key)
             }
@@ -91,10 +167,6 @@ final class LocalNotificationCenter {
                 context.delete(record)
             }
 
-            // Work out which scheduled system requests need replacement before model
-            // records are updated. Model persistence is intentionally first-class: a
-            // transient UNUserNotificationCenter.add failure must not lose a minted
-            // backfill or prevent a later reconcile from retrying it.
             var identifiersNeedingSystemWrite = Set<String>()
             for identifier in scheduledIdentifiers {
                 guard let request = scheduledByIdentifier[identifier] else { continue }
@@ -117,9 +189,8 @@ final class LocalNotificationCenter {
                 }
             }
 
-            // A retained backfill can be outside the 56-request system portfolio.
-            // Keep its SwiftData record but remove any pending system request until it
-            // moves into the scheduled window on a later reconcile.
+            // Retained backfills outside the 56-request system portfolio stay in
+            // SwiftData with their minted timing/copy and can be scheduled later.
             let deferredIdentifiers = modelIdentifiers.subtracting(scheduledIdentifiers)
             let deferredPending = deferredIdentifiers.intersection(pendingIdentifiers)
             if !deferredPending.isEmpty {
@@ -130,8 +201,6 @@ final class LocalNotificationCenter {
             for identifier in identifiersNeedingSystemWrite.sorted() {
                 guard let request = scheduledByIdentifier[identifier] else { continue }
                 do {
-                    // UNUserNotificationCenter replaces an existing request with the
-                    // same identifier; no cancel-all step is necessary.
                     try await center.add(request.makeNotificationRequest())
                 } catch {
                     didScheduleEveryRequest = false
