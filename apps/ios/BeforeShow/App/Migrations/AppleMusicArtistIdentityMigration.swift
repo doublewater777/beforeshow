@@ -25,7 +25,10 @@ enum AppleMusicArtistIdentityMigration {
             }
         }
 
-        if didChange {
+        // Repair direct/bypassed Show deletes from old development/debug paths.
+        // Global familiarity and catalog rows are intentionally not touched.
+        let didReconcileOrphans = (try? ListeningShowDataCleaner.deleteOrphans(in: modelContext)) != nil
+        if didChange || didReconcileOrphans {
             try? modelContext.save()
         }
     }
