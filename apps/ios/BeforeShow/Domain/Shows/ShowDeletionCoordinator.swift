@@ -47,6 +47,12 @@ enum ShowDeletionCoordinator {
                 }
             }
 
+            // Listening rows deliberately use showID instead of SwiftData relationships.
+            // Clean them once, before deleting the last Show carrying that business ID.
+            if !hasRemainingSameBusinessID {
+                try ListeningShowDataCleaner.deleteShowScopedData(showID: showID, in: modelContext)
+            }
+
             // Show owns fragments/assets/dynamic cover with cascade relationships.
             // Deleting children explicitly before deleting the parent double-mutates the
             // same SwiftData graph and can leave views observing invalidated models.
