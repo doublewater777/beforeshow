@@ -34,7 +34,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         var committedNameSeenByNotificationSync: String?
         var committedNameSeenByWidgetSync: String?
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { _, _ in
+            reconcileNotifications: { _ in
                 let verificationContext = ModelContext(container)
                 committedNameSeenByNotificationSync = try? verificationContext
                     .fetch(FetchDescriptor<Show>())
@@ -71,21 +71,19 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
-    func testStatusCommitClearsCurrentFocusBeforeFailedNotificationSync() async throws {
+    func testStatusCommitPreservesUserCurrentBeforeFailedNotificationReconcile() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let start = Date(timeIntervalSinceNow: 86_400)
         let show = try Show(name: "将取消的现场", date: start, startTime: start)
         let selection = CurrentShowSelection(selectedShowID: show.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: show.id)
         context.insert(show)
         context.insert(selection)
-        context.insert(notificationState)
         try context.save()
 
         var widgetSelectionID: UUID?
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { currentShow, _ in
+            reconcileNotifications: { _ in
                 let verificationContext = ModelContext(container)
                 let storedShow = try? verificationContext.fetch(FetchDescriptor<Show>()).first
                 let storedSelections = (try? verificationContext
@@ -94,13 +92,12 @@ final class ShowMutationCoordinatorTests: XCTestCase {
                     .fetch(FetchDescriptor<NotificationSchedulingState>())) ?? []
 
                 XCTAssertEqual(storedShow?.changeStatus, .canceled)
-                XCTAssertNil(storedSelections.first?.selectedShowID)
-                XCTAssertNil(storedNotificationStates.first?.focusedShowID)
-                XCTAssertNil(currentShow)
+                XCTAssertEqual(storedSelections.first?.selectedShowID, show.id)
+                XCTAssertTrue(storedNotificationStates.isEmpty)
                 return false
             },
-            syncWidget: { _, manualSelection in
-                widgetSelectionID = manualSelection?.selectedShowID
+            syncWidget: { _, durableSelection in
+                widgetSelectionID = durableSelection?.selectedShowID
                 return true
             }
         )
@@ -110,7 +107,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             message: "已记录取消",
             shows: [show],
             selections: [selection],
-            notificationStates: [notificationState],
+            notificationStates: [],
             in: context,
             effects: effects,
             mutation: { show.markCanceled() }
@@ -121,23 +118,22 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             try XCTUnwrap(verificationContext.fetch(FetchDescriptor<Show>()).first).changeStatus,
             .canceled
         )
-        XCTAssertNil(
+        XCTAssertEqual(
             try XCTUnwrap(
                 verificationContext.fetch(FetchDescriptor<CurrentShowSelection>()).first
-            ).selectedShowID
+            ).selectedShowID,
+            show.id
         )
-        XCTAssertNil(
-            try XCTUnwrap(
-                verificationContext.fetch(FetchDescriptor<NotificationSchedulingState>()).first
-            ).focusedShowID
+        XCTAssertTrue(
+            verificationContext.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty
         )
-        XCTAssertNil(widgetSelectionID)
+        XCTAssertEqual(widgetSelectionID, show.id)
         XCTAssertEqual(result.tone, .neutral)
         XCTAssertEqual(result.message, "已记录取消，同步暂未更新")
     }
 
     @MainActor
-    func testCurrentSelectionCommitsBeforePostCommitSync() async throws {
+    func testCurrentSelectionCommitsBeforeIndependentPostCommitSync() async throws {
         let container = try makeContainer()
         let context = container.mainContext
         let nearestDate = Date(timeIntervalSinceNow: 86_400)
@@ -150,7 +146,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         var widgetSelectionID: UUID?
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { currentShow, _ in
+            reconcileNotifications: { _ in
                 let verificationContext = ModelContext(container)
                 let storedSelections = (try? verificationContext
                     .fetch(FetchDescriptor<CurrentShowSelection>())) ?? []
@@ -158,12 +154,11 @@ final class ShowMutationCoordinatorTests: XCTestCase {
                     .fetch(FetchDescriptor<NotificationSchedulingState>())) ?? []
 
                 XCTAssertEqual(storedSelections.first?.selectedShowID, chosen.id)
-                XCTAssertEqual(storedNotificationStates.first?.focusedShowID, chosen.id)
-                XCTAssertEqual(currentShow?.id, chosen.id)
+                XCTAssertTrue(storedNotificationStates.isEmpty)
                 return true
             },
-            syncWidget: { _, manualSelection in
-                widgetSelectionID = manualSelection?.selectedShowID
+            syncWidget: { _, durableSelection in
+                widgetSelectionID = durableSelection?.selectedShowID
                 return true
             }
         )
@@ -179,10 +174,11 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(didSync)
         XCTAssertEqual(widgetSelectionID, chosen.id)
+        XCTAssertTrue(context.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty)
     }
 
     @MainActor
-    func testDeleteCommitsNextCurrentShowBeforePostCommitSync() async throws {
+    func testDeleteCurrentShowCommitsDeterministicFallbackBeforePostCommitSync() async throws {
         let container = try makeContainer(
             MemoryFragment.self,
             MemoryMediaItem.self,
@@ -195,32 +191,27 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         let deleted = try Show(name: "待删除现场", date: deletedDate, startTime: deletedDate)
         let next = try Show(name: "下一场现场", date: nextDate, startTime: nextDate)
         let selection = CurrentShowSelection(selectedShowID: deleted.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: deleted.id)
         context.insert(deleted)
         context.insert(next)
         context.insert(selection)
-        context.insert(notificationState)
         try context.save()
 
         var widgetShowIDs: [UUID] = []
+        var widgetSelectionID: UUID?
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { currentShow, _ in
+            reconcileNotifications: { _ in
                 let verificationContext = ModelContext(container)
                 let storedShows = (try? verificationContext.fetch(FetchDescriptor<Show>())) ?? []
                 let storedSelections = (try? verificationContext
                     .fetch(FetchDescriptor<CurrentShowSelection>())) ?? []
-                let storedNotificationStates = (try? verificationContext
-                    .fetch(FetchDescriptor<NotificationSchedulingState>())) ?? []
 
                 XCTAssertEqual(storedShows.map(\.id), [next.id])
-                XCTAssertNil(storedSelections.first?.selectedShowID)
-                XCTAssertEqual(storedNotificationStates.first?.focusedShowID, next.id)
-                XCTAssertEqual(currentShow?.id, next.id)
+                XCTAssertEqual(storedSelections.first?.selectedShowID, next.id)
                 return true
             },
-            syncWidget: { shows, manualSelection in
+            syncWidget: { shows, durableSelection in
                 widgetShowIDs = shows.map(\.id)
-                XCTAssertNil(manualSelection?.selectedShowID)
+                widgetSelectionID = durableSelection?.selectedShowID
                 return true
             }
         )
@@ -229,13 +220,14 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             deleted,
             from: [deleted, next],
             selections: [selection],
-            notificationStates: [notificationState],
+            notificationStates: [],
             in: context,
             effects: effects
         )
 
         XCTAssertEqual(result, .complete(didSync: true))
         XCTAssertEqual(widgetShowIDs, [next.id])
+        XCTAssertEqual(widgetSelectionID, next.id)
     }
 
     func testDuplicateMatcherNormalizesFormattingAndRejectsNearDuplicates() throws {
@@ -331,6 +323,59 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testAddingAnotherShowDoesNotStealDurableCurrentShow() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let currentDate = now.addingTimeInterval(3 * 86_400)
+        let addedDate = now.addingTimeInterval(86_400)
+        let current = try Show(name: "用户当前", date: currentDate, startTime: currentDate)
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        try context.save()
+
+        let added = try Show(name: "新加入", date: addedDate, startTime: addedDate)
+        let result = try AddShowPersistenceCoordinator.persist(
+            added,
+            lifecycle: .future,
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+
+        XCTAssertEqual(result.outcome, .future)
+        XCTAssertEqual(selection.selectedShowID, current.id)
+        XCTAssertEqual(result.notificationState?.focusedShowID, added.id)
+    }
+
+    @MainActor
+    func testFirstUpcomingShowBecomesCurrentAndStagesOnlyItsBackfillHandoff() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let start = now.addingTimeInterval(3 * 86_400)
+        let show = try Show(name: "第一场", date: start, startTime: start)
+
+        let result = try AddShowPersistenceCoordinator.persist(
+            show,
+            lifecycle: .future,
+            selections: [],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+
+        let selection = try XCTUnwrap(
+            context.fetch(FetchDescriptor<CurrentShowSelection>()).first
+        )
+        XCTAssertEqual(selection.selectedShowID, show.id)
+        XCTAssertEqual(result.notificationState?.focusedShowID, show.id)
+        XCTAssertEqual(result.outcome, .future)
+    }
+
+    @MainActor
     func testDeletionKeepsContentDuplicateWithDistinctIDs() async throws {
         let container = try makeContainer(
             MemoryFragment.self,
@@ -347,7 +392,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         try context.save()
 
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { _, _ in true },
+            reconcileNotifications: { _ in true },
             syncWidget: { _, _ in true }
         )
         _ = try await ShowDeletionCoordinator.delete(
@@ -395,7 +440,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
         try context.save()
 
         let effects = CurrentShowPostCommitEffects(
-            applyNotificationFocus: { _, _ in true },
+            reconcileNotifications: { _ in true },
             syncWidget: { _, _ in true }
         )
         _ = try await ShowDeletionCoordinator.delete(
