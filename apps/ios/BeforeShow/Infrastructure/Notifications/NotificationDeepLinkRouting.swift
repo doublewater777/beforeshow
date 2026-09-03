@@ -8,29 +8,37 @@ import UserNotifications
 final class NotificationDeepLinkRouter: ObservableObject {
     static let shared = NotificationDeepLinkRouter()
 
+    /// Legacy property intentionally remains nil so the old CurrentShowManagementSection
+    /// observer is inert. Phase 1 moves ownership to CurrentShowFeatureRootView without
+    /// growing that legacy hotspot just to delete its old observer wiring.
     @Published private(set) var pendingDeepLink: NotificationDeepLink?
+    @Published private(set) var featureRootDeepLink: NotificationDeepLink?
 
     private init() {}
 
     func route(to deepLink: NotificationDeepLink) {
-        pendingDeepLink = deepLink
+        featureRootDeepLink = deepLink
     }
 
     @discardableResult
+    func consumeFeatureRoot() -> NotificationDeepLink? {
+        guard let deepLink = featureRootDeepLink else { return nil }
+        featureRootDeepLink = nil
+        return deepLink
+    }
+
+    /// Legacy no-op-compatible consumer. New notification delivery never populates
+    /// `pendingDeepLink`, so feature-level routing cannot be consumed by the old view.
+    @discardableResult
     func consume() -> NotificationDeepLink? {
-        // Only clear when non-nil. Assigning `nil` while already `nil` still
-        // fires `@Published` and can re-enter `.onReceive` → infinite layout loop
-        // (seen as 100% CPU after leaving onboarding into the main TabView).
         guard let deepLink = pendingDeepLink else { return nil }
         pendingDeepLink = nil
         return deepLink
     }
 }
 
-/// Reads `userInfo` on notification tap (foreground and cold start) and routes the
-/// deep link. Methods are `nonisolated` because the system calls them off the main
-/// actor; only Sendable strings are carried into the main-actor task. Stateless, so
-/// safe to share as a singleton.
+/// Reads `userInfo` on notification tap and forwards only a value-type route to the
+/// main-actor feature root. Tapping never mutates CurrentShowSelection.
 final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDelegate, @unchecked Sendable {
     static let shared = BeforeShowNotificationDelegate()
 
@@ -62,7 +70,6 @@ final class BeforeShowNotificationDelegate: NSObject, UNUserNotificationCenterDe
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        // 非「快开场了」的节点不带声音，前台只给横幅（见 makeNotificationRequest）。
         if notification.request.content.sound == nil {
             completionHandler([.banner])
         } else {
