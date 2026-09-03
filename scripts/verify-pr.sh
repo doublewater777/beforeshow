@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify-pr.sh — BeforeShow PR 本地运行时验证（local verifier）
 #
-# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 定向 signed tests
+# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 / Phase 4 定向 signed tests
 # → 完整 signed tests → entitlements / MusicKit 配置检查 → 安装到 iPhone 17 模拟器
 # → 启动存活检查 → LOCAL_AGENT_VERIFY 报告 → （可选）PR comment。
 #
@@ -149,6 +149,32 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
+# --- Phase 4 familiarity / opening baseline / queue signed tests ---
+if [ "$RESULT" = PASS ]; then
+  echo "==> Phase 4 targeted signed tests ($SCHEME, $SIM_NAME)"
+  if ! xcodebuild test \
+      -project "$PROJECT" -scheme "$SCHEME" \
+      -destination "platform=iOS Simulator,name=$SIM_NAME" \
+      -allowProvisioningUpdates DEVELOPMENT_TEAM=$TEAM \
+      -derivedDataPath "$DD" \
+      -only-testing:BeforeShowTests/ListeningFamiliarityPolicyTests \
+      -only-testing:BeforeShowTests/OpeningFamiliarityCoordinatorTests \
+      -only-testing:BeforeShowTests/OpeningFamiliarityMutationOrderingTests \
+      -only-testing:BeforeShowTests/ListeningQueueBuilderTests \
+      -only-testing:BeforeShowTests/ListeningQueueProviderTests \
+      -only-testing:BeforeShowTests/ListeningShowMutationIntegrationTests \
+      -resultBundlePath "$LOG_DIR/phase4-tests.xcresult" \
+      > "$LOG_DIR/phase4-test.log" 2>&1; then
+    RESULT=FAIL
+    echo "Phase 4 targeted tests FAILED — 最后 80 行："
+    tail -80 "$LOG_DIR/phase4-test.log" || true
+    EVIDENCE+=("phase4 targeted tests: FAILED (log: $LOG_DIR/phase4-test.log)")
+  else
+    SUITE=$(grep -E "Test Suite 'All tests' (passed|failed)" "$LOG_DIR/phase4-test.log" | tail -1 | sed 's/^ *//' || true)
+    EVIDENCE+=("phase4 targeted tests: ${SUITE:-passed} (xcresult: $LOG_DIR/phase4-tests.xcresult)")
+  fi
+fi
+
 # --- 完整 signed tests；同一 DerivedData 复用已下载依赖 ---
 if [ "$RESULT" = PASS ]; then
   echo "==> Full signed xcodebuild test ($SCHEME, $SIM_NAME)"
@@ -251,7 +277,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="xcodegen + architecture + Phase 1/2/3 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + architecture + Phase 1/2/3/4 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY
