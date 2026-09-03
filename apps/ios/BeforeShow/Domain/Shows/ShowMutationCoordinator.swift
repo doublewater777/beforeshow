@@ -289,6 +289,7 @@ enum ShowMutationCoordinator {
 
     /// Compatibility seam retained for tests and older callers. A selection is only
     /// invalid when its Show record is gone; lifecycle state never clears it.
+    @MainActor
     static func reconcileManualSelection(
         shows: [Show],
         selections: [CurrentShowSelection],
