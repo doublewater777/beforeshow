@@ -29,10 +29,11 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: [self-hosted, xcode-26]
     steps:
-      - name: Checkout
+      - name: Checkout exact PR HEAD
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 1
 
       - name: Phase 1 PR verifier
         env:
@@ -46,7 +47,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Architecture guard
         run: python3 apps/ios/scripts/check_architecture.py
