@@ -13,6 +13,9 @@ enum ListeningShowLifecycleCoordinator {
         let tiers = try modelContext.fetch(FetchDescriptor<ShowOpeningArtistTier>())
         let preferences = try modelContext.fetch(FetchDescriptor<ShowArtistListeningPreference>())
         let showByID = Dictionary(uniqueKeysWithValues: shows.map { ($0.id, $0) })
+        let artistIDsByShowID = Dictionary(uniqueKeysWithValues: shows.map { show in
+            (show.id, Set(show.artists.compactMap(\.appleMusicArtistID)))
+        })
         var invalidatedShowIDs = Set<UUID>()
         var didChange = false
 
@@ -31,8 +34,7 @@ enum ListeningShowLifecycleCoordinator {
                 didChange = true
                 continue
             }
-            guard let show = showByID[tier.showID] else { continue }
-            let currentArtistIDs = Set(show.artists.compactMap(\.appleMusicArtistID))
+            guard let currentArtistIDs = artistIDsByShowID[tier.showID] else { continue }
             if !currentArtistIDs.contains(tier.artistID) {
                 modelContext.delete(tier)
                 didChange = true
@@ -40,8 +42,7 @@ enum ListeningShowLifecycleCoordinator {
         }
 
         for preference in preferences {
-            guard let show = showByID[preference.showID] else { continue }
-            let currentArtistIDs = Set(show.artists.compactMap(\.appleMusicArtistID))
+            guard let currentArtistIDs = artistIDsByShowID[preference.showID] else { continue }
             if !currentArtistIDs.contains(preference.artistID) {
                 modelContext.delete(preference)
                 didChange = true
@@ -54,9 +55,8 @@ enum ListeningShowLifecycleCoordinator {
     private static func invalidatesOpeningBaseline(show: Show, now: Date) -> Bool {
         if show.changeStatus == .canceled { return true }
         if show.changeStatus == .postponed, show.postponedDate == nil { return true }
-
-        let timeState = CurrentShowTimeState(show: show, now: now)
-        if let effectiveStart = timeState.effectiveStartTime, effectiveStart > now {
+        if let effectiveStart = ListeningShowStartPolicy.effectiveOpeningStart(show: show),
+           effectiveStart > now {
             return true
         }
         return false
