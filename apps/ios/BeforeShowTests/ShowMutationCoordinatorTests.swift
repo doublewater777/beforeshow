@@ -125,7 +125,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             show.id
         )
         XCTAssertTrue(
-            verificationContext.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty
+            try verificationContext.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty
         )
         XCTAssertEqual(widgetSelectionID, show.id)
         XCTAssertEqual(result.tone, .neutral)
@@ -174,7 +174,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         XCTAssertTrue(didSync)
         XCTAssertEqual(widgetSelectionID, chosen.id)
-        XCTAssertTrue(context.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<NotificationSchedulingState>()).isEmpty)
     }
 
     @MainActor
