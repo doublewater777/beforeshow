@@ -78,8 +78,6 @@ final class LocalNotificationCenter {
             let scheduledIdentifiers = Set(scheduledByIdentifier.keys)
             let modelIdentifiers = Set(modelByIdentifier.keys)
 
-            var didScheduleEveryRequest = true
-
             // Records no longer desired are stale. Deferred backfills remain in the
             // model set, so their minted timing/copy survives notification capacity.
             let staleRecords = normalization.canonicalByIdentifier.filter {
@@ -93,6 +91,32 @@ final class LocalNotificationCenter {
                 context.delete(record)
             }
 
+            // Work out which scheduled system requests need replacement before model
+            // records are updated. Model persistence is intentionally first-class: a
+            // transient UNUserNotificationCenter.add failure must not lose a minted
+            // backfill or prevent a later reconcile from retrying it.
+            var identifiersNeedingSystemWrite = Set<String>()
+            for identifier in scheduledIdentifiers {
+                guard let request = scheduledByIdentifier[identifier] else { continue }
+                let existing = normalization.canonicalByIdentifier[identifier]
+                if existing == nil
+                    || existing?.matches(request) != true
+                    || !pendingIdentifiers.contains(identifier) {
+                    identifiersNeedingSystemWrite.insert(identifier)
+                }
+            }
+
+            for identifier in modelIdentifiers {
+                guard let request = modelByIdentifier[identifier] else { continue }
+                if let existing = normalization.canonicalByIdentifier[identifier] {
+                    if !existing.matches(request) {
+                        existing.apply(request)
+                    }
+                } else {
+                    context.insert(Self.makeRecord(from: request))
+                }
+            }
+
             // A retained backfill can be outside the 56-request system portfolio.
             // Keep its SwiftData record but remove any pending system request until it
             // moves into the scheduled window on a later reconcile.
@@ -102,35 +126,13 @@ final class LocalNotificationCenter {
                 center.removePendingNotificationRequests(withIdentifiers: Array(deferredPending))
             }
 
-            for identifier in modelIdentifiers {
-                guard let request = modelByIdentifier[identifier] else { continue }
-                let existing = normalization.canonicalByIdentifier[identifier]
-
-                if !scheduledIdentifiers.contains(identifier) {
-                    if let existing {
-                        if !existing.matches(request) {
-                            existing.apply(request)
-                        }
-                    } else {
-                        context.insert(Self.makeRecord(from: request))
-                    }
-                    continue
-                }
-
-                let needsSystemWrite = existing == nil
-                    || existing?.matches(request) != true
-                    || !pendingIdentifiers.contains(identifier)
-                guard needsSystemWrite else { continue }
-
+            var didScheduleEveryRequest = true
+            for identifier in identifiersNeedingSystemWrite.sorted() {
+                guard let request = scheduledByIdentifier[identifier] else { continue }
                 do {
                     // UNUserNotificationCenter replaces an existing request with the
                     // same identifier; no cancel-all step is necessary.
                     try await center.add(request.makeNotificationRequest())
-                    if let existing {
-                        existing.apply(request)
-                    } else {
-                        context.insert(Self.makeRecord(from: request))
-                    }
                 } catch {
                     didScheduleEveryRequest = false
                 }
