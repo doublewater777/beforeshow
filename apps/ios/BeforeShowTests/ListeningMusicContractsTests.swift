@@ -34,7 +34,7 @@ final class ListeningMusicContractsTests: XCTestCase {
         )
     }
 
-    func testDeniedAuthorizationCanStillExposePreviouslyCachedMetadata() {
+    func testDeniedAuthorizationCanUsePreviouslyCachedPreviewAsset() {
         let access = ListeningMusicAccess(
             authorizationStatus: .denied,
             canPlayCatalogContent: false
@@ -44,6 +44,22 @@ final class ListeningMusicContractsTests: XCTestCase {
             ListeningMusicCapabilityResolver.resolve(
                 access: access,
                 hasPreviewAsset: true,
+                hasCatalogMetadata: true
+            ),
+            .previewOnly
+        )
+    }
+
+    func testDeniedAuthorizationFallsBackToMetadataWithoutPreview() {
+        let access = ListeningMusicAccess(
+            authorizationStatus: .denied,
+            canPlayCatalogContent: false
+        )
+
+        XCTAssertEqual(
+            ListeningMusicCapabilityResolver.resolve(
+                access: access,
+                hasPreviewAsset: false,
                 hasCatalogMetadata: true
             ),
             .metadataOnly
