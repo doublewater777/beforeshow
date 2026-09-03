@@ -62,20 +62,16 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
 
         var albumSources: [AlbumSource] = []
         var seenAlbumIDs = Set<String>()
-        appendAlbums(fullAlbums, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
-        appendAlbums(albums, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
-        appendAlbums(singles, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
-        appendAlbums(compilationAlbums, isCompilation: true, to: &albumSources, seenIDs: &seenAlbumIDs)
+        Self.appendAlbums(fullAlbums, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
+        Self.appendAlbums(albums, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
+        Self.appendAlbums(singles, isCompilation: false, to: &albumSources, seenIDs: &seenAlbumIDs)
+        Self.appendAlbums(compilationAlbums, isCompilation: true, to: &albumSources, seenIDs: &seenAlbumIDs)
 
         var baseSongsByID: [String: Song] = [:]
-        var topSongIDs: [String] = []
-        for song in topSongs {
-            let id = song.id.rawValue
-            baseSongsByID[id] = song
-            if !topSongIDs.contains(id) {
-                topSongIDs.append(id)
-            }
-        }
+        let topSongIDs = Self.deduplicated(topSongs.map { song in
+            baseSongsByID[song.id.rawValue] = song
+            return song.id.rawValue
+        })
 
         var detailedAlbums: [DetailedAlbum] = []
         for source in albumSources {
@@ -104,53 +100,71 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             baseSongsByID: baseSongsByID
         )
 
+        var trustedTargetSongIDs = Set(topSongIDs)
+        for album in detailedAlbums where !album.isCompilation {
+            trustedTargetSongIDs.formUnion(album.songs.map { $0.id.rawValue })
+        }
+
         var songPayloadsByID: [String: ListeningCatalogSongPayload] = [:]
         for songID in requestedSongIDs {
             guard let song = enrichedSongs[songID] else {
                 throw ListeningCatalogError.incompleteCatalog(songID)
             }
+            let fallbackAlbum = detailedAlbums
+                .first(where: { !$0.isCompilation && $0.containsSong(songID) })?.album
+                ?? detailedAlbums.first(where: { $0.containsSong(songID) })?.album
             songPayloadsByID[songID] = Self.songPayload(
                 from: song,
                 targetArtistID: artistID,
-                fallbackAlbum: detailedAlbums.first(where: { detail in
-                    detail.songs.contains(where: { $0.id.rawValue == songID })
-                })?.album
+                fallbackAlbum: fallbackAlbum,
+                assumesTargetArtistWhenRelationshipMissing: trustedTargetSongIDs.contains(songID)
             )
         }
 
+        let albumCandidates = detailedAlbums.map { detailedAlbum in
+            ListeningCatalogAlbumCandidate(
+                albumID: detailedAlbum.album.id.rawValue,
+                isCompilation: detailedAlbum.isCompilation,
+                tracks: detailedAlbum.songs.compactMap { song in
+                    guard let payload = songPayloadsByID[song.id.rawValue] else { return nil }
+                    return ListeningCatalogTrackCandidate(
+                        songID: payload.songID,
+                        performerArtistIDs: payload.performerArtistIDs
+                    )
+                }
+            )
+        }
+        let assembly = ListeningCatalogAssemblyPolicy.assemble(
+            targetArtistID: artistID,
+            topSongIDs: topSongIDs,
+            albums: albumCandidates
+        )
+
         var albumPayloads: [ListeningCatalogAlbumPayload] = []
-        var retainedAlbumSongIDs: [String] = []
         for detailedAlbum in detailedAlbums {
-            let albumArtistIDs = detailedAlbum.album.artists?.map(\.id.rawValue) ?? []
-            var trackIDs: [String] = []
-            for song in detailedAlbum.songs {
-                let songID = song.id.rawValue
-                guard let payload = songPayloadsByID[songID] else { continue }
-                if detailedAlbum.isCompilation,
-                   !payload.performerArtistIDs.contains(artistID) {
-                    continue
-                }
-                if !trackIDs.contains(songID) {
-                    trackIDs.append(songID)
-                }
-            }
-            if detailedAlbum.isCompilation, trackIDs.isEmpty {
+            let albumID = detailedAlbum.album.id.rawValue
+            guard assembly.retainedAlbumIDs.contains(albumID),
+                  let orderedTrackIDs = assembly.retainedTrackIDsByAlbumID[albumID] else {
                 continue
             }
-            retainedAlbumSongIDs.append(contentsOf: trackIDs)
+            let albumArtistIDs: [String]
+            if let albumArtists = detailedAlbum.album.artists {
+                albumArtistIDs = Array(albumArtists).map(\.id.rawValue)
+            } else {
+                albumArtistIDs = []
+            }
             albumPayloads.append(ListeningCatalogAlbumPayload(
-                albumID: detailedAlbum.album.id.rawValue,
+                albumID: albumID,
                 title: detailedAlbum.album.title,
                 artworkURL: Self.artworkURL(detailedAlbum.album.artwork),
                 releaseDate: detailedAlbum.album.releaseDate,
                 artistIDs: albumArtistIDs,
-                orderedTrackIDs: trackIDs
+                orderedTrackIDs: orderedTrackIDs
             ))
         }
 
-        let orderedSongIDs = Self.deduplicated(topSongIDs + retainedAlbumSongIDs)
-        let retainedSongPayloads = orderedSongIDs.compactMap { songPayloadsByID[$0] }
-        guard retainedSongPayloads.count == orderedSongIDs.count else {
+        let retainedSongPayloads = assembly.orderedSongIDs.compactMap { songPayloadsByID[$0] }
+        guard retainedSongPayloads.count == assembly.orderedSongIDs.count else {
             throw ListeningCatalogError.incompleteCatalog(artistID)
         }
 
@@ -162,8 +176,8 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 ?? artist.editorialNotes?.short
                 ?? artist.editorialNotes?.tagline,
             genreNames: artist.genreNames ?? [],
-            orderedSongIDs: orderedSongIDs,
-            topSongIDs: topSongIDs.filter { songPayloadsByID[$0] != nil },
+            orderedSongIDs: assembly.orderedSongIDs,
+            topSongIDs: topSongIDs,
             albumIDs: albumPayloads.map(\.albumID),
             songs: retainedSongPayloads,
             albums: albumPayloads,
@@ -182,6 +196,7 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 matching: \.id,
                 memberOf: musicIDs
             )
+            request.options = [.findEquivalents]
             request.limit = chunk.count
             request.properties = [.artists, .albums]
             let response = try await request.response()
@@ -204,18 +219,17 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
     private static func songPayload(
         from song: Song,
         targetArtistID: String,
-        fallbackAlbum: Album?
+        fallbackAlbum: Album?,
+        assumesTargetArtistWhenRelationshipMissing: Bool
     ) -> ListeningCatalogSongPayload {
-        let artists = song.artists.map(Array.init) ?? []
-        var performerArtistIDs = artists.map(\.id.rawValue)
-        var performerArtistNames = artists.map(\.name)
-        if performerArtistIDs.isEmpty,
-           let fallbackArtists = fallbackAlbum?.artists.map(Array.init),
-           !fallbackArtists.isEmpty {
-            performerArtistIDs = fallbackArtists.map(\.id.rawValue)
-            performerArtistNames = fallbackArtists.map(\.name)
+        var performerArtistIDs: [String] = []
+        var performerArtistNames: [String] = []
+        if let artists = song.artists {
+            let values = Array(artists)
+            performerArtistIDs = values.map(\.id.rawValue)
+            performerArtistNames = values.map(\.name)
         }
-        if performerArtistIDs.isEmpty, song.artistName == fallbackAlbum?.artistName {
+        if performerArtistIDs.isEmpty, assumesTargetArtistWhenRelationshipMissing {
             performerArtistIDs = [targetArtistID]
             performerArtistNames = [song.artistName]
         }
@@ -300,6 +314,10 @@ private struct DetailedAlbum {
     let album: Album
     let isCompilation: Bool
     let songs: [Song]
+
+    func containsSong(_ songID: String) -> Bool {
+        songs.contains { $0.id.rawValue == songID }
+    }
 }
 
 private extension Array {
