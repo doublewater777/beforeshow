@@ -6,31 +6,65 @@ on:
       - main
     paths:
       - "apps/ios/**"
+      - "scripts/verify-pr.sh"
       - ".github/workflows/ios-build-verify.yml"
   pull_request:
     branches:
       - main
     paths:
       - "apps/ios/**"
+      - "scripts/verify-pr.sh"
       - ".github/workflows/ios-build-verify.yml"
+
+permissions:
+  contents: read
+  pull-requests: read
 
 concurrency:
   group: ios-build-verify-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  verify-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: [self-hosted, xcode-26]
+    timeout-minutes: 45
+    steps:
+      - name: Prepare exact PR HEAD in fresh repo
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/beforeshow-pr-${{ github.run_id }}"
+          rm -rf "$SRC"
+          gh auth setup-git
+          git init "$SRC"
+          git -C "$SRC" remote add origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          git -C "$SRC" fetch --depth=1 origin "$PR_HEAD_SHA"
+          git -C "$SRC" checkout --detach FETCH_HEAD
+          echo "VERIFY_SOURCE=$SRC" >> "$GITHUB_ENV"
+
+      - name: Phase 1 PR verifier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "$VERIFY_SOURCE"
+          scripts/verify-pr.sh "${{ github.event.pull_request.number }}" --no-comment
+
+  verify-main:
+    if: github.event_name == 'push'
     runs-on: [self-hosted, xcode-26]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Architecture guard
         run: python3 apps/ios/scripts/check_architecture.py
 
-      - name: Build for simulator
+      - name: Signed simulator build
         run: |
           cd apps/ios
           xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \

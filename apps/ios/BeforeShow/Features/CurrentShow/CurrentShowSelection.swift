@@ -5,7 +5,8 @@ import SwiftData
 final class CurrentShowSelection {
     var id: UUID
     var selectedShowID: UUID?
-    /// Optional for lightweight migration: old rows were all explicit user selections.
+    /// Kept optional for lightweight repair of existing development stores.
+    /// New writes always represent an explicit, durable user-owned selection.
     var isManual: Bool?
     var updatedAt: Date
 
@@ -27,150 +28,166 @@ final class CurrentShowSelection {
         updatedAt = Date()
     }
 
-    func preserveAutomaticallySelected(showID: UUID) {
-        selectedShowID = showID
-        isManual = false
-        updatedAt = Date()
-    }
-
-    func clearManualSelection() {
+    func clearSelection() {
         selectedShowID = nil
+        isManual = true
         updatedAt = Date()
     }
 }
 
-struct CurrentShowSelector {
-    let postShowRetentionDays: Int
+/// Chooses an initial current show only when no durable selection exists.
+/// Runtime time progression never calls this policy to replace an existing choice.
+struct InitialCurrentShowPolicy {
     let calendar: Calendar
 
-    init(postShowRetentionDays: Int = 3, calendar: Calendar = .current) {
-        self.postShowRetentionDays = postShowRetentionDays
+    init(calendar: Calendar = .current) {
         self.calendar = calendar
     }
 
-    func selectCurrentShow(
-        from shows: [Show],
-        manualSelection: CurrentShowSelection? = nil,
-        now: Date = Date()
-    ) -> Show? {
-        // Manual selection wins only while the selected show is eligible for the
-        // current focus. A show that has passed its estimated boundary remains
-        // eligible until the user confirms its end.
-        if manualSelection?.isManual != false,
-           let selectedShowID = manualSelection?.selectedShowID,
-           let selectedShow = shows.first(where: { $0.id == selectedShowID }),
-           isManuallySelectable(selectedShow, now: now) {
-            return selectedShow
-        }
-
-        let automaticallySelectableShows = shows
-            .map { show in
-                (
-                    show,
-                    CurrentShowTimeState(
-                        show: show,
-                        calendar: calendar,
-                        now: now,
-                        retentionDays: postShowRetentionDays
-                    )
-                )
+    func candidate(from shows: [Show], now: Date = Date()) -> Show? {
+        let eligible = shows.filter { show in
+            guard show.wasAddedAsHistorical != true,
+                  show.changeStatus != .canceled else {
+                return false
             }
-            .filter { show, state in isAutomaticallySelectable(show, state: state) }
-            .sorted { first, second in
-                let firstRank = automaticSelectionRank(for: first.0, state: first.1, now: now)
-                let secondRank = automaticSelectionRank(for: second.0, state: second.1, now: now)
-
-                if firstRank != secondRank {
-                    return firstRank < secondRank
-                }
-
-                let firstDistance = abs(first.1.dayDistance)
-                let secondDistance = abs(second.1.dayDistance)
-
-                if firstDistance == secondDistance {
-                    return first.1.effectiveDate < second.1.effectiveDate
-                }
-
-                return firstDistance < secondDistance
+            if show.changeStatus == .postponed, show.postponedDate == nil {
+                return false
             }
-            .map { show, _ in show }
-
-        if let automaticallySelected = automaticallySelectableShows.first,
-           isActuallyLive(timeState(for: automaticallySelected, now: now), now: now) {
-            return automaticallySelected
+            return true
         }
 
-        if manualSelection?.isManual == false,
-           let selectedShowID = manualSelection?.selectedShowID,
-           let selectedShow = shows.first(where: { $0.id == selectedShowID }),
-           isManuallySelectable(selectedShow, now: now) {
-            return selectedShow
+        let projected = eligible.map { show in
+            (
+                show: show,
+                state: CurrentShowTimeState(show: show, calendar: calendar, now: now)
+            )
         }
 
-        return automaticallySelectableShows.first
+        let live = projected
+            .filter { entry in
+                guard entry.state.kind == .today,
+                      let start = entry.state.effectiveStartTime,
+                      let end = entry.state.endBoundary else {
+                    return false
+                }
+                return now >= start && now < end
+            }
+            .sorted { lhs, rhs in
+                let lhsStart = lhs.state.effectiveStartTime ?? .distantPast
+                let rhsStart = rhs.state.effectiveStartTime ?? .distantPast
+                if lhsStart != rhsStart { return lhsStart > rhsStart }
+                return lhs.show.id.uuidString < rhs.show.id.uuidString
+            }
+        if let show = live.first?.show {
+            return show
+        }
+
+        let future = projected
+            .filter { entry in
+                guard let start = entry.state.effectiveStartTime else { return false }
+                return start > now
+            }
+            .sorted { lhs, rhs in
+                let lhsStart = lhs.state.effectiveStartTime ?? .distantFuture
+                let rhsStart = rhs.state.effectiveStartTime ?? .distantFuture
+                if lhsStart != rhsStart { return lhsStart < rhsStart }
+                return lhs.show.id.uuidString < rhs.show.id.uuidString
+            }
+        if let show = future.first?.show {
+            return show
+        }
+
+        return projected
+            .filter { $0.show.endedAt == nil }
+            .sorted { lhs, rhs in
+                let lhsStart = lhs.state.effectiveStartTime ?? lhs.state.effectiveDate
+                let rhsStart = rhs.state.effectiveStartTime ?? rhs.state.effectiveDate
+                if lhsStart != rhsStart { return lhsStart > rhsStart }
+                return lhs.show.id.uuidString < rhs.show.id.uuidString
+            }
+            .first?
+            .show
+    }
+}
+
+/// The only mutation seam for the singleton-like `CurrentShowSelection` record.
+/// The model itself cannot express singleton uniqueness, so every write first
+/// normalizes malformed duplicate rows deterministically.
+@MainActor
+struct CurrentShowSelectionStore {
+    let modelContext: ModelContext
+
+    init(modelContext: ModelContext) {
+        self.modelContext = modelContext
     }
 
-    func isAutomaticallySelectable(_ show: Show, now: Date = Date()) -> Bool {
-        let state = timeState(for: show, now: now)
-        return isAutomaticallySelectable(show, state: state)
+    static func canonical(in selections: [CurrentShowSelection]) -> CurrentShowSelection? {
+        selections.sorted(by: canonicalOrder).first
     }
 
-    func isManuallySelectable(_ show: Show, now: Date = Date()) -> Bool {
-        let state = timeState(for: show, now: now)
-        return isAutomaticallySelectable(show, state: state)
+    func canonicalSelection() throws -> CurrentShowSelection? {
+        try normalizeDuplicates()
     }
 
-    private func timeState(for show: Show, now: Date) -> CurrentShowTimeState {
-        CurrentShowTimeState(
-            show: show,
-            calendar: calendar,
-            now: now,
-            retentionDays: postShowRetentionDays
-        )
+    @discardableResult
+    func normalizeDuplicates() throws -> CurrentShowSelection? {
+        let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+            .sorted(by: Self.canonicalOrder)
+        guard let canonical = selections.first else { return nil }
+        for duplicate in selections.dropFirst() {
+            modelContext.delete(duplicate)
+        }
+        return canonical
     }
 
-    private func isAutomaticallySelectable(_ show: Show, state: CurrentShowTimeState) -> Bool {
-        if show.wasAddedAsHistorical == true {
-            return false
+    @discardableResult
+    func select(showID: UUID) throws -> CurrentShowSelection {
+        let selection: CurrentShowSelection
+        if let existing = try normalizeDuplicates() {
+            selection = existing
+        } else {
+            selection = CurrentShowSelection()
+            modelContext.insert(selection)
         }
-        if state.kind == .ended {
-            return show.endedAt == nil
-        }
-        return state.isAutomaticallySelectable
+        selection.select(showID: showID)
+        return selection
     }
 
-    private func automaticSelectionRank(
-        for show: Show,
-        state: CurrentShowTimeState,
-        now: Date
-    ) -> Int {
-        if isActuallyLive(state, now: now) {
-            return 0
-        }
-
-        if state.kind == .dayEnded ||
-            ((state.kind == .postShow || state.kind == .ended) && show.endedAt == nil) {
-            return 1
-        }
-
-        switch state.kind {
-        case .today, .before:
-            return 2
-        case .dayEnded:
-            return 1
-        case .postShow:
-            return 3
-        case .ended, .canceled, .postponed:
-            return 4
-        }
+    @discardableResult
+    func clear() throws -> CurrentShowSelection? {
+        guard let selection = try normalizeDuplicates() else { return nil }
+        selection.clearSelection()
+        return selection
     }
 
-    private func isActuallyLive(_ state: CurrentShowTimeState, now: Date) -> Bool {
-        guard state.kind == .today,
-              let start = state.effectiveStartTime,
-              let boundary = state.endBoundary else {
-            return false
+    /// Establishes a Current Show only when the canonical selection has no valid
+    /// target. Existing valid choices are never replaced because time has passed.
+    @discardableResult
+    func bootstrapIfNeeded(
+        shows: [Show],
+        now: Date = Date(),
+        policy: InitialCurrentShowPolicy = InitialCurrentShowPolicy()
+    ) throws -> CurrentShowSelection? {
+        let selection = try normalizeDuplicates()
+        if let selectedShowID = selection?.selectedShowID,
+           shows.contains(where: { $0.id == selectedShowID }) {
+            return selection
         }
-        return now >= start && now < boundary
+
+        guard let candidate = policy.candidate(from: shows, now: now) else {
+            selection?.clearSelection()
+            return selection
+        }
+        return try select(showID: candidate.id)
+    }
+
+    private static func canonicalOrder(
+        _ lhs: CurrentShowSelection,
+        _ rhs: CurrentShowSelection
+    ) -> Bool {
+        if lhs.updatedAt != rhs.updatedAt {
+            return lhs.updatedAt > rhs.updatedAt
+        }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 }

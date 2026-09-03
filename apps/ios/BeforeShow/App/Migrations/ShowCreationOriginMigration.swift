@@ -1,21 +1,19 @@
 import Foundation
 import SwiftData
 
-/// 给升级前写入的旧现场补上显式的创建来源（一次性，启动时执行）。
-///
-/// 为什么需要迁移而不是运行时兜底：升级前 `applyAcceptedSession` 在找不到匹配现场时
-/// 会新建一条普通 `Show`，随后用 `applyCompanionSession(..., isOwner: false)` 标成
-/// participant 侧。这类「纯导入」行与「用户自己添加、后来被邀请合并」的行，在旧数据里
-/// 都只剩 `companionIsOwner == false`，无法再区分。
-///
-/// 旧数据无法区分，所以策略是保守的：一律标 `.user`（详见
-/// `resolveUnresolvedOrigins`）。此后来源字段永远是显式值，合并邀请再改
-/// `companionIsOwner` 也不会影响额度。
-///
-/// 时序不能靠启动顺序保证：`noteDependenciesReady()` 会立刻起一个 Task 去
-/// flush 待处理邀请，可能先于启动任务里的迁移执行。所以除了启动时调用一次，
-/// `applyAcceptedSession` 在合并/新建之前也会先调用 `resolveUnresolvedOrigins`，
-/// 把旧数据的来源定格下来 —— 无论谁先跑，用户自己添加的现场都不会被误判成导入。
+/// Single startup entry point for lightweight development-store repairs.
+/// Feature code may keep its own defensive invariant checks, but app startup must
+/// never scatter migration calls across multiple SwiftUI lifecycle callbacks.
+@MainActor
+enum AppPersistenceMigrationRunner {
+    static func run(in modelContext: ModelContext, now: Date = Date()) {
+        ShowCreationOriginMigration.migrateIfNeeded(in: modelContext)
+        CurrentShowOwnershipMigration.migrateIfNeeded(in: modelContext, now: now)
+        NotificationPortfolioMigration.migrateIfNeeded(in: modelContext)
+    }
+}
+
+/// Gives pre-field rows an explicit show creation origin.
 enum ShowCreationOriginMigration {
     static func migrateIfNeeded(in modelContext: ModelContext) {
         let descriptor = FetchDescriptor<Show>()
@@ -25,16 +23,8 @@ enum ShowCreationOriginMigration {
         try? modelContext.save()
     }
 
-    /// 给还没有来源值的现场落一个显式来源。返回是否有改动。
-    ///
-    /// 旧数据一律标 `.user`（保守策略）。`companionIsOwner == false` 在升级前就已经
-    /// 是二义的：升级前的三条合并分支同样会把用户自己添加的现场标成 participant 侧，
-    /// 所以「历史纯导入」和「历史自建后被合并」到达升级点时长得一模一样，没有其它
-    /// 持久证据可以区分。
-    ///
-    /// 两种误判的代价不对称：把历史导入误算成占额度，最多让用户本月少添加一场；
-    /// 把用户自己添加的现场误算成导入，会凭空退还已经用掉的额度，等于免费绕过限制。
-    /// 所以宁可保守。升级后新建的现场都带显式来源，不受这条策略影响。
+    /// Kept public to the module because Companion import calls this immediately
+    /// before merge/create, closing the race between share acceptance and startup.
     @discardableResult
     static func resolveUnresolvedOrigins(in shows: [Show]) -> Bool {
         var didChange = false
@@ -43,5 +33,197 @@ enum ShowCreationOriginMigration {
             didChange = true
         }
         return didChange
+    }
+}
+
+/// Converts the old time-owned Current Show state into one durable user-owned choice.
+/// After this runs, `isManual == true` is a marker that runtime must never replace
+/// the selection merely because time advanced.
+@MainActor
+enum CurrentShowOwnershipMigration {
+    static func migrateIfNeeded(
+        in modelContext: ModelContext,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) {
+        guard let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
+              let rawSelections = try? modelContext.fetch(FetchDescriptor<CurrentShowSelection>()) else {
+            return
+        }
+
+        let selections = rawSelections.sorted { lhs, rhs in
+            if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+        let canonical = selections.first
+        for duplicate in selections.dropFirst() {
+            modelContext.delete(duplicate)
+        }
+
+        if let canonical {
+            if canonical.isManual == true,
+               let selectedShowID = canonical.selectedShowID,
+               shows.contains(where: { $0.id == selectedShowID }) {
+                if selections.count > 1 {
+                    try? modelContext.save()
+                }
+                return
+            }
+
+            let resolvedShow: Show?
+            if canonical.isManual == false {
+                resolvedShow = LegacyCurrentShowSelectionResolver(
+                    calendar: calendar
+                ).selectCurrentShow(
+                    from: shows,
+                    automaticSelection: canonical,
+                    now: now
+                )
+            } else {
+                resolvedShow = InitialCurrentShowPolicy(calendar: calendar)
+                    .candidate(from: shows, now: now)
+            }
+
+            if let resolvedShow {
+                canonical.select(showID: resolvedShow.id)
+            } else {
+                canonical.clearSelection()
+            }
+        } else if let candidate = InitialCurrentShowPolicy(calendar: calendar)
+            .candidate(from: shows, now: now) {
+            modelContext.insert(CurrentShowSelection(selectedShowID: candidate.id))
+        }
+
+        try? modelContext.save()
+    }
+}
+
+/// One-time bridge from the old single-focus notification world.
+/// Existing shows must not suddenly mint anticipation backfill after upgrading to
+/// the portfolio scheduler. New Add Show rows are minted explicitly by the add flow.
+@MainActor
+enum NotificationPortfolioMigration {
+    private static let currentVersion = 1
+
+    static func migrateIfNeeded(in modelContext: ModelContext) {
+        guard let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
+              let state = try? NotificationSchedulingStateStore.canonicalize(in: modelContext) else {
+            return
+        }
+        guard (state.portfolioMigrationVersion ?? 0) < currentVersion else { return }
+
+        var minted = Set(state.backfillMintedShowIDs ?? [])
+        minted.formUnion(shows.map(\.id))
+        state.backfillMintedShowIDs = Array(minted)
+        state.focusedShowID = nil
+        state.portfolioMigrationVersion = currentVersion
+        state.updatedAt = Date()
+        try? modelContext.save()
+    }
+}
+
+/// Snapshot of the pre-v1.1 runtime selector. It exists only to preserve what an
+/// automatic development-store row would have displayed at upgrade time.
+private struct LegacyCurrentShowSelectionResolver {
+    let postShowRetentionDays: Int
+    let calendar: Calendar
+
+    init(postShowRetentionDays: Int = 3, calendar: Calendar = .current) {
+        self.postShowRetentionDays = postShowRetentionDays
+        self.calendar = calendar
+    }
+
+    func selectCurrentShow(
+        from shows: [Show],
+        automaticSelection: CurrentShowSelection,
+        now: Date
+    ) -> Show? {
+        let automaticallySelectableShows = shows
+            .map { show in
+                (
+                    show,
+                    CurrentShowTimeState(
+                        show: show,
+                        calendar: calendar,
+                        now: now,
+                        retentionDays: postShowRetentionDays
+                    )
+                )
+            }
+            .filter { show, state in isAutomaticallySelectable(show, state: state) }
+            .sorted { first, second in
+                let firstRank = automaticSelectionRank(for: first.0, state: first.1, now: now)
+                let secondRank = automaticSelectionRank(for: second.0, state: second.1, now: now)
+                if firstRank != secondRank { return firstRank < secondRank }
+
+                let firstDistance = abs(first.1.dayDistance)
+                let secondDistance = abs(second.1.dayDistance)
+                if firstDistance == secondDistance {
+                    return first.1.effectiveDate < second.1.effectiveDate
+                }
+                return firstDistance < secondDistance
+            }
+            .map { show, _ in show }
+
+        if let automaticallySelected = automaticallySelectableShows.first,
+           isActuallyLive(timeState(for: automaticallySelected, now: now), now: now) {
+            return automaticallySelected
+        }
+
+        if let selectedShowID = automaticSelection.selectedShowID,
+           let selectedShow = shows.first(where: { $0.id == selectedShowID }),
+           isAutomaticallySelectable(
+               selectedShow,
+               state: timeState(for: selectedShow, now: now)
+           ) {
+            return selectedShow
+        }
+
+        return automaticallySelectableShows.first
+    }
+
+    private func timeState(for show: Show, now: Date) -> CurrentShowTimeState {
+        CurrentShowTimeState(
+            show: show,
+            calendar: calendar,
+            now: now,
+            retentionDays: postShowRetentionDays
+        )
+    }
+
+    private func isAutomaticallySelectable(
+        _ show: Show,
+        state: CurrentShowTimeState
+    ) -> Bool {
+        if show.wasAddedAsHistorical == true { return false }
+        if state.kind == .ended { return show.endedAt == nil }
+        return state.isAutomaticallySelectable
+    }
+
+    private func automaticSelectionRank(
+        for show: Show,
+        state: CurrentShowTimeState,
+        now: Date
+    ) -> Int {
+        if isActuallyLive(state, now: now) { return 0 }
+        if state.kind == .dayEnded
+            || ((state.kind == .postShow || state.kind == .ended) && show.endedAt == nil) {
+            return 1
+        }
+        switch state.kind {
+        case .today, .before: return 2
+        case .dayEnded: return 1
+        case .postShow: return 3
+        case .ended, .canceled, .postponed: return 4
+        }
+    }
+
+    private func isActuallyLive(_ state: CurrentShowTimeState, now: Date) -> Bool {
+        guard state.kind == .today,
+              let start = state.effectiveStartTime,
+              let boundary = state.endBoundary else {
+            return false
+        }
+        return now >= start && now < boundary
     }
 }

@@ -81,6 +81,8 @@ enum AddShowSuccessCopy {
 
 struct AddShowPersistenceResult {
     let outcome: AddShowSaveOutcome
+    /// The state carries permission history plus a transient just-added backfill
+    /// candidate. It is no longer a notification focus.
     let notificationState: NotificationSchedulingState?
 }
 
@@ -93,8 +95,8 @@ enum AddShowPersistenceCoordinator {
     static func persist(
         _ show: Show,
         lifecycle: AddShowFinalLifecycle,
-        selections: [CurrentShowSelection],
-        notificationStates: [NotificationSchedulingState],
+        selections _: [CurrentShowSelection],
+        notificationStates _: [NotificationSchedulingState],
         in modelContext: ModelContext,
         now: Date = Date()
     ) throws -> AddShowPersistenceResult {
@@ -103,9 +105,11 @@ enum AddShowPersistenceCoordinator {
             throw AddShowPersistenceError.duplicateShow(existingShowID: duplicate.id)
         }
 
+        let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
+        let existingSelection = try selectionStore.canonicalSelection()
         let existingCurrent = CurrentShowSession().selectCurrentShow(
             from: persistedShows,
-            manualSelection: selections.first,
+            manualSelection: existingSelection,
             now: now
         )
 
@@ -115,59 +119,39 @@ enum AddShowPersistenceCoordinator {
         case .ended:
             if show.endedAt == nil {
                 show.markAddedAsHistorical()
+                try modelContext.save()
+                return AddShowPersistenceResult(
+                    outcome: .footprint,
+                    notificationState: nil
+                )
             }
-            let notificationState: NotificationSchedulingState?
-            if show.endedAt != nil {
-                let state = notificationStates.first
-                    ?? NotificationSchedulingState(focusedShowID: existingCurrent?.id)
-                if notificationStates.isEmpty {
-                    modelContext.insert(state)
-                } else {
-                    state.focus(showID: existingCurrent?.id)
-                }
-                notificationState = state
-            } else {
-                notificationState = nil
-            }
+
+            // A confirmed ended import can still own a future after-show reminder.
+            // Stage it as a one-shot portfolio backfill candidate without changing
+            // the user's Current Show.
+            let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
+            state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()
             return AddShowPersistenceResult(
                 outcome: .footprint,
-                notificationState: notificationState
+                notificationState: state
             )
-        case .future where existingCurrent != nil:
-            if let existingCurrent,
-               selections.first?.selectedShowID != existingCurrent.id {
-                let selection = selections.first ?? CurrentShowSelection()
-                if selections.isEmpty {
-                    modelContext.insert(selection)
-                }
-                selection.preserveAutomaticallySelected(showID: existingCurrent.id)
-            }
-            try modelContext.save()
-            return AddShowPersistenceResult(outcome: .future, notificationState: nil)
+
         case .future, .live:
-            let selection = selections.first ?? CurrentShowSelection()
-            if selections.isEmpty {
-                modelContext.insert(selection)
-            }
-            if lifecycle == .live {
-                selection.select(showID: show.id)
-            } else {
-                selection.preserveAutomaticallySelected(showID: show.id)
+            let becameCurrent = existingCurrent == nil
+            if becameCurrent {
+                _ = try selectionStore.select(showID: show.id)
             }
 
-            let notificationState = notificationStates.first
-                ?? NotificationSchedulingState(focusedShowID: show.id)
-            if notificationStates.isEmpty {
-                modelContext.insert(notificationState)
-            } else {
-                notificationState.focus(showID: show.id)
-            }
-
+            // Every newly added upcoming/live show gets its own notification nodes.
+            // `focusedShowID` is only a crash-safe hand-off to the portfolio reconciler.
+            let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
+            state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()
+
             return AddShowPersistenceResult(
-                outcome: lifecycle == .live ? .current : .future,
-                notificationState: notificationState
+                outcome: lifecycle == .live && becameCurrent ? .current : .future,
+                notificationState: state
             )
         }
     }

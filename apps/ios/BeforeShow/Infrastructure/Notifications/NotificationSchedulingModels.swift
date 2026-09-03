@@ -39,25 +39,17 @@ enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
     case sevenDaysBefore
     case threeDaysBefore
     case oneDayBefore
-    /// 现场当天早上：交通、取票、周边留出时间。
     case showDayMorning
-    /// 开场前 3 小时：唯一一条会打断用户的通知。
     case showDay
-    /// 开场时刻：安静落到统一记忆编辑器。
     case openingMemory
-    /// 散场次日上午：唯一一条非提醒性质的通知，落到记忆碎片。
     case afterShow
 }
 
 extension ShowNotificationMilestone {
-    /// 只有「快开场了」带声音并突破专注模式——错过它有真实后果。
-    /// 其余节点是普通横幅（无声音）。
     var isTimeSensitive: Bool {
         self == .showDay
     }
 
-    /// 期待期四个节点：临近开场才添加现场时会被补发（见 backfillRequests）。
-    /// showDay/openingMemory/afterShow 各有自己的兜底和生命周期，不参与补发。
     var isAnticipation: Bool {
         switch self {
         case .fourteenDaysBefore, .sevenDaysBefore, .threeDaysBefore, .oneDayBefore:
@@ -66,10 +58,21 @@ extension ShowNotificationMilestone {
             return false
         }
     }
+
+    fileprivate var portfolioPriority: Int {
+        switch self {
+        case .showDay: return 0
+        case .openingMemory: return 1
+        case .showDayMorning: return 2
+        case .afterShow: return 3
+        case .oneDayBefore: return 4
+        case .threeDaysBefore: return 5
+        case .sevenDaysBefore: return 6
+        case .fourteenDaysBefore: return 7
+        }
+    }
 }
 
-/// 现场类型。产品只支持演唱会 / Livehouse / 音乐节，但模型里没有类型字段，
-/// 所以按名称和场馆推断，只用于挑选通知语气，推断错也不会影响任何数据。
 enum ShowFlavor {
     case festival
     case livehouse
@@ -92,12 +95,9 @@ enum ShowFlavor {
     }
 }
 
-/// 通知文案要用到的现场事实。抽出来是为了让文案函数保持纯函数、可单测，
-/// 不必在每个分支里重复解包 optional 场馆 / 城市。
 struct NotificationCopyContext {
     let showName: String
     let flavor: ShowFlavor
-    /// 场馆优先，没有就退到城市，两者都没有则为 nil。
     let place: String?
     let isMultiDay: Bool
     let startClock: String?
@@ -140,7 +140,6 @@ struct ScheduledShowNotification: Equatable {
     let fireDate: Date
     let title: String
     let body: String
-    /// 过期节点的补发：普通横幅（.active 无声音），文案按实际剩余天数重写。
     var isBackfill: Bool = false
 }
 
@@ -149,15 +148,146 @@ struct NotificationReschedulePlan: Equatable {
     let requestsToSchedule: [ScheduledShowNotification]
 }
 
+enum NotificationReconcileReason: Equatable {
+    case startup
+    case foreground
+    case mutation
+    /// Compatibility hand-off from Add Show: only this reason may mint anticipation backfill.
+    case showAddedCandidate(UUID)
+}
+
+struct NotificationPortfolioPlan {
+    static let maximumScheduledRequests = 56
+
+    /// Requests that should exist in UNUserNotificationCenter now.
+    let scheduledRequests: [ScheduledShowNotification]
+    /// Backfills keep their minted fire date/copy even when capacity temporarily defers them.
+    let retainedBackfillRequests: [ScheduledShowNotification]
+    let backfillShowIDsToMarkMinted: [UUID]
+
+    var modelRequests: [ScheduledShowNotification] {
+        var byIdentifier = Dictionary(
+            uniqueKeysWithValues: scheduledRequests.map { ($0.requestIdentifier, $0) }
+        )
+        for request in retainedBackfillRequests {
+            byIdentifier[request.requestIdentifier] = request
+        }
+        return Array(byIdentifier.values)
+    }
+}
+
+struct NotificationPortfolioPlanner {
+    let scheduler: LocalNotificationScheduler
+
+    init(calendar: Calendar = .current) {
+        self.scheduler = LocalNotificationScheduler(calendar: calendar)
+    }
+
+    func plan(
+        shows: [Show],
+        existingRecords: [ShowNotificationScheduleRecord],
+        schedulingState: NotificationSchedulingState?,
+        reason: NotificationReconcileReason,
+        now: Date = Date()
+    ) -> NotificationPortfolioPlan {
+        let eligibleShows = shows.filter(Self.isEligibleForPortfolio)
+        let liveShowIDs = Set(eligibleShows.map(\.id))
+
+        var naturalRequests: [ScheduledShowNotification] = []
+        for show in eligibleShows {
+            if show.endedAt != nil {
+                if let afterShow = scheduler.afterShowRequest(for: show, now: now) {
+                    naturalRequests.append(afterShow)
+                }
+            } else {
+                naturalRequests.append(contentsOf: scheduler.futureRequests(for: show, now: now))
+            }
+        }
+
+        var backfillRequests = existingRecords
+            .filter {
+                $0.isBackfill == true
+                    && $0.fireDate > now
+                    && liveShowIDs.contains($0.showID)
+            }
+            .map {
+                ScheduledShowNotification(
+                    showID: $0.showID,
+                    milestone: $0.milestone,
+                    fireDate: $0.fireDate,
+                    title: $0.title ?? "",
+                    body: $0.body ?? "",
+                    isBackfill: true
+                )
+            }
+
+        var backfillShowIDsToMarkMinted: [UUID] = []
+        if case .showAddedCandidate(let showID) = reason,
+           let show = eligibleShows.first(where: { $0.id == showID }),
+           schedulingState?.hasMintedBackfill(for: showID) != true {
+            backfillRequests.append(contentsOf: scheduler.backfillRequests(for: show, now: now))
+            backfillShowIDsToMarkMinted.append(showID)
+        }
+
+        naturalRequests = Self.deduplicated(naturalRequests)
+        backfillRequests = Self.deduplicated(backfillRequests)
+
+        let allCandidates = Self.sortedForScheduling(naturalRequests + backfillRequests)
+        let scheduled = Array(allCandidates.prefix(NotificationPortfolioPlan.maximumScheduledRequests))
+
+        return NotificationPortfolioPlan(
+            scheduledRequests: scheduled,
+            retainedBackfillRequests: backfillRequests,
+            backfillShowIDsToMarkMinted: backfillShowIDsToMarkMinted
+        )
+    }
+
+    private static func isEligibleForPortfolio(_ show: Show) -> Bool {
+        guard show.wasAddedAsHistorical != true,
+              show.changeStatus != .canceled else {
+            return false
+        }
+        if show.changeStatus == .postponed, show.postponedDate == nil {
+            return false
+        }
+        return true
+    }
+
+    private static func deduplicated(
+        _ requests: [ScheduledShowNotification]
+    ) -> [ScheduledShowNotification] {
+        var seen = Set<String>()
+        return requests.filter { seen.insert($0.requestIdentifier).inserted }
+    }
+
+    private static func sortedForScheduling(
+        _ requests: [ScheduledShowNotification]
+    ) -> [ScheduledShowNotification] {
+        requests.sorted { lhs, rhs in
+            if lhs.fireDate != rhs.fireDate { return lhs.fireDate < rhs.fireDate }
+            if lhs.milestone.portfolioPriority != rhs.milestone.portfolioPriority {
+                return lhs.milestone.portfolioPriority < rhs.milestone.portfolioPriority
+            }
+            if lhs.showID != rhs.showID {
+                return lhs.showID.uuidString < rhs.showID.uuidString
+            }
+            return lhs.requestIdentifier < rhs.requestIdentifier
+        }
+    }
+}
+
 @Model
 final class NotificationSchedulingState {
     var id: UUID
+    /// Legacy/transient field. Runtime portfolio planning never treats this as a focus.
+    /// After the portfolio migration it is used only as an interrupted Add Show
+    /// backfill candidate hand-off and is cleared by the next successful reconcile.
     var focusedShowID: UUID?
     var hasRequestedPermissionAfterFirstShow: Bool
-    /// 已补发过过期节点的现场。每场现场只 mint 一次：补发是基于添加时刻
-    /// 的情绪曲线重放，编辑 / 切焦点 / reconcile 重排都不该再来一轮。
-    /// 存储层必须可选：旧数据没有这一列，非可选属性会让轻量迁移直接失败。
     var backfillMintedShowIDs: [UUID]?
+    /// Optional keeps the development-store schema lightweight. Version 1 means
+    /// pre-portfolio shows were marked as already backfill-minted.
+    var portfolioMigrationVersion: Int?
     var updatedAt: Date
 
     init(
@@ -165,12 +295,14 @@ final class NotificationSchedulingState {
         focusedShowID: UUID? = nil,
         hasRequestedPermissionAfterFirstShow: Bool = false,
         backfillMintedShowIDs: [UUID]? = nil,
+        portfolioMigrationVersion: Int? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
         self.focusedShowID = focusedShowID
         self.hasRequestedPermissionAfterFirstShow = hasRequestedPermissionAfterFirstShow
         self.backfillMintedShowIDs = backfillMintedShowIDs
+        self.portfolioMigrationVersion = portfolioMigrationVersion
         self.updatedAt = updatedAt
     }
 
@@ -179,6 +311,18 @@ final class NotificationSchedulingState {
         updatedAt = Date()
     }
 
+    /// Transitional hand-off used only between Add Show persistence and portfolio reconcile.
+    func stageBackfillCandidate(showID: UUID) {
+        focusedShowID = showID
+        updatedAt = Date()
+    }
+
+    func clearStagedBackfillCandidate() {
+        focusedShowID = nil
+        updatedAt = Date()
+    }
+
+    /// Kept for source compatibility with older tests/callers; not a scheduling focus.
     func focus(showID: UUID?) {
         focusedShowID = showID
         updatedAt = Date()
@@ -204,10 +348,6 @@ final class ShowNotificationScheduleRecord {
     var showID: UUID
     var milestoneRawValue: String
     var fireDate: Date
-    /// 补发记录自带文案：重排（applyFocusChange）时待发的补发要按记录原样重建，
-    /// 不能靠 backfillRequests 重算（那会按新的 now 生成另一组时刻）。
-    /// 存储层可选：旧数据没有这三列，非可选属性会让轻量迁移直接失败；
-    /// 读取处按 `== true` / `?? ""` 处理，nil 即「自然节点记录」。
     var isBackfill: Bool?
     var title: String?
     var body: String?
@@ -235,5 +375,23 @@ final class ShowNotificationScheduleRecord {
         self.title = title
         self.body = body
         self.createdAt = createdAt
+    }
+
+    func matches(_ request: ScheduledShowNotification) -> Bool {
+        showID == request.showID
+            && milestoneRawValue == request.milestone.rawValue
+            && fireDate == request.fireDate
+            && (isBackfill == true) == request.isBackfill
+            && (title ?? "") == request.title
+            && (body ?? "") == request.body
+    }
+
+    func apply(_ request: ScheduledShowNotification) {
+        showID = request.showID
+        milestoneRawValue = request.milestone.rawValue
+        fireDate = request.fireDate
+        isBackfill = request.isBackfill
+        title = request.title
+        body = request.body
     }
 }

@@ -2,24 +2,15 @@ import ActivityKit
 import Foundation
 import WidgetKit
 
-// MARK: - Widget Data Sync
-// 「当前现场」变化时的单一出口:内容变化才写 App Group 快照 + reload widget →
-// 对齐 Live Activity 生命周期。RootView 在 shows/selections 变化与回到前台时调用。
-//
-// Live Activity 产品口径(无 push,评审定稿):
-// - 活跃窗口 = 预计谢幕前最多 8h(平台活跃上限),窗口内打开过 app 才会启动;
-//   iOS 26+ 额外在窗口起点 schedule,不依赖窗口内打开
-// - staleDate 指向开场时刻:过 T 系统把内容标记 stale 并重渲染,渲染侧用
-//   context.isStale 翻「距开场/已开场」阶段(金→红),无需 push 或打开 app;
-//   计时用系统 Text(style: .timer) 跨零自动倒数/正计时
-// - 谢幕时不承诺准点结束:下一次 app 运行时 end
+// MARK: - Widget / Live Activity Sync
+// Widget follows the durable user-owned Current Show. Live Activity independently
+// follows an actually live or nearest upcoming show. Both surfaces share the cover
+// cache, so pruning keeps the union of their sources.
 
 enum WidgetDataSync {
     static let widgetKind = BeforeShowWidgetKind.homeCountdown
     static let lockScreenWidgetKind = BeforeShowWidgetKind.lockScreenCountdown
 
-    /// generation 在 MainActor(SwiftUI 调用方所在隔离域)预分配,
-    /// 保证多次连续 sync 的版本顺序 = 调用顺序;actor 只认最大版本。
     @MainActor private static var syncGeneration: UInt64 = 0
 
     @MainActor
@@ -33,22 +24,40 @@ enum WidgetDataSync {
         let generation = syncGeneration
 
         let session = CurrentShowSession()
-        let show = session.selectCurrentShow(from: shows, manualSelection: manualSelection, now: now)
-        let snapshot = show.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
+        let currentShow = session.selectCurrentShow(
+            from: shows,
+            manualSelection: manualSelection,
+            now: now
+        )
+        let liveActivityShow = LiveActivityShowResolver().resolve(
+            shows: shows,
+            currentShow: currentShow,
+            now: now
+        )
+
+        let widgetSnapshot = currentShow.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
+        let liveActivitySnapshot = liveActivityShow.map { WidgetShowSnapshot(show: $0, generatedAt: now) }
+        let retainedCoverSources = Set(
+            [widgetSnapshot?.coverImageURL, liveActivitySnapshot?.coverImageURL]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        )
 
         let previous = WidgetSnapshotStore.read()
         var didStoreSnapshot = true
-        if contentChanged(from: previous, to: snapshot) {
-            didStoreSnapshot = WidgetSnapshotStore.write(snapshot)
+        if contentChanged(from: previous, to: widgetSnapshot) {
+            didStoreSnapshot = WidgetSnapshotStore.write(widgetSnapshot)
             if didStoreSnapshot {
                 BeforeShowWidgetKind.reloadAllTimelines()
             }
         }
 
-        // Show 是 SwiftData @Model(非 Sendable),跨并发边界只传值类型快照
+        // SwiftData Show is not Sendable; only immutable value snapshots cross actors.
         Task {
             await ShowLiveActivityController.shared.sync(
-                snapshot: snapshot,
+                snapshot: liveActivitySnapshot,
+                widgetCoverSource: widgetSnapshot?.coverImageURL,
+                retainedCoverSources: retainedCoverSources,
                 now: now,
                 generation: generation
             )
@@ -61,13 +70,81 @@ enum WidgetDataSync {
         to snapshot: WidgetShowSnapshot?
     ) -> Bool {
         switch (previous, snapshot) {
-        case (nil, nil):
-            return false
-        case (nil, .some), (.some, nil):
-            return true
-        case let (a?, b?):
-            return !a.isContentEqual(to: b)
+        case (nil, nil): return false
+        case (nil, .some), (.some, nil): return true
+        case let (a?, b?): return !a.isContentEqual(to: b)
         }
+    }
+}
+
+/// Live Activity is a time-sensitive surface, not another representation of Current Show.
+struct LiveActivityShowResolver {
+    let calendar: Calendar
+
+    init(calendar: Calendar = .current) {
+        self.calendar = calendar
+    }
+
+    func resolve(
+        shows: [Show],
+        currentShow: Show?,
+        now: Date = Date()
+    ) -> Show? {
+        let eligible = shows.filter { show in
+            guard show.wasAddedAsHistorical != true,
+                  show.changeStatus != .canceled,
+                  show.endedAt == nil else {
+                return false
+            }
+            if show.changeStatus == .postponed, show.postponedDate == nil {
+                return false
+            }
+            return true
+        }
+
+        if let currentShow,
+           eligible.contains(where: { $0.id == currentShow.id }),
+           isActuallyLive(currentShow, now: now) {
+            return currentShow
+        }
+
+        let live = eligible
+            .filter { isActuallyLive($0, now: now) }
+            .sorted { lhs, rhs in
+                let lhsStart = startTime(for: lhs, now: now) ?? .distantPast
+                let rhsStart = startTime(for: rhs, now: now) ?? .distantPast
+                if lhsStart != rhsStart { return lhsStart > rhsStart }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+        if let show = live.first {
+            return show
+        }
+
+        return eligible
+            .compactMap { show -> (Show, Date)? in
+                guard let start = startTime(for: show, now: now), start > now else { return nil }
+                return (show, start)
+            }
+            .sorted { lhs, rhs in
+                if lhs.1 != rhs.1 { return lhs.1 < rhs.1 }
+                return lhs.0.id.uuidString < rhs.0.id.uuidString
+            }
+            .first?
+            .0
+    }
+
+    private func startTime(for show: Show, now: Date) -> Date? {
+        CurrentShowTimeState(show: show, calendar: calendar, now: now).effectiveStartTime
+    }
+
+    private func isActuallyLive(_ show: Show, now: Date) -> Bool {
+        let state = CurrentShowTimeState(show: show, calendar: calendar, now: now)
+        guard state.kind == .today,
+              let start = state.effectiveStartTime,
+              let end = state.endBoundary else {
+            return false
+        }
+        return now >= start && now < end
     }
 }
 
@@ -87,7 +164,6 @@ extension WidgetShowSnapshot {
 
 // MARK: - Live Activity runtime selection
 
-/// ActivityKit 对象不进入测试层;先投影为纯值记录,再决定唯一 keeper。
 struct LiveActivityRuntimeRecord: Equatable {
     let id: String
     let showID: String
@@ -96,7 +172,6 @@ struct LiveActivityRuntimeRecord: Equatable {
 }
 
 enum LiveActivityRuntimeSelection {
-    /// `.keep` 只允许保留一个完全一致的 pending。找不到时返回 nil,调用方应全部结束。
     static func pendingKeeperID(
         in records: [LiveActivityRuntimeRecord],
         showID: String?,
@@ -107,7 +182,6 @@ enum LiveActivityRuntimeSelection {
         })?.id
     }
 
-    /// 同场去重优先级:目标 active → 目标 pending → ActivityKit 返回的第一条。
     static func duplicateKeeperID(
         in records: [LiveActivityRuntimeRecord],
         showID: String?,
@@ -134,37 +208,45 @@ enum LiveActivityRuntimeSelection {
 
 // MARK: - Live Activity Controller
 
-/// 决策全部在 Shared/LiveActivityPlanner(纯逻辑,可单测);
-/// actor 只负责把动作翻译成 ActivityKit 调用并串行化。
 actor ShowLiveActivityController {
     static let shared = ShowLiveActivityController()
 
     private struct PendingSync {
         let snapshot: WidgetShowSnapshot?
+        let widgetCoverSource: String?
+        let retainedCoverSources: Set<String>
         let now: Date
         let generation: UInt64
     }
 
     private init() {}
 
-    /// 已进入 actor 的最大 generation;小于它的 sync 全部丢弃。
     private var latestGeneration: UInt64 = 0
-    /// actor 会在 await 处重入;新请求只覆盖待处理值,不会另起一条 ActivityKit mutation 链。
     private var pendingSync: PendingSync?
     private var isProcessing = false
 
-    func sync(snapshot: WidgetShowSnapshot?, now: Date, generation: UInt64) async {
+    func sync(
+        snapshot: WidgetShowSnapshot?,
+        widgetCoverSource: String?,
+        retainedCoverSources: Set<String>,
+        now: Date,
+        generation: UInt64
+    ) async {
         latestGeneration = max(latestGeneration, generation)
         guard generation == latestGeneration else { return }
 
-        pendingSync = PendingSync(snapshot: snapshot, now: now, generation: generation)
+        pendingSync = PendingSync(
+            snapshot: snapshot,
+            widgetCoverSource: widgetCoverSource,
+            retainedCoverSources: retainedCoverSources,
+            now: now,
+            generation: generation
+        )
         guard !isProcessing else { return }
 
         isProcessing = true
         defer { isProcessing = false }
 
-        // 单一 worker 串行执行 ActivityKit 副作用。actor 重入期间的新 sync 只更新
-        // pendingSync;旧 mutation 完成后再按最新快照纠正,不会出现新旧 end/update 交叉。
         while let request = pendingSync {
             pendingSync = nil
             await process(request)
@@ -177,42 +259,38 @@ actor ShowLiveActivityController {
         let snapshot = request.snapshot
         let now = request.now
         let activitiesEnabled = ActivityAuthorizationInfo().areActivitiesEnabled
-
-        // 封面与 Live Activity 窗口解耦:只要当前现场有封面 URL 就维护 widget 缓存。
-        // 之前只在 desired != nil 时下载、否则 prune 全部——现场一越过谢幕边界,
-        // 每次 sync 都把封面删掉,widget 只能靠 extension 里随时可能被掐断的后台下载。
-        // 若下载期间来了更新请求,跳过旧请求的 prune / ActivityKit 副作用。
         let desired = LiveActivityPlanner.desiredState(
             snapshot: snapshot,
             now: now,
             coverFilename: nil
         )
-        var coverFilename: String?
-        if let source = snapshot?.coverImageURL {
-            // App 侧下载是可靠路径;成功后若封面从无到有,主动 reload widget,
-            // 避免 extension 下载被掐断后占位图挂到下一次 12h timeline。
-            let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
+
+        let normalizedWidgetSource = request.widgetCoverSource?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let liveSource = snapshot?.coverImageURL?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let hadWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
+
+        for source in request.retainedCoverSources.sorted() {
             await WidgetCoverCache.refresh(for: source)
             guard request.generation == latestGeneration else { return }
-            WidgetCoverCache.pruneCovers(except: source)
-            if desired != nil {
-                coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: source)
+        }
+        WidgetCoverCache.pruneCovers(keeping: request.retainedCoverSources)
+
+        let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: normalizedWidgetSource) != nil
+        if !hadWidgetCover, hasWidgetCover {
+            await MainActor.run {
+                BeforeShowWidgetKind.reloadAllTimelines()
             }
-            let hasWidgetCover = WidgetCoverCache.cachedCoverPath(matching: source) != nil
-            if !hadWidgetCover, hasWidgetCover {
-                await MainActor.run {
-                    BeforeShowWidgetKind.reloadAllTimelines()
-                }
-            }
-        } else {
-            // 已无可展示现场(nil)或现场本身无封面时,清理历史缓存。
-            guard request.generation == latestGeneration else { return }
-            WidgetCoverCache.pruneCovers(except: nil)
+        }
+
+        var coverFilename: String?
+        if desired != nil, let liveSource, !liveSource.isEmpty {
+            coverFilename = WidgetCoverCache.freshLiveActivityCoverFilename(for: liveSource)
         }
 
         guard request.generation == latestGeneration else { return }
 
-        // 封面下载可能耗时；必须在所有 await 之后重新读取 ActivityKit，避免用过期列表决策。
         let existing: [LiveActivityExisting] = activitiesEnabled
             ? Activity<ShowLiveActivityAttributes>.activities.map {
                 LiveActivityExisting(
@@ -250,8 +328,6 @@ actor ShowLiveActivityController {
         )
     }
 
-    /// mutation 链由 sync 的单一 worker 串行化。generation 检查用于在新请求到达后
-    /// 尽早停止剩余旧动作;已经发出的 ActivityKit 调用完成后,worker 会处理最新请求。
     private func perform(_ action: LiveActivityAction, showID: String?, generation: UInt64) async {
         func isCurrent() -> Bool { generation == latestGeneration }
 
@@ -269,7 +345,6 @@ actor ShowLiveActivityController {
             )
 
         case .keep(let state):
-            // 只留一个 pending + 完全一致的 ContentState;同场重复/stale 与其它场全部 end。
             await keepOnlyPending(
                 showID: showID,
                 state: state,
@@ -335,9 +410,6 @@ actor ShowLiveActivityController {
         }
     }
 
-    /// staleDate 指向开场时刻:过 T 系统重渲染,渲染侧用 isStale 准点翻阶段。
-    /// 但 staleDate 不能写过去的时刻——实测(iOS 26.5)staleDate 已过期的 update
-    /// 会让系统直接把活动从锁屏移除;所以开场已过时回到谢幕时刻(谢幕过期语义)。
     private func staleDate(for state: ShowLiveActivityAttributes.ContentState) -> Date? {
         state.startDate > Date() ? state.startDate : state.endDate
     }
@@ -390,8 +462,6 @@ actor ShowLiveActivityController {
         }
     }
 
-    /// `.keep` 必须只保留一个正确 pending。两个完全相同的 pending 也要去重,
-    /// 找不到正确 pending 时则全部结束,避免 Activity 状态变化后留下 stale 项。
     private func keepOnlyPending(
         showID: String?,
         state: ShowLiveActivityAttributes.ContentState,
@@ -410,8 +480,6 @@ actor ShowLiveActivityController {
         }
     }
 
-    /// 同一 showID 只留一个:优先 ContentState 与目标一致的(active 优于 pending),
-    /// 避免 ActivityKit 返回顺序下误删正确 pending、留下旧 start。
     private func endDuplicates(
         keepingShowID showID: String?,
         preferring preferred: ShowLiveActivityAttributes.ContentState?,

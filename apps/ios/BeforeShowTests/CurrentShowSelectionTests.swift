@@ -13,220 +13,243 @@ final class CurrentShowSelectionTests: XCTestCase {
         now = makeDate(year: 2026, month: 6, day: 15, hour: 12)
     }
 
-    func testAutomaticSelectionKeepsUnconfirmedPreviousShowBeforeFutureShow() throws {
-        let canceledToday = try makeShow(name: "已取消现场", day: 15)
-        canceledToday.markCanceled()
-        let expiredPastShow = try makeShow(name: "过了停留期的现场", day: 10)
-        let nearestFutureShow = try makeShow(name: "明天的现场", day: 16)
-        let laterFutureShow = try makeShow(name: "更远的现场", day: 22)
+    func testSessionReturnsNilWithoutDurableSelectionEvenWhenShowsExist() throws {
+        let previousShow = try makeShow(name: "上一场", day: 10)
+        let liveShow = try makeShow(name: "正在进行", day: 15)
+        let futureShow = try makeShow(name: "下一场", day: 16)
 
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [laterFutureShow, canceledToday, expiredPastShow, nearestFutureShow],
-            now: now
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [previousShow, liveShow, futureShow],
+            manualSelection: nil,
+            now: makeDate(year: 2026, month: 6, day: 15, hour: 21)
         )
 
-        XCTAssertEqual(selected?.id, expiredPastShow.id)
+        XCTAssertNil(selected, "Runtime time progression must not synthesize a Current Show")
     }
 
-    func testRecentlyEndedShowStaysRelevantForPostShowRetentionWindow() throws {
-        let recentlyEndedShow = try makeShow(name: "前天结束的现场", day: 13)
-        let laterFutureShow = try makeShow(name: "月底现场", day: 30)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [laterFutureShow, recentlyEndedShow],
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, recentlyEndedShow.id)
-    }
-
-    func testRecentlyEndedShowDoesNotSwitchToNearFutureShowDuringRetentionWindow() throws {
-        let recentlyEndedShow = try makeShow(name: "前天结束的现场", day: 13)
+    func testDurableSelectionSurvivesConfirmedEndAndNearbyFutureShow() throws {
+        let endedShow = try makeShow(name: "已经结束的现场", day: 10)
+        endedShow.markEnded(at: makeDate(year: 2026, month: 6, day: 10, hour: 22))
         let tomorrowShow = try makeShow(name: "明天的现场", day: 16)
+        let selection = CurrentShowSelection(selectedShowID: endedShow.id)
 
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [tomorrowShow, recentlyEndedShow],
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [tomorrowShow, endedShow],
+            manualSelection: selection,
             now: now
         )
 
-        XCTAssertEqual(selected?.id, recentlyEndedShow.id)
+        XCTAssertEqual(selected?.id, endedShow.id)
     }
 
-    func testUnconfirmedShowRemainsCurrentBeyondPostShowRetention() throws {
-        let expiredPastShow = try makeShow(name: "过了停留期的现场", day: 10)
+    func testDurableCanceledSelectionRemainsCurrent() throws {
+        let canceledShow = try makeShow(name: "已取消现场", day: 16)
+        canceledShow.markCanceled()
+        let futureShow = try makeShow(name: "另一场", day: 20)
+        let selection = CurrentShowSelection(selectedShowID: canceledShow.id)
 
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [expiredPastShow],
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [canceledShow, futureShow],
+            manualSelection: selection,
             now: now
         )
 
-        XCTAssertEqual(selected?.id, expiredPastShow.id)
+        XCTAssertEqual(selected?.id, canceledShow.id)
     }
 
-    func testConfirmedEndedShowStillLeavesCurrentAfterRetention() throws {
-        let expiredPastShow = try makeShow(name: "已经确认结束的现场", day: 10)
-        expiredPastShow.markEnded(at: makeDate(year: 2026, month: 6, day: 10, hour: 22))
+    func testDurableUndatedPostponedSelectionRemainsCurrent() throws {
+        let postponedShow = try makeShow(name: "未定延期现场", day: 16)
+        postponedShow.markPostponed(newDate: nil)
+        let futureShow = try makeShow(name: "另一场", day: 20)
+        let selection = CurrentShowSelection(selectedShowID: postponedShow.id)
 
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [expiredPastShow],
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [postponedShow, futureShow],
+            manualSelection: selection,
+            now: now
+        )
+
+        XCTAssertEqual(selected?.id, postponedShow.id)
+    }
+
+    func testRuntimeTimeProgressionNeverReplacesDurableSelection() throws {
+        let selectedShow = try makeShow(name: "用户当前", day: 10)
+        let laterLiveShow = try makeShow(name: "后来正在进行", day: 20)
+        let selection = CurrentShowSelection(selectedShowID: selectedShow.id)
+        let session = CurrentShowSession(calendar: calendar)
+
+        let before = session.selectCurrentShow(
+            from: [selectedShow, laterLiveShow],
+            manualSelection: selection,
+            now: now
+        )
+        let after = session.selectCurrentShow(
+            from: [selectedShow, laterLiveShow],
+            manualSelection: selection,
+            now: makeDate(year: 2026, month: 6, day: 20, hour: 21)
+        )
+
+        XCTAssertEqual(before?.id, selectedShow.id)
+        XCTAssertEqual(after?.id, selectedShow.id)
+    }
+
+    func testSelectionPointingToMissingShowResolvesNilInsteadOfAutoSelectingAnotherShow() throws {
+        let futureShow = try makeShow(name: "仍存在的现场", day: 20)
+        let selection = CurrentShowSelection(selectedShowID: UUID())
+
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [futureShow],
+            manualSelection: selection,
             now: now
         )
 
         XCTAssertNil(selected)
     }
 
-    func testActuallyLiveShowWinsOverUnconfirmedPreviousShow() throws {
-        let unconfirmedPreviousShow = try makeShow(name: "尚未确认的上一场", day: 10)
-        let liveShow = try makeShow(name: "正在进行的新现场", day: 15)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [unconfirmedPreviousShow, liveShow],
-            now: makeDate(year: 2026, month: 6, day: 15, hour: 21)
-        )
-
-        XCTAssertEqual(selected?.id, liveShow.id)
-    }
-
-    func testCanceledManualSelectionFallsBackToNearestRelevantShow() throws {
-        let canceledShow = try makeShow(name: "已取消现场", day: 16)
+    func testEveryPersistedShowIsManuallySelectableRegardlessOfLifecycle() throws {
+        let endedShow = try makeShow(name: "结束", day: 10)
+        endedShow.markEnded(at: makeDate(year: 2026, month: 6, day: 10, hour: 22))
+        let canceledShow = try makeShow(name: "取消", day: 16)
         canceledShow.markCanceled()
-        let futureShow = try makeShow(name: "仍可准备的现场", day: 20)
-        let manualSelection = CurrentShowSelection(selectedShowID: canceledShow.id)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [canceledShow, futureShow],
-            manualSelection: manualSelection,
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, futureShow.id)
-    }
-
-    func testUndatedPostponedManualSelectionFallsBackToNearestRelevantShow() throws {
-        let postponedShow = try makeShow(name: "未定延期现场", day: 16)
+        let postponedShow = try makeShow(name: "延期未定", day: 17)
         postponedShow.markPostponed(newDate: nil)
-        let futureShow = try makeShow(name: "仍可准备的现场", day: 20)
-        let manualSelection = CurrentShowSelection(selectedShowID: postponedShow.id)
+        let session = CurrentShowSession(calendar: calendar)
 
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [postponedShow, futureShow],
-            manualSelection: manualSelection,
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, futureShow.id)
-    }
-
-    func testDatedPostponedManualSelectionRemainsEligibleBeforeItsNewDate() throws {
-        let postponedShow = try makeShow(name: "已改期现场", day: 10)
-        postponedShow.markPostponed(newDate: makeDate(year: 2026, month: 6, day: 20))
-        let futureShow = try makeShow(name: "更远现场", day: 25)
-        let manualSelection = CurrentShowSelection(selectedShowID: postponedShow.id)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [futureShow, postponedShow],
-            manualSelection: manualSelection,
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, postponedShow.id)
-    }
-
-    func testManualSelectionIsPersistedAndRespected() throws {
-        let nearestShow = try makeShow(name: "最近现场", day: 16)
-        let manuallySelectedShow = try makeShow(name: "用户手动选中的现场", day: 25)
-        let manualSelection = CurrentShowSelection(selectedShowID: manuallySelectedShow.id)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [nearestShow, manuallySelectedShow],
-            manualSelection: manualSelection,
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, manuallySelectedShow.id)
+        XCTAssertTrue(session.isManuallySelectable(endedShow, now: now))
+        XCTAssertTrue(session.isManuallySelectable(canceledShow, now: now))
+        XCTAssertTrue(session.isManuallySelectable(postponedShow, now: now))
     }
 
     @MainActor
-    func testManualSelectionModelCanBeStoredLocally() throws {
+    func testSelectionStoreSelectPersistsAndSessionResolvesIt() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let nearestShow = try makeShow(name: "最近现场", day: 16)
+        let chosenShow = try makeShow(name: "用户选择", day: 25)
+        context.insert(nearestShow)
+        context.insert(chosenShow)
+
+        let store = CurrentShowSelectionStore(modelContext: context)
+        let selection = try store.select(showID: chosenShow.id)
+        try context.save()
+
+        let stored = try XCTUnwrap(store.canonicalSelection())
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: [nearestShow, chosenShow],
+            manualSelection: stored,
+            now: now
+        )
+
+        XCTAssertEqual(selection.selectedShowID, chosenShow.id)
+        XCTAssertEqual(stored.selectedShowID, chosenShow.id)
+        XCTAssertEqual(stored.isManual, true)
+        XCTAssertEqual(selected?.id, chosenShow.id)
+    }
+
+    @MainActor
+    func testSelectionStoreNormalizesDuplicatesDeterministically() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let olderShowID = UUID()
+        let newerShowID = UUID()
+        let older = CurrentShowSelection(
+            selectedShowID: olderShowID,
+            updatedAt: Date(timeIntervalSince1970: 100)
+        )
+        let newer = CurrentShowSelection(
+            selectedShowID: newerShowID,
+            updatedAt: Date(timeIntervalSince1970: 200)
+        )
+        context.insert(older)
+        context.insert(newer)
+        try context.save()
+
+        let canonical = try XCTUnwrap(
+            CurrentShowSelectionStore(modelContext: context).normalizeDuplicates()
+        )
+        try context.save()
+
+        let remaining = try context.fetch(FetchDescriptor<CurrentShowSelection>())
+        XCTAssertEqual(canonical.id, newer.id)
+        XCTAssertEqual(canonical.selectedShowID, newerShowID)
+        XCTAssertEqual(remaining.count, 1)
+        XCTAssertEqual(remaining.first?.id, newer.id)
+    }
+
+    @MainActor
+    func testBootstrapDoesNotReplaceExistingValidSelection() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let currentShow = try makeShow(name: "用户当前", day: 10)
+        let futureShow = try makeShow(name: "未来现场", day: 16)
+        let selection = CurrentShowSelection(selectedShowID: currentShow.id)
+        context.insert(currentShow)
+        context.insert(futureShow)
+        context.insert(selection)
+        try context.save()
+
+        let bootstrapped = try CurrentShowSelectionStore(modelContext: context).bootstrapIfNeeded(
+            shows: [futureShow, currentShow],
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: calendar)
+        )
+
+        XCTAssertEqual(bootstrapped?.selectedShowID, currentShow.id)
+    }
+
+    @MainActor
+    func testBootstrapCreatesInitialSelectionOnlyWhenSelectionIsMissing() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let nearerShow = try makeShow(name: "明天", day: 16)
+        let laterShow = try makeShow(name: "下周", day: 22)
+        context.insert(nearerShow)
+        context.insert(laterShow)
+        try context.save()
+
+        let selection = try CurrentShowSelectionStore(modelContext: context).bootstrapIfNeeded(
+            shows: [laterShow, nearerShow],
+            now: now,
+            policy: InitialCurrentShowPolicy(calendar: calendar)
+        )
+        try context.save()
+
+        XCTAssertEqual(selection?.selectedShowID, nearerShow.id)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<CurrentShowSelection>()).count,
+            1
+        )
+    }
+
+    @MainActor
+    func testClearKeepsCanonicalRowButRemovesCurrentOwnership() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
         let showID = UUID()
-        let selection = CurrentShowSelection()
-        selection.select(showID: showID)
+        context.insert(CurrentShowSelection(selectedShowID: showID))
+        try context.save()
 
-        let container = try ModelContainer(
-            for: CurrentShowSelection.self,
-            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let store = CurrentShowSelectionStore(modelContext: context)
+        let cleared = try store.clear()
+        try context.save()
+
+        XCTAssertNil(cleared?.selectedShowID)
+        XCTAssertEqual(cleared?.isManual, true)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<CurrentShowSelection>()).count,
+            1
         )
-        container.mainContext.insert(selection)
-        try container.mainContext.save()
-
-        let selections = try container.mainContext.fetch(FetchDescriptor<CurrentShowSelection>())
-        XCTAssertEqual(selections.count, 1)
-        XCTAssertEqual(selections[0].selectedShowID, showID)
     }
 
-    func testPostponedShowUsesNewDateForAutomaticSelection() throws {
-        let postponedShow = try makeShow(name: "延期到明天的现场", day: 10)
-        postponedShow.markPostponed(newDate: makeDate(year: 2026, month: 6, day: 16))
-        let laterFutureShow = try makeShow(name: "更远现场", day: 20)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [laterFutureShow, postponedShow],
-            now: now
+    @MainActor
+    private func makeContainer() throws -> ModelContainer {
+        try ModelContainer(
+            for: Show.self, CurrentShowSelection.self,
+            configurations: ModelConfiguration(
+                isStoredInMemoryOnly: true,
+                cloudKitDatabase: .none
+            )
         )
-
-        XCTAssertEqual(selected?.id, postponedShow.id)
-    }
-
-    func testPostponedShowWithoutNewDateIsNotAutomaticallySelected() throws {
-        let postponedShow = try makeShow(name: "未定延期现场", day: 16)
-        postponedShow.markPostponed(newDate: nil)
-        let laterFutureShow = try makeShow(name: "有日期的现场", day: 20)
-
-        let selected = CurrentShowSelector(calendar: calendar).selectCurrentShow(
-            from: [postponedShow, laterFutureShow],
-            now: now
-        )
-
-        XCTAssertEqual(selected?.id, laterFutureShow.id)
-    }
-
-    func testShowRetentionIsTimezoneAware() throws {
-        // Show is scheduled for June 15, 2026 at 20:00 UTC.
-        // In UTC: Show date is June 15. Retention ends June 18.
-        // In Asia/Shanghai (GMT+8): Show date is June 16 (04:00 AM). Retention ends June 19.
-        let showDateUTC = DateComponents(
-            calendar: calendar,
-            timeZone: calendar.timeZone,
-            year: 2026, month: 6, day: 15, hour: 20
-        ).date!
-        
-        let show = try Show(
-            name: "跨时区现场",
-            date: showDateUTC,
-            startTime: showDateUTC,
-            endDate: showDateUTC
-        )
-        
-        // Evaluate at June 19, 2026 at 01:00 UTC.
-        let evaluationDate = DateComponents(
-            calendar: calendar,
-            timeZone: calendar.timeZone,
-            year: 2026, month: 6, day: 19, hour: 1
-        ).date!
-        
-        // Scenario A: UTC Calendar
-        var utcCalendar = Calendar(identifier: .gregorian)
-        utcCalendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let utcSelector = CurrentShowSelector(calendar: utcCalendar)
-        XCTAssertTrue(utcSelector.isAutomaticallySelectable(show, now: evaluationDate),
-                      "An unconfirmed show remains selectable beyond retention")
-        
-        // Scenario B: Shanghai Calendar (GMT+8)
-        var shanghaiCalendar = Calendar(identifier: .gregorian)
-        shanghaiCalendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
-        let shanghaiSelector = CurrentShowSelector(calendar: shanghaiCalendar)
-        XCTAssertTrue(shanghaiSelector.isAutomaticallySelectable(show, now: evaluationDate), 
-                      "Should still be active in Shanghai timezone due to local show date shifting to June 16")
     }
 
     private func makeShow(name: String, day: Int) throws -> Show {

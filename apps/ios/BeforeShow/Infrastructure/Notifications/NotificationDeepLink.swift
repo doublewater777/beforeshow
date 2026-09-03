@@ -7,8 +7,8 @@ enum NotificationUserInfoKey {
     static let destination = "destination"
 }
 
-/// Payload carried in each notification's `userInfo`. Tapping a notification sets
-/// the show as current and opens home.
+/// Payload carried in each notification's `userInfo`. Tapping opens the target
+/// show's destination without changing the user's durable Current Show.
 struct NotificationDeepLink: Equatable, Sendable {
     enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
         case home
