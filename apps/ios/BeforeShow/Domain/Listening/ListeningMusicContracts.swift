@@ -28,7 +28,7 @@ enum ListeningMusicCapabilityResolver {
         if access.authorizationStatus == .authorized, access.canPlayCatalogContent {
             return .fullPlayback
         }
-        if access.authorizationStatus == .authorized, hasPreviewAsset {
+        if hasPreviewAsset {
             return .previewOnly
         }
         if hasCatalogMetadata {
