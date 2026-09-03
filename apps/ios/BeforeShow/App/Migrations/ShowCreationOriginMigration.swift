@@ -10,6 +10,7 @@ enum AppPersistenceMigrationRunner {
         ShowCreationOriginMigration.migrateIfNeeded(in: modelContext)
         CurrentShowOwnershipMigration.migrateIfNeeded(in: modelContext, now: now)
         NotificationPortfolioMigration.migrateIfNeeded(in: modelContext)
+        AppleMusicArtistIdentityMigration.migrateIfNeeded(in: modelContext)
     }
 }
 

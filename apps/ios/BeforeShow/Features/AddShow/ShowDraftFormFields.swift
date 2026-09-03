@@ -191,6 +191,7 @@ struct ShowDraftFormFields: View {
                                 draft.artists[index].name = recognition.canonicalName
                                 draft.artists[index].avatarURL = recognition.avatarURL?.absoluteString
                                 draft.artists[index].appleMusicURL = recognition.appleMusicURL?.absoluteString
+                                draft.artists[index].appleMusicArtistID = recognition.id
                                 draft.recognizedFields.remove(.artist)
                             },
                             onDelete: { removeArtistRow(at: index) },

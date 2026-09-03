@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # verify-pr.sh — BeforeShow PR 本地运行时验证（local verifier）
 #
-# 隔离 worktree → architecture guard → Phase 1 定向 signed tests → 完整 signed tests
-# → entitlements 检查 → 安装到 iPhone 17 模拟器 → 启动存活检查 → LOCAL_AGENT_VERIFY 报告
-# → （可选）PR comment。
+# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 定向 signed tests
+# → 完整 signed tests → entitlements 检查 → 安装到 iPhone 17 模拟器
+# → 启动存活检查 → LOCAL_AGENT_VERIFY 报告 → （可选）PR comment。
 #
 # Usage:
 #   scripts/verify-pr.sh [PR_NUMBER] [--no-comment]
@@ -22,7 +22,7 @@ NO_COMMENT=0
 for arg in "$@"; do
   case "$arg" in
     --no-comment) NO_COMMENT=1 ;;
-    -h|--help) sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) PR="$arg" ;;
   esac
 done
@@ -36,7 +36,6 @@ SHA=$(gh pr view "$PR" --json headRefOid --jq .headRefOid)
 SHORT=${SHA:0:12}
 echo "==> Verifying PR #$PR @ $SHA"
 
-# --- 隔离 worktree（用完即弃，不碰当前工作区） ---
 if ! git cat-file -e "$SHA^{commit}" 2>/dev/null; then
   git fetch origin "$SHA" 2>/dev/null || git fetch origin "pull/$PR/head"
   if ! git cat-file -e "$SHA^{commit}" 2>/dev/null; then
@@ -57,15 +56,29 @@ mkdir -p "$LOG_DIR"
 RESULT=PASS
 EVIDENCE=()
 
-# --- Architecture guard ---
-echo "==> Architecture guard"
-if ! python3 "$WORKTREE/apps/ios/scripts/check_architecture.py" > "$LOG_DIR/architecture.log" 2>&1; then
+# New/moved Swift files are declared through project.yml. Always regenerate the
+# isolated verifier project so the exact PR HEAD, not a stale committed pbxproj,
+# is what Xcode compiles.
+echo "==> XcodeGen"
+if ! (cd "$WORKTREE/apps/ios" && xcodegen generate) > "$LOG_DIR/xcodegen.log" 2>&1; then
   RESULT=FAIL
-  echo "architecture guard FAILED："
-  tail -80 "$LOG_DIR/architecture.log" || true
-  EVIDENCE+=("architecture: FAILED (log: $LOG_DIR/architecture.log)")
+  tail -80 "$LOG_DIR/xcodegen.log" || true
+  EVIDENCE+=("xcodegen: FAILED (log: $LOG_DIR/xcodegen.log)")
 else
-  EVIDENCE+=("architecture: PASS")
+  EVIDENCE+=("xcodegen: PASS")
+fi
+
+# --- Architecture guard ---
+if [ "$RESULT" = PASS ]; then
+  echo "==> Architecture guard"
+  if ! python3 "$WORKTREE/apps/ios/scripts/check_architecture.py" > "$LOG_DIR/architecture.log" 2>&1; then
+    RESULT=FAIL
+    echo "architecture guard FAILED："
+    tail -80 "$LOG_DIR/architecture.log" || true
+    EVIDENCE+=("architecture: FAILED (log: $LOG_DIR/architecture.log)")
+  else
+    EVIDENCE+=("architecture: PASS")
+  fi
 fi
 
 # --- Phase 1 定向 signed tests ---
@@ -91,6 +104,28 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
+# --- Phase 2 persistence signed tests ---
+if [ "$RESULT" = PASS ]; then
+  echo "==> Phase 2 targeted signed tests ($SCHEME, $SIM_NAME)"
+  if ! xcodebuild test \
+      -project "$PROJECT" -scheme "$SCHEME" \
+      -destination "platform=iOS Simulator,name=$SIM_NAME" \
+      -allowProvisioningUpdates DEVELOPMENT_TEAM=$TEAM \
+      -derivedDataPath "$DD" \
+      -only-testing:BeforeShowTests/ListeningPersistenceTests \
+      -only-testing:BeforeShowTests/ListeningDeletionTests \
+      -resultBundlePath "$LOG_DIR/phase2-tests.xcresult" \
+      > "$LOG_DIR/phase2-test.log" 2>&1; then
+    RESULT=FAIL
+    echo "Phase 2 targeted tests FAILED — 最后 80 行："
+    tail -80 "$LOG_DIR/phase2-test.log" || true
+    EVIDENCE+=("phase2 targeted tests: FAILED (log: $LOG_DIR/phase2-test.log)")
+  else
+    SUITE=$(grep -E "Test Suite 'All tests' (passed|failed)" "$LOG_DIR/phase2-test.log" | tail -1 | sed 's/^ *//' || true)
+    EVIDENCE+=("phase2 targeted tests: ${SUITE:-passed} (xcresult: $LOG_DIR/phase2-tests.xcresult)")
+  fi
+fi
+
 # --- 完整 signed tests；同一 DerivedData 复用已下载依赖 ---
 if [ "$RESULT" = PASS ]; then
   echo "==> Full signed xcodebuild test ($SCHEME, $SIM_NAME)"
@@ -112,7 +147,6 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
-# --- entitlements 签名检查（AGENTS.md 提到的 ad-hoc 回退会剥掉 iCloud） ---
 APP=$(find "$DD/Build/Products/Debug-iphonesimulator" -maxdepth 1 -name "*.app" 2>/dev/null | head -1 || true)
 if [ "$RESULT" = PASS ]; then
   ENT_HITS=$(find "$DD/Build/Intermediates.noindex" -name "Entitlements-Simulated.plist" \
@@ -125,7 +159,6 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
-# --- 安装 + 启动存活检查 ---
 if [ "$RESULT" = PASS ]; then
   if [ -z "$APP" ] || [ ! -d "$APP" ]; then
     RESULT=FAIL
@@ -178,7 +211,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="architecture + Phase 1 定向 signed tests + 完整 signed tests + entitlements + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + architecture + Phase 1/2 定向 signed tests + 完整 signed tests + entitlements + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY
@@ -194,7 +227,6 @@ EOF
 echo
 echo "$REPORT"
 
-# --- PR comment（同一 HEAD 已报告过则跳过，避免刷屏） ---
 if [ "$NO_COMMENT" = 0 ]; then
   if gh pr view "$PR" --json comments --jq '.comments[].body' \
       | grep -Fq "verify-pr" \
