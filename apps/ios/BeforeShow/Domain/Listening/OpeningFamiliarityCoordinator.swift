@@ -24,11 +24,8 @@ enum OpeningFamiliarityCoordinator {
         for show in shows {
             guard show.wasAddedAsHistorical != true,
                   show.changeStatus != .canceled,
-                  !existingShowIDs.contains(show.id) else {
-                continue
-            }
-            let timeState = CurrentShowTimeState(show: show, now: now)
-            guard let effectiveStart = timeState.effectiveStartTime,
+                  !existingShowIDs.contains(show.id),
+                  let effectiveStart = ListeningShowStartPolicy.effectiveOpeningStart(show: show),
                   now >= effectiveStart else {
                 continue
             }
