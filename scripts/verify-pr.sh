@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # verify-pr.sh — BeforeShow PR 本地运行时验证（local verifier）
 #
-# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 / Phase 4 定向 signed tests
+# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 / Phase 4 / Phase 5 定向 signed tests
 # → 完整 signed tests → entitlements / MusicKit 配置检查 → 安装到 iPhone 17 模拟器
 # → 启动存活检查 → LOCAL_AGENT_VERIFY 报告 → （可选）PR comment。
 #
@@ -43,7 +43,8 @@ if ! git cat-file -e "$SHA^{commit}" 2>/dev/null; then
     exit 2
   fi
 fi
-WORKTREE="/tmp/beforeshow-verify/pr$PR-$SHORT"
+RUN_SCOPE=${GITHUB_RUN_ID:-local-$$}
+WORKTREE="/tmp/beforeshow-verify/pr$PR-$SHORT-$RUN_SCOPE"
 git worktree remove --force "$WORKTREE" 2>/dev/null || true
 rm -rf "$WORKTREE"
 git worktree prune
@@ -175,6 +176,30 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
+# --- Phase 5 playback / evidence / audio state machine signed tests ---
+if [ "$RESULT" = PASS ]; then
+  echo "==> Phase 5 targeted signed tests ($SCHEME, $SIM_NAME)"
+  if ! xcodebuild test \
+      -project "$PROJECT" -scheme "$SCHEME" \
+      -destination "platform=iOS Simulator,name=$SIM_NAME" \
+      -allowProvisioningUpdates DEVELOPMENT_TEAM=$TEAM \
+      -derivedDataPath "$DD" \
+      -only-testing:BeforeShowTests/ListeningPlaybackEvidenceTests \
+      -only-testing:BeforeShowTests/ListeningPlaybackStateMachineTests \
+      -only-testing:BeforeShowTests/ListeningPlaybackEvidenceCoordinatorTests \
+      -only-testing:BeforeShowTests/ListeningPlaybackControllerTests \
+      -resultBundlePath "$LOG_DIR/phase5-tests.xcresult" \
+      > "$LOG_DIR/phase5-test.log" 2>&1; then
+    RESULT=FAIL
+    echo "Phase 5 targeted tests FAILED — 最后 80 行："
+    tail -80 "$LOG_DIR/phase5-test.log" || true
+    EVIDENCE+=("phase5 targeted tests: FAILED (log: $LOG_DIR/phase5-test.log)")
+  else
+    SUITE=$(grep -E "Test Suite 'All tests' (passed|failed)" "$LOG_DIR/phase5-test.log" | tail -1 | sed 's/^ *//' || true)
+    EVIDENCE+=("phase5 targeted tests: ${SUITE:-passed} (xcresult: $LOG_DIR/phase5-tests.xcresult)")
+  fi
+fi
+
 # --- 完整 signed tests；同一 DerivedData 复用已下载依赖 ---
 if [ "$RESULT" = PASS ]; then
   echo "==> Full signed xcodebuild test ($SCHEME, $SIM_NAME)"
@@ -277,7 +302,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="xcodegen + architecture + Phase 1/2/3/4 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY
