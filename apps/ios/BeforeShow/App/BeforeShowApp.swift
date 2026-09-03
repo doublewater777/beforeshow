@@ -4,27 +4,6 @@ import SwiftData
 import SwiftUI
 import UserNotifications
 
-enum ModelContainerFactory {
-    static func make(isStoredInMemoryOnly: Bool = false) throws -> ModelContainer {
-        // Companion sharing uses CKRecord/CKShare APIs only. SwiftData stays local.
-        let configuration = ModelConfiguration(
-            isStoredInMemoryOnly: isStoredInMemoryOnly,
-            cloudKitDatabase: .none
-        )
-        return try ModelContainer(
-            for: Show.self,
-            CurrentShowSelection.self,
-            NotificationSchedulingState.self,
-            ShowNotificationScheduleRecord.self,
-            MemoryFragment.self,
-            MemoryMediaItem.self,
-            ShowAsset.self,
-            DynamicCover.self,
-            configurations: configuration
-        )
-    }
-}
-
 @main
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
