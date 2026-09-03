@@ -265,7 +265,7 @@ final class FootprintArchiveTests: XCTestCase {
             startTime: date(2026, 9, 20, 20)
         )
         let selection = CurrentShowSelection(selectedShowID: current.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        let notificationState = NotificationSchedulingState()
         context.insert(current)
         context.insert(selection)
         context.insert(notificationState)
@@ -289,19 +289,21 @@ final class FootprintArchiveTests: XCTestCase {
 
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertNotNil(result.notificationState)
-        XCTAssertEqual(result.notificationState?.focusedShowID, current.id)
+        XCTAssertEqual(selection.selectedShowID, current.id)
 
-        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
-            from: [],
-            to: current,
-            preservingAfterShowOf: [ended],
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: shows,
+            existingRecords: [],
+            schedulingState: result.notificationState,
+            reason: .showAddedCandidate(ended.id),
             now: now
         )
-        XCTAssertTrue(plan.requestsToSchedule.contains { $0.showID == current.id })
-        XCTAssertTrue(plan.requestsToSchedule.contains {
+        XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == current.id })
+        XCTAssertTrue(plan.scheduledRequests.contains {
             $0.showID == ended.id && $0.milestone == .afterShow
         })
-        XCTAssertFalse(plan.requestsToSchedule.contains {
+        XCTAssertFalse(plan.scheduledRequests.contains {
             $0.showID == ended.id && $0.milestone != .afterShow
         })
     }
@@ -312,10 +314,11 @@ final class FootprintArchiveTests: XCTestCase {
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
+        let now = date(2026, 8, 29, 12)
         let current = try makeShow("近场", year: 2027, artist: "A", city: "上海", venue: "MAO")
         let farther = try makeShow("远场", year: 2028, artist: "B", city: "北京", venue: "工体")
         let selection = CurrentShowSelection(selectedShowID: current.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        let notificationState = NotificationSchedulingState()
         context.insert(current)
         context.insert(selection)
         context.insert(notificationState)
@@ -327,38 +330,47 @@ final class FootprintArchiveTests: XCTestCase {
             selections: [selection],
             notificationStates: [notificationState],
             in: context,
-            now: date(2026, 8, 29, 12)
+            now: now
         )
 
         XCTAssertEqual(result.outcome, .future)
-        XCTAssertNil(result.notificationState)
+        XCTAssertNotNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(notificationState.focusedShowID, current.id)
+
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: shows,
+            existingRecords: [],
+            schedulingState: result.notificationState,
+            reason: .showAddedCandidate(farther.id),
+            now: now
+        )
+        XCTAssertEqual(Set(plan.scheduledRequests.map(\.showID)), Set([current.id, farther.id]))
     }
 
-    func testUnifiedFutureAddPreservesAutomaticallySelectedCurrentShow() throws {
+    func testUnifiedFutureAddBootstrapsCurrentOnlyWhenNoDurableSelectionExists() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         )
         let context = container.mainContext
         let now = date(2026, 8, 29, 12)
-        let current = try Show(
-            name: "原本自动选中的现场",
+        let existing = try Show(
+            name: "已有但尚未成为 Current 的现场",
             date: date(2026, 9, 20),
             startTime: date(2026, 9, 20, 20)
         )
         let closer = try Show(
-            name: "新增的更近现场",
+            name: "首次初始化时新增的现场",
             date: date(2026, 9, 5),
             startTime: date(2026, 9, 5, 20)
         )
-        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
-        context.insert(current)
+        let notificationState = NotificationSchedulingState()
+        context.insert(existing)
         context.insert(notificationState)
         try context.save()
 
-        _ = try AddShowPersistenceCoordinator.persist(
+        let result = try AddShowPersistenceCoordinator.persist(
             closer,
             lifecycle: .future,
             selections: [],
@@ -374,8 +386,9 @@ final class FootprintArchiveTests: XCTestCase {
             manualSelection: selection,
             now: now
         )
-        XCTAssertEqual(selected?.id, current.id)
-        XCTAssertEqual(notificationState.focusedShowID, current.id)
+        XCTAssertEqual(result.outcome, .future)
+        XCTAssertNotNil(result.notificationState)
+        XCTAssertEqual(selected?.id, closer.id)
     }
 
     func testUnifiedFutureAddDoesNotPreventNewShowFromBecomingLiveCurrent() throws {
@@ -440,7 +453,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selections.first?.selectedShowID, future.id)
     }
 
-    func testUnifiedConfirmedLiveAddForcesCurrentShow() throws {
+    func testUnifiedConfirmedLiveAddDoesNotStealExistingCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -453,7 +466,7 @@ final class FootprintArchiveTests: XCTestCase {
             startTime: date(2026, 8, 29, 20)
         )
         let selection = CurrentShowSelection(selectedShowID: existing.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: existing.id)
+        let notificationState = NotificationSchedulingState()
         context.insert(existing)
         context.insert(selection)
         context.insert(notificationState)
@@ -468,10 +481,9 @@ final class FootprintArchiveTests: XCTestCase {
             now: date(2026, 8, 29, 21)
         )
 
-        XCTAssertEqual(result.outcome, .current)
-        XCTAssertEqual(result.notificationState?.focusedShowID, live.id)
-        XCTAssertEqual(selection.selectedShowID, live.id)
-        XCTAssertEqual(notificationState.focusedShowID, live.id)
+        XCTAssertEqual(result.outcome, .future)
+        XCTAssertNotNil(result.notificationState)
+        XCTAssertEqual(selection.selectedShowID, existing.id)
     }
 
     func testArchiveShareCopyIsSpecificToEveryCategory() throws {
