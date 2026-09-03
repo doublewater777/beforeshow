@@ -37,11 +37,14 @@ enum ShowDeletionCoordinator {
             let remainingShows = shows.filter { $0.persistentModelID != targetPersistentID }
             let hasRemainingSameBusinessID = remainingShows.contains { $0.id == showID }
 
-            // Manual selection is keyed by the business UUID. If a malformed legacy
-            // store contains another row with the same UUID, keep the selection so it
-            // can still resolve to the surviving row instead of clearing both logically.
-            if selections.first?.selectedShowID == showID && !hasRemainingSameBusinessID {
-                selections.first?.clearManualSelection()
+            let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
+            if try selectionStore.canonicalSelection()?.selectedShowID == showID,
+               !hasRemainingSameBusinessID {
+                if let fallback = InitialCurrentShowPolicy().candidate(from: remainingShows) {
+                    _ = try selectionStore.select(showID: fallback.id)
+                } else {
+                    _ = try selectionStore.clear()
+                }
             }
 
             // Show owns fragments/assets/dynamic cover with cascade relationships.
@@ -57,9 +60,6 @@ enum ShowDeletionCoordinator {
 
             var cleanupPending = false
             if !hasRemainingSameBusinessID {
-                // Disk stores are keyed only by the business UUID, so they are safe to
-                // purge only when no surviving row still owns that UUID. A later delete
-                // of the final surviving row will reclaim these files.
                 DynamicCoverFaceStore.clear(showID: showID)
                 try? await MemoryFragmentMediaStore.shared.deleteShow(showID)
                 if let dynamicCoverPath {
