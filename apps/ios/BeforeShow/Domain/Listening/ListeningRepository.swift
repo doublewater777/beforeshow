@@ -179,7 +179,7 @@ struct ListeningRepository {
             catalogSongID: catalogSongID,
             manualTitle: manualTitle,
             manualArtistName: manualArtistName,
-            mostSurprising: mostSurprising,
+            isMostSurprising: mostSurprising,
             createdAt: date,
             updatedAt: date
         )
