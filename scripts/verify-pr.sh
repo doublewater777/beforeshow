@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # verify-pr.sh — BeforeShow PR 本地运行时验证（local verifier）
 #
-# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 定向 signed tests
-# → 完整 signed tests → entitlements 检查 → 安装到 iPhone 17 模拟器
+# 隔离 worktree → xcodegen → architecture guard → Phase 1 / Phase 2 / Phase 3 定向 signed tests
+# → 完整 signed tests → entitlements / MusicKit 配置检查 → 安装到 iPhone 17 模拟器
 # → 启动存活检查 → LOCAL_AGENT_VERIFY 报告 → （可选）PR comment。
 #
 # Usage:
@@ -126,6 +126,29 @@ if [ "$RESULT" = PASS ]; then
   fi
 fi
 
+# --- Phase 3 MusicKit catalog/capability signed tests ---
+if [ "$RESULT" = PASS ]; then
+  echo "==> Phase 3 targeted signed tests ($SCHEME, $SIM_NAME)"
+  if ! xcodebuild test \
+      -project "$PROJECT" -scheme "$SCHEME" \
+      -destination "platform=iOS Simulator,name=$SIM_NAME" \
+      -allowProvisioningUpdates DEVELOPMENT_TEAM=$TEAM \
+      -derivedDataPath "$DD" \
+      -only-testing:BeforeShowTests/ListeningMusicContractsTests \
+      -only-testing:BeforeShowTests/ListeningCatalogAssemblyPolicyTests \
+      -only-testing:BeforeShowTests/ListeningCatalogStoreTests \
+      -resultBundlePath "$LOG_DIR/phase3-tests.xcresult" \
+      > "$LOG_DIR/phase3-test.log" 2>&1; then
+    RESULT=FAIL
+    echo "Phase 3 targeted tests FAILED — 最后 80 行："
+    tail -80 "$LOG_DIR/phase3-test.log" || true
+    EVIDENCE+=("phase3 targeted tests: FAILED (log: $LOG_DIR/phase3-test.log)")
+  else
+    SUITE=$(grep -E "Test Suite 'All tests' (passed|failed)" "$LOG_DIR/phase3-test.log" | tail -1 | sed 's/^ *//' || true)
+    EVIDENCE+=("phase3 targeted tests: ${SUITE:-passed} (xcresult: $LOG_DIR/phase3-tests.xcresult)")
+  fi
+fi
+
 # --- 完整 signed tests；同一 DerivedData 复用已下载依赖 ---
 if [ "$RESULT" = PASS ]; then
   echo "==> Full signed xcodebuild test ($SCHEME, $SIM_NAME)"
@@ -156,6 +179,23 @@ if [ "$RESULT" = PASS ]; then
     EVIDENCE+=("entitlements: icloud-container-identifiers MISSING（签名退化为 ad-hoc）")
   else
     EVIDENCE+=("entitlements: icloud-container-identifiers present ($ENT_HITS plist)")
+  fi
+fi
+
+# Phase 3 configuration is runtime Info.plist state, not a custom MusicKit entitlement.
+if [ "$RESULT" = PASS ]; then
+  if [ -z "$APP" ] || [ ! -f "$APP/Info.plist" ]; then
+    RESULT=FAIL
+    EVIDENCE+=("MusicKit config: built Info.plist not found")
+  else
+    MUSIC_USAGE=$(plutil -extract NSAppleMusicUsageDescription raw "$APP/Info.plist" 2>/dev/null || true)
+    BACKGROUND_MODES=$(plutil -extract UIBackgroundModes json -o - "$APP/Info.plist" 2>/dev/null || true)
+    if [ -z "$MUSIC_USAGE" ] || ! printf '%s' "$BACKGROUND_MODES" | grep -Fq 'audio'; then
+      RESULT=FAIL
+      EVIDENCE+=("MusicKit config: NSAppleMusicUsageDescription/audio background mode MISSING")
+    else
+      EVIDENCE+=("MusicKit config: usage description + audio background mode present")
+    fi
   fi
 fi
 
@@ -211,7 +251,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="xcodegen + architecture + Phase 1/2 定向 signed tests + 完整 signed tests + entitlements + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + architecture + Phase 1/2/3 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY

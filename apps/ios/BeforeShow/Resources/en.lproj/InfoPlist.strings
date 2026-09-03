@@ -5,3 +5,4 @@
 "NSCameraUsageDescription" = "Used to capture and save memory fragments from your show.";
 "NSMicrophoneUsageDescription" = "Used to record audio for videos in your show memory fragments.";
 "NSPhotoLibraryAddUsageDescription" = "Used to save show covers and footprint cards to Photos.";
+"NSAppleMusicUsageDescription" = "Used to load Apple Music artist and song information and provide available preview or playback capabilities with your permission.";

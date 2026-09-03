@@ -5,3 +5,4 @@
 "NSCameraUsageDescription" = "用於拍攝並保存目前現場的記憶碎片。";
 "NSMicrophoneUsageDescription" = "用於錄製目前現場記憶碎片中的影片聲音。";
 "NSPhotoLibraryAddUsageDescription" = "用於將現場封面和足跡卡保存到照片。";
+"NSAppleMusicUsageDescription" = "用於取得 Apple Music 藝人和歌曲資訊，並依照你的授權提供可用的試聽或播放能力。";
