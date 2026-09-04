@@ -1,0 +1,4 @@
+interface:
+  display_name: "Phase Pilot"
+  short_description: "Web 分阶段开发，本地逐阶段监督验证"
+  default_prompt: "Use $phase-pilot to grill this feature into one Spec and Phase Plan, then supervise fresh Web conversations through every verified phase."
