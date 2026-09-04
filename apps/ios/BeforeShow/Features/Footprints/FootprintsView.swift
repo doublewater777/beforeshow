@@ -173,32 +173,32 @@ private struct FootprintPreparingView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(BSLocalization.text("足迹"))
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.text("走过的现场，慢慢长成你的档案"))
-                    .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.dim)
-            }
-            Spacer()
-            HStack(spacing: BSSpacing.sm) {
+        HStack {
+            Text(BSLocalization.text("足迹"))
+                .font(.system(size: 32, weight: .bold))
+                .tracking(-0.5)
+                .foregroundColor(BSColor.Stage.foreground)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
+                shellHeaderIcon("plus")
                 shellHeaderIcon("magnifyingglass")
                 shellHeaderIcon("square.and.arrow.up")
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
         .padding(.top, BSLayout.pageHeaderTopPadding)
     }
 
     private func shellHeaderIcon(_ systemName: String) -> some View {
         Image(systemName: systemName)
-            .font(.system(size: 14, weight: .semibold))
+            .font(.system(size: 17, weight: .semibold))
             .foregroundColor(BSColor.Stage.foreground.opacity(0.55))
-            .frame(width: 40, height: 40)
-            .background(Color.white.opacity(0.05), in: Circle())
-            .overlay(Circle().stroke(BSColor.Stage.border))
+            .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+            .background(Color.white.opacity(0.07), in: Circle())
+            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
     }
 
     private var passportShell: some View {
@@ -347,6 +347,7 @@ private struct FootprintEmptyView: View {
         .overlay(alignment: .top) {
             Text(BSLocalization.text("足迹"))
                 .font(.system(size: 32, weight: .bold))
+                .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
