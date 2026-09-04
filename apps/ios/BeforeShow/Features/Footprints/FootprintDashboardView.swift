@@ -40,22 +40,21 @@ struct FootprintDashboardView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(BSLocalization.text("足迹"))
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.text("走过的现场，慢慢长成你的档案"))
-                    .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.dim)
-            }
-            Spacer()
-            HStack(spacing: BSSpacing.sm) {
+        HStack {
+            Text(BSLocalization.text("足迹"))
+                .font(.system(size: 32, weight: .bold))
+                .tracking(-0.5)
+                .foregroundColor(BSColor.Stage.foreground)
+
+            Spacer(minLength: 0)
+
+            HStack(spacing: 8) {
                 dashboardIcon("plus", label: BSLocalization.text("添加现场"), action: onAdd)
                 dashboardIcon("magnifyingglass", label: BSLocalization.text("搜索足迹"), action: onSearch)
                 dashboardIcon("square.and.arrow.up", label: BSLocalization.text("分享足迹"), action: onShare)
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, 20)
         .padding(.top, BSLayout.pageHeaderTopPadding)
     }
@@ -63,12 +62,13 @@ struct FootprintDashboardView: View {
     private func dashboardIcon(_ systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
-                .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.075), in: Circle())
-                .overlay(Circle().stroke(BSColor.Stage.border))
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .background(Color.white.opacity(0.07), in: Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
         }
+        .buttonStyle(.plain)
         .accessibilityLabel(label)
     }
 
