@@ -9,7 +9,6 @@ struct AboutBeforeShowView: View {
     private static let icpFilingNumber = "浙ICP备2026041359号-3A"
     private static let icpQueryURL = URL(string: "https://beian.miit.gov.cn/")!
     @State private var legalPage: BSInAppBrowserPage?
-    @State private var weatherLegalURL: URL?
 
     var body: some View {
         BSStageScaffold(title: "", subtitle: nil, bottomPadding: BSLayout.tabBarContentInset) {
@@ -65,21 +64,19 @@ struct AboutBeforeShowView: View {
                 }
                 .buttonStyle(SettingsPressButtonStyle())
 
-                if let weatherLegalURL {
-                    SettingsDivider()
-                    Button {
-                        legalPage = BSInAppBrowserPage(url: weatherLegalURL)
-                    } label: {
-                        SettingsRowContent(
-                            iconName: "cloud.sun.fill",
-                            title: BSLocalization.text("weatherReminderLegalTitle"),
-                            subtitle: nil,
-                            value: nil,
-                            tint: BSColor.Stage.muted
-                        )
-                    }
-                    .buttonStyle(SettingsPressButtonStyle())
+                SettingsDivider()
+                Button {
+                    legalPage = BSInAppBrowserPage(url: WeatherKitLegalAttribution.legalPageURL)
+                } label: {
+                    SettingsRowContent(
+                        iconName: "cloud.sun.fill",
+                        title: BSLocalization.text("weatherReminderLegalTitle"),
+                        subtitle: nil,
+                        value: nil,
+                        tint: BSColor.Stage.muted
+                    )
                 }
+                .buttonStyle(SettingsPressButtonStyle())
 
                 SettingsDivider()
 
@@ -99,9 +96,6 @@ struct AboutBeforeShowView: View {
         }
         .navigationTitle(BSLocalization.text("关于开场前"))
         .navigationBarTitleDisplayMode(.inline)
-        .task {
-            weatherLegalURL = await WeatherKitLegalAttribution.legalPageURL()
-        }
         .sheet(item: $legalPage) { page in
             BSInAppBrowser(page: page)
         }

@@ -1262,21 +1262,21 @@ First show: %@";
 "12月" = "Dec";
 
 /* Weather reminder (day-before-show weather alert) */
-"weatherReminderTitleAlert" = "Severe weather alert";
+"weatherReminderTitleAlert" = "Severe weather possible tomorrow";
 "weatherReminderTitleRain" = "Rain expected tomorrow";
 "weatherReminderTitleSnow" = "Snow expected tomorrow";
 "weatherReminderTitleHot" = "Hot tomorrow";
 "weatherReminderTitleCold" = "Cold tomorrow";
 "weatherReminderTitleWindy" = "Windy tomorrow";
-"weatherReminderBodyAlert" = "%1$@: severe weather alert at %2$@";
+"weatherReminderBodyAlert" = "%1$@: severe weather may affect %2$@. Check conditions before leaving";
 "weatherReminderBodyRain" = "%1$@: rain likely at %2$@. Bring an umbrella";
 "weatherReminderBodySnow" = "%1$@: snow likely at %2$@. Dress warm";
 "weatherReminderBodyHot" = "%1$@: high of %3$d° at %2$@. Dress light";
 "weatherReminderBodyCold" = "%1$@: low of %3$d° at %2$@. Bring a layer";
 "weatherReminderBodyWindy" = "%1$@: windy at %2$@. Bring something windproof";
 "weatherReminderTomorrowGeneric" = "See you tomorrow at %@. Get some rest tonight";
-"weatherReminderAttribution" = "Weather. Apple-provided data was modified.";
-"weatherReminderLegalTitle" = "Weather";
+"weatherReminderAttribution" = " Weather. Apple-provided weather data was modified.";
+"weatherReminderLegalTitle" = " Weather";
 "分享完整足迹" = "Share Full Footprints";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "The full-page image covers your entire footprint archive — save or share it directly.";
 "我的现场足迹" = "My Live Footprints";

@@ -1252,21 +1252,21 @@
 "12月" = "12月";
 
 /* Weather reminder (演出前一天天氣提醒) */
-"weatherReminderTitleAlert" = "極端天氣";
+"weatherReminderTitleAlert" = "明天可能有惡劣天氣";
 "weatherReminderTitleRain" = "明天可能有雨";
 "weatherReminderTitleSnow" = "明天可能有雪";
 "weatherReminderTitleHot" = "明天很熱";
 "weatherReminderTitleCold" = "明天會冷";
 "weatherReminderTitleWindy" = "明天風大";
-"weatherReminderBodyAlert" = "%1$@ 在 %2$@ 有極端天氣預警";
+"weatherReminderBodyAlert" = "%1$@ 在 %2$@ 可能遇到惡劣天氣，出發前留意天氣變化";
 "weatherReminderBodyRain" = "%1$@ 在 %2$@ 可能有雨，記得帶傘";
 "weatherReminderBodySnow" = "%1$@ 在 %2$@ 可能有雪，穿暖和點";
 "weatherReminderBodyHot" = "%1$@ 在 %2$@ 最高 %3$d°，穿輕一點";
 "weatherReminderBodyCold" = "%1$@ 在 %2$@ 最低 %3$d°，套件外套";
 "weatherReminderBodyWindy" = "%1$@ 在 %2$@ 風大，留件擋風的";
 "weatherReminderTomorrowGeneric" = "%@ 明天見，今晚早點休息";
-"weatherReminderAttribution" = "天氣資料來自 Weather，並已經過處理。";
-"weatherReminderLegalTitle" = "Weather";
+"weatherReminderAttribution" = "天氣資料來自  Weather，並已經過處理。";
+"weatherReminderLegalTitle" = " Weather";
 "分享完整足迹" = "分享完整足跡";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "整張長圖包含你的完整足跡檔案，可直接保存或分享。";
 "我的现场足迹" = "我的現場足跡";
