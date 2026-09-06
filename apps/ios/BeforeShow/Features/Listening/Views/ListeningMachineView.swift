@@ -28,6 +28,7 @@ struct ListeningMachineView: View {
                              anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
                 .position(x: geometry.body.midX, y: geometry.body.midY)
                 .allowsHitTesting(false)
+                .accessibilityHidden(true)
             discView.zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
             lid.zIndex(3)
@@ -71,6 +72,7 @@ struct ListeningMachineView: View {
             .onChanged { value in player.dragLid( value.translation.height / scale) }
             .onEnded { value in player.endLidDrag( value.translation.height / scale,
                                                 predicted: value.predictedEndTranslation.height / scale) })
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("播放器上盖"))
         .accessibilityValue(BSLocalization.text(player.isOpen ? "已打开" : "已合上"))
         .accessibilityAction(named: BSLocalization.text("打开")) { player.setLid(open: true) }
@@ -90,6 +92,7 @@ struct ListeningMachineView: View {
                                            height: value.translation.height / scale / cos(geometry.tiltDegrees * .pi / 180)))
                 }.onEnded { _ in player.endDiscDrag() })
             .onTapGesture { if player.position == .released { player.seatDisc() } }
+            .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(player.disc?.title ?? "CD") CD")
             .accessibilityAction(named: BSLocalization.text("取出")) { player.removeDisc() }
             .accessibilityAction(named: BSLocalization.text("放入")) { player.insertDisc() }

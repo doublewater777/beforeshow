@@ -6,9 +6,10 @@ enum ListeningPresentation: Equatable {
     case loadingCatalog, ready, cachedWithError, fatalUnavailable
 
     static func resolve(hasShow: Bool, authorized: Bool, connected: Bool, hasSongs: Bool,
-                        loading: Bool, failed: Bool) -> Self {
+                        loading: Bool, failed: Bool, accessResolved: Bool = true) -> Self {
         guard hasShow else { return .noCurrentShow }
         if hasSongs { return failed ? .cachedWithError : .ready }
+        if !accessResolved { return .loading }
         if !authorized { return .needsAuthorization }
         if !connected { return .noConnectedArtists }
         if loading { return .loadingCatalog }

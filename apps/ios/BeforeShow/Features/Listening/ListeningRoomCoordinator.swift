@@ -23,13 +23,15 @@ import SwiftData
     var playbackError: String?
     private var visibility = ListeningVisibilityPolicy()
     private var foreground = true
+    private var accessResolved = false
+    private var preparedSource: ListeningPlaybackSource?
     private var runtimeSongs: [String: [CatalogSong]] = [:]
     private var trackBelongsToShow = false
     var presentation: ListeningPresentation {
         .resolve(hasShow: show != nil, authorized: access.authorizationStatus == .authorized,
                  connected: show?.artists.contains { $0.appleMusicArtistID != nil } == true,
                  hasSongs: !discs.isEmpty, loading: catalogState == .loading,
-                 failed: catalogState == .cacheFailed)
+                 failed: catalogState == .cacheFailed, accessResolved: accessResolved)
     }
     func wantedPresentation(_ id: String) -> ListeningWantsLivePresentation {
         .init(selected: wantedSongIDs.contains(id), mutable: show.map { WantsLivePolicy.isMutable(show: $0) } ?? false)
@@ -87,14 +89,14 @@ import SwiftData
             if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
         }
         showCatalogKey = newKey
-        self.show = show; catalogState = .loading
+        self.show = show; catalogState = .loading; accessResolved = false
         do {
             try rebuildDiscs()
             if mechanism.position == .stored && !busy, let first = discs.first { loadDisc(first) }
         } catch { catalogState = .cacheFailed }
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess
+        access = newAccess; accessResolved = true
         let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         guard !ids.isEmpty else { discs = []; catalogState = .unmatched; return }
         var failed = false
@@ -216,7 +218,7 @@ import SwiftData
         guard let track, let source = ListeningPlaybackSourceResolver.resolve(capability: capability(for: track)) else { return }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || controller == nil {
+        if preparedSongID != track.id || preparedSource != source || controller == nil {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
@@ -227,7 +229,7 @@ import SwiftData
             try await next.prepare(items: [track.playbackItem], source: source)
             try Task.checkCancellation()
             guard generation == playbackGeneration, active, (foreground || source == .fullCatalog), mechanism.isClosed, mechanism.position == .seated else { try next.stop(); return }
-            preparedSongID = track.id
+            preparedSongID = track.id; preparedSource = source
         }
         try await controller?.play()
         try Task.checkCancellation()
@@ -247,7 +249,7 @@ import SwiftData
     func stop() {
         playbackGeneration = UUID()
         do { try controller?.stop() } catch { errorText = BSLocalization.text("熟悉度保存失败，请重试") }
-        controller = nil; preparedSongID = nil; playbackState = .idle; finishedSongID = nil; visibility = ListeningVisibilityPolicy()
+        controller = nil; preparedSongID = nil; preparedSource = nil; playbackState = .idle; finishedSongID = nil; visibility = ListeningVisibilityPolicy()
     }
     private func refreshCompilation() {
         guard trackBelongsToShow, !mechanism.isAutomatic, mechanism.disc?.id == "preparation",
@@ -273,7 +275,7 @@ import SwiftData
                 else { try controller.stop(); self.controller = nil; preparedSongID = nil }
                 // Last track stays finished. No disc swap or wraparound.
             }
-        } catch { stop(); errorText = BSLocalization.text("播放或装碟失败，请重试") }
+        } catch { stop(); playbackError = BSLocalization.text("暂时无法播放") }
     }
     func seek(_ time: TimeInterval) {
         guard time.isFinite, time >= 0 else { return }
@@ -283,7 +285,7 @@ import SwiftData
     func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
     func setActive(_ value: Bool) { active = value; updateVisibility() }
     private func updateVisibility() {
-        let source = ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
+        let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
         if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {
             visibility.interrupt(wasPlaying: isPlaying)
             do { try controller?.pause(); playbackState = controller?.state ?? .idle }
