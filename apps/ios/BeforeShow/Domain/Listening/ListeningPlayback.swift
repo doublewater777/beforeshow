@@ -215,7 +215,7 @@ struct ListeningPlaybackEvidenceTracker {
         }
 
         listenedDuration += playbackDelta
-        guard listenedDuration >= duration / 2,
+        guard listenedDuration > duration / 2,
               recordedSongIDs.insert(sample.songID).inserted else {
             return .none
         }
@@ -232,6 +232,7 @@ enum ListeningPlaybackError: Error, Equatable {
 
 @MainActor
 protocol ListeningPlaybackServicing: AnyObject {
+    var failure: ListeningPlaybackError? { get }
     func prepare(
         items: [ListeningPlaybackItem],
         source: ListeningPlaybackSource,
@@ -244,4 +245,8 @@ protocol ListeningPlaybackServicing: AnyObject {
     func seek(to time: TimeInterval)
     func snapshot(observedAt: Date) -> ListeningPlaybackSample?
     func stop()
+}
+
+@MainActor extension ListeningPlaybackServicing {
+    var failure: ListeningPlaybackError? { nil }
 }

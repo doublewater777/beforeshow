@@ -54,7 +54,7 @@ final class OnboardingTests: XCTestCase {
     func testOnboardingPageOrderFollowsShowLifecycle() {
         XCTAssertEqual(
             OnboardingPage.allCases,
-            [.beforeShow, .showDay, .afterShow, .start]
+            [.beforeShow, .listening, .showDay, .afterShow, .start]
         )
     }
 }

@@ -103,6 +103,7 @@ final class ListeningPlaybackController {
 
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
+        if let failure = service.failure { stateMachine.handle(.failed); throw failure }
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
@@ -112,9 +113,11 @@ final class ListeningPlaybackController {
     }
 
     func stop(now: Date = Date()) throws {
+        defer {
+            service.stop()
+            evidenceCoordinator.breakContinuity()
+            stateMachine.handle(.reset)
+        }
         _ = try refresh(now: now)
-        service.stop()
-        evidenceCoordinator.breakContinuity()
-        stateMachine.handle(.reset)
     }
 }

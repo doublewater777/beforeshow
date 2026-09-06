@@ -71,6 +71,11 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         player.seek(to: CMTime(seconds: max(0, time), preferredTimescale: 600))
     }
 
+    var failure: ListeningPlaybackError? {
+        guard player.currentItem?.status == .failed, queue.indices.contains(currentIndex) else { return nil }
+        return .songUnavailable(queue[currentIndex].songID)
+    }
+
     func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
         guard queue.indices.contains(currentIndex) else { return nil }
         let item = queue[currentIndex]

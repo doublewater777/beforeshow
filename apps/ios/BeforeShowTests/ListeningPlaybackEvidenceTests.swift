@@ -2,12 +2,13 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningPlaybackEvidenceTests: XCTestCase {
-    func testFullPlaybackBecomesFamiliarAtHalfActualListeningTime() {
+    func testFullPlaybackRequiresMoreThanHalfActualListeningTime() {
         var tracker = ListeningPlaybackEvidenceTracker()
 
         XCTAssertEqual(tracker.ingest(full(time: 0, observedAt: 0)), .none)
         XCTAssertEqual(tracker.ingest(full(time: 25, observedAt: 25)), .none)
-        XCTAssertEqual(tracker.ingest(full(time: 50, observedAt: 50)), .becameFamiliar(songID: "song-a"))
+        XCTAssertEqual(tracker.ingest(full(time: 50, observedAt: 50)), .none)
+        XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 51)), .becameFamiliar(songID: "song-a"))
     }
 
     func testForwardSeekDoesNotCountSkippedTime() {
@@ -25,7 +26,7 @@ final class ListeningPlaybackEvidenceTests: XCTestCase {
         XCTAssertEqual(tracker.ingest(full(time: 0, observedAt: 0)), .none)
         XCTAssertEqual(tracker.ingest(full(time: 30, observedAt: 30)), .none)
         XCTAssertEqual(tracker.ingest(full(time: 10, observedAt: 31)), .none)
-        XCTAssertEqual(tracker.ingest(full(time: 30, observedAt: 51)), .becameFamiliar(songID: "song-a"))
+        XCTAssertEqual(tracker.ingest(full(time: 31, observedAt: 52)), .becameFamiliar(songID: "song-a"))
     }
 
     func testPausedAndPreviewPlaybackNeverAddEvidence() {

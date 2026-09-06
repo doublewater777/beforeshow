@@ -13,7 +13,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
 
         XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: heardAt))
         XCTAssertFalse(try coordinator.ingest(full(time: 25, observedAt: 25), at: heardAt))
-        XCTAssertTrue(try coordinator.ingest(full(time: 50, observedAt: 50), at: heardAt))
+        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: heardAt))
         XCTAssertFalse(try coordinator.ingest(full(time: 75, observedAt: 75), at: heardAt))
 
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
@@ -33,7 +33,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         let coordinator = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
 
         XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: actualAt))
-        XCTAssertTrue(try coordinator.ingest(full(time: 50, observedAt: 50), at: actualAt))
+        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: actualAt))
 
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)
         XCTAssertEqual(record.manualConfirmedAt, manualAt)

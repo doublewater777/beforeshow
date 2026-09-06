@@ -25,6 +25,7 @@ enum OnboardingRoutingPolicy {
 
 enum OnboardingPage: Int, CaseIterable, Identifiable {
     case beforeShow
+    case listening
     case showDay
     case afterShow
     case start
@@ -34,6 +35,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     var analyticsValue: String {
         switch self {
         case .beforeShow: "before_show"
+        case .listening: "listening"
         case .showDay: "show_day"
         case .afterShow: "after_show"
         case .start: "start"
@@ -43,6 +45,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     var phaseText: String {
         switch self {
         case .beforeShow: BSLocalization.text("开场前")
+        case .listening: BSLocalization.text("听")
         case .showDay: BSLocalization.text("现场当天")
         case .afterShow: BSLocalization.text("散场以后")
         case .start: BSLocalization.text("现在开始")
@@ -52,6 +55,7 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .beforeShow: BSLocalization.text("不用打开，也在靠近")
+        case .listening: BSLocalization.text("把歌听熟，把期待留给现场")
         case .showDay: BSLocalization.text("重要的内容，抬手就能找到")
         case .afterShow: BSLocalization.text("把这一晚，轻轻留住")
         case .start: BSLocalization.text("从下一场开始，慢慢靠近")
@@ -60,6 +64,8 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 
     var bodyText: String {
         switch self {
+        case .listening:
+            BSLocalization.text("从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。")
         case .beforeShow:
             BSLocalization.text("主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。")
         case .showDay:
@@ -244,6 +250,8 @@ private struct OnboardingPageView: View {
                 switch page {
                 case .beforeShow:
                     OnboardingWidgetFeatureVisual()
+                case .listening:
+                    OnboardingListeningVisual()
                 case .showDay:
                     OnboardingTimetableFeatureVisual()
                 case .afterShow:
