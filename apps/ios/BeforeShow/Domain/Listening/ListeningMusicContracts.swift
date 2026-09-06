@@ -84,6 +84,7 @@ protocol ListeningMusicCatalogServicing: Sendable {
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus
     func currentAccess() async -> ListeningMusicAccess
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload]
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload
 }
 
@@ -93,4 +94,8 @@ enum ListeningCatalogRefreshPolicy {
     static func shouldRefresh(fetchedAt: Date, now: Date) -> Bool {
         now.timeIntervalSince(fetchedAt) >= maximumAge
     }
+}
+
+extension ListeningMusicCatalogServicing {
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] { [] }
 }

@@ -91,3 +91,16 @@ extension ListeningRoomCoordinator {
         }
     }
 }
+
+struct ListeningArtistArtwork: View {
+    let url: URL?
+    let name: String
+    var body: some View {
+        AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
+            ZStack {
+                BSColor.Stage.surfaceRaised
+                Text(String(name.prefix(1))).font(.largeTitle).foregroundStyle(BSColor.Stage.muted)
+            }
+        }.clipped().accessibilityHidden(true)
+    }
+}

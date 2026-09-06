@@ -64,7 +64,7 @@ struct RootView: View {
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
-            if ProcessInfo.processInfo.arguments.contains("--open-listening") { selectedTab = .listening }
+            if ProcessInfo.processInfo.arguments.contains("--open-listening") || ProcessInfo.processInfo.arguments.contains("--listen-fixture") { selectedTab = .listen }
             if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
                 selectedTab = .footprints
             }
@@ -92,6 +92,7 @@ struct RootView: View {
             argument.hasPrefix("--seed-")
                 || argument == "--open-footprints"
                 || argument == "--open-listening"
+                || argument == "--listen-fixture"
                 || argument == "--open-pro-paywall"
                 || argument == "--open-pro-winback"
         }) {
@@ -141,6 +142,10 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.current)
 
+            ListeningFeatureRootView(isActive: selectedTab == .listen)
+                .tabItem { Label(BeforeShowTab.listen.localizedTitle, systemImage: BeforeShowTab.listen.iconName) }
+                .tag(BeforeShowTab.listen)
+
             FootprintsView(
                 pendingDetailTarget: ceremonyPendingDetail
             )
@@ -152,9 +157,7 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
 
-            ListeningFeatureRootView(isActive: selectedTab == .listening)
-                .tabItem { Label(BeforeShowTab.listening.localizedTitle, systemImage: BeforeShowTab.listening.iconName) }
-                .tag(BeforeShowTab.listening)
+
         }
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in

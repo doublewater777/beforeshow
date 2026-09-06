@@ -7,7 +7,8 @@ struct ListeningQueueProvider {
 
     func queue(
         showID: UUID,
-        onlyArtistID: String? = nil
+        onlyArtistID: String? = nil,
+        runtimeSongIDs: [String: [String]] = [:]
     ) throws -> [ListeningQueueEntry] {
         guard let show = try modelContext.fetch(FetchDescriptor<Show>())
             .first(where: { $0.id == showID }) else {
@@ -28,13 +29,12 @@ struct ListeningQueueProvider {
         })
 
         let artists = show.artists.compactMap { slot -> ListeningQueueArtistInput? in
-            guard let artistID = slot.appleMusicArtistID,
-                  let snapshot = snapshotByArtistID[artistID] else {
+            guard let artistID = slot.appleMusicArtistID else {
                 return nil
             }
             return ListeningQueueArtistInput(
                 artistID: artistID,
-                orderedSongIDs: snapshot.orderedSongIDs
+                orderedSongIDs: snapshotByArtistID[artistID]?.orderedSongIDs ?? runtimeSongIDs[artistID] ?? []
             )
         }
 

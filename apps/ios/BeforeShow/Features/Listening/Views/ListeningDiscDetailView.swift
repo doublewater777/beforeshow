@@ -4,12 +4,23 @@ struct ListeningWantedButton: View {
     @Bindable var room: ListeningRoomCoordinator
     let songID: String
     var body: some View {
-        Button { room.toggleWanted(songID) } label: {
-            Label(BSLocalization.text("想现场听"), systemImage: room.wantedSongIDs.contains(songID) ? "heart.fill" : "heart")
-                .font(BSFont.caption).foregroundStyle(room.wantedSongIDs.contains(songID) ? BSColor.Stage.accent : BSColor.Stage.muted)
-                .frame(minHeight: BSLayout.minTouchTarget)
-        }.buttonStyle(.plain)
-            .accessibilityValue(BSLocalization.text(room.wantedSongIDs.contains(songID) ? "已选择" : "未选择"))
+        let state = room.wantedPresentation(songID)
+        Group {
+            if state.mutable {
+                Button { room.toggleWanted(songID) } label: {
+                    Label(BSLocalization.text(state.label), systemImage: state.symbol)
+                        .font(.subheadline).frame(minHeight: 44)
+                }.buttonStyle(.plain)
+                    .accessibilityAddTraits(state.selected ? .isSelected : [])
+                    .accessibilityValue(BSLocalization.text(state.selected ? "已选择" : "未选择"))
+            } else if state.selected {
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    Label(BSLocalization.text(state.label), systemImage: state.symbol)
+                    Text(BSLocalization.text("已冻结")).font(.caption)
+                }.font(.subheadline).foregroundStyle(BSColor.Stage.muted).accessibilityElement(children: .combine)
+            }
+        }
+
     }
 }
 
@@ -75,7 +86,7 @@ struct ListeningDiscDetailView: View {
     private func capabilityText(_ track: ListeningDiscTrack) -> String {
         switch room.capability(for: track) {
         case .fullPlayback: BSLocalization.text("完整播放")
-        case .previewOnly: BSLocalization.text("试听 · 不计入熟悉度")
+        case .previewOnly: BSLocalization.text("30 秒试听")
         case .metadataOnly: BSLocalization.text("仅歌曲信息")
         case .unavailable: BSLocalization.text("暂不可播放")
         }

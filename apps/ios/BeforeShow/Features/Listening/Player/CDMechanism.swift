@@ -25,6 +25,11 @@ import SwiftUI
         hypot(motion.discX.value - configuration.geometry.discCenter.x,
               motion.discY.value - configuration.geometry.discCenter.y) < 2
     }
+    /// Refresh metadata for the same physical compilation, without swapping it.
+    func updateContents(_ replacement: ListeningDisc) {
+        guard !isAutomatic, disc?.id == replacement.id else { return }
+        disc = replacement
+    }
     func setLid(open: Bool) {
         guard open || position != .released else { notice = BSLocalization.text("请先卡紧或取出 CD"); return }
         if open { onOpen() }

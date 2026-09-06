@@ -193,6 +193,11 @@ struct ListeningRepository {
     }
 
     func setWantsLive(showID: UUID, songID: String, isWanted: Bool, at date: Date = Date()) throws {
+        if let show = try modelContext.fetch(FetchDescriptor<Show>()).first(where: { $0.id == showID }),
+           !WantsLivePolicy.isMutable(show: show, now: date) {
+            throw ListeningMutationError.wantsLiveFrozen(showID)
+        }
+
         let key = ShowWantsLiveSong.makeUniqueKey(showID: showID, songID: songID)
         let rows = try modelContext.fetch(FetchDescriptor<ShowWantsLiveSong>())
         let existing = rows.first(where: { $0.uniqueKey == key })

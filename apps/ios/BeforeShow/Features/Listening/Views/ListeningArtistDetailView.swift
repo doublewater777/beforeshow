@@ -3,59 +3,41 @@ import SwiftUI
 struct ListeningArtistDetailView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
+    @State private var matching: Int?
+    @State private var artistID: String?
     @Environment(\.dismiss) private var dismiss
-    @State private var rematchIndex: Int?
-    @State private var query = ""
-    @State private var results: [RecognizedArtist] = []
-    @State private var isSearching = false
     var body: some View {
         NavigationStack {
             List {
                 if room.onlyArtistID != nil {
-                    Button(BSLocalization.text("听所有艺人")) { room.filterArtist(nil) }
+                    Button(BSLocalization.text("回到整场")) { room.returnToWholeShow(); dismiss() }
                 }
                 ForEach(Array(show.artists.enumerated()), id: \.offset) { index, artist in
-                    Section(artist.name) {
+                    HStack(spacing: BSSpacing.md) {
+                        ListeningArtistArtwork(url: artist.avatarURL.flatMap(URL.init(string:)), name: artist.name)
+                            .frame(width: 52, height: 52).clipShape(Circle())
+                        Text(artist.name).font(.headline)
+                        Spacer()
                         if let id = artist.appleMusicArtistID {
-                            Button(BSLocalization.text("仅听此艺人")) { room.filterArtist(id) }
-                            Button(BSLocalization.text(room.excludedArtistIDs.contains(id) ? "恢复此艺人" : "排除此艺人")) {
-                                room.excludeArtist(id, excluded: !room.excludedArtistIDs.contains(id))
-                            }
-                        } else { Text(BSLocalization.text("尚未匹配艺人")).foregroundStyle(BSColor.Stage.muted) }
-                        Button(BSLocalization.text("重新匹配")) { rematchIndex = index; query = artist.name }
-                    }
-                }
-                if rematchIndex != nil {
-                    Section(BSLocalization.text("匹配艺人")) {
-                        TextField(BSLocalization.text("艺人名称"), text: $query)
-                        if isSearching { ProgressView() }
-                        if !isSearching && results.isEmpty { Text(BSLocalization.text("未找到艺人")).foregroundStyle(BSColor.Stage.muted) }
-                        ForEach(results) { artist in
-                            Button(artist.canonicalName) {
-                                guard let index = rematchIndex else { return }
-                                Task { await room.rematch(slotIndex: index, artist: artist); rematchIndex = nil }
-                            }
+                            Button { artistID = id } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
+                                .accessibilityLabel(artist.name)
+                        } else {
+                            Button(BSLocalization.text("连接艺人")) { matching = index }.frame(minHeight: 44)
                         }
                     }
                 }
-            }
-            .scrollContentBackground(.hidden)
-            .background(BSColor.Stage.background)
-            .listRowBackground(BSColor.Stage.surface)
-            .foregroundStyle(BSColor.Stage.foreground)
-            .navigationTitle(BSLocalization.text("艺人详情"))
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button(BSLocalization.text("完成")) { dismiss() } } }
-            .onAppear { if show.artists.isEmpty { rematchIndex = 0 } }
-            .task(id: query) {
-                guard rematchIndex != nil else { return }
-                isSearching = true
-                do {
-                    try await Task.sleep(for: .milliseconds(250))
-                    let matches = try await AppleMusicArtistSearchService().searchArtists(query: query)
-                    try Task.checkCancellation()
-                    results = matches; isSearching = false
-                } catch { if !Task.isCancelled { results = []; isSearching = false } }
-            }
-        }.tint(BSColor.Stage.accent).presentationDragIndicator(.visible)
+                if show.artists.isEmpty {
+                    Button(BSLocalization.text("连接艺人")) { matching = 0 }
+                }
+            }.scrollContentBackground(.hidden).background(BSColor.Stage.background)
+                .navigationTitle(BSLocalization.text("艺人详情"))
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button(BSLocalization.text("完成")) { dismiss() } } }
+                .sheet(isPresented: Binding(get: { matching != nil }, set: { if !$0 { matching = nil } })) {
+                    if let matching { ListeningArtistMatchSheet(room: room, slotIndex: matching, query: show.artists.indices.contains(matching) ? show.artists[matching].name : "") }
+                }
+                .navigationDestination(isPresented: Binding(get: { artistID != nil }, set: { if !$0 { artistID = nil } })) {
+                    if let artistID { ListeningArtistView(room: room, artistID: artistID, returnToPlayer: { dismiss() }) }
+                }
+        }.tint(BSColor.Stage.foreground).presentationDragIndicator(.visible)
     }
 }

@@ -4,10 +4,12 @@ struct ListeningDiscTrack: Identifiable, Equatable {
     let id: String
     let title: String
     let artistName: String
+    let artworkURL: URL?
     let duration: TimeInterval?
     let previewURL: URL?
     init(_ song: CatalogSong) {
         id = song.appleMusicSongID; title = song.title; artistName = song.artistName
+        artworkURL = song.artworkURL.flatMap(URL.init(string:))
         duration = song.duration; previewURL = song.previewURL.flatMap(URL.init(string:))
     }
     var playbackItem: ListeningPlaybackItem {
@@ -32,7 +34,7 @@ struct ListeningDisc: Identifiable, Equatable {
         var result: [ListeningDisc] = warmup.isEmpty ? [] : [
             ListeningDisc(id: "preparation", title: BSLocalization.text("开场前"), artworkURL: nil, tracks: warmup)
         ]
-        result += albums.sorted { ($0.releaseDate ?? .distantPast) > ($1.releaseDate ?? .distantPast) }.compactMap { album in
+        result += albums.sorted { a, b in a.releaseDate == b.releaseDate ? a.appleMusicAlbumID < b.appleMusicAlbumID : (a.releaseDate ?? .distantPast) > (b.releaseDate ?? .distantPast) }.compactMap { album in
             let tracks = album.orderedTrackIDs.filter { allowed.contains($0) }.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
             guard !tracks.isEmpty else { return nil }
             return ListeningDisc(id: album.appleMusicAlbumID, title: album.title,

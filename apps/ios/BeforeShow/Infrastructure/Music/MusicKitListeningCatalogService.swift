@@ -25,6 +25,17 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         )
     }
 
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        guard currentAuthorizationStatus() == .authorized else { throw ListeningCatalogError.authorizationRequired }
+        var request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(artistID))
+        request.limit = 1
+        guard let artist = try await request.response().items.first else { return [] }
+        let detailed = try await artist.with([.topSongs])
+        return Array(detailed.topSongs ?? []).map {
+            Self.songPayload(from: $0, targetArtistID: artistID, fallbackAlbum: nil, assumesTargetArtistWhenRelationshipMissing: true)
+        }
+    }
+
     func fetchArtistCatalog(
         artistID: String,
         fetchedAt: Date = Date()

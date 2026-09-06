@@ -138,6 +138,7 @@ struct FootprintDetailView: View {
                     if show.rating != nil || (show.closingNote?.isEmpty == false) {
                         dispersalRitualSection
                     }
+                    FootprintListeningMemorySection(show: show)
                     memorySection
                     keepsakesSection
                     if show.companionStatus == .confirmed {

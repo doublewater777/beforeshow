@@ -36,8 +36,9 @@ struct ListeningMachineView: View {
                 if let rect = geometry.controls[control] {
                     Button { room.perform(control) } label: {
                         RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.001))
-                            .frame(width: rect.width, height: rect.height)
+                            .frame(width: max(rect.width, 44 / scale), height: max(rect.height, 44 / scale))
                     }
+                    .disabled(control == .playPause && ListeningPlaybackSourceResolver.resolve(capability: room.capability(for: room.track)) == nil)
                     .buttonStyle(CDHardwareButtonStyle())
                     .accessibilityLabel(BSLocalization.text(control.label))
                     .accessibilityIdentifier(control.rawValue)

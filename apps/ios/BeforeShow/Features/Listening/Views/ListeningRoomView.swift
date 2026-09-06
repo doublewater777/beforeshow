@@ -1,8 +1,12 @@
 import SwiftUI
 import SwiftData
 
-struct ListeningLiveRootView: View {
+struct ListenRootView: View {
     let isActive: Bool
+    var catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService()
+    var playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
+        $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
+    }
     @Environment(\.modelContext) private var context
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -11,7 +15,7 @@ struct ListeningLiveRootView: View {
     @State private var addingShow = false
     private var show: Show? {
         let id = selectedShowID ?? CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
-        return shows.first { $0.id == id } ?? shows.first
+        return shows.first { $0.id == id }
     }
     private var loadKey: String {
         guard let show else { return "empty" }
@@ -19,29 +23,44 @@ struct ListeningLiveRootView: View {
     }
     var body: some View {
         Group {
-            if let room, let show {
+            if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, shows: shows, show: show, isActive: isActive, selectedShowID: $selectedShowID)
+            } else if let show {
+                VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                    Text(show.name).font(.title2)
+                    RoundedRectangle(cornerRadius: BSRadius.md).fill(BSColor.Stage.surfaceRaised).frame(height: 200)
+                        .accessibilityLabel(BSLocalization.text("正在准备唱片"))
+                }.padding(BSSpacing.lg)
             } else {
                 ContentUnavailableView {
-                    Label(BSLocalization.text("还没有演出"), systemImage: "opticaldisc")
+                    Label(BSLocalization.text("先选择一场现场"), systemImage: "opticaldisc")
                 } description: {
                     Text(BSLocalization.text("添加一场演出，开始听歌"))
                 } actions: {
-                    Button(BSLocalization.text("添加演出")) { addingShow = true }.buttonStyle(BSPrimaryButtonStyle())
+                    Menu(BSLocalization.text("选择现场")) {
+                        ForEach(shows) { item in Button(item.name) { selectedShowID = item.id } }
+                        Button(BSLocalization.text("添加演出")) { addingShow = true }
+                    }.buttonStyle(BSPrimaryButtonStyle())
                 }
             }
         }
         .background(BSColor.Stage.background.ignoresSafeArea())
         .sheet(isPresented: $addingShow) { AddShowCoordinatorSheet { selectedShowID = $0 } }
         .task(id: loadKey) {
-            guard let show else { room?.setActive(false); room = nil; return }
-            if room == nil { room = ListeningRoomCoordinator(context: context) }
+            guard let show else { room?.stop(); room?.mechanism.motion.stop(); room = nil; return }
+            if room == nil { room = ListeningRoomCoordinator(context: context, catalogService: catalogService, playbackFactory: playbackFactory) }
             room?.setActive(isActive)
-            if isActive { await room?.load(show: show) }
+            await room?.load(show: show)
         }
         .onChange(of: isActive) { _, active in
             room?.setActive(active)
             if active, let show { Task { await room?.load(show: show) } }
+        }
+        .onChange(of: CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID) { _, id in selectedShowID = id }
+        .onChange(of: selectedShowID) { _, id in
+            guard let id else { return }
+            do { try CurrentShowSelectionStore(modelContext: context).select(showID: id); try context.save() }
+            catch { context.rollback() }
         }
         .onDisappear { room?.setActive(false) }
     }
@@ -109,7 +128,7 @@ struct ListeningRoomView: View {
         .onChange(of: room.mechanism.disc?.id) { _, _ in room.manualDiscChanged() }
         .onChange(of: room.mechanism.isCabinetDragging) { _, dragging in if dragging { room.manualDiscChanged() } }
         .onChange(of: reduceMotion, initial: true) { _, value in room.mechanism.motion.reducedMotion = value }
-        .onChange(of: scenePhase) { _, phase in room.setActive(phase == .active && isActive) }
+        .onChange(of: scenePhase) { _, phase in room.setForeground(phase == .active) }
         .task {
             while !Task.isCancelled {
                 room.tick()
@@ -124,7 +143,9 @@ struct ListeningRoomView: View {
     }
     private var chromeOpacity: Double { max(0, 1 - room.mechanism.motion.lid.value * 2) }
     private var header: some View {
-        HStack {
+        VStack(alignment: .leading, spacing: BSSpacing.xs) {
+            Text(BSLocalization.text("当前现场")).font(.caption).foregroundStyle(BSColor.Stage.muted)
+            HStack {
             Menu {
                 ForEach(shows) { show in Button(show.name) { selectedShowID = show.id } }
             } label: {
@@ -133,6 +154,13 @@ struct ListeningRoomView: View {
             Spacer()
             Button { showsArtists = true } label: { Image(systemName: "person.2").font(BSFont.body).frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget).background(BSColor.Stage.surfaceRaised, in: Circle()) }
                 .accessibilityLabel(BSLocalization.text("艺人详情"))
+            }
+            Text([show.date.formatted(date: .abbreviated, time: .omitted), show.city].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                .font(.caption).foregroundStyle(BSColor.Stage.muted)
+            if show.endedAt != nil { Text(BSLocalization.text("已结束")).font(.caption) }
+            if show.artists.count > 1 {
+                Text(BSLocalization.text("整场") + " · " + String(show.artists.count) + " " + BSLocalization.text("位艺人")).font(.caption)
+            }
         }
     }
     @ViewBuilder private var catalogStatus: some View {
@@ -149,17 +177,20 @@ struct ListeningRoomView: View {
                 }
             }.font(BSFont.caption).foregroundStyle(BSColor.Stage.accent)
         }
-        switch room.catalogState {
-        case .loading: ProgressView(BSLocalization.text("正在准备唱片" )).font(BSFont.caption)
-        case .unmatched:
-            status("尚未匹配艺人", action: "匹配艺人") { showsArtists = true }
-        case .cacheFailed:
-            status("缓存读取失败", action: "重试") { Task { await room.load(show: show, force: true) } }
-        case .unavailable:
-            status(room.excludedArtistIDs.isEmpty && room.onlyArtistID == nil ? "暂无可用唱片" : "当前筛选下没有唱片", action: "艺人详情") { showsArtists = true }
-        case .ready: EmptyView()
+        switch room.presentation {
+        case .loading, .loadingCatalog:
+            RoundedRectangle(cornerRadius: BSRadius.md).fill(BSColor.Stage.surfaceRaised)
+                .frame(height: 52).accessibilityLabel(BSLocalization.text("正在准备唱片"))
+        case .noConnectedArtists:
+            status("尚未匹配艺人", action: "连接艺人") { showsArtists = true }
+        case .cachedWithError:
+            status("暂时无法更新", action: "重试") { Task { await room.load(show: show, force: true) } }
+        case .fatalUnavailable:
+            status("暂时无法载入音乐", action: "重试") { Task { await room.load(show: show, force: true) } }
+        case .needsAuthorization, .noCurrentShow, .ready: EmptyView()
         }
     }
+
     private func status(_ title: String, action: String, perform: @escaping () -> Void) -> some View {
         HStack {
             Text(BSLocalization.text(title)).font(BSFont.caption).foregroundStyle(BSColor.Stage.muted)
@@ -168,26 +199,19 @@ struct ListeningRoomView: View {
         }
     }
     private var nowPlaying: some View {
-        HStack(spacing: BSSpacing.md) {
-            VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                Text(room.track?.title ?? "\(room.mechanism.configuration.brand) \(room.mechanism.configuration.model)")
-                    .font(BSFont.V3.title2).lineLimit(1)
-                HStack(spacing: BSSpacing.sm) {
-                    Circle().fill(room.isPlaying ? BSColor.Stage.success : BSColor.Stage.dim).frame(width: 5, height: 5)
-                    Text(room.track.map { $0.artistName + " · " + room.capabilityTitle } ?? BSLocalization.text("装入 CD"))
-                        .font(BSFont.V3.caption).foregroundStyle(BSColor.Stage.muted).lineLimit(1)
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            ListeningSongCardView(room: room) { showsArtists = true }
+            HStack {
+                if room.onlyArtistID != nil || room.mechanism.disc?.id != "preparation" {
+                    Button(BSLocalization.text("回到整场")) { room.returnToWholeShow() }.font(.subheadline).frame(minHeight: 44)
                 }
+                Spacer()
+                Menu { mechanicalActions } label: {
+                    Image(systemName: "ellipsis").frame(width: 44, height: 44)
+                }.accessibilityLabel(BSLocalization.text("播放器操作"))
             }
-            Spacer(minLength: 0)
-            if let track = room.track { ListeningWantedButton(room: room, songID: track.id) }
-            Menu { mechanicalActions } label: {
-                Image(systemName: "ellipsis").font(BSFont.headline)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(BSColor.Stage.surface, in: Circle())
-            }.accessibilityLabel(BSLocalization.text("播放器上盖"))
-        }
-        .frame(height: ListeningStyle.nowPlayingHeight)
-        .overlay(alignment: .top) { Rectangle().fill(BSColor.Stage.border).frame(height: 1) }
+        }.padding(.vertical, BSSpacing.sm)
+            .overlay(alignment: .top) { Rectangle().fill(BSColor.Stage.border).frame(height: 1) }
     }
     private var mechanicalActions: some View {
         Group {

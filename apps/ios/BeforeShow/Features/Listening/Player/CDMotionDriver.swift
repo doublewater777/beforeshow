@@ -43,7 +43,7 @@ struct CDSpringChannel {
         stop()
         lastTime = CACurrentMediaTime()
         #if os(iOS)
-        let link = CADisplayLink(target: self, selector: #selector(frame))
+        let link = CADisplayLink(target: CDDisplayLinkTarget(owner: self), selector: #selector(CDDisplayLinkTarget.frame(_:)))
         link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
         link.add(to: .main, forMode: .common)
         self.link = link
@@ -62,7 +62,7 @@ struct CDSpringChannel {
         timer?.invalidate(); timer = nil
         #endif
     }
-    @objc private func frame() {
+    fileprivate func frame() {
         let now = CACurrentMediaTime()
         let dt = min(now - lastTime, 1 / 15)
         lastTime = now
@@ -74,3 +74,14 @@ struct CDSpringChannel {
         discScale.step(dt, frequency: frequency)
     }
 }
+
+#if os(iOS)
+@MainActor private final class CDDisplayLinkTarget: NSObject {
+    weak var owner: CDMotionDriver?
+    init(owner: CDMotionDriver) { self.owner = owner }
+    @objc func frame(_ link: CADisplayLink) {
+        guard let owner else { link.invalidate(); return }
+        owner.frame()
+    }
+}
+#endif

@@ -1,5 +1,9 @@
 import Foundation
 
+enum ListeningMutationError: Error, Equatable {
+    case wantsLiveFrozen(UUID)
+}
+
 enum ListeningShowStartPolicy {
     static func effectiveOpeningStart(show: Show) -> Date? {
         guard !(show.changeStatus == .postponed && show.postponedDate == nil) else {
@@ -22,5 +26,15 @@ enum ListeningShowStartPolicy {
             timing: timing,
             calendar: show.timingCalendar()
         )
+    }
+}
+
+enum WantsLivePolicy {
+    static func isMutable(show: Show, now: Date = Date()) -> Bool {
+        guard show.changeStatus != .canceled else { return false }
+        guard let effectiveStart = ListeningShowStartPolicy.effectiveOpeningStart(show: show) else {
+            return true
+        }
+        return now < effectiveStart
     }
 }

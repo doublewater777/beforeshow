@@ -113,7 +113,7 @@ import XCTest
         }
     }
     func testListeningIsThirdTabAndOnboardingSecondStep() {
-        XCTAssertEqual(BeforeShowTab.allCases, [.current, .footprints, .listening])
+        XCTAssertEqual(BeforeShowTab.allCases, [.current, .listen, .footprints])
         XCTAssertEqual(OnboardingPage.allCases[1], .listening)
     }
 }

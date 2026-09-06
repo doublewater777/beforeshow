@@ -79,21 +79,29 @@ final class ListeningFamiliarityPolicyTests: XCTestCase {
         ))
     }
 
-    func testWantsLiveRemainsMutableBeforeDuringAndAfterShow() throws {
+    func testWantsLiveFreezesAtWholeShowStart() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let start = Date(timeIntervalSince1970: 2_000_000_000)
         let show = try Show(name: "Show", date: start, startTime: start)
         context.insert(show)
         let repository = ListeningRepository(modelContext: context)
-        for date in [start.addingTimeInterval(-1), start, start.addingTimeInterval(100_000)] {
-            try repository.setWantsLive(showID: show.id, songID: "song", isWanted: true, at: date)
-            try context.save()
-            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
-            try repository.setWantsLive(showID: show.id, songID: "song", isWanted: false, at: date)
-            try context.save()
-            XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 0)
+
+        try repository.setWantsLive(
+            showID: show.id,
+            songID: "song",
+            isWanted: true,
+            at: start.addingTimeInterval(-1)
+        )
+        XCTAssertThrowsError(try repository.setWantsLive(
+            showID: show.id,
+            songID: "song",
+            isWanted: false,
+            at: start
+        )) { error in
+            XCTAssertEqual(error as? ListeningMutationError, .wantsLiveFrozen(show.id))
         }
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 1)
     }
 
     func testUndatedPostponementKeepsWantsLiveMutable() throws {
