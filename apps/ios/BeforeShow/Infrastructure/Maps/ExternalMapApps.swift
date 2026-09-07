@@ -143,7 +143,8 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
                 URLQueryItem(
                     name: "daddr",
                     value: destination.coordinate?.commaSeparated ?? destination.query
-                )
+                ),
+                URLQueryItem(name: "dirflg", value: "d"),
             ]
             return components?.url
 
@@ -168,6 +169,7 @@ enum ExternalMapApp: String, CaseIterable, Identifiable, Hashable {
         case .baidu:
             var components = URLComponents(string: "baidumap://map/direction")
             var items = [
+                URLQueryItem(name: "origin", value: "我的位置"),
                 URLQueryItem(
                     name: "destination",
                     value: destination.coordinate.map {
