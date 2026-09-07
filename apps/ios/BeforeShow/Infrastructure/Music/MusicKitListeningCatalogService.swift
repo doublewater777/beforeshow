@@ -104,10 +104,11 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             topSongIDs: topSongIDs,
             albums: detailedAlbums
         )
-        let enrichedSongs = try await fetchEnrichedSongs(
-            songIDs: requestedSongIDs,
-            baseSongsByID: baseSongsByID
-        )
+        // Top-song and album-track responses already carry title, artist, artwork,
+        // duration and preview metadata. Fetching every ID again serially made a real
+        // artist page wait minutes on device; the album fallback below supplies any
+        // missing album relationship without extra network traffic.
+        let enrichedSongs = baseSongsByID
 
         var trustedTargetSongIDs = Set(topSongIDs)
         for album in detailedAlbums where !album.isCompilation {
@@ -192,38 +193,6 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             albums: albumPayloads,
             fetchedAt: fetchedAt
         )
-    }
-
-    private func fetchEnrichedSongs(
-        songIDs: [String],
-        baseSongsByID: [String: Song]
-    ) async throws -> [String: Song] {
-        var result: [String: Song] = [:]
-
-        // iOS 17 MusicKit doesn't expose a catalog request `properties` surface for
-        // relationship expansion. Fetch each stable ID with an explicit equality
-        // filter, then load the Song relationships through MusicItem.with(_:).
-        for rawID in songIDs {
-            let musicID = MusicItemID(rawID)
-            var request = MusicCatalogResourceRequest<Song>(
-                matching: \.id,
-                equalTo: musicID
-            )
-            request.limit = 1
-            let response = try await request.response()
-
-            let baseSong: Song
-            if let fetchedSong = response.items.first {
-                baseSong = fetchedSong
-            } else if let fallback = baseSongsByID[rawID] {
-                baseSong = fallback
-            } else {
-                throw ListeningCatalogError.incompleteCatalog(rawID)
-            }
-
-            result[rawID] = try await baseSong.with([.artists, .albums])
-        }
-        return result
     }
 
     private static func songPayload(

@@ -1429,3 +1429,29 @@ First show: %@";
 "连接艺人" = "Connect artist";
 "选择歌曲" = "Choose a song";
 "选择现场" = "Choose a show";
+"等待唱片" = "Waiting for a record";
+
+"先打开上盖，再从唱片柜取 CD" = "Open the lid before taking a CD from the cabinet";
+"请先取出当前 CD，并放回唱片柜" = "Remove the current CD and return it to the cabinet first";
+"未连接" = "Not connected";
+"首" = "tracks";
+"已熟悉 %lld 首" = "%lld familiar songs";
+"碟片曲目" = "Disc tracks";
+
+"全部唱片" = "All records";
+
+"暂未找到音乐" = "No music found yet";
+
+"从下方挑选一张 CD 放入播放机" = "Pick a CD from the cabinet below";
+"正在只听：%@" = "Only playing: %@";
+"正在播放中" = "Playing";
+"已在播放机中" = "In player";
+"暂停" = "Pause";
+"播放" = "Play";
+"未找到相关唱片或艺人" = "No matching records or artists found";
+"未连接 Apple Music" = "Apple Music not connected";
+"已聚焦" = "Focused";
+"重新匹配艺人" = "Rematch artist";
+"已聚焦此艺人" = "Focused on artist";
+"装入 CD 播放" = "Load & Play CD";
+"输入艺人名称进行搜索" = "Type artist name to search";

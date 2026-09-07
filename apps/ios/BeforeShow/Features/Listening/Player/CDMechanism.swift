@@ -2,7 +2,7 @@ import SwiftUI
 
 @MainActor @Observable final class CDMechanism {
     enum Position: Equatable { case stored, seated, released, removed }
-    let configuration = CDPlayerConfiguration.panasonic
+    var configuration = CDPlayerConfiguration.standard
     let motion = CDMotionDriver()
     private(set) var disc: ListeningDisc?
     private(set) var position: Position = .stored
@@ -17,7 +17,7 @@ import SwiftUI
     @ObservationIgnored var cabinetScale = 0.25
     @ObservationIgnored private var lidOrigin: Double?
     @ObservationIgnored private var discOrigin: CGPoint?
-    var isOpen: Bool { motion.lid.value > 0.98 }
+    var isOpen: Bool { motion.lid.value > 0.82 }
     var isClosed: Bool { motion.lid.value < 0.002 && motion.lid.target != 1 }
     var hasDisc: Bool { position == .seated || position == .released }
     var canSeat: Bool {
@@ -86,10 +86,42 @@ import SwiftUI
         }
     }
     func beginCabinetDrag(_ disc: ListeningDisc) {
-        guard position == .stored, isOpen, !isAutomatic else { return }
+        guard position == .stored, isOpen, !isAutomatic else {
+            if !isOpen { notice = BSLocalization.text("先打开上盖，再从唱片柜取 CD") }
+            else if position != .stored { notice = BSLocalization.text("请先取出当前 CD，并放回唱片柜") }
+            return
+        }
         liftFromCabinet(disc)
         isCabinetDragging = true
         discOrigin = CGPoint(x: motion.discX.value, y: motion.discY.value)
+    }
+    func takeFromCabinet(_ disc: ListeningDisc) {
+        beginCabinetDrag(disc)
+        guard isCabinetDragging else { return }
+        let origin = CGPoint(x: motion.discX.value, y: motion.discY.value)
+        motion.discX.value = configuration.geometry.discCenter.x
+        motion.discY.value = configuration.geometry.discCenter.y
+        endDiscDrag()
+        // Keep the same visible shelf → tray path for the non-drag action.
+        motion.discX.value = origin.x; motion.discY.value = origin.y
+    }
+    /// Silently place a disc into the tray ready to play, skipping opening/closing animations.
+    func restoreSeated(_ disc: ListeningDisc) {
+        guard !isAutomatic else { return }
+        self.disc = disc
+        position = .seated
+        isReturning = false
+        isCabinetDragging = false
+        motion.lid.value = 0
+        motion.lid.target = nil
+        motion.discX.value = configuration.geometry.discCenter.x
+        motion.discX.target = nil
+        motion.discY.value = configuration.geometry.discCenter.y
+        motion.discY.target = nil
+        motion.discScale.value = 1
+        motion.discScale.target = nil
+        motion.lift.value = 0
+        motion.lift.target = nil
     }
     private func liftFromCabinet(_ disc: ListeningDisc) {
         self.disc = disc; position = .removed

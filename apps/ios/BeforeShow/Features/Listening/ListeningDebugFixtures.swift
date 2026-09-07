@@ -23,9 +23,9 @@ enum ListeningFixtureScenario: String, CaseIterable {
         let start = Date().addingTimeInterval(scenario == .endedCurrent ? -86400 : 864000)
         let show = try Show(name: "夜航 · Listen", date: start, startTime: start)
         if scenario == .endedCurrent { show.endedAt = start.addingTimeInterval(7200) }
-        let artistNames = scenario == .multiFull ? ["夜航", "海岸", "未连接"] : ["夜航"]
+        let artistNames = scenario == .multiFull ? ["夜航", "海岸"] : ["夜航"]
         show.artists = artistNames.enumerated().map { index, name in
-            ArtistSlot(name: name, avatarURL: nil, appleMusicArtistID: index == 2 ? nil : "fixture-artist-\(index)")
+            ArtistSlot(name: name, avatarURL: nil, appleMusicArtistID: scenario == .multiFull ? nil : "fixture-artist-\(index)")
         }
         context.insert(show)
         context.insert(CurrentShowSelection(selectedShowID: show.id))
@@ -47,6 +47,14 @@ enum ListeningFixtureScenario: String, CaseIterable {
         try context.save()
         try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
         try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context)
+    }
+}
+
+struct ListeningFixtureArtistSearch: ArtistSearchServicing {
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        guard let index = ["夜航", "海岸"].firstIndex(of: query) else { return [] }
+        return [RecognizedArtist(id: "fixture-artist-\(index)", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
     }
 }
 

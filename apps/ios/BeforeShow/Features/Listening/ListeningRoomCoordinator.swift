@@ -38,6 +38,7 @@ import SwiftData
     }
     @ObservationIgnored private let context: ModelContext
     @ObservationIgnored private let catalogService: any ListeningMusicCatalogServicing
+    @ObservationIgnored private let artistSearchService: any ArtistSearchServicing
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
     @ObservationIgnored private let playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
     @ObservationIgnored private var controller: ListeningPlaybackController?
@@ -50,10 +51,12 @@ import SwiftData
     @ObservationIgnored private var playbackGeneration = UUID()
 
     init(context: ModelContext, catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
+         artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
          playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
              $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
          }) {
         self.context = context; self.catalogService = catalogService; self.playbackFactory = playbackFactory
+        self.artistSearchService = artistSearchService
         catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
         mechanism.onOpen = { [weak self] in self?.stop() }
     }
@@ -92,8 +95,31 @@ import SwiftData
         self.show = show; catalogState = .loading; accessResolved = false
         do {
             try rebuildDiscs()
-            if mechanism.position == .stored && !busy, let first = discs.first { loadDisc(first) }
+            if mechanism.position == .stored && !busy, let first = discs.first { restoreDisc(first) }
         } catch { catalogState = .cacheFailed }
+        let slots = show.artists
+        let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        do {
+            if !matches.isEmpty {
+                try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
+                var artists = show.artists
+                for (index, candidate) in matches {
+                    guard artists.indices.contains(index), artists[index].name == slots[index].name,
+                          artists[index].appleMusicArtistID == nil else { continue }
+                    artists[index].appleMusicArtistID = candidate.id
+                    artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
+                    if artists[index].avatarURL == nil { artists[index].avatarURL = candidate.avatarURL?.absoluteString }
+                }
+                show.artists = artists
+                show.updatedAt = Date()
+                _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
+                _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
+                try context.save()
+                showCatalogKey = show.id.uuidString + artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+                try rebuildDiscs()
+            }
+        } catch { context.rollback() }
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
         access = newAccess; accessResolved = true
@@ -112,14 +138,14 @@ import SwiftData
                         }
                         try rebuildDiscs()
                         if !discs.isEmpty { catalogState = .ready }
-                        if mechanism.position == .stored && !busy, let first = discs.first { loadDisc(first) }
+                        if mechanism.position == .stored && !busy, let first = discs.first { restoreDisc(first) }
                     }
                     _ = try await catalogStore.refreshArtistCatalog(artistID: id)
                 }
                 guard generation == catalogGeneration, !Task.isCancelled else { return }
                 try rebuildDiscs()
                 if !discs.isEmpty { catalogState = .ready }
-                if mechanism.position == .stored && !busy, let first = discs.first { loadDisc(first) }
+                if mechanism.position == .stored && !busy, let first = discs.first { restoreDisc(first) }
             } catch { failed = true }
             guard generation == catalogGeneration, !Task.isCancelled else { return }
         }
@@ -197,7 +223,16 @@ import SwiftData
             await load(show: show)
         } catch { context.rollback(); errorText = BSLocalization.text("保存失败，请重试") }
     }
-    func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = false) {
+    func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
+        guard mechanism.position == .stored, !busy else { return }
+        stop()
+        mechanism.restoreSeated(disc)
+        trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+        preparedSongID = nil
+        playbackState = .idle
+        trackBelongsToShow = true
+    }
+    func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
         run { [self] in
             stop()
             try await mechanism.load(disc)

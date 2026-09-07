@@ -37,6 +37,31 @@ struct ListeningArtistPresentation: Identifiable {
             catalogSnapshots.first { $0.artistID == id }?.orderedSongIDs.contains(track.id) == true
         }
     }
+    var currentTrackArtistName: String? {
+        guard let track else { return nil }
+        if let id = currentArtistID,
+           let slot = show?.artists.first(where: { $0.appleMusicArtistID == id }) {
+            return slot.name
+        }
+        return track.artistName
+    }
+    var currentAlbumTitle: String? {
+        guard let track else { return nil }
+        guard let albumID = catalogSongs.first(where: { $0.appleMusicSongID == track.id })?.albumID else {
+            return mechanism.disc?.title
+        }
+        return catalogAlbums.first { $0.appleMusicAlbumID == albumID }?.title ?? mechanism.disc?.title
+    }
+    var warmUpDisc: ListeningDisc? {
+        discs.first { $0.id == "preparation" }
+    }
+    var cabinetArtists: [ListeningArtistPresentation] {
+        var seen = Set<String>()
+        return (show?.artists ?? []).compactMap { slot in
+            guard let id = slot.appleMusicArtistID, seen.insert(id).inserted else { return nil }
+            return artistPresentation(id)
+        }
+    }
     var nextTrack: ListeningDiscTrack? {
         guard let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex + 1) else { return nil }
         return disc.tracks[trackIndex + 1]

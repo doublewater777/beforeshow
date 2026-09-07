@@ -80,6 +80,17 @@ import XCTest
         XCTAssertEqual(mechanism.motion.discX.value, slot.x, accuracy: 0.001)
         XCTAssertEqual(mechanism.motion.discY.value, slot.y, accuracy: 0.001)
     }
+    func testCabinetTapUsesSameVisiblePathIntoOpenTray() {
+        let mechanism = CDMechanism()
+        let disc = ListeningDisc(id: "tap", title: "Tap", artworkURL: nil, tracks: [])
+        mechanism.motion.lid.value = 1
+        mechanism.cabinetSlots[disc.id] = CGPoint(x: 90, y: 940)
+        mechanism.takeFromCabinet(disc)
+        settle(mechanism)
+        XCTAssertEqual(mechanism.position, .released)
+        XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.discCenter.x, accuracy: 0.001)
+        XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.discCenter.y, accuracy: 0.001)
+    }
     func testCabinetMissReturnsDiscAndSeatedDiscCannotBeDragged() {
         let mechanism = CDMechanism()
         let disc = ListeningDisc(id: "manual", title: "Manual", artworkURL: nil, tracks: [])

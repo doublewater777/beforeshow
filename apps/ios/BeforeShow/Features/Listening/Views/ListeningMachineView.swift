@@ -68,7 +68,7 @@ struct ListeningMachineView: View {
         .contentShape(Ellipse())
         .modifier(HingedPlane(angle: lidAngle))
         .offset(x: geometry.lid.minX, y: geometry.hingeY)
-        .highPriorityGesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("playerStage"))
+        .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("playerStage"))
             .onChanged { value in player.dragLid( value.translation.height / scale) }
             .onEnded { value in player.endLidDrag( value.translation.height / scale,
                                                 predicted: value.predictedEndTranslation.height / scale) })
@@ -86,7 +86,7 @@ struct ListeningMachineView: View {
             .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
             .shadow(color: .black.opacity(0.3), radius: 3 + motion.lift.value * 9, y: 4 + motion.lift.value * 13)
             .contentShape(Circle())
-            .highPriorityGesture(DragGesture(minimumDistance: 5, coordinateSpace: .named("playerStage"))
+            .gesture(DragGesture(minimumDistance: 5, coordinateSpace: .named("playerStage"))
                 .onChanged { value in
                     player.dragDisc(CGSize(width: value.translation.width / scale,
                                            height: value.translation.height / scale / cos(geometry.tiltDegrees * .pi / 180)))

@@ -9,7 +9,7 @@ struct ListeningFeatureRootView: View {
     var body: some View {
         #if DEBUG
         if let fixture {
-            ListenRootView(isActive: isActive, catalogService: ListeningFixtureCatalog(scenario: fixture.scenario), playbackFactory: { _ in ListeningFixturePlayer() }).modelContainer(fixture.container)
+            ListenRootView(isActive: isActive, catalogService: ListeningFixtureCatalog(scenario: fixture.scenario), artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { _ in ListeningFixturePlayer() }).modelContainer(fixture.container)
         } else {
             ListenRootView(isActive: isActive)
         }

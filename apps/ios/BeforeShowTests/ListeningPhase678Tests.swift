@@ -22,7 +22,7 @@ import SwiftData
         return (container, show)
     }
     static func room(_ context: ModelContext) -> ListeningRoomCoordinator {
-        ListeningRoomCoordinator(context: context, catalogService: ListenTestCatalog(), playbackFactory: { _ in ListeningFixturePlayer() })
+        ListeningRoomCoordinator(context: context, catalogService: ListenTestCatalog(), artistSearchService: ListeningFixtureArtistSearch(), playbackFactory: { _ in ListeningFixturePlayer() })
     }
     static func settle(_ room: ListeningRoomCoordinator, until condition: () -> Bool) async throws {
         for _ in 0..<1000 {

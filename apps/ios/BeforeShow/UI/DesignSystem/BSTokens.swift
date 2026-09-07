@@ -99,6 +99,7 @@ enum BSColor {
 // Matches the SplashView: light weights, generous tracking, cinematic spacing.
 
 enum BSFont {
+    static let pageTitle = Font.system(size: 32, weight: .bold)
     /// Massive countdown / hero numbers.
     static let display = Font.system(size: 80, weight: .light, design: .default)
     /// Screen titles (current show name, large headings).
