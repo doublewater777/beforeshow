@@ -154,19 +154,12 @@ final class MapNavigationCoordinateCache: @unchecked Sendable {
     }
 
     func prepareActiveQuery() async {
-        lock.lock()
-        let query = activeQuery
-        let alreadyResolved = query.flatMap { coordinates[$0] } != nil
-        lock.unlock()
-
-        guard let query, !alreadyResolved else { return }
+        let snapshot = activeQuerySnapshot()
+        guard let query = snapshot.query, !snapshot.alreadyResolved else { return }
         guard let coordinate = try? await CoreLocationGeocoding().resolve(city: nil, address: query) else {
             return
         }
-
-        lock.lock()
-        coordinates[query] = coordinate
-        lock.unlock()
+        store(coordinate, for: query)
     }
 
     /// 仅供确定性单元测试注入坐标，不触发真实地理编码。
@@ -180,6 +173,13 @@ final class MapNavigationCoordinateCache: @unchecked Sendable {
         lock.lock()
         coordinates.removeValue(forKey: query)
         lock.unlock()
+    }
+
+    private func activeQuerySnapshot() -> (query: String?, alreadyResolved: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        let query = activeQuery
+        return (query, query.flatMap { coordinates[$0] } != nil)
     }
 }
 
