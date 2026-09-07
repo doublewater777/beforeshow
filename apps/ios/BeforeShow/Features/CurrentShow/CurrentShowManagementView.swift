@@ -528,9 +528,19 @@ struct CurrentShowManagementSection: View {
     }
 
     private func openMapApp(_ app: ExternalMapApp) {
-        guard let query = routeQuery,
-              let url = app.openURL(for: query) else { return }
-        openURL(url)
+        guard let query = routeQuery else { return }
+        let name = mapDestinationLabel
+
+        Task { @MainActor in
+            let coordinate = await MapDestinationCoordinateResolver.resolve(query: query)
+            let destination = ExternalMapDestination(
+                name: name,
+                query: query,
+                coordinate: coordinate
+            )
+            guard let url = app.openURL(for: destination) else { return }
+            openURL(url)
+        }
     }
 
     private var companionHistory: [Show] {
