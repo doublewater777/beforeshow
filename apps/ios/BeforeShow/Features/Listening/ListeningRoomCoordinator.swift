@@ -140,7 +140,11 @@ import SwiftData
                         if !discs.isEmpty { catalogState = .ready }
                         if mechanism.position == .stored && !busy, let first = discs.first { restoreDisc(first) }
                     }
-                    _ = try await catalogStore.refreshArtistCatalog(artistID: id)
+                    if force {
+                        _ = try await catalogStore.refreshArtistCatalog(artistID: id)
+                    } else {
+                        _ = try await catalogStore.loadArtistCatalog(artistID: id)
+                    }
                 }
                 guard generation == catalogGeneration, !Task.isCancelled else { return }
                 try rebuildDiscs()

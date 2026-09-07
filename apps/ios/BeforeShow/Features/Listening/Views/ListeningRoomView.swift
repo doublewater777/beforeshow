@@ -27,7 +27,11 @@ struct ListenRootView: View {
                 ListeningRoomView(room: room, show: show)
             } else if let show {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    Text(show.name).font(.title2)
+                    Text(show.name)
+                        .font(BSFont.pageTitle)
+                        .tracking(-0.5)
+                        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
                     RoundedRectangle(cornerRadius: BSRadius.md).fill(BSColor.Stage.surfaceRaised).frame(height: 200)
                         .accessibilityLabel(BSLocalization.text("正在准备唱片"))
                 }.padding(BSSpacing.lg)
@@ -155,30 +159,13 @@ struct ListeningRoomView: View {
     }
     private var header: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("听"))
+            Text(show.name)
                 .font(BSFont.pageTitle)
                 .tracking(-0.5)
                 .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
 
             HStack(spacing: BSSpacing.sm) {
-                HStack(spacing: BSSpacing.xs) {
-                    Image(systemName: "music.note")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.accent)
-                    Text(show.name)
-                        .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, 6)
-                .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: Capsule())
-                .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
-                .accessibilityLabel(Text(show.name))
-
-                Spacer(minLength: 0)
-
                 Button {
                     showsArtists = true
                 } label: {
@@ -197,6 +184,8 @@ struct ListeningRoomView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(BSLocalization.text("艺人详情"))
                 .accessibilityIdentifier("listening.artists")
+
+                Spacer(minLength: 0)
             }
 
             if let onlyID = room.onlyArtistID,

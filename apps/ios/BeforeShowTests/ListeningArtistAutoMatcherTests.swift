@@ -33,6 +33,12 @@ import SwiftData
         XCTAssertTrue(second.isEmpty)
     }
 
+    func testInternalWhitespaceDifferenceDoesNotAutoMatch() async throws {
+        let search = AutoMatchSearchStub(candidates: [candidate("wrong", "AB")])
+        let result = try await ListeningArtistAutoMatcher(search: search).matches(for: [ArtistSlot(name: "A B", avatarURL: nil)])
+        XCTAssertTrue(result.isEmpty)
+    }
+
     func testLoadingAutomaticallyConnectsArtistsAndBuildsSeparateShelves() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .multiFull)
         let context = fixture.container.mainContext
@@ -77,6 +83,29 @@ import SwiftData
         XCTAssertLessThan(geometry.maximumOpening, 90)
     }
 
+    func testNormalRoomLoadUsesFreshCacheAndForceRefreshBypassesIt() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let show = try Show(name: "Cached Show", date: .now.addingTimeInterval(10000), startTime: .now.addingTimeInterval(10000))
+        show.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: "artist-1")]
+        context.insert(show)
+        context.insert(CatalogSong(appleMusicSongID: "song-1", title: "Song", artistName: "Artist", duration: 100))
+        context.insert(ArtistCatalogSnapshot(artistID: "artist-1", artistName: "Artist", orderedSongIDs: ["song-1"], topSongIDs: ["song-1"], albumIDs: []))
+        try context.save()
+        let catalog = CountingListenCatalog()
+        let room = ListeningRoomCoordinator(context: context, catalogService: catalog, artistSearchService: AutoMatchSearchStub(candidates: []), playbackFactory: { _ in ListeningFixturePlayer() })
+        defer { room.stop(); room.mechanism.motion.stop() }
+        await room.load(show: show)
+        try await ListenTestData.settle(room) { !room.busy }
+        XCTAssertEqual(catalog.fetchCount, 0)
+        await room.load(show: show)
+        try await ListenTestData.settle(room) { !room.busy }
+        XCTAssertEqual(catalog.fetchCount, 0)
+        await room.load(show: show, force: true)
+        try await ListenTestData.settle(room) { !room.busy }
+        XCTAssertEqual(catalog.fetchCount, 1)
+    }
+
     private func candidate(_ id: String, _ name: String) -> RecognizedArtist {
         RecognizedArtist(id: id, canonicalName: name, avatarURL: nil, appleMusicURL: nil)
     }
@@ -92,5 +121,19 @@ private actor AutoMatchSearchStub: ArtistSearchServicing {
         queries.append(query)
         if delayed { try await Task.sleep(for: .milliseconds(80)) }
         return candidates
+    }
+}
+
+private final class CountingListenCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedFetchCount = 0
+    var fetchCount: Int { lock.withLock { storedFetchCount } }
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess { .init(authorizationStatus: .authorized, canPlayCatalogContent: true) }
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        lock.withLock { storedFetchCount += 1 }
+        return .init(artistID: artistID, artistName: "Artist", artworkURL: nil, editorialText: nil, genreNames: [],
+                     orderedSongIDs: ["song-1"], topSongIDs: ["song-1"], albumIDs: [], songs: [], albums: [], fetchedAt: fetchedAt)
     }
 }

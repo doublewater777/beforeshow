@@ -26,6 +26,7 @@ struct ListeningArtistAutoMatcher {
 
     private static func normalized(_ name: String) -> String {
         name.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "en_US_POSIX"))
-            .components(separatedBy: .whitespacesAndNewlines).joined()
+            .split { $0.isWhitespace || $0.isNewline }
+            .joined(separator: " ")
     }
 }

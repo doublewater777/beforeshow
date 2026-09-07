@@ -158,7 +158,7 @@ struct ListeningCabinetSheet: View {
         VStack(alignment: .leading, spacing: 6) {
             shelfHeader(title: BSLocalization.text("本场预热碟"), countText: "1 \(BSLocalization.text("张唱片"))")
 
-            JewelCaseShelf {
+            ListeningShelf {
                 Button { selectedDisc = warmUp } label: {
                     ListeningJewelCase(
                         disc: warmUp,
@@ -183,7 +183,7 @@ struct ListeningCabinetSheet: View {
                 shelfHeader(title: artist.name, countText: "\(discs.count) \(BSLocalization.text("张唱片"))")
             }
 
-            JewelCaseShelf {
+            ListeningShelf {
                 ForEach(discs) { disc in
                     Button { selectedDisc = disc } label: {
                         ListeningJewelCase(
@@ -277,64 +277,6 @@ struct ListeningCabinetSheet: View {
                 .foregroundStyle(BSColor.Stage.dim)
         }
         .padding(.vertical, 2)
-    }
-}
-
-// MARK: - Translucent Jewel Case Shelf (透明实体亚克力/玻璃唱片架)
-
-struct JewelCaseShelf<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .bottom, spacing: 14, content: content)
-                .padding(.horizontal, 12)
-                .padding(.top, 14)
-                .padding(.bottom, 12)
-        }
-        .background {
-            ZStack(alignment: .bottom) {
-                // Shelf back wall depth shadow
-                LinearGradient(
-                    colors: [Color.black.opacity(0.4), Color.clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Bottom shelf glass/acrylic ledge
-                VStack(spacing: 0) {
-                    // Glass bevel highlight line
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.35), Color.white.opacity(0.1), Color.white.opacity(0.25)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(height: 1)
-
-                    // Glass thickness body
-                    Rectangle()
-                        .fill(Color.white.opacity(0.04))
-                        .frame(height: 10)
-                        .background(.ultraThinMaterial)
-
-                    // Glass bottom shadow
-                    LinearGradient(
-                        colors: [Color.black.opacity(0.7), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 6)
-                }
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm))
-        .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.sm)
-                .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
-        )
     }
 }
 

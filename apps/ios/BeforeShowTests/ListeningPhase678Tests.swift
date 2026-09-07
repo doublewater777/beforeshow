@@ -80,13 +80,24 @@ final class ListeningAccessibilityTests: XCTestCase {
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
         let card = try String(contentsOf: root.appendingPathComponent("Views/ListeningSongCardView.swift"), encoding: .utf8)
-        XCTAssertTrue(card.contains("accessibilityAction(named: BSLocalization.text(\"下一曲\")"))
-        XCTAssertTrue(card.contains("accessibilityAction(named: BSLocalization.text(\"上一曲\")"))
+        XCTAssertTrue(card.contains(#"accessibilityAction(named: BSLocalization.text("下一曲")"#))
+        XCTAssertTrue(card.contains(#"accessibilityAction(named: BSLocalization.text("上一曲")"#))
+        XCTAssertTrue(card.contains(#"accessibilityIdentifier("listening.nowPlaying")"#))
+        XCTAssertTrue(card.contains(#"accessibilityIdentifier("listening.discTracks")"#))
+        XCTAssertEqual(card.components(separatedBy: "onShowTracks?()").count - 1, 1)
         let room = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
         XCTAssertTrue(room.contains("accessibilityReduceMotion"))
         XCTAssertTrue(room.contains("motion.reducedMotion = value"))
+        XCTAssertTrue(room.contains(".font(BSFont.pageTitle)"))
+        XCTAssertFalse(room.contains(#"Text(BSLocalization.text("听"))"#))
+        XCTAssertTrue(room.contains("Text(show.name)"))
+        XCTAssertTrue(room.contains(".accessibilityAddTraits(.isHeader)"))
+        let sheet = try String(contentsOf: root.appendingPathComponent("Views/ListeningCabinetSheet.swift"), encoding: .utf8)
+        XCTAssertTrue(sheet.contains("ListeningShelf {"))
+        XCTAssertFalse(sheet.contains("JewelCaseShelf"))
     }
 }
+
 @MainActor final class ListeningWantsLivePresentationTests: XCTestCase {
     func testFrozenAndCanceledAreReadOnlyAndShowScoped() throws {
         let (container, show) = try ListenTestData.make()
