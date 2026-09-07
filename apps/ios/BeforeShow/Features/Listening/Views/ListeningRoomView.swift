@@ -12,7 +12,6 @@ struct ListenRootView: View {
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var room: ListeningRoomCoordinator?
-    @State private var addingShow = false
     private var show: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
         return shows.first { $0.id == id }
@@ -34,22 +33,18 @@ struct ListenRootView: View {
                         .accessibilityAddTraits(.isHeader)
                     RoundedRectangle(cornerRadius: BSRadius.md).fill(BSColor.Stage.surfaceRaised).frame(height: 200)
                         .accessibilityLabel(BSLocalization.text("正在准备唱片"))
-                }.padding(BSSpacing.lg)
+                }
+                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.top, BSLayout.pageHeaderTopPadding)
             } else {
                 ContentUnavailableView {
                     Label(BSLocalization.text("先选择一场现场"), systemImage: "opticaldisc")
                 } description: {
                     Text(BSLocalization.text("添加一场演出，开始听歌"))
-                } actions: {
-                    Menu(BSLocalization.text("选择现场")) {
-                        ForEach(shows) { item in Button(item.name) { selectShow(item.id) } }
-                        Button(BSLocalization.text("添加演出")) { addingShow = true }
-                    }.buttonStyle(BSPrimaryButtonStyle())
                 }
             }
         }
         .background(BSColor.Stage.background.ignoresSafeArea())
-        .sheet(isPresented: $addingShow) { AddShowCoordinatorSheet { selectShow($0) } }
         .task(id: loadKey) {
             guard let show else { room?.stop(); room?.mechanism.motion.stop(); room = nil; return }
             if room == nil { room = ListeningRoomCoordinator(context: context, catalogService: catalogService, artistSearchService: artistSearchService, playbackFactory: playbackFactory) }
@@ -61,10 +56,6 @@ struct ListenRootView: View {
             if active, let show { Task { await room?.load(show: show) } }
         }
         .onDisappear { room?.setActive(false) }
-    }
-    private func selectShow(_ id: UUID) {
-        do { try CurrentShowSelectionStore(modelContext: context).select(showID: id); try context.save() }
-        catch { context.rollback() }
     }
 }
 
