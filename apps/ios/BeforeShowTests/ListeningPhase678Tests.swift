@@ -92,7 +92,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertTrue(room.contains(#"Text(BSLocalization.text("听"))"#))
         XCTAssertFalse(room.contains("Text(show.name)"))
         XCTAssertTrue(room.contains(#"accessibilityIdentifier("listening.discTracks")"#))
-        XCTAssertTrue(room.contains("CDPlayerConfiguration.availableThemes"))
+        XCTAssertFalse(room.contains("paintpalette"))
         XCTAssertTrue(room.contains(".accessibilityAddTraits(.isHeader)"))
         XCTAssertTrue(room.contains(".padding(.horizontal, BSSpacing.roomy)"))
         XCTAssertTrue(room.contains(".padding(.top, BSLayout.pageHeaderTopPadding)"))

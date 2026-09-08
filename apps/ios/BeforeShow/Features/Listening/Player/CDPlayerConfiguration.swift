@@ -42,62 +42,12 @@ struct CDPlayerConfiguration {
     var geometry = Geometry()
     var assets = Assets()
 
-    static let silverMetal = CDPlayerConfiguration(
-        brand: "BEFORESHOW",
-        model: "BS-CD01",
-        themeName: "铝合金银",
-        geometry: Geometry(
-            lcd: CGRect(x: 178, y: 641, width: 122, height: 56),
-            controls: [
-                .previous: CGRect(x: 84, y: 637, width: 44, height: 44),
-                .next: CGRect(x: 133, y: 649, width: 44, height: 44),
-                .playPause: CGRect(x: 308, y: 649, width: 44, height: 44),
-                .stop: CGRect(x: 357, y: 637, width: 44, height: 44),
-                .open: CGRect(x: 198, y: 720, width: 68, height: 32)
-            ]
-        ),
-        assets: Assets(
-            body: "listen_silver_body",
-            lidOuter: "listen_silver_lid_outer",
-            lidInner: "listen_03_lid_inner",
-            disc: "listen_04_disc"
-        )
-    )
-
-    static let translucentAqua = CDPlayerConfiguration(
-        brand: "BEFORESHOW",
-        model: "Y2K-CLEAR",
-        themeName: "极光透明蓝",
-        geometry: Geometry(
-            lcd: CGRect(x: 178, y: 641, width: 122, height: 56),
-            controls: [
-                .previous: CGRect(x: 84, y: 637, width: 44, height: 44),
-                .next: CGRect(x: 133, y: 649, width: 44, height: 44),
-                .playPause: CGRect(x: 308, y: 649, width: 44, height: 44),
-                .stop: CGRect(x: 357, y: 637, width: 44, height: 44),
-                .open: CGRect(x: 198, y: 720, width: 68, height: 32)
-            ]
-        ),
-        assets: Assets(
-            body: "listen_aqua_body",
-            lidOuter: "listen_aqua_lid_outer",
-            lidInner: "listen_03_lid_inner",
-            disc: "listen_04_disc"
-        )
-    )
-
     static let standard = CDPlayerConfiguration(
         brand: "BEFORESHOW",
         model: "BS-CD01",
         themeName: "经典暗黑",
         geometry: Geometry()
     )
-
-    static let availableThemes: [CDPlayerConfiguration] = [
-        .standard,
-        .silverMetal,
-        .translucentAqua
-    ]
 }
 
 extension CDPlayerConfiguration: Equatable, Identifiable {

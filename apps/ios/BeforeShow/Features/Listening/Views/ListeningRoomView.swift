@@ -161,16 +161,6 @@ struct ListeningRoomView: View {
             }
             .accessibilityLabel(BSLocalization.text("艺人详情"))
             .accessibilityIdentifier("listening.artists")
-            Menu {
-                ForEach(CDPlayerConfiguration.availableThemes) { config in
-                    Button { room.mechanism.configuration = config } label: {
-                        Label(BSLocalization.text(config.themeName), systemImage: room.mechanism.configuration.id == config.id ? "checkmark" : "paintpalette")
-                    }
-                }
-            } label: {
-                Image(systemName: "paintpalette")
-            }
-            .accessibilityLabel(BSLocalization.text("切换播放器外观"))
             if room.mechanism.disc != nil {
                 Button { detail = room.mechanism.disc } label: {
                     Image(systemName: "music.note.list")
