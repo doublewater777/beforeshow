@@ -237,12 +237,31 @@ import SwiftData
         trackBelongsToShow = true
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
+        if mechanism.disc?.id == disc.id, mechanism.position == .seated {
+            selectTrack(on: disc, songID: songID, autoplay: autoplay)
+            return
+        }
         run { [self] in
             stop()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             preparedSongID = nil; playbackState = .idle; trackBelongsToShow = true
             if autoplay { try await playCurrentTrack() }
+        }
+    }
+    private func selectTrack(on disc: ListeningDisc, songID: String?, autoplay: Bool) {
+        guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
+        let nextIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+        guard disc.tracks.indices.contains(nextIndex) else { return }
+        if disc.id == mechanism.disc?.id, nextIndex == trackIndex {
+            if autoplay, !isPlaying { playPause() }
+            return
+        }
+        mechanism.updateContents(disc)
+        let resume = autoplay || isPlaying
+        run { [self] in
+            stop(); trackIndex = nextIndex; trackBelongsToShow = true
+            if resume { try await playCurrentTrack() }
         }
     }
     func manualDiscChanged() { guard !mechanism.isAutomatic else { return }; stop(); trackIndex = 0; trackBelongsToShow = true }

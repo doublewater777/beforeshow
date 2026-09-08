@@ -178,6 +178,44 @@ import XCTest
         XCTAssertFalse(room.mechanism.hasDisc)
         XCTAssertFalse(room.isPlaying)
     }
+    func testSelectingAnotherTrackOnTheSeatedDiscDoesNotReloadMechanically() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Fixture", date: now, startTime: now)
+        show.artists = [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: "artist")]
+        context.insert(show)
+        for id in ["a", "b"] {
+            context.insert(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist", duration: 1,
+                                      previewURL: "https://example.invalid/\(id).m4a"))
+        }
+        context.insert(ArtistCatalogSnapshot(artistID: "artist", artistName: "Artist", orderedSongIDs: ["a", "b"]))
+        try context.save()
+        let service = ListeningMVPPlaybackStub()
+        let room = ListeningRoomCoordinator(context: context, catalogService: ListeningMVPCatalogStub(), playbackFactory: { _ in service })
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        var steps: [String] = []
+        room.mechanism.onTransition = { steps.append($0) }
+        let clock = Task { @MainActor in
+            while !Task.isCancelled {
+                let motion = room.mechanism.motion
+                motion.lid.step(1); motion.discX.step(1); motion.discY.step(1); motion.lift.step(1); motion.discScale.step(1)
+                try? await Task.sleep(for: .milliseconds(1))
+            }
+        }
+        defer { clock.cancel(); room.setActive(false) }
+        room.loadDisc(disc, songID: "a", autoplay: true)
+        try await wait { room.mechanism.isClosed && room.mechanism.hasDisc && room.isPlaying && !room.busy }
+        steps = []
+        room.loadDisc(disc, songID: "b", autoplay: true)
+        try await wait { room.trackIndex == 1 && room.isPlaying && !room.busy }
+        XCTAssertEqual(steps, [])
+        XCTAssertEqual(room.mechanism.position, .seated)
+        XCTAssertTrue(room.mechanism.isClosed)
+        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(service.preparedIDs, ["a", "b"])
+    }
     private func wait(_ condition: () -> Bool) async throws {
         for _ in 0..<1000 {
             if condition() { return }
