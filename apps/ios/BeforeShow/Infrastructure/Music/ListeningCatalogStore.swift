@@ -72,6 +72,17 @@ final class ListeningCatalogStore {
                     artworkURL: album.artworkURL,
                     releaseDate: album.releaseDate,
                     artistIDs: album.artistIDs,
+                    artistNames: album.artistNames,
+                    editorialText: album.editorialText,
+                    genreNames: album.genreNames,
+                    copyright: album.copyright,
+                    recordLabelName: album.recordLabelName,
+                    contentRatingRawValue: album.contentRatingRawValue,
+                    audioVariantRawValues: album.audioVariantRawValues,
+                    isAppleDigitalMaster: album.isAppleDigitalMaster,
+                    isCompilation: album.isCompilation,
+                    isSingle: album.isSingle,
+                    appleMusicURL: album.appleMusicURL,
                     orderedTrackIDs: album.orderedTrackIDs,
                     updatedAt: payload.fetchedAt
                 )

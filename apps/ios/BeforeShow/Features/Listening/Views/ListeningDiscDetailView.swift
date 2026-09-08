@@ -15,6 +15,7 @@ struct ListeningDiscDetailView: View {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     discHeroSection
+                    albumInfoSection
                     if isLoaded {
                         loadedPlaybackBar
                     } else {
@@ -69,7 +70,10 @@ struct ListeningDiscDetailView: View {
                     .lineLimit(2)
                     .foregroundStyle(BSColor.Stage.foreground)
 
-                let artists = Array(Set(disc.tracks.map(\.artistName))).sorted().joined(separator: " / ")
+                let artists = (disc.artistNames.isEmpty
+                    ? Array(Set(disc.tracks.map(\.artistName))).sorted()
+                    : disc.artistNames
+                ).joined(separator: " / ")
                 if !artists.isEmpty {
                     Text(artists)
                         .font(BSFont.caption)
@@ -109,6 +113,118 @@ struct ListeningDiscDetailView: View {
         .padding(BSSpacing.md)
         .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: BSRadius.md))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md).stroke(BSColor.Stage.border, lineWidth: 1))
+    }
+
+    private var albumInfoSection: some View {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            if let editorialText = disc.editorialText, !editorialText.isEmpty {
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    metadataHeading(BSLocalization.text("专辑简介"))
+                    Text(editorialText)
+                        .font(BSFont.body)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineSpacing(4)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
+            let details = metadataRows
+            if !details.isEmpty {
+                VStack(spacing: 10) {
+                    ForEach(details, id: \.title) { detail in
+                        HStack(alignment: .firstTextBaseline, spacing: BSSpacing.md) {
+                            Text(detail.title)
+                                .font(BSFont.caption)
+                                .foregroundStyle(BSColor.Stage.dim)
+                                .frame(width: 68, alignment: .leading)
+                            Text(detail.value)
+                                .font(BSFont.body)
+                                .foregroundStyle(BSColor.Stage.foreground)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+
+            if !albumBadges.isEmpty {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 88), spacing: 6)], alignment: .leading, spacing: 6) {
+                    ForEach(albumBadges, id: \.self) { badge in
+                        Text(badge)
+                            .font(BSFont.caption.weight(.medium))
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(BSColor.Stage.surface, in: Capsule())
+                    }
+                }
+            }
+
+            if let url = disc.appleMusicURL {
+                Link(destination: url) {
+                    Label(BSLocalization.text("在 Apple Music 中打开"), systemImage: "arrow.up.right.square")
+                        .font(BSFont.caption.weight(.semibold))
+                }
+                .tint(BSColor.Stage.accent)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(BSSpacing.md)
+        .background(BSColor.Stage.surface.opacity(0.58), in: RoundedRectangle(cornerRadius: BSRadius.md))
+        .overlay(RoundedRectangle(cornerRadius: BSRadius.md).stroke(BSColor.Stage.border, lineWidth: 1))
+    }
+
+    private var metadataRows: [(title: String, value: String)] {
+        var rows: [(String, String)] = []
+        if let releaseDate = disc.releaseDate {
+            rows.append((BSLocalization.text("发行日期"), releaseDate.formatted(date: .long, time: .omitted)))
+        }
+        if !disc.genreNames.isEmpty {
+            rows.append((BSLocalization.text("流派"), disc.genreNames.joined(separator: " · ")))
+        }
+        if let recordLabelName = disc.recordLabelName, !recordLabelName.isEmpty {
+            rows.append((BSLocalization.text("唱片公司"), recordLabelName))
+        }
+        if let contentRating = contentRatingText {
+            rows.append((BSLocalization.text("内容分级"), contentRating))
+        }
+        if let copyright = disc.copyright, !copyright.isEmpty {
+            rows.append((BSLocalization.text("版权"), copyright))
+        }
+        return rows
+    }
+
+    private var albumBadges: [String] {
+        var badges = disc.audioVariantRawValues.compactMap(audioVariantText)
+        if disc.isAppleDigitalMaster == true { badges.append(BSLocalization.text("Apple Digital Master")) }
+        if disc.isCompilation == true { badges.append(BSLocalization.text("合辑")) }
+        if disc.isSingle == true { badges.append(BSLocalization.text("单曲")) }
+        return badges
+    }
+
+    private var contentRatingText: String? {
+        switch disc.contentRatingRawValue {
+        case "explicit": BSLocalization.text("Explicit")
+        case "clean": BSLocalization.text("Clean")
+        default: nil
+        }
+    }
+
+    private func audioVariantText(_ rawValue: String) -> String? {
+        switch rawValue {
+        case "dolbyAtmos": BSLocalization.text("杜比全景声")
+        case "dolbyAudio": BSLocalization.text("杜比音效")
+        case "lossless": BSLocalization.text("无损")
+        case "highResolutionLossless": BSLocalization.text("高解析无损")
+        case "lossyStereo": BSLocalization.text("立体声")
+        case "spatialAudio": BSLocalization.text("空间音频")
+        default: nil
+        }
+    }
+
+    private func metadataHeading(_ title: String) -> some View {
+        Text(title)
+            .font(BSFont.caption.weight(.semibold))
+            .foregroundStyle(BSColor.Stage.dim)
     }
 
     // MARK: - Loaded Playback Bar

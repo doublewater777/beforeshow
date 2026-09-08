@@ -14,6 +14,28 @@ import XCTest
         XCTAssertEqual(discs[0].tracks.map(\.id), ["a", "b"])
         XCTAssertTrue(ListeningDiscAssembler.discs(albums: [album], songs: songs, queue: []).isEmpty)
     }
+    func testAlbumMetadataIsCarriedToItsDisc() {
+        let song = CatalogSong(appleMusicSongID: "song", title: "Song", artistName: "Artist")
+        let album = CatalogAlbum(
+            appleMusicAlbumID: "album", title: "Album", artistNames: ["Artist"],
+            editorialText: "Editorial", genreNames: ["Pop"], recordLabelName: "Label",
+            contentRatingRawValue: "explicit", audioVariantRawValues: ["lossless"],
+            isAppleDigitalMaster: true, appleMusicURL: "https://music.apple.com/example",
+            orderedTrackIDs: ["song"]
+        )
+        let queue = [ListeningQueueEntry(artistID: "artist", songID: "song")]
+
+        let disc = ListeningDiscAssembler.discs(albums: [album], songs: [song], queue: queue)[1]
+
+        XCTAssertEqual(disc.artistNames, ["Artist"])
+        XCTAssertEqual(disc.editorialText, "Editorial")
+        XCTAssertEqual(disc.genreNames, ["Pop"])
+        XCTAssertEqual(disc.recordLabelName, "Label")
+        XCTAssertEqual(disc.contentRatingRawValue, "explicit")
+        XCTAssertEqual(disc.audioVariantRawValues, ["lossless"])
+        XCTAssertTrue(disc.isAppleDigitalMaster == true)
+        XCTAssertEqual(disc.appleMusicURL, URL(string: "https://music.apple.com/example"))
+    }
     func testAutomaticSwapUsesEveryMechanicalStep() async throws {
         let mechanism = CDMechanism()
         var steps: [String] = []

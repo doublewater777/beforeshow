@@ -63,7 +63,56 @@ struct ListeningCatalogAlbumPayload: Equatable, Sendable {
     let artworkURL: String?
     let releaseDate: Date?
     let artistIDs: [String]
+    let artistNames: [String]
+    let editorialText: String?
+    let genreNames: [String]
+    let copyright: String?
+    let recordLabelName: String?
+    let contentRatingRawValue: String?
+    let audioVariantRawValues: [String]
+    let isAppleDigitalMaster: Bool?
+    let isCompilation: Bool?
+    let isSingle: Bool?
+    let appleMusicURL: String?
     let orderedTrackIDs: [String]
+
+    init(
+        albumID: String,
+        title: String,
+        artworkURL: String?,
+        releaseDate: Date?,
+        artistIDs: [String],
+        artistNames: [String] = [],
+        editorialText: String? = nil,
+        genreNames: [String] = [],
+        copyright: String? = nil,
+        recordLabelName: String? = nil,
+        contentRatingRawValue: String? = nil,
+        audioVariantRawValues: [String] = [],
+        isAppleDigitalMaster: Bool? = nil,
+        isCompilation: Bool? = nil,
+        isSingle: Bool? = nil,
+        appleMusicURL: String? = nil,
+        orderedTrackIDs: [String]
+    ) {
+        self.albumID = albumID
+        self.title = title
+        self.artworkURL = artworkURL
+        self.releaseDate = releaseDate
+        self.artistIDs = artistIDs
+        self.artistNames = artistNames
+        self.editorialText = editorialText
+        self.genreNames = genreNames
+        self.copyright = copyright
+        self.recordLabelName = recordLabelName
+        self.contentRatingRawValue = contentRatingRawValue
+        self.audioVariantRawValues = audioVariantRawValues
+        self.isAppleDigitalMaster = isAppleDigitalMaster
+        self.isCompilation = isCompilation
+        self.isSingle = isSingle
+        self.appleMusicURL = appleMusicURL
+        self.orderedTrackIDs = orderedTrackIDs
+    }
 }
 
 struct ListeningArtistCatalogPayload: Equatable, Sendable {

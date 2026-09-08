@@ -169,6 +169,19 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 artworkURL: Self.artworkURL(detailedAlbum.album.artwork),
                 releaseDate: detailedAlbum.album.releaseDate,
                 artistIDs: albumArtistIDs,
+                artistNames: detailedAlbum.album.artists.map { Array($0).map(\.name) } ?? [],
+                editorialText: detailedAlbum.album.editorialNotes?.standard
+                    ?? detailedAlbum.album.editorialNotes?.short
+                    ?? detailedAlbum.album.editorialNotes?.tagline,
+                genreNames: detailedAlbum.album.genreNames,
+                copyright: detailedAlbum.album.copyright,
+                recordLabelName: detailedAlbum.album.recordLabelName,
+                contentRatingRawValue: Self.contentRatingRawValue(detailedAlbum.album.contentRating),
+                audioVariantRawValues: (detailedAlbum.album.audioVariants ?? []).map(Self.audioVariantRawValue),
+                isAppleDigitalMaster: detailedAlbum.album.isAppleDigitalMaster,
+                isCompilation: detailedAlbum.album.isCompilation,
+                isSingle: detailedAlbum.album.isSingle,
+                appleMusicURL: detailedAlbum.album.url?.absoluteString,
                 orderedTrackIDs: orderedTrackIDs
             ))
         }
@@ -227,6 +240,27 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             previewURL: song.previewAssets?.first?.url?.absoluteString
                 ?? song.previewAssets?.first?.hlsURL?.absoluteString
         )
+    }
+
+    private static func contentRatingRawValue(_ rating: ContentRating?) -> String? {
+        switch rating {
+        case .clean: "clean"
+        case .explicit: "explicit"
+        case nil: nil
+        @unknown default: nil
+        }
+    }
+
+    private static func audioVariantRawValue(_ variant: AudioVariant) -> String {
+        switch variant {
+        case .dolbyAtmos: "dolbyAtmos"
+        case .dolbyAudio: "dolbyAudio"
+        case .lossless: "lossless"
+        case .highResolutionLossless: "highResolutionLossless"
+        case .lossyStereo: "lossyStereo"
+        case .spatialAudio: "spatialAudio"
+        @unknown default: variant.description
+        }
     }
 
     private static func appendAlbums(

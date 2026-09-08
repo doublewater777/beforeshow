@@ -3,7 +3,6 @@ import SwiftUI
 /// Read-only metadata above the physical player; all playback controls live on the machine.
 struct ListeningSongCardView: View {
     let room: ListeningRoomCoordinator
-    var onShowTracks: (() -> Void)?
     var body: some View {
         HStack(spacing: BSSpacing.compact) {
             HStack(spacing: BSSpacing.compact) {
@@ -35,46 +34,6 @@ struct ListeningSongCardView: View {
 
             Spacer(minLength: 0)
 
-            HStack(spacing: 8) {
-                Menu {
-                    ForEach(CDPlayerConfiguration.allThemes) { config in
-                        Button {
-                            room.mechanism.configuration = config
-                        } label: {
-                            HStack {
-                                Text(BSLocalization.text(config.themeName))
-                                if room.mechanism.configuration.id == config.id {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
-                    }
-                } label: {
-                    Image(systemName: "paintpalette")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .frame(width: 36, height: 36)
-                        .background(Color.white.opacity(0.07), in: Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-                }
-                .accessibilityLabel(BSLocalization.text("切换播放器外观"))
-
-                if room.mechanism.disc != nil {
-                    Button {
-                        onShowTracks?()
-                    } label: {
-                        Image(systemName: "music.note.list")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.07), in: Circle())
-                            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(BSLocalization.text("专辑详情"))
-                    .accessibilityIdentifier("listening.discTracks")
-                }
-            }
         }
         .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
         .accessibilityElement(children: .combine)

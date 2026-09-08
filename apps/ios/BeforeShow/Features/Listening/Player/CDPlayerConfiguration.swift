@@ -86,38 +86,6 @@ struct CDPlayerConfiguration {
         )
     )
 
-    static let saddleLeather = CDPlayerConfiguration(
-        brand: "BEFORESHOW",
-        model: "RETRO-GOLD",
-        themeName: "复古皮质金",
-        geometry: Geometry(
-            lcd: CGRect(x: 174, y: 672, width: 112, height: 44),
-            controls: [
-                .previous: CGRect(x: 94, y: 730, width: 44, height: 44),
-                .next: CGRect(x: 146, y: 754, width: 44, height: 44),
-                .playPause: CGRect(x: 208, y: 768, width: 48, height: 48),
-                .stop: CGRect(x: 270, y: 754, width: 44, height: 44),
-                .open: CGRect(x: 348, y: 326, width: 46, height: 46)
-            ]
-        )
-    )
-
-    static let sportRed = CDPlayerConfiguration(
-        brand: "BEFORESHOW",
-        model: "SPORT-RED",
-        themeName: "机械运动红",
-        geometry: Geometry(
-            lcd: CGRect(x: 148, y: 670, width: 164, height: 46),
-            controls: [
-                .previous: CGRect(x: 144, y: 764, width: 48, height: 48),
-                .next: CGRect(x: 268, y: 764, width: 48, height: 48),
-                .playPause: CGRect(x: 204, y: 772, width: 56, height: 56),
-                .stop: CGRect(x: 88, y: 694, width: 48, height: 48),
-                .open: CGRect(x: 178, y: 262, width: 104, height: 34)
-            ]
-        )
-    )
-
     static let standard = CDPlayerConfiguration(
         brand: "BEFORESHOW",
         model: "BS-CD01",
@@ -125,12 +93,10 @@ struct CDPlayerConfiguration {
         geometry: Geometry()
     )
 
-    static let allThemes: [CDPlayerConfiguration] = [
+    static let availableThemes: [CDPlayerConfiguration] = [
         .standard,
         .silverMetal,
-        .translucentAqua,
-        .saddleLeather,
-        .sportRed
+        .translucentAqua
     ]
 }
 

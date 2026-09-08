@@ -24,9 +24,9 @@ struct ListenRootView: View {
         Group {
             if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, show: show)
-            } else if let show {
+            } else if show != nil {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                    Text(show.name)
+                    Text(BSLocalization.text("听"))
                         .font(BSFont.pageTitle)
                         .tracking(-0.5)
                         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
@@ -70,54 +70,55 @@ struct ListeningRoomView: View {
     @State private var stageScale: CGFloat = 1
     var body: some View {
         GeometryReader { proxy in
-            ScrollViewReader { scroll in
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: BSSpacing.sm) {
-                    header.id("listeningTop")
-                    catalogStatus
-                    ListeningSongCardView(room: room) {
-                        detail = room.mechanism.disc
-                    }
-                    .padding(.top, BSSpacing.sm)
-                    let scale = min((proxy.size.width - BSSpacing.roomy * 2) / room.mechanism.configuration.geometry.canvas.width, ListeningStyle.maximumStageScale)
-                    ListeningMachineView(room: room, scale: scale)
-                        .coordinateSpace(name: "playerStage")
-                        .listeningFrame("stage")
-                        .frame(maxWidth: .infinity)
-                        .background {
-                            Ellipse().fill(BSColor.Stage.accent.opacity(0.09))
-                                .frame(height: 260).blur(radius: 55).offset(y: 65)
+            VStack(spacing: 0) {
+                topBar
+                ScrollViewReader { scroll in
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: BSSpacing.sm) {
+                            catalogStatus
+                            ListeningSongCardView(room: room)
+                                .padding(.top, BSSpacing.sm)
+                            let scale = min((proxy.size.width - BSSpacing.roomy * 2) / room.mechanism.configuration.geometry.canvas.width, ListeningStyle.maximumStageScale)
+                            ListeningMachineView(room: room, scale: scale)
+                                .coordinateSpace(name: "playerStage")
+                                .listeningFrame("stage")
+                                .frame(maxWidth: .infinity)
+                                .background {
+                                    Ellipse().fill(BSColor.Stage.accent.opacity(0.09))
+                                        .frame(height: 260).blur(radius: 55).offset(y: 65)
+                                }
+                                // Reframe the empty upper canvas without changing the model,
+                                // hinge, scale, or the coordinate space used for cabinet dragging.
+                                .padding(.top, -room.mechanism.configuration.geometry.viewportTop * scale)
+                                .zIndex(10)
+                            if let notice = room.mechanism.notice {
+                                Text(notice)
+                                    .font(BSFont.caption)
+                                    .foregroundStyle(BSColor.Stage.muted)
+                                    .padding(.horizontal, BSSpacing.md)
+                                    .padding(.vertical, 5)
+                                    .background(BSColor.Stage.surfaceRaised.opacity(0.75), in: Capsule())
+                                    .transition(.opacity)
+                            }
+                            if let error = room.playbackError {
+                                Text(error).font(BSFont.caption).foregroundStyle(BSColor.Stage.danger)
+                            }
+                            if !room.discs.isEmpty {
+                                ListeningCabinetView(room: room, scale: stageScale, showAll: { showsCabinet = true }) { detail = $0 }
+                            }
                         }
-                        // Reframe the empty upper canvas without changing the model,
-                        // hinge, scale, or the coordinate space used for cabinet dragging.
-                        .padding(.top, -room.mechanism.configuration.geometry.viewportTop * scale)
-                        .zIndex(10)
-                    if let notice = room.mechanism.notice {
-                        Text(notice)
-                            .font(BSFont.caption)
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .padding(.horizontal, BSSpacing.md)
-                            .padding(.vertical, 5)
-                            .background(BSColor.Stage.surfaceRaised.opacity(0.75), in: Capsule())
-                            .transition(.opacity)
+                        .id("listeningTop")
+                        .padding(.horizontal, BSSpacing.roomy)
+                        .padding(.top, BSSpacing.sm)
+                        .padding(.bottom, BSLayout.tabBarContentInset)
                     }
-                    if let error = room.playbackError {
-                        Text(error).font(BSFont.caption).foregroundStyle(BSColor.Stage.danger)
+                    .onChange(of: room.mechanism.motion.lid.value > 0.01) { _, opening in
+                        if opening { returnToStage(scroll) }
                     }
-                    if !room.discs.isEmpty {
-                        ListeningCabinetView(room: room, scale: stageScale, showAll: { showsCabinet = true }) { detail = $0 }
+                    .onChange(of: room.mechanism.isAutomatic) { _, loading in
+                        if loading { returnToStage(scroll) }
                     }
                 }
-                .padding(.horizontal, BSSpacing.roomy)
-                .padding(.top, BSLayout.pageHeaderTopPadding)
-                .padding(.bottom, BSLayout.tabBarContentInset)
-            }
-            .onChange(of: room.mechanism.motion.lid.value > 0.01) { _, opening in
-                if opening { returnToStage(scroll) }
-            }
-            .onChange(of: room.mechanism.isAutomatic) { _, loading in
-                if loading { returnToStage(scroll) }
-            }
             }
         }
         .coordinateSpace(name: "listeningRoom")
@@ -148,59 +149,68 @@ struct ListeningRoomView: View {
             scroll.scrollTo("listeningTop", anchor: .top)
         }
     }
-    private var header: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(show.name)
+    private var topBar: some View {
+        HStack(spacing: BSSpacing.sm) {
+            Text(BSLocalization.text("听"))
                 .font(BSFont.pageTitle)
                 .tracking(-0.5)
-                .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
                 .accessibilityAddTraits(.isHeader)
-
-            HStack(spacing: BSSpacing.sm) {
-                Button {
-                    showsArtists = true
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.2.fill")
-                            .font(.system(size: 11))
-                        Text(show.artists.count > 1 ? "\(show.artists.count) " + BSLocalization.text("位艺人") : BSLocalization.text("艺人详情"))
-                            .font(BSFont.caption)
-                    }
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .padding(.horizontal, BSSpacing.md)
-                    .padding(.vertical, 6)
-                    .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: Capsule())
-                    .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(BSLocalization.text("艺人详情"))
-                .accessibilityIdentifier("listening.artists")
-
-                Spacer(minLength: 0)
+            Spacer(minLength: 0)
+            Button { showsArtists = true } label: {
+                Image(systemName: "person.2")
             }
-
-            if let onlyID = room.onlyArtistID,
-               let artist = show.artists.first(where: { $0.appleMusicArtistID == onlyID }) {
-                HStack(spacing: BSSpacing.xs) {
-                    Circle().fill(BSColor.Stage.accent).frame(width: 6, height: 6)
-                    Text(BSLocalization.format("正在只听：%@", artist.name))
-                        .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                    Spacer()
-                    Button(BSLocalization.text("回到整场")) {
-                        room.returnToWholeShow()
+            .accessibilityLabel(BSLocalization.text("艺人详情"))
+            .accessibilityIdentifier("listening.artists")
+            Menu {
+                ForEach(CDPlayerConfiguration.availableThemes) { config in
+                    Button { room.mechanism.configuration = config } label: {
+                        Label(BSLocalization.text(config.themeName), systemImage: room.mechanism.configuration.id == config.id ? "checkmark" : "paintpalette")
                     }
+                }
+            } label: {
+                Image(systemName: "paintpalette")
+            }
+            .accessibilityLabel(BSLocalization.text("切换播放器外观"))
+            if room.mechanism.disc != nil {
+                Button { detail = room.mechanism.disc } label: {
+                    Image(systemName: "music.note.list")
+                }
+                .accessibilityLabel(BSLocalization.text("专辑详情"))
+                .accessibilityIdentifier("listening.discTracks")
+            }
+        }
+        .font(.system(size: 16, weight: .medium))
+        .foregroundStyle(BSColor.Stage.foreground)
+        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
+        .padding(.horizontal, BSSpacing.roomy)
+        .padding(.top, BSLayout.pageHeaderTopPadding)
+        .padding(.bottom, BSSpacing.sm)
+        .background(BSColor.Stage.background)
+        .overlay(alignment: .bottom) { Rectangle().fill(BSColor.Stage.border.opacity(0.55)).frame(height: 1) }
+        .zIndex(1)
+    }
+
+    @ViewBuilder private var artistFilter: some View {
+        if let onlyID = room.onlyArtistID,
+           let artist = show.artists.first(where: { $0.appleMusicArtistID == onlyID }) {
+            HStack(spacing: BSSpacing.xs) {
+                Circle().fill(BSColor.Stage.accent).frame(width: 6, height: 6)
+                Text(BSLocalization.format("正在只听：%@", artist.name))
+                    .font(BSFont.caption)
+                    .foregroundStyle(BSColor.Stage.foreground)
+                Spacer()
+                Button(BSLocalization.text("回到整场")) { room.returnToWholeShow() }
                     .font(BSFont.caption.weight(.medium))
                     .foregroundStyle(BSColor.Stage.accent)
-                }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, 6)
-                .background(BSColor.Stage.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: BSRadius.sm))
-                .overlay(RoundedRectangle(cornerRadius: BSRadius.sm).stroke(BSColor.Stage.accent.opacity(0.25), lineWidth: 1))
             }
+            .padding(.horizontal, BSSpacing.md)
+            .padding(.vertical, 6)
+            .background(BSColor.Stage.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: BSRadius.sm))
+            .overlay(RoundedRectangle(cornerRadius: BSRadius.sm).stroke(BSColor.Stage.accent.opacity(0.25), lineWidth: 1))
         }
     }
     @ViewBuilder private var catalogStatus: some View {
+        artistFilter
         if room.access.authorizationStatus != .authorized {
             HStack {
                 Text(BSLocalization.text("连接 Apple Music" )).font(BSFont.caption)
