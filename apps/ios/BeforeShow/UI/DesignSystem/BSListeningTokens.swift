@@ -12,6 +12,9 @@ enum BSListeningTokens {
     static let shelfLabelHeight: CGFloat = 18
     static let shelfItemSpacing: CGFloat = 6
     static let shelfContentHeight: CGFloat = shelfArtwork + shelfItemSpacing + shelfLabelHeight + BSSpacing.xs * 2
+    enum Shelf {
+        static let loadingSlotCount = 3
+    }
     static let statusIcon: CGFloat = 16
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption
