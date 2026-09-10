@@ -42,7 +42,7 @@ struct ListeningArtistSelector: View {
                 }
                 .shadow(color: isSelected ? BSColor.Stage.accent.opacity(0.35) : .clear, radius: 6)
 
-                Text(BSLocalization.text("全部"))
+                Text(ListeningCopy.text("热门合辑"))
                     .font(BSListeningTokens.captionMedium)
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
@@ -54,7 +54,7 @@ struct ListeningArtistSelector: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(BSListeningPressStyle(scale: 0.94))
-        .accessibilityLabel(BSLocalization.text("全部"))
+        .accessibilityLabel(ListeningCopy.text("热门合辑"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
@@ -74,7 +74,6 @@ struct ListeningArtistSelector: View {
                             .frame(width: BSListeningTokens.avatar, height: BSListeningTokens.avatar)
                             .clipShape(Circle())
                     } else {
-                        // Unconnected placeholder avatar with initial
                         ZStack {
                             BSColor.Stage.surfaceRaised
                             Text(String(artist.name.prefix(1)))

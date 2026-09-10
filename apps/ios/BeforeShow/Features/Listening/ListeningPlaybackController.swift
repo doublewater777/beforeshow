@@ -76,7 +76,14 @@ final class ListeningPlaybackController {
 
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
-        if let failure = service.failure { stateMachine.handle(.failed); throw failure }
+        // A transport/resource failure is a user-visible playback state, not a
+        // reason to tear down the physical disc or reset the selected track.
+        // The coordinator can therefore keep the disc in place and project a
+        // retry action next to the player.
+        if service.failure != nil {
+            stateMachine.handle(.failed)
+            return state
+        }
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }

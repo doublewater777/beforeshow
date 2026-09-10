@@ -8,7 +8,6 @@ struct ListeningDiscDetailView: View {
     @State private var requestedSongID: String?
 
     private let isMultiArtist: Bool
-    private let totalDurationText: String?
     private let metadataSummary: String
     private let artistsSummary: String
 
@@ -26,13 +25,6 @@ struct ListeningDiscDetailView: View {
         self.isMultiArtist = multi
 
         let total = disc.tracks.compactMap(\.duration).reduce(0, +)
-        if total > 0 {
-            let mins = Int(total) / 60
-            self.totalDurationText = "\(mins) \(BSLocalization.text("分钟"))"
-        } else {
-            self.totalDurationText = nil
-        }
-
         var items: [String] = []
         if !disc.genreNames.isEmpty {
             items.append(disc.genreNames.joined(separator: " · "))
@@ -42,8 +34,7 @@ struct ListeningDiscDetailView: View {
         }
         items.append(BSLocalization.format("%d 首歌曲", disc.tracks.count))
         if total > 0 {
-            let mins = Int(total) / 60
-            items.append("\(mins) \(BSLocalization.text("分钟"))")
+            items.append("\(Int(total) / 60) \(BSLocalization.text("分钟"))")
         }
         self.metadataSummary = items.joined(separator: " · ")
 
@@ -60,18 +51,23 @@ struct ListeningDiscDetailView: View {
         room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
     }
 
-   private var albumBadges: [String] {
-       var badges: [String] = []
-        if room.access.authorizationStatus == .authorized {
-            if room.access.canPlayCatalogContent {
-                badges.append(BSLocalization.text("Apple Music 会员"))
-            } else {
-                badges.append(BSLocalization.text("30 秒试听"))
-            }
+    private var presentation: ListeningDiscPresentation {
+        room.discPresentation(for: disc)
+    }
+
+    private var albumBadges: [String] {
+        var badges: [String] = []
+        switch presentation.capability {
+        case .fullPlayback:
+            badges.append(BSLocalization.text("Apple Music 会员"))
+        case .previewOnly:
+            badges.append(presentation.statusText)
+        case .metadataOnly, .unavailable:
+            break
         }
-       if disc.isAppleDigitalMaster == true {
-           badges.append(BSLocalization.text("Apple Digital Master"))
-       }
+        if disc.isAppleDigitalMaster == true {
+            badges.append(BSLocalization.text("Apple Digital Master"))
+        }
         for variant in disc.audioVariantRawValues {
             if let title = audioVariantTitle(variant), !badges.contains(title) {
                 badges.append(title)
@@ -84,30 +80,19 @@ struct ListeningDiscDetailView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
-                    // 1. Hero Showcase: 144pt Artwork Jacket with Peeking Holographic Disc
                     heroSection
-
-                    // 2. Action Area (Primary Load CTA or Loaded Playback Bar)
                     actionSection
 
-                    // 3. Audio Quality Badges (Apple Music style)
                     if !albumBadges.isEmpty {
                         badgeSection
                     }
 
-                    if let error = room.playbackError {
-                        Text(error).font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.danger)
-                    }
-
-                    // 4. Tracklist Section
                     trackListSection
 
-                    // 5. Editorial Notes (关于此专辑)
                     if let editorial = disc.editorialText, !editorial.isEmpty {
                         editorialSection(editorial)
                     }
 
-                    // 6. Metadata Footer (Release, Label, Copyright, Link)
                     footerSection
                 }
                 .padding(.horizontal, BSSpacing.roomy)
@@ -116,12 +101,12 @@ struct ListeningDiscDetailView: View {
             }
             .background(BSColor.Stage.background)
             .foregroundStyle(BSColor.Stage.foreground)
-           .navigationTitle(BSLocalization.text("专辑详情"))
-           .navigationBarTitleDisplayMode(.inline)
-           .toolbar {
+            .navigationTitle(BSLocalization.text("专辑详情"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
                 BSChromeToolbarCloseButton { dismiss() }
-           }
-       }
+            }
+        }
         .tint(BSColor.Stage.accent)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
@@ -129,8 +114,6 @@ struct ListeningDiscDetailView: View {
             if let songID, songID == requestedSongID { finishSelection() }
         }
     }
-
-    // MARK: - Hero Section
 
     private var heroSection: some View {
         VStack(spacing: BSSpacing.md) {
@@ -158,7 +141,7 @@ struct ListeningDiscDetailView: View {
                         .allowsHitTesting(false)
                     }
             }
-            .frame(width: 144 + 46, height: 144, alignment: .leading)
+            .frame(width: 190, height: 144, alignment: .leading)
             .padding(.top, BSSpacing.xs)
 
             VStack(spacing: 6) {
@@ -166,8 +149,8 @@ struct ListeningDiscDetailView: View {
                     .font(.system(size: 24, weight: .bold))
                     .multilineTextAlignment(.center)
                     .foregroundStyle(BSColor.Stage.foreground)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                // Only display artist names if multi-artist compilation
                 if isMultiArtist && !artistsSummary.isEmpty {
                     Text(artistsSummary)
                         .font(BSFont.body)
@@ -185,11 +168,48 @@ struct ListeningDiscDetailView: View {
         }
     }
 
-    // MARK: - Action Section
-
     @ViewBuilder
     private var actionSection: some View {
         if isLoaded {
+            loadedActionSection
+        } else {
+            switch presentation.primaryAction {
+            case .load:
+                Button(action: load) {
+                    HStack(spacing: BSSpacing.sm) {
+                        Image(systemName: "opticaldisc")
+                            .font(.system(size: 17, weight: .semibold))
+                        Text(BSLocalization.text("装入播放机"))
+                            .font(BSFont.headline)
+                    }
+                    .foregroundStyle(Color.black)
+                    .frame(maxWidth: .infinity, minHeight: 50)
+                    .background(BSColor.Stage.accent, in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(BSListeningPressStyle(scale: 0.97))
+                .disabled(room.busy)
+                .accessibilityValue(presentation.statusText)
+                .accessibilityIdentifier("listening.loadDisc")
+
+            case let .openAppleMusic(url):
+                appleMusicPrimaryAction(url)
+
+            case .informationOnly:
+                capabilityNotice(ListeningCopy.text("仅提供歌曲信息"))
+
+            case .unavailable:
+                capabilityNotice(presentation.statusText)
+            }
+        }
+    }
+
+    private var loadedActionSection: some View {
+        let player = room.display.player
+        return VStack(spacing: BSSpacing.sm) {
             HStack(spacing: BSSpacing.md) {
                 HStack(spacing: BSSpacing.sm) {
                     Image(systemName: room.isPlaying ? "waveform" : "opticaldisc")
@@ -203,53 +223,86 @@ struct ListeningDiscDetailView: View {
                             Text(track.title)
                                 .font(BSFont.caption)
                                 .foregroundStyle(BSColor.Stage.muted)
-                                .lineLimit(1)
+                                .lineLimit(2)
                         }
+                        Text(player.statusText)
+                            .font(BSFont.caption)
+                            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                Spacer()
-                Button {
-                    room.perform(.playPause)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: room.isPlaying ? "pause.fill" : "play.fill")
-                        Text(BSLocalization.text(room.isPlaying ? "暂停" : "播放"))
+                Spacer(minLength: BSSpacing.sm)
+                if player.canPlayPause {
+                    Button {
+                        room.perform(.playPause)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: room.isPlaying ? "pause.fill" : "play.fill")
+                            Text(BSLocalization.text(room.isPlaying ? "暂停" : "播放"))
+                        }
+                        .font(BSFont.caption.weight(.semibold))
+                        .foregroundStyle(Color.black)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(BSColor.Stage.accent, in: Capsule())
                     }
-                    .font(BSFont.caption.weight(.semibold))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(BSColor.Stage.accent, in: Capsule())
+                    .buttonStyle(BSListeningPressStyle(scale: 0.95))
                 }
-                .buttonStyle(BSListeningPressStyle(scale: 0.95))
             }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, 12)
-            .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
-        } else {
-            Button(action: load) {
-                HStack(spacing: BSSpacing.sm) {
-                    Image(systemName: "opticaldisc")
-                        .font(.system(size: 17, weight: .semibold))
-                    Text(BSLocalization.text("装入播放机"))
-                        .font(BSFont.headline)
+
+            if let recovery = player.recoveryAction {
+                Button(recovery.title) {
+                    room.performListeningRecovery(recovery)
                 }
-                .foregroundStyle(Color.black)
-                .frame(maxWidth: .infinity, minHeight: 50)
-                .background(BSColor.Stage.accent, in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
+                .font(BSFont.caption.weight(.semibold))
+                .foregroundStyle(BSColor.Stage.accent)
+                .frame(minHeight: BSLayout.minTouchTarget)
             }
-            .buttonStyle(BSListeningPressStyle(scale: 0.97))
-            .disabled(room.busy || disc.tracks.isEmpty)
-            .accessibilityIdentifier("listening.loadDisc")
+
+            if !player.canPlayPause,
+               case .metadataOnly = presentation.capability,
+               let url = disc.appleMusicURL {
+                appleMusicPrimaryAction(url)
+            }
         }
+        .padding(.horizontal, BSSpacing.md)
+        .padding(.vertical, 12)
+        .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
     }
 
-    // MARK: - Badges Section
+    private func capabilityNotice(_ text: String) -> some View {
+        HStack(spacing: BSSpacing.sm) {
+            Image(systemName: "info.circle")
+                .foregroundStyle(BSColor.Stage.muted)
+            Text(text)
+                .font(BSFont.body)
+                .foregroundStyle(BSColor.Stage.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 50)
+        .padding(.horizontal, BSSpacing.md)
+        .background(BSColor.Stage.surfaceRaised.opacity(0.75), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func appleMusicPrimaryAction(_ url: URL) -> some View {
+        Link(destination: url) {
+            HStack(spacing: BSSpacing.sm) {
+                Image(systemName: "music.note")
+                Text(BSLocalization.text("在 Apple Music 中打开"))
+                    .font(BSFont.headline)
+                Image(systemName: "arrow.up.right.square")
+                    .font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(Color.black)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .background(BSColor.Stage.accent, in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+        }
+        .buttonStyle(BSListeningPressStyle(scale: 0.97))
+        .accessibilityIdentifier("listening.openAppleMusic")
+    }
 
     private var badgeSection: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -266,8 +319,6 @@ struct ListeningDiscDetailView: View {
             }
         }
     }
-
-    // MARK: - Tracklist Section
 
     private var trackListSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -286,24 +337,25 @@ struct ListeningDiscDetailView: View {
             .padding(.vertical, 10)
             .background(Color.white.opacity(0.03))
 
-           LazyVStack(spacing: 0) {
-               ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { index, track in
-                   let isCurrentPlaying = isLoaded && room.track?.id == track.id
-                   ListeningDiscTrackRow(
-                       index: index,
-                       track: track,
-                       isCurrentPlaying: isCurrentPlaying,
-                       isPlaying: room.isPlaying,
-                       isMultiArtist: isMultiArtist,
-                       isPlayable: !room.busy && ListeningPlaybackSourceResolver.resolve(capability: room.capability(for: track)) != nil,
-                       onSelect: {
-                           requestedSongID = track.id
-                           room.playFromSleeve(disc, songID: track.id)
-                           if room.sleevePlaybackSongID == track.id { finishSelection() }
-                       }
-                   )
+            LazyVStack(spacing: 0) {
+                ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { index, track in
+                    let isCurrentPlaying = isLoaded && room.track?.id == track.id
+                    ListeningDiscTrackRow(
+                        index: index,
+                        track: track,
+                        isCurrentPlaying: isCurrentPlaying,
+                        isPlaying: room.isPlaying,
+                        isMultiArtist: isMultiArtist,
+                        presentation: room.trackPresentation(for: track),
+                        isBusy: room.busy,
+                        onSelect: {
+                            requestedSongID = track.id
+                            room.playFromSleeve(disc, songID: track.id)
+                            if room.sleevePlaybackSongID == track.id { finishSelection() }
+                        }
+                    )
 
-                   Divider()
+                    Divider()
                         .overlay(BSColor.Stage.border)
                         .accessibilityHidden(true)
                 }
@@ -313,8 +365,6 @@ struct ListeningDiscDetailView: View {
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
     }
-
-    // MARK: - Editorial Section
 
     private func editorialSection(_ editorial: String) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
@@ -331,8 +381,6 @@ struct ListeningDiscDetailView: View {
         .background(BSColor.Stage.surface.opacity(0.6), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
     }
-
-    // MARK: - Footer Section
 
     private var footerSection: some View {
         VStack(spacing: BSSpacing.sm) {
@@ -369,8 +417,6 @@ struct ListeningDiscDetailView: View {
         .padding(.top, BSSpacing.sm)
     }
 
-    // MARK: - Helpers
-
     private func audioVariantTitle(_ raw: String) -> String? {
         switch raw {
         case "dolbyAtmos": BSLocalization.text("杜比全景声")
@@ -382,10 +428,11 @@ struct ListeningDiscDetailView: View {
     }
 
     private func load() {
-        room.loadDisc(disc)
+        room.loadPlayableDisc(disc)
         dismiss()
         onLoad()
     }
+
     private func finishSelection() {
         requestedSongID = nil
         dismiss()
@@ -399,7 +446,8 @@ private struct ListeningDiscTrackRow: View {
     let isCurrentPlaying: Bool
     let isPlaying: Bool
     let isMultiArtist: Bool
-    let isPlayable: Bool
+    let presentation: ListeningTrackPresentation
+    let isBusy: Bool
     let onSelect: () -> Void
 
     var body: some View {
@@ -418,17 +466,22 @@ private struct ListeningDiscTrackRow: View {
                 }
                 .frame(width: 24, alignment: .leading)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text(track.title)
                         .font(BSFont.body)
                         .foregroundStyle(isCurrentPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                        .lineLimit(1)
-                    if isMultiArtist {
-                        Text(track.artistName)
-                            .font(BSFont.caption)
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .lineLimit(1)
+                        .lineLimit(2)
+                    HStack(spacing: 6) {
+                        if isMultiArtist {
+                            Text(track.artistName)
+                                .lineLimit(1)
+                        }
+                        if presentation.capability != .fullPlayback {
+                            Text(presentation.statusText)
+                        }
                     }
+                    .font(BSFont.caption)
+                    .foregroundStyle(presentation.isPlayable ? BSColor.Stage.muted : BSColor.Stage.dim)
                 }
 
                 Spacer(minLength: BSSpacing.sm)
@@ -446,8 +499,8 @@ private struct ListeningDiscTrackRow: View {
             .accessibilityElement(children: .combine)
         }
         .buttonStyle(.plain)
-        .disabled(!isPlayable)
+        .disabled(isBusy || !presentation.isPlayable)
+        .accessibilityValue(presentation.statusText)
         .accessibilityIdentifier("listening.track.\(track.id)")
     }
 }
-

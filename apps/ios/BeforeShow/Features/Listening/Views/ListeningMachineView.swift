@@ -166,6 +166,7 @@ private struct CDPlayerControlsView: View {
     let room: ListeningRoomCoordinator
     let scale: CGFloat
     private var geometry: CDPlayerConfiguration.Geometry { room.mechanism.configuration.geometry }
+    private var playerPresentation: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {
         ForEach(CDControl.allCases) { control in
@@ -174,9 +175,11 @@ private struct CDPlayerControlsView: View {
                     RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.001))
                         .frame(width: max(rect.width, 44 / scale), height: max(rect.height, 44 / scale))
                 }
-                .disabled(control == .playPause && ListeningPlaybackSourceResolver.resolve(capability: room.capability(for: room.track)) == nil)
+                .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
                 .accessibilityLabel(BSLocalization.text(control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label))
+                .accessibilityValue(control == .playPause ? playerPresentation.statusText : "")
+                .accessibilityHint(control == .playPause ? (playerPresentation.blockingReason ?? "") : "")
                 .accessibilityIdentifier(control.rawValue)
                 .position(x: rect.midX, y: geometry.projectedY(rect.midY))
             }
