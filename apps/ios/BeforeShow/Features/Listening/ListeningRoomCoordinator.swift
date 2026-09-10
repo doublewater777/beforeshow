@@ -498,6 +498,11 @@ import UIKit
         guard !busy, let controller else { return }
         do {
             playbackState = try controller.refresh()
+            if case .failed = playbackState {
+                pendingSleeveSongID = nil
+                playbackError = BSLocalization.text("暂时无法播放")
+                return
+            }
             completeSleevePlaybackIfNeeded()
             recordPlayingIfNeeded()
             try refreshEvidence()
