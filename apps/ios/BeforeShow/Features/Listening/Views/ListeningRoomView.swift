@@ -33,17 +33,24 @@ struct ListenRootView: View {
     }
 
     var body: some View {
-        Group {
-            if let room, let show, room.show?.id == show.id, room.initialLoaded {
+        ZStack {
+            if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, show: show)
-            } else if show != nil {
-                ListeningPreparingView()
-            } else {
+                    .opacity(room.initialLoaded ? 1 : 0)
+                    .allowsHitTesting(room.initialLoaded)
+                    .accessibilityHidden(!room.initialLoaded)
+            } else if show == nil {
                 ListeningEmptyView(
                     hasShows: !shows.isEmpty,
                     onAddShow: { isShowingAddShow = true },
                     onOpenShowLibrary: { isShowingShowLibrary = true }
                 )
+            }
+
+            if let show, room?.show?.id != show.id || room?.initialLoaded != true {
+                ListeningPreparingView(show: show)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
             }
         }
         .background(BSColor.Stage.background.ignoresSafeArea())
@@ -117,10 +124,9 @@ struct ListeningRoomView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                topBar
+                ListeningRoomHeader(mode: room.display.roomMode)
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: BSSpacing.sm) {
-                        catalogStatus
                         if !room.browseArtists.isEmpty {
                             ListeningArtistSelector(
                                 artists: room.browseArtists,
@@ -135,11 +141,8 @@ struct ListeningRoomView: View {
 
                         let geometry = room.mechanism.configuration.geometry
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
-                        if !room.browseArtists.isEmpty,
-                           !room.libraryDiscs.isEmpty || room.access.authorizationStatus == .authorized {
-                            ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }) {
-                                room.browser.open($0)
-                            }
+                        ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }, showDetails: { room.browser.open($0) }) {
+                            catalogStatus
                         }
 
                         ListeningMachineView(room: room, scale: scale)
@@ -155,6 +158,11 @@ struct ListeningRoomView: View {
                             .padding(.top, -geometry.viewportTop * scale)
 
                         ListeningCurrentSong(room: room)
+
+                        if !room.libraryDiscs.isEmpty,
+                           room.display.recoveryAction != nil || room.isAuthorizing {
+                            catalogStatus
+                        }
 
                         if let notice = room.mechanism.notice {
                             Text(notice)
@@ -211,194 +219,49 @@ struct ListeningRoomView: View {
         }
     }
 
-    private var topBar: some View {
-        HStack(spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("听"))
-                .font(BSFont.pageTitle)
-                .tracking(-0.5)
-                .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 0)
-            playbackModeBadge
-        }
-        .font(.system(size: 16, weight: .medium))
-        .foregroundStyle(BSColor.Stage.foreground)
-        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.top, BSLayout.pageHeaderTopPadding)
-        .padding(.bottom, BSSpacing.sm)
-        .zIndex(1)
-    }
-
-    private var playbackModeBadge: some View {
-        let mode = room.display.roomMode
-        return HStack(spacing: 5) {
-            if mode == .connecting {
-                ProgressView()
-                    .tint(BSColor.Stage.accent)
-                    .scaleEffect(0.7)
-            } else {
-                Image(systemName: modeIcon(mode))
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            Text(mode.title)
-                .font(.system(size: 12, weight: mode == .fullPlayback ? .semibold : .medium))
-        }
-        .foregroundStyle(mode == .fullPlayback ? BSColor.Stage.accent : BSColor.Stage.muted)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            mode == .fullPlayback ? BSColor.Stage.accent.opacity(0.12) : Color.white.opacity(0.06),
-            in: Capsule()
-        )
-        .overlay(
-            Capsule().stroke(
-                mode == .fullPlayback ? BSColor.Stage.accent.opacity(0.3) : BSColor.Stage.border,
-                lineWidth: 0.75
-            )
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("listening.playbackMode")
-    }
-
-    private func modeIcon(_ mode: ListeningRoomPlaybackMode) -> String {
-        switch mode {
-        case .connecting: "hourglass"
-        case .fullPlayback: "apple.logo"
-        case .preview: "waveform"
-        case .metadataOnly: "list.bullet.rectangle"
-        case .unavailable: "exclamationmark.triangle"
-        }
-    }
-
     @ViewBuilder
     private var catalogStatus: some View {
         if room.isAuthorizing {
-            EmptyView()
+            if room.access.authorizationStatus == .authorized && room.libraryDiscs.isEmpty {
+                ListeningShelfSkeleton()
+            } else {
+                ListeningCatalogStatusView(title: ListeningCopy.text("连接中…"), isLoading: true)
+            }
+        } else if !room.accessResolved {
+            ListeningShelfSkeleton()
         } else if room.access.authorizationStatus != .authorized {
-            authorizationStatus
+            ListeningCatalogStatusView(
+                title: BSLocalization.text("连接 Apple Music"),
+                subtitle: room.access.authorizationStatus == .notDetermined
+                    ? ListeningCopy.text("授权后载入唱片")
+                    : BSLocalization.text("请在系统设置中允许访问 Apple Music"),
+                actionTitle: room.display.recoveryAction?.title
+            ) {
+                if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
+            }
         } else {
             switch room.presentation {
             case .loading, .loadingCatalog:
-                HStack(spacing: BSSpacing.sm) {
-                    ProgressView()
-                        .tint(BSColor.Stage.accent)
-                        .scaleEffect(0.85)
-                    Text(BSLocalization.text("正在检索与整理专场唱片…"))
-                        .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.muted)
-                    Spacer()
-                }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, 10)
-                .background(BSColor.Stage.surfaceRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                        .stroke(BSColor.Stage.border, lineWidth: 1)
-                )
-
+                ListeningShelfSkeleton()
             case .noConnectedArtists:
-                HStack(spacing: BSSpacing.sm) {
-                    Image(systemName: "person.crop.circle.badge.questionmark")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.accent)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(BSLocalization.text("尚未匹配 Apple Music 艺人"))
-                            .font(BSFont.caption.weight(.medium))
-                            .foregroundStyle(BSColor.Stage.foreground)
-                        Text(BSLocalization.text("关联演出阵容中的艺人，即可载入专场唱片与曲目"))
-                            .font(.system(size: 11))
-                            .foregroundStyle(BSColor.Stage.muted)
+                ListeningCatalogStatusView(
+                    title: BSLocalization.text("尚未匹配 Apple Music 艺人"),
+                    actionTitle: BSLocalization.text("连接艺人")
+                ) {
+                    if let first = room.browseArtists.first(where: { !$0.isConnected }) {
+                        matchingSlotIndex = first.slotIndex
+                        matchingArtistName = first.name
                     }
-                    Spacer()
-                    Button(BSLocalization.text("连接艺人")) {
-                        if let first = room.browseArtists.first(where: { !$0.isConnected }) ?? room.browseArtists.first {
-                            matchingSlotIndex = first.slotIndex
-                            matchingArtistName = first.name
-                        }
-                    }
-                    .font(BSFont.caption.weight(.semibold))
-                    .foregroundStyle(Color.black)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(BSColor.Stage.accent, in: Capsule())
                 }
-                .padding(.horizontal, BSSpacing.md)
-                .padding(.vertical, 10)
-                .background(BSColor.Stage.surfaceRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                        .stroke(BSColor.Stage.border, lineWidth: 1)
-                )
-
-            case .cachedWithError:
-                status("暂时无法更新专场唱片", action: room.display.recoveryAction)
-
-            case .fatalUnavailable:
-                status("暂时无法载入音乐", action: room.display.recoveryAction)
-
+            case .cachedWithError, .fatalUnavailable:
+                ListeningCatalogStatusView(
+                    title: BSLocalization.text(room.presentation == .cachedWithError ? "暂时无法更新专场唱片" : "暂时无法载入音乐"),
+                    actionTitle: room.display.recoveryAction?.title
+                ) {
+                    if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
+                }
             case .needsAuthorization, .noCurrentShow, .ready:
-                EmptyView()
-            }
-        }
-    }
-
-    private var authorizationStatus: some View {
-        let recovery = room.display.recoveryAction
-        return HStack(spacing: BSSpacing.sm) {
-            Image(systemName: room.access.authorizationStatus == .notDetermined ? "music.note" : "exclamationmark.triangle")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.accent)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(BSLocalization.text("连接 Apple Music"))
-                    .font(BSFont.caption.weight(.medium))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(room.access.authorizationStatus == .notDetermined
-                     ? BSLocalization.text("授权后可自动检索专场唱片与曲目")
-                     : BSLocalization.text("请在系统设置中允许访问 Apple Music"))
-                    .font(.system(size: 11))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer()
-            if let recovery {
-                Button(recovery.title) {
-                    room.performListeningRecovery(recovery)
-                }
-                .font(BSFont.caption.weight(.semibold))
-                .foregroundStyle(recovery == .authorize ? Color.black : BSColor.Stage.foreground)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    recovery == .authorize ? BSColor.Stage.accent : BSColor.Stage.surfaceRaised,
-                    in: Capsule()
-                )
-                .overlay {
-                    if recovery != .authorize {
-                        Capsule().stroke(BSColor.Stage.border, lineWidth: 1)
-                    }
-                }
-            }
-        }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 10)
-        .background(BSColor.Stage.surfaceRaised.opacity(0.6), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                .stroke(BSColor.Stage.border, lineWidth: 1)
-        )
-    }
-
-    private func status(_ title: String, action: ListeningRecoveryAction?) -> some View {
-        HStack {
-            Text(BSLocalization.text(title))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.muted)
-            Spacer()
-            if let action {
-                Button(action.title) {
-                    room.performListeningRecovery(action)
-                }
-                .font(BSFont.caption)
+                ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
             }
         }
     }

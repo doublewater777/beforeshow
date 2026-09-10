@@ -4,7 +4,7 @@ import SwiftUI
 struct ListeningSleeveCard: View {
     let disc: ListeningDisc
     let isLoaded: Bool
-    var jacketSize: CGFloat = 76
+    var jacketSize: CGFloat = BSListeningTokens.shelfArtwork
     var discSize: CGFloat = 68
     var peekOffset: CGFloat = 18
     var showsPullHint = false

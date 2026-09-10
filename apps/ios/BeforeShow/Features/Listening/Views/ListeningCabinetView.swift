@@ -1,10 +1,11 @@
 import SwiftUI
 
-struct ListeningCabinetView: View {
+struct ListeningCabinetView<Placeholder: View>: View {
     @Bindable var room: ListeningRoomCoordinator
     let scale: CGFloat
     let showAll: () -> Void
     let showDetails: (ListeningDisc) -> Void
+    @ViewBuilder let placeholder: Placeholder
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("listening.didHintManualDiscDrag") private var didHintManualDiscDrag = false
     @State private var hintedDiscID: String?
@@ -13,11 +14,8 @@ struct ListeningCabinetView: View {
         room.browsingArtist?.name ?? BSLocalization.text("BeforeShow 热门合辑")
     }
 
-    private var shelfCountText: String {
-        if room.catalogState == .loading && room.libraryDiscs.isEmpty {
-            return BSLocalization.text("加载中…")
-        }
-        return BSLocalization.format("%d 张唱片", room.libraryDiscs.count)
+    private var isLoading: Bool {
+        room.libraryDiscs.isEmpty && (room.isAuthorizing || !room.accessResolved || room.presentation == .loadingCatalog)
     }
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
@@ -27,110 +25,24 @@ struct ListeningCabinetView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack(alignment: .firstTextBaseline) {
-                HStack(spacing: BSSpacing.xs) {
-                    Text(shelfTitle)
-                        .font(BSFont.headline)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                    Text(shelfCountText)
-                        .font(BSListeningTokens.badge)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(BSColor.Stage.surfaceRaised, in: Capsule())
-                }
-                Spacer()
-                if room.display.showsAllDiscs {
-                    Button(action: showAll) {
-                        HStack(spacing: 3) {
-                            Text(BSLocalization.text("查看全部"))
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                        .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.accent)
-                        .frame(minHeight: BSLayout.minTouchTarget)
-                    }
-                    .buttonStyle(BSListeningPressStyle(scale: 0.95))
-                    .accessibilityIdentifier("listening.allDiscs")
-                }
-            }
-            .padding(.top, 2)
-
-            if room.catalogState == .loading && shelfDiscs.isEmpty {
-                HStack(spacing: BSSpacing.compact) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(width: 96, height: 96)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                                    .stroke(BSColor.Stage.border, lineWidth: 1)
-                            )
-                            .overlay {
-                                ProgressView()
-                                    .tint(BSColor.Stage.accent)
-                                    .scaleEffect(0.8)
-                            }
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 4)
-            } else if shelfDiscs.isEmpty {
-                Text(BSLocalization.text("暂时没有找到可翻的唱片"))
-                    .font(BSListeningTokens.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        ListeningShelfView(title: shelfTitle, count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count), isLoading: isLoading, showsAllDiscs: room.display.showsAllDiscs, showAll: showAll) {
+            if shelfDiscs.isEmpty {
+                placeholder
             } else {
-                VStack(spacing: 0) {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                            ForEach(shelfDiscs) { disc in
-                                ListeningCabinetDiscButton(
-                                    room: room,
-                                    disc: disc,
-                                    scale: scale,
-                                    showsPullHint: hintedDiscID == disc.id,
-                                    showDetails: showDetails
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 2)
-                        .padding(.vertical, 4)
-                    }
-
-                    VStack(spacing: 0) {
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.12), BSColor.Stage.accent.opacity(0.35), Color.white.opacity(0.08)],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .bottom, spacing: BSSpacing.compact) {
+                        ForEach(shelfDiscs) { disc in
+                            ListeningCabinetDiscButton(
+                                room: room,
+                                disc: disc,
+                                scale: scale,
+                                showsPullHint: hintedDiscID == disc.id,
+                                showDetails: showDetails
                             )
-                            .frame(height: 1)
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.22, green: 0.22, blue: 0.24),
-                                Color(red: 0.11, green: 0.11, blue: 0.12),
-                                Color(red: 0.05, green: 0.05, blue: 0.06)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 4)
-                        .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
-                        .shadow(color: Color.black.opacity(0.6), radius: 4, y: 2)
+                        }
                     }
-                    .accessibilityHidden(true)
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 4)
                 }
             }
         }
@@ -294,7 +206,7 @@ private struct ListeningCabinetDiscButton: View {
         Button {
             showDetails(disc)
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
                 ZStack(alignment: .topTrailing) {
                     ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
                         .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
@@ -336,9 +248,9 @@ private struct ListeningCabinetDiscButton: View {
                         .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
                 }
                 .frame(width: 94, alignment: .leading)
-                .frame(height: 18, alignment: .leading)
+                .frame(height: BSListeningTokens.shelfLabelHeight, alignment: .leading)
             }
-            .frame(width: 96, alignment: .leading)
+            .frame(width: BSListeningTokens.shelfItemWidth, alignment: .leading)
         }
         .buttonStyle(BSListeningPressStyle(scale: 0.95))
         .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")

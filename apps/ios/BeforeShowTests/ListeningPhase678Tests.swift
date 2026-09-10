@@ -44,16 +44,7 @@ private struct ListenTestCatalog: ListeningMusicCatalogServicing {
 
 final class NavigationTests: XCTestCase {
     func testThreeTabsOrder() { XCTAssertEqual(BeforeShowTab.allCases, [.current, .listen, .footprints]) }
-    func testListenTabShowsPreparingBeforeMountingRoom() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
-        let feature = try String(contentsOf: root.appendingPathComponent("ListeningFeatureRootView.swift"), encoding: .utf8)
-        XCTAssertTrue(feature.contains("ListeningPreparingView()"))
-        XCTAssertTrue(feature.contains("hasPresentedRoom"))
-        XCTAssertTrue(feature.contains("await Task.yield()"))
-        let room = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
-        XCTAssertTrue(room.contains("guard isActive else { return }"))
-        XCTAssertTrue(room.contains("activateRoomIfNeeded()"))
-    }
+
 }
 final class ListeningPresentationTests: XCTestCase {
     func testCacheAlwaysRemainsBrowsable() {
@@ -90,17 +81,18 @@ final class ListeningAccessibilityTests: XCTestCase {
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
         let source = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
+        let header = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomHeader.swift"), encoding: .utf8)
         let room = try XCTUnwrap(source.components(separatedBy: "struct ListeningRoomView: View").last)
         XCTAssertTrue(room.contains("accessibilityReduceMotion"))
         XCTAssertTrue(room.contains("motion.reducedMotion = value"))
-        XCTAssertTrue(room.contains(".font(BSFont.pageTitle)"))
-        XCTAssertTrue(room.contains(#"Text(BSLocalization.text("听"))"#))
+        XCTAssertTrue(header.contains(".font(BSFont.pageTitle)"))
+        XCTAssertTrue(header.contains(#"Text(BSLocalization.text("听"))"#))
         XCTAssertFalse(room.contains("Text(show.name)"))
         XCTAssertFalse(room.contains(#"accessibilityIdentifier("listening.discTracks")"#))
         XCTAssertFalse(room.contains("paintpalette"))
-        XCTAssertTrue(room.contains(".accessibilityAddTraits(.isHeader)"))
+        XCTAssertTrue(header.contains(".accessibilityAddTraits(.isHeader)"))
         XCTAssertTrue(room.contains(".padding(.horizontal, BSSpacing.roomy)"))
-        XCTAssertTrue(room.contains(".padding(.top, BSLayout.pageHeaderTopPadding)"))
+        XCTAssertTrue(header.contains(".padding(.top, BSLayout.pageHeaderTopPadding)"))
         XCTAssertFalse(room.contains(".padding(BSSpacing.lg)"))
         XCTAssertFalse(room.contains(".select(showID:"))
         XCTAssertFalse(room.contains("AddShowCoordinatorSheet"))

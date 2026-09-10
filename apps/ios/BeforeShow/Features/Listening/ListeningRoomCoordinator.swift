@@ -50,7 +50,7 @@ import UIKit
     var playbackError: String?
     @ObservationIgnored private var visibility = ListeningVisibilityPolicy()
     @ObservationIgnored private var foreground = true
-    @ObservationIgnored private var accessResolved = false
+    private(set) var accessResolved = false
     @ObservationIgnored private var preparedSource: ListeningPlaybackSource?
     @ObservationIgnored private var runtimeSongs: [String: [CatalogSong]] = [:]
     @ObservationIgnored private var trackBelongsToShow = false
@@ -146,7 +146,12 @@ import UIKit
             if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
         }
         showCatalogKey = newKey
-        self.show = show; catalogState = .loading; accessResolved = false
+        self.show = show; catalogState = .loading
+        let knownStatus = catalogService.currentAuthorizationStatus()
+        if access.authorizationStatus != knownStatus || !accessResolved {
+            access = ListeningMusicAccess(authorizationStatus: knownStatus, canPlayCatalogContent: false)
+            accessResolved = knownStatus != .authorized
+        }
         do {
             try rebuildDiscs()
         } catch { catalogState = .cacheFailed }
@@ -174,11 +179,6 @@ import UIKit
                 try rebuildDiscs()
             }
         } catch { context.rollback() }
-        let knownStatus = catalogService.currentAuthorizationStatus()
-        if knownStatus != .authorized {
-            access = ListeningMusicAccess(authorizationStatus: knownStatus, canPlayCatalogContent: false)
-            accessResolved = true
-        }
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
         access = newAccess; accessResolved = true

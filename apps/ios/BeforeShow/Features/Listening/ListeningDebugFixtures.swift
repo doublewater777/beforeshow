@@ -6,6 +6,11 @@ enum ListeningFixtureScenario: String, CaseIterable {
     case noCurrent = "no-current", singleFull = "single-full", multiFull = "multi-full"
     case festival = "festival", fifteen = "fifteen", manyDiscs = "many-discs", emptyAlbums = "empty-albums"
     case previewOnly = "preview-only", metadataOnly = "metadata-only", cachedError = "cached-error", endedCurrent = "ended-current"
+    case coldLoading = "cold-loading", authorizationFlow = "authorization-flow"
+    case authorizationDenied = "authorization-denied", catalogFailure = "catalog-failure"
+    var startsWithoutCatalog: Bool {
+        [.coldLoading, .authorizationFlow, .authorizationDenied, .catalogFailure].contains(self)
+    }
     static var requested: Self? {
         let args = ProcessInfo.processInfo.arguments
         if let index = args.firstIndex(of: "--listen-fixture"), args.indices.contains(index + 1) { return Self(rawValue: args[index + 1]) }
@@ -32,7 +37,7 @@ enum ListeningFixtureScenario: String, CaseIterable {
         }
         context.insert(show)
         context.insert(CurrentShowSelection(selectedShowID: show.id))
-        for index in artistNames.indices {
+        for index in artistNames.indices where !scenario.startsWithoutCatalog {
             let artistID = "fixture-artist-\(index)"
             let songIDs = (0..<4).map { "fixture-song-\(index)-\($0)" }
             for (number, id) in songIDs.enumerated() {
@@ -61,20 +66,41 @@ struct ListeningFixtureArtistSearch: ArtistSearchServicing {
     }
 }
 
-struct ListeningFixtureCatalog: ListeningMusicCatalogServicing {
+final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
     let scenario: ListeningFixtureScenario
-    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
-    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    private let lock = NSLock()
+    private var authorization: ListeningMusicAuthorizationStatus
+
+    init(scenario: ListeningFixtureScenario) {
+        self.scenario = scenario
+        authorization = scenario == .authorizationFlow ? .notDetermined : scenario == .authorizationDenied ? .denied : .authorized
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { lock.withLock { authorization } }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        if scenario == .authorizationFlow {
+            try? await Task.sleep(for: .seconds(3))
+            lock.withLock { authorization = .authorized }
+        }
+        return currentAuthorizationStatus()
+    }
     func currentAccess() async -> ListeningMusicAccess {
-        .init(authorizationStatus: .authorized, canPlayCatalogContent: scenario != .previewOnly && scenario != .metadataOnly)
+        if scenario == .coldLoading { try? await Task.sleep(for: .seconds(3)) }
+        let status = currentAuthorizationStatus()
+        return .init(authorizationStatus: status, canPlayCatalogContent: status == .authorized && scenario != .previewOnly && scenario != .metadataOnly)
     }
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
-        if scenario == .cachedError { throw ListeningCatalogError.incompleteCatalog(artistID) }
+        if scenario.startsWithoutCatalog { try await Task.sleep(for: .seconds(3)) }
+        if scenario == .cachedError || scenario == .catalogFailure { throw ListeningCatalogError.incompleteCatalog(artistID) }
         let ids = (0..<4).map { "fixture-song-\(artistID.hasSuffix("1") ? 1 : 0)-\($0)" }
+        let songs: [ListeningCatalogSongPayload] = scenario.startsWithoutCatalog ? ids.map {
+            .init(songID: $0, title: "夜色", artistName: "Aimer", albumID: nil, albumTitle: nil,
+                  artworkURL: nil, duration: 180, performerArtistIDs: [artistID], performerArtistNames: ["Aimer"], previewURL: nil)
+        } : []
         // Same snapshot metadata, explicit mock transport. No network or audio.
         return .init(artistID: artistID, artistName: artistID.hasSuffix("1") ? "海岸" : "夜航", artworkURL: nil,
                      editorialText: nil, genreNames: [], orderedSongIDs: ids, topSongIDs: Array(ids.prefix(2)),
-                     albumIDs: ["fixture-album-\(artistID.hasSuffix("1") ? 1 : 0)"], songs: [], albums: [], fetchedAt: fetchedAt)
+                     albumIDs: scenario.startsWithoutCatalog ? [] : ["fixture-album-\(artistID.hasSuffix("1") ? 1 : 0)"], songs: songs, albums: [], fetchedAt: fetchedAt)
     }
 }
 

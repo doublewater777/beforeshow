@@ -3,23 +3,18 @@ import SwiftData
 
 struct ListeningFeatureRootView: View {
     let isActive: Bool
-    @State private var hasPresentedRoom = false
     #if DEBUG
     @State private var fixture: ListeningDebugFixtures? = ListeningFixtureScenario.requested.flatMap { try? ListeningDebugFixtures(scenario: $0) }
     #endif
 
     var body: some View {
-        Group {
-            if hasPresentedRoom {
-                room
-            } else {
-                ListeningPreparingView()
+        room
+            .onAppear {
+                if isActive { ListeningPlayerWarmup.prepareIfNeeded() }
             }
-        }
-        .onAppear { queueRoomPresentationIfNeeded() }
-        .onChange(of: isActive) { _, active in
-            if active { queueRoomPresentationIfNeeded() }
-        }
+            .onChange(of: isActive) { _, active in
+                if active { ListeningPlayerWarmup.prepareIfNeeded() }
+            }
     }
 
     @ViewBuilder
@@ -39,19 +34,5 @@ struct ListeningFeatureRootView: View {
         #else
         ListenRootView(isActive: isActive)
         #endif
-    }
-
-    private func queueRoomPresentationIfNeeded() {
-        guard isActive, !hasPresentedRoom else { return }
-        Task { @MainActor in
-            await Task.yield()
-            presentRoomIfNeeded()
-        }
-    }
-
-    private func presentRoomIfNeeded() {
-        guard !hasPresentedRoom else { return }
-        hasPresentedRoom = true
-        ListeningPlayerWarmup.prepareIfNeeded()
     }
 }

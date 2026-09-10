@@ -5,7 +5,6 @@ struct ListeningDiscDetailView: View {
     let disc: ListeningDisc
     var onLoad: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
-    @State private var requestedSongID: String?
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -57,14 +56,6 @@ struct ListeningDiscDetailView: View {
 
     private var albumBadges: [String] {
         var badges: [String] = []
-        switch presentation.capability {
-        case .fullPlayback:
-            badges.append(BSLocalization.text("Apple Music 会员"))
-        case .previewOnly:
-            badges.append(presentation.statusText)
-        case .metadataOnly, .unavailable:
-            break
-        }
         if disc.isAppleDigitalMaster == true {
             badges.append(BSLocalization.text("Apple Digital Master"))
         }
@@ -110,9 +101,6 @@ struct ListeningDiscDetailView: View {
         .tint(BSColor.Stage.accent)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
-        .onChange(of: room.sleevePlaybackSongID) { _, songID in
-            if let songID, songID == requestedSongID { finishSelection() }
-        }
     }
 
     private var heroSection: some View {
@@ -345,14 +333,7 @@ struct ListeningDiscDetailView: View {
                         track: track,
                         isCurrentPlaying: isCurrentPlaying,
                         isPlaying: room.isPlaying,
-                        isMultiArtist: isMultiArtist,
-                        presentation: room.trackPresentation(for: track),
-                        isBusy: room.busy,
-                        onSelect: {
-                            requestedSongID = track.id
-                            room.playFromSleeve(disc, songID: track.id)
-                            if room.sleevePlaybackSongID == track.id { finishSelection() }
-                        }
+                        isMultiArtist: isMultiArtist
                     )
 
                     Divider()
@@ -433,11 +414,6 @@ struct ListeningDiscDetailView: View {
         onLoad()
     }
 
-    private func finishSelection() {
-        requestedSongID = nil
-        dismiss()
-        onLoad()
-    }
 }
 
 private struct ListeningDiscTrackRow: View {
@@ -446,61 +422,47 @@ private struct ListeningDiscTrackRow: View {
     let isCurrentPlaying: Bool
     let isPlaying: Bool
     let isMultiArtist: Bool
-    let presentation: ListeningTrackPresentation
-    let isBusy: Bool
-    let onSelect: () -> Void
 
     var body: some View {
-        Button(action: onSelect) {
-            HStack(alignment: .center, spacing: BSSpacing.compact) {
-                Group {
-                    if isCurrentPlaying {
-                        Image(systemName: isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(BSColor.Stage.accent)
-                    } else {
-                        Text(String(format: "%02d", index + 1))
-                            .font(.system(size: 13, weight: .medium, design: .monospaced))
-                            .foregroundStyle(BSColor.Stage.dim)
-                    }
-                }
-                .frame(width: 24, alignment: .leading)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(track.title)
-                        .font(BSFont.body)
-                        .foregroundStyle(isCurrentPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                        .lineLimit(2)
-                    HStack(spacing: 6) {
-                        if isMultiArtist {
-                            Text(track.artistName)
-                                .lineLimit(1)
-                        }
-                        if presentation.capability != .fullPlayback {
-                            Text(presentation.statusText)
-                        }
-                    }
-                    .font(BSFont.caption)
-                    .foregroundStyle(presentation.isPlayable ? BSColor.Stage.muted : BSColor.Stage.dim)
-                }
-
-                Spacer(minLength: BSSpacing.sm)
-
-                if let duration = track.duration, duration.isFinite, duration > 0 {
-                    Text(Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
-                        .font(.system(size: 12, weight: .regular, design: .monospaced))
+        HStack(alignment: .center, spacing: BSSpacing.compact) {
+            Group {
+                if isCurrentPlaying {
+                    Image(systemName: isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(BSColor.Stage.accent)
+                } else {
+                    Text(String(format: "%02d", index + 1))
+                        .font(.system(size: 13, weight: .medium, design: .monospaced))
                         .foregroundStyle(BSColor.Stage.dim)
                 }
             }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, 12)
-            .background(isCurrentPlaying ? BSColor.Stage.accent.opacity(0.12) : Color.clear)
-            .contentShape(Rectangle())
-            .accessibilityElement(children: .combine)
+            .frame(width: 24, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(track.title)
+                    .font(BSFont.body)
+                    .foregroundStyle(isCurrentPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .lineLimit(2)
+                if isMultiArtist {
+                    Text(track.artistName)
+                        .font(BSFont.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: BSSpacing.sm)
+
+            if let duration = track.duration, duration.isFinite, duration > 0 {
+                Text(Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
+                    .font(.system(size: 12, weight: .regular, design: .monospaced))
+                    .foregroundStyle(BSColor.Stage.dim)
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(isBusy || !presentation.isPlayable)
-        .accessibilityValue(presentation.statusText)
+        .padding(.horizontal, BSSpacing.md)
+        .padding(.vertical, 12)
+        .background(isCurrentPlaying ? BSColor.Stage.accent.opacity(0.12) : Color.clear)
+        .accessibilityElement(children: .combine)
         .accessibilityIdentifier("listening.track.\(track.id)")
     }
 }

@@ -180,7 +180,7 @@ enum ListeningDisplayProjector {
         )
         let mode = roomMode(
             access: access,
-            isAuthorizing: isAuthorizing,
+            isAuthorizing: isAuthorizing || (allTracks.isEmpty && (page == .loading || page == .loadingCatalog)),
             tracks: allTracks
         )
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
@@ -447,7 +447,7 @@ extension ListeningRoomCoordinator {
         ListeningDisplayProjector.make(
             page: presentation,
             access: access,
-            isAuthorizing: isAuthorizing,
+            isAuthorizing: isAuthorizing || !accessResolved,
             allDiscs: discs,
             libraryDiscs: libraryDiscs,
             loadedDisc: mechanism.disc,

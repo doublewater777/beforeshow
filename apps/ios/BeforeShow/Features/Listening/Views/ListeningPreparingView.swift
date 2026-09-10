@@ -1,17 +1,40 @@
 import SwiftUI
 
 struct ListeningPreparingView: View {
+    let show: Show
+
+    private var artists: [ListeningBrowseArtist] {
+        let artists = show.artists.enumerated().map { index, artist in
+            ListeningBrowseArtist(
+                slotIndex: index, id: artist.appleMusicArtistID ?? "unconnected-\(index)", name: artist.name,
+                artworkURL: artist.avatarURL.flatMap(URL.init(string:)),
+                appleMusicArtistID: artist.appleMusicArtistID, albums: []
+            )
+        }
+        return artists.filter(\.isConnected) + artists.filter { !$0.isConnected }
+    }
+
     var body: some View {
-        ZStack {
-            FootprintBackground()
+        GeometryReader { proxy in
             VStack(spacing: 0) {
-                header
+                ListeningRoomHeader(mode: .connecting)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: BSSpacing.lg) {
-                        artistSelectorSkeleton
-                        cabinetSkeleton
-                        machineStageSkeleton
+                    VStack(spacing: BSSpacing.sm) {
+                        if !artists.isEmpty {
+                            ListeningArtistSelector(artists: artists, selection: .all, select: { _ in }, onConnect: { _, _ in })
+                        }
+                        ListeningShelfView(title: BSLocalization.text("BeforeShow 热门合辑"), count: BSLocalization.format("%d 张唱片", 0), isLoading: true) {
+                            ListeningShelfSkeleton()
+                        }
+                        .listeningFrame("cabinet")
+                        let geometry = CDPlayerConfiguration.standard.geometry
+                        let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        ListeningPreparingMachineView(scale: scale)
+                            .listeningFrame("stage")
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, -geometry.viewportTop * scale)
                     }
+                    .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSLayout.tabBarContentInset)
@@ -19,99 +42,43 @@ struct ListeningPreparingView: View {
                 .scrollDisabled(true)
             }
         }
+        .foregroundStyle(BSColor.Stage.foreground)
+        .background(BSColor.Stage.background.ignoresSafeArea())
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("正在准备唱片"))
     }
+}
 
-    private var header: some View {
-        HStack(spacing: BSSpacing.sm) {
-            Text(BSLocalization.text("听"))
-                .font(BSFont.pageTitle)
-                .tracking(-0.5)
-                .foregroundStyle(BSColor.Stage.foreground)
-            Spacer(minLength: 0)
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.white.opacity(0.06))
-                .frame(width: 86, height: 26)
+private struct ListeningPreparingMachineView: View {
+    let scale: CGFloat
+    private var geometry: CDPlayerConfiguration.Geometry { CDPlayerConfiguration.standard.geometry }
+    private var assets: CDPlayerConfiguration.Assets { CDPlayerConfiguration.standard.assets }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Ellipse()
+                .fill(.black.opacity(0.45)).blur(radius: 22)
+                .frame(width: 370, height: 130).position(x: 232, y: 679)
+            Image(assets.body).resizable()
+                .frame(width: geometry.body.width, height: geometry.body.height)
+                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180),
+                             anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
+                .position(x: geometry.body.midX, y: geometry.body.midY)
+            Image(assets.lidOuter).resizable()
+                .frame(width: geometry.lid.width, height: geometry.lid.height)
+                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180), anchor: .top)
+                .position(x: geometry.lid.midX, y: geometry.lid.midY)
+            Circle()
+                .fill(LinearGradient(colors: [Color(white: 0.30), .black, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay(Circle().stroke(Color(white: 0.48), lineWidth: 1).padding(4))
+                .overlay(Circle().fill(Color(white: 0.12)).padding(12))
+                .frame(width: 42, height: 42)
+                .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
         }
-        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-        .padding(.horizontal, BSSpacing.roomy)
-        .padding(.top, BSLayout.pageHeaderTopPadding)
-        .padding(.bottom, BSSpacing.sm)
-
-    }
-
-    private var artistSelectorSkeleton: some View {
-        HStack(spacing: BSSpacing.compact) {
-            ForEach(0..<5, id: \.self) { _ in
-                VStack(spacing: 6) {
-                    Circle()
-                        .fill(BSColor.Stage.surfaceRaised)
-                        .frame(width: 56, height: 56)
-                        .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color.white.opacity(0.06))
-                        .frame(width: 40, height: 10)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, BSSpacing.xs)
-    }
-
-    private var cabinetSkeleton: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color.white.opacity(0.12))
-                    .frame(width: 120, height: 16)
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.white.opacity(0.06))
-                    .frame(width: 48, height: 18)
-                Spacer()
-            }
-            HStack(spacing: BSSpacing.compact) {
-                ForEach(0..<3, id: \.self) { _ in
-                    RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                        .fill(
-                            LinearGradient(
-                                colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 120, height: 120)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
-                                .stroke(BSColor.Stage.border, lineWidth: 1)
-                        )
-                }
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    private var machineStageSkeleton: some View {
-        VStack(spacing: BSSpacing.md) {
-            ZStack {
-                Ellipse()
-                    .fill(BSColor.Stage.accent.opacity(0.06))
-                    .frame(height: 180)
-                    .blur(radius: 40)
-                Circle()
-                    .stroke(BSColor.Stage.accent.opacity(0.15), lineWidth: 1.5)
-                    .frame(width: 170, height: 170)
-                Circle()
-                    .fill(BSColor.Stage.surfaceRaised)
-                    .frame(width: 60, height: 60)
-                    .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-                ProgressView()
-                    .tint(BSColor.Stage.accent)
-            }
-            .frame(height: 200)
-
-            Text(BSLocalization.text("正在准备唱片与曲目…"))
-                .font(BSFont.caption)
-                .foregroundStyle(BSColor.Stage.muted)
-        }
+        .frame(width: geometry.canvas.width, height: geometry.canvas.height)
+        .scaleEffect(scale, anchor: .topLeading)
+        .frame(width: geometry.canvas.width * scale, height: geometry.canvas.height * scale, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }

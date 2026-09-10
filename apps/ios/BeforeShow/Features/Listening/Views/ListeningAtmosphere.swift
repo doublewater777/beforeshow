@@ -61,6 +61,8 @@ struct ListeningCurrentSong: View {
                 statusLine
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
+                    .opacity(room.display.roomMode == .connecting ? 0 : 1)
+                    .accessibilityHidden(room.display.roomMode == .connecting)
                     .accessibilityIdentifier("listening.playerGuidance")
             }
 
