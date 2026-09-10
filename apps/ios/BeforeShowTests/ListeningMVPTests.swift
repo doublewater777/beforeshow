@@ -115,6 +115,8 @@ import XCTest
                                   height: mechanism.configuration.geometry.discCenter.y - mechanism.motion.discY.value))
         mechanism.endDiscDrag()
         settle(mechanism)
+        mechanism.setLid(open: true)
+        settle(mechanism)
         mechanism.dragDisc(CGSize(width: 100, height: 100))
         mechanism.endDiscDrag()
         settle(mechanism)

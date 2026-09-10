@@ -89,7 +89,6 @@
 "今晚 %@" = "Tonight %@";
 "还有 %lld 天 · %@" = "%lld days remaining · %@";
 "正在现场 · %@" = "At the show · %@";
-"%@ · %@站" = "%@ · %@";
 "%d月%d日 %02d:%02d" = "%d/%d %02d:%02d";
 
 "%lld月%lld日 %@ 结束" = "Ends %lld/%lld at %@";

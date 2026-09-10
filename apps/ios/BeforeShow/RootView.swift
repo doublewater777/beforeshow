@@ -156,8 +156,6 @@ struct RootView: View {
                 )
             }
             .tag(BeforeShowTab.footprints)
-
-
         }
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in

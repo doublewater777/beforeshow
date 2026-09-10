@@ -58,9 +58,7 @@ struct CountdownPresentation {
     }
 
     let hero: Hero
-    let showName: String
-    let city: String?
-    let venueName: String?
+    let identity: ShowIdentityCopy
     let startDate: Date?
     let endBoundary: Date?
     let calendar: Calendar
@@ -68,13 +66,12 @@ struct CountdownPresentation {
     let remainingSeconds: Int
 
     var hasShow: Bool { hero != .empty }
+    var showName: String { identity.title }
 
     init(entry: CountdownEntry) {
         guard let snapshot = entry.snapshot else {
             hero = .empty
-            showName = ""
-            city = nil
-            venueName = nil
+            identity = ShowIdentityCopy(name: "")
             startDate = nil
             endBoundary = nil
             calendar = .current
@@ -82,9 +79,11 @@ struct CountdownPresentation {
             return
         }
 
-        showName = snapshot.name
-        city = snapshot.city
-        venueName = snapshot.venueName
+        identity = ShowIdentityCopy(
+            name: snapshot.name,
+            venueName: snapshot.venueName,
+            city: snapshot.city
+        )
 
         let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
         calendar = snapshot.timing.eventCalendar(fallback: .current)
@@ -126,11 +125,6 @@ struct CountdownPresentation {
         case .inactive:
             hero = .inactive(title: state.title)
         }
-    }
-
-    var nameLine: String {
-        guard let city, !city.isEmpty else { return showName }
-        return BSLocalization.format("%@ · %@站", showName, city)
     }
 
     var dateLine: String {
@@ -237,7 +231,7 @@ private struct SmallCountdownView: View {
                 Spacer(minLength: 8)
 
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(presentation.nameLine)
+                    Text(presentation.showName)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(WidgetTheme.foreground)
                         .lineLimit(2)
@@ -325,7 +319,7 @@ private struct MediumCountdownView: View {
                     Spacer(minLength: 8)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(presentation.nameLine)
+                        Text(presentation.showName)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(WidgetTheme.foreground)
                             .lineLimit(2)
@@ -343,6 +337,7 @@ private struct MediumCountdownView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 coverView
+                    .padding(.leading, 12)
             }
         } else {
             EmptyWidgetView()
@@ -350,10 +345,7 @@ private struct MediumCountdownView: View {
     }
 
     private var venueLine: String {
-        guard let venue = presentation.venueName, !venue.isEmpty else {
-            return presentation.dateLine
-        }
-        return "\(presentation.dateLine) · \(venue)"
+        presentation.identity.dateVenueLine(dateLine: presentation.dateLine)
     }
 
     @ViewBuilder
@@ -414,31 +406,28 @@ private struct MediumCountdownView: View {
     @ViewBuilder
     private var coverView: some View {
         if let coverImagePath, let image = UIImage(contentsOfFile: coverImagePath) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(width: 108)
-                .frame(maxHeight: .infinity)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: WidgetTheme.widgetCoverCornerRadius,
-                        style: .continuous
-                    )
-                )
+            widgetCover(Image(uiImage: image))
         } else {
             // 无封面兜底:与 app 一致用 default_cover(扩展自带 asset)
-            Image("default_cover")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 108)
-                .frame(maxHeight: .infinity)
-                .clipShape(
-                    RoundedRectangle(
-                        cornerRadius: WidgetTheme.widgetCoverCornerRadius,
-                        style: .continuous
-                    )
-                )
+            widgetCover(Image("default_cover"))
         }
+    }
+
+    private func widgetCover(_ image: Image) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(
+                width: WidgetTheme.mediumCoverSize.width,
+                height: WidgetTheme.mediumCoverSize.height
+            )
+            .clipShape(
+                RoundedRectangle(
+                    cornerRadius: WidgetTheme.widgetCoverCornerRadius,
+                    style: .continuous
+                )
+            )
+            .accessibilityHidden(true)
     }
 }
 

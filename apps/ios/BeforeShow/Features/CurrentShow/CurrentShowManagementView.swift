@@ -427,25 +427,7 @@ struct CurrentShowManagementSection: View {
     }
 
     private var locationText: String {
-        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cityText = {
-            guard let city, !city.isEmpty else { return nil as String? }
-            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil as String? }
-            return city
-        }()
-
-        return [
-            venue,
-            cityText
-        ]
-        .compactMap { value in
-            guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
-            }
-            return value
-        }
-        .joined(separator: " · ")
+        ShowIdentityCopy.venueSummary(venue: show.venueName, city: show.city) ?? ""
     }
 
     private var routeQuery: String? {

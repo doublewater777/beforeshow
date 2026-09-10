@@ -102,7 +102,6 @@ import UIKit
             }
             #endif
         }
-        CDSoundPlayer.shared.warmup()
     }
     var track: ListeningDiscTrack? {
         guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
@@ -151,6 +150,7 @@ import UIKit
         do {
             try rebuildDiscs()
         } catch { catalogState = .cacheFailed }
+        initialLoaded = true
         let slots = show.artists
         let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
         guard generation == catalogGeneration, !Task.isCancelled else { return }
@@ -174,9 +174,14 @@ import UIKit
                 try rebuildDiscs()
             }
         } catch { context.rollback() }
+        let knownStatus = catalogService.currentAuthorizationStatus()
+        if knownStatus != .authorized {
+            access = ListeningMusicAccess(authorizationStatus: knownStatus, canPlayCatalogContent: false)
+            accessResolved = true
+        }
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess; accessResolved = true; initialLoaded = true
+        access = newAccess; accessResolved = true
         let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         guard !ids.isEmpty else { discs = []; catalogState = .unmatched; return }
         var failed = false

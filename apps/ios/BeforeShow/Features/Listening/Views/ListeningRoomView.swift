@@ -46,7 +46,6 @@ struct ListenRootView: View {
                 )
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: room?.initialLoaded)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .sheet(isPresented: $isShowingAddShow) {
             AddShowCoordinatorSheet()
@@ -63,39 +62,46 @@ struct ListenRootView: View {
             .presentationDragIndicator(.visible)
         }
         .task(id: loadKey) {
-            guard let show else {
-                room?.stop()
-                room?.mechanism.motion.stop()
-                room = nil
-                ListeningRoomCache.shared = nil
-                return
-            }
-            if room == nil {
-                if let cached = ListeningRoomCache.shared, cached.show?.id == show.id {
-                    room = cached
-                } else {
-                    let next = ListeningRoomCoordinator(
-                        context: context,
-                        catalogService: catalogService,
-                        artistSearchService: artistSearchService,
-                        playbackFactory: playbackFactory
-                    )
-                    room = next
-                    ListeningRoomCache.shared = next
-                }
-            }
-            room?.setActive(isActive)
-            if room?.show?.id != show.id || room?.discs.isEmpty == true {
-                await room?.load(show: show)
-            }
+            guard isActive else { return }
+            await activateRoomIfNeeded()
         }
         .onChange(of: isActive) { _, active in
             room?.setActive(active)
-            if active, let show, room?.show?.id != show.id {
-                Task { await room?.load(show: show) }
-            }
+            guard active else { return }
+            Task { await activateRoomIfNeeded() }
         }
         .onDisappear { room?.setActive(false) }
+    }
+
+    @MainActor
+    private func activateRoomIfNeeded() async {
+        guard isActive else { return }
+        ListeningPlayerWarmup.prepareIfNeeded()
+        guard let show else {
+            room?.stop()
+            room?.mechanism.motion.stop()
+            room = nil
+            ListeningRoomCache.shared = nil
+            return
+        }
+        if room == nil {
+            if let cached = ListeningRoomCache.shared, cached.show?.id == show.id {
+                room = cached
+            } else {
+                let next = ListeningRoomCoordinator(
+                    context: context,
+                    catalogService: catalogService,
+                    artistSearchService: artistSearchService,
+                    playbackFactory: playbackFactory
+                )
+                room = next
+                ListeningRoomCache.shared = next
+            }
+        }
+        room?.setActive(true)
+        if room?.show?.id != show.id || room?.discs.isEmpty == true {
+            await room?.load(show: show)
+        }
     }
 }
 

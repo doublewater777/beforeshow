@@ -33,7 +33,13 @@ struct HomeCountdownLockup: View {
             statusRow(phase: phase, timeState: timeState, now: now)
                 .padding(.bottom, 8)
 
-            Text(show.name)
+            let identity = ShowIdentityCopy(
+                name: show.name,
+                venueName: show.venueName,
+                city: show.city
+            )
+
+            Text(identity.title)
                 .font(.system(size: 22, weight: .semibold))
                 .tracking(-0.45)
                 .foregroundColor(BSColor.Stage.foreground)
@@ -42,11 +48,7 @@ struct HomeCountdownLockup: View {
                 .accessibilityAddTraits(.isHeader)
 
             let dateText = HomeShowIdentityPresentation.dateText(for: show, timeState: timeState)
-
-            let venueSummary = HomeShowIdentityPresentation.venueSummary(
-                venue: show.venueName,
-                city: show.city
-            )
+            let venueSummary = identity.venueSummary
 
             if dateText != nil || venueSummary != nil {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {

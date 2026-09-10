@@ -44,6 +44,16 @@ private struct ListenTestCatalog: ListeningMusicCatalogServicing {
 
 final class NavigationTests: XCTestCase {
     func testThreeTabsOrder() { XCTAssertEqual(BeforeShowTab.allCases, [.current, .listen, .footprints]) }
+    func testListenTabShowsPreparingBeforeMountingRoom() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
+        let feature = try String(contentsOf: root.appendingPathComponent("ListeningFeatureRootView.swift"), encoding: .utf8)
+        XCTAssertTrue(feature.contains("ListeningPreparingView()"))
+        XCTAssertTrue(feature.contains("hasPresentedRoom"))
+        XCTAssertTrue(feature.contains("await Task.yield()"))
+        let room = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
+        XCTAssertTrue(room.contains("guard isActive else { return }"))
+        XCTAssertTrue(room.contains("activateRoomIfNeeded()"))
+    }
 }
 final class ListeningPresentationTests: XCTestCase {
     func testCacheAlwaysRemainsBrowsable() {

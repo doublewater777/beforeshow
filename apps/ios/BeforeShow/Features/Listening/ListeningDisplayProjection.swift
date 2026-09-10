@@ -496,6 +496,10 @@ extension ListeningRoomCoordinator {
             return false
         }
         mechanism.notice = nil
+        if mechanism.position != .stored {
+            loadPlayableDisc(disc)
+            return false
+        }
         return mechanism.beginCabinetDrag(disc)
     }
 
@@ -506,7 +510,11 @@ extension ListeningRoomCoordinator {
             return
         }
         mechanism.notice = nil
-        mechanism.takeFromCabinet(disc)
+        if mechanism.position != .stored {
+            loadPlayableDisc(disc)
+        } else {
+            mechanism.takeFromCabinet(disc)
+        }
     }
 
     /// Manual insertion keeps the lid open and never autoplays, but once the

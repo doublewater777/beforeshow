@@ -154,6 +154,115 @@ struct ListeningCabinetView: View {
     }
 }
 
+#if canImport(UIKit)
+import UIKit
+
+private struct CabinetDiscGestureBridge: UIViewRepresentable {
+    let canDrag: Bool
+    let onBegin: () -> Void
+    let onChanged: (CGSize) -> Void
+    let onEnded: () -> Void
+    let onTap: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> GestureCaptureView {
+        let view = GestureCaptureView()
+        context.coordinator.attach(to: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: GestureCaptureView, context: Context) {
+        context.coordinator.canDrag = canDrag
+        context.coordinator.onBegin = onBegin
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+        context.coordinator.onTap = onTap
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var canDrag = true
+        var onBegin: (() -> Void)?
+        var onChanged: ((CGSize) -> Void)?
+        var onEnded: (() -> Void)?
+        var onTap: (() -> Void)?
+        private var isDragging = false
+
+        func attach(to view: UIView) {
+            let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
+            pan.delegate = self
+            pan.cancelsTouchesInView = true
+            view.addGestureRecognizer(pan)
+
+            let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            tap.delegate = self
+            view.addGestureRecognizer(tap)
+        }
+
+        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            guard let view = recognizer.view else {
+                return
+            }
+            switch recognizer.state {
+            case .began:
+                isDragging = true
+                onBegin?()
+                let translation = recognizer.translation(in: view)
+                onChanged?(CGSize(width: translation.x, height: translation.y))
+            case .changed:
+                let translation = recognizer.translation(in: view)
+                onChanged?(CGSize(width: translation.x, height: translation.y))
+            case .ended, .cancelled, .failed:
+                if isDragging {
+                    isDragging = false
+                    onEnded?()
+                }
+            default:
+                break
+            }
+        }
+
+        @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended, !isDragging else { return }
+            onTap?()
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            if let pan = gestureRecognizer as? UIPanGestureRecognizer {
+                guard canDrag, let view = pan.view else { return false }
+                let velocity = pan.velocity(in: view)
+                // Only recognize downward pull toward the player;
+                // reject horizontal swipes so the cabinet ScrollView scrolls seamlessly.
+                return velocity.y > 20 && velocity.y > abs(velocity.x) * 0.6
+            }
+            return true
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
+    }
+
+    final class GestureCaptureView: UIView {
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            backgroundColor = .clear
+            isUserInteractionEnabled = true
+        }
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            backgroundColor = .clear
+            isUserInteractionEnabled = true
+        }
+    }
+}
+#endif
+
 private struct ListeningCabinetDiscButton: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
@@ -183,13 +292,37 @@ private struct ListeningCabinetDiscButton: View {
 
     var body: some View {
         Button {
-            guard !suppressTap else { return }
             showDetails(disc)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
-                ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
-                    .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
-                    .listeningFrame("slot:\(disc.id)")
+                ZStack(alignment: .topTrailing) {
+                    ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
+                        .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
+                        .listeningFrame("slot:\(disc.id)")
+
+                    #if canImport(UIKit)
+                    if !isLoaded {
+                        CabinetDiscGestureBridge(
+                            canDrag: presentation.canLoad,
+                            onBegin: {
+                                beginDragIfNeeded()
+                            },
+                            onChanged: { translation in
+                                updateDrag(translation)
+                            },
+                            onEnded: {
+                                finishDragIfNeeded()
+                            },
+                            onTap: {
+                                showDetails(disc)
+                            }
+                        )
+                        .frame(width: 44, height: 76)
+                        .accessibilityHidden(true)
+                    }
+                    #endif
+                }
+
                 HStack(spacing: 3) {
                     if room.isPlayingDisc(disc) {
                         Image(systemName: "waveform")
@@ -208,14 +341,6 @@ private struct ListeningCabinetDiscButton: View {
             .frame(width: 96, alignment: .leading)
         }
         .buttonStyle(BSListeningPressStyle(scale: 0.95))
-        .overlay(alignment: .topTrailing) {
-            Color.clear
-                .frame(width: 44, height: 84)
-                .contentShape(Rectangle())
-                .highPriorityGesture(manualDiscDrag)
-                .accessibilityHidden(true)
-        }
-        .simultaneousGesture(dragCompletionFallback)
         .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")
         .accessibilityValue(accessibilityValue)
         .accessibilityActions {
@@ -228,43 +353,10 @@ private struct ListeningCabinetDiscButton: View {
         .accessibilityIdentifier("listening.disc.\(disc.id)")
     }
 
-    private var manualDiscDrag: some Gesture {
-        LongPressGesture(minimumDuration: 0.22, maximumDistance: 24)
-            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("listeningContent")))
-            .onChanged { value in
-                switch value {
-                case .first(true):
-                    beginDragIfNeeded()
-                case let .second(true, drag?):
-                    beginDragIfNeeded()
-                    updateDrag(drag.translation)
-                default:
-                    break
-                }
-            }
-            .onEnded { value in
-                if case let .second(true, drag?) = value {
-                    updateDrag(drag.translation)
-                }
-                finishDragIfNeeded()
-                Task { @MainActor in
-                    await Task.yield()
-                    suppressTap = false
-                }
-            }
-    }
-
-    private var dragCompletionFallback: some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .named("listeningContent"))
-            .onEnded { value in
-                guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
-                updateDrag(value.translation)
-                finishDragIfNeeded()
-            }
-    }
-
     private func beginDragIfNeeded() {
-        guard !room.mechanism.isCabinetDragging else { return }
+        guard !room.mechanism.isCabinetDragging else {
+            return
+        }
         suppressTap = true
         _ = room.beginPlayableDiscDrag(disc)
     }
@@ -279,7 +371,14 @@ private struct ListeningCabinetDiscButton: View {
     }
 
     private func finishDragIfNeeded() {
-        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
+        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else {
+            suppressTap = false
+            return
+        }
         room.mechanism.endDiscDrag()
+        Task { @MainActor in
+            await Task.yield()
+            suppressTap = false
+        }
     }
 }

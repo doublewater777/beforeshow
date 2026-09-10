@@ -6,7 +6,7 @@ enum BSListeningTokens {
     static let artistWidth: CGFloat = 74
     static let artwork: CGFloat = 82
     static let detailArtwork: CGFloat = 160
-    static let playerWidthFraction: CGFloat = 0.70
+    static let playerWidthFraction: CGFloat = 0.84
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption
     static let captionMedium = Font.caption.weight(.medium)

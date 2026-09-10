@@ -52,20 +52,6 @@ enum HomeShowIdentityPresentation {
         return BSLocalization.format(formatKey, city)
     }
 
-    static func venueSummary(venue: String?, city: String?) -> String? {
-        let venue = trimmed(venue)
-        let city = trimmed(city)
-        let cityText = {
-            guard let city else { return nil as String? }
-            guard let venue else { return city }
-            guard !venue.localizedCaseInsensitiveContains(city) else { return nil }
-            return city
-        }()
-
-        let summary = [venue, cityText].compactMap { $0 }.joined(separator: " · ")
-        return summary.isEmpty ? nil : summary
-    }
-
     static func dateText(
         for show: Show,
         timeState: CurrentShowTimeState,
@@ -120,12 +106,6 @@ enum HomeShowIdentityPresentation {
             return base
         }
         return BSLocalization.format("%@ · 预计演出 %@", base, duration)
-    }
-
-    private static func trimmed(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func monthDayText(_ date: Date, calendar: Calendar) -> String {
