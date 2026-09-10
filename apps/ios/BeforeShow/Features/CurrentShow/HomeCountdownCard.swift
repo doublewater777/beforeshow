@@ -6,6 +6,7 @@ struct HomeCountdownLockup: View {
     var onCompanion: (() -> Void)? = nil
     var onMemoryFragments: (() -> Void)? = nil
     var onMemoryCreate: (() -> Void)? = nil
+    var onOpenRoute: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var languageController = AppLanguageController.shared
@@ -48,11 +49,22 @@ struct HomeCountdownLockup: View {
             )
 
             if dateText != nil || venueSummary != nil {
-                Text([dateText, venueSummary].compactMap { $0 }.joined(separator: " · "))
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Stage.muted)
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    if let dateText {
+                        Text(dateText)
+                            .font(.system(size: 12.5, weight: .regular))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    if dateText != nil, venueSummary != nil {
+                        Text(" · ")
+                            .font(.system(size: 12.5, weight: .regular))
+                            .foregroundColor(BSColor.Stage.muted)
+                    }
+                    if let venueSummary {
+                        locationControl(venueSummary, opensRoute: onOpenRoute != nil)
+                    }
+                }
                 .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 5)
             }
 
@@ -102,7 +114,7 @@ struct HomeCountdownLockup: View {
             RoundedRectangle(cornerRadius: 20)
                 .stroke(BSColor.Stage.border, lineWidth: 1)
         )
-        .accessibilityElement(children: onEndShow == nil ? .combine : .contain)
+        .accessibilityElement(children: onEndShow == nil && onOpenRoute == nil ? .combine : .contain)
     }
 
     /// 估算散场时间已过、用户尚未确认 endedAt:状态条说「待确认」,不提前宣布 ENDED。
@@ -111,6 +123,33 @@ struct HomeCountdownLockup: View {
             kind: timeState.kind,
             hasConfirmedEnd: show.endedAt != nil
         )
+    }
+
+    @ViewBuilder
+    private func locationControl(_ summary: String, opensRoute: Bool) -> some View {
+        let label = HStack(alignment: .firstTextBaseline, spacing: 3) {
+            if opensRoute {
+                Image(systemName: "map")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent.opacity(0.85))
+            }
+            Text(summary)
+                .font(.system(size: 12.5, weight: .regular))
+                .foregroundColor(opensRoute ? BSColor.Stage.foreground.opacity(0.78) : BSColor.Stage.muted)
+        }
+
+        if opensRoute {
+            Button {
+                onOpenRoute?()
+            } label: {
+                label
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(summary)
+            .accessibilityHint(BSLocalization.text("打开路线"))
+        } else {
+            label
+        }
     }
 
     private func statusRow(
@@ -314,7 +353,6 @@ struct HomeCountdownLockup: View {
 
     enum PrimaryAction: Equatable {
         case end(live: Bool)
-        case companion
         case memoryFragments
         case memoryCreate
     }
@@ -345,7 +383,7 @@ struct HomeCountdownLockup: View {
         guard !hasConfirmedEnd else { return nil }
         switch phase {
         case .pre:
-            return .companion
+            return nil
         case .live:
             if OpeningMemoryWindow.isActive(now: now, showStart: showStart, isLive: true) {
                 return .memoryCreate
@@ -387,7 +425,6 @@ struct HomeCountdownLockup: View {
         switch action {
         case .end(live: true): return BSLocalization.text("结束现场")
         case .end(live: false): return BSLocalization.text("确认已结束")
-        case .companion: return BSLocalization.text("约人同行")
         case .memoryFragments, .memoryCreate: return BSLocalization.text("记一段记忆")
         }
     }
@@ -395,7 +432,6 @@ struct HomeCountdownLockup: View {
     private func primaryActionHandler(_ action: PrimaryAction) -> () -> Void {
         switch action {
         case .end: return { onEndShow?() }
-        case .companion: return { onCompanion?() }
         case .memoryFragments: return { onMemoryFragments?() }
         case .memoryCreate: return { (onMemoryCreate ?? onMemoryFragments)?() }
         }
@@ -404,7 +440,6 @@ struct HomeCountdownLockup: View {
     private func accessibilityHint(for action: PrimaryAction) -> String {
         switch action {
         case .end: return BSLocalization.text("打开结束现场确认")
-        case .companion: return BSLocalization.text("邀请朋友同行")
         case .memoryFragments: return BSLocalization.text("打开记忆碎片")
         case .memoryCreate: return BSLocalization.text("打开新增记忆")
         }

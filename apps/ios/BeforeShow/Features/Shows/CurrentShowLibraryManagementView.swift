@@ -204,7 +204,9 @@ struct CurrentShowLibraryManagementView: View {
                         CurrentShowLibraryCoverCard(
                             show: show,
                             isCurrent: selectedShowID == show.id,
-                            onOpen: { destination = .init(show: show, startsEditing: false) }
+                            actions: menuActions(for: show),
+                            onOpen: { destination = .init(show: show, startsEditing: false) },
+                            onAction: { action in handle(action, for: show) }
                         )
                         .modifier(LibraryRowEntrance(index: index, appeared: rowsAppeared, reduceMotion: reduceMotion))
                     }
@@ -246,14 +248,20 @@ struct CurrentShowLibraryManagementView: View {
         let sections: [LibrarySection]
         switch filter {
         case .upcoming:
-            sections = [.init(title: BSLocalization.text("即将开始"), shows: upcomingShows), .init(title: BSLocalization.text("延期与变更"), shows: changedShows)]
+            sections = [
+                .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
+                .init(title: BSLocalization.text("已延期"), shows: postponedShows)
+            ]
         case .ended:
-            sections = [.init(title: BSLocalization.text("已结束"), shows: endedShows)]
+            sections = [
+                .init(title: BSLocalization.text("已结束"), shows: endedShows)
+            ]
         case .all:
             sections = [
                 .init(title: BSLocalization.text("即将开始"), shows: upcomingShows),
-                .init(title: BSLocalization.text("延期与变更"), shows: changedShows),
-                .init(title: BSLocalization.text("已结束"), shows: endedShows)
+                .init(title: BSLocalization.text("已延期"), shows: postponedShows),
+                .init(title: BSLocalization.text("已结束"), shows: endedShows),
+                .init(title: BSLocalization.text("已取消"), shows: canceledShows)
             ]
         }
         return sections.map { .init(title: $0.title, shows: $0.shows.filter(matchesSearch)) }
@@ -279,8 +287,12 @@ struct CurrentShowLibraryManagementView: View {
         }.sorted { $0.effectiveDate > $1.effectiveDate }
     }
 
-    private var changedShows: [Show] {
-        shows.filter { $0.changeStatus != .scheduled }.sorted { $0.effectiveDate < $1.effectiveDate }
+    private var postponedShows: [Show] {
+        shows.filter { $0.changeStatus == .postponed }.sorted { $0.effectiveDate < $1.effectiveDate }
+    }
+
+    private var canceledShows: [Show] {
+        shows.filter { $0.changeStatus == .canceled }.sorted { $0.effectiveDate > $1.effectiveDate }
     }
 
     private func matchesSearch(_ show: Show) -> Bool {
@@ -294,7 +306,7 @@ struct CurrentShowLibraryManagementView: View {
 
     private func count(for filter: CurrentShowLibraryFilter) -> Int {
         switch filter {
-        case .upcoming: return upcomingShows.count + changedShows.count
+        case .upcoming: return upcomingShows.count + postponedShows.count
         case .ended: return endedShows.count
         case .all: return shows.count
         }
@@ -470,7 +482,7 @@ struct CurrentShowLibraryManagementView: View {
                         .contentShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .padding(.top, BSSpacing.sm)
-            } else {
+            } else if isSearching {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 32, weight: .light))
                     .foregroundColor(BSColor.Stage.dim)
@@ -485,10 +497,53 @@ struct CurrentShowLibraryManagementView: View {
                 Text(BSLocalization.text("尝试更换搜索词或切换筛选分类"))
                     .font(BSFont.caption)
                     .foregroundColor(BSColor.Stage.muted)
+            } else {
+                Image(systemName: filterEmptyIcon)
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .frame(width: 72, height: 72)
+                    .background(Color.white.opacity(0.04), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Stage.border))
+
+                Text(filterEmptyTitle)
+                    .font(BSFont.headline)
+                    .foregroundColor(BSColor.Stage.foreground)
+
+                Text(filterEmptySubtitle)
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
             }
             Spacer(minLength: 40)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, BSSpacing.lg)
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var filterEmptyIcon: String {
+        switch filter {
+        case .upcoming: return "calendar.badge.clock"
+        case .ended: return "clock.arrow.circlepath"
+        case .all: return "music.note.list"
+        }
+    }
+
+    private var filterEmptyTitle: String {
+        switch filter {
+        case .upcoming: return BSLocalization.text("暂无即将开始的现场")
+        case .ended: return BSLocalization.text("暂无已结束的现场")
+        case .all: return BSLocalization.text("暂无现场演出")
+        }
+    }
+
+    private var filterEmptySubtitle: String {
+        switch filter {
+        case .upcoming: return BSLocalization.text("添加新的演出，或在全部记录中查看历史")
+        case .ended: return BSLocalization.text("演出结束后会自动归档到这里")
+        case .all: return BSLocalization.text("尝试更换筛选分类")
+        }
     }
 }

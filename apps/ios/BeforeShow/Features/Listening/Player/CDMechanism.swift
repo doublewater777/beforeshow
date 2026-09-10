@@ -218,13 +218,12 @@ import SwiftUI
         let fromCabinet = isCabinetDragging
         isCabinetDragging = false
         let center = configuration.geometry.discCenter
-        if (isOpen || motion.lid.target == 1), hypot(motion.discX.value - center.x, motion.discY.value - center.y) < 125 {
+        if (isOpen || motion.lid.target == 1), hypot(motion.discX.value - center.x, motion.discY.value - center.y) < 220 {
             insertDisc()
         } else if fromCabinet || cabinetDropZone.contains(CGPoint(x: motion.discX.value, y: motion.discY.value)) {
             returnDisc()
         } else {
-            motion.discX.move(to: configuration.geometry.parkedDisc.x)
-            motion.discY.move(to: configuration.geometry.parkedDisc.y)
+            returnDisc()
         }
         motion.wake()
     }
@@ -282,4 +281,3 @@ import SwiftUI
         refresh()
     }
 }
-

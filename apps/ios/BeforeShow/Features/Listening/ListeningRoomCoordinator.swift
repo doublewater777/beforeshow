@@ -74,6 +74,7 @@ import UIKit
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var preparedSongID: String?
     @ObservationIgnored private var finishedSongID: String?
+    private(set) var initialLoaded = false
     @ObservationIgnored private var active = true
     @ObservationIgnored private var playbackGeneration = UUID()
 
@@ -175,7 +176,7 @@ import UIKit
         } catch { context.rollback() }
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess; accessResolved = true
+        access = newAccess; accessResolved = true; initialLoaded = true
         let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         guard !ids.isEmpty else { discs = []; catalogState = .unmatched; return }
         var failed = false
@@ -402,7 +403,7 @@ import UIKit
             run { [self] in
                 try await mechanism.closeForPlayback()
                 guard let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
-                trackIndex = index
+                trackIndex = index; trackBelongsToShow = true
                 try await playCurrentTrack()
             }
             return

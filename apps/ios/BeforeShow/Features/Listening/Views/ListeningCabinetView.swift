@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ListeningCabinetView: View {
     @Bindable var room: ListeningRoomCoordinator
+    let scale: CGFloat
     let showAll: () -> Void
     let showDetails: (ListeningDisc) -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -89,6 +90,7 @@ struct ListeningCabinetView: View {
                                 ListeningCabinetDiscButton(
                                     room: room,
                                     disc: disc,
+                                    scale: scale,
                                     showsPullHint: hintedDiscID == disc.id,
                                     showDetails: showDetails
                                 )
@@ -149,8 +151,10 @@ struct ListeningCabinetView: View {
 private struct ListeningCabinetDiscButton: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
+    let scale: CGFloat
     let showsPullHint: Bool
     let showDetails: (ListeningDisc) -> Void
+    @State private var suppressTap = false
 
     private var isLoaded: Bool {
         room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
@@ -164,35 +168,99 @@ private struct ListeningCabinetDiscButton: View {
 
     var body: some View {
         Button {
+            guard !suppressTap else { return }
             showDetails(disc)
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
                     .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
                     .listeningFrame("slot:\(disc.id)")
-                ListeningSleeveMarks(room: room, disc: disc)
                 HStack(spacing: 3) {
                     if room.isPlayingDisc(disc) {
                         Image(systemName: "waveform")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(BSColor.Stage.accent)
                     }
+                    ListeningSleeveMarks(room: room, disc: disc)
                     Text(disc.title)
                         .font(BSListeningTokens.captionMedium)
                         .lineLimit(1)
                         .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
                 }
                 .frame(width: 94, alignment: .leading)
-                .frame(minHeight: 18)
+                .frame(height: 18, alignment: .leading)
             }
             .frame(width: 96, alignment: .leading)
         }
         .buttonStyle(BSListeningPressStyle(scale: 0.95))
+        .overlay(alignment: .topTrailing) {
+            Color.clear
+                .frame(width: 44, height: 84)
+                .contentShape(Rectangle())
+                .highPriorityGesture(manualDiscDrag)
+                .accessibilityHidden(true)
+        }
+        .simultaneousGesture(dragCompletionFallback)
         .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")
         .accessibilityValue(ListeningSleeveMarks.accessibilityText(room: room, disc: disc))
         .accessibilityAction(named: BSLocalization.text("取出并放入播放机")) {
             room.mechanism.takeFromCabinet(disc)
         }
         .accessibilityIdentifier("listening.disc.\(disc.id)")
+    }
+
+    private var manualDiscDrag: some Gesture {
+        LongPressGesture(minimumDuration: 0.22, maximumDistance: 24)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .named("listeningContent")))
+            .onChanged { value in
+                switch value {
+                case .first(true):
+                    beginDragIfNeeded()
+                case let .second(true, drag?):
+                    beginDragIfNeeded()
+                    updateDrag(drag.translation)
+                default:
+                    break
+                }
+            }
+            .onEnded { value in
+                if case let .second(true, drag?) = value {
+                    updateDrag(drag.translation)
+                }
+                finishDragIfNeeded()
+                Task { @MainActor in
+                    await Task.yield()
+                    suppressTap = false
+                }
+            }
+    }
+
+    private var dragCompletionFallback: some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .named("listeningContent"))
+            .onEnded { value in
+                guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
+                updateDrag(value.translation)
+                finishDragIfNeeded()
+            }
+    }
+
+    private func beginDragIfNeeded() {
+        guard !room.mechanism.isCabinetDragging else { return }
+        suppressTap = true
+        _ = room.mechanism.beginCabinetDrag(disc)
+    }
+
+    private func updateDrag(_ translation: CGSize) {
+        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
+        let tilt = room.mechanism.configuration.geometry.tiltDegrees * .pi / 180
+        room.mechanism.dragDisc(CGSize(
+            width: translation.width / scale,
+            height: translation.height / scale / cos(tilt)
+        ))
+    }
+
+    private func finishDragIfNeeded() {
+        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else { return }
+        room.mechanism.endDiscDrag()
     }
 }

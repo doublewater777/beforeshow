@@ -426,7 +426,6 @@ private struct CurrentShowEmptyStateView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     emptyHeaderButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
-                    emptyHeaderButton(icon: "list.bullet.rectangle", label: BSLocalization.text("全部现场"), action: onOpenShowLibrary)
                     emptyHeaderButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
                 }
             }

@@ -124,6 +124,32 @@ final class OpeningMemoryWindowTests: XCTestCase {
         )
     }
 
+    func testQuickActionsOmitRouteWhenLocationEmbedsIt() {
+        XCTAssertFalse(
+            CurrentShowQuickAction.actions(for: .pre, embedsRouteInLocation: true)
+                .contains(.route)
+        )
+        XCTAssertTrue(
+            CurrentShowQuickAction.actions(for: .pre, embedsRouteInLocation: false)
+                .contains(.route)
+        )
+        XCTAssertEqual(
+            CurrentShowQuickAction.actions(
+                for: .live,
+                inOpeningMemoryWindow: true,
+                embedsRouteInLocation: true
+            ).first,
+            .endShow
+        )
+        XCTAssertFalse(
+            CurrentShowQuickAction.actions(
+                for: .live,
+                inOpeningMemoryWindow: true,
+                embedsRouteInLocation: true
+            ).contains(.route)
+        )
+    }
+
     func testMultiDayShowUsesFirstOpeningOnly() throws {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!

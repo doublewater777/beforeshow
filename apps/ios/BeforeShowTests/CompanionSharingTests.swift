@@ -1027,6 +1027,28 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.companionNames, [])
         XCTAssertNil(show.companionName)
     }
+
+    func testPreShowPrimaryActionDoesNotForceCompanion() throws {
+        let start = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "开场前倒计时", date: start, startTime: start)
+        let now = start.addingTimeInterval(-3600)
+        let timeState = CurrentShowTimeState(show: show, now: now)
+        let action = HomeCountdownLockup.primaryAction(
+            phase: HomeShowPhase(timeState: timeState, now: now),
+            timeState: timeState,
+            now: now,
+            showStart: start,
+            hasConfirmedEnd: false,
+            hasEndHandler: true
+        )
+        XCTAssertNil(action, "Pre-show should not force companion button into the countdown card")
+    }
+
+    func testCompanionFootprintShareTokensRenderDimensions() {
+        XCTAssertEqual(CompanionFootprintShareTokens.renderSize.width, 360)
+        XCTAssertEqual(CompanionFootprintShareTokens.renderSize.height, 480)
+        XCTAssertEqual(CompanionFootprintShareTokens.renderScale, 3)
+    }
 }
 
 // MARK: - Helpers

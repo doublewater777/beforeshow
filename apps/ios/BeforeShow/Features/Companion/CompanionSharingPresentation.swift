@@ -37,7 +37,7 @@ enum CompanionSharingPresentation {
             case .conflict:
                 return BSLocalization.text("同行状态已变更，请刷新后重试")
             case .statusSyncPending:
-                return BSLocalization.text("已接受邀请，但状态同步失败，请稍后刷新")
+                return BSLocalization.text("已接受邀请，正在等待云端状态同步")
             }
         }
         if error is ShowCompanionMutationError {
@@ -60,9 +60,9 @@ enum CompanionSharingPresentation {
         case .quotaExceeded:
             return BSLocalization.text("iCloud 空间不足，无法创建同行邀请")
         case .invalidArguments, .constraintViolation:
-            return BSLocalization.text("邀请创建失败：CloudKit 拒绝了这次请求")
+            return BSLocalization.text("邀请创建失败，请稍后重试")
         case .serverRejectedRequest:
-            return BSLocalization.text("邀请创建失败：CloudKit 容器未就绪，请在 Xcode 打开 iCloud 能力并确认 Development 环境可用")
+            return BSLocalization.text("云端服务暂时未就绪，请稍后重试")
         default:
             return BSLocalization.format("邀请创建失败：%@", error.localizedDescription)
         }

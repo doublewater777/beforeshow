@@ -35,31 +35,24 @@ struct ListeningAtmosphere: View {
 struct ListeningCurrentSong: View {
     let room: ListeningRoomCoordinator
 
-    private var stateText: String {
-        if room.busy { return BSLocalization.text("加载中…") }
-        if let error = room.playbackError { return error }
-        switch room.playbackState {
-        case .playing: return BSLocalization.text("正在播放")
-        case .paused: return BSLocalization.text("已暂停")
-        case .finished: return BSLocalization.text("播放结束")
-        default: return BSLocalization.text("已停止")
-        }
-    }
-
     var body: some View {
-        if room.mechanism.position == .seated, let track = room.track {
-            VStack(spacing: BSSpacing.xs) {
-                Text(track.title).font(BSListeningTokens.headline)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                Text(track.artistName).font(BSListeningTokens.body)
-                    .foregroundStyle(BSColor.Stage.muted)
-                Text("\(stateText) · \(room.capabilityTitle)")
-                    .font(BSListeningTokens.caption).foregroundStyle(BSColor.Stage.accent)
+        ZStack {
+            if room.mechanism.position == .seated, let track = room.track {
+                VStack(spacing: 3) {
+                    Text(track.title).font(BSListeningTokens.headline)
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    Text(track.artistName).font(BSListeningTokens.caption)
+                        .foregroundStyle(BSColor.Stage.muted)
+                }
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("listening.currentSong")
+                .transition(.opacity.combined(with: .scale(scale: 0.96)))
             }
-            .multilineTextAlignment(.center)
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("listening.currentSong")
         }
+        .frame(minHeight: 46)
+        .animation(.easeInOut(duration: 0.25), value: room.track?.id)
+        .animation(.easeInOut(duration: 0.25), value: room.mechanism.position)
     }
 }

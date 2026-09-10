@@ -13,12 +13,12 @@ struct AddShowLinkFailurePresentation: Equatable {
             case .unsupportedSource:
                 return Self(
                     title: BSLocalization.text("这个链接暂不支持"),
-                    message: BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary)
+                    message: BSLocalization.format("目前支持：%@。可以改用手动填写。", ShowLinkPlatformCatalog.supportSummary)
                 )
             case .missingDate:
                 return Self(
                     title: BSLocalization.text("还缺少现场信息"),
-                    message: BSLocalization.text("没有解析到有效日期，请在下方补充后再保存。")
+                    message: BSLocalization.text("没有解析到有效日期。可以改用手动填写，把日期补上再保存。")
                 )
             }
         }
@@ -26,7 +26,7 @@ struct AddShowLinkFailurePresentation: Equatable {
         guard let parsingError = error as? ShowLinkParsingError else {
             return Self(
                 title: BSLocalization.text("链接解析失败"),
-                message: BSLocalization.text("暂时没能读出完整信息。你可以重试，或继续在下方手动填写。")
+                message: BSLocalization.text("暂时没能读出完整信息。可以重试，或改用手动填写。")
             )
         }
 
@@ -34,7 +34,7 @@ struct AddShowLinkFailurePresentation: Equatable {
         case .unsupportedSource:
             return Self(
                 title: BSLocalization.text("这个链接暂不支持"),
-                message: BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary)
+                message: BSLocalization.format("目前支持：%@。可以改用手动填写。", ShowLinkPlatformCatalog.supportSummary)
             )
         case .networkFailure:
             return Self(
@@ -44,18 +44,74 @@ struct AddShowLinkFailurePresentation: Equatable {
         case .invalidResponse:
             return Self(
                 title: BSLocalization.text("还缺少现场信息"),
-                message: BSLocalization.text("没有解析到有效日期，请在下方补充后再保存。")
+                message: BSLocalization.text("没有解析到有效日期。可以改用手动填写，把日期补上再保存。")
             )
         case .notAShow:
             return Self(
                 title: BSLocalization.text("这不是演出链接"),
-                message: BSLocalization.text("这个链接指向的是周边商品，没有演出场次信息。你可以换个演出链接重试，或在下方手动填写。")
+                message: BSLocalization.text("这个链接指向的是周边商品，没有演出场次信息。可以换个演出链接重试，或改用手动填写。")
             )
         case .parseFailed:
             return Self(
                 title: BSLocalization.text("链接解析失败"),
-                message: BSLocalization.text("暂时没能读出完整信息。你可以重试，或继续在下方手动填写。")
+                message: BSLocalization.text("暂时没能读出完整信息。可以重试，或改用手动填写。")
             )
+        }
+    }
+}
+
+struct AddShowPasteboardLinkSuggestion: Equatable {
+    let link: String
+    let platform: String
+
+    static func resolve(from raw: String?) -> Self? {
+        guard let raw else { return nil }
+        let candidate = ShowLinkDraftParser.normalizedLink(raw)
+        guard !candidate.isEmpty,
+              let host = URL(string: candidate)?.host()?.lowercased(),
+              let platform = ShowLinkPlatformCatalog.displayName(forHost: host) else { return nil }
+        return Self(link: candidate, platform: platform)
+    }
+
+    static func pasteableLink(from raw: String?) -> String? {
+        if let resolved = resolve(from: raw) {
+            return resolved.link
+        }
+        guard let raw else { return nil }
+        let candidate = ShowLinkDraftParser.normalizedLink(raw)
+        return candidate.isEmpty ? nil : candidate
+    }
+
+    static func shouldOfferClipboardChip(
+        hasClipboardText: Bool,
+        linkText: String,
+        hasImportedDraft: Bool
+    ) -> Bool {
+        hasClipboardText
+            && !hasImportedDraft
+            && linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
+enum AddShowPasteOffer: Equatable {
+    case knownPlatform(AddShowPasteboardLinkSuggestion)
+    case clipboardText
+
+    var chipTitle: String {
+        switch self {
+        case .knownPlatform(let suggestion):
+            return BSLocalization.format("粘贴%@链接？", suggestion.platform)
+        case .clipboardText:
+            return BSLocalization.text("粘贴剪贴板里的链接？")
+        }
+    }
+
+    var accessibilityLabel: String {
+        switch self {
+        case .knownPlatform(let suggestion):
+            return BSLocalization.format("粘贴%@链接并开始解析", suggestion.platform)
+        case .clipboardText:
+            return BSLocalization.text("粘贴剪贴板里的链接并开始解析")
         }
     }
 }
@@ -154,7 +210,7 @@ struct AddShowLinkFailureCard: View {
 
             HStack(spacing: 10) {
                 Button(action: onRetry) {
-                    Text("换个链接重试")
+                    Text(BSLocalization.text("换个链接重试"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(BSColor.textPrimary)
                         .frame(maxWidth: .infinity)
@@ -169,7 +225,7 @@ struct AddShowLinkFailureCard: View {
                 .buttonStyle(.plain)
 
                 Button(action: onManual) {
-                    Text("转手动填写")
+                    Text(BSLocalization.text("改用手动填写"))
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(BSColor.Stage.accent)
                         .frame(maxWidth: .infinity)

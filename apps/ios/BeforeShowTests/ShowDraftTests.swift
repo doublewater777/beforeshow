@@ -441,6 +441,79 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertEqual(notAShow.title, "这不是演出链接")
         XCTAssertTrue(notAShow.message.contains("周边商品"))
         XCTAssertTrue(notAShow.message.contains("手动填写"))
+        XCTAssertFalse(notAShow.message.contains("下方"))
+    }
+
+    func testLinkFailureCopyPointsToManualActionInsteadOfMissingForm() {
+        let errors: [Error] = [
+            ShowLinkParsingError.unsupportedSource,
+            ShowLinkParsingError.invalidResponse,
+            ShowLinkParsingError.notAShow,
+            ShowLinkParsingError.parseFailed("incomplete"),
+            ShowLinkDraftParser.ParseError.unsupportedSource,
+            ShowLinkDraftParser.ParseError.missingDate
+        ]
+
+        for error in errors {
+            let presentation = AddShowLinkFailurePresentation.resolve(error)
+            XCTAssertFalse(
+                presentation.message.contains("下方"),
+                "\(presentation.title): \(presentation.message)"
+            )
+            XCTAssertTrue(
+                presentation.message.contains("改用手动填写"),
+                "\(presentation.title): \(presentation.message)"
+            )
+        }
+    }
+
+    func testPasteboardSuggestionRecognizesSupportedLinkAndIgnoresOthers() {
+        let damai = AddShowPasteboardLinkSuggestion.resolve(
+            from: "https://m.damai.cn/item.htm?id=1"
+        )
+        XCTAssertEqual(damai?.platform, "大麦")
+        XCTAssertEqual(damai?.link, "https://m.damai.cn/item.htm?id=1")
+
+        let schemeless = AddShowPasteboardLinkSuggestion.resolve(
+            from: "detail.damai.cn/item.htm?id=2"
+        )
+        XCTAssertEqual(schemeless?.platform, "大麦")
+        XCTAssertEqual(schemeless?.link, "https://detail.damai.cn/item.htm?id=2")
+
+        XCTAssertNil(AddShowPasteboardLinkSuggestion.resolve(from: "https://example.com/show"))
+        XCTAssertNil(AddShowPasteboardLinkSuggestion.resolve(from: "  "))
+        XCTAssertNil(AddShowPasteboardLinkSuggestion.resolve(from: nil))
+    }
+
+    func testClipboardPasteChipAppearsWithoutReadingPasteboardContents() {
+        XCTAssertTrue(
+            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
+                hasClipboardText: true,
+                linkText: "",
+                hasImportedDraft: false
+            )
+        )
+        XCTAssertFalse(
+            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
+                hasClipboardText: true,
+                linkText: "https://m.damai.cn/item.htm?id=1",
+                hasImportedDraft: false
+            )
+        )
+        XCTAssertFalse(
+            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
+                hasClipboardText: false,
+                linkText: "",
+                hasImportedDraft: false
+            )
+        )
+        XCTAssertFalse(
+            AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
+                hasClipboardText: true,
+                linkText: "",
+                hasImportedDraft: true
+            )
+        )
     }
 
     func testShowLinkPlatformCatalogRecognizesSupportedHostsAndRejectsLookalikes() {

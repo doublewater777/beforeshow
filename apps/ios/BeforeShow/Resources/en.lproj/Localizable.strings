@@ -130,6 +130,7 @@
 "最常看：%1$@\n第一场：%2$@" = "Top Artist: %1$@\nFirst Show: %2$@";
 "有未保存的修改" = "There are unsaved changes";
 "查看我的现场 · %lld 场" = "View My Shows · %lld";
+"查看全部现场 · %lld 场" = "View All Shows · %lld";
 "档案起点" = "Archive Beginning";
 "次" = "times";
 "正在准备邀请" = "Preparing invitation";
@@ -185,6 +186,7 @@
 "足迹" = "Footprints";
 "足迹详情" = "Footprint details";
 "转手动填写" = "Switch to Manual Entry";
+"改用手动填写" = "Fill in manually";
 "返回" = "Back";
 "还有一周" = "One week to go";
 "还没加封面" = "No cover added yet";
@@ -423,7 +425,7 @@
 "时间范围无效，结束时间需要晚于开始时间" = "Invalid time range; end time must be after start time";
 "暂停动态封面" = "Pause Dynamic Cover";
 "暂无匹配，可直接保存手输名字" = "No match yet; you can save the typed name directly";
-"暂时没能读出完整信息。你可以重试，或继续在下方手动填写。" = "Couldn't read the full info for now. You can retry, or continue filling it in manually below.";
+"暂时没能读出完整信息。可以重试，或改用手动填写。" = "Couldn't read the full info for now. You can retry, or fill it in manually.";
 "更换视频" = "Change Video";
 "更新延期信息" = "Update Postponement Info";
 "更适合每年看很多现场" = "Better if you attend many shows a year";
@@ -445,8 +447,7 @@
 "正在解析" = "Parsing";
 "正在解析…" = "Parsing…";
 "没有撤销成功，请重试" = "Undo didn't succeed; please retry";
-"没有解析到有效日期，请在下方补充后再保存。" = "No valid date was found; fill it in below before saving.";
-"没有识别到可用的现场信息。可以继续在下方手动填写。" = "No usable show info was recognized. You can fill it in manually below.";
+"没有解析到有效日期。可以改用手动填写，把日期补上再保存。" = "No valid date was found. Fill it in manually, then save.";
 "没有读到这张图片" = "Couldn't read this image";
 "添加动态封面视频" = "Add Dynamic Cover Video";
 "添加视频" = "Add Video";
@@ -463,7 +464,7 @@
 "生成 PNG 并打开系统分享" = "Generate a PNG and open system share";
 "生成散场卡" = "Generate End Card";
 "留下些什么？" = "What do you leave behind?";
-"目前支持：%@。你可以继续在下方手动填写。" = "Currently supported: %@. You can continue filling it in manually below.";
+"目前支持：%@。可以改用手动填写。" = "Currently supported: %@. You can fill it in manually.";
 "知道了" = "Got It";
 "确认使用这个日期" = "Use This Date";
 "确认使用这个时间" = "Use This Time";
@@ -627,7 +628,7 @@ First show: %@";
 场次、城市和回忆都会慢慢累积。" = "Backfill your first show;\\nshows, cities, and memories will slowly accumulate.";
 "识别进度" = "Recognition Progress";
 "调试" = "Debug";
-"这个链接指向的是周边商品，没有演出场次信息。你可以换个演出链接重试，或在下方手动填写。" = "This link points to merchandise, not a show. Try a show link instead, or fill in the details below.";
+"这个链接指向的是周边商品，没有演出场次信息。可以换个演出链接重试，或改用手动填写。" = "This link points to merchandise, not a show. Try a show link, or fill it in manually.";
 "还缺少现场信息" = "Show info still incomplete";
 "这个链接暂不支持" = "This link isn't supported";
 "这不是演出链接" = "This isn't a show link";
@@ -645,6 +646,7 @@ First show: %@";
 "链接解析失败" = "Link Parse Failed";
 
 "路线" = "Directions";
+"打开路线" = "Opens directions";
 "通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。" = "Invite a friend via system share. Once they accept, both of you are synced as confirmed companions.";
 "通过系统分享邀请朋友。对方接受后，会加入这场同行。" = "Invite friends via system share. Once they accept, they join this companion group.";
 
@@ -1123,6 +1125,8 @@ First show: %@";
 "选择其他平台" = "Choose another platform";
 "粘贴%@链接？" = "Paste %@ link?";
 "粘贴%@链接并开始解析" = "Paste %@ link and start parsing";
+"粘贴剪贴板里的链接？" = "Paste the link from the clipboard?";
+"粘贴剪贴板里的链接并开始解析" = "Paste the clipboard link and start parsing";
 "被采纳的反馈会获得奖励" = "Adopted feedback earns a reward";
 
 "「夜航」巡演 · 上海站" = "Night Voyage Tour · Shanghai";
@@ -1559,3 +1563,24 @@ First show: %@";
 "搜索演出曲目或艺人" = "Search show tracks or artists";
 "预习听过" = "Heard in preview";
 "未找到匹配歌曲，可在下方手动添加" = "No matching songs found; you can add manually below";
+
+/* Companion UX Enhancements */
+"再次发送邀请" = "Resend Invitation";
+"检查状态" = "Check Status";
+"正在检查..." = "Checking...";
+"分享共同足迹卡" = "Share Footprint Card";
+"BEFORESHOW · 共同足迹" = "BEFORESHOW · SHARED FOOTPRINTS";
+"BeforeShow · 现场共同记忆" = "BeforeShow · Shared Live Memories";
+"已收进共同足迹" = "Added to Shared Footprints";
+"记录你们一起走过的现场，可保存图片或直接分享。" = "Preserve the shows you experienced together. Save as an image or share directly.";
+"正在重置上一份邀请，请稍候再试" = "Resetting previous invitation. Please try again shortly.";
+"这场现场已有正在进行的同行邀请，请稍候检查状态" = "This show already has an active companion invitation. Please check status shortly.";
+"云端服务暂时未就绪，请稍后重试" = "Cloud service temporarily unavailable. Please try again later.";
+"已接受邀请，正在等待云端状态同步" = "Invitation accepted. Waiting for cloud sync.";
+
+/* Show Library Empty States */
+"暂无即将开始的现场" = "No upcoming shows";
+"添加新的演出，或在全部记录中查看历史" = "Add a new show or view your history in All.";
+"暂无已结束的现场" = "No past shows";
+"演出结束后会自动归档到这里" = "Shows will be archived here once ended.";
+"尝试更换筛选分类" = "Try switching the filter category.";

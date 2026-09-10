@@ -28,7 +28,7 @@ struct ListenRootView: View {
    }
    var body: some View {
        Group {
-           if let room, let show, room.show?.id == show.id {
+           if let room, let show, room.show?.id == show.id, room.initialLoaded {
                ListeningRoomView(room: room, show: show)
            } else if show != nil {
                 ListeningPreparingView()
@@ -40,6 +40,7 @@ struct ListenRootView: View {
                 )
            }
        }
+       .animation(.easeInOut(duration: 0.25), value: room?.initialLoaded)
        .background(BSColor.Stage.background.ignoresSafeArea())
         .sheet(isPresented: $isShowingAddShow) {
             AddShowCoordinatorSheet()
@@ -113,12 +114,16 @@ struct ListeningRoomView: View {
                                     matchingArtistName = name
                                 }
                             )
-                            ListeningCabinetView(room: room, showAll: { showsCabinet = true }) {
-                                room.browser.open($0)
-                            }
                         }
                         let geometry = room.mechanism.configuration.geometry
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
+                        if !room.browseArtists.isEmpty {
+                            if !room.shelfDiscs.isEmpty || room.access.authorizationStatus == .authorized {
+                                ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }) {
+                                    room.browser.open($0)
+                                }
+                            }
+                        }
                         ListeningMachineView(room: room, scale: scale)
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
@@ -218,7 +223,7 @@ struct ListeningRoomView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "music.note")
                         .font(.system(size: 11, weight: .semibold))
-                    Text(BSLocalization.text("未授权"))
+                    Text(BSLocalization.text("连接 Music"))
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundStyle(BSColor.Stage.accent)
