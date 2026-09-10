@@ -43,7 +43,9 @@ struct ListeningCatalogStatusView: View {
             Button(actionTitle, action: action)
                 .font(BSListeningTokens.captionMedium)
                 .foregroundStyle(BSColor.Stage.accent)
-                .frame(minHeight: BSLayout.minTouchTarget)
+                .padding(.horizontal, BSSpacing.md)
+                .frame(minWidth: BSLayout.minTouchTarget, minHeight: BSLayout.minTouchTarget)
+                .contentShape(Rectangle())
                 .buttonStyle(BSListeningPressStyle())
         }
     }
