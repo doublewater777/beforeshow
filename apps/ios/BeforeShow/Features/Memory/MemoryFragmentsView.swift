@@ -125,14 +125,14 @@ struct MemoryFragmentsView: View {
             .padding(.bottom, 20)
         }
         .bsToastOverlay(toast, bottomPadding: 80)
-        .overlay(alignment: .bottom) {
-            if pendingDelete != nil {
-                HStack(spacing: BSSpacing.md) {
-                    Text("已删除这条记忆")
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Button("撤销", action: undoDelete)
-                        .font(.system(size: 13, weight: .semibold))
+       .overlay(alignment: .bottom) {
+           if pendingDelete != nil {
+               HStack(spacing: BSSpacing.md) {
+                    Text(BSLocalization.text("已删除这条记忆"))
+                       .font(BSFont.caption)
+                       .foregroundColor(BSColor.Stage.foreground)
+                    Button(BSLocalization.text("撤销"), action: undoDelete)
+                       .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(BSColor.Stage.accent)
                 }
                 .padding(.horizontal, BSSpacing.md)
@@ -264,16 +264,16 @@ struct MemoryFragmentsView: View {
     private var header: some View {
         let stats = timelineStats
         return VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            Text(headerEyebrow)
-                .font(.system(size: 10, weight: .semibold))
-                .tracking(1.1)
-                .foregroundColor(BSColor.Stage.accent)
-            Text("这场现场的记忆")
-                .font(.system(size: 20, weight: .bold))
-                .foregroundColor(BSColor.Stage.foreground)
-            Text("照片、视频和小记都按现场阶段收在这里。")
-                .font(.system(size: 11))
-                .foregroundColor(BSColor.Stage.muted)
+           Text(headerEyebrow)
+               .font(.system(size: 10, weight: .semibold))
+               .tracking(1.1)
+               .foregroundColor(BSColor.Stage.accent)
+            Text(BSLocalization.text("这场现场的记忆"))
+               .font(.system(size: 20, weight: .bold))
+               .foregroundColor(BSColor.Stage.foreground)
+            Text(BSLocalization.text("照片、视频和小记都按现场阶段收在这里。"))
+               .font(.system(size: 11))
+               .foregroundColor(BSColor.Stage.muted)
             HStack(spacing: BSSpacing.lg) {
                 timelineStat(value: "\(stats.memories)", label: BSLocalization.text("条记忆"))
                 timelineStat(value: "\(stats.photos)", label: BSLocalization.text("照片"))
@@ -311,16 +311,16 @@ struct MemoryFragmentsView: View {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 24, weight: .light))
                 .foregroundColor(BSColor.Stage.muted)
-                .frame(width: 68, height: 68)
-                .background(Color.white.opacity(0.04), in: Circle())
-                .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
-            Text("还没有记忆碎片")
-                .font(.system(size: 20, weight: .regular))
-                .foregroundColor(BSColor.Stage.foreground)
-                .padding(.top, 18)
-            Text("拍一张照片、选择一段短视频，\n或者写下此刻的一句话。")
-                .font(.system(size: 13))
-                .foregroundColor(BSColor.Stage.muted)
+               .frame(width: 68, height: 68)
+               .background(Color.white.opacity(0.04), in: Circle())
+               .overlay(Circle().stroke(BSColor.Stage.border, lineWidth: 1))
+            Text(BSLocalization.text("还没有记忆碎片"))
+               .font(.system(size: 20, weight: .regular))
+               .foregroundColor(BSColor.Stage.foreground)
+               .padding(.top, 18)
+            Text(BSLocalization.text("拍一张照片、选择一段短视频，\n或者写下此刻的一句话。"))
+               .font(.system(size: 13))
+               .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
                 .lineSpacing(5)
                 .padding(.top, 9)

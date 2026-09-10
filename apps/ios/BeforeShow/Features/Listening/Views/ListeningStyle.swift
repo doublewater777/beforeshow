@@ -99,31 +99,60 @@ struct ListeningDiscArtwork: View {
 struct ListeningArtwork: View {
     let url: URL?
     var title = "BeforeShow"
+    @State private var image: UIImage?
+
+    init(url: URL?, title: String = "BeforeShow") {
+        self.url = url
+        self.title = title
+        _image = State(initialValue: url.flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) })
+    }
+
     private var tone: Color {
         let palette = [BSColor.Stage.glowBlue, BSColor.Stage.prepare, BSColor.Stage.accent, BSColor.Stage.success]
         return palette[title.utf8.reduce(0) { ($0 + Int($1)) % palette.count }]
     }
+
     var body: some View {
         GeometryReader { proxy in
-            AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
-                ZStack(alignment: .bottomLeading) {
-                    LinearGradient(colors: [tone.opacity(0.75), BSColor.Stage.surface], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    ZStack {
-                        ForEach(0..<8) { index in
-                            Circle().stroke(tone.opacity(0.35), lineWidth: 1)
-                                .padding(CGFloat(index) * proxy.size.width * 0.035)
-                        }
-                    }.frame(width: proxy.size.width * 1.15, height: proxy.size.width * 1.15)
-                        .offset(x: proxy.size.width * 0.23, y: -proxy.size.height * 0.22)
-                    VStack(alignment: .leading, spacing: BSSpacing.sm) {
-                        Text("BEFORESHOW").font(.system(size: max(7, proxy.size.width * 0.045), weight: .medium, design: .monospaced)).tracking(2)
-                        Spacer()
-                        Text(title).font(.system(size: max(14, proxy.size.width * 0.13), weight: .semibold)).lineLimit(3)
-                        Rectangle().fill(BSColor.Stage.accent).frame(width: proxy.size.width * 0.18, height: 2)
-                    }.padding(proxy.size.width * 0.1)
-                        .foregroundStyle(BSColor.Stage.heroIvory)
+            let size = proxy.size.width
+            Group {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    placeholder(size: size)
                 }
-            }.frame(width: proxy.size.width, height: proxy.size.height).clipped()
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+            .clipped()
+        }
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            if image == nil {
+                image = ShowCoverImageCache.shared.memoryImage(for: url)
+            }
+            if image == nil {
+                image = await ShowCoverImageCache.shared.image(from: url)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func placeholder(size: CGFloat) -> some View {
+        ZStack {
+            LinearGradient(colors: [tone.opacity(0.65), BSColor.Stage.surface], startPoint: .topLeading, endPoint: .bottomTrailing)
+            // Concentric acoustic soundwaves / vinyl grooves
+            ZStack {
+                ForEach(0..<6) { index in
+                    Circle().stroke(tone.opacity(0.18 + Double(index) * 0.04), lineWidth: 1)
+                        .padding(CGFloat(index) * size * 0.06 + 8)
+                }
+            }
+            Circle()
+                .stroke(BSColor.Stage.accent.opacity(0.4), lineWidth: 1.5)
+                .frame(width: size * 0.32, height: size * 0.32)
+            Circle()
+                .fill(BSColor.Stage.surfaceRaised.opacity(0.85))
+                .frame(width: size * 0.22, height: size * 0.22)
         }
     }
 }
@@ -134,16 +163,18 @@ struct ListeningFramesKey: PreferenceKey {
         value.merge(nextValue(), uniquingKeysWith: { _, new in new })
     }
 }
+
 extension View {
     func listeningFrame(_ name: String) -> some View {
         background(GeometryReader { proxy in
-            Color.clear.preference(key: ListeningFramesKey.self, value: [name: proxy.frame(in: .named("listeningRoom"))])
+            Color.clear.preference(key: ListeningFramesKey.self, value: [name: proxy.frame(in: .named("listeningContent"))])
         })
     }
 }
 
 extension ListeningRoomCoordinator {
     func perform(_ control: CDControl) {
+        CDSoundPlayer.shared.play("button")
         switch control {
         case .previous: skip(-1)
         case .next: skip(1)
@@ -157,12 +188,36 @@ extension ListeningRoomCoordinator {
 struct ListeningArtistArtwork: View {
     let url: URL?
     let name: String
+    @State private var image: UIImage?
+
+    init(url: URL?, name: String) {
+        self.url = url
+        self.name = name
+        _image = State(initialValue: url.flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) })
+    }
+
     var body: some View {
-        AsyncImage(url: url) { image in image.resizable().scaledToFill() } placeholder: {
-            ZStack {
-                BSColor.Stage.surfaceRaised
-                Text(String(name.prefix(1))).font(.largeTitle).foregroundStyle(BSColor.Stage.muted)
+        Group {
+            if let image {
+                Image(uiImage: image).resizable().scaledToFill()
+            } else {
+                ZStack {
+                    BSColor.Stage.surfaceRaised
+                    Text(String(name.prefix(1))).font(.largeTitle).foregroundStyle(BSColor.Stage.muted)
+                }
             }
-        }.clipped().accessibilityHidden(true)
+        }
+        .clipped()
+        .accessibilityHidden(true)
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            if image == nil {
+                image = ShowCoverImageCache.shared.memoryImage(for: url)
+            }
+            if image == nil {
+                image = await ShowCoverImageCache.shared.image(from: url)
+            }
+        }
     }
 }
+

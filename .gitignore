@@ -91,3 +91,5 @@ apps/ios/**/prototypes/
 !/docs/adr/0027-match-companion-history-by-name.md
 !/docs/footprint-detail-v4.1.md
 docs/screenshots/**
+
+!/docs/listening-ui-restructure.md

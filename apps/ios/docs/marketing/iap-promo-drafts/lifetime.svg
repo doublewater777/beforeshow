@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="52%" cy="45%" r="72%">
+      <stop stop-color="#242015"/>
+      <stop offset="0.34" stop-color="#11121a"/>
+      <stop offset="1" stop-color="#040507"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#fff0b8"/>
+      <stop offset="0.38" stop-color="#ffcb58"/>
+      <stop offset="1" stop-color="#f27d43"/>
+    </linearGradient>
+    <filter id="glow"><feGaussianBlur stdDeviation="18"/></filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="4"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="716" cy="520" r="276" fill="none" stroke="#e58e46" stroke-opacity="0.2" stroke-width="54" filter="url(#glow)"/>
+  <circle cx="716" cy="520" r="246" fill="none" stroke="url(#gold)" stroke-width="8" opacity="0.9"/>
+  <circle cx="716" cy="520" r="184" fill="#050507" stroke="#ffdb88" stroke-opacity="0.35" stroke-width="2"/>
+  <path d="M716 275 L716 765 M471 520 L961 520" stroke="#ffdb88" stroke-opacity="0.16" stroke-width="1"/>
+  <path d="M540 700 C622 754 810 754 892 700" fill="none" stroke="url(#gold)" stroke-width="2" opacity="0.6"/>
+  <g fill="#fff7dc" font-family="SF Pro Display, PingFang SC, sans-serif">
+    <text x="78" y="88" font-size="18" font-weight="700" letter-spacing="5" opacity="0.72">BEFORESHOW PRO</text>
+    <text x="78" y="210" font-size="22" font-weight="700" letter-spacing="5" fill="#ffcf69">LIFETIME / 终身</text>
+    <text x="78" y="334" font-size="105" font-weight="700" letter-spacing="-4">留下每场</text>
+    <text x="82" y="382" font-size="28" opacity="0.78">一次买断，永久靠近现场</text>
+    <text x="566" y="542" text-anchor="middle" font-size="80" font-weight="300" letter-spacing="-2" fill="url(#gold)">∞</text>
+    <text x="78" y="816" font-size="18" letter-spacing="4" opacity="0.64">ONE-TIME PURCHASE / 一次买断</text>
+    <text x="78" y="870" font-size="20" letter-spacing="2" opacity="0.86">UNLIMITED SHOWS, FOREVER</text>
+  </g>
+  <rect x="78" y="910" width="868" height="1" fill="#fff7dc" opacity="0.18"/>
+  <text x="944" y="967" text-anchor="end" font-family="SF Pro Display, PingFang SC, sans-serif" font-size="16" letter-spacing="3" fill="#fff7dc" opacity="0.45">03</text>
+</svg>

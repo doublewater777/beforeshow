@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="78%">
+      <stop stop-color="#2b102d"/>
+      <stop offset="0.45" stop-color="#120b1d"/>
+      <stop offset="1" stop-color="#050407"/>
+    </radialGradient>
+    <linearGradient id="curtain" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#ff5e9b" stop-opacity="0.08"/>
+      <stop offset="0.5" stop-color="#b271ff" stop-opacity="0.74"/>
+      <stop offset="1" stop-color="#ffb45d" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="word" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#ff7db4"/>
+      <stop offset="0.5" stop-color="#c28dff"/>
+      <stop offset="1" stop-color="#ffd180"/>
+    </linearGradient>
+    <filter id="blur"><feGaussianBlur stdDeviation="25"/></filter>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <path d="M60 0 L270 0 C350 250 420 352 512 410 C604 352 674 250 754 0 L964 0 C860 344 760 510 648 620 C596 670 570 744 560 1024 L464 1024 C454 744 428 670 376 620 C264 510 164 344 60 0 Z" fill="url(#curtain)" opacity="0.52" filter="url(#blur)"/>
+  <path d="M0 0 L286 0 C350 240 416 360 512 424 C608 360 674 240 738 0 L1024 0 C896 390 770 548 640 672 C588 722 560 806 550 1024 L474 1024 C464 806 436 722 384 672 C254 548 128 390 0 0 Z" fill="url(#curtain)" opacity="0.24"/>
+  <path d="M512 416 L512 922" stroke="#ffd38b" stroke-opacity="0.7" stroke-width="2"/>
+  <circle cx="512" cy="438" r="10" fill="#ffe0a7" filter="url(#blur)"/>
+  <circle cx="512" cy="438" r="3" fill="#fff3cf"/>
+  <g fill="#fff4f3" font-family="SF Pro Display, PingFang SC, sans-serif">
+    <text x="78" y="88" font-size="18" font-weight="700" letter-spacing="5" opacity="0.72">BEFORESHOW PRO</text>
+    <text x="78" y="210" font-size="20" font-weight="700" letter-spacing="4" fill="#ffae77">RETURNING OFFER / 回归特惠</text>
+    <text x="78" y="330" font-size="93" font-weight="700" letter-spacing="-3">再给一场</text>
+    <text x="82" y="380" font-size="28" opacity="0.8">把想去的现场，留给以后</text>
+    <text x="78" y="610" font-size="82" font-weight="700" letter-spacing="-2" fill="url(#word)">LIFETIME</text>
+    <text x="82" y="662" font-size="24" opacity="0.72">终身方案 · 回归用户专属价格</text>
+    <text x="82" y="816" font-size="18" letter-spacing="4" opacity="0.64">ONE-TIME PURCHASE / 一次买断</text>
+    <text x="82" y="870" font-size="20" letter-spacing="2" opacity="0.86">KEEP EVERY SHOW CLOSE</text>
+  </g>
+  <rect x="78" y="910" width="868" height="1" fill="#fff4f3" opacity="0.18"/>
+  <text x="944" y="967" text-anchor="end" font-family="SF Pro Display, PingFang SC, sans-serif" font-size="16" letter-spacing="3" fill="#fff4f3" opacity="0.45">04</text>
+</svg>

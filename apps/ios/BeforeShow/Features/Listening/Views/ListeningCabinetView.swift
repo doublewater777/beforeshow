@@ -2,293 +2,197 @@ import SwiftUI
 
 struct ListeningCabinetView: View {
     @Bindable var room: ListeningRoomCoordinator
-    let scale: CGFloat
     let showAll: () -> Void
     let showDetails: (ListeningDisc) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage("listening.didHintManualDiscDrag") private var didHintManualDiscDrag = false
+    @State private var hintedDiscID: String?
+
+    private var shelfTitle: String {
+        room.browsingArtist?.name ?? BSLocalization.text("BeforeShow 热门合辑")
+    }
+
+   private var shelfCountText: String {
+       if room.catalogState == .loading && room.libraryDiscs.isEmpty {
+           return BSLocalization.text("加载中…")
+       }
+        return BSLocalization.format("%d 张唱片", room.libraryDiscs.count)
+   }
+
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack {
-                Text(BSLocalization.text("唱片柜")).font(BSFont.headline)
+            // Section header with title, count tag, and View All button
+            HStack(alignment: .firstTextBaseline) {
+                HStack(spacing: BSSpacing.xs) {
+                    Text(shelfTitle)
+                        .font(BSFont.headline)
+                        .foregroundStyle(BSColor.Stage.foreground)
+                    Text(shelfCountText)
+                        .font(BSListeningTokens.badge)
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(BSColor.Stage.surfaceRaised, in: Capsule())
+                }
                 Spacer()
                 Button(action: showAll) {
-                    HStack(spacing: BSSpacing.xs) {
-                        Text(BSLocalization.text("全部"))
+                    HStack(spacing: 3) {
+                        Text(BSLocalization.text("查看全部"))
                         Image(systemName: "chevron.right")
-                    }.font(BSFont.caption)
-                        .frame(minHeight: BSLayout.minTouchTarget)
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                    .font(BSFont.caption)
+                    .foregroundStyle(BSColor.Stage.accent)
+                    .frame(minHeight: BSLayout.minTouchTarget)
                 }
-                .foregroundStyle(BSColor.Stage.muted)
-                .accessibilityLabel(BSLocalization.text("全部唱片"))
+                .buttonStyle(BSListeningPressStyle(scale: 0.95))
                 .accessibilityIdentifier("listening.allDiscs")
             }
-            ListeningShelf {
-                ForEach(Array(room.discs.enumerated()), id: \.element.id) { index, disc in
-                    ListeningCompartment(showsLeadingDivider: index == 0) {
-                        ListeningSleeve(disc: disc,
-                                        isLoaded: room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored,
-                                        registersSlot: true)
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { showDetails(disc) }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(disc.title)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { showDetails(disc) }
-                    .accessibilityAction(named: BSLocalization.text("装入 CD")) { room.loadDisc(disc) }
-                }
-            }
-            .listeningFrame("cabinet")
-        }
-        .disabled(room.mechanism.isAutomatic)
-    }
-}
+           .padding(.top, 2)
 
-/// A compartmentalized cubby with vertical wooden partitions.
-struct ListeningCompartment<Content: View>: View {
-    let showsLeadingDivider: Bool
-    @ViewBuilder let content: () -> Content
-
-    init(showsLeadingDivider: Bool = true, @ViewBuilder content: @escaping () -> Content) {
-        self.showsLeadingDivider = showsLeadingDivider
-        self.content = content
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            if showsLeadingDivider {
-                divider
-            }
-            content()
-                .frame(width: ListeningStyle.compartmentWidth)
-            divider
-        }
-    }
-
-    private var divider: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    ListeningStyle.woodHighlight,
-                    ListeningStyle.woodEdge,
-                    ListeningStyle.woodShadow
-                ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-            // Subtle vertical inner shadow on the wood divider sides
-            LinearGradient(
-                colors: [Color.black.opacity(0.65), Color.clear, Color.black.opacity(0.85)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        }
-        .frame(width: ListeningStyle.dividerWidth)
-        .frame(maxHeight: .infinity)
-        .overlay(
-            Rectangle()
-                .fill(Color.white.opacity(0.12))
-                .frame(width: 0.75),
-            alignment: .leading
-        )
-    }
-}
-
-/// One recessed wooden bay, shared by the player's cabinet and the artist shelves.
-struct ListeningShelf<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .bottom, spacing: 0, content: content)
-                .padding(.horizontal, BSSpacing.sm)
-                .padding(.top, BSSpacing.lg)
-                .padding(.bottom, ListeningStyle.shelfLip + BSSpacing.compact)
-        }
-        .frame(height: ListeningStyle.shelfHeight)
-        .background {
-            // Cabinet cavity interior depth with rich wood backing
-            ZStack {
-                LinearGradient(
-                    stops: [
-                        .init(color: ListeningStyle.woodBack, location: 0.0),
-                        .init(color: ListeningStyle.woodShadow, location: 0.4),
-                        .init(color: ListeningStyle.woodFace.opacity(0.9), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                // Top ambient occlusion from the overhead shelf overhang
-                LinearGradient(
-                    colors: [Color.black.opacity(0.92), Color.black.opacity(0.40), Color.clear],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(maxHeight: .infinity, alignment: .top)
-
-                // Left and right side-panel depth shadows
-                HStack {
-                    LinearGradient(colors: [Color.black.opacity(0.7), Color.clear], startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 24)
-                    Spacer()
-                    LinearGradient(colors: [Color.clear, Color.black.opacity(0.7)], startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 24)
-                }
-
-                // Bottom back ledge shadow where sleeves rest
-                LinearGradient(
-                    colors: [Color.clear, Color.black.opacity(0.65)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 36)
-                .frame(maxHeight: .infinity, alignment: .bottom)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm))
-        .overlay {
-            // Outer beveled cabinet frame
-            RoundedRectangle(cornerRadius: BSRadius.sm)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            ListeningStyle.woodHighlight,
-                            ListeningStyle.woodEdge,
-                            ListeningStyle.woodFace,
-                            ListeningStyle.woodShadow
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: ListeningStyle.shelfFrame
-                )
-        }
-        .overlay(alignment: .bottom) {
-            // Solid front retention lip (wooden rail with brass highlight bead)
-            VStack(spacing: 0) {
-                // Brass/gold top lip edge catch light
-                Rectangle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.6), ListeningStyle.woodHighlight, Color.black.opacity(0.3)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .frame(height: 1.5)
-
-                ZStack {
-                    LinearGradient(
-                        colors: [ListeningStyle.woodHighlight.opacity(0.75), ListeningStyle.woodEdge, ListeningStyle.woodShadow],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-
-                    Canvas { context, size in
-                        for row in stride(from: CGFloat(2), to: size.height, by: 2.5) {
-                            var grain = Path()
-                            grain.move(to: CGPoint(x: 0, y: row))
-                            grain.addQuadCurve(
-                                to: CGPoint(x: size.width, y: row),
-                                control: CGPoint(x: size.width * 0.55, y: row + 1.8)
+            if room.catalogState == .loading && room.shelfDiscs.isEmpty {
+                HStack(spacing: BSSpacing.compact) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surface],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
                             )
-                            context.stroke(grain, with: .color(ListeningStyle.caseShadow.opacity(0.4)), lineWidth: 0.5)
-                        }
+                            .frame(width: 96, height: 96)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
+                                    .stroke(BSColor.Stage.border, lineWidth: 1)
+                            )
+                            .overlay {
+                                ProgressView()
+                                    .tint(BSColor.Stage.accent)
+                                    .scaleEffect(0.8)
+                            }
                     }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 4)
+            } else if room.shelfDiscs.isEmpty {
+               Text(BSLocalization.text("暂时没有找到可翻的唱片"))
+                   .font(BSListeningTokens.caption)
+                   .foregroundStyle(BSColor.Stage.muted)
+                   .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+           } else {
+                VStack(spacing: 0) {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(alignment: .bottom, spacing: BSSpacing.compact) {
+                            ForEach(room.shelfDiscs) { disc in
+                                ListeningCabinetDiscButton(
+                                    room: room,
+                                    disc: disc,
+                                    showsPullHint: hintedDiscID == disc.id,
+                                    showDetails: showDetails
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 2)
+                        .padding(.vertical, 4)
+                    }
+
+                    // Physical Rack Beam & Lip
+                    VStack(spacing: 0) {
+                        Rectangle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.12), BSColor.Stage.accent.opacity(0.35), Color.white.opacity(0.08)],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                            .frame(height: 1)
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.22, green: 0.22, blue: 0.24),
+                                Color(red: 0.11, green: 0.11, blue: 0.12),
+                                Color(red: 0.05, green: 0.05, blue: 0.06)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
+                        .shadow(color: Color.black.opacity(0.6), radius: 4, y: 2)
+                    }
+                    .accessibilityHidden(true)
                 }
             }
-            .frame(height: ListeningStyle.shelfLip)
-            .padding(.horizontal, ListeningStyle.shelfFrame)
-            .padding(.bottom, ListeningStyle.shelfFrame)
         }
-        .shadow(color: Color.black.opacity(0.75), radius: 14, y: 8)
+        .foregroundStyle(BSColor.Stage.muted)
+        .listeningFrame("cabinet")
+        .task(id: hintEligibilityKey) {
+            guard !didHintManualDiscDrag, !reduceMotion,
+                  room.mechanism.position == .stored,
+                  let disc = room.shelfDiscs.first else { return }
+            try? await Task.sleep(for: .milliseconds(550))
+            guard !Task.isCancelled else { return }
+            hintedDiscID = disc.id
+            try? await Task.sleep(for: .milliseconds(350))
+            hintedDiscID = nil
+            didHintManualDiscDrag = true
+        }
+    }
+
+    private var hintEligibilityKey: String {
+        "\(room.shelfDiscs.first?.id ?? "none")-\(room.mechanism.position)"
     }
 }
 
-/// A paper sleeve in front of a partly exposed, circular CD.
-struct ListeningSleeve: View {
+private struct ListeningCabinetDiscButton: View {
+    @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
-    let isLoaded: Bool
-    var registersSlot = false
-    var body: some View {
-        VStack(alignment: .center, spacing: BSSpacing.xs) {
-            ZStack(alignment: .bottomLeading) {
-                // CD disc exposed from the top-right of the sleeve (peeking out)
-                Group {
-                    if registersSlot {
-                        discArtwork.listeningFrame("slot:\(disc.id)")
-                    } else { discArtwork }
-                }
-                .offset(
-                    x: ListeningStyle.sleeveWidth - ListeningStyle.shelfDiscSize - 2,
-                    y: -BSSpacing.compact - 4
-                )
-                .opacity(isLoaded ? 0 : 1)
+    let showsPullHint: Bool
+    let showDetails: (ListeningDisc) -> Void
 
-                // Front album cardboard jacket / sleeve
-                ZStack {
-                    ListeningArtwork(url: disc.artworkURL, title: disc.title)
-                        .frame(width: ListeningStyle.sleeveSize, height: ListeningStyle.sleeveSize)
-
-                    // Cardboard spine left fold crease
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.4),
-                            Color.black.opacity(0.5),
-                            Color.clear
-                        ],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                    .frame(width: 6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    // Diagonal paper sheen / satin laminate finish
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color.white.opacity(0.12), location: 0.0),
-                            .init(color: Color.clear, location: 0.35),
-                            .init(color: Color.clear, location: 0.85),
-                            .init(color: Color.black.opacity(0.20), location: 1.0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-
-                    // Right slot cutout rim (where disc slides out)
-                    Rectangle()
-                        .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
-                }
-                .frame(width: ListeningStyle.sleeveSize, height: ListeningStyle.sleeveSize)
-                .clipShape(RoundedRectangle(cornerRadius: 3))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 3)
-                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
-                )
-                // Jacket cast shadow onto shelf backdrop and neighboring records
-                .shadow(color: Color.black.opacity(0.75), radius: 6, x: 2, y: 5)
-            }
-            .frame(width: ListeningStyle.sleeveWidth, height: ListeningStyle.sleeveHeight, alignment: .bottomLeading)
-
-            HStack(spacing: BSSpacing.xs) {
-                if isLoaded {
-                    Circle()
-                        .fill(BSColor.Stage.accent)
-                        .frame(width: 5, height: 5)
-                }
-                Text(disc.title)
-                    .font(BSFont.V3.caption)
-                    .fontWeight(.medium)
-                    .lineLimit(1)
-                    .foregroundStyle(BSColor.Stage.heroIvory)
-            }
-            .frame(maxWidth: ListeningStyle.sleeveWidth, alignment: .center)
-            .padding(.horizontal, 2)
-        }
-        .frame(maxWidth: .infinity, alignment: .center)
+    private var isLoaded: Bool {
+        room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
     }
-    private var discArtwork: some View {
-        ListeningDiscArtwork(disc: disc)
-            .frame(width: ListeningStyle.shelfDiscSize, height: ListeningStyle.shelfDiscSize)
-            .shadow(color: Color.black.opacity(0.8), radius: 5, x: 2, y: 3)
+
+    private var accessibilityArtistName: String {
+        disc.artistNames.isEmpty
+            ? room.browsingArtist?.name ?? "BeforeShow"
+            : disc.artistNames.joined(separator: ", ")
+    }
+
+    var body: some View {
+        Button {
+            showDetails(disc)
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
+                    .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
+                    .listeningFrame("slot:\(disc.id)")
+                ListeningSleeveMarks(room: room, disc: disc)
+                HStack(spacing: 3) {
+                    if room.isPlayingDisc(disc) {
+                        Image(systemName: "waveform")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(BSColor.Stage.accent)
+                    }
+                    Text(disc.title)
+                        .font(BSListeningTokens.captionMedium)
+                        .lineLimit(1)
+                        .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                }
+                .frame(width: 94, alignment: .leading)
+                .frame(minHeight: 18)
+            }
+            .frame(width: 96, alignment: .leading)
+        }
+        .buttonStyle(BSListeningPressStyle(scale: 0.95))
+        .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")
+        .accessibilityValue(ListeningSleeveMarks.accessibilityText(room: room, disc: disc))
+        .accessibilityAction(named: BSLocalization.text("取出并放入播放机")) {
+            room.mechanism.takeFromCabinet(disc)
+        }
+        .accessibilityIdentifier("listening.disc.\(disc.id)")
     }
 }

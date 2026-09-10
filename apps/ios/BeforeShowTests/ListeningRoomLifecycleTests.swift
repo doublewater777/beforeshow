@@ -7,6 +7,7 @@ import SwiftData
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
+        room.restoreDisc(try XCTUnwrap(room.discs.first))
         try await ListenTestData.settle(room) { room.track != nil && !room.busy }
         room.playPause()
         try await ListenTestData.settle(room) { room.isPlaying }
@@ -27,6 +28,7 @@ import SwiftData
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
+        room.restoreDisc(try XCTUnwrap(room.discs.first))
         try await ListenTestData.settle(room) { room.track != nil && !room.busy }
         let other = try Show(name: "Other", date: Date().addingTimeInterval(10000), startTime: Date().addingTimeInterval(10000))
         container.mainContext.insert(other); try container.mainContext.save()

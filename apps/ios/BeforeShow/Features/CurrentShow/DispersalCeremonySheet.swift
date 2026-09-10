@@ -12,15 +12,18 @@ struct DispersalCeremonySheet: View {
 
     enum Step: Equatable {
         case combined
+        case setlist
         case share
     }
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
     @State private var step: Step = .combined
     @State private var draftRating: Int?
     @State private var draftNote: String = ""
     @State private var saving = false
     @State private var commitError: String?
+    @State private var setlistCoordinator: FootprintListeningCoordinator?
 
     init(
         show: Show,
@@ -57,6 +60,21 @@ struct DispersalCeremonySheet: View {
                     },
                     onGenerate: { Task { await advanceCombined() } }
                 )
+            case .setlist:
+                if let setlistCoordinator {
+                    DispersalSetlistStepView(
+                        coordinator: setlistCoordinator,
+                        onBack: { step = .combined },
+                        onSkip: { step = .share },
+                        onFinish: { step = .share },
+                        onClose: {
+                            PostHogSDK.shared.capture("dispersal_ceremony_skipped", properties: ["trigger": "close_from_setlist"])
+                            onSkipToMemory()
+                        }
+                    )
+                } else {
+                    Color.clear.task { step = .share }
+                }
             case .share:
                 DispersalShareStep(
                     show: show,
@@ -64,13 +82,20 @@ struct DispersalCeremonySheet: View {
                     rating: draftRating,
                     note: draftNote,
                     onBack: {
-                        step = .combined
+                        step = .setlist
                     },
                     onEnterMemory: {
                         AppReviewPrompt.consider(.completedCeremony)
                         onSkipToMemory()
                     }
                 )
+            }
+        }
+        .task {
+            if setlistCoordinator == nil {
+                let coordinator = FootprintListeningCoordinator(context: modelContext, show: show)
+                coordinator.reload()
+                setlistCoordinator = coordinator
             }
         }
         .interactiveDismissDisabled(saving)
@@ -100,7 +125,8 @@ struct DispersalCeremonySheet: View {
     /// 纯规则:commit 成功才离开评级页,失败停在 combined。
     nonisolated static func nextStep(after current: Step, commitSucceeded: Bool = true) -> Step {
         switch current {
-        case .combined: return commitSucceeded ? .share : .combined
+        case .combined: return commitSucceeded ? .setlist : .combined
+        case .setlist: return .share
         case .share: return .share
         }
     }
@@ -151,7 +177,7 @@ struct DispersalCombinedStep: View {
 
             DispersalSheetBottomBar(
                 secondaryTitle: BSLocalization.text("跳过"),
-                primaryTitle: BSLocalization.text("生成散场卡"),
+                primaryTitle: BSLocalization.text("下一步：回记歌单"),
                 onSecondary: onSkip,
                 onPrimary: onGenerate
             )

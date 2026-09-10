@@ -1337,7 +1337,6 @@ First show: %@";
 "听" = "Listen";
 "把歌听熟，把期待留给现场" = "Know the songs. Save the anticipation for the show.";
 "从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。" = "Pick a CD, get to know the songs before the show, and save the ones you want to hear live.";
-"请先卡紧或取出 CD" = "Secure or remove the CD first";
 "完整播放" = "Full playback";
 "试听 · 不计入熟悉度" = "Preview · does not count as familiar";
 "仅歌曲信息" = "Song information only";
@@ -1367,6 +1366,10 @@ First show: %@";
 "唱片柜" = "Record cabinet";
 "想现场听" = "Want to hear live";
 "曲目" = "Tracks";
+"最近播放" = "Recently played";
+"包含听过的歌曲" = "Contains songs you have listened to";
+"已停止" = "Stopped";
+"播放结束" = "Playback ended";
 "已熟悉" = "Familiar";
 "听所有艺人" = "Listen to all artists";
 "仅听此艺人" = "Only this artist";
@@ -1377,8 +1380,6 @@ First show: %@";
 "播放器上盖" = "Player lid";
 "已打开" = "Open";
 "已合上" = "Closed";
-"卡入中心轴" = "Secure on spindle";
-"释放 CD 中心轴" = "Release CD spindle";
 "上一曲" = "Previous track";
 "下一曲" = "Next track";
 "播放或暂停" = "Play or pause";
@@ -1386,6 +1387,7 @@ First show: %@";
 "打开" = "Open";
 "合上" = "Close";
 "取出" = "Remove";
+"取出并放入播放机" = "Remove and place in player";
 "放入" = "Insert";
 
 // Listen Phases 6–8
@@ -1428,10 +1430,8 @@ First show: %@";
 "设为最惊喜" = "Set as biggest surprise";
 "连接艺人" = "Connect artist";
 "选择歌曲" = "Choose a song";
-"选择现场" = "Choose a show";
 "等待唱片" = "Waiting for a record";
 
-"先打开上盖，再从唱片柜取 CD" = "Open the lid before taking a CD from the cabinet";
 "请先取出当前 CD，并放回唱片柜" = "Remove the current CD and return it to the cabinet first";
 "未连接" = "Not connected";
 "首" = "tracks";
@@ -1482,3 +1482,80 @@ First show: %@";
 "专辑详情" = "Album details";
 "首歌曲" = "songs";
 "本场预热碟" = "Show warm-up disc";
+
+"热门合辑 %02d" = "Top Tracks %02d";
+
+"BeforeShow 热门合辑" = "BeforeShow Top Tracks";
+
+"暂时没有找到可翻的唱片" = "No records found yet";
+
+"装入播放机" = "Load into Player";
+
+"%d 张唱片" = "%d records";
+
+"%d 首歌曲" = "%d tracks";
+
+"查看全部" = "View All";
+
+"正在播放" = "Now Playing";
+
+"轻点连接" = "Tap to connect";
+
+"选定一场现场开始听歌" = "Select a Show to Start Listening";
+"选定演出开启专属唱片机，\n提前熟悉现场歌单与作品。" = "Select a show to start the CD player and preview the music.";
+"把要去的音乐现场放进来，\n开启唱片机，提前预习演出曲目。" = "Add upcoming live shows to start the CD player and preview the music.";
+"选择现场" = "Select Show";
+"正在准备唱片与曲目…" = "Preparing records and tracks…";
+"正在检索与整理专场唱片…" = "Searching and organizing show records…";
+"正在连接 Apple Music…" = "Connecting to Apple Music…";
+"连接中…" = "Connecting…";
+"未授权" = "Unauthorized";
+"立即授权" = "Authorize";
+"Music 会员" = "Music Subscriber";
+"试听模式" = "Preview Mode";
+"Apple Music 会员，支持完整播放" = "Apple Music subscriber, full playback supported";
+"Apple Music 未订阅，30秒试听模式" = "Apple Music not subscribed, 30s preview mode";
+"未开通 Apple Music 会员，提供 30 秒官方试听" = "Not subscribed to Apple Music; 30s official preview available";
+"Apple Music 完整音源" = "Apple Music Full Track";
+"30 秒官方试听" = "30s Official Preview";
+"尚未匹配 Apple Music 艺人" = "No Apple Music artist matched";
+"关联演出阵容中的艺人，即可载入专场唱片与曲目" = "Connect artists from the lineup to load show records and tracks";
+"授权后可自动检索专场唱片与曲目" = "Authorize to automatically search for show records and tracks";
+"请在系统设置中允许访问 Apple Music" = "Please allow access to Apple Music in Settings";
+"Apple Music 会员" = "Apple Music Subscriber";
+"暂时无法更新专场唱片" = "Unable to update show records";
+
+"暂无现场演出" = "No Live Shows Yet";
+"把要去的音乐现场放进来，\n随时查看倒计时与专场信息。" = "Add upcoming live shows here to track countdowns and show details.";
+"未找到相关现场" = "No Matching Shows Found";
+"尝试更换搜索词或切换筛选分类" = "Try different search terms or change filters";
+"尝试更换关键词或年份、城市筛选" = "Try different keywords, year, or city filters";
+"未找到匹配的现场" = "No Matching Shows Found";
+"已删除这条记忆" = "Memory deleted";
+"这场现场的记忆" = "Memories from this show";
+"照片、视频和小记都按现场阶段收在这里。" = "Photos, videos, and notes collected by show phase.";
+"拍一张照片、选择一段短视频，\n或者写下此刻的一句话。" = "Take a photo, choose a video clip, or write a note about this moment.";
+"继续添加" = "Add More";
+"给当前这条记忆增加媒体" = "Add media to this memory";
+"删除这条记忆" = "Delete Memory";
+
+"已标记想现场听" = "Marked Want to Hear Live";
+"唱片柜暂无唱片" = "No records in cabinet";
+"匹配演出艺人后，将在此展示专辑与预热碟。" = "Match lineup artists to display albums and warm-up discs here.";
+
+"加载中…" = "Loading…";
+"正在载入唱片…" = "Loading records…";
+
+"下一步：回记歌单" = "Next: Recall Songs";
+"今晚听到了什么" = "What did you hear tonight";
+"现场唱了哪些歌？" = "What songs were played?";
+"勾选当晚演出的歌曲，点亮星标设为最惊喜。" = "Select songs performed tonight, tap the star to mark your biggest surprise.";
+"尚未关联预习曲目，可以直接在下方手动添加现场歌曲。" = "No preview tracks linked. You can add songs manually below.";
+"最惊喜歌曲" = "Most surprising song";
+"没在歌单里？手动添加现场歌曲" = "Not on the list? Add songs manually";
+"艺人名称（可选）" = "Artist name (optional)";
+"跳过并回到现场" = "Skip and return to show";
+
+"搜索演出曲目或艺人" = "Search show tracks or artists";
+"预习听过" = "Heard in preview";
+"未找到匹配歌曲，可在下方手动添加" = "No matching songs found; you can add manually below";

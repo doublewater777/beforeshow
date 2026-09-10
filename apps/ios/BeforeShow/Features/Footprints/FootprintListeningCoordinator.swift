@@ -9,6 +9,7 @@ import SwiftData
     private(set) var memories: [ShowSetlistMemory] = []
     private(set) var songs: [CatalogSong] = []
     private(set) var catalogChoices: [CatalogSong] = []
+    private(set) var heardSongIDs: Set<String> = []
     var error: String?
     var canRecall: Bool {
         show.endedAt != nil || show.wasAddedAsHistorical == true ||
@@ -21,10 +22,17 @@ import SwiftData
             wantedCount = try context.fetch(FetchDescriptor<ShowWantsLiveSong>()).filter { $0.showID == show.id }.count
             memories = try context.fetch(FetchDescriptor<ShowSetlistMemory>()).filter { $0.showID == show.id }.sorted { $0.createdAt < $1.createdAt }
             songs = try context.fetch(FetchDescriptor<CatalogSong>())
+            let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+            heardSongIDs = Set(records.compactMap { $0.actualListeningAt != nil || $0.manualConfirmedAt != nil ? $0.songID : nil })
             let ids = Set(show.artists.compactMap(\.appleMusicArtistID))
             let snapshots = try context.fetch(FetchDescriptor<ArtistCatalogSnapshot>()).filter { ids.contains($0.artistID) }
             let songIDs = Set(snapshots.flatMap(\.orderedSongIDs))
-            catalogChoices = songs.filter { songIDs.contains($0.appleMusicSongID) }.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+            catalogChoices = songs.filter { songIDs.contains($0.appleMusicSongID) }.sorted { a, b in
+                let aHeard = heardSongIDs.contains(a.appleMusicSongID)
+                let bHeard = heardSongIDs.contains(b.appleMusicSongID)
+                if aHeard != bHeard { return aHeard && !bHeard }
+                return a.title.localizedStandardCompare(b.title) == .orderedAscending
+            }
         } catch { self.error = BSLocalization.text("缓存读取失败") }
     }
     func title(_ memory: ShowSetlistMemory) -> String {
@@ -54,6 +62,17 @@ import SwiftData
     func setSurprising(_ row: ShowSetlistMemory) {
         guard row.showID == show.id else { return }
         mutate { setSurprisingRows(row) }
+    }
+    func toggleSurprising(_ row: ShowSetlistMemory) {
+        guard row.showID == show.id else { return }
+        mutate {
+            if row.isMostSurprising {
+                row.isMostSurprising = false
+                row.updatedAt = Date()
+            } else {
+                setSurprisingRows(row)
+            }
+        }
     }
     private func setSurprisingRows(_ target: ShowSetlistMemory) {
         for row in memories where row.isMostSurprising && row.id != target.id { row.isMostSurprising = false }

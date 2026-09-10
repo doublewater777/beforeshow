@@ -9,13 +9,3 @@ enum SettingsEntry: String, CaseIterable, Equatable {
 
     var displayTitle: String { BSLocalization.text(rawValue) }
 }
-
-enum SettingsInformation {
-    static let orderedEntries: [SettingsEntry] = [
-        .proMembership,
-        .privacyAndLocalData,
-        .feedback,
-        .rateApp,
-        .about
-    ]
-}

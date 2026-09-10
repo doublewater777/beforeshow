@@ -239,7 +239,8 @@ struct CurrentShowHomeView: View {
                 // 截图 / 验证用:跳过熄灯动画，直接打开散场评分分档页（默认选中「夯爆了」）。
                 if ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating"),
                    let target = shows.first(where: { $0.name == "「夜航」巡演 · 上海站" })
-                    ?? shows.first(where: { $0.endedAt == nil }) {
+                    ?? shows.first(where: { $0.endedAt == nil })
+                    ?? shows.first {
                     try? await Task.sleep(nanoseconds: 900_000_000)
                     target.markEnded(at: Date())
                     try? target.setClosingRitual(

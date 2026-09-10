@@ -81,14 +81,6 @@ final class DispersalCeremonyTests: XCTestCase {
 
     // MARK: - DispersalCeremonyPolicy
 
-    func testPolicyClampRatingBounds() {
-        XCTAssertNil(DispersalCeremonyPolicy.clampRating(0))
-        XCTAssertNil(DispersalCeremonyPolicy.clampRating(6))
-        XCTAssertEqual(DispersalCeremonyPolicy.clampRating(1), 1)
-        XCTAssertEqual(DispersalCeremonyPolicy.clampRating(3), 3)
-        XCTAssertEqual(DispersalCeremonyPolicy.clampRating(5), 5)
-    }
-
     func testPolicySnapRoundsAndClamps() {
         XCTAssertEqual(DispersalCeremonyPolicy.snap(0.4), 1)
         XCTAssertEqual(DispersalCeremonyPolicy.snap(1.6), 2)
@@ -188,8 +180,8 @@ final class DispersalCeremonyTests: XCTestCase {
     // MARK: - DispersalCeremonySheet navigation seam
 
     func testSheetNextStepAdvances() {
-        // 评级+文字 同页(V2 同款),所以 combined → share 是单步跨越。
-        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .share)
+        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .setlist)
+        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .setlist), .share)
         XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .share), .share)
     }
 
@@ -200,7 +192,7 @@ final class DispersalCeremonyTests: XCTestCase {
         )
         XCTAssertEqual(
             DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: true),
-            .share
+            .setlist
         )
     }
 

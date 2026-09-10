@@ -17,33 +17,6 @@ final class ListeningPlaybackController {
     }
 
     func prepare(
-        queue: [ListeningQueueEntry],
-        catalogSongs: [CatalogSong],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String? = nil,
-        now: Date = Date()
-    ) async throws {
-        let songsByID = Dictionary(
-            catalogSongs.map { ($0.appleMusicSongID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let items = queue.compactMap { entry -> ListeningPlaybackItem? in
-            guard let song = songsByID[entry.songID] else { return nil }
-            return ListeningPlaybackItem(
-                songID: song.appleMusicSongID,
-                duration: song.duration,
-                previewURL: song.previewURL.flatMap(URL.init(string:))
-            )
-        }
-        try await prepare(
-            items: items,
-            source: source,
-            startingAtSongID: startingAtSongID,
-            now: now
-        )
-    }
-
-    func prepare(
         items: [ListeningPlaybackItem],
         source: ListeningPlaybackSource,
         startingAtSongID: String? = nil,

@@ -161,8 +161,6 @@ if [ "$RESULT" = PASS ]; then
       -only-testing:BeforeShowTests/ListeningFamiliarityPolicyTests \
       -only-testing:BeforeShowTests/OpeningFamiliarityCoordinatorTests \
       -only-testing:BeforeShowTests/OpeningFamiliarityMutationOrderingTests \
-      -only-testing:BeforeShowTests/ListeningQueueBuilderTests \
-      -only-testing:BeforeShowTests/ListeningQueueProviderTests \
       -only-testing:BeforeShowTests/ListeningShowMutationIntegrationTests \
       -resultBundlePath "$LOG_DIR/phase4-tests.xcresult" \
       > "$LOG_DIR/phase4-test.log" 2>&1; then

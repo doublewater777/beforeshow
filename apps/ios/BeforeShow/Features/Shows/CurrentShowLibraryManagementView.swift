@@ -43,18 +43,14 @@ struct CurrentShowLibraryManagementView: View {
 
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    searchField.padding(.top, 18)
-                    filterBar.padding(.top, 12)
+                   searchField.padding(.top, 18)
+                   filterBar.padding(.top, 12)
 
-                    if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
-                        Text("没有匹配的现场")
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.dim)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 48)
-                    } else {
-                        ForEach(displayedSections) { section in
-                            if !section.shows.isEmpty {
+                   if displayedSections.allSatisfy({ $0.shows.isEmpty }) {
+                        emptyStateView
+                   } else {
+                       ForEach(displayedSections) { section in
+                           if !section.shows.isEmpty {
                                 managementSection(section)
                                     .bsScrollReveal(
                                         reduceMotion: reduceMotion,
@@ -68,13 +64,13 @@ struct CurrentShowLibraryManagementView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 40)
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .bsNavigationScrollEdge()
-        }
-        .navigationTitle("我的现场")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.visible, for: .navigationBar)
+           .scrollIndicators(.hidden)
+           .scrollDismissesKeyboard(.interactively)
+           .bsNavigationScrollEdge()
+       }
+        .navigationTitle(BSLocalization.text("我的现场"))
+       .navigationBarTitleDisplayMode(.inline)
+       .toolbar(.visible, for: .navigationBar)
         .toolbar {
             BSChromeToolbarCloseButton { dismiss() }
             ToolbarItemGroup(placement: .topBarTrailing) {
@@ -432,12 +428,67 @@ struct CurrentShowLibraryManagementView: View {
         }
     }
 
-    private func presentToast(_ tone: BSToastTone, message: String) {
-        let payload = BSToastPayload(tone: tone, message: message)
-        toast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if toast == payload { toast = nil }
+   private func presentToast(_ tone: BSToastTone, message: String) {
+       let payload = BSToastPayload(tone: tone, message: message)
+       toast = payload
+       Task { @MainActor in
+           try? await Task.sleep(nanoseconds: 2_200_000_000)
+           if toast == payload { toast = nil }
+       }
+   }
+
+    private var emptyStateView: some View {
+        VStack(spacing: BSSpacing.md) {
+            Spacer(minLength: 32)
+            if shows.isEmpty {
+                Image(systemName: "music.note.list")
+                    .font(.system(size: 34, weight: .light))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(width: 80, height: 80)
+                    .background(Color.white.opacity(0.045), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Stage.border))
+
+                Text(BSLocalization.text("暂无现场演出"))
+                    .font(BSFont.heroTitle)
+                    .tracking(BSFont.titleTracking)
+                    .foregroundColor(BSColor.Stage.foreground)
+                    .multilineTextAlignment(.center)
+
+                Text(BSLocalization.text("把要去的音乐现场放进来，\n随时查看倒计时与专场信息。"))
+                    .font(BSFont.body)
+                    .foregroundColor(BSColor.Stage.muted)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    isShowingAdd = true
+                } label: {
+                    Text(BSLocalization.text("添加现场"))
+                        .font(.system(size: 14.5, weight: .semibold))
+                        .foregroundColor(BSColor.Stage.background)
+                        .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
+                        .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                        .contentShape(RoundedRectangle(cornerRadius: 16))
+                }
+                .padding(.top, BSSpacing.sm)
+            } else {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 32, weight: .light))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .frame(width: 72, height: 72)
+                    .background(Color.white.opacity(0.04), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Stage.border))
+
+                Text(BSLocalization.text("未找到相关现场"))
+                    .font(BSFont.headline)
+                    .foregroundColor(BSColor.Stage.foreground)
+
+                Text(BSLocalization.text("尝试更换搜索词或切换筛选分类"))
+                    .font(BSFont.caption)
+                    .foregroundColor(BSColor.Stage.muted)
+            }
+            Spacer(minLength: 40)
         }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, BSSpacing.lg)
     }
 }

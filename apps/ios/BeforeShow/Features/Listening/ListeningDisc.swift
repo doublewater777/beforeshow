@@ -18,6 +18,8 @@ struct ListeningDiscTrack: Identifiable, Equatable {
 }
 
 struct ListeningDisc: Identifiable, Equatable {
+    enum Origin: Equatable { case album, compilation(showID: UUID, number: Int) }
+    let origin: Origin
     let id: String
     let title: String
     let artworkURL: URL?
@@ -51,8 +53,10 @@ struct ListeningDisc: Identifiable, Equatable {
         isAppleDigitalMaster: Bool? = nil,
         isCompilation: Bool? = nil,
         isSingle: Bool? = nil,
-        appleMusicURL: URL? = nil
+        appleMusicURL: URL? = nil,
+        origin: Origin = .album
     ) {
+        self.origin = origin
         self.id = id
         self.title = title
         self.artworkURL = artworkURL
@@ -72,19 +76,11 @@ struct ListeningDisc: Identifiable, Equatable {
     }
 }
 
-/// An album remains a multi-track container. Queue entries only define the
-/// preparation disc; album track order never becomes a collection of single CDs.
+/// Album order and full track order come directly from the catalog snapshot.
 @MainActor enum ListeningDiscAssembler {
-    static func discs(albums: [CatalogAlbum], songs: [CatalogSong], queue: [ListeningQueueEntry]) -> [ListeningDisc] {
-        let songsByID = Dictionary(songs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { first, _ in first })
-        let allowed = Set(queue.map(\.songID))
-        let warmup = queue.compactMap { songsByID[$0.songID].map(ListeningDiscTrack.init) }
-        var result: [ListeningDisc] = warmup.isEmpty ? [] : [
-            ListeningDisc(id: "preparation", title: BSLocalization.text("开场前"), artworkURL: nil, tracks: warmup)
-        ]
-        result += albums.sorted { a, b in a.releaseDate == b.releaseDate ? a.appleMusicAlbumID < b.appleMusicAlbumID : (a.releaseDate ?? .distantPast) > (b.releaseDate ?? .distantPast) }.compactMap { album in
-            let tracks = album.orderedTrackIDs.filter { allowed.contains($0) }.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
-            guard !tracks.isEmpty else { return nil }
+    static func discs(albums: [CatalogAlbum], songsByID: [String: CatalogSong]) -> [ListeningDisc] {
+        albums.map { album in
+            let tracks = album.orderedTrackIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
             return ListeningDisc(id: album.appleMusicAlbumID, title: album.title,
                                  artworkURL: album.artworkURL.flatMap(URL.init(string:)), tracks: tracks,
                                  artistNames: album.artistNames, editorialText: album.editorialText,
@@ -96,6 +92,10 @@ struct ListeningDisc: Identifiable, Equatable {
                                  isCompilation: album.isCompilation, isSingle: album.isSingle,
                                  appleMusicURL: album.appleMusicURL.flatMap(URL.init(string:)))
         }
-        return result
+    }
+
+    static func discs(albums: [CatalogAlbum], songs: [CatalogSong]) -> [ListeningDisc] {
+        let songsByID = Dictionary(songs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { first, _ in first })
+        return discs(albums: albums, songsByID: songsByID)
     }
 }

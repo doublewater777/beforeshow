@@ -33,12 +33,43 @@ struct CDSpringChannel {
     var lift = CDSpringChannel(value: 0)
     var discScale = CDSpringChannel(value: 1)
     var reducedMotion = false
+    /// Label rotation in degrees. Advances only while the lid is visibly open.
+    var discAngle: Double = 0
+    /// Angular velocity in revolutions per second; tracks `spinning` with inertia.
+    private(set) var discSpin: Double = 0
+    /// Set from playback state: the disc spins while music plays.
+    var spinning = false {
+        didSet {
+            if spinning != oldValue {
+                wake()
+            }
+        }
+    }
+    @ObservationIgnored var onFrame: () -> Void = {}
     @ObservationIgnored private var lastTime: Double = 0
     #if os(iOS)
     @ObservationIgnored private var link: CADisplayLink?
     #else
     @ObservationIgnored private var timer: Timer?
     #endif
+
+    func wake() {
+        #if os(iOS)
+        if let link {
+            if link.isPaused {
+                lastTime = CACurrentMediaTime()
+                link.isPaused = false
+            }
+        } else {
+            start()
+        }
+        #else
+        if timer == nil {
+            start()
+        }
+        #endif
+    }
+
     func start() {
         stop()
         lastTime = CACurrentMediaTime()
@@ -62,6 +93,10 @@ struct CDSpringChannel {
         timer?.invalidate(); timer = nil
         #endif
     }
+    func resetDiscRotation() {
+        discAngle = 0
+        discSpin = 0
+    }
     fileprivate func frame() {
         let now = CACurrentMediaTime()
         let dt = min(now - lastTime, 1 / 15)
@@ -72,6 +107,28 @@ struct CDSpringChannel {
         discY.step(dt, frequency: frequency)
         lift.step(dt, frequency: frequency)
         discScale.step(dt, frequency: frequency)
+        // Stylized ~33rpm cruise; spin-up is quicker than the inertial spin-down
+        // so opening the lid mid-playback shows the disc coasting to a stop.
+        let cruise = spinning && !reducedMotion ? 0.55 : 0.0
+        let tau = cruise > discSpin ? 0.4 : 0.9
+        discSpin += (cruise - discSpin) * (1 - exp(-dt / tau))
+        if cruise == 0 && abs(discSpin) < 0.002 { discSpin = 0 }
+        let lidShut = lid.value < 0.002 && lid.target != 1
+        if discSpin != 0 && !lidShut {
+            discAngle = (discAngle + discSpin * 360 * dt).truncatingRemainder(dividingBy: 360)
+        }
+        onFrame()
+
+        // When all spring channels and disc rotation have settled, pause the display link to save CPU & power.
+        let springsResting = lid.target == nil && discX.target == nil && discY.target == nil && lift.target == nil && discScale.target == nil
+        let rotationResting = !spinning && discSpin == 0
+        if springsResting && rotationResting {
+            #if os(iOS)
+            link?.isPaused = true
+            #else
+            stop()
+            #endif
+        }
     }
 }
 
@@ -85,3 +142,4 @@ struct CDSpringChannel {
     }
 }
 #endif
+

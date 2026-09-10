@@ -135,7 +135,6 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/AddShow/ShowDraftCoverFields.swift": 7_000,
     "BeforeShow/Features/AddShow/ShowDraftFieldComponents.swift": 4_000,
     "BeforeShow/Features/Footprints/FootprintsView.swift": 17_000,
-    "BeforeShow/Features/Footprints/FootprintArchiveDetailView.swift": 21_000,
     "BeforeShow/Features/Footprints/FootprintArchiveDomain.swift": 7_000,
     "BeforeShow/Features/Footprints/FootprintArchivePresentationSupport.swift": 12_000,
     "BeforeShow/Features/Footprints/FootprintArchiveShareCopy.swift": 7_000,
@@ -207,6 +206,7 @@ RETIRED_LEGACY_FILES = (
     "BeforeShow/Features/Footprints/FootprintShareViews.swift",
     "BeforeShow/Features/Footprints/FootprintArchiveEnhancements.swift",
     "BeforeShow/Features/Subscription/ProSubscription.swift",
+    "BeforeShow/Features/Footprints/FootprintArchiveDetailView.swift",
 )
 
 ROOT_SWIFT_ALLOWLIST = ("RootView.swift",)

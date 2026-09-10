@@ -1,7 +1,7 @@
 import SwiftUI
 
 @MainActor @Observable final class CDMechanism {
-    enum Position: Equatable { case stored, seated, released, removed }
+    enum Position: Equatable { case stored, seated, removed }
     var configuration = CDPlayerConfiguration.standard
     let motion = CDMotionDriver()
     private(set) var disc: ListeningDisc?
@@ -9,6 +9,7 @@ import SwiftUI
     private(set) var isAutomatic = false
     private(set) var isReturning = false
     private(set) var isCabinetDragging = false
+    private(set) var occupiedAttemptCount = 0
     var notice: String?
     @ObservationIgnored var onOpen: () -> Void = {}
     @ObservationIgnored var onTransition: (String) -> Void = { _ in }
@@ -17,87 +18,138 @@ import SwiftUI
     @ObservationIgnored var cabinetScale = 0.25
     @ObservationIgnored private var lidOrigin: Double?
     @ObservationIgnored private var discOrigin: CGPoint?
+    @ObservationIgnored private var pendingClose = false
+    @ObservationIgnored private var pendingSeat = false
+    @ObservationIgnored private var waitingForOpenToSeat = false
+
+    init() {
+        motion.onFrame = { [weak self] in self?.refresh() }
+    }
+
     var isOpen: Bool { motion.lid.value > 0.82 }
     var isClosed: Bool { motion.lid.value < 0.002 && motion.lid.target != 1 }
-    var hasDisc: Bool { position == .seated || position == .released }
-    var canSeat: Bool {
-        isOpen && position == .released &&
-        hypot(motion.discX.value - configuration.geometry.discCenter.x,
-              motion.discY.value - configuration.geometry.discCenter.y) < 2
-    }
+    var hasDisc: Bool { position == .seated }
+
     /// Refresh metadata for the same physical compilation, without swapping it.
     func updateContents(_ replacement: ListeningDisc) {
         guard !isAutomatic, disc?.id == replacement.id else { return }
         disc = replacement
     }
+
     func setLid(open: Bool) {
-        guard open || position != .released else { notice = BSLocalization.text("请先卡紧或取出 CD"); return }
-        if open { onOpen() }
+        guard open || !isCompletingInsertion else { return }
+        if open { onOpen(); pendingClose = false } else if !isClosed { pendingClose = true }
         motion.lid.move(to: open ? 1 : 0)
-        onTransition(open ? "open" : "close")
+        motion.wake()
+        if open { onTransition("open") }
     }
+
     func dragLid(_ translation: CGFloat) {
-        guard !isAutomatic else { return }
+        guard !isAutomatic, !isCompletingInsertion else { return }
         if lidOrigin == nil {
-            onOpen(); motion.lid.grab(); lidOrigin = motion.lid.value
+            onOpen(); motion.lid.grab(); pendingClose = false; lidOrigin = motion.lid.value
         }
-        motion.lid.value = max(position == .released ? 0.99 : 0, min(1, lidOrigin! - translation / configuration.geometry.dragTravel))
+        motion.lid.value = max(0, min(1, lidOrigin! - translation / configuration.geometry.dragTravel))
+        motion.wake()
     }
+
     func endLidDrag(_ translation: CGFloat, predicted: CGFloat) {
         guard lidOrigin != nil else { return }
         lidOrigin = nil
         let delta = -(predicted - translation) / configuration.geometry.dragTravel
         motion.lid.velocity = max(-3, min(3, delta / 0.2))
-        setLid(open: position == .released || motion.lid.value + delta > 0.5)
+        setLid(open: motion.lid.value + delta > 0.5)
     }
-    func releaseDisc() {
-        guard isOpen, position == .seated else { return }
-        position = .released; motion.lift.move(to: 1); onTransition("release")
-    }
+
     func removeDisc() {
-        guard isOpen, position == .released else { return }
+        guard isOpen, position == .seated else { return }
+        pendingSeat = false
+        waitingForOpenToSeat = false
         position = .removed
+        motion.lift.move(to: 1)
         motion.discX.move(to: configuration.geometry.parkedDisc.x)
         motion.discY.move(to: configuration.geometry.parkedDisc.y)
+        motion.wake()
         onTransition("remove")
     }
-    func seatDisc() {
-        guard canSeat else { return }
-        position = .seated; motion.lift.move(to: 0); onTransition("seat")
-    }
+
     func insertDisc() {
-        guard isOpen, position == .removed, !isReturning else { return }
-        position = .released
+        guard position == .removed, !isReturning, isOpen || motion.lid.target == 1 else { return }
+        waitingForOpenToSeat = !isOpen
+        pendingSeat = isOpen
         motion.discX.move(to: configuration.geometry.discCenter.x)
         motion.discY.move(to: configuration.geometry.discCenter.y)
-        motion.discScale.move(to: 1); motion.lift.move(to: 1)
+        motion.discScale.move(to: 1)
+        if isOpen { motion.lift.move(to: 0) }
+        motion.wake()
         onTransition("insert")
     }
+
     func returnDisc() {
         guard position == .removed, let disc else { return }
-        let destination = cabinetSlots[disc.id] ?? CGPoint(x: configuration.geometry.canvas.width / 2, y: configuration.geometry.canvas.height + 75)
+        pendingSeat = false
+        waitingForOpenToSeat = false
+        let destination = cabinetSlots[disc.id] ?? CGPoint(x: configuration.geometry.canvas.width / 2, y: -100)
         isReturning = true
         motion.discX.move(to: destination.x); motion.discY.move(to: destination.y)
         motion.lift.move(to: 0); motion.discScale.move(to: cabinetScale)
+        motion.wake()
     }
+
+    func returnCurrentDiscToCabinet() {
+        guard isOpen, position == .seated else { return }
+        position = .removed
+        motion.lift.move(to: 1)
+        motion.wake()
+        onTransition("remove")
+        returnDisc()
+    }
+
     func refresh() {
-        if isReturning && settled {
-            isReturning = false; position = .stored; onTransition("store")
+        if pendingClose && motion.lid.target == nil && motion.lid.value < 0.002 {
+            pendingClose = false; onTransition("close")
+        }
+        if waitingForOpenToSeat && isOpen {
+            waitingForOpenToSeat = false
+            pendingSeat = true
+            motion.lift.move(to: 0)
+            motion.wake()
+        }
+        if pendingSeat && discSettled {
+            pendingSeat = false
+            position = .seated
+            onTransition("seat")
+        }
+        if isReturning && discSettled {
+            isReturning = false
+            position = .stored
+            motion.resetDiscRotation()
+            onTransition("store")
         }
     }
-    func beginCabinetDrag(_ disc: ListeningDisc) {
-        guard position == .stored, isOpen, !isAutomatic else {
-            if !isOpen { notice = BSLocalization.text("先打开上盖，再从唱片柜取 CD") }
-            else if position != .stored { notice = BSLocalization.text("请先取出当前 CD，并放回唱片柜") }
-            return
+
+    @discardableResult
+    func beginCabinetDrag(_ disc: ListeningDisc) -> Bool {
+        guard position == .stored, !isAutomatic else {
+            if position != .stored {
+                occupiedAttemptCount += 1
+                notice = BSLocalization.text("请先取出当前 CD，并放回唱片柜")
+                onTransition("blocked")
+            }
+            return false
         }
+        notice = nil
+        if !isOpen { setLid(open: true) }
         liftFromCabinet(disc)
         isCabinetDragging = true
         discOrigin = CGPoint(x: motion.discX.value, y: motion.discY.value)
+        motion.wake()
+        onTransition("pickup")
+        return true
     }
+
     func takeFromCabinet(_ disc: ListeningDisc) {
-        beginCabinetDrag(disc)
-        guard isCabinetDragging else { return }
+        guard beginCabinetDrag(disc) else { return }
         let origin = CGPoint(x: motion.discX.value, y: motion.discY.value)
         motion.discX.value = configuration.geometry.discCenter.x
         motion.discY.value = configuration.geometry.discCenter.y
@@ -105,6 +157,7 @@ import SwiftUI
         // Keep the same visible shelf → tray path for the non-drag action.
         motion.discX.value = origin.x; motion.discY.value = origin.y
     }
+
     /// Silently place a disc into the tray ready to play, skipping opening/closing animations.
     func restoreSeated(_ disc: ListeningDisc) {
         guard !isAutomatic else { return }
@@ -112,6 +165,9 @@ import SwiftUI
         position = .seated
         isReturning = false
         isCabinetDragging = false
+        pendingClose = false
+        pendingSeat = false
+        waitingForOpenToSeat = false
         motion.lid.value = 0
         motion.lid.target = nil
         motion.discX.value = configuration.geometry.discCenter.x
@@ -122,41 +178,57 @@ import SwiftUI
         motion.discScale.target = nil
         motion.lift.value = 0
         motion.lift.target = nil
+        motion.resetDiscRotation()
     }
+
     private func liftFromCabinet(_ disc: ListeningDisc) {
+        motion.resetDiscRotation()
         self.disc = disc; position = .removed
-        let origin = cabinetSlots[disc.id] ?? configuration.geometry.parkedDisc
+        let origin = cabinetSlots[disc.id] ?? CGPoint(x: configuration.geometry.canvas.width / 2, y: -100)
         motion.discX.grab(); motion.discY.grab(); motion.discScale.grab()
         motion.discX.value = origin.x; motion.discY.value = origin.y
         motion.lift.value = 0; motion.discScale.value = cabinetScale; motion.discScale.move(to: 1)
+        motion.wake()
     }
+
     func dragDisc(_ translation: CGSize) {
-        guard !isAutomatic, !isReturning, position == .removed || (isOpen && position == .released) else { return }
+        guard !isAutomatic, !isReturning else { return }
+        if position == .seated {
+            guard isOpen else { return }
+            position = .removed
+            pendingSeat = false
+            waitingForOpenToSeat = false
+            motion.lift.grab()
+            motion.lift.value = 1
+            onTransition("remove")
+        }
+        guard position == .removed else { return }
         if discOrigin == nil {
             motion.discX.grab(); motion.discY.grab()
             discOrigin = CGPoint(x: motion.discX.value, y: motion.discY.value)
         }
         motion.discX.value = discOrigin!.x + translation.width
         motion.discY.value = discOrigin!.y + translation.height
+        motion.wake()
     }
+
     func endDiscDrag() {
         guard discOrigin != nil else { return }
         discOrigin = nil
         let fromCabinet = isCabinetDragging
         isCabinetDragging = false
         let center = configuration.geometry.discCenter
-        if isOpen && hypot(motion.discX.value - center.x, motion.discY.value - center.y) < 125 {
-            if position == .released { position = .removed }
+        if (isOpen || motion.lid.target == 1), hypot(motion.discX.value - center.x, motion.discY.value - center.y) < 125 {
             insertDisc()
         } else if fromCabinet || cabinetDropZone.contains(CGPoint(x: motion.discX.value, y: motion.discY.value)) {
-            if position == .released { position = .removed; onTransition("remove") }
             returnDisc()
         } else {
-            if position == .released { position = .removed; onTransition("remove") }
             motion.discX.move(to: configuration.geometry.parkedDisc.x)
             motion.discY.move(to: configuration.geometry.parkedDisc.y)
         }
+        motion.wake()
     }
+
     /// Automatic loading invokes the exact same mechanical mutations as gestures.
     /// Every leg awaits the actual spring's resting position, not a guessed delay.
     func load(_ disc: ListeningDisc) async throws {
@@ -166,27 +238,48 @@ import SwiftUI
         try await unloadSteps()
         try Task.checkCancellation()
         liftFromCabinet(disc); insertDisc(); try await settle()
-        seatDisc(); try await settle()
         setLid(open: false); try await settle()
     }
+
     func unload() async throws {
         guard !isAutomatic else { return }
         isAutomatic = true
         defer { isAutomatic = false }
         try await unloadSteps()
     }
+
+    func closeForPlayback() async throws {
+        guard !isAutomatic, position == .seated else { return }
+        isAutomatic = true
+        defer { isAutomatic = false }
+        setLid(open: false)
+        try await settle()
+        try Task.checkCancellation()
+    }
+
     private func unloadSteps() async throws {
         setLid(open: true); try await settle()
-        if position == .seated { releaseDisc(); try await settle() }
-        if position == .released { removeDisc(); try await settle() }
+        if position == .seated { removeDisc(); try await settle() }
         if position == .removed { returnDisc(); try await settle(); refresh() }
     }
-    private var settled: Bool {
-        motion.lid.target == nil && motion.discX.target == nil && motion.discY.target == nil &&
+
+    private var discSettled: Bool {
+        motion.discX.target == nil && motion.discY.target == nil &&
         motion.discScale.target == nil && motion.lift.target == nil
     }
+
+    private var isCompletingInsertion: Bool {
+        waitingForOpenToSeat || pendingSeat
+    }
+
+    private var settled: Bool {
+        motion.lid.target == nil && discSettled
+    }
+
     private func settle() async throws {
         while !settled { try await Task.sleep(for: .milliseconds(16)) }
         try Task.checkCancellation()
+        refresh()
     }
 }
+

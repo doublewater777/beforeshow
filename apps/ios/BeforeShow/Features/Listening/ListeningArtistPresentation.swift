@@ -61,9 +61,6 @@ struct ListeningArtistPresentation: Identifiable {
         }
         return catalogAlbums.first { $0.appleMusicAlbumID == albumID }?.title ?? mechanism.disc?.title
     }
-    var warmUpDisc: ListeningDisc? {
-        discs.first { $0.id == "preparation" }
-    }
     var cabinetArtists: [ListeningArtistPresentation] {
         var seen = Set<String>()
         return (show?.artists ?? []).compactMap { slot in

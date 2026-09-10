@@ -4,45 +4,6 @@ import XCTest
 
 @MainActor
 final class ListeningPlaybackControllerTests: XCTestCase {
-    func testPreparePreservesPhaseFourQueueOrder() async throws {
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        defer { withExtendedLifetime(container) {} }
-        let context = container.mainContext
-        let service = PlaybackServiceStub()
-        let controller = ListeningPlaybackController(
-            service: service,
-            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: context)
-        )
-        let first = CatalogSong(
-            appleMusicSongID: "song-a",
-            title: "A",
-            artistName: "Artist",
-            duration: 180
-        )
-        let second = CatalogSong(
-            appleMusicSongID: "song-b",
-            title: "B",
-            artistName: "Artist",
-            duration: 200,
-            previewURL: "https://example.com/b.m4a"
-        )
-        let queue = [
-            ListeningQueueEntry(artistID: "artist-b", songID: "song-b"),
-            ListeningQueueEntry(artistID: "artist-a", songID: "song-a")
-        ]
-
-        try await controller.prepare(
-            queue: queue,
-            catalogSongs: [first, second],
-            source: .fullCatalog,
-            now: time(0)
-        )
-
-        XCTAssertEqual(service.preparedItems.map(\.songID), ["song-b", "song-a"])
-        XCTAssertEqual(service.preparedItems.map(\.duration), [200, 180])
-        XCTAssertEqual(service.preparedItems.first?.previewURL?.absoluteString, "https://example.com/b.m4a")
-    }
-
     func testControllerDrivesStateAndPersistsFullPlaybackEvidence() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }

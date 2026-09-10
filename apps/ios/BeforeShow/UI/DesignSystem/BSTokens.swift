@@ -57,18 +57,18 @@ enum BSColor {
     /// on a blue-tinged stage. Scoped to the current-show home surface; other
     /// surfaces keep the tokens above. Mirrored in DESIGN.md «Home 功能卡色板».
     enum Stage {
-        /// Root stage background (#05070D).
-        static let background = Color(red: 0.020, green: 0.027, blue: 0.051)
-        /// Feature card surface (#0D111B).
-        static let surface = Color(red: 0.051, green: 0.067, blue: 0.106)
-        /// Raised surface under the floating countdown card (#151A27).
-        static let surfaceRaised = Color(red: 0.082, green: 0.102, blue: 0.153)
-        /// Primary foreground (#F2F3F7).
-        static let foreground = Color(red: 0.949, green: 0.953, blue: 0.969)
-        /// Supporting copy (#9399AA).
-        static let muted = Color(red: 0.576, green: 0.600, blue: 0.667)
-        /// Tertiary copy (#646B7D).
-        static let dim = Color(red: 0.392, green: 0.420, blue: 0.490)
+        /// Root stage background (clean neutral OLED deep black #070709).
+        static let background = Color(red: 0.028, green: 0.028, blue: 0.033)
+        /// Feature card surface (clean neutral deep charcoal #111114).
+        static let surface = Color(red: 0.065, green: 0.065, blue: 0.075)
+        /// Raised surface under the floating cards (#18181C).
+        static let surfaceRaised = Color(red: 0.095, green: 0.095, blue: 0.108)
+        /// Primary foreground (#F4F4F6).
+        static let foreground = Color(red: 0.957, green: 0.957, blue: 0.965)
+        /// Supporting copy (#96969E).
+        static let muted = Color(red: 0.588, green: 0.588, blue: 0.620)
+        /// Tertiary copy (#5C5C64).
+        static let dim = Color(red: 0.361, green: 0.361, blue: 0.392)
         /// Hairline on dark (white 9%).
         static let border = Color.white.opacity(0.09)
 

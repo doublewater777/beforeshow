@@ -26,19 +26,4 @@ struct FamiliarityEvidenceResolver {
         return result
     }
 
-    static func familiarSince(
-        songID: String,
-        records: [SongFamiliarityRecord],
-        setlistMemories: [ShowSetlistMemory]
-    ) -> Date? {
-        var dates: [Date] = []
-        if let record = records.first(where: { $0.songID == songID }) {
-            if let manual = record.manualConfirmedAt { dates.append(manual) }
-            if let actual = record.actualListeningAt { dates.append(actual) }
-        }
-        dates.append(contentsOf: setlistMemories.compactMap { memory in
-            memory.catalogSongID == songID ? memory.createdAt : nil
-        })
-        return dates.min()
-    }
 }

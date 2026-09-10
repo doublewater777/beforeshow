@@ -128,16 +128,16 @@ private struct MemoryTextFragmentViewer: View {
                             .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                             .background(BSColor.Stage.surfaceRaised, in: Circle())
                             .overlay(Circle().stroke(BSColor.Stage.border))
-                    }
-                    Spacer()
-                    Text("记忆碎片")
-                        .font(BSFont.headline)
-                        .foregroundColor(BSColor.Stage.foreground)
-                    Spacer()
-                    Menu {
-                        Button("编辑记忆", action: onEdit)
-                        Button("删除这条记忆", role: .destructive, action: onDelete)
-                    } label: {
+                   }
+                   Spacer()
+                    Text(BSLocalization.text("记忆碎片"))
+                       .font(BSFont.headline)
+                       .foregroundColor(BSColor.Stage.foreground)
+                   Spacer()
+                   Menu {
+                        Button(BSLocalization.text("编辑记忆"), action: onEdit)
+                        Button(BSLocalization.text("删除这条记忆"), role: .destructive, action: onDelete)
+                   } label: {
                         Image(systemName: "ellipsis")
                             .font(BSFont.headline)
                             .foregroundColor(BSColor.Stage.foreground)

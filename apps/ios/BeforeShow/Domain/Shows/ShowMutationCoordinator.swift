@@ -297,22 +297,4 @@ enum ShowMutationCoordinator {
         }
     }
 
-    /// Compatibility seam retained for tests and older callers. A selection is only
-    /// invalid when its Show record is gone; lifecycle state never clears it.
-    @MainActor
-    static func reconcileManualSelection(
-        shows: [Show],
-        selections: [CurrentShowSelection],
-        session _: CurrentShowSession = CurrentShowSession(),
-        now _: Date = Date()
-    ) {
-        guard let selection = CurrentShowSelectionStore.canonical(in: selections),
-              let selectedShowID = selection.selectedShowID else {
-            return
-        }
-        guard shows.contains(where: { $0.id == selectedShowID }) else {
-            selection.clearSelection()
-            return
-        }
-    }
 }

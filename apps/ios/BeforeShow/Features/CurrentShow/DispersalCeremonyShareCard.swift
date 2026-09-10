@@ -21,10 +21,10 @@ private enum DispersalCeremonyCardTokens {
     static let footerMinSpacing: CGFloat = 10
 
     static let goldGlow = Color(red: 0.910, green: 0.780, blue: 0.557).opacity(0.26)
-    static let blueGlow = Color(red: 0.322, green: 0.498, blue: 0.788).opacity(0.26)
-    static let gradientTop = Color(red: 0.067, green: 0.094, blue: 0.153)
-    static let gradientMid = Color(red: 0.035, green: 0.043, blue: 0.071)
-    static let gradientBottom = Color(red: 0.024, green: 0.027, blue: 0.043)
+    static let blueGlow = Color(red: 0.910, green: 0.780, blue: 0.557).opacity(0.12)
+    static let gradientTop = Color(red: 0.075, green: 0.075, blue: 0.085)
+    static let gradientMid = Color(red: 0.040, green: 0.040, blue: 0.045)
+    static let gradientBottom = Color(red: 0.024, green: 0.024, blue: 0.027)
     static let brand = BSColor.Stage.accent
     static let date = Color.white.opacity(0.62)
     static let quote = Color(red: 0.898, green: 0.906, blue: 0.929)
