@@ -36,9 +36,6 @@ struct ListenRootView: View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
                 ListeningRoomView(room: room, show: show)
-                    .opacity(room.initialLoaded ? 1 : 0)
-                    .allowsHitTesting(room.initialLoaded)
-                    .accessibilityHidden(!room.initialLoaded)
             } else if show == nil {
                 ListeningEmptyView(
                     hasShows: !shows.isEmpty,
@@ -47,7 +44,7 @@ struct ListenRootView: View {
                 )
             }
 
-            if let show, room?.show?.id != show.id || room?.initialLoaded != true {
+            if let show, room?.show?.id != show.id {
                 ListeningPreparingView(show: show)
                     .allowsHitTesting(false)
                     .transition(.opacity)

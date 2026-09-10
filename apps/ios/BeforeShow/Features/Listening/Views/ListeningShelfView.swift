@@ -8,8 +8,15 @@ struct ListeningShelfView<Content: View>: View {
     var showsAllDiscs = false
     var showAll: () -> Void = {}
     @ViewBuilder let content: Content
-    @ScaledMetric(relativeTo: .caption) private var contentHeight = BSListeningTokens.shelfContentHeight
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private let contentHeight = BSListeningTokens.shelfContentHeight
+    private var fixedHeight: CGFloat {
+        BSLayout.minTouchTarget
+            + BSSpacing.xs / 2
+            + BSSpacing.sm
+            + contentHeight
+            + 5
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
@@ -18,13 +25,15 @@ struct ListeningShelfView<Content: View>: View {
                     .font(BSFont.headline)
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                 Text(count)
                     .font(BSListeningTokens.badge)
                     .foregroundStyle(BSColor.Stage.muted)
                     .padding(.horizontal, BSListeningTokens.shelfItemSpacing)
                     .padding(.vertical, BSSpacing.xs / 2)
                     .background(BSColor.Stage.surfaceRaised, in: Capsule())
-                    .fixedSize()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
                     .redacted(reason: isLoading ? .placeholder : [])
                     .accessibilityHidden(isLoading)
                 Spacer(minLength: 0)
@@ -32,7 +41,8 @@ struct ListeningShelfView<Content: View>: View {
                     Label(BSLocalization.text("查看全部"), systemImage: "chevron.right")
                         .font(BSFont.caption)
                         .foregroundStyle(BSColor.Stage.accent)
-                        .fixedSize()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
                         .frame(minHeight: BSLayout.minTouchTarget)
                 }
                 .buttonStyle(BSListeningPressStyle(scale: 0.95))
@@ -41,12 +51,13 @@ struct ListeningShelfView<Content: View>: View {
                 .accessibilityHidden(!showsAllDiscs)
                 .accessibilityIdentifier("listening.allDiscs")
             }
-            .frame(minHeight: BSLayout.minTouchTarget)
+            .frame(height: BSLayout.minTouchTarget)
             .padding(.top, BSSpacing.xs / 2)
 
             VStack(spacing: 0) {
                 content
-                    .frame(maxWidth: .infinity, minHeight: contentHeight + (dynamicTypeSize.isAccessibilitySize ? BSLayout.minTouchTarget : 0))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: contentHeight, alignment: .bottom)
                 VStack(spacing: 0) {
                     Rectangle()
                         .fill(
@@ -73,5 +84,6 @@ struct ListeningShelfView<Content: View>: View {
                 .accessibilityHidden(true)
             }
         }
+        .frame(height: fixedHeight, alignment: .top)
     }
 }

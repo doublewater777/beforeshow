@@ -4,7 +4,7 @@ struct ListeningShelfSkeleton: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                ForEach(0..<3, id: \.self) { _ in
+                ForEach(0..<BSListeningTokens.Shelf.loadingSlotCount, id: \.self) { _ in
                     VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
                         RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous)
                             .fill(BSColor.Stage.surfaceRaised)
