@@ -159,7 +159,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
 
         XCTAssertEqual(playing.player.phase, .playing)
         XCTAssertEqual(playing.player.source, .preview)
-        XCTAssertEqual(playing.player.previewRemaining, 12, accuracy: 0.001)
+        XCTAssertEqual(playing.player.previewRemaining, 12)
         XCTAssertTrue(playing.player.canPlayPause)
         XCTAssertEqual(failed.player.phase, .failed)
         XCTAssertEqual(failed.player.recoveryAction, .retryPlayback)

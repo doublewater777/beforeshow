@@ -311,7 +311,7 @@ enum ListeningDisplayProjector {
         playbackState: ListeningPlaybackState,
         playbackError: String?
     ) -> ListeningPlayerPresentation {
-        guard loadedDisc != nil, isDiscSeated, let currentTrack, let trackPresentation else {
+        guard loadedDisc != nil, isDiscSeated, currentTrack != nil, let trackPresentation else {
             return ListeningPlayerPresentation(
                 phase: .noDisc,
                 source: nil,
