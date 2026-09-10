@@ -22,4 +22,27 @@ final class ListeningLocalizationTests: XCTestCase {
             for key in keys { XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)") }
         }
     }
+
+    func testListeningCapabilityProjectionCopyExistsInThreeLanguages() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
+        let keys: Set<String> = [
+            "连接中…", "完整播放", "试听模式", "仅歌曲信息", "暂不可播放",
+            "立即授权", "打开设置", "重试", "试听", "部分曲目可试听", "30 秒试听",
+            "载入中…", "试听中 · 剩余 %d 秒", "播放中", "试听暂停 · 剩余 %d 秒",
+            "暂停", "停止", "播放结束", "暂时无法播放", "选择一张唱片开始播放",
+            "当前仅提供歌曲信息", "当前暂不可播放", "请先合上播放器上盖", "热门合辑",
+            "仅提供歌曲信息"
+        ]
+
+        for locale in ["zh-Hans", "zh-Hant", "en"] {
+            let data = try Data(contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Listening.strings"))
+            let values = try XCTUnwrap(PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String])
+            XCTAssertEqual(Set(values.keys), keys)
+            for key in keys {
+                XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)")
+            }
+            XCTAssertTrue(values["试听中 · 剩余 %d 秒"]?.contains("%d") == true)
+            XCTAssertTrue(values["试听暂停 · 剩余 %d 秒"]?.contains("%d") == true)
+        }
+    }
 }
