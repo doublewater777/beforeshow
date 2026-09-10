@@ -13,16 +13,21 @@ struct ListeningCabinetView: View {
         room.browsingArtist?.name ?? BSLocalization.text("BeforeShow 热门合辑")
     }
 
-   private var shelfCountText: String {
-       if room.catalogState == .loading && room.libraryDiscs.isEmpty {
-           return BSLocalization.text("加载中…")
-       }
+    private var shelfCountText: String {
+        if room.catalogState == .loading && room.libraryDiscs.isEmpty {
+            return BSLocalization.text("加载中…")
+        }
         return BSLocalization.format("%d 张唱片", room.libraryDiscs.count)
-   }
+    }
+
+    private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
+
+    private var hintDisc: ListeningDisc? {
+        shelfDiscs.first { room.discPresentation(for: $0).canLoad }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            // Section header with title, count tag, and View All button
             HStack(alignment: .firstTextBaseline) {
                 HStack(spacing: BSSpacing.xs) {
                     Text(shelfTitle)
@@ -36,22 +41,24 @@ struct ListeningCabinetView: View {
                         .background(BSColor.Stage.surfaceRaised, in: Capsule())
                 }
                 Spacer()
-                Button(action: showAll) {
-                    HStack(spacing: 3) {
-                        Text(BSLocalization.text("查看全部"))
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .bold))
+                if room.display.showsAllDiscs {
+                    Button(action: showAll) {
+                        HStack(spacing: 3) {
+                            Text(BSLocalization.text("查看全部"))
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .font(BSFont.caption)
+                        .foregroundStyle(BSColor.Stage.accent)
+                        .frame(minHeight: BSLayout.minTouchTarget)
                     }
-                    .font(BSFont.caption)
-                    .foregroundStyle(BSColor.Stage.accent)
-                    .frame(minHeight: BSLayout.minTouchTarget)
+                    .buttonStyle(BSListeningPressStyle(scale: 0.95))
+                    .accessibilityIdentifier("listening.allDiscs")
                 }
-                .buttonStyle(BSListeningPressStyle(scale: 0.95))
-                .accessibilityIdentifier("listening.allDiscs")
             }
-           .padding(.top, 2)
+            .padding(.top, 2)
 
-            if room.catalogState == .loading && room.shelfDiscs.isEmpty {
+            if room.catalogState == .loading && shelfDiscs.isEmpty {
                 HStack(spacing: BSSpacing.compact) {
                     ForEach(0..<3, id: \.self) { _ in
                         RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous)
@@ -77,16 +84,16 @@ struct ListeningCabinetView: View {
                 }
                 .padding(.horizontal, 2)
                 .padding(.vertical, 4)
-            } else if room.shelfDiscs.isEmpty {
-               Text(BSLocalization.text("暂时没有找到可翻的唱片"))
-                   .font(BSListeningTokens.caption)
-                   .foregroundStyle(BSColor.Stage.muted)
-                   .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
-           } else {
+            } else if shelfDiscs.isEmpty {
+                Text(BSLocalization.text("暂时没有找到可翻的唱片"))
+                    .font(BSListeningTokens.caption)
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+            } else {
                 VStack(spacing: 0) {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                            ForEach(room.shelfDiscs) { disc in
+                            ForEach(shelfDiscs) { disc in
                                 ListeningCabinetDiscButton(
                                     room: room,
                                     disc: disc,
@@ -100,7 +107,6 @@ struct ListeningCabinetView: View {
                         .padding(.vertical, 4)
                     }
 
-                    // Physical Rack Beam & Lip
                     VStack(spacing: 0) {
                         Rectangle()
                             .fill(
@@ -133,7 +139,7 @@ struct ListeningCabinetView: View {
         .task(id: hintEligibilityKey) {
             guard !didHintManualDiscDrag, !reduceMotion,
                   room.mechanism.position == .stored,
-                  let disc = room.shelfDiscs.first else { return }
+                  let disc = hintDisc else { return }
             try? await Task.sleep(for: .milliseconds(550))
             guard !Task.isCancelled else { return }
             hintedDiscID = disc.id
@@ -144,7 +150,7 @@ struct ListeningCabinetView: View {
     }
 
     private var hintEligibilityKey: String {
-        "\(room.shelfDiscs.first?.id ?? "none")-\(room.mechanism.position)"
+        "\(hintDisc?.id ?? "none")-\(room.mechanism.position)"
     }
 }
 
@@ -160,10 +166,19 @@ private struct ListeningCabinetDiscButton: View {
         room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
     }
 
+    private var presentation: ListeningDiscPresentation {
+        room.discPresentation(for: disc)
+    }
+
     private var accessibilityArtistName: String {
         disc.artistNames.isEmpty
             ? room.browsingArtist?.name ?? "BeforeShow"
             : disc.artistNames.joined(separator: ", ")
+    }
+
+    private var accessibilityValue: String {
+        let marks = ListeningSleeveMarks.accessibilityText(room: room, disc: disc)
+        return marks.isEmpty ? presentation.statusText : "\(marks), \(presentation.statusText)"
     }
 
     var body: some View {
@@ -202,9 +217,13 @@ private struct ListeningCabinetDiscButton: View {
         }
         .simultaneousGesture(dragCompletionFallback)
         .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")
-        .accessibilityValue(ListeningSleeveMarks.accessibilityText(room: room, disc: disc))
-        .accessibilityAction(named: BSLocalization.text("取出并放入播放机")) {
-            room.mechanism.takeFromCabinet(disc)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityActions {
+            if presentation.canLoad {
+                Button(BSLocalization.text("取出并放入播放机")) {
+                    room.takePlayableDiscFromCabinet(disc)
+                }
+            }
         }
         .accessibilityIdentifier("listening.disc.\(disc.id)")
     }
@@ -247,7 +266,7 @@ private struct ListeningCabinetDiscButton: View {
     private func beginDragIfNeeded() {
         guard !room.mechanism.isCabinetDragging else { return }
         suppressTap = true
-        _ = room.mechanism.beginCabinetDrag(disc)
+        _ = room.beginPlayableDiscDrag(disc)
     }
 
     private func updateDrag(_ translation: CGSize) {
