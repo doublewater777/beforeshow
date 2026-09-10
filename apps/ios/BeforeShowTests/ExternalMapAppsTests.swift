@@ -86,45 +86,108 @@ final class ExternalMapAppsTests: XCTestCase {
     }
 
     func testAppleNativeUsesDirectionsDestination() throws {
-        let url = try XCTUnwrap(ExternalMapApp.apple.nativeURL(for: "梅赛德斯-奔驰文化中心"))
+        let query = "梅赛德斯-奔驰文化中心"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.apple.nativeURL(for: query))
         XCTAssertEqual(url.scheme, "maps")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, "梅赛德斯-奔驰文化中心")
+        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, query)
+    }
+
+    func testAppleUsesResolvedCoordinateWhenAvailable() throws {
+        let query = "梅赛德斯-奔驰文化中心 上海"
+        MapNavigationCoordinateCache.shared.store(.init(latitude: 31.2304, longitude: 121.4737), for: query)
+        defer { MapNavigationCoordinateCache.shared.removeCoordinate(for: query) }
+
+        let url = try XCTUnwrap(ExternalMapApp.apple.nativeURL(for: query))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, "31.23040000,121.47370000")
     }
 
     func testAmapNativeUsesPathWithDestinationName() throws {
-        let url = try XCTUnwrap(ExternalMapApp.amap.nativeURL(for: "工人体育场"))
+        let query = "工人体育场"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.amap.nativeURL(for: query))
         XCTAssertEqual(url.scheme, "iosamap")
         XCTAssertEqual(url.host, "path")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "dname" })?.value, "工人体育场")
+        XCTAssertEqual(items.first(where: { $0.name == "dname" })?.value, query)
         XCTAssertEqual(items.first(where: { $0.name == "sourceApplication" })?.value, "开场前")
+        XCTAssertNil(items.first(where: { $0.name == "dlat" }))
+        XCTAssertNil(items.first(where: { $0.name == "dlon" }))
+    }
+
+    func testAmapUsesResolvedDestinationCoordinatesAndWGS84OffsetFlag() throws {
+        let query = "工人体育场 北京"
+        MapNavigationCoordinateCache.shared.store(.init(latitude: 39.9309, longitude: 116.4465), for: query)
+        defer { MapNavigationCoordinateCache.shared.removeCoordinate(for: query) }
+
+        let url = try XCTUnwrap(ExternalMapApp.amap.nativeURL(for: query))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.first(where: { $0.name == "dname" })?.value, query)
+        XCTAssertEqual(items.first(where: { $0.name == "dlat" })?.value, "39.93090000")
+        XCTAssertEqual(items.first(where: { $0.name == "dlon" })?.value, "116.44650000")
+        XCTAssertEqual(items.first(where: { $0.name == "dev" })?.value, "1")
+        XCTAssertEqual(items.first(where: { $0.name == "t" })?.value, "0")
     }
 
     func testBaiduNativeUsesDirectionDestinationName() throws {
-        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: "鸟巢"))
+        let query = "鸟巢"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: query))
         XCTAssertEqual(url.scheme, "baidumap")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, "鸟巢")
+        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, query)
         XCTAssertEqual(items.first(where: { $0.name == "mode" })?.value, "driving")
     }
 
+    func testBaiduUsesResolvedCoordinateAndDeclaresCoordinateType() throws {
+        let query = "鸟巢 北京"
+        MapNavigationCoordinateCache.shared.store(.init(latitude: 39.9913, longitude: 116.3908), for: query)
+        defer { MapNavigationCoordinateCache.shared.removeCoordinate(for: query) }
+
+        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: query))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(
+            items.first(where: { $0.name == "destination" })?.value,
+            "name:鸟巢 北京|latlng:39.99130000,116.39080000"
+        )
+        XCTAssertEqual(items.first(where: { $0.name == "coord_type" })?.value, "wgs84")
+    }
 
     func testBaiduNativePreservesSpacesAndNonASCII() throws {
-        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: "梅赛德斯-奔驰文化中心"))
+        let query = "梅赛德斯-奔驰文化中心"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.baidu.nativeURL(for: query))
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, "梅赛德斯-奔驰文化中心")
+        XCTAssertEqual(items.first(where: { $0.name == "destination" })?.value, query)
     }
+
     func testGoogleNativeUsesDrivingDirections() throws {
-        let url = try XCTUnwrap(ExternalMapApp.google.nativeURL(for: "Tokyo Dome"))
+        let query = "Tokyo Dome"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.google.nativeURL(for: query))
         XCTAssertEqual(url.scheme, "comgooglemaps")
         let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
-        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, "Tokyo Dome")
+        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, query)
+        XCTAssertEqual(items.first(where: { $0.name == "directionsmode" })?.value, "driving")
+    }
+
+    func testGoogleUsesResolvedCoordinateWhenAvailable() throws {
+        let query = "Tokyo Dome Tokyo"
+        MapNavigationCoordinateCache.shared.store(.init(latitude: 35.7056, longitude: 139.7519), for: query)
+        defer { MapNavigationCoordinateCache.shared.removeCoordinate(for: query) }
+
+        let url = try XCTUnwrap(ExternalMapApp.google.nativeURL(for: query))
+        let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        XCTAssertEqual(items.first(where: { $0.name == "daddr" })?.value, "35.70560000,139.75190000")
         XCTAssertEqual(items.first(where: { $0.name == "directionsmode" })?.value, "driving")
     }
 
     func testOpenURLUsesNativeDeepLink() throws {
-        let url = try XCTUnwrap(ExternalMapApp.amap.openURL(for: "梅奔"))
+        let query = "梅奔"
+        MapNavigationCoordinateCache.shared.removeCoordinate(for: query)
+        let url = try XCTUnwrap(ExternalMapApp.amap.openURL(for: query))
         XCTAssertEqual(url.scheme, "iosamap")
     }
 

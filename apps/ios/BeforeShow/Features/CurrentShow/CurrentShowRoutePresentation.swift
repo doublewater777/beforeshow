@@ -8,6 +8,8 @@ struct MapChooserSheet: View {
     let apps: [ExternalMapApp]
     let onSelect: (ExternalMapApp) -> Void
 
+    @State private var isResolvingDestination = false
+
     var body: some View {
         BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
             VStack(spacing: BSSpacing.md) {
@@ -27,14 +29,22 @@ struct MapChooserSheet: View {
                             Label(app.title, systemImage: app.iconName)
                         }
                         .buttonStyle(BSPrimaryButtonStyle())
+                        .disabled(isResolvingDestination)
                     } else {
                         Button { onSelect(app) } label: {
                             Label(app.title, systemImage: app.iconName)
                         }
                         .buttonStyle(BSSecondaryButtonStyle())
+                        .disabled(isResolvingDestination)
                     }
                 }
             }
+        }
+        .task(id: hasDestination) {
+            guard hasDestination else { return }
+            isResolvingDestination = true
+            await MapNavigationCoordinateCache.shared.prepareActiveQuery()
+            isResolvingDestination = false
         }
     }
 }
