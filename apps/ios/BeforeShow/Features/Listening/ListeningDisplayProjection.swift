@@ -108,7 +108,7 @@ struct ListeningPlayerPresentation: Equatable {
     var statusText: String {
         if let errorText, phase == .failed { return errorText }
         if let blockingReason, phase == .stopped { return blockingReason }
-        switch phase {
+        return switch phase {
         case .noDisc:
             noDiscMessage ?? ListeningCopy.text("暂不可播放")
         case .preparing:
