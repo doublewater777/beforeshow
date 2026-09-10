@@ -34,25 +34,57 @@ struct ListeningAtmosphere: View {
 
 struct ListeningCurrentSong: View {
     let room: ListeningRoomCoordinator
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var player: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {
-        ZStack {
+        VStack(spacing: 6) {
             if room.mechanism.position == .seated, let track = room.track {
                 VStack(spacing: 3) {
-                    Text(track.title).font(BSListeningTokens.headline)
+                    Text(track.title)
+                        .font(BSListeningTokens.headline)
                         .foregroundStyle(BSColor.Stage.foreground)
-                    Text(track.artistName).font(BSListeningTokens.caption)
+                        .lineLimit(2)
+                    Text(track.artistName)
+                        .font(BSListeningTokens.caption)
                         .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(2)
+                    statusLine
                 }
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("listening.currentSong")
                 .transition(.opacity.combined(with: .scale(scale: 0.96)))
+            } else {
+                statusLine
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("listening.playerGuidance")
+            }
+
+            if let recovery = player.recoveryAction {
+                Button(recovery.title) {
+                    room.performListeningRecovery(recovery)
+                }
+                .font(BSListeningTokens.captionMedium)
+                .foregroundStyle(BSColor.Stage.accent)
+                .frame(minHeight: BSLayout.minTouchTarget)
+                .buttonStyle(BSListeningPressStyle(scale: 0.96))
+                .accessibilityIdentifier("listening.playerRecovery")
             }
         }
-        .frame(minHeight: 46)
-        .animation(.easeInOut(duration: 0.25), value: room.track?.id)
-        .animation(.easeInOut(duration: 0.25), value: room.mechanism.position)
+        .frame(minHeight: 58)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
+    }
+
+    private var statusLine: some View {
+        Text(player.statusText)
+            .font(BSListeningTokens.caption)
+            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
