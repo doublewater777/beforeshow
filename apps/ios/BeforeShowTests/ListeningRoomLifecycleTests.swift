@@ -3,7 +3,7 @@ import SwiftData
 @testable import BeforeShow
 
 @MainActor final class ListeningRoomLifecycleTests: XCTestCase {
-    func testFullBackgroundAndTabPauseRespectUserPause() async throws {
+    func testFullBackgroundAndTabHideNeverOwnTransport() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
@@ -14,9 +14,9 @@ import SwiftData
         room.setForeground(false)
         XCTAssertTrue(room.isPlaying)
         room.setActive(false)
-        XCTAssertFalse(room.isPlaying)
+        XCTAssertTrue(room.isPlaying)
         room.setForeground(true); room.setActive(true)
-        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertTrue(room.isPlaying)
         room.playPause()
         try await ListenTestData.settle(room) { !room.isPlaying && !room.busy }
         room.setActive(false); room.setActive(true)

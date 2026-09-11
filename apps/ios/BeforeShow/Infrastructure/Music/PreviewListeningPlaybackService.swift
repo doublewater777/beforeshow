@@ -40,7 +40,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
 
     func play() async throws {
         if player.currentItem?.status == .failed {
-            replaceCurrentItem()
+            rebuildPlayerQueue(startingAt: activeIndex())
         }
         guard player.currentItem != nil else {
             throw ListeningPlaybackError.emptyQueue

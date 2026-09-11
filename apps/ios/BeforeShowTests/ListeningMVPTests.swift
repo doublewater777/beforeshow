@@ -354,13 +354,33 @@ private struct ListeningMVPCatalogStub: ListeningMusicCatalogServicing {
 
 @MainActor private final class ListeningMVPPlaybackStub: ListeningPlaybackServicing {
     var source = ListeningPlaybackSource.preview
-    var item: ListeningPlaybackItem?
+    var item: ListeningPlaybackItem? { queue.indices.contains(index) ? queue[index] : nil }
     var playing = false
-    var ended = false
     var preparedIDs: [String] = []
+    private var queue: [ListeningPlaybackItem] = []
+    private var index = 0
+    private var finishedLastTrack = false
+    var ended: Bool {
+        get { finishedLastTrack }
+        set {
+            guard newValue else {
+                finishedLastTrack = false
+                return
+            }
+            if index + 1 < queue.count {
+                index += 1
+                finishedLastTrack = false
+            } else {
+                finishedLastTrack = true
+            }
+        }
+    }
     func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
-        self.source = source; item = items.first; ended = false
-        preparedIDs += items.map(\.songID)
+        self.source = source
+        queue = items
+        index = startingAtSongID.flatMap { id in items.firstIndex(where: { $0.songID == id }) } ?? 0
+        finishedLastTrack = false
+        preparedIDs.append(contentsOf: items.map(\.songID).filter { !preparedIDs.contains($0) })
     }
     func play() async throws { playing = true }
     func pause() { playing = false }
@@ -369,8 +389,8 @@ private struct ListeningMVPCatalogStub: ListeningMusicCatalogServicing {
     func seek(to time: TimeInterval) {}
     func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
         guard let item else { return nil }
-        return ListeningPlaybackSample(songID: item.songID, source: source, currentTime: ended ? 1 : 0, duration: 1,
-                                       isPlaying: playing && !ended, observedAt: observedAt, hasEnded: ended)
+        return ListeningPlaybackSample(songID: item.songID, source: source, currentTime: finishedLastTrack ? 1 : 0, duration: 1,
+                                       isPlaying: playing && !finishedLastTrack, observedAt: observedAt, hasEnded: finishedLastTrack)
     }
-    func stop() { item = nil; playing = false; ended = false }
+    func stop() { queue = []; index = 0; playing = false; finishedLastTrack = false }
 }
