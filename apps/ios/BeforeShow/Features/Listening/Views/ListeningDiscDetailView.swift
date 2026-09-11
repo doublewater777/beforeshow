@@ -5,6 +5,7 @@ struct ListeningDiscDetailView: View {
     let disc: ListeningDisc
     var onLoad: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
+    @State private var requestedTrackID: String?
 
     private let isMultiArtist: Bool
     private let metadataSummary: String
@@ -101,6 +102,16 @@ struct ListeningDiscDetailView: View {
         .tint(BSColor.Stage.accent)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
+        .onChange(of: room.sleevePlaybackSongID) { _, songID in
+            if songID == requestedTrackID {
+                requestedTrackID = nil
+            }
+        }
+        .onChange(of: room.playbackError) { _, error in
+            if error != nil {
+                requestedTrackID = nil
+            }
+        }
     }
 
     private var heroSection: some View {
@@ -316,9 +327,9 @@ struct ListeningDiscDetailView: View {
                     .tracking(2)
                     .foregroundStyle(BSColor.Stage.dim)
                 Spacer()
-                Text(BSLocalization.text("COMPACT DISC"))
+                Text(trackListStatusText)
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .tracking(1.5)
+                    .tracking(1.2)
                     .foregroundStyle(BSColor.Stage.dim.opacity(0.7))
             }
             .padding(.horizontal, BSSpacing.md)
@@ -327,14 +338,7 @@ struct ListeningDiscDetailView: View {
 
             LazyVStack(spacing: 0) {
                 ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { index, track in
-                    let isCurrentPlaying = isLoaded && room.track?.id == track.id
-                    ListeningDiscTrackRow(
-                        index: index,
-                        track: track,
-                        isCurrentPlaying: isCurrentPlaying,
-                        isPlaying: room.isPlaying,
-                        isMultiArtist: isMultiArtist
-                    )
+                    trackRow(index: index, track: track)
 
                     Divider()
                         .overlay(BSColor.Stage.border)
@@ -345,6 +349,98 @@ struct ListeningDiscDetailView: View {
         .background(BSColor.Stage.surfaceRaised.opacity(0.55), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+    }
+
+    private var trackListStatusText: String {
+        if case .previewOnly = presentation.capability {
+            return presentation.statusText
+        }
+        return BSLocalization.text("COMPACT DISC")
+    }
+
+    @ViewBuilder
+    private func trackRow(index: Int, track: ListeningDiscTrack) -> some View {
+        let trackPresentation = room.display.trackPresentation(for: track)
+        let state = trackRowState(for: track, isPlayable: trackPresentation.isPlayable)
+        let row = ListeningDiscTrackRow(
+            index: index,
+            track: track,
+            state: state,
+            isMultiArtist: isMultiArtist
+        )
+
+        if trackPresentation.isPlayable {
+            Button {
+                selectTrack(track)
+            } label: {
+                row
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.985))
+            .disabled(room.busy || room.mechanism.isAutomatic)
+            .accessibilityValue(accessibilityValue(for: state, presentation: trackPresentation))
+            .accessibilityIdentifier("listening.track.\(track.id)")
+        } else {
+            row
+                .accessibilityValue(trackPresentation.statusText)
+                .accessibilityIdentifier("listening.track.\(track.id)")
+        }
+    }
+
+    private func trackRowState(for track: ListeningDiscTrack, isPlayable: Bool) -> ListeningDiscTrackRowState {
+        guard isPlayable else { return .unavailable }
+        if requestedTrackID == track.id { return .preparing }
+        guard isLoaded, room.track?.id == track.id else { return .normal }
+
+        switch room.display.player.phase {
+        case .preparing:
+            return .preparing
+        case .playing:
+            return .playing
+        case .paused:
+            return .paused
+        case .noDisc, .stopped, .finished, .failed:
+            return .paused
+        }
+    }
+
+    private func accessibilityValue(
+        for state: ListeningDiscTrackRowState,
+        presentation: ListeningTrackPresentation
+    ) -> String {
+        switch state {
+        case .preparing:
+            return ListeningCopy.text("载入中…")
+        case .playing:
+            return ListeningCopy.text("播放中")
+        case .paused:
+            return ListeningCopy.text("暂停")
+        case .unavailable:
+            return presentation.statusText
+        case .normal:
+            return presentation.capability == .previewOnly
+                ? ListeningCopy.text("30 秒试听")
+                : presentation.statusText
+        }
+    }
+
+    private func selectTrack(_ track: ListeningDiscTrack) {
+        let trackPresentation = room.display.trackPresentation(for: track)
+        guard trackPresentation.isPlayable,
+              !room.busy,
+              !room.mechanism.isAutomatic else { return }
+
+        let sameDisc = isLoaded
+        if sameDisc, room.track?.id == track.id, room.isPlaying {
+            return
+        }
+
+        requestedTrackID = track.id
+        room.playFromSleeve(disc, songID: track.id)
+
+        if !sameDisc {
+            dismiss()
+            onLoad()
+        }
     }
 
     private func editorialSection(_ editorial: String) -> some View {
@@ -413,40 +509,45 @@ struct ListeningDiscDetailView: View {
         dismiss()
         onLoad()
     }
+}
 
+private enum ListeningDiscTrackRowState: Equatable {
+    case normal
+    case preparing
+    case playing
+    case paused
+    case unavailable
+
+    var isActive: Bool {
+        switch self {
+        case .preparing, .playing, .paused:
+            true
+        case .normal, .unavailable:
+            false
+        }
+    }
 }
 
 private struct ListeningDiscTrackRow: View {
     let index: Int
     let track: ListeningDiscTrack
-    let isCurrentPlaying: Bool
-    let isPlaying: Bool
+    let state: ListeningDiscTrackRowState
     let isMultiArtist: Bool
 
     var body: some View {
         HStack(alignment: .center, spacing: BSSpacing.compact) {
-            Group {
-                if isCurrentPlaying {
-                    Image(systemName: isPlaying ? "speaker.wave.2.fill" : "speaker.fill")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(BSColor.Stage.accent)
-                } else {
-                    Text(String(format: "%02d", index + 1))
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
-                        .foregroundStyle(BSColor.Stage.dim)
-                }
-            }
-            .frame(width: 24, alignment: .leading)
+            leadingIndicator
+                .frame(width: 24, alignment: .leading)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.title)
                     .font(BSFont.body)
-                    .foregroundStyle(isCurrentPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .foregroundStyle(titleColor)
                     .lineLimit(2)
                 if isMultiArtist {
                     Text(track.artistName)
                         .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.muted)
+                        .foregroundStyle(state == .unavailable ? BSColor.Stage.dim.opacity(0.55) : BSColor.Stage.muted)
                         .lineLimit(1)
                 }
             }
@@ -456,13 +557,48 @@ private struct ListeningDiscTrackRow: View {
             if let duration = track.duration, duration.isFinite, duration > 0 {
                 Text(Duration.seconds(duration).formatted(.time(pattern: .minuteSecond)))
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
-                    .foregroundStyle(BSColor.Stage.dim)
+                    .foregroundStyle(state == .unavailable ? BSColor.Stage.dim.opacity(0.45) : BSColor.Stage.dim)
             }
         }
+        .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
         .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 12)
-        .background(isCurrentPlaying ? BSColor.Stage.accent.opacity(0.12) : Color.clear)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("listening.track.\(track.id)")
+    }
+
+    @ViewBuilder
+    private var leadingIndicator: some View {
+        switch state {
+        case .preparing, .playing:
+            Image(systemName: "waveform")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(BSColor.Stage.accent)
+        case .paused:
+            Image(systemName: "play.fill")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(BSColor.Stage.accent)
+        case .normal:
+            trackNumber(color: BSColor.Stage.dim)
+        case .unavailable:
+            trackNumber(color: BSColor.Stage.dim.opacity(0.45))
+        }
+    }
+
+    private var titleColor: Color {
+        switch state {
+        case .preparing, .playing, .paused:
+            BSColor.Stage.accent
+        case .normal:
+            BSColor.Stage.foreground
+        case .unavailable:
+            BSColor.Stage.dim.opacity(0.55)
+        }
+    }
+
+    private func trackNumber(color: Color) -> some View {
+        Text(String(format: "%02d", index + 1))
+            .font(.system(size: 13, weight: .medium, design: .monospaced))
+            .foregroundStyle(color)
     }
 }
