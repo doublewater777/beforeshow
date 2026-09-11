@@ -166,6 +166,34 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertFalse(failed.player.canPlayPause)
     }
 
+    func testPreparingPlayerUsesIconOnlyVisualStateAndAccurateAccessibilityStatus() {
+        let disc = ListeningDisc(
+            id: "preview",
+            title: "Preview",
+            artworkURL: nil,
+            tracks: [track("preview", preview: true)]
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: false),
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .preparing(source: .preview),
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.player.phase, .preparing)
+        XCTAssertNil(projection.player.visibleStatusText)
+        XCTAssertEqual(projection.player.statusText, ListeningCopy.text("正在准备播放"))
+        XCTAssertEqual(projection.player.accessibilityStatusText, ListeningCopy.text("正在准备播放"))
+        XCTAssertFalse(projection.player.canPlayPause)
+    }
+
     func testNoDiscGuidanceDependsOnRealRoomCapability() {
         let metadata = ListeningDisc(
             id: "metadata",
