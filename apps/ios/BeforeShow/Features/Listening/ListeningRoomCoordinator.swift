@@ -439,7 +439,8 @@ import UIKit
         }
     }
     private func playCurrentTrack() async throws {
-        guard let track, let source = ListeningPlaybackSourceResolver.resolve(capability: capability(for: track)) else {
+        guard let track, let disc = mechanism.disc,
+              let source = ListeningPlaybackSourceResolver.resolve(capability: capability(for: track)) else {
             pendingSleeveSongID = nil
             return
         }
@@ -452,13 +453,17 @@ import UIKit
             let next = ListeningPlaybackController(service: service, evidenceCoordinator: evidence)
             controller = next
             // Reading the disc: spin-up whir and laser seek while a new track
-            // prepares. Pause/resume reuses the prepared track and stays silent.
+            // prepares. Pause/resume reuses the prepared queue and stays silent.
             CDSoundPlayer.shared.play("read")
-            // A single physical disc owns continuation. Preparing one track also
-            // prevents MusicKit recommendations, shuffle or another disc taking over.
-            try await next.prepare(items: [track.playbackItem], source: source)
+            // A single physical disc owns continuation. The transport receives the
+            // whole CD so iOS can advance tracks even while this view is not running.
+            try await next.prepare(
+                items: disc.tracks.map(\.playbackItem),
+                source: source,
+                startingAtSongID: track.id
+            )
             try Task.checkCancellation()
-            guard generation == playbackGeneration, active, (foreground || source == .fullCatalog), mechanism.isClosed, mechanism.position == .seated else {
+            guard generation == playbackGeneration, mechanism.isClosed, mechanism.position == .seated else {
                 pendingSleeveSongID = nil
                 try next.stop()
                 return
@@ -467,7 +472,7 @@ import UIKit
         }
         try await controller?.play()
         try Task.checkCancellation()
-        guard generation == playbackGeneration, active, (foreground || source == .fullCatalog), mechanism.isClosed else {
+        guard generation == playbackGeneration, mechanism.isClosed else {
             pendingSleeveSongID = nil
             try controller?.stop()
             return
@@ -503,6 +508,7 @@ import UIKit
         guard !busy, let controller else { return }
         do {
             playbackState = try controller.refresh()
+            syncTrackIndexWithPlaybackState()
             if case .failed = playbackState {
                 pendingSleeveSongID = nil
                 playbackError = BSLocalization.text("暂时无法播放")
@@ -511,22 +517,32 @@ import UIKit
             completeSleevePlaybackIfNeeded()
             recordPlayingIfNeeded()
             try refreshEvidence()
-            if case let .finished(songID, _, _) = playbackState, finishedSongID != songID {
+            if case let .finished(songID, _, _) = playbackState {
                 finishedSongID = songID
-                if let disc = mechanism.disc, trackIndex + 1 < disc.tracks.count {
-                    run { [self] in
-                        try self.controller?.stop(); preparedSongID = nil
-                        trackIndex += 1; try await playCurrentTrack()
-                    }
-                }
-                else { try controller.stop(); self.controller = nil; preparedSongID = nil }
-                // Last track stays finished. No disc swap or wraparound.
+            } else {
+                finishedSongID = nil
             }
         } catch {
             pendingSleeveSongID = nil
             stop()
             playbackError = BSLocalization.text("暂时无法播放")
         }
+    }
+    private func syncTrackIndexWithPlaybackState() {
+        let songID: String?
+        switch playbackState {
+        case let .ready(id, _, _, _), let .playing(id, _, _, _), let .paused(id, _, _, _), let .finished(id, _, _):
+            songID = id
+        case .idle, .preparing, .failed:
+            songID = nil
+        }
+        guard let songID, let disc = mechanism.disc,
+              let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
+        if trackIndex != index {
+            trackIndex = index
+            recordedPlayingSongID = nil
+        }
+        preparedSongID = songID
     }
     func seek(_ time: TimeInterval) {
         guard time.isFinite, time >= 0 else { return }
