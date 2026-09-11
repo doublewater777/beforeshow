@@ -72,7 +72,7 @@ struct FootprintSearchSheet: View {
                     ForEach(results) { show in
                         Button { onSelect(show) } label: {
                             HStack(spacing: 10) {
-                                FootprintMiniPoster(show: show, cover: covers[show.id]).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
+                                FootprintResolvedCoverImage(show: show, cover: covers[show.id]).frame(width: 40, height: 52).clipShape(RoundedRectangle(cornerRadius: 9))
                                 VStack(alignment: .leading, spacing: 3) {
                                     Text(show.name).font(BSFont.caption).foregroundColor(BSColor.Stage.foreground).lineLimit(1)
                                     Text("\([show.city, show.venueName].compactMap { $0 }.joined(separator: " · ")) · \(footprintDayText(show.effectiveDate, calendar: show.timingCalendar()))")
@@ -82,14 +82,26 @@ struct FootprintSearchSheet: View {
                             }
                             .padding(.vertical, 10)
                         }
-                        .buttonStyle(.plain)
-                        Divider().overlay(BSColor.Stage.border)
-                    }
-                    if results.isEmpty {
-                        Text(BSLocalization.text("没有找到匹配的现场")).font(BSFont.body).foregroundColor(BSColor.Stage.muted).padding(.top, 28)
-                    }
-                }
-            }
+                       .buttonStyle(.plain)
+                       Divider().overlay(BSColor.Stage.border)
+                   }
+                   if results.isEmpty {
+                        VStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 28, weight: .light))
+                                .foregroundColor(BSColor.Stage.dim)
+                            Text(BSLocalization.text("未找到匹配的现场"))
+                                .font(BSFont.body)
+                                .foregroundColor(BSColor.Stage.muted)
+                            Text(BSLocalization.text("尝试更换关键词或年份、城市筛选"))
+                                .font(BSFont.caption)
+                                .foregroundColor(BSColor.Stage.dim)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 36)
+                   }
+               }
+           }
             .scrollDismissesKeyboard(.interactively)
             .padding(.top, 8)
 

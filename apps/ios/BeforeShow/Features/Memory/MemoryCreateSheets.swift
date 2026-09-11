@@ -33,13 +33,13 @@ struct MemoryAddMediaSheet: View {
     let onLibrary: () -> Void
 
     var body: some View {
-        BSDrawerSheet(detent: .height(292), fitsContent: true) {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("继续添加")
-                    .font(.system(size: 18, weight: .semibold))
-                Text("给当前这条记忆增加媒体")
-                    .font(.system(size: 12))
-                    .foregroundColor(BSColor.Stage.muted)
+       BSDrawerSheet(detent: .height(292), fitsContent: true) {
+           VStack(alignment: .leading, spacing: 0) {
+                Text(BSLocalization.text("继续添加"))
+                   .font(.system(size: 18, weight: .semibold))
+                Text(BSLocalization.text("给当前这条记忆增加媒体"))
+                   .font(.system(size: 12))
+                   .foregroundColor(BSColor.Stage.muted)
                     .padding(.top, 6)
                 HStack(spacing: 10) {
                     MemorySourceOptionCard(

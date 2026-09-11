@@ -4,45 +4,6 @@ import XCTest
 
 @MainActor
 final class ListeningPlaybackControllerTests: XCTestCase {
-    func testPreparePreservesPhaseFourQueueOrder() async throws {
-        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
-        defer { withExtendedLifetime(container) {} }
-        let context = container.mainContext
-        let service = PlaybackServiceStub()
-        let controller = ListeningPlaybackController(
-            service: service,
-            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: context)
-        )
-        let first = CatalogSong(
-            appleMusicSongID: "song-a",
-            title: "A",
-            artistName: "Artist",
-            duration: 180
-        )
-        let second = CatalogSong(
-            appleMusicSongID: "song-b",
-            title: "B",
-            artistName: "Artist",
-            duration: 200,
-            previewURL: "https://example.com/b.m4a"
-        )
-        let queue = [
-            ListeningQueueEntry(artistID: "artist-b", songID: "song-b"),
-            ListeningQueueEntry(artistID: "artist-a", songID: "song-a")
-        ]
-
-        try await controller.prepare(
-            queue: queue,
-            catalogSongs: [first, second],
-            source: .fullCatalog,
-            now: time(0)
-        )
-
-        XCTAssertEqual(service.preparedItems.map(\.songID), ["song-b", "song-a"])
-        XCTAssertEqual(service.preparedItems.map(\.duration), [200, 180])
-        XCTAssertEqual(service.preparedItems.first?.previewURL?.absoluteString, "https://example.com/b.m4a")
-    }
-
     func testControllerDrivesStateAndPersistsFullPlaybackEvidence() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -61,15 +22,15 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
 
         try await controller.play(now: time(0))
-        service.currentTime = 50
-        _ = try controller.refresh(now: time(50))
+        service.currentTime = 51
+        _ = try controller.refresh(now: time(51))
 
         XCTAssertEqual(
             controller.state,
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 50, duration: 100)
+            .playing(songID: "song-a", source: .fullCatalog, currentTime: 51, duration: 100)
         )
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)
-        XCTAssertEqual(record.actualListeningAt, time(50))
+        XCTAssertEqual(record.actualListeningAt, time(51))
     }
 
     func testControllerPreviewPlaybackNeverPersistsActualEvidence() async throws {
@@ -116,7 +77,26 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
         service.currentTime = 92
         _ = try controller.refresh(now: time(51))
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+        service.currentTime = 93
+        _ = try controller.refresh(now: time(52))
         XCTAssertEqual(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).count, 1)
+    }
+
+    func testFailedResourceStillStopsTransport() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext))
+        try await controller.prepare(items: [ListeningPlaybackItem(songID: "failed", duration: 100, previewURL: nil)], source: .fullCatalog)
+        try await controller.play()
+        service.failure = .songUnavailable("failed")
+        XCTAssertEqual(try controller.refresh(), .failed)
+        XCTAssertEqual(controller.state, .failed)
+        XCTAssertNoThrow(try controller.stop())
+        XCTAssertTrue(service.didStop)
+        XCTAssertEqual(controller.state, .idle)
     }
 
     private func time(_ value: TimeInterval) -> Date {
@@ -126,6 +106,8 @@ final class ListeningPlaybackControllerTests: XCTestCase {
 
 @MainActor
 private final class PlaybackServiceStub: ListeningPlaybackServicing {
+    var failure: ListeningPlaybackError?
+    var didStop = false
     private var item: ListeningPlaybackItem?
     private var source: ListeningPlaybackSource = .fullCatalog
     private(set) var preparedItems: [ListeningPlaybackItem] = []
@@ -166,6 +148,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     }
 
     func stop() {
+        didStop = true
         item = nil
         isPlaying = false
     }

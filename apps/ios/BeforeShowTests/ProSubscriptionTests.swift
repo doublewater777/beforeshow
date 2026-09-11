@@ -438,7 +438,7 @@ final class ProSubscriptionTests: XCTestCase {
     }
 
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
-        XCTAssertEqual(SettingsInformation.orderedEntries, [
+        XCTAssertEqual(SettingsEntry.allCases, [
             .proMembership,
             .privacyAndLocalData,
             .feedback,
@@ -446,7 +446,7 @@ final class ProSubscriptionTests: XCTestCase {
             .about
         ])
 
-        let copy = SettingsInformation.orderedEntries.map(\.rawValue).joined(separator: " ")
+        let copy = SettingsEntry.allCases.map(\.rawValue).joined(separator: " ")
         XCTAssertFalse(copy.contains("账号"))
         XCTAssertFalse(copy.contains("同步"))
         XCTAssertFalse(copy.contains("默认音乐平台"))

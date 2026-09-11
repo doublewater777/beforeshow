@@ -34,28 +34,33 @@ enum CurrentShowQuickAction: Hashable {
 
     /// 快捷入口按生命周期排序:主行动已在卡片上,这里保留其余入口,
     /// 但把当前阶段次相关的动作后置,避免 ended 后路线/票根抢占记忆。
+    /// `embedsRouteInLocation` 为真时路线收进倒计时地点,不再占一格。
     static func actions(
         for phase: HomeShowPhase,
         inOpeningMemoryWindow: Bool = false,
-        canRecordEnd: Bool = true
+        canRecordEnd: Bool = true,
+        embedsRouteInLocation: Bool = false
     ) -> [Self] {
+        let actions: [Self]
         switch phase {
         case .pre:
-            return [.route, .ticket, .timetable, .companion, .memoryFragments]
+            actions = [.route, .ticket, .timetable, .companion, .memoryFragments]
         case .live:
             if inOpeningMemoryWindow {
-                var actions: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
+                var live: [Self] = [.companion, .memoryFragments, .route, .ticket, .timetable]
                 if canRecordEnd {
-                    actions.insert(.endShow, at: 0)
+                    live.insert(.endShow, at: 0)
                 }
-                return actions
+                actions = live
+            } else {
+                actions = [.companion, .memoryFragments, .route, .ticket, .timetable]
             }
-            return [.companion, .memoryFragments, .route, .ticket, .timetable]
         case .ended:
-            return [.memoryFragments, .companion, .route, .ticket, .timetable]
+            actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
         case .inactive:
-            return [.route, .companion, .ticket, .timetable, .memoryFragments]
+            actions = [.route, .companion, .ticket, .timetable, .memoryFragments]
         }
+        return embedsRouteInLocation ? actions.filter { $0 != .route } : actions
     }
 }
 

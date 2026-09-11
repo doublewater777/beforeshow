@@ -174,18 +174,6 @@ struct BSStageScaffold<Content: View>: View {
     }
 }
 
-struct BSSectionHeader: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(BSFont.tag)
-            .tracking(1.4)
-            .foregroundColor(BSColor.textTertiary)
-            .textCase(.uppercase)
-    }
-}
-
 struct CurrentShowAmbientBackground: View {
     let coverImageURL: String?
 

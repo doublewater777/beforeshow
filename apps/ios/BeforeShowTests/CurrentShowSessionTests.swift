@@ -58,34 +58,6 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertTrue(session.isManuallySelectable(canceled, now: now))
     }
 
-    @MainActor
-    func testLifecycleMutationDoesNotClearExistingSelection() throws {
-        let ended = try makeShow(name: "已结束", day: 1)
-        ended.markEnded(at: makeDate(year: 2026, month: 6, day: 1, hour: 21))
-        let selection = CurrentShowSelection(selectedShowID: ended.id)
-
-        ShowMutationCoordinator.reconcileManualSelection(
-            shows: [ended],
-            selections: [selection],
-            session: CurrentShowSession(calendar: calendar),
-            now: now
-        )
-
-        XCTAssertEqual(selection.selectedShowID, ended.id)
-    }
-
-    @MainActor
-    func testMissingSelectedShowIsClearedByCompatibilityReconcile() throws {
-        let selection = CurrentShowSelection(selectedShowID: UUID())
-        ShowMutationCoordinator.reconcileManualSelection(
-            shows: [],
-            selections: [selection],
-            session: CurrentShowSession(calendar: calendar),
-            now: now
-        )
-        XCTAssertNil(selection.selectedShowID)
-    }
-
     func testInitialPolicyPrefersActualLiveThenNearestFuture() throws {
         let live = try Show(
             name: "正在现场",

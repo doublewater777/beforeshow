@@ -89,6 +89,7 @@ struct CurrentShowCompanionSheet: View {
 
     @Environment(\.modelContext) private var modelContext
     @State private var isShowingHistory = false
+    @State private var isShowingShareSheet = false
     @State private var isPreparingInvite = false
     @State private var isRefreshing = false
     @State private var isCanceling = false
@@ -132,6 +133,9 @@ struct CurrentShowCompanionSheet: View {
                 }
             }
             .animation(.easeOut(duration: 0.18), value: isPreparingInvite)
+        }
+        .sheet(isPresented: $isShowingShareSheet) {
+            CompanionFootprintShareSheet(show: show, sharedHistory: sharedHistory)
         }
         .alert(
             "同行邀请",
@@ -205,28 +209,35 @@ struct CurrentShowCompanionSheet: View {
                 if isPreparingInvite {
                     HStack(spacing: 8) {
                         ProgressView()
-                            .tint(BSColor.Stage.foreground)
+                            .tint(.black)
                         Text(CompanionInvitePreparingPresentation.overlayTitle)
                     }
                     .frame(maxWidth: .infinity)
                 } else {
-                    Label(BSLocalization.text("再次发送"), systemImage: "paperplane")
+                    Label(BSLocalization.text("再次发送邀请"), systemImage: "paperplane")
                 }
             }
-            .buttonStyle(BSSecondaryButtonStyle())
+            .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isPreparingInvite || show.companionShareRecordName == nil)
 
             Button {
                 Task { await refreshStatus() }
             } label: {
-                if isRefreshing {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Label(BSLocalization.text("刷新状态"), systemImage: "arrow.clockwise")
+                HStack(spacing: 6) {
+                    if isRefreshing {
+                        ProgressView()
+                            .scaleEffect(0.85)
+                            .tint(BSColor.Stage.muted)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    Text(isRefreshing ? BSLocalization.text("正在检查...") : BSLocalization.text("检查状态"))
                 }
+                .font(BSFont.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
             }
-            .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isRefreshing)
 
             destructiveButton("取消邀请") {
@@ -248,8 +259,10 @@ struct CurrentShowCompanionSheet: View {
 
                 sharedMemoryCard
 
-                ShareLink(item: sharedFootprintShareText) {
-                    Label(BSLocalization.text("分享共同足迹"), systemImage: "square.and.arrow.up")
+                Button {
+                    isShowingShareSheet = true
+                } label: {
+                    Label(BSLocalization.text("分享共同足迹卡"), systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
             }
@@ -447,7 +460,7 @@ struct CurrentShowCompanionSheet: View {
         }
         if isRetry, show.companionShareLocator != nil {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("请先完成取消同步，再重新邀请")
+            errorMessage = BSLocalization.text("正在重置上一份邀请，请稍候再试")
             return
         }
         if show.companionShareLocator != nil {
@@ -456,7 +469,7 @@ struct CurrentShowCompanionSheet: View {
         }
         guard show.companionCloudRecordName == nil else {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("这场现场已有同行邀请，请先刷新状态")
+            errorMessage = BSLocalization.text("这场现场已有正在进行的同行邀请，请稍候检查状态")
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext)

@@ -38,6 +38,9 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
+        if player.currentItem?.status == .failed {
+            replaceCurrentItem()
+        }
         guard player.currentItem != nil else {
             throw ListeningPlaybackError.emptyQueue
         }
@@ -69,6 +72,11 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
 
     func seek(to time: TimeInterval) {
         player.seek(to: CMTime(seconds: max(0, time), preferredTimescale: 600))
+    }
+
+    var failure: ListeningPlaybackError? {
+        guard player.currentItem?.status == .failed, queue.indices.contains(currentIndex) else { return nil }
+        return .songUnavailable(queue[currentIndex].songID)
     }
 
     func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {

@@ -39,6 +39,8 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         durationBySongID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
             item.duration.map { (item.songID, $0) }
         })
+        player.state.repeatMode = MusicPlayer.RepeatMode.none
+        player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs, startingAt: startingSong)
         try await player.prepareToPlay()
     }

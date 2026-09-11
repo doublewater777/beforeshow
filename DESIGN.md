@@ -412,3 +412,12 @@ The source sheet appears only after the user chooses to add their own show. Link
 - Place: `南京市 · 南京奥体中心体育场`
 - Cover: user-selected 1020×1360 artwork, rendered in its native 3:4 ratio.
 - Countdown: derived from the first date, `2026.09.24`; the July 10, 2026 prototype capture reads `76 天`.
+
+### Listening room
+
+- The root header shows only the current show's name, using the same title and top alignment as the other tabs. Show switching belongs to the current-show tab.
+- Above the CD player, a read-only row shows album artwork, song title, artist and album. Playback stays on the physical controls; disc tracks open separately.
+- Keep the photographic CD player as the focal object. Its lid opens to 82° relative to the body, within reserved stage space; opening never fades the header or song information.
+- The cabinet is a recessed wooden object with a visible frame, shelf lip, contact shadows and CDs partly exposed behind their sleeves. Reuse this shelf in the all-records bottom sheet, one row per artist.
+- Physical-material colors remain in `ListeningStyle`: wood back `#1A120E`, shadow `#211712`, face `#523829`, edge `#78543B`, highlight `#A3784D`. They describe the cabinet material only; surrounding text and controls use Stage tokens.
+- Artist identities resolve automatically from saved links or an unambiguous name match. Matching is not a required user step; platform music authorization remains a separate system permission.

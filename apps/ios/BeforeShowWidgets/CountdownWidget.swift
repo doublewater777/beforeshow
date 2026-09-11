@@ -19,6 +19,8 @@ enum WidgetTheme {
     static let live = Color(red: 1.000, green: 0.420, blue: 0.459)
     static let liveTitle = Color(red: 1.000, green: 0.816, blue: 0.827)
     static let widgetCoverCornerRadius: CGFloat = 12
+    /// 中号封面按 App 海报 3:4 收住,不再把高度拉满把间距撑开。
+    static let mediumCoverSize = CGSize(width: 81, height: 108)
 }
 
 // MARK: - Timeline

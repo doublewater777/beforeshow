@@ -42,7 +42,7 @@ struct FootprintDashboardView: View {
     private var header: some View {
         HStack {
             Text(BSLocalization.text("足迹"))
-                .font(.system(size: 32, weight: .bold))
+                .font(BSFont.pageTitle)
                 .tracking(-0.5)
                 .foregroundColor(BSColor.Stage.foreground)
 

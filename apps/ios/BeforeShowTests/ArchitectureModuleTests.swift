@@ -152,33 +152,6 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
-    func testCountdownPresentationAsksBeforeAnnouncingUnconfirmedEnd() throws {
-        let start = Date(timeIntervalSince1970: 2_000_000_000)
-        let show = try Show(name: "等待确认的现场", date: start, startTime: start)
-        let state = CurrentShowTimeState(
-            show: show,
-            now: start.addingTimeInterval(5 * 3_600)
-        )
-
-        XCTAssertEqual(
-            HomeCountdownPresentationPolicy.state(for: show, timeState: state, now: start.addingTimeInterval(5 * 3_600)),
-            .askingEnd
-        )
-    }
-
-    func testCountdownPresentationConfirmsOnlyWhenEndedAtExists() throws {
-        let start = Date(timeIntervalSince1970: 2_000_000_000)
-        let show = try Show(name: "已经确认的现场", date: start, startTime: start)
-        show.markEnded(at: start.addingTimeInterval(5 * 3_600))
-        let now = start.addingTimeInterval(5 * 3_600 + 60)
-        let state = CurrentShowTimeState(show: show, now: now)
-
-        XCTAssertEqual(
-            HomeCountdownPresentationPolicy.state(for: show, timeState: state, now: now),
-            .confirmedEnded
-        )
-    }
-
     func testUnconfirmedEstimatedEndRequiresPostBoundaryWithoutEndedAt() {
         // 首页 / widget 共用:postShow・ended 且未确认 endedAt → 「待确认」,不宣布落幕。
         XCTAssertTrue(
@@ -196,29 +169,10 @@ final class ArchitectureModuleTests: XCTestCase {
         )
     }
 
-    func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() throws {
-        // 与 widget 同一阈值:remaining == 86400 必须是小时文案,只有 > 86400 才是「1 天」。
-        let now = Date(timeIntervalSince1970: 2_000_000_000)
-        let atThreshold = try Show(
-            name: "恰好一天",
-            date: now.addingTimeInterval(86_400),
-            startTime: now.addingTimeInterval(86_400)
-        )
-        let state = CurrentShowTimeState(show: atThreshold, now: now)
-        guard case .countdownClock = HomeCountdownPresentationPolicy.state(for: atThreshold, timeState: state, now: now) else {
-            return XCTFail("remaining == 24h 应显示小时文案,不是「1 天」")
-        }
-
-        let pastThreshold = try Show(
-            name: "一天多一秒",
-            date: now.addingTimeInterval(86_401),
-            startTime: now.addingTimeInterval(86_401)
-        )
-        let pastState = CurrentShowTimeState(show: pastThreshold, now: now)
-        XCTAssertEqual(
-            HomeCountdownPresentationPolicy.state(for: pastThreshold, timeState: pastState, now: now),
-            .countdownDays(1)
-        )
+    func testCountdownBoundaryAtExactly24HoursShowsClockNotOneDay() {
+        // 与 widget 同一阈值:remaining == 86400 必须是时钟,只有 > 86400 才是「天」。
+        XCTAssertFalse(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: 86_400))
+        XCTAssertTrue(WidgetTimelinePlanner.isDayCountHero(remainingSeconds: 86_401))
     }
 
     func testCountdownCopyUsesHoursThenMinutes() {

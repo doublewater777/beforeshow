@@ -84,11 +84,6 @@ enum DispersalCeremonyPolicy {
     /// 合法评分范围。
     static let ratingRange: ClosedRange<Int> = 1...5
 
-    /// 把任何 Int 夹到 1...5,出界返回 nil(让上层选择"忽略"或"抛错")。
-    static func clampRating(_ raw: Int) -> Int? {
-        ratingRange.contains(raw) ? raw : nil
-    }
-
     /// 把任何 Double 四舍五入到最近的合法档位,用于 Slider 拖动后的吸附。
     static func snap(_ raw: Double) -> Int {
         let rounded = Int(raw.rounded())

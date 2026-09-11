@@ -3,7 +3,9 @@ import SwiftUI
 struct CurrentShowLibraryCoverCard: View {
     let show: Show
     let isCurrent: Bool
+    let actions: [CurrentShowLibraryMenuAction]
     let onOpen: () -> Void
+    let onAction: (CurrentShowLibraryMenuAction) -> Void
 
     var body: some View {
         Button(action: onOpen) {
@@ -16,9 +18,32 @@ struct CurrentShowLibraryCoverCard: View {
                     cornerRadius: BSRadius.md
                 )
 
-                if show.changeStatus != .scheduled {
-                    tag(statusTag, color: statusColor)
-                        .padding(BSSpacing.sm)
+                VStack(alignment: .leading, spacing: 4) {
+                    if isCurrent {
+                        tag(BSLocalization.text("当前展示"), color: BSColor.Stage.glowBlue)
+                    }
+                    if show.changeStatus != .scheduled {
+                        tag(statusTag, color: statusColor)
+                    }
+                }
+                .padding(BSSpacing.sm)
+
+                VStack {
+                    Spacer()
+                    LinearGradient(
+                        colors: [Color.clear, Color.black.opacity(0.85)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 38)
+                    .overlay(alignment: .bottomLeading) {
+                        Text(show.name)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.92))
+                            .lineLimit(1)
+                            .padding(.horizontal, 7)
+                            .padding(.bottom, 6)
+                    }
                 }
             }
             // 外层固定 3:4 比例，让封面始终吃列宽；否则加载中的图会按内禀尺寸
@@ -28,13 +53,22 @@ struct CurrentShowLibraryCoverCard: View {
             .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
             .overlay(
                 RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                    .stroke(isCurrent ? BSColor.Stage.glowBlue.opacity(0.55) : BSColor.Stage.border, lineWidth: 1)
+                    .stroke(isCurrent ? BSColor.Stage.glowBlue.opacity(0.65) : BSColor.Stage.border, lineWidth: isCurrent ? 1.5 : 1)
             )
             .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(show.name)
         .accessibilityElement(children: .contain)
+        .contextMenu {
+            ForEach(actions, id: \.self) { action in
+                Button(role: action.isDestructive ? .destructive : nil) {
+                    onAction(action)
+                } label: {
+                    Label(BSLocalization.text(action.rawValue), systemImage: action.icon)
+                }
+            }
+        }
     }
 
     private var statusTag: String {

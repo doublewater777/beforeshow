@@ -28,6 +28,12 @@ final class ListeningCatalogStoreTests: XCTestCase {
             songs.first(where: { $0.appleMusicSongID == "song-top" })?.previewURL,
             "https://example.com/preview.m4a"
         )
+        let album = try XCTUnwrap(albums.first)
+        XCTAssertEqual(album.editorialText, "Album editorial")
+        XCTAssertEqual(album.genreNames, ["Pop", "Electronic"])
+        XCTAssertEqual(album.recordLabelName, "Example Records")
+        XCTAssertEqual(album.audioVariantRawValues, ["lossless", "dolbyAtmos"])
+        XCTAssertEqual(album.appleMusicURL, "https://music.apple.com/example")
     }
 
     @MainActor
@@ -203,6 +209,17 @@ final class ListeningCatalogStoreTests: XCTestCase {
                     artworkURL: "https://example.com/album.jpg",
                     releaseDate: fetchedAt.addingTimeInterval(-86_400),
                     artistIDs: ["artist-1"],
+                    artistNames: [artistName],
+                    editorialText: "Album editorial",
+                    genreNames: ["Pop", "Electronic"],
+                    copyright: "℗ 2026 Example Records",
+                    recordLabelName: "Example Records",
+                    contentRatingRawValue: "explicit",
+                    audioVariantRawValues: ["lossless", "dolbyAtmos"],
+                    isAppleDigitalMaster: true,
+                    isCompilation: false,
+                    isSingle: false,
+                    appleMusicURL: "https://music.apple.com/example",
                     orderedTrackIDs: ["song-album"]
                 )
             ],

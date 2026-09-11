@@ -31,6 +31,7 @@ enum ListeningShowStartPolicy {
 
 enum WantsLivePolicy {
     static func isMutable(show: Show, now: Date = Date()) -> Bool {
+        guard show.changeStatus != .canceled else { return false }
         guard let effectiveStart = ListeningShowStartPolicy.effectiveOpeningStart(show: show) else {
             return true
         }

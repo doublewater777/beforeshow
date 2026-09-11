@@ -25,6 +25,17 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         )
     }
 
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        guard currentAuthorizationStatus() == .authorized else { throw ListeningCatalogError.authorizationRequired }
+        var request = MusicCatalogResourceRequest<Artist>(matching: \.id, equalTo: MusicItemID(artistID))
+        request.limit = 1
+        guard let artist = try await request.response().items.first else { return [] }
+        let detailed = try await artist.with([.topSongs])
+        return Array(detailed.topSongs ?? []).map {
+            Self.songPayload(from: $0, targetArtistID: artistID, fallbackAlbum: nil, assumesTargetArtistWhenRelationshipMissing: true)
+        }
+    }
+
     func fetchArtistCatalog(
         artistID: String,
         fetchedAt: Date = Date()
@@ -93,10 +104,11 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             topSongIDs: topSongIDs,
             albums: detailedAlbums
         )
-        let enrichedSongs = try await fetchEnrichedSongs(
-            songIDs: requestedSongIDs,
-            baseSongsByID: baseSongsByID
-        )
+        // Top-song and album-track responses already carry title, artist, artwork,
+        // duration and preview metadata. Fetching every ID again serially made a real
+        // artist page wait minutes on device; the album fallback below supplies any
+        // missing album relationship without extra network traffic.
+        let enrichedSongs = baseSongsByID
 
         var trustedTargetSongIDs = Set(topSongIDs)
         for album in detailedAlbums where !album.isCompilation {
@@ -157,6 +169,19 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
                 artworkURL: Self.artworkURL(detailedAlbum.album.artwork),
                 releaseDate: detailedAlbum.album.releaseDate,
                 artistIDs: albumArtistIDs,
+                artistNames: detailedAlbum.album.artists.map { Array($0).map(\.name) } ?? [],
+                editorialText: detailedAlbum.album.editorialNotes?.standard
+                    ?? detailedAlbum.album.editorialNotes?.short
+                    ?? detailedAlbum.album.editorialNotes?.tagline,
+                genreNames: detailedAlbum.album.genreNames,
+                copyright: detailedAlbum.album.copyright,
+                recordLabelName: detailedAlbum.album.recordLabelName,
+                contentRatingRawValue: Self.contentRatingRawValue(detailedAlbum.album.contentRating),
+                audioVariantRawValues: (detailedAlbum.album.audioVariants ?? []).map(Self.audioVariantRawValue),
+                isAppleDigitalMaster: detailedAlbum.album.isAppleDigitalMaster,
+                isCompilation: detailedAlbum.album.isCompilation,
+                isSingle: detailedAlbum.album.isSingle,
+                appleMusicURL: detailedAlbum.album.url?.absoluteString,
                 orderedTrackIDs: orderedTrackIDs
             ))
         }
@@ -181,38 +206,6 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             albums: albumPayloads,
             fetchedAt: fetchedAt
         )
-    }
-
-    private func fetchEnrichedSongs(
-        songIDs: [String],
-        baseSongsByID: [String: Song]
-    ) async throws -> [String: Song] {
-        var result: [String: Song] = [:]
-
-        // iOS 17 MusicKit doesn't expose a catalog request `properties` surface for
-        // relationship expansion. Fetch each stable ID with an explicit equality
-        // filter, then load the Song relationships through MusicItem.with(_:).
-        for rawID in songIDs {
-            let musicID = MusicItemID(rawID)
-            var request = MusicCatalogResourceRequest<Song>(
-                matching: \.id,
-                equalTo: musicID
-            )
-            request.limit = 1
-            let response = try await request.response()
-
-            let baseSong: Song
-            if let fetchedSong = response.items.first {
-                baseSong = fetchedSong
-            } else if let fallback = baseSongsByID[rawID] {
-                baseSong = fallback
-            } else {
-                throw ListeningCatalogError.incompleteCatalog(rawID)
-            }
-
-            result[rawID] = try await baseSong.with([.artists, .albums])
-        }
-        return result
     }
 
     private static func songPayload(
@@ -247,6 +240,27 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             previewURL: song.previewAssets?.first?.url?.absoluteString
                 ?? song.previewAssets?.first?.hlsURL?.absoluteString
         )
+    }
+
+    private static func contentRatingRawValue(_ rating: ContentRating?) -> String? {
+        switch rating {
+        case .clean: "clean"
+        case .explicit: "explicit"
+        case nil: nil
+        @unknown default: nil
+        }
+    }
+
+    private static func audioVariantRawValue(_ variant: AudioVariant) -> String {
+        switch variant {
+        case .dolbyAtmos: "dolbyAtmos"
+        case .dolbyAudio: "dolbyAudio"
+        case .lossless: "lossless"
+        case .highResolutionLossless: "highResolutionLossless"
+        case .lossyStereo: "lossyStereo"
+        case .spatialAudio: "spatialAudio"
+        @unknown default: variant.description
+        }
     }
 
     private static func appendAlbums(

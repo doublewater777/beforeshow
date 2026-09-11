@@ -38,11 +38,11 @@ struct AddShowFlowView: View {
     /// 再决定是否弹系统权限弹窗，之后才继续 dismiss。
     @State private var notificationPrimerDecision: CheckedContinuation<Bool, Never>?
     @State private var showsLinkGuide = false
-    /// 引导页里点过「打开 XX」才置真；关闭引导页时只有这种情况才读剪贴板，
-    /// 避免只是翻翻平台也触发系统粘贴弹窗。
+    /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
+    /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
     @State private var didOpenPlatformFromGuide = false
-    /// 引导页关闭后检测到剪贴板里有支持平台的链接时，出「粘贴XX链接？」chip。
-    @State private var linkPasteSuggestion: (link: String, platform: String)?
+    /// 剪贴板可粘贴时出 chip：未读内容用 clipboardText，读过支持平台后带平台名。
+    @State private var linkPasteSuggestion: AddShowPasteOffer?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
     @State private var savedShowConfirmation: SavedShowConfirmation?
@@ -231,9 +231,12 @@ struct AddShowFlowView: View {
                 ProPaywallSheetView()
             }
         }
+        .onAppear {
+            refreshPasteOffer(inspectContents: false)
+        }
         .sheet(isPresented: $showsLinkGuide, onDismiss: {
             if didOpenPlatformFromGuide {
-                detectPasteboardLink()
+                refreshPasteOffer(inspectContents: true)
             }
             didOpenPlatformFromGuide = false
         }) {
@@ -336,7 +339,7 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink)
                     .opacity(isParsingLink ? 0.55 : 1)
 
-                    // 从引导页回来、剪贴板里有支持平台的链接时，一键粘贴并直接解析
+                    // 剪贴板有文本时一键粘贴并解析；进入页不读内容，避免系统粘贴横幅
                     if let linkPasteSuggestion, !isParsingLink {
                         Button {
                             applyPasteSuggestion()
@@ -344,7 +347,7 @@ struct AddShowFlowView: View {
                             HStack(spacing: 7) {
                                 Image(systemName: "doc.on.clipboard")
                                     .font(.system(size: 12, weight: .semibold))
-                                Text(BSLocalization.format("粘贴%@链接？", linkPasteSuggestion.platform))
+                                Text(linkPasteSuggestion.chipTitle)
                                     .font(.system(size: 13, weight: .semibold))
                                 Spacer(minLength: 0)
                                 Image(systemName: "arrow.right")
@@ -361,7 +364,7 @@ struct AddShowFlowView: View {
                             )
                         }
                         .buttonStyle(.plain)
-                        .accessibilityLabel(BSLocalization.format("粘贴%@链接并开始解析", linkPasteSuggestion.platform))
+                        .accessibilityLabel(linkPasteSuggestion.accessibilityLabel)
                     }
 
                     if let detectedLinkSource {
@@ -408,7 +411,7 @@ struct AddShowFlowView: View {
                     .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
 
-                    Text(BSLocalization.format("目前支持：%@。你可以继续在下方手动填写。", ShowLinkPlatformCatalog.supportSummary))
+                    Text(BSLocalization.format("目前支持：%@", ShowLinkPlatformCatalog.supportSummary))
                         .font(.system(size: 12))
                         .foregroundColor(BSColor.Stage.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -433,6 +436,10 @@ struct AddShowFlowView: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("查看如何获取票务链接")
+
+                    if linkFailure == nil {
+                        switchToManualButton
+                    }
                 }
 
                 if let linkFailure, !isParsingLink {
@@ -441,7 +448,6 @@ struct AddShowFlowView: View {
                         onRetry: {
                             guard !isParsingLink else { return }
                             self.linkFailure = nil
-                            linkText = ""
                         },
                         onManual: {
                             didSwitchToManual = true
@@ -513,8 +519,8 @@ struct AddShowFlowView: View {
                     BSEmptyPanel(
                         iconName: "text.viewfinder",
                         title: BSLocalization.text("截图识别失败"),
-                        message: BSLocalization.text("没有识别到可用的现场信息。可以继续在下方手动填写。"),
-                        buttonTitle: "手动填写",
+                        message: BSLocalization.text("没有识别到可用的现场信息，请改用手动填写。"),
+                        buttonTitle: BSLocalization.text("改用手动填写"),
                         buttonIconName: "square.and.pencil"
                     ) {
                         didSwitchToManual = true
@@ -522,6 +528,29 @@ struct AddShowFlowView: View {
                 }
             }
         }
+    }
+
+    private var switchToManualButton: some View {
+        Button {
+            dismissKeyboard()
+            didSwitchToManual = true
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "square.and.pencil")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(BSLocalization.text("改用手动填写"))
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(BSColor.Stage.accent)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: BSLayout.minTouchTarget)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(BSLocalization.text("改用手动填写"))
     }
 
     private var shouldShowDraftFields: Bool {
@@ -734,24 +763,39 @@ struct AddShowFlowView: View {
         }
     }
 
-    /// 引导页关闭时读一次剪贴板：是支持平台的链接就提示一键粘贴。
-    /// 直接读内容会出一次系统粘贴提示横幅，换取 chip 里能带上平台名。
-    private func detectPasteboardLink() {
-        guard sheet == .link, !hasImportedDraft,
-              linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let raw = UIPasteboard.general.string else { return }
-        let candidate = ShowLinkDraftParser.normalizedLink(raw)
-        guard !candidate.isEmpty,
-              let host = URL(string: candidate)?.host()?.lowercased(),
-              let platform = ShowLinkPlatformCatalog.displayName(forHost: host) else { return }
-        linkPasteSuggestion = (candidate, platform)
+    /// 进入链接页：只看有没有文本，不读内容，避免系统粘贴横幅。
+    /// 从引导页打开过平台回来：再读一次内容，chip 才能带上平台名。
+    private func refreshPasteOffer(inspectContents: Bool) {
+        guard AddShowPasteboardLinkSuggestion.shouldOfferClipboardChip(
+            hasClipboardText: UIPasteboard.general.hasStrings || UIPasteboard.general.hasURLs,
+            linkText: linkText,
+            hasImportedDraft: hasImportedDraft
+        ), sheet == .link else { return }
+
+        if inspectContents,
+           let suggestion = AddShowPasteboardLinkSuggestion.resolve(from: UIPasteboard.general.string) {
+            linkPasteSuggestion = .knownPlatform(suggestion)
+            return
+        }
+
+        if linkPasteSuggestion == nil {
+            linkPasteSuggestion = .clipboardText
+        }
     }
 
     /// chip 确认后：填入链接并直接开始解析，意图已足够明确。
     private func applyPasteSuggestion() {
-        guard let suggestion = linkPasteSuggestion else { return }
+        guard let offer = linkPasteSuggestion else { return }
         linkPasteSuggestion = nil
-        linkText = suggestion.link
+        let raw: String?
+        switch offer {
+        case .knownPlatform(let suggestion):
+            raw = suggestion.link
+        case .clipboardText:
+            raw = UIPasteboard.general.string
+        }
+        guard let pasted = AddShowPasteboardLinkSuggestion.pasteableLink(from: raw) else { return }
+        linkText = pasted
         beginImportTask {
             await parseLink()
         }

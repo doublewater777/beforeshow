@@ -579,9 +579,21 @@ format: BSLocalization.text("M月d日 HH:mm"),
 
     private var statusTint: Color {
         switch show.changeStatus {
-        case .scheduled: return BSColor.Stage.glowBlue
-        case .postponed: return BSColor.Accent.warm
-        case .canceled: return BSColor.Stage.danger
+        case .canceled:
+            return BSColor.Stage.danger
+        case .postponed:
+            return BSColor.Accent.warm
+        case .scheduled:
+            switch HomeShowPhase(timeState: timeState) {
+            case .pre:
+                return BSColor.Stage.accent
+            case .live:
+                return BSColor.Stage.liveTitle
+            case .ended:
+                return Color.white.opacity(0.70)
+            case .inactive:
+                return BSColor.Accent.warm
+            }
         }
     }
 

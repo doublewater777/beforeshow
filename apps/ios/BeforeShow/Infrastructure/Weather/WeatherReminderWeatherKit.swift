@@ -3,9 +3,7 @@ import CoreLocation
 import WeatherKit
 
 enum WeatherKitLegalAttribution {
-    static func legalPageURL() async -> URL? {
-        try? await WeatherService.shared.attribution.legalPageURL
-    }
+    static let legalPageURL = URL(string: "https://weatherkit.apple.com/legal-attribution.html")!
 }
 
 struct WeatherKitForecastProvider: WeatherForecastProvider {

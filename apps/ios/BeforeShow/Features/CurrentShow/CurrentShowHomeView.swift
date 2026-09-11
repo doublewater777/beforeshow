@@ -239,7 +239,8 @@ struct CurrentShowHomeView: View {
                 // 截图 / 验证用:跳过熄灯动画，直接打开散场评分分档页（默认选中「夯爆了」）。
                 if ProcessInfo.processInfo.arguments.contains("--open-dispersal-rating"),
                    let target = shows.first(where: { $0.name == "「夜航」巡演 · 上海站" })
-                    ?? shows.first(where: { $0.endedAt == nil }) {
+                    ?? shows.first(where: { $0.endedAt == nil })
+                    ?? shows.first {
                     try? await Task.sleep(nanoseconds: 900_000_000)
                     target.markEnded(at: Date())
                     try? target.setClosingRitual(
@@ -425,7 +426,6 @@ private struct CurrentShowEmptyStateView: View {
                 Spacer()
                 HStack(spacing: 8) {
                     emptyHeaderButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
-                    emptyHeaderButton(icon: "list.bullet.rectangle", label: BSLocalization.text("全部现场"), action: onOpenShowLibrary)
                     emptyHeaderButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
                 }
             }

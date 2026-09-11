@@ -308,7 +308,10 @@ struct CurrentShowManagementSection: View {
                         onMemoryCreate: {
                             pendingMemoryCreate = nil
                             presentedSheet = .memoryCreate
-                        }
+                        },
+                        onOpenRoute: embedsRouteInLocation
+                            ? { openRouteChooser() }
+                            : nil
                     )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
@@ -326,7 +329,8 @@ struct CurrentShowManagementSection: View {
                                 ),
                                 isLive: phase == .live
                             ),
-                            canRecordEnd: canRecordEnd
+                            canRecordEnd: canRecordEnd,
+                            embedsRouteInLocation: embedsRouteInLocation
                         )
                     )
                         .padding(.horizontal, contentInset)
@@ -341,6 +345,14 @@ struct CurrentShowManagementSection: View {
                             now: now,
                             onOpenShowLibrary: onOpenShowLibrary,
                             onDetailVisibilityChange: onDetailVisibilityChange
+                        )
+                        .padding(.horizontal, contentInset)
+                        .padding(.top, 25)
+                        .opacity(hasArrivedActions ? 1 : 0)
+                    } else if candidateShows.count > 1 {
+                        CurrentShowLibraryEntryTile(
+                            totalShowCount: candidateShows.count,
+                            onOpenShowLibrary: onOpenShowLibrary
                         )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
@@ -386,7 +398,6 @@ struct CurrentShowManagementSection: View {
 
             HStack(spacing: 8) {
                 headerButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
-                headerButton(icon: "list.bullet.rectangle", label: BSLocalization.text("全部现场"), action: onOpenShowLibrary)
                 headerButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
             }
         }
@@ -406,26 +417,17 @@ struct CurrentShowManagementSection: View {
         .accessibilityLabel(label)
     }
 
-    private var locationText: String {
-        let venue = show.venueName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let city = show.city?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let cityText = {
-            guard let city, !city.isEmpty else { return nil as String? }
-            guard let venue, !venue.localizedCaseInsensitiveContains(city) else { return nil as String? }
-            return city
-        }()
+    private var embedsRouteInLocation: Bool {
+        true
+    }
 
-        return [
-            venue,
-            cityText
-        ]
-        .compactMap { value in
-            guard let value, !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
-            }
-            return value
-        }
-        .joined(separator: " · ")
+    private func openRouteChooser() {
+        installedMapApps = ExternalMapApp.installed
+        presentedSheet = .mapChooser
+    }
+
+    private var locationText: String {
+        ShowIdentityCopy.venueSummary(venue: show.venueName, city: show.city) ?? ""
     }
 
     private var routeQuery: String? {
@@ -507,8 +509,7 @@ struct CurrentShowManagementSection: View {
     private func performQuickAction(_ action: CurrentShowQuickAction) {
         switch action {
         case .route:
-            installedMapApps = ExternalMapApp.installed
-            presentedSheet = .mapChooser
+            openRouteChooser()
         case .companion:
             presentedSheet = .companion
         case .ticket:

@@ -130,6 +130,7 @@
 "最常看：%1$@\n第一场：%2$@" = "Top Artist: %1$@\nFirst Show: %2$@";
 "有未保存的修改" = "There are unsaved changes";
 "查看我的现场 · %lld 场" = "View My Shows · %lld";
+"查看全部现场 · %lld 场" = "View All Shows · %lld";
 "档案起点" = "Archive Beginning";
 "次" = "times";
 "正在准备邀请" = "Preparing invitation";
@@ -185,6 +186,7 @@
 "足迹" = "Footprints";
 "足迹详情" = "Footprint details";
 "转手动填写" = "Switch to Manual Entry";
+"改用手动填写" = "Fill in manually";
 "返回" = "Back";
 "还有一周" = "One week to go";
 "还没加封面" = "No cover added yet";
@@ -423,7 +425,7 @@
 "时间范围无效，结束时间需要晚于开始时间" = "Invalid time range; end time must be after start time";
 "暂停动态封面" = "Pause Dynamic Cover";
 "暂无匹配，可直接保存手输名字" = "No match yet; you can save the typed name directly";
-"暂时没能读出完整信息。你可以重试，或继续在下方手动填写。" = "Couldn't read the full info for now. You can retry, or continue filling it in manually below.";
+"暂时没能读出完整信息。可以重试，或改用手动填写。" = "Couldn't read the full info for now. You can retry, or fill it in manually.";
 "更换视频" = "Change Video";
 "更新延期信息" = "Update Postponement Info";
 "更适合每年看很多现场" = "Better if you attend many shows a year";
@@ -445,8 +447,7 @@
 "正在解析" = "Parsing";
 "正在解析…" = "Parsing…";
 "没有撤销成功，请重试" = "Undo didn't succeed; please retry";
-"没有解析到有效日期，请在下方补充后再保存。" = "No valid date was found; fill it in below before saving.";
-"没有识别到可用的现场信息。可以继续在下方手动填写。" = "No usable show info was recognized. You can fill it in manually below.";
+"没有解析到有效日期。可以改用手动填写，把日期补上再保存。" = "No valid date was found. Fill it in manually, then save.";
 "没有读到这张图片" = "Couldn't read this image";
 "添加动态封面视频" = "Add Dynamic Cover Video";
 "添加视频" = "Add Video";
@@ -463,7 +464,7 @@
 "生成 PNG 并打开系统分享" = "Generate a PNG and open system share";
 "生成散场卡" = "Generate End Card";
 "留下些什么？" = "What do you leave behind?";
-"目前支持：%@。你可以继续在下方手动填写。" = "Currently supported: %@. You can continue filling it in manually below.";
+"目前支持：%@。可以改用手动填写。" = "Currently supported: %@. You can fill it in manually.";
 "知道了" = "Got It";
 "确认使用这个日期" = "Use This Date";
 "确认使用这个时间" = "Use This Time";
@@ -627,7 +628,7 @@ First show: %@";
 场次、城市和回忆都会慢慢累积。" = "Backfill your first show;\\nshows, cities, and memories will slowly accumulate.";
 "识别进度" = "Recognition Progress";
 "调试" = "Debug";
-"这个链接指向的是周边商品，没有演出场次信息。你可以换个演出链接重试，或在下方手动填写。" = "This link points to merchandise, not a show. Try a show link instead, or fill in the details below.";
+"这个链接指向的是周边商品，没有演出场次信息。可以换个演出链接重试，或改用手动填写。" = "This link points to merchandise, not a show. Try a show link, or fill it in manually.";
 "还缺少现场信息" = "Show info still incomplete";
 "这个链接暂不支持" = "This link isn't supported";
 "这不是演出链接" = "This isn't a show link";
@@ -645,6 +646,7 @@ First show: %@";
 "链接解析失败" = "Link Parse Failed";
 
 "路线" = "Directions";
+"打开路线" = "Opens directions";
 "通过系统分享邀请一位朋友。对方接受后，双方同步为已确认同行。" = "Invite a friend via system share. Once they accept, both of you are synced as confirmed companions.";
 "通过系统分享邀请朋友。对方接受后，会加入这场同行。" = "Invite friends via system share. Once they accept, they join this companion group.";
 
@@ -1123,6 +1125,8 @@ First show: %@";
 "选择其他平台" = "Choose another platform";
 "粘贴%@链接？" = "Paste %@ link?";
 "粘贴%@链接并开始解析" = "Paste %@ link and start parsing";
+"粘贴剪贴板里的链接？" = "Paste the link from the clipboard?";
+"粘贴剪贴板里的链接并开始解析" = "Paste the clipboard link and start parsing";
 "被采纳的反馈会获得奖励" = "Adopted feedback earns a reward";
 
 "「夜航」巡演 · 上海站" = "Night Voyage Tour · Shanghai";
@@ -1262,21 +1266,21 @@ First show: %@";
 "12月" = "Dec";
 
 /* Weather reminder (day-before-show weather alert) */
-"weatherReminderTitleAlert" = "Severe weather alert";
+"weatherReminderTitleAlert" = "Severe weather possible tomorrow";
 "weatherReminderTitleRain" = "Rain expected tomorrow";
 "weatherReminderTitleSnow" = "Snow expected tomorrow";
 "weatherReminderTitleHot" = "Hot tomorrow";
 "weatherReminderTitleCold" = "Cold tomorrow";
 "weatherReminderTitleWindy" = "Windy tomorrow";
-"weatherReminderBodyAlert" = "%1$@: severe weather alert at %2$@";
+"weatherReminderBodyAlert" = "%1$@: severe weather may affect %2$@. Check conditions before leaving";
 "weatherReminderBodyRain" = "%1$@: rain likely at %2$@. Bring an umbrella";
 "weatherReminderBodySnow" = "%1$@: snow likely at %2$@. Dress warm";
 "weatherReminderBodyHot" = "%1$@: high of %3$d° at %2$@. Dress light";
 "weatherReminderBodyCold" = "%1$@: low of %3$d° at %2$@. Bring a layer";
 "weatherReminderBodyWindy" = "%1$@: windy at %2$@. Bring something windproof";
 "weatherReminderTomorrowGeneric" = "See you tomorrow at %@. Get some rest tonight";
-"weatherReminderAttribution" = "Weather. Apple-provided data was modified.";
-"weatherReminderLegalTitle" = "Weather";
+"weatherReminderAttribution" = " Weather. Apple-provided weather data was modified.";
+"weatherReminderLegalTitle" = " Weather";
 "分享完整足迹" = "Share Full Footprints";
 "整张长图包含你的完整足迹档案，可直接保存或分享。" = "The full-page image covers your entire footprint archive — save or share it directly.";
 "我的现场足迹" = "My Live Footprints";
@@ -1332,3 +1336,251 @@ First show: %@";
 "查看现场" = "View Show";
 "查看这场现场" = "View This Show";
 "这场已经在 BeforeShow 里了" = "This show is already in BeforeShow";
+
+// Listening MVP
+"听" = "Listen";
+"把歌听熟，把期待留给现场" = "Know the songs. Save the anticipation for the show.";
+"从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。" = "Pick a CD, get to know the songs before the show, and save the ones you want to hear live.";
+"完整播放" = "Full playback";
+"试听 · 不计入熟悉度" = "Preview · does not count as familiar";
+"仅歌曲信息" = "Song information only";
+"暂不可播放" = "Playback unavailable";
+"缓存读取失败" = "Could not load the catalog";
+"熟悉度保存失败，请重试" = "Could not save listening progress. Try again.";
+"播放或装碟失败，请重试" = "Could not play or load the CD. Try again.";
+"还没有演出" = "No shows yet";
+"添加一场演出，开始听歌" = "Add a show to start listening";
+"添加演出" = "Add a show";
+"暂时未完成" = "Could not complete";
+"艺人详情" = "Artists";
+"连接 Apple Music" = "Connect Apple Music";
+"授权" = "Allow access";
+"打开设置" = "Open Settings";
+"正在准备唱片" = "Preparing records";
+"尚未匹配艺人" = "Artist not matched";
+"匹配艺人" = "Match an artist";
+"暂无可用唱片" = "No records available";
+"当前筛选下没有唱片" = "No records for this selection";
+"释放 CD" = "Release CD";
+"取出 CD" = "Remove CD";
+"卡紧 CD" = "Secure CD";
+"装入 CD" = "Load CD";
+"放回唱片柜" = "Return to cabinet";
+"合盖" = "Close lid";
+"唱片柜" = "Record cabinet";
+"想现场听" = "Want to hear live";
+"曲目" = "Tracks";
+"最近播放" = "Recently played";
+"包含听过的歌曲" = "Contains songs you have listened to";
+"已停止" = "Stopped";
+"播放结束" = "Playback ended";
+"已熟悉" = "Familiar";
+"听所有艺人" = "Listen to all artists";
+"仅听此艺人" = "Only this artist";
+"恢复此艺人" = "Include this artist";
+"排除此艺人" = "Exclude this artist";
+"重新匹配" = "Match again";
+"未找到艺人" = "No artists found";
+"播放器上盖" = "Player lid";
+"已打开" = "Open";
+"已合上" = "Closed";
+"上一曲" = "Previous track";
+"下一曲" = "Next track";
+"播放或暂停" = "Play or pause";
+"打开或关闭上盖" = "Open or close lid";
+"打开" = "Open";
+"合上" = "Close";
+"取出" = "Remove";
+"取出并放入播放机" = "Remove and place in player";
+"放入" = "Insert";
+
+// Listen Phases 6–8
+"30 秒试听" = "30-second preview";
+"下一位" = "Next artist";
+"不听这位" = "Exclude from this show";
+"不是这个艺人？" = "Not this artist?";
+"专辑" = "Albums";
+"先选择一场现场" = "Choose a show first";
+"初次相遇" = "First encounter";
+"删除回记" = "Delete recall";
+"去见 TA 时" = "When you saw them";
+"只听这位" = "Listen to this artist";
+"回到整场" = "Back to the whole show";
+"回记现场歌曲" = "Recall songs from the show";
+"已冻结" = "Frozen";
+"已熟悉歌曲" = "Familiar songs";
+"已经熟悉" = "Familiar";
+"开场前想现场听" = "Wanted to hear live";
+"开始认识" = "New listener";
+"恢复" = "Restore";
+"打开艺人详情" = "Open artist details";
+"接下来" = "Up next";
+"搜索歌曲" = "Search songs";
+"播放器操作" = "Player controls";
+"播放进度" = "Playback position";
+"整场" = "Whole show";
+"暂时无法搜索" = "Search is unavailable";
+"暂时无法播放" = "Unable to play right now";
+"暂时无法更新" = "Unable to update right now";
+"暂时无法载入音乐" = "Unable to load music";
+"最惊喜" = "Biggest surprise";
+"歌名" = "Song title";
+"深度乐迷" = "Deep listener";
+"添加" = "Add";
+"渐渐入迷" = "Getting into it";
+"热门" = "Top songs";
+"现场听到了" = "Heard at the show";
+"确认" = "Confirm";
+"设为最惊喜" = "Set as biggest surprise";
+"连接艺人" = "Connect artist";
+"选择歌曲" = "Choose a song";
+"等待唱片" = "Waiting for a record";
+
+"请先取出当前 CD，并放回唱片柜" = "Remove the current CD and return it to the cabinet first";
+"未连接" = "Not connected";
+"首" = "tracks";
+"已熟悉 %lld 首" = "%lld familiar songs";
+"碟片曲目" = "Disc tracks";
+
+"全部唱片" = "All records";
+
+"暂未找到音乐" = "No music found yet";
+
+"从下方挑选一张 CD 放入播放机" = "Pick a CD from the cabinet below";
+"正在只听：%@" = "Only playing: %@";
+"正在播放中" = "Playing";
+"已在播放机中" = "In player";
+"暂停" = "Pause";
+"播放" = "Play";
+"未找到相关唱片或艺人" = "No matching records or artists found";
+"未连接 Apple Music" = "Apple Music not connected";
+"已聚焦" = "Focused";
+"重新匹配艺人" = "Rematch artist";
+"已聚焦此艺人" = "Focused on artist";
+"装入 CD 播放" = "Load & Play CD";
+"输入艺人名称进行搜索" = "Type artist name to search";
+"专辑简介" = "About this album";
+"发行日期" = "Released";
+"流派" = "Genre";
+"唱片公司" = "Label";
+"内容分级" = "Rating";
+"版权" = "Copyright";
+"在 Apple Music 中打开" = "Open in Apple Music";
+"Apple Digital Master" = "Apple Digital Master";
+"合辑" = "Compilation";
+"单曲" = "Single";
+"Explicit" = "Explicit";
+"Clean" = "Clean";
+"杜比全景声" = "Dolby Atmos";
+"杜比音效" = "Dolby Audio";
+"无损" = "Lossless";
+"高解析无损" = "Hi-Res Lossless";
+"立体声" = "Stereo";
+"空间音频" = "Spatial Audio";
+"现场预热" = "Show warm-up";
+"COMPACT DISC" = "COMPACT DISC";
+"张唱片" = "records";
+"TRACKLIST" = "TRACKLIST";
+"搜索唱片或艺人" = "Search records or artists";
+"当前装载" = "Currently loaded";
+"专辑详情" = "Album details";
+"首歌曲" = "songs";
+"本场预热碟" = "Show warm-up disc";
+
+"热门合辑 %02d" = "Top Tracks %02d";
+
+"BeforeShow 热门合辑" = "BeforeShow Top Tracks";
+
+"暂时没有找到可翻的唱片" = "No records found yet";
+
+"装入播放机" = "Load into Player";
+
+"%d 张唱片" = "%d records";
+
+"%d 首歌曲" = "%d tracks";
+
+"查看全部" = "View All";
+
+"正在播放" = "Now Playing";
+
+"轻点连接" = "Tap to connect";
+
+"选定一场现场开始听歌" = "Select a Show to Start Listening";
+"选定演出开启专属唱片机，\n提前熟悉现场歌单与作品。" = "Select a show to start the CD player and preview the music.";
+"把要去的音乐现场放进来，\n开启唱片机，提前预习演出曲目。" = "Add upcoming live shows to start the CD player and preview the music.";
+"选择现场" = "Select Show";
+"正在准备唱片与曲目…" = "Preparing records and tracks…";
+"正在检索与整理专场唱片…" = "Searching and organizing show records…";
+"正在连接 Apple Music…" = "Connecting to Apple Music…";
+"连接中…" = "Connecting…";
+"未授权" = "Unauthorized";
+"立即授权" = "Authorize";
+"Music 会员" = "Music Subscriber";
+"试听模式" = "Preview Mode";
+"Apple Music 会员，支持完整播放" = "Apple Music subscriber, full playback supported";
+"Apple Music 未订阅，30秒试听模式" = "Apple Music not subscribed, 30s preview mode";
+"未开通 Apple Music 会员，提供 30 秒官方试听" = "Not subscribed to Apple Music; 30s official preview available";
+"Apple Music 完整音源" = "Apple Music Full Track";
+"30 秒官方试听" = "30s Official Preview";
+"尚未匹配 Apple Music 艺人" = "No Apple Music artist matched";
+"关联演出阵容中的艺人，即可载入专场唱片与曲目" = "Connect artists from the lineup to load show records and tracks";
+"授权后可自动检索专场唱片与曲目" = "Authorize to automatically search for show records and tracks";
+"请在系统设置中允许访问 Apple Music" = "Please allow access to Apple Music in Settings";
+"Apple Music 会员" = "Apple Music Subscriber";
+"暂时无法更新专场唱片" = "Unable to update show records";
+
+"暂无现场演出" = "No Live Shows Yet";
+"把要去的音乐现场放进来，\n随时查看倒计时与专场信息。" = "Add upcoming live shows here to track countdowns and show details.";
+"未找到相关现场" = "No Matching Shows Found";
+"尝试更换搜索词或切换筛选分类" = "Try different search terms or change filters";
+"尝试更换关键词或年份、城市筛选" = "Try different keywords, year, or city filters";
+"未找到匹配的现场" = "No Matching Shows Found";
+"已删除这条记忆" = "Memory deleted";
+"这场现场的记忆" = "Memories from this show";
+"照片、视频和小记都按现场阶段收在这里。" = "Photos, videos, and notes collected by show phase.";
+"拍一张照片、选择一段短视频，\n或者写下此刻的一句话。" = "Take a photo, choose a video clip, or write a note about this moment.";
+"继续添加" = "Add More";
+"给当前这条记忆增加媒体" = "Add media to this memory";
+"删除这条记忆" = "Delete Memory";
+
+"已标记想现场听" = "Marked Want to Hear Live";
+"唱片柜暂无唱片" = "No records in cabinet";
+"匹配演出艺人后，将在此展示专辑与预热碟。" = "Match lineup artists to display albums and warm-up discs here.";
+
+"加载中…" = "Loading…";
+"正在载入唱片…" = "Loading records…";
+
+"下一步：回记歌单" = "Next: Recall Songs";
+"今晚听到了什么" = "What did you hear tonight";
+"现场唱了哪些歌？" = "What songs were played?";
+"勾选当晚演出的歌曲，点亮星标设为最惊喜。" = "Select songs performed tonight, tap the star to mark your biggest surprise.";
+"尚未关联预习曲目，可以直接在下方手动添加现场歌曲。" = "No preview tracks linked. You can add songs manually below.";
+"最惊喜歌曲" = "Most surprising song";
+"没在歌单里？手动添加现场歌曲" = "Not on the list? Add songs manually";
+"艺人名称（可选）" = "Artist name (optional)";
+"跳过并回到现场" = "Skip and return to show";
+
+"搜索演出曲目或艺人" = "Search show tracks or artists";
+"预习听过" = "Heard in preview";
+"未找到匹配歌曲，可在下方手动添加" = "No matching songs found; you can add manually below";
+
+/* Companion UX Enhancements */
+"再次发送邀请" = "Resend Invitation";
+"检查状态" = "Check Status";
+"正在检查..." = "Checking...";
+"分享共同足迹卡" = "Share Footprint Card";
+"BEFORESHOW · 共同足迹" = "BEFORESHOW · SHARED FOOTPRINTS";
+"BeforeShow · 现场共同记忆" = "BeforeShow · Shared Live Memories";
+"已收进共同足迹" = "Added to Shared Footprints";
+"记录你们一起走过的现场，可保存图片或直接分享。" = "Preserve the shows you experienced together. Save as an image or share directly.";
+"正在重置上一份邀请，请稍候再试" = "Resetting previous invitation. Please try again shortly.";
+"这场现场已有正在进行的同行邀请，请稍候检查状态" = "This show already has an active companion invitation. Please check status shortly.";
+"云端服务暂时未就绪，请稍后重试" = "Cloud service temporarily unavailable. Please try again later.";
+"已接受邀请，正在等待云端状态同步" = "Invitation accepted. Waiting for cloud sync.";
+
+/* Show Library Empty States */
+"暂无即将开始的现场" = "No upcoming shows";
+"添加新的演出，或在全部记录中查看历史" = "Add a new show or view your history in All.";
+"暂无已结束的现场" = "No past shows";
+"演出结束后会自动归档到这里" = "Shows will be archived here once ended.";
+"尝试更换筛选分类" = "Try switching the filter category.";

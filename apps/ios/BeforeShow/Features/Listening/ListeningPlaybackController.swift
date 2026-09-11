@@ -17,33 +17,6 @@ final class ListeningPlaybackController {
     }
 
     func prepare(
-        queue: [ListeningQueueEntry],
-        catalogSongs: [CatalogSong],
-        source: ListeningPlaybackSource,
-        startingAtSongID: String? = nil,
-        now: Date = Date()
-    ) async throws {
-        let songsByID = Dictionary(
-            catalogSongs.map { ($0.appleMusicSongID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let items = queue.compactMap { entry -> ListeningPlaybackItem? in
-            guard let song = songsByID[entry.songID] else { return nil }
-            return ListeningPlaybackItem(
-                songID: song.appleMusicSongID,
-                duration: song.duration,
-                previewURL: song.previewURL.flatMap(URL.init(string:))
-            )
-        }
-        try await prepare(
-            items: items,
-            source: source,
-            startingAtSongID: startingAtSongID,
-            now: now
-        )
-    }
-
-    func prepare(
         items: [ListeningPlaybackItem],
         source: ListeningPlaybackSource,
         startingAtSongID: String? = nil,
@@ -103,6 +76,14 @@ final class ListeningPlaybackController {
 
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
+        // A transport/resource failure is a user-visible playback state, not a
+        // reason to tear down the physical disc or reset the selected track.
+        // The coordinator can therefore keep the disc in place and project a
+        // retry action next to the player.
+        if service.failure != nil {
+            stateMachine.handle(.failed)
+            return state
+        }
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
@@ -112,9 +93,11 @@ final class ListeningPlaybackController {
     }
 
     func stop(now: Date = Date()) throws {
+        defer {
+            service.stop()
+            evidenceCoordinator.breakContinuity()
+            stateMachine.handle(.reset)
+        }
         _ = try refresh(now: now)
-        service.stop()
-        evidenceCoordinator.breakContinuity()
-        stateMachine.handle(.reset)
     }
 }
