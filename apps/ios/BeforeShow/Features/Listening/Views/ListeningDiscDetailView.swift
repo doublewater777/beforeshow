@@ -213,10 +213,7 @@ struct ListeningDiscDetailView: View {
                                 .foregroundStyle(BSColor.Stage.muted)
                                 .lineLimit(2)
                         }
-                        Text(player.statusText)
-                            .font(BSFont.caption)
-                            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
-                            .fixedSize(horizontal: false, vertical: true)
+                        playerStatusLine(player)
                     }
                 }
                 Spacer(minLength: BSSpacing.sm)
@@ -257,6 +254,22 @@ struct ListeningDiscDetailView: View {
         .padding(.vertical, 12)
         .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func playerStatusLine(_ player: ListeningPlayerPresentation) -> some View {
+        if player.phase == .preparing {
+            ProgressView()
+                .controlSize(.small)
+                .tint(BSColor.Stage.accent)
+                .accessibilityLabel(player.accessibilityStatusText)
+        } else if let text = player.visibleStatusText {
+            Text(text)
+                .font(BSFont.caption)
+                .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(player.accessibilityStatusText)
+        }
     }
 
     private func capabilityNotice(_ text: String) -> some View {
