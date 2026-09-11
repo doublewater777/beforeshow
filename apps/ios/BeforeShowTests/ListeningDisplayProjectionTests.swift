@@ -72,7 +72,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertFalse(projection.discPresentation(for: disc).canLoad)
     }
 
-    func testShelfShowsFourAndOnlyOffersAllDiscsWhenThereIsOverflow() {
+    func testShelfShowsThreeAndOnlyOffersAllDiscsWhenThereIsOverflow() {
         let discs = (0..<5).map { index in
             ListeningDisc(
                 id: "disc-\(index)",
@@ -88,13 +88,13 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         )
         let four = makeProjection(
             access: .init(authorizationStatus: .authorized, canPlayCatalogContent: false),
-            discs: Array(discs.prefix(4)),
-            libraryDiscs: Array(discs.prefix(4))
+            discs: Array(discs.prefix(3)),
+            libraryDiscs: Array(discs.prefix(3))
         )
 
-        XCTAssertEqual(five.shelfDiscs.map(\.id), ["disc-0", "disc-1", "disc-2", "disc-3"])
+        XCTAssertEqual(five.shelfDiscs.map(\.id), ["disc-0", "disc-1", "disc-2"])
         XCTAssertTrue(five.showsAllDiscs)
-        XCTAssertEqual(four.shelfDiscs.count, 4)
+        XCTAssertEqual(four.shelfDiscs.count, 3)
         XCTAssertFalse(four.showsAllDiscs)
     }
 

@@ -156,6 +156,10 @@ struct ListeningDisplayProjection: Equatable {
 }
 
 enum ListeningDisplayProjector {
+    enum Shelf {
+        static let visibleCount = 3
+    }
+
     static func make(
         page: ListeningPresentation,
         access: ListeningMusicAccess,
@@ -202,8 +206,8 @@ enum ListeningDisplayProjector {
             page: page,
             roomMode: mode,
             recoveryAction: recovery,
-            shelfDiscs: Array(libraryDiscs.prefix(4)),
-            showsAllDiscs: libraryDiscs.count > 4,
+            shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
+            showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
             player: player,
             discStates: discStates,
             trackStates: trackStates

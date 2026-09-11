@@ -29,21 +29,20 @@ struct ListeningCabinetView<Placeholder: View>: View {
             if shelfDiscs.isEmpty {
                 placeholder
             } else {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                        ForEach(shelfDiscs) { disc in
-                            ListeningCabinetDiscButton(
-                                room: room,
-                                disc: disc,
-                                scale: scale,
-                                showsPullHint: hintedDiscID == disc.id,
-                                showDetails: showDetails
-                            )
-                        }
+                HStack(alignment: .bottom, spacing: BSSpacing.compact) {
+                    ForEach(shelfDiscs) { disc in
+                        ListeningCabinetDiscButton(
+                            room: room,
+                            disc: disc,
+                            scale: scale,
+                            showsPullHint: hintedDiscID == disc.id,
+                            showDetails: showDetails
+                        )
                     }
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 4)
+                    Spacer(minLength: 0)
                 }
+                .padding(.horizontal, 2)
+                .padding(.vertical, 4)
             }
         }
         .foregroundStyle(BSColor.Stage.muted)
