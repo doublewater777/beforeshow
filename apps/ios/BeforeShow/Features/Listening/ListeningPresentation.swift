@@ -36,7 +36,8 @@ extension ListeningFamiliarityTier {
     }
 }
 
-/// User pause and lifecycle pause have different ownership. No media I/O here.
+/// User pause and lifecycle visibility have different ownership. Listening audio
+/// is a secondary task, so tab changes and app backgrounding never own transport.
 struct ListeningVisibilityPolicy {
     private(set) var userPaused = false
     private(set) var interrupted = false
@@ -49,6 +50,6 @@ struct ListeningVisibilityPolicy {
         return true
     }
     static func mustPause(tabVisible: Bool, foreground: Bool, source: ListeningPlaybackSource?) -> Bool {
-        !tabVisible || (!foreground && source == .preview)
+        false
     }
 }
