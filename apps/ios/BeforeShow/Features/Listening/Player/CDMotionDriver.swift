@@ -75,11 +75,11 @@ struct CDSpringChannel {
         lastTime = CACurrentMediaTime()
         #if os(iOS)
         let link = CADisplayLink(target: CDDisplayLinkTarget(owner: self), selector: #selector(CDDisplayLinkTarget.frame(_:)))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 120, preferred: 120)
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
         link.add(to: .main, forMode: .common)
         self.link = link
         #else
-        let timer = Timer(timeInterval: 1 / 120, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 1 / 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.frame() }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -119,10 +119,12 @@ struct CDSpringChannel {
         }
         onFrame()
 
-        // When all spring channels and disc rotation have settled, pause the display link to save CPU & power.
+        // Once the mechanism is visually static, pause the display link even if
+        // audio is still playing. A closed lid hides the disc, so there is no
+        // visible rotation to animate until the mechanism is woken again.
         let springsResting = lid.target == nil && discX.target == nil && discY.target == nil && lift.target == nil && discScale.target == nil
-        let rotationResting = !spinning && discSpin == 0
-        if springsResting && rotationResting {
+        let visibleRotationResting = lidShut || (!spinning && discSpin == 0)
+        if springsResting && visibleRotationResting {
             #if os(iOS)
             link?.isPaused = true
             #else
