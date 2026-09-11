@@ -105,6 +105,8 @@ struct ListeningPlayerPresentation: Equatable {
     let errorText: String?
     let noDiscMessage: String?
 
+    /// Semantic player status. Preparing remains available to VoiceOver while
+    /// visual surfaces use `visibleStatusText` to avoid generic process copy.
     var statusText: String {
         if let errorText, phase == .failed { return errorText }
         if let blockingReason, phase == .stopped { return blockingReason }
@@ -112,7 +114,7 @@ struct ListeningPlayerPresentation: Equatable {
         case .noDisc:
             return noDiscMessage ?? ListeningCopy.text("暂不可播放")
         case .preparing:
-            return ListeningCopy.text("载入中…")
+            return ListeningCopy.text("正在准备播放")
         case .playing:
             if source == .preview, let previewRemaining {
                 return ListeningCopy.format("试听中 · 剩余 %d 秒", Int(ceil(max(0, previewRemaining))))
@@ -130,6 +132,14 @@ struct ListeningPlayerPresentation: Equatable {
         case .failed:
             return ListeningCopy.text("暂时无法播放")
         }
+    }
+
+    var visibleStatusText: String? {
+        phase == .preparing ? nil : statusText
+    }
+
+    var accessibilityStatusText: String {
+        statusText
     }
 }
 
