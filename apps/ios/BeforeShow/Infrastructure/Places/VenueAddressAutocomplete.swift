@@ -223,13 +223,9 @@ struct BSVenueField: View {
             }
 
             if isSearching {
-                HStack(spacing: 8) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(BSLocalization.text("正在用地图查找地址…"))
-                        .font(BSFont.caption)
-                        .foregroundColor(BSColor.textTertiary)
-                }
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel(BSLocalization.text("正在用地图查找地址…"))
             } else if let searchMessage {
                 Text(searchMessage)
                     .font(BSFont.caption)
@@ -286,28 +282,18 @@ struct BSVenueField: View {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         suggestions = []
         searchMessage = nil
-        guard trimmed.count >= 2 else {
-            isSearching = false
-            return
-        }
+        isSearching = false
+        guard trimmed.count >= 2 else { return }
 
         let city = trimmedCity.isEmpty ? nil : trimmedCity
-        isSearching = true
         searchTask = Task { @MainActor in
             do {
                 try await Task.sleep(nanoseconds: 320_000_000)
             } catch {
-                if revision == searchRevision {
-                    isSearching = false
-                }
                 return
             }
-            guard !Task.isCancelled else {
-                if revision == searchRevision {
-                    isSearching = false
-                }
-                return
-            }
+            guard !Task.isCancelled, revision == searchRevision else { return }
+            isSearching = true
             await performSearch(query: trimmed, city: city, revision: revision)
         }
     }
