@@ -22,6 +22,7 @@ private struct ArtistSearchPicker: View {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(BSColor.textTertiary)
+                        .accessibilityLabel(BSLocalization.text("正在搜索艺人"))
                 }
             }
             .padding(.horizontal, 4)
@@ -164,16 +165,20 @@ struct ArtistInputRow: View {
     private func scheduleSearch(for rawQuery: String) {
         searchTask?.cancel()
         let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        isSearching = false
         guard !trimmed.isEmpty else {
-            isSearching = false
             recognizedOptions = []
             return
         }
-        isSearching = true
         let service = artistSearch
         searchTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 400_000_000)
-            if Task.isCancelled { return }
+            do {
+                try await Task.sleep(nanoseconds: 400_000_000)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            isSearching = true
             do {
                 let results = try await service.searchArtists(query: trimmed)
                 if Task.isCancelled { return }
