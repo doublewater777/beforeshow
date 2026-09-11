@@ -92,9 +92,9 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try await controller.prepare(items: [ListeningPlaybackItem(songID: "failed", duration: 100, previewURL: nil)], source: .fullCatalog)
         try await controller.play()
         service.failure = .songUnavailable("failed")
-        XCTAssertThrowsError(try controller.refresh())
+        XCTAssertEqual(try controller.refresh(), .failed)
         XCTAssertEqual(controller.state, .failed)
-        XCTAssertThrowsError(try controller.stop())
+        XCTAssertNoThrow(try controller.stop())
         XCTAssertTrue(service.didStop)
         XCTAssertEqual(controller.state, .idle)
     }

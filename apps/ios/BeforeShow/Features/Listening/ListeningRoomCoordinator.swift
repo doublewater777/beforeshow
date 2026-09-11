@@ -335,7 +335,7 @@ import UIKit
         case .artist: browsingArtist?.albums ?? []
         }
     }
-    var shelfDiscs: [ListeningDisc] { libraryDiscs }
+    var shelfDiscs: [ListeningDisc] { display.shelfDiscs }
     func isPlayingDisc(_ disc: ListeningDisc) -> Bool {
         guard isPlaying, mechanism.hasDisc, mechanism.disc?.id == disc.id else { return false }
         return libraryDiscs.contains { $0.id == disc.id }

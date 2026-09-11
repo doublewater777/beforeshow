@@ -2,16 +2,14 @@ import SwiftUI
 
 struct ListeningShelfSkeleton: View {
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                ForEach(0..<BSListeningTokens.Shelf.loadingSlotCount, id: \.self) { _ in
-                    ListeningCabinetDiscPlaceholder()
-                }
+        HStack(alignment: .bottom, spacing: BSSpacing.compact) {
+            ForEach(0..<ListeningDisplayProjector.Shelf.visibleCount, id: \.self) { _ in
+                ListeningCabinetDiscPlaceholder()
             }
-            .padding(.horizontal, 2)
-            .padding(.vertical, 4)
+            Spacer(minLength: 0)
         }
-        .scrollDisabled(true)
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("正在准备唱片"))
