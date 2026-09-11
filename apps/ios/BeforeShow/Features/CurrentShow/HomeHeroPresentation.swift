@@ -122,25 +122,21 @@ struct HomeHeroStage: View {
         }
     }
 
-    /// 导入耗时不可预估(图库可能要先下载 iCloud 原件),所以用不确定进度 + 一句说明。
+    /// 图库导入耗时不可预估，用不确定进度即可；过程说明只提供给辅助功能。
     private var importingOverlay: some View {
         ZStack {
             Color.black.opacity(0.42)
 
-            VStack(spacing: BSSpacing.sm) {
-                ProgressView()
-                    .tint(.white)
-                Text("正在准备视频…")
-                    .font(BSFont.V3.caption)
-                    .foregroundColor(.white.opacity(0.86))
-            }
-            .padding(.horizontal, BSSpacing.md)
-            .padding(.vertical, BSSpacing.compact)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BSRadius.md))
+            ProgressView()
+                .tint(.white)
+                .padding(.horizontal, BSSpacing.md)
+                .padding(.vertical, BSSpacing.compact)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: BSRadius.md))
+                .accessibilityHidden(true)
         }
         .clipShape(RoundedRectangle(cornerRadius: 26))
         .transition(.opacity)
-        .accessibilityElement()
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("正在准备视频…"))
     }
 }
