@@ -22,7 +22,6 @@ private struct ArtistSearchPicker: View {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(BSColor.textTertiary)
-                        .accessibilityLabel(BSLocalization.text("正在搜索艺人"))
                 }
             }
             .padding(.horizontal, 4)
