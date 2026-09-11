@@ -132,9 +132,15 @@ import UIKit
         case .unavailable: BSLocalization.text("暂不可播放")
         }
     }
+    func catalogKey(for show: Show) -> String {
+        show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+    }
+    func shouldReloadCatalog(for show: Show) -> Bool {
+        self.show?.id != show.id || discs.isEmpty || showCatalogKey != catalogKey(for: show)
+    }
     func load(show: Show, force: Bool = false) async {
         let generation = UUID(); catalogGeneration = generation
-        let newKey = show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+        let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
             browser = ListeningBrowseState()
             pendingSleeveSongID = nil
@@ -175,7 +181,7 @@ import UIKit
                 _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
                 _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
                 try context.save()
-                showCatalogKey = show.id.uuidString + artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+                showCatalogKey = catalogKey(for: show)
                 try rebuildDiscs()
             }
         } catch { context.rollback() }
@@ -445,7 +451,7 @@ import UIKit
         }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil {
+        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)

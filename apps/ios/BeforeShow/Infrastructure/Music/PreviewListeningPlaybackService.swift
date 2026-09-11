@@ -38,6 +38,9 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
+        if player.currentItem?.status == .failed {
+            replaceCurrentItem()
+        }
         guard player.currentItem != nil else {
             throw ListeningPlaybackError.emptyQueue
         }
