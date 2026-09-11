@@ -6,6 +6,18 @@ import UIKit
 
 @MainActor @Observable final class ListeningRoomCoordinator {
     enum CatalogState { case loading, ready, unmatched, cacheFailed, unavailable }
+    private struct RuntimeCatalogFetch: Sendable {
+        let artistID: String
+        let songs: [ListeningCatalogSongPayload]
+        let failed: Bool
+    }
+    private struct FullCatalogFetch: Sendable {
+        let artistID: String
+        let payload: ListeningArtistCatalogPayload?
+        let failed: Bool
+    }
+    private static let catalogFetchConcurrency = 4
+
     let mechanism = CDMechanism()
     private(set) var catalogSongs: [CatalogSong] = []
     private(set) var catalogAlbums: [CatalogAlbum] = []
@@ -16,6 +28,7 @@ import UIKit
     private(set) var catalogState: CatalogState = .loading
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
+    private(set) var isCatalogEnriching = false
     private(set) var playbackState: ListeningPlaybackState = .idle {
         didSet {
             let nowPlaying: Bool
@@ -75,6 +88,7 @@ import UIKit
     @ObservationIgnored private var preparedSongID: String?
     @ObservationIgnored private var finishedSongID: String?
     private(set) var initialLoaded = false
+    @ObservationIgnored private var isLoadingShow = false
     @ObservationIgnored private var active = true
     @ObservationIgnored private var playbackGeneration = UUID()
 
@@ -136,10 +150,22 @@ import UIKit
         show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
     }
     func shouldReloadCatalog(for show: Show) -> Bool {
-        self.show?.id != show.id || discs.isEmpty || showCatalogKey != catalogKey(for: show)
+        if self.show?.id != show.id || showCatalogKey != catalogKey(for: show) { return true }
+        if isLoadingShow || isCatalogEnriching { return false }
+        return !initialLoaded
     }
+
     func load(show: Show, force: Bool = false) async {
-        let generation = UUID(); catalogGeneration = generation
+        let generation = UUID()
+        catalogGeneration = generation
+        isLoadingShow = true
+        defer {
+            if generation == catalogGeneration {
+                isLoadingShow = false
+                initialLoaded = true
+            }
+        }
+
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
             browser = ListeningBrowseState()
@@ -152,7 +178,9 @@ import UIKit
             if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
         }
         showCatalogKey = newKey
-        self.show = show; catalogState = .loading
+        self.show = show
+        catalogState = .loading
+
         let knownStatus = catalogService.currentAuthorizationStatus()
         if access.authorizationStatus != knownStatus || !accessResolved {
             access = ListeningMusicAccess(authorizationStatus: knownStatus, canPlayCatalogContent: false)
@@ -160,76 +188,258 @@ import UIKit
         }
         do {
             try rebuildDiscs()
-        } catch { catalogState = .cacheFailed }
-        initialLoaded = true
+        } catch {
+            catalogState = .cacheFailed
+        }
+
+        // Artist identity lookup uses the public iTunes endpoint and does not depend
+        // on Apple Music authorization. Start it at the same time as capability
+        // resolution so first-time users can see the authorization action immediately.
         let slots = show.artists
-        let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
-        guard generation == catalogGeneration, !Task.isCancelled else { return }
-        do {
-            if !matches.isEmpty {
-                try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
-                var artists = show.artists
-                for (index, candidate) in matches {
-                    guard artists.indices.contains(index), artists[index].name == slots[index].name,
-                          artists[index].appleMusicArtistID == nil else { continue }
-                    artists[index].appleMusicArtistID = candidate.id
-                    artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
-                    if artists[index].avatarURL == nil { artists[index].avatarURL = candidate.avatarURL?.absoluteString }
-                }
-                show.artists = artists
-                show.updatedAt = Date()
-                _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
-                _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
-                try context.save()
-                showCatalogKey = catalogKey(for: show)
-                try rebuildDiscs()
-            }
-        } catch { context.rollback() }
+        async let matchesTask: [Int: RecognizedArtist] = (
+            try? ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)
+        ) ?? [:]
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess; accessResolved = true
-        let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
-        guard !ids.isEmpty else { discs = []; catalogState = .unmatched; return }
-        var failed = false
-        for id in ids {
+        access = newAccess
+        accessResolved = true
+
+        let matches = await matchesTask
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+
+        await loadCatalog(generation: generation, force: force)
+    }
+
+    private func applyAutomaticArtistMatches(
+        _ matches: [Int: RecognizedArtist],
+        originalSlots slots: [ArtistSlot],
+        to show: Show
+    ) {
+        guard !matches.isEmpty else { return }
+        do {
+            try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
+            var artists = show.artists
+            var changed = false
+            for (index, candidate) in matches {
+                guard artists.indices.contains(index), slots.indices.contains(index),
+                      artists[index].name == slots[index].name,
+                      artists[index].appleMusicArtistID == nil else { continue }
+                artists[index].appleMusicArtistID = candidate.id
+                artists[index].appleMusicURL = candidate.appleMusicURL?.absoluteString
+                if artists[index].avatarURL == nil { artists[index].avatarURL = candidate.avatarURL?.absoluteString }
+                changed = true
+            }
+            guard changed else { return }
+            show.artists = artists
+            show.updatedAt = Date()
+            _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
+            _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
+            try context.save()
+            showCatalogKey = catalogKey(for: show)
+            try rebuildDiscs()
+        } catch {
+            context.rollback()
+        }
+    }
+
+    /// Refresh only the music payload for the already-bound show. Authorization and
+    /// retry paths use this instead of restarting artist matching and room setup.
+    func reloadCatalog(force: Bool = false) async {
+        guard show != nil, !isLoadingShow else { return }
+        let generation = UUID()
+        catalogGeneration = generation
+        catalogState = .loading
+        await loadCatalog(generation: generation, force: force)
+        if generation == catalogGeneration { initialLoaded = true }
+    }
+
+    private func loadCatalog(generation: UUID, force: Bool) async {
+        guard let show else { return }
+        let ids = show.artists.compactMap(\.appleMusicArtistID).reduce(into: [String]()) {
+            if !$0.contains($1) { $0.append($1) }
+        }
+        guard !ids.isEmpty else {
+            discs = []
+            catalogState = .unmatched
+            return
+        }
+
+        guard access.authorizationStatus == .authorized else {
+            catalogState = discs.isEmpty ? .unavailable : .ready
+            return
+        }
+
+        isCatalogEnriching = true
+        defer {
+            if generation == catalogGeneration { isCatalogEnriching = false }
+        }
+
+        var failedIDs = Set<String>()
+        let cachedIDs = Set(catalogSnapshots.map(\.artistID))
+        let quickIDs = ids.filter { !cachedIDs.contains($0) && runtimeSongs[$0] == nil }
+
+        // Stage 1: fetch all top-song previews concurrently, then publish one UI
+        // update. Festival lineups no longer cause one rebuild per artist.
+        if !quickIDs.isEmpty {
+            let quickResults = await fetchRuntimeCatalog(for: quickIDs)
+            guard generation == catalogGeneration, !Task.isCancelled else { return }
+            for result in quickResults {
+                if result.failed {
+                    failedIDs.insert(result.artistID)
+                    continue
+                }
+                runtimeSongs[result.artistID] = result.songs.map {
+                    CatalogSong(
+                        appleMusicSongID: $0.songID,
+                        title: $0.title,
+                        artistName: $0.artistName,
+                        artworkURL: $0.artworkURL,
+                        duration: $0.duration,
+                        performerArtistIDs: $0.performerArtistIDs,
+                        previewURL: $0.previewURL
+                    )
+                }
+            }
             do {
-                if access.authorizationStatus == .authorized {
-                    if !catalogSnapshots.contains(where: { $0.artistID == id }) {
-                        let first = try await catalogService.fetchRuntimeSongs(artistID: id)
-                        guard generation == catalogGeneration, !Task.isCancelled else { return }
-                        runtimeSongs[id] = first.map {
-                            CatalogSong(appleMusicSongID: $0.songID, title: $0.title, artistName: $0.artistName,
-                                artworkURL: $0.artworkURL, duration: $0.duration, performerArtistIDs: $0.performerArtistIDs, previewURL: $0.previewURL)
-                        }
-                       try rebuildDiscs()
-                       if !discs.isEmpty { catalogState = .ready }
-                    }
-                    if force {
-                        _ = try await catalogStore.refreshArtistCatalog(artistID: id)
-                    } else {
-                        _ = try await catalogStore.loadArtistCatalog(artistID: id)
-                    }
+                try rebuildDiscs()
+                if !discs.isEmpty { catalogState = .ready }
+            } catch {
+                catalogState = .cacheFailed
+            }
+        }
+
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+
+        // Cached complete catalogs are immediately usable. Preserve the store's
+        // stale-while-revalidate behavior without waiting on network here.
+        if !force {
+            for id in ids where cachedIDs.contains(id) {
+                do {
+                    _ = try await catalogStore.loadArtistCatalog(artistID: id)
+                } catch {
+                    failedIDs.insert(id)
                 }
                 guard generation == catalogGeneration, !Task.isCancelled else { return }
-               try rebuildDiscs()
-               if !discs.isEmpty { catalogState = .ready }
-            } catch { failed = true }
-            guard generation == catalogGeneration, !Task.isCancelled else { return }
+            }
         }
+
+        // Stage 2: full catalog network work is concurrent, while persistence remains
+        // serialized on MainActor. Publish one final rebuild after every payload has
+        // been committed.
+        let fullIDs = force ? ids : ids.filter { !cachedIDs.contains($0) }
+        if !fullIDs.isEmpty {
+            let fullResults = await fetchFullCatalog(for: fullIDs)
+            guard generation == catalogGeneration, !Task.isCancelled else { return }
+            for result in fullResults {
+                guard let payload = result.payload, !result.failed else {
+                    failedIDs.insert(result.artistID)
+                    continue
+                }
+                do {
+                    _ = try catalogStore.persistArtistCatalog(payload)
+                    failedIDs.remove(result.artistID)
+                } catch {
+                    failedIDs.insert(result.artistID)
+                }
+                guard generation == catalogGeneration, !Task.isCancelled else { return }
+            }
+        }
+
         do {
             try rebuildDiscs()
-            catalogState = failed ? .cacheFailed : (discs.isEmpty ? .unavailable : .ready)
-        } catch { catalogState = .cacheFailed }
+            catalogState = failedIDs.isEmpty ? (discs.isEmpty ? .unavailable : .ready) : .cacheFailed
+        } catch {
+            catalogState = .cacheFailed
+        }
     }
+
+    private func fetchRuntimeCatalog(for artistIDs: [String]) async -> [RuntimeCatalogFetch] {
+        let service = catalogService
+        var results: [RuntimeCatalogFetch] = []
+        var cursor = 0
+        while cursor < artistIDs.count, !Task.isCancelled {
+            let end = min(cursor + Self.catalogFetchConcurrency, artistIDs.count)
+            let batch = Array(artistIDs[cursor..<end])
+            let values = await withTaskGroup(
+                of: RuntimeCatalogFetch.self,
+                returning: [RuntimeCatalogFetch].self
+            ) { group in
+                for artistID in batch {
+                    group.addTask {
+                        do {
+                            return RuntimeCatalogFetch(
+                                artistID: artistID,
+                                songs: try await service.fetchRuntimeSongs(artistID: artistID),
+                                failed: false
+                            )
+                        } catch {
+                            return RuntimeCatalogFetch(artistID: artistID, songs: [], failed: true)
+                        }
+                    }
+                }
+                var batchResults: [RuntimeCatalogFetch] = []
+                for await value in group { batchResults.append(value) }
+                return batchResults
+            }
+            results.append(contentsOf: values)
+            cursor = end
+        }
+        return results
+    }
+
+    private func fetchFullCatalog(for artistIDs: [String]) async -> [FullCatalogFetch] {
+        let service = catalogService
+        let fetchedAt = Date()
+        var results: [FullCatalogFetch] = []
+        var cursor = 0
+        while cursor < artistIDs.count, !Task.isCancelled {
+            let end = min(cursor + Self.catalogFetchConcurrency, artistIDs.count)
+            let batch = Array(artistIDs[cursor..<end])
+            let values = await withTaskGroup(
+                of: FullCatalogFetch.self,
+                returning: [FullCatalogFetch].self
+            ) { group in
+                for artistID in batch {
+                    group.addTask {
+                        do {
+                            let payload = try await service.fetchArtistCatalog(
+                                artistID: artistID,
+                                fetchedAt: fetchedAt
+                            )
+                            return FullCatalogFetch(artistID: artistID, payload: payload, failed: false)
+                        } catch {
+                            return FullCatalogFetch(artistID: artistID, payload: nil, failed: true)
+                        }
+                    }
+                }
+                var batchResults: [FullCatalogFetch] = []
+                for await value in group { batchResults.append(value) }
+                return batchResults
+            }
+            results.append(contentsOf: values)
+            cursor = end
+        }
+        return results
+    }
+
     func authorize() async {
         guard !isAuthorizing else { return }
         isAuthorizing = true
-        defer { isAuthorizing = false }
         _ = await catalogService.requestAuthorization()
         let newAccess = await catalogService.currentAccess()
-        access = newAccess; accessResolved = true
-        if let show { await load(show: show) }
+        access = newAccess
+        accessResolved = true
+        isAuthorizing = false
+
+        guard newAccess.authorizationStatus == .authorized else { return }
+        // If initial show preparation is still matching identities, that operation
+        // will continue into catalog loading with the newly-authorized access.
+        guard !isLoadingShow else { return }
+        await reloadCatalog()
     }
+
     private func rebuildDiscs() throws {
         guard let show else { return }
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())
