@@ -33,6 +33,59 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertEqual(record.actualListeningAt, time(51))
     }
 
+    func testPreparePreservesWholeQueueAndStartingTrack() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let items = [
+            ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-b", duration: 120, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-c", duration: 90, previewURL: nil)
+        ]
+
+        try await controller.prepare(
+            items: items,
+            source: .fullCatalog,
+            startingAtSongID: "song-b",
+            now: time(0)
+        )
+
+        XCTAssertEqual(service.preparedItems, items)
+        XCTAssertEqual(service.preparedStartingSongID, "song-b")
+        XCTAssertEqual(
+            controller.state,
+            .ready(songID: "song-b", source: .fullCatalog, currentTime: 0, duration: 120)
+        )
+    }
+
+    func testVisibilityNeverOwnsListeningTransport() {
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: false,
+                foreground: true,
+                source: .fullCatalog
+            )
+        )
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: true,
+                foreground: false,
+                source: .fullCatalog
+            )
+        )
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: false,
+                foreground: false,
+                source: .preview
+            )
+        )
+    }
+
     func testControllerPreviewPlaybackNeverPersistsActualEvidence() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -111,6 +164,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     private var item: ListeningPlaybackItem?
     private var source: ListeningPlaybackSource = .fullCatalog
     private(set) var preparedItems: [ListeningPlaybackItem] = []
+    private(set) var preparedStartingSongID: String?
     var currentTime: TimeInterval = 0
     private var isPlaying = false
 
@@ -120,6 +174,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         startingAtSongID: String?
     ) async throws {
         preparedItems = items
+        preparedStartingSongID = startingAtSongID
         guard let selected = items.first(where: { $0.songID == startingAtSongID }) ?? items.first else {
             throw ListeningPlaybackError.emptyQueue
         }
