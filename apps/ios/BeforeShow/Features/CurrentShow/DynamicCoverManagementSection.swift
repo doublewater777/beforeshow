@@ -85,12 +85,9 @@ struct DynamicCoverManagementSection: View {
                 }
 
                 if isImporting {
-                    HStack(spacing: BSSpacing.sm) {
-                        ProgressView().tint(BSColor.Stage.accent)
-                        Text("正在准备视频…")
-                            .font(BSFont.V3.caption)
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
+                    ProgressView()
+                        .tint(BSColor.Stage.accent)
+                        .accessibilityLabel(BSLocalization.text("正在准备视频…"))
                 }
             }
             .padding(BSSpacing.compact)
