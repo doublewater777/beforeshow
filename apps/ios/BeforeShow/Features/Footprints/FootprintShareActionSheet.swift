@@ -81,17 +81,17 @@ struct FootprintShareActionSheet<Preview: View, ExportContent: View>: View {
             if isSaving || isExporting {
                 ZStack {
                     Color.black.opacity(0.38)
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .tint(.white)
-                        Text(BSLocalization.text("生成中…"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
-                    }
+                    ProgressView()
+                        .tint(.white)
+                        .accessibilityHidden(true)
                 }
                 .ignoresSafeArea()
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(BSLocalization.text("生成中…"))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    isSaving
+                        ? BSLocalization.text("保存图片")
+                        : BSLocalization.text("分享图片")
+                )
             }
         }
         .bsToastOverlay(toast, bottomPadding: 24)
