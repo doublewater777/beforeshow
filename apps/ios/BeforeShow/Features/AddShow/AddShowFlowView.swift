@@ -47,7 +47,6 @@ struct AddShowFlowView: View {
     @State private var didSave = false
     @State private var savedShowConfirmation: SavedShowConfirmation?
     @State private var didSwitchToManual = false
-    @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
     @State private var importRevision = 0
     /// 每次发起解析 / 识别 +1；返回时若 revision 已过期则丢弃结果，避免旧请求覆盖新请求。
@@ -402,14 +401,16 @@ struct AddShowFlowView: View {
                             if isParsingLink {
                                 ProgressView()
                                     .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                                    .accessibilityHidden(true)
                             }
-                            Text(isParsingLink ? "正在解析…" : "开始解析")
+                            Text(BSLocalization.text("开始解析"))
                         }
                         .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(EditShowSaveButtonStyle())
                     .disabled(isParsingLink || linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    .accessibilityLabel(isParsingLink ? "正在解析" : "开始解析")
+                    .accessibilityLabel(BSLocalization.text("开始解析"))
+                    .accessibilityValue(isParsingLink ? BSLocalization.text("正在解析") : "")
 
                     Text(BSLocalization.format("目前支持：%@", ShowLinkPlatformCatalog.supportSummary))
                         .font(.system(size: 12))
@@ -465,15 +466,12 @@ struct AddShowFlowView: View {
 
         return VStack(alignment: .leading, spacing: BSSpacing.md) {
             if isRecognizing {
-                EditShowFormCard(
-                    title: BSLocalization.text("识别进度"),
-                    icon: "text.viewfinder",
-                    tint: BSColor.Accent.violet,
-                    pillText: "设备端 · 不上传",
-                    pillTint: BSColor.Accent.violet
-                ) {
-                    AddShowOCRStepsView(activeStep: ocrActiveStep)
-                }
+                ProgressView()
+                    .tint(BSColor.Accent.violet)
+                    .scaleEffect(1.1)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, BSSpacing.lg)
+                    .accessibilityLabel(BSLocalization.text("正在识别截图…"))
             }
 
             if showsPicker {
@@ -573,6 +571,8 @@ struct AddShowFlowView: View {
                 .font(.system(size: 12))
                 .foregroundColor(saveBarStatus.tint)
                 .frame(maxWidth: .infinity)
+                .opacity(isImportingDraft ? 0 : 1)
+                .accessibilityHidden(isImportingDraft)
 
             Button {
                 Task {
@@ -583,17 +583,19 @@ struct AddShowFlowView: View {
                     if isSaving {
                         ProgressView()
                             .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                            .accessibilityHidden(true)
                     }
-                    Text(isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
+                    Text(AddShowConfiguration.saveButtonTitle)
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
             .disabled(!draft.isReadyToSave || isSaving || needsDateConfirmation || isImportingDraft)
-            .accessibilityLabel(
-                isImportingDraft
-                    ? BSLocalization.text("正在导入，暂不可保存")
-                    : (isSaving ? BSLocalization.text("正在保存") : AddShowConfiguration.saveButtonTitle)
+            .accessibilityLabel(AddShowConfiguration.saveButtonTitle)
+            .accessibilityValue(
+                isSaving
+                    ? BSLocalization.text("正在保存")
+                    : (isImportingDraft ? BSLocalization.text("正在导入，暂不可保存") : "")
             )
         }
         .padding(.horizontal, 20)
@@ -623,14 +625,8 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
+    /// 按优先级说明距离可保存还差什么。
     private var saveBarStatus: SaveBarStatus {
-        if isImportingDraft {
-            return SaveBarStatus(
-                text: isParsingLink ? "正在解析链接…" : "正在识别截图…",
-                tint: BSColor.Stage.muted
-            )
-        }
         if draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return SaveBarStatus(text: BSLocalization.text("还差现场名称"), tint: BSColor.Stage.muted)
         }
@@ -674,7 +670,6 @@ struct AddShowFlowView: View {
         importTask = nil
         isParsingLink = false
         isRecognizingScreenshot = false
-        ocrActiveStep = 0
     }
 
     /// 当前导入请求是否仍有效（未被新请求或页面关闭作废）。
@@ -686,26 +681,12 @@ struct AddShowFlowView: View {
     private func recognizeScreenshot(from item: PhotosPickerItem) async {
         guard !isRecognizingScreenshot else { return }
         isRecognizingScreenshot = true
-        ocrActiveStep = 1
         importRequestRevision += 1
         let requestRevision = importRequestRevision
 
-        // 分步进度为视觉呈现：OCR 是一次性调用，步骤按节奏推进，
-        // 最多停在「整理现场信息」，识别结束后随面板一起消失。
-        let stepTask = Task { @MainActor in
-            while !Task.isCancelled && ocrActiveStep < 3 {
-                try? await Task.sleep(nanoseconds: 700_000_000)
-                if !Task.isCancelled {
-                    ocrActiveStep += 1
-                }
-            }
-        }
-
         defer {
-            stepTask.cancel()
             if requestRevision == importRequestRevision {
                 isRecognizingScreenshot = false
-                ocrActiveStep = 0
                 selectedScreenshotItem = nil
             }
         }
@@ -725,11 +706,6 @@ struct AddShowFlowView: View {
             }
 
             let recognized = try await OnDeviceShowScreenshotRecognizer().draft(from: image)
-            guard isActiveImportRequest(requestRevision) else { return }
-            stepTask.cancel()
-            // 第四步「生成可编辑草稿」短暂停留，完成状态可见后再切到确认表单
-            ocrActiveStep = 4
-            try? await Task.sleep(nanoseconds: 450_000_000)
             guard isActiveImportRequest(requestRevision) else { return }
 
             // 用 merge 而非整段替换:用户已手改的字段（userEditedFields）保留原值,
