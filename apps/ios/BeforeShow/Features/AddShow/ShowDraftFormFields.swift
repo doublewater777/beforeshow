@@ -5,6 +5,29 @@ import UIKit
 
 // MARK: - Shared Show Draft Form
 
+enum ShowDraftArtistAutoMatchPolicy {
+    static func uniqueExactMatch(
+        for query: String,
+        among candidates: [RecognizedArtist]
+    ) -> RecognizedArtist? {
+        let normalizedQuery = normalized(query)
+        guard !normalizedQuery.isEmpty else { return nil }
+        let exact = candidates.filter { normalized($0.canonicalName) == normalizedQuery }
+        let identities = Set(exact.map(\.id))
+        guard identities.count == 1 else { return nil }
+        return exact.first
+    }
+
+    static func normalized(_ name: String) -> String {
+        name.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        .split { $0.isWhitespace || $0.isNewline }
+        .joined(separator: " ")
+    }
+}
+
 struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
     /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边。
@@ -136,6 +159,12 @@ struct ShowDraftFormFields: View {
             Task {
                 await importCover(from: newItem)
             }
+        }
+        // Imported lineup names are enriched before the user ever reaches Listen.
+        // This is best-effort and invisible: only one unambiguous exact match is
+        // accepted, and any user edit immediately stops automatic matching.
+        .task(id: artistAutoMatchKey) {
+            await autoMatchRecognizedArtists()
         }
     }
 
@@ -315,6 +344,48 @@ struct ShowDraftFormFields: View {
                         keyboardType: .URL
                     )
                 }
+            }
+        }
+    }
+
+    private var artistAutoMatchKey: String {
+        guard recognizedHighlight,
+              draft.recognizedFields.contains(.artist),
+              !userEditedFields.contains(.artist) else {
+            return "disabled"
+        }
+        return draft.artists
+            .map { "\($0.name)|\($0.appleMusicArtistID ?? "")" }
+            .joined(separator: "\u{1F}")
+    }
+
+    @MainActor
+    private func autoMatchRecognizedArtists() async {
+        guard recognizedHighlight,
+              draft.recognizedFields.contains(.artist),
+              !userEditedFields.contains(.artist) else { return }
+
+        let importedArtists = draft.artists
+        for (index, imported) in importedArtists.enumerated() where imported.appleMusicArtistID == nil {
+            guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
+            let query = imported.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !query.isEmpty else { continue }
+
+            let candidates = (try? await artistSearch.searchArtists(query: query)) ?? []
+            guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
+            guard let match = ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: query, among: candidates),
+                  draft.artists.indices.contains(index),
+                  draft.artists[index].appleMusicArtistID == nil,
+                  ShowDraftArtistAutoMatchPolicy.normalized(draft.artists[index].name)
+                    == ShowDraftArtistAutoMatchPolicy.normalized(imported.name) else {
+                continue
+            }
+
+            // Identity enrichment must not rewrite the imported/user-visible name.
+            draft.artists[index].appleMusicArtistID = match.id
+            draft.artists[index].appleMusicURL = match.appleMusicURL?.absoluteString
+            if draft.artists[index].avatarURL == nil {
+                draft.artists[index].avatarURL = match.avatarURL?.absoluteString
             }
         }
     }
