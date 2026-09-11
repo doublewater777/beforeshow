@@ -9,7 +9,7 @@
 "试听" = "Preview";
 "部分曲目可试听" = "Some tracks can be previewed";
 "30 秒试听" = "30-second preview";
-"载入中…" = "Loading…";
+"正在准备播放" = "Preparing playback";
 "试听中 · 剩余 %d 秒" = "Previewing · %d sec left";
 "播放中" = "Playing";
 "试听暂停 · 剩余 %d 秒" = "Preview paused · %d sec left";
