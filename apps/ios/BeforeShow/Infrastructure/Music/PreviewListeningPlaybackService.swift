@@ -39,7 +39,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func play() async throws {
-        if player.currentItem?.status == .failed {
+        if player.currentItem?.status == .failed || player.currentItem == nil {
             rebuildPlayerQueue(startingAt: activeIndex())
         }
         guard player.currentItem != nil else {
@@ -57,7 +57,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         guard !queue.isEmpty else { throw ListeningPlaybackError.emptyQueue }
         let index = activeIndex()
         guard index + 1 < queue.count else { throw ListeningPlaybackError.queueBoundary }
-        let shouldResume = player.timeControlStatus == .playing
+        let shouldResume = player.timeControlStatus != .paused
         player.advanceToNextItem()
         currentIndex = index + 1
         if shouldResume { player.play() }
@@ -67,7 +67,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         guard !queue.isEmpty else { throw ListeningPlaybackError.emptyQueue }
         let index = activeIndex()
         guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
-        let shouldResume = player.timeControlStatus == .playing
+        let shouldResume = player.timeControlStatus != .paused
         currentIndex = index - 1
         rebuildPlayerQueue(startingAt: currentIndex)
         if shouldResume { player.play() }
@@ -95,7 +95,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         let duration = playerDuration ?? item.duration
         let reachedQueueEnd = currentItem == nil && index == queue.count - 1
         let currentTime = max(0, playerTime ?? (reachedQueueEnd ? duration ?? 0 : 0))
-        let isPlaying = player.timeControlStatus == .playing
+        let isPlaying = player.timeControlStatus != .paused
         return ListeningPlaybackSample(
             songID: item.songID,
             source: .preview,

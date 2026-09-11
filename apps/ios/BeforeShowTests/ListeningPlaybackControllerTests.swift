@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftData
 import XCTest
 @testable import BeforeShow
@@ -150,6 +151,54 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNoThrow(try controller.stop())
         XCTAssertTrue(service.didStop)
         XCTAssertEqual(controller.state, .idle)
+    }
+
+    func testRemoteCommandPlayRestartsFinishedPreviewQueue() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let player = AVQueuePlayer()
+        let service = PreviewListeningPlaybackService(player: player)
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let items = [
+            ListeningPlaybackItem(
+                songID: "song-1",
+                duration: 30,
+                previewURL: URL(string: "https://example.com/1.m4a"),
+                title: "Track 1",
+                artistName: "Artist"
+            ),
+            ListeningPlaybackItem(
+                songID: "song-2",
+                duration: 30,
+                previewURL: URL(string: "https://example.com/2.m4a"),
+                title: "Track 2",
+                artistName: "Artist"
+            )
+        ]
+
+        try await controller.prepare(items: items, source: .preview, startingAtSongID: "song-2")
+        try await controller.play()
+
+        // Simulate natural queue completion by clearing player items
+        player.removeAllItems()
+        _ = try controller.refresh()
+        XCTAssertEqual(
+            controller.state,
+            .finished(songID: "song-2", source: .preview, duration: 30)
+        )
+
+        // Invoke lock-screen / Control Center remote play
+        try await ListeningRemoteCommandBridge.shared.playForTesting()
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "song-2", source: .preview, currentTime: 0, duration: 30)
+        )
+        XCTAssertNotNil(player.currentItem)
+
+        try controller.stop()
     }
 
     private func time(_ value: TimeInterval) -> Date {

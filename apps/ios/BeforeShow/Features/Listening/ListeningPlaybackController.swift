@@ -131,7 +131,7 @@ final class ListeningPlaybackController {
 }
 
 @MainActor
-private final class ListeningRemoteCommandBridge {
+final class ListeningRemoteCommandBridge {
     static let shared = ListeningRemoteCommandBridge()
 
     private weak var controller: ListeningPlaybackController?
@@ -219,5 +219,19 @@ private final class ListeningRemoteCommandBridge {
     private func previous() {
         guard let controller else { return }
         Task { @MainActor in try? await controller.skipToPrevious() }
+    }
+
+    func playForTesting() async throws {
+        try await controller?.play()
+    }
+
+    func togglePlayPauseForTesting() async throws {
+        guard let controller else { return }
+        switch controller.state {
+        case .playing:
+            try controller.pause()
+        default:
+            try await controller.play()
+        }
     }
 }
