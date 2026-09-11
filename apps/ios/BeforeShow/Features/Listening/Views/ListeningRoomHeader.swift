@@ -28,14 +28,17 @@ struct ListeningRoomHeader: View {
                     ProgressView()
                         .tint(BSColor.Stage.accent)
                         .controlSize(.mini)
+                        .accessibilityHidden(true)
                 } else {
                     Image(systemName: modeIcon(mode))
                         .font(.system(size: 10, weight: .semibold))
                 }
             }
             .frame(width: BSListeningTokens.statusIcon, height: BSListeningTokens.statusIcon)
-            Text(mode.title)
-                .font(.system(size: 12, weight: mode == .fullPlayback ? .semibold : .medium))
+            if mode != .connecting {
+                Text(mode.title)
+                    .font(.system(size: 12, weight: mode == .fullPlayback ? .semibold : .medium))
+            }
         }
         .foregroundStyle(mode == .fullPlayback ? BSColor.Stage.accent : BSColor.Stage.muted)
         .padding(.horizontal, 10)
@@ -50,7 +53,8 @@ struct ListeningRoomHeader: View {
                 lineWidth: 0.75
             )
         )
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(mode.title)
         .accessibilityIdentifier("listening.playbackMode")
     }
 
