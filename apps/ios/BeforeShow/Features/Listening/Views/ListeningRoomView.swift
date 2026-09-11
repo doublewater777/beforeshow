@@ -222,7 +222,7 @@ struct ListeningRoomView: View {
             if room.access.authorizationStatus == .authorized && room.libraryDiscs.isEmpty {
                 ListeningShelfSkeleton()
             } else {
-                ListeningCatalogStatusView(title: ListeningCopy.text("连接中…"), isLoading: true)
+                listeningActivityIndicator
             }
         } else if !room.accessResolved {
             ListeningShelfSkeleton()
@@ -261,6 +261,15 @@ struct ListeningRoomView: View {
                 ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
             }
         }
+    }
+
+    private var listeningActivityIndicator: some View {
+        ProgressView()
+            .tint(BSColor.Stage.accent)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: BSLayout.minTouchTarget)
+            .accessibilityLabel(ListeningCopy.text("连接中…"))
+            .accessibilityIdentifier("listening.catalogActivity")
     }
 
     private func updateFrames(_ frames: [String: CGRect]) {
