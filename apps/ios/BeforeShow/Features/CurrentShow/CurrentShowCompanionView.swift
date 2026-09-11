@@ -158,7 +158,11 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private func invitationContent(isRetry: Bool) -> some View {
-        VStack(spacing: BSSpacing.md) {
+        let title = CompanionInvitePreparingPresentation.primaryActionTitle(
+            isPreparing: isPreparingInvite,
+            isRetry: isRetry
+        )
+        return VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
                 title: isRetry ? BSLocalization.text("邀请未接受") : BSLocalization.text("邀请同行"),
@@ -170,28 +174,24 @@ struct CurrentShowCompanionSheet: View {
             Button {
                 Task { await sendInvitation(isRetry: isRetry) }
             } label: {
-                if isPreparingInvite {
-                    HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    if isPreparingInvite {
                         ProgressView()
                             .tint(.black)
-                        Text(CompanionInvitePreparingPresentation.primaryActionTitle(
-                            isPreparing: true,
-                            isRetry: isRetry
-                        ))
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "square.and.arrow.up")
                     }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    Label(
-                        CompanionInvitePreparingPresentation.primaryActionTitle(
-                            isPreparing: false,
-                            isRetry: isRetry
-                        ),
-                        systemImage: "square.and.arrow.up"
-                    )
+                    Text(title)
                 }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isPreparingInvite)
+            .accessibilityLabel(title)
+            .accessibilityValue(
+                isPreparingInvite ? CompanionInvitePreparingPresentation.overlayAccessibilityLabel : ""
+            )
         }
     }
 
@@ -206,19 +206,24 @@ struct CurrentShowCompanionSheet: View {
             Button {
                 Task { await resendInvitation() }
             } label: {
-                if isPreparingInvite {
-                    HStack(spacing: 8) {
+                HStack(spacing: 8) {
+                    if isPreparingInvite {
                         ProgressView()
                             .tint(.black)
-                        Text(CompanionInvitePreparingPresentation.overlayTitle)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "paperplane")
                     }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    Label(BSLocalization.text("再次发送邀请"), systemImage: "paperplane")
+                    Text(BSLocalization.text("再次发送邀请"))
                 }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isPreparingInvite || show.companionShareRecordName == nil)
+            .accessibilityLabel(BSLocalization.text("再次发送邀请"))
+            .accessibilityValue(
+                isPreparingInvite ? CompanionInvitePreparingPresentation.overlayAccessibilityLabel : ""
+            )
 
             Button {
                 Task { await refreshStatus() }
@@ -228,10 +233,11 @@ struct CurrentShowCompanionSheet: View {
                         ProgressView()
                             .scaleEffect(0.85)
                             .tint(BSColor.Stage.muted)
+                            .accessibilityHidden(true)
                     } else {
                         Image(systemName: "arrow.clockwise")
                     }
-                    Text(isRefreshing ? BSLocalization.text("正在检查...") : BSLocalization.text("检查状态"))
+                    Text(BSLocalization.text("检查状态"))
                 }
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.muted)
@@ -239,6 +245,8 @@ struct CurrentShowCompanionSheet: View {
                 .padding(.vertical, 8)
             }
             .disabled(isRefreshing)
+            .accessibilityLabel(BSLocalization.text("检查状态"))
+            .accessibilityValue(isRefreshing ? BSLocalization.text("正在检查...") : "")
 
             destructiveButton("取消邀请") {
                 Task { await cancelInvitation() }
@@ -297,15 +305,23 @@ struct CurrentShowCompanionSheet: View {
                     Button {
                         Task { await resendInvitation() }
                     } label: {
-                        if isPreparingInvite {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
+                        HStack(spacing: 8) {
+                            if isPreparingInvite {
+                                ProgressView()
+                                    .accessibilityHidden(true)
+                            } else {
+                                Image(systemName: "person.badge.plus")
+                            }
+                            Text(BSLocalization.text("邀请更多"))
                         }
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(BSSecondaryButtonStyle())
                     .disabled(isPreparingInvite || show.companionShareRecordName == nil)
+                    .accessibilityLabel(BSLocalization.text("邀请更多"))
+                    .accessibilityValue(
+                        isPreparingInvite ? CompanionInvitePreparingPresentation.overlayAccessibilityLabel : ""
+                    )
                 }
 
                 destructiveButton(show.companionIsOwner == false ? "退出同行" : "取消同行") {
@@ -437,18 +453,13 @@ struct CurrentShowCompanionSheet: View {
     private var preparingOverlay: some View {
         ZStack {
             Color.black.opacity(0.38)
-            VStack(spacing: BSSpacing.sm) {
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.08)
-                Text(CompanionInvitePreparingPresentation.overlayTitle)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(CompanionInvitePreparingPresentation.overlayTitle)
+            ProgressView()
+                .tint(.white)
+                .scaleEffect(1.08)
+                .accessibilityHidden(true)
         }
         .allowsHitTesting(true)
+        .accessibilityHidden(true)
         .transition(.opacity)
     }
 
