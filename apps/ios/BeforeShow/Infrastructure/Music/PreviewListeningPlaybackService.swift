@@ -117,7 +117,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         queue = []
         currentIndex = 0
         itemIndexes = [:]
-        AppAudioSession.configureAmbient()
+        AppAudioSession.releaseMusicPlayback()
     }
 
     private func activeIndex() -> Int {

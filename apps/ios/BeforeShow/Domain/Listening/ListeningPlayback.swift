@@ -102,6 +102,11 @@ enum ListeningPlaybackState: Equatable, Sendable {
     )
     case finished(songID: String, source: ListeningPlaybackSource, duration: TimeInterval?)
     case failed
+
+    var isFinished: Bool {
+        if case .finished = self { return true }
+        return false
+    }
 }
 
 enum ListeningPlaybackEvent: Equatable, Sendable {

@@ -452,7 +452,7 @@ import UIKit
         }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed {
+        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)

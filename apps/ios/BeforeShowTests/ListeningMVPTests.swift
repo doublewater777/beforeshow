@@ -243,6 +243,12 @@ import XCTest
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.mechanism.disc?.id, disc.id)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
+        XCTAssertEqual(service.prepareCount, 1)
+        room.playPause()
+        try await wait { room.isPlaying && !room.busy }
+        XCTAssertEqual(service.prepareCount, 2)
+        XCTAssertEqual(service.preparedStartingSongID, "b")
+        XCTAssertEqual(service.preparedIDs, ["a", "b"])
         room.skip(1)
         XCTAssertEqual(room.trackIndex, 1)
         show.artists[0].appleMusicArtistID = "replacement-artist"
@@ -357,6 +363,8 @@ private struct ListeningMVPCatalogStub: ListeningMusicCatalogServicing {
     var item: ListeningPlaybackItem? { queue.indices.contains(index) ? queue[index] : nil }
     var playing = false
     var preparedIDs: [String] = []
+    var preparedStartingSongID: String?
+    private(set) var prepareCount = 0
     private var queue: [ListeningPlaybackItem] = []
     private var index = 0
     private var finishedLastTrack = false
@@ -380,6 +388,8 @@ private struct ListeningMVPCatalogStub: ListeningMusicCatalogServicing {
         queue = items
         index = startingAtSongID.flatMap { id in items.firstIndex(where: { $0.songID == id }) } ?? 0
         finishedLastTrack = false
+        prepareCount += 1
+        preparedStartingSongID = startingAtSongID ?? items.first?.songID
         preparedIDs.append(contentsOf: items.map(\.songID).filter { !preparedIDs.contains($0) })
     }
     func play() async throws { playing = true }
