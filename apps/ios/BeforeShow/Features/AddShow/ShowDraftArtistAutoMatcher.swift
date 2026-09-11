@@ -3,6 +3,7 @@ import Foundation
 /// Best-effort identity enrichment for lineup names imported from links/OCR.
 /// Only one normalized exact identity is accepted; same-name collisions stay
 /// unresolved so the user can confirm them manually.
+@MainActor
 struct ShowDraftArtistAutoMatcher {
     let search: any ArtistSearchServicing
 
