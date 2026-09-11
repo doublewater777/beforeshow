@@ -47,21 +47,27 @@ private final class AuthorizationTransitionCatalog: @unchecked Sendable, Listeni
     private let lock = NSLock()
     private var status: ListeningMusicAuthorizationStatus = .notDetermined
 
-    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+    private func readStatus() -> ListeningMusicAuthorizationStatus {
         lock.lock()
         defer { lock.unlock() }
         return status
     }
 
-    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+    private func setStatus(_ value: ListeningMusicAuthorizationStatus) {
         lock.lock()
-        status = .authorized
+        status = value
         lock.unlock()
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { readStatus() }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        setStatus(.authorized)
         return .authorized
     }
 
     func currentAccess() async -> ListeningMusicAccess {
-        let current = currentAuthorizationStatus()
+        let current = readStatus()
         return .init(
             authorizationStatus: current,
             canPlayCatalogContent: current == .authorized
@@ -80,6 +86,12 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
     private let lock = NSLock()
     private var searches = 0
 
+    private func recordSearch() {
+        lock.lock()
+        searches += 1
+        lock.unlock()
+    }
+
     var searchCount: Int {
         lock.lock()
         defer { lock.unlock() }
@@ -87,9 +99,7 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
     }
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
-        lock.lock()
-        searches += 1
-        lock.unlock()
+        recordSearch()
         return []
     }
 
