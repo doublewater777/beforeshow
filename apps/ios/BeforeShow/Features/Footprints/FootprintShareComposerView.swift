@@ -82,17 +82,13 @@ struct FootprintShareComposerView: View {
             if isSharing {
                 ZStack {
                     Color.black.opacity(0.38)
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .tint(.white)
-                        Text(BSLocalization.text("生成中…"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
-                    }
+                    ProgressView()
+                        .tint(.white)
+                        .accessibilityHidden(true)
                 }
                 .ignoresSafeArea()
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(BSLocalization.text("生成中…"))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(BSLocalization.text("分享图片"))
             }
         }
         .bsToastOverlay(toast, bottomPadding: 36)
@@ -294,9 +290,7 @@ struct FootprintShareComposerView: View {
         .accessibilityHint(
             selected.isEmpty
                 ? BSLocalization.text("至少选择一个画面")
-                : (hasLoadedImages
-                    ? BSLocalization.text("生成 PNG 并打开系统分享")
-                    : BSLocalization.text("生成中…"))
+                : BSLocalization.text("生成 PNG 并打开系统分享")
         )
     }
 
