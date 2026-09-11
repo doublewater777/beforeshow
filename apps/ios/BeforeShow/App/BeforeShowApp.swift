@@ -68,7 +68,6 @@ struct BeforeShowApp: App {
         }
 
         UNUserNotificationCenter.current().delegate = BeforeShowNotificationDelegate.shared
-        WeatherReminderScheduler.shared.registerTaskHandler(modelContainer: modelContainer)
     }
 
     var body: some Scene {
@@ -101,12 +100,6 @@ struct BeforeShowApp: App {
                         reason: .startup,
                         in: modelContainer.mainContext
                     )
-                    await WeatherReminderScheduler.shared.runOpenCheck(
-                        modelContext: modelContainer.mainContext
-                    )
-                    WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(
-                        modelContext: modelContainer.mainContext
-                    )
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     guard newPhase == .active else { return }
@@ -133,12 +126,6 @@ struct BeforeShowApp: App {
                         await LocalNotificationCenter.shared.reconcilePortfolio(
                             reason: .foreground,
                             in: modelContainer.mainContext
-                        )
-                        await WeatherReminderScheduler.shared.runOpenCheck(
-                            modelContext: modelContainer.mainContext
-                        )
-                        WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(
-                            modelContext: modelContainer.mainContext
                         )
                     }
                 }

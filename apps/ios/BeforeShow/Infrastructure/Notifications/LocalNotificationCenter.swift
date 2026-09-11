@@ -213,7 +213,6 @@ final class LocalNotificationCenter {
             schedulingState.clearStagedBackfillCandidate()
 
             try context.save()
-            WeatherReminderScheduler.shared.scheduleNextBackgroundCheck(modelContext: context)
             return didScheduleEveryRequest
         } catch {
             context.rollback()
