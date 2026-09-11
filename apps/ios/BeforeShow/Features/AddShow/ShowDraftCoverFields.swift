@@ -16,7 +16,7 @@ struct AddShowCoverActions: View {
                 PhotosPicker(selection: $selectedItem, matching: .images) {
                     AddShowCoverActionChip(
                         icon: isImporting ? nil : "photo.on.rectangle.angled",
-                        title: isImporting ? BSLocalization.text("正在导入…") : BSLocalization.text("从相册选择"),
+                        title: BSLocalization.text("从相册选择"),
                         isActive: false,
                         showsSpinner: isImporting
                     )
@@ -24,6 +24,8 @@ struct AddShowCoverActions: View {
                 .buttonStyle(.plain)
                 .disabled(isImporting)
                 .frame(maxWidth: .infinity)
+                .accessibilityLabel(BSLocalization.text("从相册选择"))
+                .accessibilityValue(isImporting ? BSLocalization.text("正在导入…") : "")
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) {
@@ -62,6 +64,7 @@ private struct AddShowCoverActionChip: View {
                 ProgressView()
                     .controlSize(.small)
                     .tint(BSColor.Accent.violet)
+                    .accessibilityHidden(true)
             } else if let icon {
                 Image(systemName: icon)
                     .font(.system(size: 14, weight: .semibold))
