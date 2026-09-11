@@ -211,7 +211,7 @@ struct ListeningRoomView: View {
         .task {
             while !Task.isCancelled {
                 room.tick()
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .milliseconds(1000))
             }
         }
     }
