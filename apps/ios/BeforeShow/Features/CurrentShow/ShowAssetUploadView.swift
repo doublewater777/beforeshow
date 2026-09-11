@@ -126,22 +126,29 @@ struct ShowAssetUploadView: View {
             )
 
             PhotosPicker(selection: $selectedItem, matching: .images) {
-                if importing {
-                    ProgressView()
-                        .frame(maxWidth: .infinity)
-                } else {
-                    Label("选择图片", systemImage: "photo")
+                HStack(spacing: BSSpacing.sm) {
+                    if importing {
+                        ProgressView()
+                            .tint(.black)
+                            .accessibilityHidden(true)
+                    } else {
+                        Image(systemName: "photo")
+                    }
+                    Text(BSLocalization.text("选择图片"))
                 }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isImporting || isSaving)
             .accessibilityLabel(BSLocalization.format("选择%@图片", kind.title))
+            .accessibilityValue(importing ? BSLocalization.text("正在导入…") : "")
         }
         .frame(maxWidth: .infinity)
     }
 
     private func previewSection(_ image: UIImage) -> some View {
-        VStack(spacing: BSSpacing.md) {
+        let saveTitle = BSLocalization.format("保存%@", kind.title)
+        return VStack(spacing: BSSpacing.md) {
             ZStack {
                 Color.black.opacity(0.35)
                 Image(uiImage: image)
@@ -166,18 +173,25 @@ struct ShowAssetUploadView: View {
                 Button {
                     beginSave()
                 } label: {
-                    if isSaving {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Label(BSLocalization.format("保存%@", kind.title), systemImage: "square.and.arrow.down")
+                    HStack(spacing: BSSpacing.sm) {
+                        if isSaving {
+                            ProgressView()
+                                .tint(.black)
+                                .accessibilityHidden(true)
+                        } else {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                        Text(saveTitle)
                     }
+                    .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
                 .disabled(!operation.canBeginSave(
                     hasPendingData: pendingData != nil,
                     saveTaskIsActive: saveTask != nil
                 ))
+                .accessibilityLabel(saveTitle)
+                .accessibilityValue(isSaving ? BSLocalization.text("正在保存") : "")
             }
         }
     }
