@@ -5,29 +5,6 @@ import UIKit
 
 // MARK: - Shared Show Draft Form
 
-enum ShowDraftArtistAutoMatchPolicy {
-    static func uniqueExactMatch(
-        for query: String,
-        among candidates: [RecognizedArtist]
-    ) -> RecognizedArtist? {
-        let normalizedQuery = normalized(query)
-        guard !normalizedQuery.isEmpty else { return nil }
-        let exact = candidates.filter { normalized($0.canonicalName) == normalizedQuery }
-        let identities = Set(exact.map(\.id))
-        guard identities.count == 1 else { return nil }
-        return exact.first
-    }
-
-    static func normalized(_ name: String) -> String {
-        name.folding(
-            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
-            locale: Locale(identifier: "en_US_POSIX")
-        )
-        .split { $0.isWhitespace || $0.isNewline }
-        .joined(separator: " ")
-    }
-}
-
 struct ShowDraftFormFields: View {
     @Binding var draft: ShowDraft
     /// 添加现场·识别导入（链接 / 截图）：识别出的字段标「✓ 已识别」薄荷绿描边。
@@ -354,9 +331,7 @@ struct ShowDraftFormFields: View {
               !userEditedFields.contains(.artist) else {
             return "disabled"
         }
-        return draft.artists
-            .map { "\($0.name)|\($0.appleMusicArtistID ?? "")" }
-            .joined(separator: "\u{1F}")
+        return draft.artists.map(\.name).joined(separator: "\u{1F}")
     }
 
     @MainActor
@@ -366,18 +341,15 @@ struct ShowDraftFormFields: View {
               !userEditedFields.contains(.artist) else { return }
 
         let importedArtists = draft.artists
-        for (index, imported) in importedArtists.enumerated() where imported.appleMusicArtistID == nil {
-            guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
-            let query = imported.name.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !query.isEmpty else { continue }
+        let matches = await ShowDraftArtistAutoMatcher(search: artistSearch).matches(for: importedArtists)
+        guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
 
-            let candidates = (try? await artistSearch.searchArtists(query: query)) ?? []
-            guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
-            guard let match = ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: query, among: candidates),
+        for (index, match) in matches {
+            guard importedArtists.indices.contains(index),
                   draft.artists.indices.contains(index),
                   draft.artists[index].appleMusicArtistID == nil,
-                  ShowDraftArtistAutoMatchPolicy.normalized(draft.artists[index].name)
-                    == ShowDraftArtistAutoMatchPolicy.normalized(imported.name) else {
+                  ShowDraftArtistAutoMatcher.normalized(draft.artists[index].name)
+                    == ShowDraftArtistAutoMatcher.normalized(importedArtists[index].name) else {
                 continue
             }
 
