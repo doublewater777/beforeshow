@@ -17,15 +17,12 @@ enum CompanionInviteGate {
 }
 
 enum CompanionInvitePreparingPresentation {
-    static var overlayTitle: String {
+    static var overlayAccessibilityLabel: String {
         BSLocalization.text("正在打开系统分享")
     }
 
-    static func primaryActionTitle(isPreparing: Bool, isRetry: Bool) -> String {
-        if isPreparing {
-            return BSLocalization.text("正在准备邀请")
-        }
-        return isRetry
+    static func primaryActionTitle(isPreparing _: Bool, isRetry: Bool) -> String {
+        isRetry
             ? BSLocalization.text("重新邀请")
             : BSLocalization.text("分享邀请")
     }
