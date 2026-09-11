@@ -90,7 +90,6 @@ final class ListeningPlaybackController {
         // retry action next to the player.
         if service.failure != nil {
             stateMachine.handle(.failed)
-            ListeningRemoteCommandBridge.shared.update(state: state, sample: nil)
             return state
         }
         guard let sample = service.snapshot(observedAt: now) else {
@@ -98,7 +97,7 @@ final class ListeningPlaybackController {
         }
         stateMachine.handle(.sample(sample))
         _ = try evidenceCoordinator.ingest(sample, at: now)
-        ListeningRemoteCommandBridge.shared.update(state: state, sample: sample)
+        ListeningRemoteCommandBridge.shared.update(sample: sample)
         return state
     }
 
@@ -147,23 +146,23 @@ private final class ListeningRemoteCommandBridge {
         center.previousTrackCommand.isEnabled = true
 
         center.playCommand.addTarget { _ in
-            Task { @MainActor in shared.play() }
+            Task { @MainActor in ListeningRemoteCommandBridge.shared.play() }
             return .success
         }
         center.pauseCommand.addTarget { _ in
-            Task { @MainActor in shared.pause() }
+            Task { @MainActor in ListeningRemoteCommandBridge.shared.pause() }
             return .success
         }
         center.togglePlayPauseCommand.addTarget { _ in
-            Task { @MainActor in shared.togglePlayPause() }
+            Task { @MainActor in ListeningRemoteCommandBridge.shared.togglePlayPause() }
             return .success
         }
         center.nextTrackCommand.addTarget { _ in
-            Task { @MainActor in shared.next() }
+            Task { @MainActor in ListeningRemoteCommandBridge.shared.next() }
             return .success
         }
         center.previousTrackCommand.addTarget { _ in
-            Task { @MainActor in shared.previous() }
+            Task { @MainActor in ListeningRemoteCommandBridge.shared.previous() }
             return .success
         }
     }
@@ -180,8 +179,8 @@ private final class ListeningRemoteCommandBridge {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    func update(state: ListeningPlaybackState, sample: ListeningPlaybackSample?) {
-        guard let sample, let item = itemsBySongID[sample.songID] else { return }
+    func update(sample: ListeningPlaybackSample) {
+        guard let item = itemsBySongID[sample.songID] else { return }
         var info: [String: Any] = [
             MPNowPlayingInfoPropertyExternalContentIdentifier: sample.songID,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: sample.currentTime,
