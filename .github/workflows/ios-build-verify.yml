@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - codex/issue-165-loading-feedback
     paths:
       - "apps/ios/**"
       - "scripts/verify-pr.sh"
@@ -54,7 +53,7 @@ jobs:
           scripts/verify-pr.sh "${{ github.event.pull_request.number }}" --no-comment
 
   verify-main:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     runs-on: [self-hosted, xcode-26]
     steps:
       - name: Checkout
@@ -64,35 +63,6 @@ jobs:
 
       - name: Architecture guard
         run: python3 apps/ios/scripts/check_architecture.py
-
-      - name: Signed simulator build
-        run: |
-          cd apps/ios
-          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
-
-  verify-issue-165:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/issue-165-loading-feedback'
-    runs-on: [self-hosted, xcode-26]
-    timeout-minutes: 45
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Architecture guard
-        run: python3 apps/ios/scripts/check_architecture.py
-
-      - name: Focused Issue 165 tests
-        run: |
-          cd apps/ios
-          xcodebuild test -project BeforeShow.xcodeproj -scheme BeforeShow \
-            -destination 'platform=iOS Simulator,name=iPhone 17' \
-            -only-testing:BeforeShowTests/CompanionSharingTests/testInvitePreparingKeepsActionTitleStableAndExposesAccessibleProgress \
-            -only-testing:BeforeShowTests/ListeningDisplayProjectionTests/testPreparingPlayerUsesIconOnlyVisualStateAndAccurateAccessibilityStatus \
-            -only-testing:BeforeShowTests/ListeningLocalizationTests/testListeningCapabilityProjectionCopyExistsInThreeLanguages
 
       - name: Signed simulator build
         run: |
