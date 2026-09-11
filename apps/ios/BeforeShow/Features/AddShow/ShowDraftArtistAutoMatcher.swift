@@ -43,3 +43,6 @@ struct ShowDraftArtistAutoMatcher {
         .joined(separator: " ")
     }
 }
+
+// Keep the policy spelling used by the regression suite and older call sites.
+typealias ShowDraftArtistAutoMatchPolicy = ShowDraftArtistAutoMatcher
