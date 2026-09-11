@@ -3,11 +3,12 @@ import Foundation
 
 @MainActor
 final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
-    private let player: AVPlayer
+    private let player: AVQueuePlayer
     private var queue: [ListeningPlaybackItem] = []
     private var currentIndex = 0
+    private var itemIndexes: [ObjectIdentifier: Int] = [:]
 
-    init(player: AVPlayer = AVPlayer()) {
+    init(player: AVQueuePlayer = AVQueuePlayer()) {
         self.player = player
     }
 
@@ -34,12 +35,12 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         } else {
             currentIndex = 0
         }
-        replaceCurrentItem()
+        rebuildPlayerQueue(startingAt: currentIndex)
     }
 
     func play() async throws {
-        if player.currentItem?.status == .failed {
-            replaceCurrentItem()
+        if player.currentItem?.status == .failed || player.currentItem == nil {
+            rebuildPlayerQueue(startingAt: activeIndex())
         }
         guard player.currentItem != nil else {
             throw ListeningPlaybackError.emptyQueue
@@ -54,19 +55,21 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
 
     func skipToNext() async throws {
         guard !queue.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        guard currentIndex + 1 < queue.count else { throw ListeningPlaybackError.queueBoundary }
-        let shouldResume = player.timeControlStatus == .playing
-        currentIndex += 1
-        replaceCurrentItem()
+        let index = activeIndex()
+        guard index + 1 < queue.count else { throw ListeningPlaybackError.queueBoundary }
+        let shouldResume = player.timeControlStatus != .paused
+        player.advanceToNextItem()
+        currentIndex = index + 1
         if shouldResume { player.play() }
     }
 
     func skipToPrevious() async throws {
         guard !queue.isEmpty else { throw ListeningPlaybackError.emptyQueue }
-        guard currentIndex > 0 else { throw ListeningPlaybackError.queueBoundary }
-        let shouldResume = player.timeControlStatus == .playing
-        currentIndex -= 1
-        replaceCurrentItem()
+        let index = activeIndex()
+        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
+        let shouldResume = player.timeControlStatus != .paused
+        currentIndex = index - 1
+        rebuildPlayerQueue(startingAt: currentIndex)
         if shouldResume { player.play() }
     }
 
@@ -75,17 +78,24 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     var failure: ListeningPlaybackError? {
-        guard player.currentItem?.status == .failed, queue.indices.contains(currentIndex) else { return nil }
-        return .songUnavailable(queue[currentIndex].songID)
+        guard player.currentItem?.status == .failed else { return nil }
+        let index = activeIndex()
+        guard queue.indices.contains(index) else { return nil }
+        return .songUnavailable(queue[index].songID)
     }
 
     func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
-        guard queue.indices.contains(currentIndex) else { return nil }
-        let item = queue[currentIndex]
-        let currentTime = max(0, player.currentTime().seconds.finiteValue ?? 0)
-        let playerDuration = player.currentItem?.duration.seconds.positiveFiniteValue
+        guard !queue.isEmpty else { return nil }
+        let index = activeIndex()
+        guard queue.indices.contains(index) else { return nil }
+        let item = queue[index]
+        let currentItem = player.currentItem
+        let playerTime = currentItem == nil ? nil : player.currentTime().seconds.finiteValue
+        let playerDuration = currentItem?.duration.seconds.positiveFiniteValue
         let duration = playerDuration ?? item.duration
-        let isPlaying = player.timeControlStatus == .playing
+        let reachedQueueEnd = currentItem == nil && index == queue.count - 1
+        let currentTime = max(0, playerTime ?? (reachedQueueEnd ? duration ?? 0 : 0))
+        let isPlaying = player.timeControlStatus != .paused
         return ListeningPlaybackSample(
             songID: item.songID,
             source: .preview,
@@ -93,7 +103,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
             duration: duration,
             isPlaying: isPlaying,
             observedAt: observedAt,
-            hasEnded: ListeningPlaybackCompletionPolicy.hasEnded(
+            hasEnded: reachedQueueEnd || ListeningPlaybackCompletionPolicy.hasEnded(
                 currentTime: currentTime,
                 duration: duration,
                 isPlaying: isPlaying
@@ -103,19 +113,35 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
 
     func stop() {
         player.pause()
-        player.replaceCurrentItem(with: nil)
+        player.removeAllItems()
         queue = []
         currentIndex = 0
-        AppAudioSession.configureAmbient()
+        itemIndexes = [:]
+        AppAudioSession.releaseMusicPlayback()
     }
 
-    private func replaceCurrentItem() {
-        guard queue.indices.contains(currentIndex),
-              let url = queue[currentIndex].previewURL else {
-            player.replaceCurrentItem(with: nil)
-            return
+    private func activeIndex() -> Int {
+        guard let currentItem = player.currentItem,
+              let index = itemIndexes[ObjectIdentifier(currentItem)] else {
+            return currentIndex
         }
-        player.replaceCurrentItem(with: AVPlayerItem(url: url))
+        currentIndex = index
+        return index
+    }
+
+    private func rebuildPlayerQueue(startingAt index: Int) {
+        player.removeAllItems()
+        itemIndexes = [:]
+        guard queue.indices.contains(index) else { return }
+
+        var previous: AVPlayerItem?
+        for queueIndex in index..<queue.count {
+            guard let url = queue[queueIndex].previewURL else { continue }
+            let item = AVPlayerItem(url: url)
+            itemIndexes[ObjectIdentifier(item)] = queueIndex
+            player.insert(item, after: previous)
+            previous = item
+        }
     }
 }
 

@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftData
 import XCTest
 @testable import BeforeShow
@@ -31,6 +32,59 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)
         XCTAssertEqual(record.actualListeningAt, time(51))
+    }
+
+    func testPreparePreservesWholeQueueAndStartingTrack() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let items = [
+            ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-b", duration: 120, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-c", duration: 90, previewURL: nil)
+        ]
+
+        try await controller.prepare(
+            items: items,
+            source: .fullCatalog,
+            startingAtSongID: "song-b",
+            now: time(0)
+        )
+
+        XCTAssertEqual(service.preparedItems, items)
+        XCTAssertEqual(service.preparedStartingSongID, "song-b")
+        XCTAssertEqual(
+            controller.state,
+            .ready(songID: "song-b", source: .fullCatalog, currentTime: 0, duration: 120)
+        )
+    }
+
+    func testVisibilityNeverOwnsListeningTransport() {
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: false,
+                foreground: true,
+                source: .fullCatalog
+            )
+        )
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: true,
+                foreground: false,
+                source: .fullCatalog
+            )
+        )
+        XCTAssertFalse(
+            ListeningVisibilityPolicy.mustPause(
+                tabVisible: false,
+                foreground: false,
+                source: .preview
+            )
+        )
     }
 
     func testControllerPreviewPlaybackNeverPersistsActualEvidence() async throws {
@@ -99,6 +153,54 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .idle)
     }
 
+    func testRemoteCommandPlayRestartsFinishedPreviewQueue() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let player = AVQueuePlayer()
+        let service = PreviewListeningPlaybackService(player: player)
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let items = [
+            ListeningPlaybackItem(
+                songID: "song-1",
+                duration: 30,
+                previewURL: URL(string: "https://example.com/1.m4a"),
+                title: "Track 1",
+                artistName: "Artist"
+            ),
+            ListeningPlaybackItem(
+                songID: "song-2",
+                duration: 30,
+                previewURL: URL(string: "https://example.com/2.m4a"),
+                title: "Track 2",
+                artistName: "Artist"
+            )
+        ]
+
+        try await controller.prepare(items: items, source: .preview, startingAtSongID: "song-2")
+        try await controller.play()
+
+        // Simulate natural queue completion by clearing player items
+        player.removeAllItems()
+        _ = try controller.refresh()
+        XCTAssertEqual(
+            controller.state,
+            .finished(songID: "song-2", source: .preview, duration: 30)
+        )
+
+        // Invoke lock-screen / Control Center remote play
+        try await ListeningRemoteCommandBridge.shared.playForTesting()
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "song-2", source: .preview, currentTime: 0, duration: 30)
+        )
+        XCTAssertNotNil(player.currentItem)
+
+        try controller.stop()
+    }
+
     private func time(_ value: TimeInterval) -> Date {
         Date(timeIntervalSince1970: value)
     }
@@ -111,6 +213,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     private var item: ListeningPlaybackItem?
     private var source: ListeningPlaybackSource = .fullCatalog
     private(set) var preparedItems: [ListeningPlaybackItem] = []
+    private(set) var preparedStartingSongID: String?
     var currentTime: TimeInterval = 0
     private var isPlaying = false
 
@@ -120,6 +223,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         startingAtSongID: String?
     ) async throws {
         preparedItems = items
+        preparedStartingSongID = startingAtSongID
         guard let selected = items.first(where: { $0.songID == startingAtSongID }) ?? items.first else {
             throw ListeningPlaybackError.emptyQueue
         }

@@ -75,8 +75,8 @@ final class ListeningAccessibilityTests: XCTestCase {
         policy.userPause(); policy.interrupt(wasPlaying: true)
         XCTAssertFalse(policy.resumeIfAllowed())
         XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .fullCatalog))
-        XCTAssertTrue(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .preview))
-        XCTAssertTrue(ListeningVisibilityPolicy.mustPause(tabVisible: false, foreground: true, source: .fullCatalog))
+        XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .preview))
+        XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: false, foreground: true, source: .fullCatalog))
     }
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")

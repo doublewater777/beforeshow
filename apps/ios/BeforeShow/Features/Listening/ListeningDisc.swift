@@ -13,7 +13,13 @@ struct ListeningDiscTrack: Identifiable, Equatable {
         duration = song.duration; previewURL = song.previewURL.flatMap(URL.init(string:))
     }
     var playbackItem: ListeningPlaybackItem {
-        ListeningPlaybackItem(songID: id, duration: duration, previewURL: previewURL)
+        ListeningPlaybackItem(
+            songID: id,
+            duration: duration,
+            previewURL: previewURL,
+            title: title,
+            artistName: artistName
+        )
     }
 }
 

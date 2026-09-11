@@ -270,6 +270,7 @@
 		AD553B5685236C181AE185E0 /* ListeningShelfSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0918D21F4EB55D8D769E7A92 /* ListeningShelfSkeleton.swift */; };
 		B03EE9ED967296D395E1DF3C /* ShowDetailPresentationSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C11C438C3C5F42F7460D578 /* ShowDetailPresentationSupport.swift */; };
 		B0D080434512234A656707FA /* ShowWantsLiveSong.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54EEDEF9A9463CF5585F6DE6 /* ShowWantsLiveSong.swift */; };
+		B15C56CF2979DBE94CB5BB2F /* AppAudioSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */; };
 		B217212979FF3A3D2A5C8374 /* FootprintDateFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 413830B83BEA5AFCAA368F70 /* FootprintDateFormatting.swift */; };
 		B2F5F97640CE26532979D49E /* ListeningSleeveCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7CD52AA897B05324042CB50 /* ListeningSleeveCard.swift */; };
 		B2FE6B8F8B2025BE964C52C9 /* ListeningShelfView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9635D8AC16FE87520AE7707A /* ListeningShelfView.swift */; };
@@ -713,6 +714,7 @@
 		BB08896FA81055A8F714AF95 /* OnboardingListeningVisual.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingListeningVisual.swift; sourceTree = "<group>"; };
 		BB238DE7025A11BB76DEF6DA /* FootprintArchiveShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArchiveShareView.swift; sourceTree = "<group>"; };
 		BBEC55DD8A578AA20CED0583 /* FootprintMemoryShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintMemoryShareCard.swift; sourceTree = "<group>"; };
+		BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSessionTests.swift; sourceTree = "<group>"; };
 		BD217DE3AC69E31853F5E766 /* CurrentShowFollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowFollowUpView.swift; sourceTree = "<group>"; };
 		BD22BEE3A06D7A3F253041A1 /* WeatherReminder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeatherReminder.swift; sourceTree = "<group>"; };
 		BF4B90B473CDCFB195A19C4D /* ShowDraftScheduleFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftScheduleFields.swift; sourceTree = "<group>"; };
@@ -1270,6 +1272,7 @@
 		B1BDB2A71679EBBF679F8CA4 /* BeforeShowTests */ = {
 			isa = PBXGroup;
 			children = (
+				BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */,
 				5DA621DB6DD3D7D19D25B63E /* AppReviewPromptTests.swift */,
 				B40ADB400165868D3BD720F1 /* ArchitectureModuleTests.swift */,
 				F85EDD69877A8E16FCE6C4EC /* ArtistAlbumArtworkResolverTests.swift */,
@@ -2019,6 +2022,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B15C56CF2979DBE94CB5BB2F /* AppAudioSessionTests.swift in Sources */,
 				D1EB4AD45AAF2B78BD4FB1BD /* AppReviewPromptTests.swift in Sources */,
 				8240F9A3E6F5796938081D84 /* ArchitectureModuleTests.swift in Sources */,
 				93E7C63640764374C96BDDA9 /* ArtistAlbumArtworkResolverTests.swift in Sources */,

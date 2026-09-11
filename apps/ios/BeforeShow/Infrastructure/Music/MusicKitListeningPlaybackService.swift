@@ -91,7 +91,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     func stop() {
         player.stop()
         durationBySongID = [:]
-        AppAudioSession.configureAmbient()
+        AppAudioSession.releaseMusicPlayback()
     }
 
     private func fetchSongs(ids: [String]) async throws -> [Song] {

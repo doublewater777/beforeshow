@@ -55,21 +55,17 @@ import SwiftData
         room.stop()
     }
 
-    func testInterruptedSleeveSelectionCanBeRetried() async throws {
+    func testSleeveSelectionKeepsPlayingWhenTabHides() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.playFromSleeve(album, songID: "a1")
         room.setActive(false)
-        try await Task.sleep(for: .milliseconds(10))
-        try await ListenTestData.settle(room) { !room.busy }
-        XCTAssertFalse(room.isPlaying)
-        XCTAssertNil(room.sleevePlaybackSongID)
-        room.setActive(true)
-        room.playFromSleeve(album, songID: "a2")
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        XCTAssertEqual(room.sleevePlaybackSongID, "a2")
+        XCTAssertEqual(room.sleevePlaybackSongID, "a1")
+        room.setActive(true)
+        XCTAssertTrue(room.isPlaying)
         room.stop()
     }
 

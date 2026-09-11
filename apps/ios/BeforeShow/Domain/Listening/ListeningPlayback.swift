@@ -22,6 +22,22 @@ struct ListeningPlaybackItem: Equatable, Sendable {
     let songID: String
     let duration: TimeInterval?
     let previewURL: URL?
+    let title: String?
+    let artistName: String?
+
+    init(
+        songID: String,
+        duration: TimeInterval?,
+        previewURL: URL?,
+        title: String? = nil,
+        artistName: String? = nil
+    ) {
+        self.songID = songID
+        self.duration = duration
+        self.previewURL = previewURL
+        self.title = title
+        self.artistName = artistName
+    }
 }
 
 struct ListeningPlaybackSample: Equatable, Sendable {
@@ -86,6 +102,11 @@ enum ListeningPlaybackState: Equatable, Sendable {
     )
     case finished(songID: String, source: ListeningPlaybackSource, duration: TimeInterval?)
     case failed
+
+    var isFinished: Bool {
+        if case .finished = self { return true }
+        return false
+    }
 }
 
 enum ListeningPlaybackEvent: Equatable, Sendable {
