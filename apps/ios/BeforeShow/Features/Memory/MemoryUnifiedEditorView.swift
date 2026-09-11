@@ -154,11 +154,21 @@ struct MemoryUnifiedEditorView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(BSColor.Stage.background.ignoresSafeArea())
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            Button(isSaving ? BSLocalization.text("保存中…") : (isEditing ? BSLocalization.text("保存修改") : BSLocalization.text("加入这场现场"))) {
-                save()
+            Button(action: save) {
+                HStack(spacing: BSSpacing.sm) {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.black)
+                            .accessibilityHidden(true)
+                    }
+                    Text(isEditing ? BSLocalization.text("保存修改") : BSLocalization.text("加入这场现场"))
+                }
+                .frame(maxWidth: .infinity)
             }
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(operationBusy || !canSave)
+            .accessibilityLabel(isEditing ? BSLocalization.text("保存修改") : BSLocalization.text("加入这场现场"))
+            .accessibilityValue(isSaving ? BSLocalization.text("保存中…") : "")
             .padding(.horizontal, BSSpacing.roomy)
             .padding(.top, BSSpacing.sm)
             .padding(.bottom, BSSpacing.sm)
@@ -411,7 +421,7 @@ struct MemoryUnifiedEditorView: View {
                 if await AVCaptureDevice.requestAccess(for: .video) {
                     isCameraPresented = true
                 } else {
-errorMessage = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
+                    errorMessage = BSLocalization.text("没有相机权限。你可以在系统设置中允许访问。")
                 }
             }
         case .denied, .restricted:
