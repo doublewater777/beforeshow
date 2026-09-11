@@ -524,14 +524,16 @@ struct ShowDraftEditorView: View {
                     if isSaving {
                         ProgressView()
                             .tint(Color(red: 0.15, green: 0.11, blue: 0.04))
+                            .accessibilityHidden(true)
                     }
-                    Text(isSaving ? "正在保存" : saveTitle)
+                    Text(saveTitle)
                 }
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(EditShowSaveButtonStyle())
             .disabled(!draft.isReadyToSave || isSaving)
-            .accessibilityLabel(isSaving ? "正在保存" : saveTitle)
+            .accessibilityLabel(saveTitle)
+            .accessibilityValue(isSaving ? BSLocalization.text("正在保存") : "")
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
