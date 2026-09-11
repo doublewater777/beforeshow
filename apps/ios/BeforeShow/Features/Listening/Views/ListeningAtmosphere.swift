@@ -83,10 +83,19 @@ struct ListeningCurrentSong: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
     }
 
+    @ViewBuilder
     private var statusLine: some View {
-        Text(player.statusText)
-            .font(BSListeningTokens.caption)
-            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
-            .fixedSize(horizontal: false, vertical: true)
+        if player.phase == .preparing {
+            ProgressView()
+                .controlSize(.small)
+                .tint(BSColor.Stage.accent)
+                .accessibilityLabel(player.accessibilityStatusText)
+        } else if let text = player.visibleStatusText {
+            Text(text)
+                .font(BSListeningTokens.caption)
+                .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityLabel(player.accessibilityStatusText)
+        }
     }
 }
