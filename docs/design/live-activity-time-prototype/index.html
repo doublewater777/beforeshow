@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开场前 · Live Activity 时间原型</title>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    /*
+      Assumptions approved by the preceding review:
+      - The Live Activity starts at T−3h instead of expanding to fill eight hours.
+      - Copy remains true on both sides of T; no LIVE / hasStarted dependency.
+      - E marks stale content. Precise dismissal needs an app run or push.
+      - Four views validate the same timing contract rather than proposing four visual styles.
+    */
+    :root {
+      --stage-background: #05070D;
+      --stage-surface: #0D111B;
+      --stage-raised: #151A27;
+      --stage-foreground: #F2F3F7;
+      --stage-muted: #9399AA;
+      --stage-dim: #646B7D;
+      --stage-border: rgba(255,255,255,.09);
+      --stage-accent: #E8C78E;
+      --stage-accent-soft: rgba(232,199,142,.16);
+      --stage-live: #FF6B75;
+      --stage-blue: #527FC9;
+      --stage-violet: #7B678F;
+      --page-max: 1880px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { color-scheme: dark; background: var(--stage-background); }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      color: var(--stage-foreground);
+      background:
+        radial-gradient(circle at 14% -6%, rgba(82,127,201,.13), transparent 28rem),
+        radial-gradient(circle at 92% 2%, rgba(232,199,142,.08), transparent 24rem),
+        var(--stage-background);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    #root { min-height: 100vh; }
+
+    .prototype-shell {
+      width: min(100%, var(--page-max));
+      margin: 0 auto;
+      padding: 40px 32px 80px;
+    }
+    .prototype-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+    .eyebrow {
+      margin-bottom: 10px;
+      color: var(--stage-accent);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .prototype-title {
+      max-width: 820px;
+      font-size: clamp(32px, 4vw, 58px);
+      line-height: 1.02;
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    .prototype-intro {
+      max-width: 660px;
+      margin-top: 16px;
+      color: var(--stage-muted);
+      font-size: 15px;
+      line-height: 1.7;
+      text-wrap: pretty;
+    }
+    .contract-badge {
+      padding: 12px 14px;
+      border: 1px solid var(--stage-border);
+      border-radius: 14px;
+      color: var(--stage-muted);
+      background: rgba(13,17,27,.72);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+    .contract-badge strong { color: var(--stage-foreground); font-weight: 650; }
+
+    .time-console {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      display: grid;
+      grid-template-columns: minmax(220px, .7fr) minmax(460px, 1.5fr) auto auto;
+      gap: 22px;
+      align-items: center;
+      padding: 16px 18px;
+      margin-bottom: 40px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 20px;
+      background: rgba(13,17,27,.82);
+      box-shadow: 0 20px 50px rgba(0,0,0,.22);
+      backdrop-filter: blur(24px) saturate(135%);
+    }
+    .time-readout { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .time-readout-value {
+      color: var(--stage-accent);
+      font-size: 28px;
+      font-weight: 650;
+      letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .time-readout-meta {
+      color: var(--stage-muted);
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+    .phase-controls { display: flex; gap: 8px; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .phase-controls::-webkit-scrollbar { display: none; }
+    .language-controls {
+      display: inline-flex;
+      min-height: 44px;
+      padding: 3px;
+      border: 1px solid var(--stage-border);
+      border-radius: 999px;
+      background: rgba(255,255,255,.025);
+    }
+    .language-button {
+      min-width: 44px;
+      min-height: 36px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 999px;
+      color: var(--stage-muted);
+      background: transparent;
+      font-size: 12px;
+      cursor: pointer;
+      transition: color 150ms ease, background 150ms ease, transform 100ms ease;
+    }
+    .language-button:active { transform: scale(.97); }
+    .language-button.is-active { color: var(--stage-foreground); background: rgba(255,255,255,.1); }
+    .phase-button, .quiet-button {
+      min-height: 44px;
+      padding: 0 14px;
+      border: 1px solid var(--stage-border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--stage-muted);
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 100ms ease;
+    }
+    .phase-button:hover, .quiet-button:hover { color: var(--stage-foreground); border-color: rgba(255,255,255,.19); }
+    .phase-button:active, .quiet-button:active { transform: scale(.97); }
+    .phase-button.is-active {
+      color: #17130C;
+      background: var(--stage-accent);
+      border-color: var(--stage-accent);
+      font-weight: 650;
+    }
+    .quiet-button { padding-inline: 16px; color: var(--stage-foreground); }
+    .quiet-button[aria-pressed="true"] { color: #17130C; background: var(--stage-accent); }
+    .time-slider-wrap { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+    .time-slider { width: 100%; accent-color: var(--stage-accent); cursor: pointer; }
+    .time-slider-caption { min-width: 88px; color: var(--stage-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    .phone-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 48px 34px;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .phone-cell { width: 426px; }
+    .phone-cell-header {
+      min-height: 58px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      padding: 0 10px 12px;
+    }
+    .phone-label { font-size: 14px; font-style: italic; color: var(--stage-foreground); }
+    .phone-note { max-width: 180px; color: var(--stage-dim); font-size: 11px; line-height: 1.35; text-align: right; }
+
+    .screen-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--stage-background);
+    }
+    .screen-stage::before {
+      content: "";
+      position: absolute;
+      inset: -16%;
+      z-index: -3;
+      background:
+        radial-gradient(circle at 72% 12%, rgba(232,199,142,.22), transparent 24%),
+        radial-gradient(circle at 20% 55%, rgba(82,127,201,.15), transparent 34%),
+        linear-gradient(180deg, #0B0D12 0%, #05070D 64%, #030409 100%);
+    }
+    .screen-grain {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      opacity: .22;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+    .wallpaper-photo {
+      position: absolute;
+      inset: 0;
+      z-index: -4;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(.72) brightness(.56);
+      transform: scale(1.04);
+    }
+    .wallpaper-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background: linear-gradient(180deg, rgba(1,2,5,.34) 0%, rgba(5,7,13,.28) 45%, rgba(5,7,13,.85) 100%);
+    }
+
+    .lock-screen { padding: 28px 16px 26px; display: flex; flex-direction: column; align-items: center; }
+    .lock-date { margin-top: 14px; color: rgba(255,255,255,.78); font-size: 14px; font-weight: 520; }
+    .lock-clock {
+      margin-top: 2px;
+      font-size: 82px;
+      line-height: .98;
+      font-weight: 250;
+      letter-spacing: -.065em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 20px rgba(0,0,0,.18);
+    }
+    .lock-spacer { flex: 1; }
+    .activity-slot { width: 100%; min-height: 116px; display: flex; align-items: flex-end; }
+
+    .live-banner {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      padding: 13px 14px;
+      border-radius: 23px;
+      background: rgba(18,18,21,.94);
+      box-shadow: 0 14px 42px rgba(0,0,0,.32);
+      transform-origin: center bottom;
+      animation: materialize 420ms cubic-bezier(.2,.8,.2,1) both;
+    }
+    .live-banner-cover { width: 48px; height: 48px; border-radius: 13px; object-fit: cover; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+    .live-banner-title { color: var(--stage-foreground); font-size: 13px; font-weight: 650; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-banner-line { margin-top: 5px; color: var(--stage-muted); font-size: 11px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .live-banner-relative { min-width: 86px; text-align: right; }
+    .relative-value { font-size: 18px; font-weight: 670; line-height: 1.05; letter-spacing: -.025em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .relative-label { margin-top: 7px; color: var(--stage-dim); font-size: 10px; white-space: nowrap; }
+    .activity-empty {
+      width: 100%;
+      padding: 18px;
+      color: rgba(255,255,255,.42);
+      border: 1px dashed rgba(255,255,255,.14);
+      border-radius: 23px;
+      background: rgba(5,7,13,.28);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .home-screen { padding: 36px 20px; }
+    .home-stage-card {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 80px;
+      display: grid;
+      grid-template-columns: 94px 1fr;
+      gap: 16px;
+      align-items: end;
+    }
+    .home-poster { width: 94px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 18px; box-shadow: 0 24px 60px rgba(0,0,0,.46); }
+    .home-kicker { color: var(--stage-accent); font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+    .home-title { margin-top: 8px; font-size: 23px; line-height: 1.06; font-weight: 620; letter-spacing: -.025em; }
+    .home-copy { margin-top: 8px; color: var(--stage-muted); font-size: 12px; line-height: 1.5; }
+    .island-hint { position: absolute; top: 66px; left: 0; right: 0; color: rgba(255,255,255,.42); font-size: 11px; text-align: center; }
+
+    .compact-island-content {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      user-select: none;
+    }
+    .compact-leading, .compact-trailing {
+      position: absolute;
+      top: 0;
+      height: 36px;
+      display: flex;
+      align-items: center;
+    }
+    .compact-leading { left: 7px; width: 52px; justify-content: flex-start; }
+    .compact-trailing { right: 8px; width: 52px; justify-content: flex-end; }
+    .compact-mark { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+    .compact-time { font-size: 11px; font-weight: 720; letter-spacing: -.025em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .expanded-island-content {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+      user-select: none;
+    }
+    .expanded-top-leading { position: absolute; top: 8px; left: 13px; height: 36px; display: flex; align-items: center; }
+    .expanded-top-trailing { position: absolute; top: 8px; right: 15px; height: 36px; display: flex; align-items: center; }
+    .expanded-body {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: center;
+    }
+    .expanded-cover { width: 50px; height: 50px; border-radius: 13px; object-fit: cover; }
+    .expanded-title { color: var(--stage-foreground); font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .expanded-line { margin-top: 4px; color: var(--stage-muted); font-size: 10.5px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .expanded-time { font-size: 13px; font-weight: 720; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .expanded-place { max-width: 108px; color: var(--stage-dim); font-size: 10px; line-height: 1.3; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .minimal-island-content { width: 100%; height: 100%; display: grid; place-items: center; }
+    .minimal-mark { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; }
+
+    .end-screen { padding: 28px 16px 26px; display: flex; flex-direction: column; align-items: center; }
+    .end-explainer {
+      width: calc(100% - 8px);
+      margin-top: 18px;
+      padding: 15px 16px;
+      border-radius: 18px;
+      background: rgba(13,17,27,.7);
+      border: 1px solid var(--stage-border);
+      color: var(--stage-muted);
+      font-size: 12px;
+      line-height: 1.6;
+      backdrop-filter: blur(18px);
+    }
+    .end-explainer strong { color: var(--stage-foreground); font-weight: 650; }
+    .end-action {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 16px;
+      color: #17130C;
+      background: var(--stage-accent);
+      font-size: 14px;
+      font-weight: 680;
+      cursor: pointer;
+      transition: transform 100ms ease, filter 150ms ease;
+    }
+    .end-action:hover { filter: brightness(1.04); }
+    .end-action:active { transform: scale(.98); }
+    .dismissed-card {
+      width: 100%;
+      min-height: 92px;
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.45);
+      border: 1px dashed rgba(255,255,255,.13);
+      border-radius: 23px;
+      font-size: 12px;
+      animation: materialize 280ms ease-out both;
+    }
+
+    @keyframes materialize {
+      from { opacity: 0; transform: scale(.985); filter: blur(4px); }
+      to { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; scroll-behavior: auto !important; transition-duration: 1ms !important; }
+    }
+    body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .time-console, .live-banner, .end-explainer { background: #10141F; backdrop-filter: none; }
+    }
+    @media (max-width: 980px) {
+      .prototype-shell { padding-inline: 18px; }
+      .prototype-header { grid-template-columns: 1fr; }
+      .contract-badge { width: fit-content; }
+      .time-console { position: relative; top: auto; grid-template-columns: 1fr; }
+      .time-slider-wrap { grid-column: 1; }
+    }
+    @media (max-width: 470px) {
+      .prototype-shell { padding: 24px 8px 56px; }
+      .prototype-header, .time-console { margin-inline: 10px; }
+      .phone-cell { width: 100%; overflow: hidden; }
+      .phone-cell-header { padding-inline: 18px; }
+      .phone-cell > .phone-frame-scale { transform: scale(.88); transform-origin: top center; margin-bottom: -104px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
+
+    const SHOW = { name: "夜航西飞", start: "19:30", end: "22:00" };
+    const COPY = {
+      "zh-Hans": {
+        languageLabel: "简体",
+        city: "上海",
+        venue: "梅赛德斯-奔驰文化中心",
+        date: "8月9日 星期日",
+        station: "上海站",
+        startLine: "19:30 开场",
+        endLine: "预计 22:00 谢幕",
+        beforeLabel: "距开场",
+        afterLabel: "开场后",
+        nowValue: "现在",
+        nowLabel: "开场",
+        emptyPrimary: "Live Activity 在 T−3h 出现",
+        emptySecondary: "更早由主屏与锁屏小组件承接",
+        homeLine: "上海 · 19:30",
+        homePromise: "开场之前，先进入状态。",
+        hintSystem: "T−3h 前只有系统灵动岛",
+        hintExpand: "轻点查看展开态",
+        hintCollapse: "轻点收起",
+        hintExpanded: "长按后的展开态",
+        hintUnavailable: "T−3h 时才可展开",
+        hintMinimal: "多项活动时使用最小态",
+        staleTitle: "E = 预计谢幕",
+        staleBody: "到点只进入 stale；没有 push 时，卡片仍可能留在锁屏。",
+        dismissed: "Live Activity 已立即移除",
+        restore: "恢复 E 时状态",
+        dismiss: "模拟 App 回前台并结束",
+        accessibilityBefore: (value) => `距离开场还有${value}`,
+        accessibilityAfter: (value) => `开场后已经过${value}`,
+        accessibilityNow: "现在开场",
+        phase: ["尚未出现", "定时启动", "开场前", "过零", "开场后", "预计结束"],
+      },
+      "zh-Hant": {
+        languageLabel: "繁體",
+        city: "上海",
+        venue: "梅賽德斯－賓士文化中心",
+        date: "8月9日 星期日",
+        station: "上海站",
+        startLine: "19:30 開場",
+        endLine: "預計 22:00 謝幕",
+        beforeLabel: "距開場",
+        afterLabel: "開場後",
+        nowValue: "現在",
+        nowLabel: "開場",
+        emptyPrimary: "Live Activity 在 T−3h 出現",
+        emptySecondary: "更早由主畫面與鎖定畫面小工具承接",
+        homeLine: "上海 · 19:30",
+        homePromise: "開場之前，先進入狀態。",
+        hintSystem: "T−3h 前只有系統靈動島",
+        hintExpand: "輕點查看展開狀態",
+        hintCollapse: "輕點收起",
+        hintExpanded: "長按後的展開狀態",
+        hintUnavailable: "T−3h 時才可展開",
+        hintMinimal: "多項活動時使用最小狀態",
+        staleTitle: "E = 預計謝幕",
+        staleBody: "到點只進入 stale；沒有 push 時，卡片仍可能留在鎖定畫面。",
+        dismissed: "Live Activity 已立即移除",
+        restore: "恢復 E 時狀態",
+        dismiss: "模擬 App 回到前景並結束",
+        accessibilityBefore: (value) => `距離開場還有${value}`,
+        accessibilityAfter: (value) => `開場後已經過${value}`,
+        accessibilityNow: "現在開場",
+        phase: ["尚未出現", "排程啟動", "開場前", "過零", "開場後", "預計結束"],
+      },
+      en: {
+        languageLabel: "English",
+        city: "Shanghai",
+        venue: "Mercedes-Benz Arena",
+        date: "Sunday, August 9",
+        station: "Shanghai",
+        startLine: "Starts at 19:30",
+        endLine: "Estimated curtain at 22:00",
+        beforeLabel: "Until start",
+        afterLabel: "Since start",
+        nowValue: "Now",
+        nowLabel: "Starting",
+        emptyPrimary: "Live Activity appears at T−3h",
+        emptySecondary: "Widgets cover the earlier countdown",
+        homeLine: "Shanghai · 19:30",
+        homePromise: "Before the show, get into the mood.",
+        hintSystem: "The Live Activity starts at T−3h",
+        hintExpand: "Tap to expand",
+        hintCollapse: "Tap to collapse",
+        hintExpanded: "Expanded after a touch and hold",
+        hintUnavailable: "Available from T−3h",
+        hintMinimal: "Minimal when activities compete",
+        staleTitle: "E = estimated curtain",
+        staleBody: "E only marks the content stale. Without push, it may remain on the Lock Screen.",
+        dismissed: "Live Activity removed",
+        restore: "Restore state at E",
+        dismiss: "Simulate foreground dismissal",
+        accessibilityBefore: (value) => `${value} until the show starts`,
+        accessibilityAfter: (value) => `${value} since the show started`,
+        accessibilityNow: "The show is starting now",
+        phase: ["Not visible", "Scheduled start", "Before start", "Crossing zero", "After start", "Estimated end"],
+      },
+    };
+    const COVER = "assets/show-cover.jpg";
+    const APP_ICON = "assets/app-icon.png";
+    const START_LEAD_MINUTES = -180;
+    const END_OFFSET_MINUTES = 150;
+    const PHASES = [
+      { value: -240, label: "T−4h", testId: "phase-before-window" },
+      { value: -180, label: "T−3h", testId: "phase-start" },
+      { value: -12, label: "T−12m", testId: "phase-near" },
+      { value: 0, label: "T", testId: "phase-zero" },
+      { value: 12, label: "T+12m", testId: "phase-post" },
+      { value: 150, label: "E 22:00", testId: "phase-end" },
+    ];
+
+    const iosFrameStyles = {
+      wrapper: {
+        display: "inline-block", padding: 12, background: "#000", borderRadius: 60,
+        boxShadow: "0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)", position: "relative",
+      },
+      screen: { position: "relative", borderRadius: 48, overflow: "hidden", background: "#fff" },
+      statusBar: {
+        position: "absolute", top: 0, left: 0, right: 0, height: 54, display: "flex",
+        alignItems: "center", justifyContent: "space-between", padding: "0 32px", fontSize: 16,
+        fontWeight: 600, fontFamily: "-apple-system, SF Pro Text, sans-serif", zIndex: 20, pointerEvents: "none",
+      },
+      dynamicIsland: {
+        position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)",
+        background: "#000", borderRadius: 999, zIndex: 30, overflow: "hidden",
+        transition: "width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), border-radius 360ms ease",
+      },
+      statusIcons: { display: "flex", alignItems: "center", gap: 6 },
+      signalIcon: { display: "flex", alignItems: "flex-end", gap: 2, height: 12 },
+      signalBar: { width: 3, background: "currentColor", borderRadius: 1 },
+      batteryIcon: { width: 26, height: 12, border: "1.5px solid currentColor", borderRadius: 3, padding: 1, position: "relative", opacity: .8 },
+      batteryCap: { position: "absolute", top: 3, right: -3, width: 2, height: 6, background: "currentColor", borderRadius: "0 1px 1px 0" },
+      content: { position: "absolute", top: 54, left: 0, right: 0, bottom: 34, overflow: "hidden" },
+      homeIndicator: { position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", width: 140, height: 5, background: "rgba(255,255,255,.5)", borderRadius: 999, zIndex: 10 },
+    };
+
+    function IosFrame({ children, time, islandMode = "system", islandContent = null, onIslandToggle = null }) {
+      const islandSize = islandMode === "expanded"
+        ? { width: 380, height: 150, borderRadius: 36 }
+        : islandMode === "compact"
+          ? { width: 188, height: 36, borderRadius: 999 }
+          : islandMode === "minimal"
+            ? { width: 44, height: 36, borderRadius: 999 }
+          : { width: 124, height: 36, borderRadius: 999 };
+      return (
+        <div style={iosFrameStyles.wrapper}>
+          <div style={{ ...iosFrameStyles.screen, width: 402, height: 874, background: "#000" }}>
+            <div style={{ ...iosFrameStyles.statusBar, color: "#fff", opacity: islandMode === "expanded" ? 0 : 1 }}>
+              <span>{time}</span>
+              <div style={iosFrameStyles.statusIcons}>
+                <div style={iosFrameStyles.signalIcon}>
+                  {[4, 6, 9, 11].map((height) => <div key={height} style={{ ...iosFrameStyles.signalBar, height }} />)}
+                </div>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+                  <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor" />
+                  <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity=".7" />
+                </svg>
+                <div style={iosFrameStyles.batteryIcon}>
+                  <div style={{ width: "84%", height: "100%", background: "currentColor", borderRadius: 1 }} />
+                  <div style={iosFrameStyles.batteryCap} />
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-testid={islandMode === "compact" ? "compact-island" : undefined}
+              onClick={onIslandToggle || undefined}
+              style={{ ...iosFrameStyles.dynamicIsland, ...islandSize, cursor: onIslandToggle ? "pointer" : "default" }}
+            >
+              {islandContent}
+            </div>
+
+            <div style={iosFrameStyles.content}>{children}</div>
+            <div style={iosFrameStyles.homeIndicator} />
+          </div>
+        </div>
+      );
+    }
+
+    function pad(value) { return String(value).padStart(2, "0"); }
+    function clockAt(minutes) {
+      const total = (19 * 60 + 30 + minutes + 24 * 60) % (24 * 60);
+      return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+    }
+    function durationParts(minutes) {
+      const absolute = Math.abs(minutes);
+      return { hours: Math.floor(absolute / 60), minutes: absolute % 60 };
+    }
+    function durationSpeech(minutes, language) {
+      const { hours, minutes: remainder } = durationParts(minutes);
+      if (language === "en") {
+        const hourText = `${hours} ${hours === 1 ? "hour" : "hours"}`;
+        const minuteText = `${remainder} ${remainder === 1 ? "minute" : "minutes"}`;
+        if (hours && remainder) return `${hourText} ${minuteText}`;
+        if (hours) return hourText;
+        return minuteText;
+      }
+      const hourUnit = language === "zh-Hant" ? "小時" : "小时";
+      const minuteUnit = language === "zh-Hant" ? "分鐘" : "分钟";
+      if (hours && remainder) return `${hours}${hourUnit}${remainder}${minuteUnit}`;
+      if (hours) return `${hours}${hourUnit}`;
+      return `${remainder}${minuteUnit}`;
+    }
+    function naturalRelative(minutes, language) {
+      const copy = COPY[language];
+      if (minutes === 0) return copy.accessibilityNow;
+      const value = durationSpeech(minutes, language);
+      return minutes < 0 ? copy.accessibilityBefore(value) : copy.accessibilityAfter(value);
+    }
+    function bannerRelative(minutes, language) {
+      const copy = COPY[language];
+      if (minutes === 0) return { value: copy.nowValue, label: copy.nowLabel };
+      const { hours, minutes: remainder } = durationParts(minutes);
+      const value = hours > 0
+        ? `${hours}:${pad(remainder)}`
+        : language === "en" ? `${remainder} min` : `${remainder} ${language === "zh-Hant" ? "分鐘" : "分钟"}`;
+      return { value, label: minutes < 0 ? copy.beforeLabel : copy.afterLabel };
+    }
+    function islandClock(minutes) {
+      if (minutes === 0) return "0:00";
+      const absolute = Math.abs(minutes);
+      const hours = Math.floor(absolute / 60);
+      const remainder = absolute % 60;
+      return hours > 0 ? `${hours}:${pad(remainder)}:00` : `${pad(remainder)}:00`;
+    }
+    function phaseColor(minutes) { return minutes < 0 ? "#E8C78E" : "#FF6B75"; }
+    function phaseDescription(minutes, language) {
+      const phase = COPY[language].phase;
+      if (minutes < START_LEAD_MINUTES) return phase[0];
+      if (minutes === START_LEAD_MINUTES) return phase[1];
+      if (minutes < 0) return phase[2];
+      if (minutes === 0) return phase[3];
+      if (minutes < END_OFFSET_MINUTES) return phase[4];
+      return phase[5];
+    }
+
+    function LiveActivityBanner({ minutes, language }) {
+      const copy = COPY[language];
+      const relative = bannerRelative(minutes, language);
+      return (
+        <div className="live-banner" aria-label={naturalRelative(minutes, language)}>
+          <img className="live-banner-cover" src={COVER} alt="" />
+          <div style={{ minWidth: 0 }}>
+            <div className="live-banner-title">{SHOW.name} · {copy.station}</div>
+            <div className="live-banner-line">{copy.startLine} · {copy.endLine}</div>
+          </div>
+          <div className="live-banner-relative">
+            <div className="relative-value" style={{ color: phaseColor(minutes) }}>{relative.value}</div>
+            <div className="relative-label">{relative.label}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function EmptyActivity({ language }) {
+      const copy = COPY[language];
+      return <div className="activity-empty">{copy.emptyPrimary}<br />{copy.emptySecondary}</div>;
+    }
+
+    function StageLayers() {
+      return (
+        <>
+          <img className="wallpaper-photo" src={COVER} alt="" />
+          <div className="wallpaper-scrim" />
+          <div className="screen-grain" />
+        </>
+      );
+    }
+
+    function LockScreen({ minutes, language }) {
+      const copy = COPY[language];
+      const hasActivity = minutes >= START_LEAD_MINUTES;
+      return (
+        <div className="screen-stage lock-screen">
+          <StageLayers />
+          <div className="lock-date">{copy.date}</div>
+          <div className="lock-clock">{clockAt(minutes)}</div>
+          <div className="lock-spacer" />
+          <div className="activity-slot">
+            {hasActivity ? <LiveActivityBanner minutes={minutes} language={language} /> : <EmptyActivity language={language} />}
+          </div>
+        </div>
+      );
+    }
+
+    function HomeBackdrop({ hint, language }) {
+      const copy = COPY[language];
+      return (
+        <div className="screen-stage home-screen">
+          <StageLayers />
+          <div className="island-hint">{hint}</div>
+          <div className="home-stage-card">
+            <img className="home-poster" src={COVER} alt="夜航西飞现场封面" />
+            <div>
+              <div className="home-kicker">BeforeShow</div>
+              <div className="home-title">夜航西飞</div>
+              <div className="home-copy">{copy.homeLine}<br />{copy.homePromise}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function CompactIsland({ minutes, language }) {
+      if (minutes < START_LEAD_MINUTES) return null;
+      return (
+        <div className="compact-island-content" role="img" aria-label={naturalRelative(minutes, language)}>
+          <div className="compact-leading"><img className="compact-mark" src={APP_ICON} alt="" /></div>
+          <div className="compact-trailing">
+            <div className="compact-time" style={{ color: phaseColor(minutes) }}>{islandClock(minutes)}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function ExpandedIsland({ minutes, language }) {
+      const copy = COPY[language];
+      return (
+        <div className="expanded-island-content" role="img" aria-label={naturalRelative(minutes, language)}>
+          <div className="expanded-top-leading">
+            <img className="compact-mark" src={APP_ICON} alt="" />
+          </div>
+          <div className="expanded-top-trailing">
+            <div className="expanded-time" style={{ color: phaseColor(minutes) }}>{islandClock(minutes)}</div>
+          </div>
+          <div className="expanded-body">
+            <img className="expanded-cover" src={COVER} alt="" />
+            <div style={{ minWidth: 0 }}>
+              <div className="expanded-title">{SHOW.name}</div>
+              <div className="expanded-line">{copy.startLine}</div>
+              <div className="expanded-line">{copy.endLine}</div>
+            </div>
+            <div className="expanded-place">{copy.venue}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function MinimalIsland({ language }) {
+      return (
+        <div className="minimal-island-content" role="img" aria-label={`${SHOW.name}, ${COPY[language].station}`}>
+          <img className="minimal-mark" src={APP_ICON} alt="" />
+        </div>
+      );
+    }
+
+    function CompactPhone({ minutes, language }) {
+      const copy = COPY[language];
+      const [expanded, setExpanded] = useState(false);
+      useEffect(() => { if (minutes < START_LEAD_MINUTES) setExpanded(false); }, [minutes]);
+      const mode = minutes < START_LEAD_MINUTES ? "system" : expanded ? "expanded" : "compact";
+      const content = mode === "expanded"
+        ? <ExpandedIsland minutes={minutes} language={language} />
+        : mode === "compact" ? <CompactIsland minutes={minutes} language={language} /> : null;
+      return (
+        <IosFrame
+          time={clockAt(minutes)}
+          islandMode={mode}
+          islandContent={content}
+          onIslandToggle={minutes >= START_LEAD_MINUTES ? () => setExpanded((value) => !value) : null}
+        >
+          <HomeBackdrop
+            language={language}
+            hint={minutes < START_LEAD_MINUTES ? copy.hintSystem : expanded ? copy.hintCollapse : copy.hintExpand}
+          />
+        </IosFrame>
+      );
+    }
+
+    function MinimalPhone({ minutes, language }) {
+      const copy = COPY[language];
+      const hasActivity = minutes >= START_LEAD_MINUTES;
+      return (
+        <IosFrame
+          time={clockAt(minutes)}
+          islandMode={hasActivity ? "minimal" : "system"}
+          islandContent={hasActivity ? <MinimalIsland language={language} /> : null}
+        >
+          <HomeBackdrop language={language} hint={hasActivity ? copy.hintMinimal : copy.hintSystem} />
+        </IosFrame>
+      );
+    }
+
+    function ExpandedPhone({ minutes, language }) {
+      const copy = COPY[language];
+      const hasActivity = minutes >= START_LEAD_MINUTES;
+      return (
+        <IosFrame
+          time={clockAt(minutes)}
+          islandMode={hasActivity ? "expanded" : "system"}
+          islandContent={hasActivity ? <ExpandedIsland minutes={minutes} language={language} /> : null}
+        >
+          <HomeBackdrop language={language} hint={hasActivity ? copy.hintExpanded : copy.hintUnavailable} />
+        </IosFrame>
+      );
+    }
+
+    function EndBoundaryPhone({ language }) {
+      const copy = COPY[language];
+      const [dismissed, setDismissed] = useState(false);
+      return (
+        <IosFrame time="22:00" islandMode="system">
+          <div className="screen-stage end-screen">
+            <StageLayers />
+            <div className="lock-date">{copy.date}</div>
+            <div className="lock-clock">22:00</div>
+            <div className="end-explainer">
+              <strong>{copy.staleTitle}</strong><br />{copy.staleBody}
+            </div>
+            <div className="lock-spacer" />
+            <div className="activity-slot">
+              {dismissed
+                ? <div className="dismissed-card">{copy.dismissed}</div>
+                : <LiveActivityBanner minutes={END_OFFSET_MINUTES} language={language} />}
+            </div>
+            <button className="end-action" data-testid="dismiss" onClick={() => setDismissed((value) => !value)}>
+              {dismissed ? copy.restore : copy.dismiss}
+            </button>
+          </div>
+        </IosFrame>
+      );
+    }
+
+    function PhoneCell({ label, note, children }) {
+      return (
+        <section className="phone-cell">
+          <div className="phone-cell-header">
+            <div className="phone-label">{label}</div>
+            <div className="phone-note">{note}</div>
+          </div>
+          <div className="phone-frame-scale">{children}</div>
+        </section>
+      );
+    }
+
+    function TimeConsole({ minutes, setMinutes, language, setLanguage, reduceMotion, setReduceMotion }) {
+      return (
+        <div className="time-console" aria-label="时间模拟控制台">
+          <div className="time-readout">
+            <div className="time-readout-value">{clockAt(minutes)}</div>
+            <div className="time-readout-meta">{phaseDescription(minutes, language)}<br />{naturalRelative(minutes, language)}</div>
+          </div>
+          <div className="phase-controls">
+            {PHASES.map((phase) => (
+              <button
+                key={phase.value}
+                data-testid={phase.testId}
+                className={`phase-button ${minutes === phase.value ? "is-active" : ""}`}
+                onClick={() => setMinutes(phase.value)}
+              >
+                {phase.label}
+              </button>
+            ))}
+          </div>
+          <div className="language-controls" aria-label="Language">
+            {Object.entries(COPY).map(([key, value]) => (
+              <button
+                key={key}
+                data-testid={`language-${key}`}
+                className={`language-button ${language === key ? "is-active" : ""}`}
+                lang={key}
+                onClick={() => setLanguage(key)}
+              >
+                {value.languageLabel}
+              </button>
+            ))}
+          </div>
+          <button className="quiet-button" aria-pressed={reduceMotion} onClick={() => setReduceMotion((value) => !value)}>
+            减少动态效果
+          </button>
+          <div className="time-slider-wrap">
+            <input
+              className="time-slider"
+              aria-label="相对开场时间"
+              type="range"
+              min="-240"
+              max="150"
+              step="1"
+              value={minutes}
+              onChange={(event) => setMinutes(Number(event.target.value))}
+            />
+            <div className="time-slider-caption">T {minutes < 0 ? "−" : minutes > 0 ? "+" : ""}{Math.abs(minutes)} min</div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [minutes, setMinutes] = useState(-12);
+      const [language, setLanguage] = useState("zh-Hans");
+      const [reduceMotion, setReduceMotion] = useState(false);
+      useEffect(() => {
+        document.body.classList.toggle("reduce-motion", reduceMotion);
+        return () => document.body.classList.remove("reduce-motion");
+      }, [reduceMotion]);
+
+      return (
+        <main className="prototype-shell" lang={language}>
+          <header className="prototype-header">
+            <div>
+              <div className="eyebrow">BeforeShow · Time Contract Prototype</div>
+              <h1 className="prototype-title">一条时间线，覆盖完整 Live Activity</h1>
+              <p className="prototype-intro">按 Apple HIG 重排 compact、minimal、expanded 与锁屏表面。灵动岛数字不带正负号：金色代表开场前，红色代表开场后；切换语言可检查英文长度。</p>
+            </div>
+            <div className="contract-badge"><strong>T−3h</strong> 出现 · <strong>T</strong> 自动过零 · <strong>E</strong> stale</div>
+          </header>
+
+          <TimeConsole
+            minutes={minutes}
+            setMinutes={setMinutes}
+            language={language}
+            setLanguage={setLanguage}
+            reduceMotion={reduceMotion}
+            setReduceMotion={setReduceMotion}
+          />
+
+          <div className="phone-gallery">
+            <PhoneCell label="01 · 锁屏卡片" note="14pt 标准边距；文本明确阶段语义">
+              <IosFrame time={clockAt(minutes)} islandMode="system">
+                <LockScreen minutes={minutes} language={language} />
+              </IosFrame>
+            </PhoneCell>
+
+            <PhoneCell label="02 · 灵动岛紧凑态" note="无正负号；金色开场前、红色开场后">
+              <CompactPhone minutes={minutes} language={language} />
+            </PhoneCell>
+
+            <PhoneCell label="03 · 灵动岛最小态" note="多活动时保持品牌可识别">
+              <MinimalPhone minutes={minutes} language={language} />
+            </PhoneCell>
+
+            <PhoneCell label="04 · 灵动岛展开态" note="元素位置延续 compact，并贴近摄像头">
+              <ExpandedPhone minutes={minutes} language={language} />
+            </PhoneCell>
+
+            <PhoneCell label="05 · E 的真实行为" note="stale 不等于移除；点击模拟前台结束">
+              <EndBoundaryPhone language={language} />
+            </PhoneCell>
+          </div>
+        </main>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>

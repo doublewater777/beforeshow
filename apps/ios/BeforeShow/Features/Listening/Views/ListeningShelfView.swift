@@ -15,7 +15,6 @@ struct ListeningShelfView<Content: View>: View {
             + BSSpacing.xs / 2
             + BSSpacing.sm
             + contentHeight
-            + 5
     }
 
     var body: some View {
@@ -38,12 +37,16 @@ struct ListeningShelfView<Content: View>: View {
                     .accessibilityHidden(isLoading)
                 Spacer(minLength: 0)
                 Button(action: showAll) {
-                    Label(BSLocalization.text("查看全部"), systemImage: "chevron.right")
-                        .font(BSFont.caption)
-                        .foregroundStyle(BSColor.Stage.accent)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
-                        .frame(minHeight: BSLayout.minTouchTarget)
+                    HStack(spacing: 3) {
+                        Text(BSLocalization.text("查看全部"))
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .font(BSFont.caption)
+                    .foregroundStyle(BSColor.Stage.accent)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.72)
+                    .frame(minHeight: BSLayout.minTouchTarget)
                 }
                 .buttonStyle(BSListeningPressStyle(scale: 0.95))
                 .opacity(showsAllDiscs ? 1 : 0)
@@ -54,35 +57,9 @@ struct ListeningShelfView<Content: View>: View {
             .frame(height: BSLayout.minTouchTarget)
             .padding(.top, BSSpacing.xs / 2)
 
-            VStack(spacing: 0) {
-                content
-                    .frame(maxWidth: .infinity)
-                    .frame(height: contentHeight, alignment: .bottom)
-                VStack(spacing: 0) {
-                    Rectangle()
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.12), BSColor.Stage.accent.opacity(0.35), Color.white.opacity(0.08)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(height: 1)
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.22, green: 0.22, blue: 0.24),
-                            Color(red: 0.11, green: 0.11, blue: 0.12),
-                            Color(red: 0.05, green: 0.05, blue: 0.06)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 4)
-                    .clipShape(RoundedRectangle(cornerRadius: 1.5, style: .continuous))
-                    .shadow(color: Color.black.opacity(0.6), radius: 4, y: 2)
-                }
-                .accessibilityHidden(true)
-            }
+            content
+                .frame(maxWidth: .infinity)
+                .frame(height: contentHeight, alignment: .bottom)
         }
         .frame(height: fixedHeight, alignment: .top)
     }

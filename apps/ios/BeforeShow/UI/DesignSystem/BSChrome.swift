@@ -155,6 +155,8 @@ struct BSChromeToolbarCloseButton: ToolbarContent {
             Button(action: action) {
                 Image(systemName: "xmark")
             }
+            .tint(BSColor.Stage.foreground)
+            .foregroundStyle(BSColor.Stage.foreground)
             .accessibilityLabel(accessibilityLabel)
         }
     }

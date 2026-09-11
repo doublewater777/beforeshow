@@ -99,6 +99,40 @@ import XCTest
         XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.discCenter.x, accuracy: 0.001)
         XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.discCenter.y, accuracy: 0.001)
     }
+    func testReturnAfterChangingArtistStaysInsideTheVisibleCabinet() {
+        let mechanism = CDMechanism()
+        defer { mechanism.motion.stop() }
+        let disc = ListeningDisc(id: "original", title: "Original", artworkURL: nil, tracks: [])
+        mechanism.restoreSeated(disc)
+        mechanism.motion.lid.value = 1
+        mechanism.cabinetDropZone = CGRect(x: -20, y: -10, width: 500, height: 230)
+        mechanism.cabinetSlots = ["another-artist": CGPoint(x: 80, y: 150)]
+
+        mechanism.returnCurrentDiscToCabinet()
+        settle(mechanism)
+
+        XCTAssertEqual(mechanism.position, .stored)
+        XCTAssertEqual(mechanism.motion.discX.value, mechanism.cabinetDropZone.midX, accuracy: 0.001)
+        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
+    }
+    func testAlbumOutsideVisibleShelfLoadsAndReturnsThroughTheCabinet() {
+        let mechanism = CDMechanism()
+        defer { mechanism.motion.stop() }
+        let disc = ListeningDisc(id: "fourth-album", title: "Fourth Album", artworkURL: nil, tracks: [])
+        mechanism.cabinetDropZone = CGRect(x: 0, y: 0, width: 460, height: 220)
+        mechanism.motion.lid.value = 1
+
+        mechanism.takeFromCabinet(disc)
+
+        XCTAssertEqual(mechanism.motion.discX.value, mechanism.cabinetDropZone.midX, accuracy: 0.001)
+        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
+        settle(mechanism)
+        XCTAssertEqual(mechanism.position, .seated)
+        mechanism.returnCurrentDiscToCabinet()
+        settle(mechanism)
+        XCTAssertEqual(mechanism.position, .stored)
+        XCTAssertEqual(mechanism.motion.discY.value, mechanism.cabinetDropZone.midY, accuracy: 0.001)
+    }
     func testCabinetMissReturnsDiscAndOpenSeatedDiscCanBeDragged() {
         let mechanism = CDMechanism()
         let disc = ListeningDisc(id: "manual", title: "Manual", artworkURL: nil, tracks: [])
@@ -122,7 +156,7 @@ import XCTest
         settle(mechanism)
         XCTAssertEqual(mechanism.position, .stored)
         XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.canvas.width / 2, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, -100, accuracy: 0.001)
+        XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.parkedDisc.y, accuracy: 0.001)
     }
     func testCabinetLongPressOpensLidAndAcceptsDropBeforeItFinishesOpening() {
         let mechanism = CDMechanism()

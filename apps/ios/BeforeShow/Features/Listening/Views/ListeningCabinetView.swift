@@ -234,20 +234,13 @@ private struct ListeningCabinetDiscButton: View {
                     #endif
                 }
 
-                HStack(spacing: 3) {
-                    if room.isPlayingDisc(disc) {
-                        Image(systemName: "waveform")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(BSColor.Stage.accent)
-                    }
-                    ListeningSleeveMarks(room: room, disc: disc)
-                    Text(disc.title)
-                        .font(BSListeningTokens.captionMedium)
-                        .lineLimit(1)
-                        .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                }
-                .frame(width: 94, alignment: .leading)
-                .frame(height: BSListeningTokens.shelfLabelHeight, alignment: .leading)
+                Text(disc.title)
+                    .font(BSListeningTokens.captionMedium)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .frame(width: 94, alignment: .leading)
+                    .frame(height: BSListeningTokens.shelfLabelHeight, alignment: .leading)
             }
             .frame(width: BSListeningTokens.shelfItemWidth, alignment: .leading)
         }

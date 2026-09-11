@@ -61,19 +61,11 @@ struct ListeningCabinetSheet: View {
                            Button { selectedDisc = disc } label: {
                                VStack(alignment: .leading, spacing: 6) {
                                    ListeningDiscCover(disc: disc, show: room.show)
-                                   ListeningSleeveMarks(room: room, disc: disc)
-                                   HStack(spacing: 3) {
-                                       if room.isPlayingDisc(disc) {
-                                           Image(systemName: "waveform")
-                                               .font(.system(size: 9, weight: .bold))
-                                               .foregroundStyle(BSColor.Stage.accent)
-                                       }
-                                       Text(disc.title)
-                                           .font(BSListeningTokens.captionMedium)
-                                           .lineLimit(2)
-                                           .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                                           .frame(maxWidth: .infinity, alignment: .leading)
-                                   }
+                                   Text(disc.title)
+                                       .font(BSListeningTokens.captionMedium)
+                                       .lineLimit(2)
+                                       .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                                       .frame(maxWidth: .infinity, alignment: .leading)
                                }
                            }
                            .buttonStyle(BSListeningPressStyle(scale: 0.96))
@@ -96,7 +88,6 @@ struct ListeningCabinetSheet: View {
                 ListeningDiscDetailView(room: room, disc: disc, onLoad: { dismiss() })
             }
         }
-        .tint(BSColor.Stage.accent)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
     }

@@ -89,7 +89,7 @@ import SwiftUI
         guard position == .removed, let disc else { return }
         pendingSeat = false
         waitingForOpenToSeat = false
-        let destination = cabinetSlots[disc.id] ?? CGPoint(x: configuration.geometry.canvas.width / 2, y: -100)
+        let destination = cabinetPosition(for: disc)
         isReturning = true
         motion.discX.move(to: destination.x); motion.discY.move(to: destination.y)
         motion.lift.move(to: 0); motion.discScale.move(to: cabinetScale)
@@ -184,11 +184,20 @@ import SwiftUI
     private func liftFromCabinet(_ disc: ListeningDisc) {
         motion.resetDiscRotation()
         self.disc = disc; position = .removed
-        let origin = cabinetSlots[disc.id] ?? CGPoint(x: configuration.geometry.canvas.width / 2, y: -100)
+        let origin = cabinetPosition(for: disc)
         motion.discX.grab(); motion.discY.grab(); motion.discScale.grab()
         motion.discX.value = origin.x; motion.discY.value = origin.y
         motion.lift.value = 0; motion.discScale.value = cabinetScale; motion.discScale.move(to: 1)
         motion.wake()
+    }
+
+    private func cabinetPosition(for disc: ListeningDisc) -> CGPoint {
+        if let slot = cabinetSlots[disc.id] { return slot }
+        // The original album may be outside the visible shelf or artist scope.
+        if !cabinetDropZone.isEmpty {
+            return CGPoint(x: cabinetDropZone.midX, y: cabinetDropZone.midY)
+        }
+        return configuration.geometry.parkedDisc
     }
 
     func dragDisc(_ translation: CGSize) {

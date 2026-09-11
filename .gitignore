@@ -82,14 +82,3 @@ tmp-*/
 apps/ios/design-exploration/
 apps/ios/screenshots/
 apps/ios/**/prototypes/
-
-# Curated documentation policy: keep only deliberately selected ADRs and docs.
-/docs/*
-!/docs/adr/
-/docs/adr/*
-!/docs/adr/0026-keep-one-companion-per-show.md
-!/docs/adr/0027-match-companion-history-by-name.md
-!/docs/footprint-detail-v4.1.md
-docs/screenshots/**
-
-!/docs/listening-ui-restructure.md

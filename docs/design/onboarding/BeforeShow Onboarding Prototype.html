@@ -1,0 +1,933 @@
+<!doctype html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BeforeShow · Onboarding Prototype</title>
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+  <style>
+    /*
+      Assumptions
+      - This is a single-device review prototype for the agreed onboarding flow.
+      - Existing project artwork and Poster Stage tokens are the source of truth.
+      - The showcase is explicitly marked as demo data and never behaves like saved user data.
+      - Production concerns such as persistence, localization switching and native permissions are mocked.
+    */
+    :root {
+      --page: #0b0b0e;
+      --stage: #050508;
+      --ink: #0b0b11;
+      --smoke: #16151c;
+      --smoke-lifted: #23212a;
+      --chalk: #f5f1e9;
+      --haze: #aaa5af;
+      --ash: #77727e;
+      --hairline: rgba(245, 241, 233, .12);
+      --hairline-strong: rgba(245, 241, 233, .22);
+      --electric: #84bfff;
+      --warm: #e6a45c;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body, #root { min-height: 100%; margin: 0; }
+    body {
+      color: var(--chalk);
+      background:
+        radial-gradient(circle at 65% 15%, rgba(132, 191, 255, .07), transparent 30%),
+        radial-gradient(circle at 24% 78%, rgba(230, 164, 92, .05), transparent 34%),
+        var(--page);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button { font: inherit; }
+    button:focus-visible { outline: 2px solid var(--electric); outline-offset: 3px; }
+
+    .prototype-shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(310px, 420px) auto minmax(260px, 360px);
+      align-items: center;
+      justify-content: center;
+      gap: clamp(28px, 5vw, 76px);
+      padding: 42px;
+    }
+
+    .review-copy { align-self: center; max-width: 370px; }
+    .eyebrow {
+      color: var(--warm);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+    .review-copy h1 {
+      margin: 18px 0 14px;
+      max-width: 360px;
+      font-family: "Songti SC", "STSong", serif;
+      font-size: clamp(36px, 4.2vw, 62px);
+      font-weight: 400;
+      line-height: 1.07;
+      letter-spacing: -.04em;
+    }
+    .review-copy > p {
+      margin: 0;
+      color: var(--haze);
+      font-size: 15px;
+      line-height: 1.75;
+    }
+
+    .review-steps { margin-top: 36px; display: grid; gap: 8px; }
+    .review-step {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 26px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 0;
+      color: var(--ash);
+      background: transparent;
+      border: 0;
+      border-bottom: 1px solid rgba(245, 241, 233, .07);
+      text-align: left;
+      cursor: pointer;
+      transition: color .25s ease;
+    }
+    .review-step:hover, .review-step.active { color: var(--chalk); }
+    .review-step-index {
+      font-variant-numeric: tabular-nums;
+      font-size: 11px;
+      letter-spacing: .08em;
+      color: currentColor;
+      opacity: .75;
+    }
+    .review-step-label { font-size: 14px; }
+
+    .review-note {
+      align-self: center;
+      display: grid;
+      gap: 24px;
+      padding-left: 28px;
+      border-left: 1px solid var(--hairline);
+    }
+    .note-block h2 {
+      margin: 0 0 8px;
+      color: var(--chalk);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .note-block p {
+      margin: 0;
+      color: var(--ash);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .reset-button {
+      justify-self: start;
+      padding: 10px 14px;
+      color: var(--haze);
+      background: transparent;
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .reset-button:hover { color: var(--chalk); border-color: var(--hairline-strong); }
+
+    .phone-stage { position: relative; }
+
+    .app-screen {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      color: var(--chalk);
+      background: var(--stage);
+      isolation: isolate;
+    }
+    .app-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      box-shadow: inset 0 0 60px rgba(0, 0, 0, .22);
+    }
+
+    .stage-art {
+      position: absolute;
+      inset: -18px;
+      width: calc(100% + 36px);
+      height: calc(100% + 36px);
+      object-fit: cover;
+      opacity: .66;
+      filter: saturate(.83) brightness(.72);
+      transform: scale(1.04);
+      transition: opacity .8s var(--ease), transform 1.2s var(--ease), filter .8s ease;
+    }
+    .stage-vignette {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to bottom, rgba(5,5,8,.10), rgba(5,5,8,.28) 32%, rgba(5,5,8,.93) 84%, #050508 100%),
+        linear-gradient(to right, rgba(5,5,8,.48), transparent 52%);
+    }
+
+    .screen-layer {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(10px);
+      transition: opacity .42s ease, transform .58s var(--ease);
+    }
+    .screen-layer.active { opacity: 1; pointer-events: auto; transform: translateY(0); }
+
+    .intro-screen { padding: 42px 25px 22px; }
+    .brand-lockup { font-size: 15px; font-weight: 560; letter-spacing: .22em; }
+    .intro-content { margin-top: auto; margin-bottom: 30px; }
+    .intro-title {
+      margin: 0 0 14px;
+      max-width: 310px;
+      font-family: "Songti SC", "STSong", serif;
+      font-size: 38px;
+      font-weight: 400;
+      line-height: 1.14;
+      letter-spacing: -.025em;
+      text-wrap: balance;
+    }
+    .intro-body {
+      margin: 0 0 28px;
+      max-width: 305px;
+      color: rgba(245, 241, 233, .72);
+      font-size: 14px;
+      line-height: 1.65;
+    }
+    .primary-button {
+      width: 100%;
+      min-height: 52px;
+      border: 0;
+      border-radius: 16px;
+      color: #08080b;
+      background: var(--chalk);
+      font-size: 15px;
+      font-weight: 650;
+      cursor: pointer;
+      box-shadow: 0 10px 26px rgba(0,0,0,.18);
+      transition: transform .18s ease, background .18s ease;
+    }
+    .primary-button:hover { background: white; }
+    .primary-button:active { transform: scale(.985); }
+
+    .feature-carousel {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .feature-nav {
+      position: absolute;
+      top: 28px;
+      left: 24px;
+      right: 24px;
+      z-index: 12;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .feature-brand { font-size: 13px; font-weight: 600; letter-spacing: .2em; }
+    .feature-skip {
+      min-width: 52px;
+      min-height: 40px;
+      padding: 0;
+      color: rgba(245,241,233,.64);
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+    }
+    .feature-track {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      width: 400%;
+      height: 100%;
+      transition: transform .62s var(--ease);
+      will-change: transform;
+    }
+    .feature-page {
+      position: relative;
+      width: 25%;
+      height: 100%;
+      flex: 0 0 25%;
+      display: flex;
+      flex-direction: column;
+      padding: 68px 24px 22px;
+      overflow: hidden;
+    }
+    .feature-visual {
+      position: relative;
+      height: 435px;
+      display: grid;
+      place-items: center;
+    }
+    .feature-copy { position: relative; z-index: 3; margin-top: auto; margin-bottom: 32px; }
+    .feature-phase {
+      display: block;
+      margin-bottom: 9px;
+      color: var(--warm);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: .12em;
+    }
+    .feature-copy h2 {
+      margin: 0 0 10px;
+      font-family: "Songti SC", "STSong", serif;
+      font-size: 32px;
+      font-weight: 400;
+      line-height: 1.15;
+      letter-spacing: -.025em;
+    }
+    .feature-copy p {
+      margin: 0;
+      max-width: 320px;
+      color: rgba(245,241,233,.66);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .feature-footer {
+      position: relative;
+      z-index: 14;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 18px;
+      align-items: center;
+      padding: 12px 24px 34px;
+    }
+    .page-dots { display: flex; gap: 7px; }
+    .page-dot { width: 6px; height: 6px; background: rgba(245,241,233,.22); border-radius: 50%; transition: width .36s var(--ease), background .24s ease; }
+    .page-dot.active { width: 22px; background: var(--chalk); border-radius: 999px; }
+    .next-button {
+      min-width: 92px;
+      min-height: 44px;
+      padding: 0 20px;
+      color: #08080b;
+      background: var(--chalk);
+      border: 0;
+      border-radius: 15px;
+      font-size: 14px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+
+    .poster-visual {
+      position: relative;
+      width: 230px;
+      aspect-ratio: 3 / 4;
+      overflow: visible;
+      border-radius: 20px;
+      box-shadow: 0 24px 55px rgba(0,0,0,.45), 14px -10px 42px rgba(230,164,92,.10);
+      transform: translateY(4px);
+    }
+    .poster-visual img { width: 100%; height: 100%; object-fit: cover; border-radius: 20px; }
+    .poster-scrim { position: absolute; inset: 38% 0 0; background: linear-gradient(transparent, rgba(0,0,0,.86)); border-radius: 0 0 20px 20px; }
+    .poster-meta { position: absolute; left: 15px; right: 15px; bottom: 15px; }
+    .poster-meta strong { display: block; margin-bottom: 5px; font-size: 17px; }
+    .poster-meta span { color: rgba(255,255,255,.65); font-size: 10px; }
+    .poster-countdown {
+      position: absolute;
+      right: -24px;
+      bottom: 36px;
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      padding: 10px 14px 8px;
+      color: var(--chalk);
+      background: rgba(5,5,8,.82);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      backdrop-filter: blur(14px);
+    }
+    .poster-countdown strong { font-family: "Songti SC", "STSong", serif; font-size: 42px; font-weight: 400; line-height: 1; }
+    .poster-countdown span { color: var(--haze); font-size: 11px; }
+    .notification-preview {
+      position: absolute;
+      top: 36px;
+      left: -46px;
+      width: 230px;
+      padding: 11px 12px;
+      color: var(--chalk);
+      background: rgba(38,36,43,.78);
+      border: 1px solid var(--hairline);
+      border-radius: 17px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 40px rgba(0,0,0,.26);
+    }
+    .notification-preview strong { display: block; margin-bottom: 4px; font-size: 11px; }
+    .notification-preview span { display: block; color: var(--haze); font-size: 10px; line-height: 1.35; }
+
+    .widget-stack { position: relative; width: 304px; display: grid; gap: 12px; }
+    .medium-widget {
+      position: relative;
+      height: 150px;
+      display: grid;
+      grid-template-columns: 1fr 86px;
+      overflow: hidden;
+      background: rgba(12,12,17,.94);
+      border: 1px solid var(--hairline);
+      border-radius: 22px;
+      box-shadow: 0 24px 54px rgba(0,0,0,.34);
+    }
+    .medium-widget-copy { position: relative; z-index: 2; display: flex; flex-direction: column; padding: 15px 0 14px 16px; }
+    .medium-widget-eyebrow { color: var(--haze); font-size: 9px; font-weight: 650; letter-spacing: .11em; }
+    .medium-widget-count { display: flex; align-items: baseline; gap: 5px; margin-top: 11px; }
+    .medium-widget-count strong { font-size: 43px; line-height: 1; letter-spacing: -.035em; font-variant-numeric: tabular-nums; }
+    .medium-widget-count span { color: var(--haze); font-size: 13px; }
+    .medium-widget-meta { margin-top: auto; }
+    .medium-widget-meta strong { display: block; margin-bottom: 3px; font-size: 11px; }
+    .medium-widget-meta span { display: block; color: var(--ash); font-size: 8.5px; }
+    .medium-widget-cover { width: 100%; height: 100%; object-fit: cover; }
+    .medium-widget::after { content: ""; position: absolute; top: 0; right: 52px; bottom: 0; width: 55px; background: linear-gradient(90deg, rgba(12,12,17,.98), transparent); pointer-events: none; }
+    .lock-widget {
+      padding: 11px 14px;
+      color: var(--chalk);
+      background: rgba(28,27,33,.94);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+    }
+    .lock-widget strong { display: block; margin-bottom: 3px; font-size: 11px; }
+    .lock-widget span { display: block; color: var(--ash); font-size: 9px; }
+    .reminder-strip {
+      position: absolute;
+      left: 22px;
+      right: -16px;
+      bottom: -46px;
+      padding: 11px 13px;
+      color: var(--chalk);
+      background: rgba(45,43,50,.82);
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 16px 38px rgba(0,0,0,.28);
+    }
+    .reminder-strip strong { display: block; margin-bottom: 3px; font-size: 10px; }
+    .reminder-strip span { display: block; color: var(--haze); font-size: 9px; line-height: 1.35; }
+
+    .asset-phone {
+      position: relative;
+      width: 280px;
+      height: 368px;
+      padding: 18px;
+      background: linear-gradient(160deg, #1e1c24, #0e0d12);
+      border: 1px solid var(--hairline);
+      border-radius: 26px;
+      box-shadow: 0 30px 70px rgba(0,0,0,.34);
+    }
+    .asset-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .asset-header strong { font-size: 13px; }
+    .asset-header span { color: var(--ash); font-size: 10px; }
+    .timetable-card { padding: 15px; background: #f0e9dc; border-radius: 14px; color: #17130f; transform: rotate(-1.5deg); }
+    .timetable-card h3 { margin: 0 0 4px; font-family: "Songti SC", serif; font-size: 19px; font-weight: 600; }
+    .timetable-card > p { margin: 0 0 12px; color: rgba(23,19,15,.55); font-size: 9px; }
+    .schedule-row { display: grid; grid-template-columns: 42px 1fr; gap: 8px; padding: 7px 0; border-top: 1px solid rgba(23,19,15,.12); font-size: 10px; }
+    .schedule-row span:first-child { color: rgba(23,19,15,.54); font-variant-numeric: tabular-nums; }
+    .quick-open {
+      position: absolute;
+      left: 30px;
+      right: 30px;
+      bottom: 17px;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--chalk);
+      background: rgba(245,241,233,.10);
+      border: 1px solid var(--hairline);
+      border-radius: 14px;
+      font-size: 11px;
+    }
+
+    .saved-badge { color: var(--electric) !important; }
+    .image-viewer-label {
+      position: absolute;
+      top: 54px;
+      left: 50%;
+      z-index: 3;
+      padding: 5px 9px;
+      color: rgba(245,241,233,.76);
+      background: rgba(0,0,0,.58);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      font-size: 8px;
+      transform: translateX(-50%);
+      backdrop-filter: blur(10px);
+    }
+
+    .memory-stack { position: relative; width: 304px; height: 388px; }
+    .memory-eyebrow { margin-bottom: 8px; color: var(--warm); font-size: 9px; font-weight: 650; letter-spacing: .1em; }
+    .memory-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .memory-tile {
+      height: 184px;
+      overflow: hidden;
+      color: var(--chalk);
+      background: #19181f;
+      border: 1px solid var(--hairline);
+      border-radius: 16px;
+    }
+    .memory-tile-photo img { width: 100%; height: 148px; object-fit: cover; }
+    .memory-tile-info { height: 34px; display: flex; align-items: center; justify-content: space-between; padding: 0 10px; color: var(--ash); background: rgba(0,0,0,.18); font-size: 8.5px; }
+    .memory-tile-text { display: flex; flex-direction: column; padding: 12px; }
+    .memory-quote { color: var(--warm); font-family: "Songti SC", serif; font-size: 24px; line-height: 1; }
+    .memory-tile-text p { margin: 10px 0 0; font-size: 11px; line-height: 1.55; }
+    .memory-tile-text .memory-tile-info { margin: auto -12px -12px; }
+    .rating-card {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding: 13px 14px 12px;
+      color: var(--chalk);
+      background: rgba(31,29,36,.96);
+      border: 1px solid var(--hairline);
+      border-radius: 19px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.36);
+    }
+    .rating-head { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+    .rating-current-emoji { font-size: 27px; }
+    .rating-current-copy strong { display: block; color: var(--electric); font-size: 16px; }
+    .rating-current-copy span { display: block; margin-top: 2px; color: var(--ash); font-size: 8.5px; }
+    .rating-scale { position: relative; display: grid; grid-template-columns: repeat(5, 1fr); gap: 2px; padding-top: 8px; }
+    .rating-scale::before { content: ""; position: absolute; left: 10%; right: 10%; top: 13px; height: 3px; background: rgba(245,241,233,.08); border-radius: 999px; }
+    .rating-chip { position: relative; z-index: 2; color: var(--ash); font-size: 7.5px; text-align: center; }
+    .rating-node { display: block; width: 11px; height: 11px; margin: 0 auto 4px; background: #2a303f; border: 2px solid rgba(255,255,255,.12); border-radius: 50%; }
+    .rating-chip.selected { color: var(--chalk); font-weight: 650; }
+    .rating-chip.selected .rating-node { background: var(--electric); border-color: var(--electric); box-shadow: 0 0 9px rgba(132,191,255,.3); }
+    .rating-chip-emoji { display: block; margin-bottom: 2px; font-size: 12px; filter: grayscale(1); opacity: .55; }
+    .rating-chip.selected .rating-chip-emoji { filter: none; opacity: 1; }
+
+    .finish-page { justify-content: flex-end; }
+    .finish-glow { position: absolute; inset: 0; background: radial-gradient(circle at 50% 32%, rgba(132,191,255,.11), transparent 28%), radial-gradient(circle at 70% 45%, rgba(230,164,92,.09), transparent 32%); }
+    .finish-copy { position: relative; z-index: 2; margin-bottom: 58px; }
+    .finish-copy h2 { margin: 0 0 13px; font-family: "Songti SC", serif; font-size: 38px; font-weight: 400; line-height: 1.15; }
+    .finish-copy p { margin: 0 0 28px; color: rgba(245,241,233,.66); font-size: 13px; line-height: 1.65; }
+
+    .source-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      display: flex;
+      align-items: flex-end;
+      background: rgba(0,0,0,.62);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .26s ease;
+    }
+    .source-scrim.open { opacity: 1; pointer-events: auto; }
+    .source-sheet {
+      position: relative;
+      width: 100%;
+      height: calc(100% - 10px);
+      padding: 10px 20px 26px;
+      overflow: hidden;
+      background: #08080c;
+      border-top: 1px solid var(--hairline);
+      border-radius: 28px 28px 0 0;
+      transform: translateY(100%);
+      transition: transform .46s var(--ease);
+    }
+    .source-scrim.open .source-sheet { transform: translateY(0); }
+    .grabber { width: 36px; height: 5px; margin: 0 auto 14px; background: rgba(245,241,233,.22); border-radius: 999px; }
+    .source-nav { position: relative; min-height: 44px; display: grid; place-items: center; }
+    .source-nav h2 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: 0; }
+    .source-close {
+      position: absolute;
+      right: 0;
+      top: 0;
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      color: var(--haze);
+      background: rgba(245,241,233,.07);
+      border: 0;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    .source-intro { margin: 10px 0 18px; color: var(--ash); font-size: 12px; line-height: 1.55; }
+    .source-methods { display: grid; gap: 12px; }
+    .source-method {
+      width: 100%;
+      min-height: 102px;
+      display: grid;
+      grid-template-columns: 44px 1fr 18px;
+      gap: 13px;
+      align-items: center;
+      padding: 16px;
+      color: var(--chalk);
+      background: #17161d;
+      border: 1px solid var(--hairline);
+      border-radius: 18px;
+      text-align: left;
+      cursor: pointer;
+    }
+    .source-symbol {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      border-radius: 13px;
+      background: rgba(132,191,255,.10);
+      border: 1px solid rgba(132,191,255,.24);
+    }
+    .source-symbol::before { content: ""; position: absolute; inset: 10px 8px; border: 1.5px solid var(--electric); border-radius: 4px; }
+    .source-symbol::after { content: ""; position: absolute; width: 13px; height: 8px; left: 15px; top: 17px; border-radius: 50%; background: var(--electric); opacity: .75; }
+    .source-copy strong { display: block; margin-bottom: 4px; font-size: 14px; }
+    .source-copy span { display: block; color: var(--ash); font-size: 11px; line-height: 1.35; }
+    .chevron { color: var(--ash); font-size: 20px; }
+    .source-symbol.manual { background: rgba(230,164,92,.10); border-color: rgba(230,164,92,.24); }
+    .source-symbol.manual::before { inset: 10px; border: 0; border-bottom: 2px solid var(--warm); border-radius: 0; transform: rotate(-45deg) translateY(-1px); }
+    .source-symbol.manual::after { width: 5px; height: 5px; left: 10px; top: 28px; border-radius: 1px; background: var(--warm); transform: rotate(-45deg); }
+    .source-symbol.link { background: rgba(174,132,255,.10); border-color: rgba(174,132,255,.24); }
+    .source-symbol.link::before { inset: 13px 7px; border: 1.5px solid #ae84ff; border-radius: 999px; transform: rotate(-35deg); }
+    .source-symbol.link::after { width: 16px; height: 1.5px; left: 14px; top: 21px; border-radius: 0; background: #ae84ff; transform: rotate(-35deg); }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      z-index: 80;
+      min-width: 210px;
+      padding: 11px 15px;
+      color: var(--chalk);
+      background: rgba(35,33,42,.96);
+      border: 1px solid var(--hairline);
+      border-radius: 999px;
+      font-size: 11px;
+      text-align: center;
+      transform: translate(-50%, 18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .25s ease, transform .35s var(--ease);
+    }
+    .toast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (max-width: 1120px) {
+      .prototype-shell { grid-template-columns: 1fr auto; padding: 28px; }
+      .review-note { display: none; }
+    }
+    @media (max-width: 760px) {
+      .prototype-shell { display: flex; flex-direction: column; padding: 24px 12px 56px; }
+      .review-copy { width: min(100%, 420px); }
+      .review-copy h1 { font-size: 38px; }
+      .review-copy > p { display: none; }
+      .review-steps { grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 20px; }
+      .review-step { display: block; padding: 9px 3px; text-align: center; }
+      .review-step-index { display: none; }
+      .review-step-label { font-size: 11px; }
+      .phone-stage { transform-origin: top center; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    // Standard Huashu iOS frame. The app UI is slotted into its safe content area.
+    const iosFrameStyles = {
+      wrapper: { display: 'inline-block', padding: 12, background: '#000', borderRadius: 60, boxShadow: '0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)', position: 'relative' },
+      screen: { position: 'relative', borderRadius: 48, overflow: 'hidden', background: '#fff' },
+      statusBar: { position: 'absolute', top: 0, left: 0, right: 0, height: 54, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px 0 32px', fontSize: 16, fontWeight: 600, fontFamily: '-apple-system, "SF Pro Text", sans-serif', zIndex: 20, pointerEvents: 'none' },
+      dynamicIsland: { position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', width: 124, height: 36, background: '#000', borderRadius: 999, zIndex: 30 },
+      statusIcons: { display: 'flex', alignItems: 'center', gap: 6 },
+      signalIcon: { display: 'flex', alignItems: 'flex-end', gap: 2, height: 12 },
+      signalBar: { width: 3, background: 'currentColor', borderRadius: 1 },
+      batteryIcon: { width: 26, height: 12, border: '1.5px solid currentColor', borderRadius: 3, padding: 1, position: 'relative', opacity: .8 },
+      batteryCap: { position: 'absolute', top: 3, right: -3, width: 2, height: 6, background: 'currentColor', borderRadius: '0 1px 1px 0' },
+      content: { position: 'absolute', top: 54, left: 0, right: 0, bottom: 34, overflow: 'hidden' },
+      homeIndicator: { position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)', width: 140, height: 5, background: 'rgba(0,0,0,.3)', borderRadius: 999, zIndex: 10 },
+      homeIndicatorDark: { background: 'rgba(255,255,255,.5)' },
+    };
+
+    function IosFrame({ children, width = 393, height = 852, time = '9:41', battery = 85, darkMode = true }) {
+      const textColor = darkMode ? '#fff' : '#000';
+      return (
+        <div style={iosFrameStyles.wrapper}>
+          <div style={{ ...iosFrameStyles.screen, width, height, background: darkMode ? '#000' : '#fff' }}>
+            <div style={{ ...iosFrameStyles.statusBar, color: textColor }}>
+              <span>{time}</span>
+              <div style={iosFrameStyles.statusIcons}>
+                <div style={iosFrameStyles.signalIcon}>
+                  {[4, 6, 9, 11].map((height) => <div key={height} style={{ ...iosFrameStyles.signalBar, height }} />)}
+                </div>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" style={{ color: textColor }} aria-hidden="true">
+                  <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor" />
+                  <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" />
+                  <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" opacity=".7" />
+                </svg>
+                <div style={iosFrameStyles.batteryIcon}>
+                  <div style={{ width: `${battery}%`, height: '100%', background: 'currentColor', borderRadius: 1, opacity: .9 }} />
+                  <div style={iosFrameStyles.batteryCap} />
+                </div>
+              </div>
+            </div>
+            <div style={iosFrameStyles.dynamicIsland} />
+            <div style={iosFrameStyles.content}>{children}</div>
+            <div style={{ ...iosFrameStyles.homeIndicator, ...iosFrameStyles.homeIndicatorDark }} />
+          </div>
+        </div>
+      );
+    }
+
+    const SPLASH = './assets/splash_bg.png';
+    const COVER = './assets/default_cover.png';
+    const FLOW = [
+      { id: 'before', label: '开场前' },
+      { id: 'today', label: '现场当天' },
+      { id: 'after', label: '散场以后' },
+      { id: 'start', label: '开始使用' },
+      { id: 'source', label: '现有添加流程' },
+    ];
+    const FEATURE_PHASES = ['before', 'today', 'after', 'start'];
+
+    function FeatureCarousel({ phase, onPhaseChange, onAdd }) {
+      const currentIndex = Math.max(0, FEATURE_PHASES.indexOf(phase === 'source' ? 'start' : phase));
+      const [touchStart, setTouchStart] = useState(null);
+
+      const goTo = (index) => {
+        const clamped = Math.max(0, Math.min(FEATURE_PHASES.length - 1, index));
+        onPhaseChange(FEATURE_PHASES[clamped]);
+      };
+
+      const finishTouch = (event) => {
+        if (touchStart == null) return;
+        const distance = event.changedTouches[0].clientX - touchStart;
+        if (Math.abs(distance) > 42) goTo(currentIndex + (distance < 0 ? 1 : -1));
+        setTouchStart(null);
+      };
+
+      return (
+        <section
+          className="feature-carousel"
+          onTouchStart={(event) => setTouchStart(event.touches[0].clientX)}
+          onTouchEnd={finishTouch}
+        >
+          <div className="feature-nav">
+            <span className="feature-brand">开场前</span>
+            {currentIndex < 3 && <button className="feature-skip" data-testid="skip-features" onClick={() => goTo(3)}>跳过</button>}
+          </div>
+
+          <div className="feature-track" style={{ transform: `translateX(-${currentIndex * 25}%)` }}>
+            <article className="feature-page">
+              <div className="feature-visual">
+                <div className="widget-stack">
+                  <div className="medium-widget">
+                    <div className="medium-widget-copy">
+                      <span className="medium-widget-eyebrow">距离灯亮还有</span>
+                      <div className="medium-widget-count"><strong>56</strong><span>天</span></div>
+                      <div className="medium-widget-meta"><strong>「夜航」巡演 · 上海站</strong><span>10 月 14 日 19:30 · 回声剧场</span></div>
+                    </div>
+                    <img className="medium-widget-cover" src={COVER} alt="夜航现场封面" />
+                  </div>
+                  <div className="lock-widget"><strong>还有 56 天</strong><span>「夜航」巡演 · 上海站 · 10 月 14 日 19:30</span></div>
+                  <div className="reminder-strip"><strong>开场之前，我来提醒你</strong><span>在几个值得记一下的节点轻轻提醒，不推销任何东西。</span></div>
+                </div>
+              </div>
+              <div className="feature-copy">
+                <span className="feature-phase">开场前</span>
+                <h2>不用打开，<br />也在靠近</h2>
+                <p>主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。</p>
+              </div>
+            </article>
+
+            <article className="feature-page">
+              <div className="feature-visual">
+                <div className="asset-phone">
+                  <div className="asset-header"><strong>时刻表</strong><span className="saved-badge">已保存</span></div>
+                  <div className="image-viewer-label">保存的图片</div>
+                  <div className="timetable-card">
+                    <h3>演出时刻表</h3>
+                    <p>OCT 04 · LEGACY TERA</p>
+                    <div className="schedule-row"><span>17:30</span><strong>开始入场</strong></div>
+                    <div className="schedule-row"><span>18:40</span><strong>暖场</strong></div>
+                    <div className="schedule-row"><span>19:30</span><strong>夜航</strong></div>
+                    <div className="schedule-row"><span>21:20</span><strong>预计散场</strong></div>
+                  </div>
+                  <div className="quick-open">查看原图</div>
+                </div>
+              </div>
+              <div className="feature-copy">
+                <span className="feature-phase">现场当天</span>
+                <h2>重要的内容，<br />抬手就能找到</h2>
+                <p>选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。</p>
+              </div>
+            </article>
+
+            <article className="feature-page">
+              <div className="feature-visual">
+                <div className="memory-stack">
+                  <div className="memory-eyebrow">记忆碎片 · 散场以后</div>
+                  <div className="memory-grid">
+                    <div className="memory-tile memory-tile-photo">
+                      <img src={COVER} alt="现场照片记忆碎片" />
+                      <div className="memory-tile-info"><span>照片</span><span>20:48</span></div>
+                    </div>
+                    <div className="memory-tile memory-tile-text">
+                      <span className="memory-quote">“</span>
+                      <p>最后一首歌结束的时候，灯亮得特别慢。</p>
+                      <div className="memory-tile-info"><span>文字</span><span>22:06</span></div>
+                    </div>
+                  </div>
+                  <div className="rating-card">
+                    <div className="rating-head">
+                      <span className="rating-current-emoji">😎</span>
+                      <div className="rating-current-copy"><strong>人上人</strong><span>明显高于预期</span></div>
+                    </div>
+                    <div className="rating-scale">
+                      <div className="rating-chip"><i className="rating-node" /><span className="rating-chip-emoji">🥀</span>拉完了</div>
+                      <div className="rating-chip"><i className="rating-node" /><span className="rating-chip-emoji">😐</span>NPC</div>
+                      <div className="rating-chip selected"><i className="rating-node" /><span className="rating-chip-emoji">😎</span>人上人</div>
+                      <div className="rating-chip"><i className="rating-node" /><span className="rating-chip-emoji">🤯</span>顶级</div>
+                      <div className="rating-chip"><i className="rating-node" /><span className="rating-chip-emoji">🔥</span>夯爆了</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="feature-copy">
+                <span className="feature-phase">散场以后</span>
+                <h2>把这一晚，<br />轻轻留住</h2>
+                <p>照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。</p>
+              </div>
+            </article>
+
+            <article className="feature-page finish-page">
+              <div className="finish-glow" />
+              <div className="finish-copy">
+                <span className="feature-phase">现在开始</span>
+                <h2>从下一场开始，<br />慢慢靠近</h2>
+                <p>开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。</p>
+                <button className="primary-button" data-testid="direct-add" onClick={onAdd}>添加我的第一个现场</button>
+              </div>
+            </article>
+          </div>
+
+          <div className="feature-footer">
+            <div className="page-dots" aria-label={`第 ${currentIndex + 1} 页，共 4 页`}>
+              {FEATURE_PHASES.map((item, index) => <span key={item} className={`page-dot ${index === currentIndex ? 'active' : ''}`} />)}
+            </div>
+            {currentIndex < 3 && <button className="next-button" data-testid="next-feature" onClick={() => goTo(currentIndex + 1)}>继续</button>}
+          </div>
+        </section>
+      );
+    }
+
+    function SourceSheet({ open, onClose, onChoose }) {
+      return (
+        <div className={`source-scrim ${open ? 'open' : ''}`} data-testid="source-sheet" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+          <div className="source-sheet" role="dialog" aria-modal="true" aria-label="添加现场方式">
+            <div className="grabber" />
+            <div className="source-nav">
+              <h2>添加现场</h2>
+              <button className="source-close" aria-label="取消" onClick={onClose}>×</button>
+            </div>
+            <p className="source-intro">三种方式任选，识别出的内容保存前都能改。</p>
+            <div className="source-methods">
+              <button className="source-method" data-testid="choose-manual" onClick={() => onChoose('手动填写')}>
+                <span className="source-symbol manual" aria-hidden="true" />
+                <span className="source-copy"><strong>手动填写</strong><span>自己填写现场的基本信息。</span></span>
+                <span className="chevron">›</span>
+              </button>
+              <button className="source-method" data-testid="choose-screenshot" onClick={() => onChoose('截图识别')}>
+                <span className="source-symbol" aria-hidden="true" />
+                <span className="source-copy"><strong>截图识别</strong><span>选择票务截图，仅在本机识别，图片不会上传。</span></span>
+                <span className="chevron">›</span>
+              </button>
+              <button className="source-method" data-testid="choose-link" onClick={() => onChoose('链接解析')}>
+                <span className="source-symbol link" aria-hidden="true" />
+                <span className="source-copy"><strong>链接解析</strong><span>粘贴支持平台的票务链接，需要联网解析。</span></span>
+                <span className="chevron">›</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function OnboardingPhone({ phase, setPhase }) {
+      const [toast, setToast] = useState('');
+
+      const chooseSource = (source) => {
+        setToast(`${source}流程从这里接入现有添加页`);
+        window.setTimeout(() => setToast(''), 900);
+      };
+
+      return (
+        <div className="app-screen">
+          <img className="stage-art" src={SPLASH} alt="" aria-hidden="true" />
+          <div className="stage-vignette" />
+          <FeatureCarousel phase={phase} onPhaseChange={setPhase} onAdd={() => setPhase('source')} />
+          <SourceSheet open={phase === 'source'} onClose={() => setPhase('start')} onChoose={chooseSource} />
+          <div className={`toast ${toast ? 'visible' : ''}`} role="status">{toast}</div>
+        </div>
+      );
+    }
+
+    function PrototypeApp() {
+      const [phase, setPhase] = useState('before');
+      return (
+        <main className="prototype-shell">
+          <section className="review-copy">
+            <div className="eyebrow">BeforeShow · First run</div>
+            <h1>不是功能清单，<br />是一场现场的时间线。</h1>
+            <p>四页从开场前讲到散场以后：倒数与提醒、时刻表快速查看、记忆碎片与观后评分。最后只留下一个动作——添加第一场现场。</p>
+            <div className="review-steps" aria-label="原型状态导航">
+              {FLOW.map((item, index) => (
+                <button key={item.id} className={`review-step ${phase === item.id ? 'active' : ''}`} onClick={() => setPhase(item.id)}>
+                  <span className="review-step-index">0{index + 1}</span>
+                  <span className="review-step-label">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="phone-stage" aria-label="iPhone onboarding 交互原型">
+            <IosFrame width={393} height={852} darkMode>
+              <OnboardingPhone phase={phase} setPhase={setPhase} />
+            </IosFrame>
+          </section>
+
+          <aside className="review-note">
+            <div className="note-block">
+              <h2>开场前</h2>
+              <p>倒计时、节点提醒与小组件建立产品的核心价值。</p>
+            </div>
+            <div className="note-block">
+              <h2>现场与散场后</h2>
+              <p>时刻表负责快速查看；记忆碎片与评分负责自然收尾。</p>
+            </div>
+            <div className="note-block">
+              <h2>权限时机</h2>
+              <p>这段流程不请求任何权限。用户保存真实现场后，才接现有通知说明页。</p>
+            </div>
+            <button className="reset-button" onClick={() => setPhase('before')}>重新开始</button>
+          </aside>
+        </main>
+      );
+    }
+
+    document.fonts.ready.then(() => {
+      const root = ReactDOM.createRoot(document.getElementById('root'));
+      root.render(<PrototypeApp />);
+      requestAnimationFrame(() => { window.__ready = true; });
+    });
+  </script>
+</body>
+</html>

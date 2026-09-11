@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>开场前 · Live Activity 时间原型</title>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <style>
+    /*
+      Assumptions approved by the preceding review:
+      - The Live Activity starts at T−3h instead of expanding to fill eight hours.
+      - Copy remains true on both sides of T; no LIVE / hasStarted dependency.
+      - E marks stale content. Precise dismissal needs an app run or push.
+      - Four views validate the same timing contract rather than proposing four visual styles.
+    */
+    :root {
+      --stage-background: #05070D;
+      --stage-surface: #0D111B;
+      --stage-raised: #151A27;
+      --stage-foreground: #F2F3F7;
+      --stage-muted: #9399AA;
+      --stage-dim: #646B7D;
+      --stage-border: rgba(255,255,255,.09);
+      --stage-accent: #E8C78E;
+      --stage-accent-soft: rgba(232,199,142,.16);
+      --stage-blue: #527FC9;
+      --stage-violet: #7B678F;
+      --page-max: 1880px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { color-scheme: dark; background: var(--stage-background); }
+    body {
+      min-width: 320px;
+      min-height: 100vh;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+      color: var(--stage-foreground);
+      background:
+        radial-gradient(circle at 14% -6%, rgba(82,127,201,.13), transparent 28rem),
+        radial-gradient(circle at 92% 2%, rgba(232,199,142,.08), transparent 24rem),
+        var(--stage-background);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit; }
+    button { color: inherit; }
+    #root { min-height: 100vh; }
+
+    .prototype-shell {
+      width: min(100%, var(--page-max));
+      margin: 0 auto;
+      padding: 40px 32px 80px;
+    }
+    .prototype-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 32px;
+      align-items: end;
+      margin-bottom: 28px;
+    }
+    .eyebrow {
+      margin-bottom: 10px;
+      color: var(--stage-accent);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    .prototype-title {
+      max-width: 820px;
+      font-size: clamp(32px, 4vw, 58px);
+      line-height: 1.02;
+      letter-spacing: -.035em;
+      text-wrap: balance;
+    }
+    .prototype-intro {
+      max-width: 660px;
+      margin-top: 16px;
+      color: var(--stage-muted);
+      font-size: 15px;
+      line-height: 1.7;
+      text-wrap: pretty;
+    }
+    .contract-badge {
+      padding: 12px 14px;
+      border: 1px solid var(--stage-border);
+      border-radius: 14px;
+      color: var(--stage-muted);
+      background: rgba(13,17,27,.72);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: nowrap;
+    }
+    .contract-badge strong { color: var(--stage-foreground); font-weight: 650; }
+
+    .time-console {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      display: grid;
+      grid-template-columns: minmax(240px, .8fr) minmax(520px, 1.6fr) auto;
+      gap: 22px;
+      align-items: center;
+      padding: 16px 18px;
+      margin-bottom: 40px;
+      border: 1px solid rgba(255,255,255,.11);
+      border-radius: 20px;
+      background: rgba(13,17,27,.82);
+      box-shadow: 0 20px 50px rgba(0,0,0,.22);
+      backdrop-filter: blur(24px) saturate(135%);
+    }
+    .time-readout { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .time-readout-value {
+      color: var(--stage-accent);
+      font-size: 28px;
+      font-weight: 650;
+      letter-spacing: -.03em;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .time-readout-meta {
+      color: var(--stage-muted);
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+    .phase-controls { display: flex; gap: 8px; align-items: center; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+    .phase-controls::-webkit-scrollbar { display: none; }
+    .phase-button, .quiet-button {
+      min-height: 44px;
+      padding: 0 14px;
+      border: 1px solid var(--stage-border);
+      border-radius: 999px;
+      background: transparent;
+      color: var(--stage-muted);
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 150ms ease, background 150ms ease, border-color 150ms ease, transform 100ms ease;
+    }
+    .phase-button:hover, .quiet-button:hover { color: var(--stage-foreground); border-color: rgba(255,255,255,.19); }
+    .phase-button:active, .quiet-button:active { transform: scale(.97); }
+    .phase-button.is-active {
+      color: #17130C;
+      background: var(--stage-accent);
+      border-color: var(--stage-accent);
+      font-weight: 650;
+    }
+    .quiet-button { padding-inline: 16px; color: var(--stage-foreground); }
+    .quiet-button[aria-pressed="true"] { color: #17130C; background: var(--stage-accent); }
+    .time-slider-wrap { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+    .time-slider { width: 100%; accent-color: var(--stage-accent); cursor: pointer; }
+    .time-slider-caption { min-width: 88px; color: var(--stage-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; }
+
+    .phone-gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 48px 34px;
+      align-items: flex-start;
+      justify-content: center;
+    }
+    .phone-cell { width: 426px; }
+    .phone-cell-header {
+      min-height: 58px;
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      padding: 0 10px 12px;
+    }
+    .phone-label { font-size: 14px; font-style: italic; color: var(--stage-foreground); }
+    .phone-note { max-width: 180px; color: var(--stage-dim); font-size: 11px; line-height: 1.35; text-align: right; }
+
+    .screen-stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      isolation: isolate;
+      background: var(--stage-background);
+    }
+    .screen-stage::before {
+      content: "";
+      position: absolute;
+      inset: -16%;
+      z-index: -3;
+      background:
+        radial-gradient(circle at 72% 12%, rgba(232,199,142,.22), transparent 24%),
+        radial-gradient(circle at 20% 55%, rgba(82,127,201,.15), transparent 34%),
+        linear-gradient(180deg, #0B0D12 0%, #05070D 64%, #030409 100%);
+    }
+    .screen-grain {
+      position: absolute;
+      inset: 0;
+      z-index: 6;
+      opacity: .22;
+      pointer-events: none;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.08'/%3E%3C/svg%3E");
+      mix-blend-mode: soft-light;
+    }
+    .wallpaper-photo {
+      position: absolute;
+      inset: 0;
+      z-index: -4;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      filter: saturate(.72) brightness(.56);
+      transform: scale(1.04);
+    }
+    .wallpaper-scrim {
+      position: absolute;
+      inset: 0;
+      z-index: -2;
+      background: linear-gradient(180deg, rgba(1,2,5,.34) 0%, rgba(5,7,13,.28) 45%, rgba(5,7,13,.85) 100%);
+    }
+
+    .lock-screen { padding: 28px 16px 26px; display: flex; flex-direction: column; align-items: center; }
+    .lock-date { margin-top: 14px; color: rgba(255,255,255,.78); font-size: 14px; font-weight: 520; }
+    .lock-clock {
+      margin-top: 2px;
+      font-size: 82px;
+      line-height: .98;
+      font-weight: 250;
+      letter-spacing: -.065em;
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 1px 20px rgba(0,0,0,.18);
+    }
+    .lock-spacer { flex: 1; }
+    .activity-slot { width: 100%; min-height: 116px; display: flex; align-items: flex-end; }
+
+    .live-banner {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 48px minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      padding: 13px 14px;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 23px;
+      background: rgba(12,15,23,.76);
+      box-shadow: 0 14px 42px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.05);
+      backdrop-filter: blur(28px) saturate(135%);
+      transform-origin: center bottom;
+      animation: materialize 420ms cubic-bezier(.2,.8,.2,1) both;
+    }
+    .live-banner-cover { width: 48px; height: 48px; border-radius: 13px; object-fit: cover; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+    .live-banner-title { color: var(--stage-foreground); font-size: 13px; font-weight: 650; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .live-banner-line { margin-top: 5px; color: var(--stage-muted); font-size: 11px; line-height: 1.25; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .live-banner-relative { min-width: 86px; text-align: right; }
+    .relative-value { color: var(--stage-accent); font-size: 18px; font-weight: 670; line-height: 1.05; letter-spacing: -.025em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .relative-label { margin-top: 7px; color: var(--stage-dim); font-size: 10px; white-space: nowrap; }
+    .activity-empty {
+      width: 100%;
+      padding: 18px;
+      color: rgba(255,255,255,.42);
+      border: 1px dashed rgba(255,255,255,.14);
+      border-radius: 23px;
+      background: rgba(5,7,13,.28);
+      font-size: 12px;
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    .home-screen { padding: 36px 20px; }
+    .home-stage-card {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 80px;
+      display: grid;
+      grid-template-columns: 94px 1fr;
+      gap: 16px;
+      align-items: end;
+    }
+    .home-poster { width: 94px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 18px; box-shadow: 0 24px 60px rgba(0,0,0,.46); }
+    .home-kicker { color: var(--stage-accent); font-size: 11px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+    .home-title { margin-top: 8px; font-size: 23px; line-height: 1.06; font-weight: 620; letter-spacing: -.025em; }
+    .home-copy { margin-top: 8px; color: var(--stage-muted); font-size: 12px; line-height: 1.5; }
+    .island-hint { position: absolute; top: 66px; left: 0; right: 0; color: rgba(255,255,255,.42); font-size: 11px; text-align: center; }
+
+    .compact-island-content {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px 0 7px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .compact-mark { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+    .compact-time { color: var(--stage-accent); font-size: 11px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .expanded-island-content {
+      width: 100%;
+      height: 100%;
+      display: grid;
+      grid-template-columns: 56px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 50px 16px 16px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .expanded-cover { width: 56px; height: 56px; border-radius: 15px; object-fit: cover; }
+    .expanded-title { color: var(--stage-foreground); font-size: 15px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .expanded-line { margin-top: 5px; color: var(--stage-muted); font-size: 11px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .expanded-relative { color: var(--stage-accent); font-size: 14px; font-weight: 670; white-space: nowrap; text-align: right; }
+    .expanded-caption { margin-top: 6px; color: var(--stage-dim); font-size: 9px; text-align: right; }
+
+    .end-screen { padding: 28px 16px 26px; display: flex; flex-direction: column; align-items: center; }
+    .end-explainer {
+      width: calc(100% - 8px);
+      margin-top: 18px;
+      padding: 15px 16px;
+      border-radius: 18px;
+      background: rgba(13,17,27,.7);
+      border: 1px solid var(--stage-border);
+      color: var(--stage-muted);
+      font-size: 12px;
+      line-height: 1.6;
+      backdrop-filter: blur(18px);
+    }
+    .end-explainer strong { color: var(--stage-foreground); font-weight: 650; }
+    .end-action {
+      width: 100%;
+      min-height: 48px;
+      margin-top: 12px;
+      border: 0;
+      border-radius: 16px;
+      color: #17130C;
+      background: var(--stage-accent);
+      font-size: 14px;
+      font-weight: 680;
+      cursor: pointer;
+      transition: transform 100ms ease, filter 150ms ease;
+    }
+    .end-action:hover { filter: brightness(1.04); }
+    .end-action:active { transform: scale(.98); }
+    .dismissed-card {
+      width: 100%;
+      min-height: 92px;
+      display: grid;
+      place-items: center;
+      color: rgba(255,255,255,.45);
+      border: 1px dashed rgba(255,255,255,.13);
+      border-radius: 23px;
+      font-size: 12px;
+      animation: materialize 280ms ease-out both;
+    }
+
+    .decision-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      max-width: 1160px;
+      margin: 56px auto 0;
+      overflow: hidden;
+      border: 1px solid var(--stage-border);
+      border-radius: 20px;
+      background: var(--stage-border);
+    }
+    .decision-item { padding: 20px; background: var(--stage-surface); }
+    .decision-kicker { color: var(--stage-accent); font-size: 11px; font-weight: 700; letter-spacing: .08em; }
+    .decision-title { margin-top: 8px; font-size: 16px; font-weight: 650; }
+    .decision-copy { margin-top: 8px; color: var(--stage-muted); font-size: 13px; line-height: 1.65; }
+
+    @keyframes materialize {
+      from { opacity: 0; transform: scale(.985); filter: blur(4px); }
+      to { opacity: 1; transform: scale(1); filter: blur(0); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 1ms !important; scroll-behavior: auto !important; transition-duration: 1ms !important; }
+    }
+    body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+    @media (prefers-reduced-transparency: reduce) {
+      .time-console, .live-banner, .end-explainer { background: #10141F; backdrop-filter: none; }
+    }
+    @media (max-width: 980px) {
+      .prototype-shell { padding-inline: 18px; }
+      .prototype-header { grid-template-columns: 1fr; }
+      .contract-badge { width: fit-content; }
+      .time-console { position: relative; top: auto; grid-template-columns: 1fr; }
+      .time-slider-wrap { grid-column: 1; }
+    }
+    @media (max-width: 470px) {
+      .prototype-shell { padding: 24px 8px 56px; }
+      .prototype-header, .time-console { margin-inline: 10px; }
+      .phone-cell { width: 100%; overflow: hidden; }
+      .phone-cell-header { padding-inline: 18px; }
+      .phone-cell > .phone-frame-scale { transform: scale(.88); transform-origin: top center; margin-bottom: -104px; }
+      .decision-strip { grid-template-columns: 1fr; margin-inline: 10px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useEffect, useMemo, useState } = React;
+
+    const SHOW = {
+      name: "夜航西飞",
+      city: "上海",
+      venue: "梅赛德斯-奔驰文化中心",
+      start: "19:30",
+      end: "22:00",
+    };
+    const COVER = "assets/show-cover.jpg";
+    const APP_ICON = "assets/app-icon.png";
+    const START_LEAD_MINUTES = -180;
+    const END_OFFSET_MINUTES = 150;
+    const PHASES = [
+      { value: -240, label: "T−4h", testId: "phase-before-window" },
+      { value: -180, label: "T−3h", testId: "phase-start" },
+      { value: -12, label: "T−12m", testId: "phase-near" },
+      { value: 0, label: "T", testId: "phase-zero" },
+      { value: 12, label: "T+12m", testId: "phase-post" },
+      { value: 150, label: "E 22:00", testId: "phase-end" },
+    ];
+
+    const iosFrameStyles = {
+      wrapper: {
+        display: "inline-block", padding: 12, background: "#000", borderRadius: 60,
+        boxShadow: "0 0 0 2px #1f2937, 0 20px 60px rgba(0,0,0,0.3)", position: "relative",
+      },
+      screen: { position: "relative", borderRadius: 48, overflow: "hidden", background: "#fff" },
+      statusBar: {
+        position: "absolute", top: 0, left: 0, right: 0, height: 54, display: "flex",
+        alignItems: "center", justifyContent: "space-between", padding: "0 32px", fontSize: 16,
+        fontWeight: 600, fontFamily: "-apple-system, SF Pro Text, sans-serif", zIndex: 20, pointerEvents: "none",
+      },
+      dynamicIsland: {
+        position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)",
+        background: "#000", borderRadius: 999, zIndex: 30, overflow: "hidden",
+        transition: "width 360ms cubic-bezier(.2,.8,.2,1), height 360ms cubic-bezier(.2,.8,.2,1), border-radius 360ms ease",
+      },
+      statusIcons: { display: "flex", alignItems: "center", gap: 6 },
+      signalIcon: { display: "flex", alignItems: "flex-end", gap: 2, height: 12 },
+      signalBar: { width: 3, background: "currentColor", borderRadius: 1 },
+      batteryIcon: { width: 26, height: 12, border: "1.5px solid currentColor", borderRadius: 3, padding: 1, position: "relative", opacity: .8 },
+      batteryCap: { position: "absolute", top: 3, right: -3, width: 2, height: 6, background: "currentColor", borderRadius: "0 1px 1px 0" },
+      content: { position: "absolute", top: 54, left: 0, right: 0, bottom: 34, overflow: "hidden" },
+      homeIndicator: { position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)", width: 140, height: 5, background: "rgba(255,255,255,.5)", borderRadius: 999, zIndex: 10 },
+    };
+
+    function IosFrame({ children, time, islandMode = "system", islandContent = null, onIslandToggle = null }) {
+      const islandSize = islandMode === "expanded"
+        ? { width: 372, height: 166, borderRadius: 38 }
+        : islandMode === "compact"
+          ? { width: 188, height: 36, borderRadius: 999 }
+          : { width: 124, height: 36, borderRadius: 999 };
+      return (
+        <div style={iosFrameStyles.wrapper}>
+          <div style={{ ...iosFrameStyles.screen, width: 402, height: 874, background: "#000" }}>
+            <div style={{ ...iosFrameStyles.statusBar, color: "#fff", opacity: islandMode === "expanded" ? 0 : 1 }}>
+              <span>{time}</span>
+              <div style={iosFrameStyles.statusIcons}>
+                <div style={iosFrameStyles.signalIcon}>
+                  {[4, 6, 9, 11].map((height) => <div key={height} style={{ ...iosFrameStyles.signalBar, height }} />)}
+                </div>
+                <svg width="16" height="12" viewBox="0 0 16 12" fill="none" aria-hidden="true">
+                  <path d="M8 11.5a1 1 0 100-2 1 1 0 000 2z" fill="currentColor" />
+                  <path d="M3 7.5a7 7 0 0110 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+                  <path d="M1 4.5a11 11 0 0114 0" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" opacity=".7" />
+                </svg>
+                <div style={iosFrameStyles.batteryIcon}>
+                  <div style={{ width: "84%", height: "100%", background: "currentColor", borderRadius: 1 }} />
+                  <div style={iosFrameStyles.batteryCap} />
+                </div>
+              </div>
+            </div>
+
+            <div
+              data-testid={islandMode === "compact" ? "compact-island" : undefined}
+              onClick={onIslandToggle || undefined}
+              style={{ ...iosFrameStyles.dynamicIsland, ...islandSize, cursor: onIslandToggle ? "pointer" : "default" }}
+            >
+              {islandContent}
+            </div>
+
+            <div style={iosFrameStyles.content}>{children}</div>
+            <div style={iosFrameStyles.homeIndicator} />
+          </div>
+        </div>
+      );
+    }
+
+    function pad(value) { return String(value).padStart(2, "0"); }
+    function clockAt(minutes) {
+      const total = (19 * 60 + 30 + minutes + 24 * 60) % (24 * 60);
+      return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
+    }
+    function durationParts(minutes) {
+      const absolute = Math.abs(minutes);
+      return { hours: Math.floor(absolute / 60), minutes: absolute % 60 };
+    }
+    function naturalRelative(minutes) {
+      if (minutes === 0) return "现在开场";
+      const { hours, minutes: remainder } = durationParts(minutes);
+      const value = hours > 0 && remainder > 0
+        ? `${hours}小时${remainder}分钟`
+        : hours > 0 ? `${hours}小时` : `${remainder}分钟`;
+      return minutes < 0 ? `${value}后开场` : `开场${value}前`;
+    }
+    function bannerRelative(minutes) {
+      if (minutes === 0) return { value: "现在", label: "开场" };
+      const { hours, minutes: remainder } = durationParts(minutes);
+      const value = hours > 0 ? `${hours}${remainder ? `:${pad(remainder)}` : ""} 小时` : `${remainder} 分钟`;
+      return { value, label: minutes < 0 ? "后开场" : "前开场" };
+    }
+    function signedClock(minutes) {
+      if (minutes === 0) return "00:00:00";
+      const absolute = Math.abs(minutes);
+      return `${minutes < 0 ? "−" : "+"}${pad(Math.floor(absolute / 60))}:${pad(absolute % 60)}:00`;
+    }
+    function phaseDescription(minutes) {
+      if (minutes < START_LEAD_MINUTES) return "尚未出现";
+      if (minutes === START_LEAD_MINUTES) return "定时启动";
+      if (minutes < 0) return "开场前";
+      if (minutes === 0) return "过零";
+      if (minutes < END_OFFSET_MINUTES) return "开场后";
+      return "预计结束";
+    }
+
+    function LiveActivityBanner({ minutes }) {
+      const relative = bannerRelative(minutes);
+      return (
+        <div className="live-banner">
+          <img className="live-banner-cover" src={COVER} alt="夜航西飞现场封面" />
+          <div style={{ minWidth: 0 }}>
+            <div className="live-banner-title">{SHOW.name} · {SHOW.city}站</div>
+            <div className="live-banner-line">{SHOW.start} 开场 · 预计 {SHOW.end} 谢幕</div>
+          </div>
+          <div className="live-banner-relative">
+            <div className="relative-value">{relative.value}</div>
+            <div className="relative-label">{relative.label}</div>
+          </div>
+        </div>
+      );
+    }
+
+    function EmptyActivity() {
+      return <div className="activity-empty">Live Activity 在 T−3h 才出现<br />更早由主屏与锁屏小组件承接</div>;
+    }
+
+    function StageLayers() {
+      return (
+        <>
+          <img className="wallpaper-photo" src={COVER} alt="" />
+          <div className="wallpaper-scrim" />
+          <div className="screen-grain" />
+        </>
+      );
+    }
+
+    function LockScreen({ minutes }) {
+      const hasActivity = minutes >= START_LEAD_MINUTES;
+      return (
+        <div className="screen-stage lock-screen">
+          <StageLayers />
+          <div className="lock-date">8月9日 星期日</div>
+          <div className="lock-clock">{clockAt(minutes)}</div>
+          <div className="lock-spacer" />
+          <div className="activity-slot">{hasActivity ? <LiveActivityBanner minutes={minutes} /> : <EmptyActivity />}</div>
+        </div>
+      );
+    }
+
+    function HomeBackdrop({ hint }) {
+      return (
+        <div className="screen-stage home-screen">
+          <StageLayers />
+          <div className="island-hint">{hint}</div>
+          <div className="home-stage-card">
+            <img className="home-poster" src={COVER} alt="夜航西飞现场封面" />
+            <div>
+              <div className="home-kicker">BeforeShow</div>
+              <div className="home-title">夜航西飞</div>
+              <div className="home-copy">上海 · 19:30<br />开场之前，先进入状态。</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function CompactIsland({ minutes }) {
+      if (minutes < START_LEAD_MINUTES) return null;
+      return (
+        <div className="compact-island-content">
+          <img className="compact-mark" src={APP_ICON} alt="" />
+          <div className="compact-time">{signedClock(minutes)}</div>
+        </div>
+      );
+    }
+
+    function ExpandedIsland({ minutes }) {
+      return (
+        <div className="expanded-island-content">
+          <img className="expanded-cover" src={COVER} alt="夜航西飞现场封面" />
+          <div style={{ minWidth: 0 }}>
+            <div className="expanded-title">{SHOW.name}</div>
+            <div className="expanded-line">{SHOW.start} 开场</div>
+            <div className="expanded-line">预计 {SHOW.end} 谢幕</div>
+          </div>
+          <div>
+            <div className="expanded-relative">{naturalRelative(minutes)}</div>
+            <div className="expanded-caption">不依赖状态更新</div>
+          </div>
+        </div>
+      );
+    }
+
+    function CompactPhone({ minutes }) {
+      const [expanded, setExpanded] = useState(false);
+      useEffect(() => { if (minutes < START_LEAD_MINUTES) setExpanded(false); }, [minutes]);
+      const mode = minutes < START_LEAD_MINUTES ? "system" : expanded ? "expanded" : "compact";
+      const content = mode === "expanded" ? <ExpandedIsland minutes={minutes} /> : mode === "compact" ? <CompactIsland minutes={minutes} /> : null;
+      return (
+        <IosFrame
+          time={clockAt(minutes)}
+          islandMode={mode}
+          islandContent={content}
+          onIslandToggle={minutes >= START_LEAD_MINUTES ? () => setExpanded((value) => !value) : null}
+        >
+          <HomeBackdrop hint={minutes < START_LEAD_MINUTES ? "T−3h 前只有系统灵动岛" : expanded ? "轻点收起" : "轻点查看展开态"} />
+        </IosFrame>
+      );
+    }
+
+    function ExpandedPhone({ minutes }) {
+      const hasActivity = minutes >= START_LEAD_MINUTES;
+      return (
+        <IosFrame
+          time={clockAt(minutes)}
+          islandMode={hasActivity ? "expanded" : "system"}
+          islandContent={hasActivity ? <ExpandedIsland minutes={minutes} /> : null}
+        >
+          <HomeBackdrop hint={hasActivity ? "长按后的展开态" : "T−3h 时才可展开"} />
+        </IosFrame>
+      );
+    }
+
+    function EndBoundaryPhone() {
+      const [dismissed, setDismissed] = useState(false);
+      return (
+        <IosFrame time="22:00" islandMode="system">
+          <div className="screen-stage end-screen">
+            <StageLayers />
+            <div className="lock-date">8月9日 星期日</div>
+            <div className="lock-clock">22:00</div>
+            <div className="end-explainer">
+              <strong>E = 预计谢幕</strong><br />到点只进入 stale；没有 push 时，卡片仍可能留在锁屏。
+            </div>
+            <div className="lock-spacer" />
+            <div className="activity-slot">
+              {dismissed ? <div className="dismissed-card">Live Activity 已立即移除</div> : <LiveActivityBanner minutes={END_OFFSET_MINUTES} />}
+            </div>
+            <button className="end-action" data-testid="dismiss" onClick={() => setDismissed((value) => !value)}>
+              {dismissed ? "恢复 E 时状态" : "模拟 App 回前台并结束"}
+            </button>
+          </div>
+        </IosFrame>
+      );
+    }
+
+    function PhoneCell({ label, note, children }) {
+      return (
+        <section className="phone-cell">
+          <div className="phone-cell-header">
+            <div className="phone-label">{label}</div>
+            <div className="phone-note">{note}</div>
+          </div>
+          <div className="phone-frame-scale">{children}</div>
+        </section>
+      );
+    }
+
+    function TimeConsole({ minutes, setMinutes, reduceMotion, setReduceMotion }) {
+      return (
+        <div className="time-console" aria-label="时间模拟控制台">
+          <div className="time-readout">
+            <div className="time-readout-value">{clockAt(minutes)}</div>
+            <div className="time-readout-meta">{phaseDescription(minutes)}<br />{naturalRelative(minutes)}</div>
+          </div>
+          <div className="phase-controls">
+            {PHASES.map((phase) => (
+              <button
+                key={phase.value}
+                data-testid={phase.testId}
+                className={`phase-button ${minutes === phase.value ? "is-active" : ""}`}
+                onClick={() => setMinutes(phase.value)}
+              >
+                {phase.label}
+              </button>
+            ))}
+          </div>
+          <button className="quiet-button" aria-pressed={reduceMotion} onClick={() => setReduceMotion((value) => !value)}>
+            减少动态效果
+          </button>
+          <div className="time-slider-wrap">
+            <input
+              className="time-slider"
+              aria-label="相对开场时间"
+              type="range"
+              min="-240"
+              max="150"
+              step="1"
+              value={minutes}
+              onChange={(event) => setMinutes(Number(event.target.value))}
+            />
+            <div className="time-slider-caption">T {minutes < 0 ? "−" : minutes > 0 ? "+" : ""}{Math.abs(minutes)} min</div>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [minutes, setMinutes] = useState(-12);
+      const [reduceMotion, setReduceMotion] = useState(false);
+      useEffect(() => {
+        document.body.classList.toggle("reduce-motion", reduceMotion);
+        return () => document.body.classList.remove("reduce-motion");
+      }, [reduceMotion]);
+
+      return (
+        <main className="prototype-shell">
+          <header className="prototype-header">
+            <div>
+              <div className="eyebrow">BeforeShow · Time Contract Prototype</div>
+              <h1 className="prototype-title">一条时间线，四个系统表面</h1>
+              <p className="prototype-intro">拖动相对时间，验证固定 T−3h 启动、开场自动过零，以及 E 只标记过期的真实边界。视觉完全沿用现有 Poster Stage。</p>
+            </div>
+            <div className="contract-badge"><strong>T−3h</strong> 出现 · <strong>T</strong> 自动过零 · <strong>E</strong> stale</div>
+          </header>
+
+          <TimeConsole
+            minutes={minutes}
+            setMinutes={setMinutes}
+            reduceMotion={reduceMotion}
+            setReduceMotion={setReduceMotion}
+          />
+
+          <div className="phone-gallery">
+            <PhoneCell label="01 · 锁屏卡片" note="中性相对时间，不冻结在 0:00">
+              <IosFrame time={clockAt(minutes)} islandMode="system"><LockScreen minutes={minutes} /></IosFrame>
+            </PhoneCell>
+
+            <PhoneCell label="02 · 灵动岛紧凑态" note="符号表达开场前后；轻点可展开">
+              <CompactPhone minutes={minutes} />
+            </PhoneCell>
+
+            <PhoneCell label="03 · 灵动岛展开态" note="始终显示开场与预计谢幕事实">
+              <ExpandedPhone minutes={minutes} />
+            </PhoneCell>
+
+            <PhoneCell label="04 · E 的真实行为" note="stale 不等于移除；点击模拟前台结束">
+              <EndBoundaryPhone />
+            </PhoneCell>
+          </div>
+
+          <section className="decision-strip" aria-label="原型结论">
+            <div className="decision-item">
+              <div className="decision-kicker">START</div>
+              <div className="decision-title">固定 T−3h</div>
+              <div className="decision-copy">与现有“快开场了”节点对齐，避免短演出反而更早占据灵动岛。</div>
+            </div>
+            <div className="decision-item">
+              <div className="decision-kicker">CROSS ZERO</div>
+              <div className="decision-title">只让系统时间过零</div>
+              <div className="decision-copy">展示“12分钟后开场”到“开场12分钟前”，不依赖 hasStarted 或后台唤醒。</div>
+            </div>
+            <div className="decision-item">
+              <div className="decision-kicker">END</div>
+              <div className="decision-title">E 只负责 stale</div>
+              <div className="decision-copy">下次 App 运行立即结束；要准点消失，才引入 ActivityKit push。</div>
+            </div>
+          </section>
+        </main>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
