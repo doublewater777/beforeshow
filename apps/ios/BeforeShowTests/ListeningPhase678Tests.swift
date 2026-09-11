@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 import SwiftData
 @testable import BeforeShow
@@ -40,6 +41,59 @@ private struct ListenTestCatalog: ListeningMusicCatalogServicing {
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
     func currentAccess() async -> ListeningMusicAccess { .init(authorizationStatus: .authorized, canPlayCatalogContent: true) }
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload { throw ListeningCatalogError.artistNotFound(artistID) }
+}
+
+private final class AuthorizationTransitionCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var status: ListeningMusicAuthorizationStatus = .notDetermined
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        lock.lock()
+        defer { lock.unlock() }
+        return status
+    }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        lock.lock()
+        status = .authorized
+        lock.unlock()
+        return .authorized
+    }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        let current = currentAuthorizationStatus()
+        return .init(
+            authorizationStatus: current,
+            canPlayCatalogContent: current == .authorized
+        )
+    }
+
+    func fetchArtistCatalog(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+}
+
+private final class CountingArtistSearchService: @unchecked Sendable, ArtistSearchServicing {
+    private let lock = NSLock()
+    private var searches = 0
+
+    var searchCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return searches
+    }
+
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        lock.lock()
+        searches += 1
+        lock.unlock()
+        return []
+    }
+
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
 }
 
 final class NavigationTests: XCTestCase {
@@ -100,6 +154,50 @@ final class ListeningAccessibilityTests: XCTestCase {
         let sheet = try String(contentsOf: root.appendingPathComponent("Views/ListeningCabinetSheet.swift"), encoding: .utf8)
         XCTAssertTrue(sheet.contains("LazyVGrid"))
         XCTAssertFalse(sheet.contains("JewelCaseShelf"))
+    }
+}
+
+@MainActor final class ListeningLoadingPipelineTests: XCTestCase {
+    func testAuthorizationContinuesCatalogWithoutRepeatingArtistMatching() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(10_000)
+        let show = try Show(name: "First Show", date: start, startTime: start)
+        show.artists = [ArtistSlot(name: "Unmatched Artist", avatarURL: nil)]
+        context.insert(show)
+        try context.save()
+
+        let catalog = AuthorizationTransitionCatalog()
+        let search = CountingArtistSearchService()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+
+        await room.load(show: show)
+        XCTAssertEqual(search.searchCount, 1)
+        XCTAssertFalse(room.shouldReloadCatalog(for: show), "An empty but completed first load must not restart on every tab activation")
+
+        await room.authorize()
+        XCTAssertEqual(search.searchCount, 1, "Authorization should resume catalog loading instead of restarting show preparation")
+        XCTAssertFalse(room.shouldReloadCatalog(for: show))
+    }
+
+    func testImportedArtistAutoMatchRequiresOneExactIdentity() {
+        let exact = RecognizedArtist(id: "1", canonicalName: "Beyoncé", avatarURL: nil, appleMusicURL: nil)
+        let fuzzy = RecognizedArtist(id: "2", canonicalName: "Beyoncé Live", avatarURL: nil, appleMusicURL: nil)
+        XCTAssertEqual(
+            ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: "  Beyonce ", among: [fuzzy, exact])?.id,
+            "1"
+        )
+
+        let collision = RecognizedArtist(id: "3", canonicalName: "Beyonce", avatarURL: nil, appleMusicURL: nil)
+        XCTAssertNil(
+            ShowDraftArtistAutoMatchPolicy.uniqueExactMatch(for: "Beyoncé", among: [exact, collision]),
+            "Same-name collisions must remain unresolved for manual confirmation"
+        )
     }
 }
 
