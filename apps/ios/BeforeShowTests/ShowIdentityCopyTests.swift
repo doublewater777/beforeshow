@@ -10,10 +10,10 @@ final class ShowIdentityCopyTests: XCTestCase {
         )
 
         XCTAssertEqual(identity.title, "Noumena 乐队 2026 “地海边缘” 巡演 北京站")
-        XCTAssertEqual(identity.venueSummary, "魅现场")
+        XCTAssertEqual(identity.venueSummary, "魅现场 · 北京")
         XCTAssertEqual(
             identity.dateVenueLine(dateLine: "9月11日 20:00"),
-            "9月11日 20:00 · 魅现场"
+            "9月11日 20:00 · 魅现场 · 北京"
         )
     }
 

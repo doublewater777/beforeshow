@@ -103,7 +103,7 @@ struct ListenRootView: View {
             }
         }
         room?.setActive(true)
-        if room?.show?.id != show.id || room?.discs.isEmpty == true {
+        if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
         }
     }

@@ -145,7 +145,7 @@ private struct CabinetDiscGestureBridge: UIViewRepresentable {
                 guard canDrag, let view = pan.view else { return false }
                 let velocity = pan.velocity(in: view)
                 // Only recognize downward pull toward the player;
-                // reject horizontal swipes so the cabinet ScrollView scrolls seamlessly.
+                // reject leftover horizontal swipes so the cabinet stays still.
                 return velocity.y > 20 && velocity.y > abs(velocity.x) * 0.6
             }
             return true

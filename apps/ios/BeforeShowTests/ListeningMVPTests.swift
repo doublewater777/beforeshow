@@ -117,12 +117,12 @@ import XCTest
         settle(mechanism)
         mechanism.setLid(open: true)
         settle(mechanism)
-        mechanism.dragDisc(CGSize(width: 100, height: 100))
+        mechanism.dragDisc(CGSize(width: 400, height: 400))
         mechanism.endDiscDrag()
         settle(mechanism)
-        XCTAssertEqual(mechanism.position, .removed)
-        XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.parkedDisc.x, accuracy: 0.001)
-        XCTAssertEqual(mechanism.motion.discY.value, mechanism.configuration.geometry.parkedDisc.y, accuracy: 0.001)
+        XCTAssertEqual(mechanism.position, .stored)
+        XCTAssertEqual(mechanism.motion.discX.value, mechanism.configuration.geometry.canvas.width / 2, accuracy: 0.001)
+        XCTAssertEqual(mechanism.motion.discY.value, -100, accuracy: 0.001)
     }
     func testCabinetLongPressOpensLidAndAcceptsDropBeforeItFinishesOpening() {
         let mechanism = CDMechanism()
