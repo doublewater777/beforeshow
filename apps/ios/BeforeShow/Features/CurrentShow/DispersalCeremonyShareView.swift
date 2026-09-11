@@ -125,15 +125,17 @@ struct DispersalShareStep: View {
             if isSaving || isSharing {
                 ZStack {
                     Color.black.opacity(0.38)
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .tint(.white)
-                        Text(BSLocalization.text("生成中…"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
-                    }
+                    ProgressView()
+                        .tint(.white)
+                        .accessibilityHidden(true)
                 }
                 .ignoresSafeArea()
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(
+                    isSaving
+                        ? BSLocalization.text("保存图片")
+                        : BSLocalization.text("分享图片")
+                )
             }
         }
         .bsToastOverlay(toast, bottomPadding: 24)
