@@ -178,7 +178,7 @@ private struct CDPlayerControlsView: View {
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
                 .accessibilityLabel(BSLocalization.text(control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label))
-                .accessibilityValue(control == .playPause ? playerPresentation.statusText : "")
+                .accessibilityValue(control == .playPause ? playerPresentation.accessibilityStatusText : "")
                 .accessibilityHint(control == .playPause ? (playerPresentation.blockingReason ?? "") : "")
                 .accessibilityIdentifier(control.rawValue)
                 .position(x: rect.midX, y: geometry.projectedY(rect.midY))
@@ -194,4 +194,3 @@ struct CDHardwareButtonStyle: ButtonStyle {
             .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: configuration.isPressed)
     }
 }
-
