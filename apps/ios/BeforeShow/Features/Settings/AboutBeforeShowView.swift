@@ -65,20 +65,6 @@ struct AboutBeforeShowView: View {
                 .buttonStyle(SettingsPressButtonStyle())
 
                 SettingsDivider()
-                Button {
-                    legalPage = BSInAppBrowserPage(url: WeatherKitLegalAttribution.legalPageURL)
-                } label: {
-                    SettingsRowContent(
-                        iconName: "cloud.sun.fill",
-                        title: BSLocalization.text("weatherReminderLegalTitle"),
-                        subtitle: nil,
-                        value: nil,
-                        tint: BSColor.Stage.muted
-                    )
-                }
-                .buttonStyle(SettingsPressButtonStyle())
-
-                SettingsDivider()
 
                 Button {
                     legalPage = BSInAppBrowserPage(url: Self.icpQueryURL)
