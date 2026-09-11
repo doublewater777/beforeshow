@@ -236,6 +236,10 @@ struct ListeningRoomView: View {
             ) {
                 if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
             }
+        } else if room.isCatalogEnriching && room.libraryDiscs.isEmpty {
+            // Keep the cabinet geometry stable while the selected artist's full
+            // albums are still arriving instead of briefly claiming no records exist.
+            ListeningShelfSkeleton()
         } else {
             switch room.presentation {
             case .loading, .loadingCatalog:
