@@ -36,7 +36,8 @@ extension CompanionShowSnapshot {
                     albumArtworkURL: $0.albumArtworkURL
                 )
             },
-            coverImageURL: show.coverImageURL,
+            // Local file:// covers are device-private and meaningless to recipients.
+            coverImageURL: Self.portableRemoteURLString(show.coverImageURL),
             showChangeStatusRawValue: show.changeStatus.rawValue,
             postponedDate: show.postponedDate
         )
@@ -52,6 +53,17 @@ extension CompanionShowSnapshot {
                 albumArtworkURL: $0.albumArtworkURL
             )
         }
+    }
+
+    private static func portableRemoteURLString(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "https" || scheme == "http" else {
+            return nil
+        }
+        return trimmed
     }
 }
 
