@@ -97,6 +97,14 @@ struct RootView: View {
                 }
             )
         ) {
+            if companionDuplicateErrorMessage == nil,
+               let result = companionCoordinator.pendingAcceptResult {
+                Button(BSLocalization.text(
+                    result.wasHistorical ? "查看足迹" : (result.becameCurrent ? "进入现场" : "查看这场现场")
+                )) {
+                    openAcceptedShow(result)
+                }
+            }
             Button(BSLocalization.text("知道了"), role: .cancel) {
                 dismissCompanionResultMessage()
             }
@@ -147,10 +155,24 @@ struct RootView: View {
         #endif
     }
 
+    private func openAcceptedShow(_ result: CompanionAcceptedImportResult) {
+        if result.wasHistorical, let show = rootShows.first(where: { $0.id == result.showID }) {
+            ceremonyPendingDetail = FootprintDetailDestination(show: show)
+            selectedTab = .footprints
+        } else if result.becameCurrent {
+            selectedTab = .current
+        } else {
+            selectedTab = .current
+            notificationRouter.route(to: NotificationDeepLink(showID: result.showID, destination: .home))
+        }
+        dismissCompanionResultMessage()
+    }
+
     private func dismissCompanionResultMessage() {
         companionDuplicateErrorMessage = nil
         companionAcceptanceMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
+        _ = companionCoordinator.consumePendingAcceptResult()
         if companionCoordinator.lastErrorKind == .statusSyncPending {
             _ = companionCoordinator.consumeLastErrorMessage()
         }
@@ -172,6 +194,7 @@ struct RootView: View {
                 in: modelContext
             )
             companionDuplicateResolution = nil
+            dismissCompanionResultMessage()
             refreshCompanionDuplicateResolution()
         } catch {
             companionDuplicateErrorMessage = CompanionSharingCoordinator.userMessage(for: error)
