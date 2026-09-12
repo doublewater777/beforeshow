@@ -122,16 +122,39 @@ extension CloudKitCompanionSharingService {
             throw CompanionSharingError.invalidPayload
         }
 
+        let legacyShow = CompanionShowSnapshot(
+            showID: showID,
+            showName: showName,
+            showDate: showDate,
+            showStartTime: showStartTime,
+            showLocation: record[CompanionSessionRecord.showLocation] as? String
+        )
+
+        let showSnapshot: CompanionShowSnapshot
+        if let data = record[CompanionSessionRecord.showSnapshotV1] as? Data {
+            do {
+                let decoded = try JSONDecoder().decode(CompanionShowSnapshot.self, from: data)
+                guard decoded.schemaVersion <= CompanionShowSnapshot.currentSchemaVersion,
+                      !decoded.showID.isEmpty,
+                      !decoded.showName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw CompanionSharingError.invalidPayload
+                }
+                showSnapshot = decoded
+            } catch let error as CompanionSharingError {
+                throw error
+            } catch {
+                CompanionDebugLog.write("Decoding frozen companion show snapshot failed: \(error)")
+                throw CompanionSharingError.invalidPayload
+            }
+        } else {
+            // Invitations created before the full-snapshot rollout remain valid.
+            showSnapshot = legacyShow
+        }
+
         return CompanionSessionSnapshot(
             sessionLocator: CompanionRecordLocator(recordID: record.recordID),
             shareLocator: shareLocator,
-            show: CompanionShowSnapshot(
-                showID: showID,
-                showName: showName,
-                showDate: showDate,
-                showStartTime: showStartTime,
-                showLocation: record[CompanionSessionRecord.showLocation] as? String
-            ),
+            show: showSnapshot,
             ownerDisplayName: record[CompanionSessionRecord.ownerDisplayName] as? String,
             participantDisplayName: record[CompanionSessionRecord.participantDisplayName] as? String,
             participantDisplayNames: CompanionNameList.normalized(participantDisplayNames),
