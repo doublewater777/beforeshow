@@ -35,6 +35,9 @@ struct RootView: View {
         if let accepted = companionCoordinator.pendingAcceptMessage {
             return accepted
         }
+        if let result = companionCoordinator.pendingAcceptResult {
+            return CompanionSharingPresentation.acceptedMessage(ownerDisplayName: nil, importResult: result)
+        }
         if companionCoordinator.lastErrorKind == .statusSyncPending {
             return companionCoordinator.lastErrorMessage
         }
