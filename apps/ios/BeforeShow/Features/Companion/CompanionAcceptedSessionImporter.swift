@@ -183,9 +183,13 @@ enum CompanionAcceptedSessionImporter {
         // sometimes model only Show; a selection failure must not roll back the accepted
         // Show itself, so this side effect is deliberately best-effort.
         let store = CurrentShowSelectionStore(modelContext: modelContext)
-        guard let selection = try? store.canonicalSelection() else {
+        let selection: CurrentShowSelection?
+        do {
+            selection = try store.canonicalSelection()
+        } catch {
             return false
         }
+
         let current = CurrentShowSession().selectCurrentShow(
             from: shows,
             manualSelection: selection,
@@ -196,10 +200,12 @@ enum CompanionAcceptedSessionImporter {
               CurrentShowTimeState(show: show, now: now).isAutomaticallySelectable else {
             return false
         }
-        guard (try? store.select(showID: show.id)) != nil else {
+        do {
+            _ = try store.select(showID: show.id)
+            return true
+        } catch {
             return false
         }
-        return true
     }
 
     private static func result(
