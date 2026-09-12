@@ -35,7 +35,17 @@ jobs:
     # macos-26 currently ships Xcode 26.6 by default, matching the project CI.
     runs-on: macos-26
     timeout-minutes: 45
+    env:
+      # Existing date/time fixtures were authored against the product's China
+      # locale baseline. Pin the hosted VM too so Calendar.current and simulator
+      # fallback calendars do not silently switch those fixtures to UTC.
+      TZ: Asia/Shanghai
     steps:
+      - name: Set deterministic timezone
+        run: |
+          sudo /usr/sbin/systemsetup -settimezone Asia/Shanghai
+          date '+Verifier timezone: %Z %z'
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -59,6 +69,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          # GitHub invokes bash with -e. Disable it explicitly so a failed
+          # verifier can still print xcresult diagnostics before we return the
+          # original verifier status at the end of this step.
+          set +e
           set -uo pipefail
           cd "$VERIFY_SOURCE"
 
