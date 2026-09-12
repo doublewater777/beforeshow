@@ -71,6 +71,21 @@ import SwiftData
         XCTAssertEqual(results.map(\.id), ["legacy"])
     }
 
+    func testArtistSearchContinuesFallbackWhenCatalogCandidatesAreUnrelated() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _ in
+                [RecognizedArtist(id: "wrong", canonicalName: "Different Artist", avatarURL: nil, appleMusicURL: nil)]
+            },
+            fallbackSearch: { query, _ in
+                [RecognizedArtist(id: "target", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+            }
+        )
+
+        let results = try await service.searchArtists(query: "姜思达")
+        XCTAssertEqual(results.first?.id, "target")
+        XCTAssertEqual(results.map(\.id), ["target", "wrong"])
+    }
+
     func testArtistSearchFallsBackWhenCatalogFails() async throws {
         let service = AppleMusicArtistSearchService(
             catalogSearch: { _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
