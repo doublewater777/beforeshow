@@ -21,6 +21,12 @@ private let listeningCatalogFetchConcurrency = 4
 @MainActor @Observable final class ListeningRoomCoordinator {
     enum CatalogState { case loading, ready, unmatched, cacheFailed, unavailable }
 
+    #if DEBUG
+    /// When set (simulator previews), lid-open gestures reveal the disc
+    /// instead of stopping playback.
+    var opensWithoutStopping = false
+    #endif
+
     let mechanism = CDMechanism()
     private(set) var catalogSongs: [CatalogSong] = []
     private(set) var catalogAlbums: [CatalogAlbum] = []
@@ -28,6 +34,21 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var catalogSnapshots: [ArtistCatalogSnapshot] = []
     private(set) var show: Show?
     private(set) var discs: [ListeningDisc] = []
+
+    #if DEBUG
+    /// Test hook: put a disc straight into the tray without touching the
+    /// catalog pipeline (used by `--listen-seed-disc` for simulator previews).
+    func seedDisc(_ disc: ListeningDisc) {
+        if !discs.contains(disc) { discs.append(disc) }
+        mechanism.restoreSeated(disc)
+        mechanism.setLid(open: true)
+        opensWithoutStopping = true
+        trackIndex = 0
+        preparedSongID = nil
+        playbackState = .idle
+        trackBelongsToShow = true
+    }
+    #endif
     private(set) var catalogState: CatalogState = .loading
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
@@ -104,7 +125,12 @@ private let listeningCatalogFetchConcurrency = 4
         self.context = context; self.catalogService = catalogService; self.playbackFactory = playbackFactory
         self.artistSearchService = artistSearchService
         catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
-        mechanism.onOpen = { [weak self] in self?.stop() }
+        mechanism.onOpen = { [weak self] in
+            #if DEBUG
+            if self?.opensWithoutStopping == true { return }
+            #endif
+            self?.stop()
+        }
         mechanism.onTransition = { transition in
             CDSoundPlayer.shared.play(transition)
             #if os(iOS)

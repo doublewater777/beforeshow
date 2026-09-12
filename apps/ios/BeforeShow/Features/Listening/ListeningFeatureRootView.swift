@@ -28,6 +28,17 @@ struct ListeningFeatureRootView: View {
                 playbackFactory: { _ in ListeningFixturePlayer() }
             )
             .modelContainer(fixture.container)
+            .task(id: fixture.seededDisc?.id ?? fixture.mosaicSeededDisc?.id) {
+                let disc = fixture.seededDisc ?? fixture.mosaicSeededDisc
+                guard let disc else { return }
+                while !Task.isCancelled {
+                    if let room = ListeningRoomCache.shared, room.show != nil {
+                        room.seedDisc(disc)
+                        return
+                    }
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+            }
         } else {
             ListenRootView(isActive: isActive)
         }

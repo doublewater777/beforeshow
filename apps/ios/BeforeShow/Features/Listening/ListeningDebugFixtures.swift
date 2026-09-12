@@ -21,6 +21,79 @@ enum ListeningFixtureScenario: String, CaseIterable {
 @MainActor struct ListeningDebugFixtures {
     let scenario: ListeningFixtureScenario
     let container: ModelContainer
+
+    /// A disc with real cover art, loaded by `--listen-seed-disc <url>` so
+    /// artwork-driven disc details can be inspected in the simulator.
+    var seededDisc: ListeningDisc? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "--listen-seed-disc"),
+              args.indices.contains(index + 1),
+              let url = URL(string: args[index + 1]) else { return nil }
+        let tracks = (0..<4).map { number in
+            ListeningDiscTrack(CatalogSong(
+                appleMusicSongID: "seed-song-" + String(number),
+                title: ["夜色", "最后一班车", "微光", "蓝色时刻"][number],
+                artistName: "夜航",
+                albumID: "seed-album",
+                duration: 180,
+                performerArtistIDs: ["seed-artist"]
+            ))
+        }
+        return ListeningDisc(id: "seed-album", title: "夜航 · Album", artworkURL: url, tracks: tracks)
+    }
+
+    /// A compilation disc whose tracks carry the `--listen-seed-mosaic` covers,
+    /// seated and revealed by `--listen-seed-disc-seat` for simulator previews.
+    var mosaicSeededDisc: ListeningDisc? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "--listen-seed-mosaic"),
+              args.indices.contains(index + 1) else { return nil }
+        let urls = args[index + 1].split(separator: ",").map(String.init)
+        guard !urls.isEmpty else { return nil }
+        let tracks = (0..<4).map { number in
+            var song = CatalogSong(
+                appleMusicSongID: "seed-song-" + String(number),
+                title: ["夜色", "最后一班车", "微光", "蓝色时刻"][number],
+                artistName: "夜航",
+                albumID: "seed-album",
+                duration: 180,
+                performerArtistIDs: ["seed-artist"]
+            )
+            song.artworkURL = urls[number % urls.count]
+            return ListeningDiscTrack(song)
+        }
+        return ListeningDisc(
+            id: "seed-compilation",
+            title: "热门合辑 01",
+            artworkURL: nil,
+            tracks: tracks,
+            origin: .compilation(showID: UUID(), number: 1)
+        )
+    }
+
+    /// Covers for the compilation mosaic, loaded by `--listen-seed-mosaic`
+    /// with up to four comma-separated image URLs written onto the fixture
+    /// catalog's songs and album.
+    private func applyMosaicCovers(to context: ModelContext) throws {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "--listen-seed-mosaic"),
+              args.indices.contains(index + 1) else { return }
+        let urls = args[index + 1].split(separator: ",").map(String.init)
+        guard !urls.isEmpty else { return }
+        let songIDs = (0..<4).map { "fixture-song-0-" + String($0) }
+        for (offset, id) in songIDs.enumerated() {
+            let predicate = #Predicate<CatalogSong> { $0.appleMusicSongID == id }
+            if let song = try context.fetch(FetchDescriptor<CatalogSong>(predicate: predicate)).first {
+                song.artworkURL = urls[offset % urls.count]
+            }
+        }
+        let albumPredicate = #Predicate<CatalogAlbum> { $0.appleMusicAlbumID == "fixture-album-0" }
+        if let album = try context.fetch(FetchDescriptor<CatalogAlbum>(predicate: albumPredicate)).first {
+            album.artworkURL = urls[0]
+        }
+        try context.save()
+    }
+
     init(scenario: ListeningFixtureScenario) throws {
         self.scenario = scenario
         container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
@@ -29,6 +102,11 @@ enum ListeningFixtureScenario: String, CaseIterable {
         let start = Date().addingTimeInterval(scenario == .endedCurrent ? -86400 : 864000)
         let show = try Show(name: "夜航 · Listen", date: start, startTime: start)
         if scenario == .endedCurrent { show.endedAt = start.addingTimeInterval(7200) }
+        let seedArgs = ProcessInfo.processInfo.arguments
+        if let seedIndex = seedArgs.firstIndex(of: "--listen-seed-disc"),
+           seedArgs.indices.contains(seedIndex + 1) {
+            show.coverImageURL = seedArgs[seedIndex + 1]
+        }
         let names = ["Aimer", "YOASOBI", "宇多田ヒカル", "RADWIMPS", "米津玄師", "椎名林檎", "King Gnu", "藤井風", "Official髭男dism", "Vaundy", "あいみょん", "Mrs. GREEN APPLE", "ずっと真夜中でいいのに。", "羊文学", "ヨルシカ"]
         let count = scenario == .fifteen || scenario == .manyDiscs ? 15 : scenario == .festival ? 8 : scenario == .multiFull ? 2 : 1
         let artistNames = scenario == .multiFull ? ["夜航", "海岸"] : Array(names.prefix(count))
@@ -53,6 +131,7 @@ enum ListeningFixtureScenario: String, CaseIterable {
             context.insert(ShowWantsLiveSong(showID: show.id, songID: "fixture-song-0-0", createdAt: start.addingTimeInterval(-100)))
         }
         try context.save()
+        try applyMosaicCovers(to: context)
         try OpeningFamiliarityCoordinator.captureDueBaselines(in: context)
         try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context)
     }

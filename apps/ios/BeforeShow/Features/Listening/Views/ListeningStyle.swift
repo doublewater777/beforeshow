@@ -29,6 +29,12 @@ enum ListeningStyle {
 struct ListeningDiscArtwork: View {
     var disc: ListeningDisc?
     var image = "listen_04_disc"
+    @State private var artwork: UIImage?
+
+    /// Compilation discs have no single cover; tile the first four track
+    /// covers into one label image. Cached by track-artwork fingerprint.
+    private static var mosaicCache: [String: UIImage] = [:]
+
     var body: some View {
         GeometryReader { proxy in
             let size = proxy.size.width
@@ -54,6 +60,27 @@ struct ListeningDiscArtwork: View {
                 )
                 .clipShape(Circle())
                 .blendMode(.screen)
+
+                // Album artwork printed on the label area, between hub and rim.
+                if let artwork {
+                    ZStack {
+                        Image(uiImage: artwork)
+                            .resizable()
+                            .scaledToFill()
+                        // Clear center mimics the unprinted hub ring of a real CD.
+                        RadialGradient(
+                            colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surfaceRaised.opacity(0.0)],
+                            center: .center,
+                            startRadius: 0,
+                            endRadius: size * 0.10
+                        )
+                        Circle().stroke(Color.white.opacity(0.25), lineWidth: 1)
+                            .frame(width: size * 0.19, height: size * 0.19)
+                    }
+                    .frame(width: size * 0.94, height: size * 0.94)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
+                }
 
                 // High-contrast specular wedge highlights
                 AngularGradient(
@@ -82,16 +109,68 @@ struct ListeningDiscArtwork: View {
                     .stroke(Color.white.opacity(0.25), lineWidth: 1.2)
                     .frame(width: size * 0.26, height: size * 0.26)
 
-                // CD label title
-                Text(disc?.title ?? "CD")
-                    .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
-                    .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
-                    .lineLimit(2)
-                    .multilineTextAlignment(.center)
-                    .frame(width: size * 0.62)
-                    .offset(y: -size * 0.24)
+                // CD label title, only when no artwork covers the label
+                if artwork == nil {
+                    Text(disc?.title ?? "CD")
+                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
+                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .frame(width: size * 0.62)
+                        .offset(y: -size * 0.24)
+                }
             }
         }
+        .task(id: disc?.artworkURL) {
+            artwork = nil
+            if let url = disc?.artworkURL {
+                artwork = ShowCoverImageCache.shared.memoryImage(for: url)
+                if artwork == nil {
+                    artwork = await ShowCoverImageCache.shared.image(from: url)
+                }
+            } else if let disc, !disc.tracks.isEmpty {
+                artwork = await Self.mosaic(for: disc)
+            }
+        }
+    }
+
+    private static func mosaic(for disc: ListeningDisc) async -> UIImage? {
+        let urls = disc.tracks.compactMap(\.artworkURL).prefix(4)
+        guard !urls.isEmpty else { return nil }
+        let key = urls.map(\.absoluteString).joined(separator: "|")
+        if let cached = mosaicCache[key] { return cached }
+        var images: [UIImage] = []
+        for url in urls {
+            var image = ShowCoverImageCache.shared.memoryImage(for: url)
+            if image == nil {
+                image = await ShowCoverImageCache.shared.image(from: url)
+            }
+            if let image { images.append(image) }
+        }
+        guard !images.isEmpty else { return nil }
+        let grid: Int = images.count > 1 ? 2 : 1
+        let tile: CGFloat = 300
+        let canvas = tile * CGFloat(grid)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let mosaic = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format).image { context in
+            UIColor.black.setFill()
+            context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
+            for (index, image) in images.prefix(grid * grid).enumerated() {
+                let origin = CGPoint(x: CGFloat(index % grid) * tile, y: CGFloat(index / grid) * tile)
+                let side = min(image.size.width, image.size.height)
+                let crop = CGRect(
+                    x: (image.size.width - side) / 2 * image.scale,
+                    y: (image.size.height - side) / 2 * image.scale,
+                    width: side * image.scale,
+                    height: side * image.scale
+                )
+                guard let cg = image.cgImage?.cropping(to: crop) else { continue }
+                UIImage(cgImage: cg).draw(in: CGRect(origin: origin, size: CGSize(width: tile, height: tile)))
+            }
+        }
+        mosaicCache[key] = mosaic
+        return mosaic
     }
 }
 
@@ -220,4 +299,3 @@ struct ListeningArtistArtwork: View {
         }
     }
 }
-
