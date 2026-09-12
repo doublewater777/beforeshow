@@ -58,7 +58,13 @@ struct AddShowCoordinatorSheet: View {
             .navigationDestination(item: $selectedSheet) { sheet in
                 AddShowFlowView(
                     sheet: sheet,
-                    onSaved: onShowAdded,
+                    onSaved: { showID in
+                        // Persistence success ends the normal Add Show transaction.
+                        // Duplicate/validation/limit paths never emit onSaved, so they
+                        // stay inside the flow with their existing recovery UI.
+                        onShowAdded(showID)
+                        dismiss()
+                    },
                     onFinished: { dismiss() }
                 )
             }
