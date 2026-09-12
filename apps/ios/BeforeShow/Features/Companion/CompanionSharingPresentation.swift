@@ -50,7 +50,7 @@ enum CompanionSharingPresentation {
             case .conflict:
                 return BSLocalization.text("同行状态已变更，请刷新后重试")
             case .statusSyncPending:
-                return BSLocalization.text("已接受邀请，现场还没添加成功，请重试")
+                return BSLocalization.text("已接受邀请，但现场同步到本机还没完成，请重试")
             }
         }
         if error is ShowCompanionMutationError {
