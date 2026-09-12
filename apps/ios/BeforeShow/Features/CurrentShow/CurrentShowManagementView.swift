@@ -10,6 +10,7 @@ struct CurrentShowManagementSection: View {
     var isPlaybackActive = true
     let candidateShows: [Show]
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+    var onPresentationVisibilityChange: (Bool) -> Void = { _ in }
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
@@ -17,6 +18,7 @@ struct CurrentShowManagementSection: View {
     var isImportingDynamicCover = false
     var onConfirmEnd: (Date) -> Void
     var homeArrival: CurrentShowHomeArrival?
+    var onHomeArrivalPrepared: (UUID) -> Void = { _ in }
     var onHomeArrivalFinished: () -> Void = {}
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
@@ -34,9 +36,11 @@ struct CurrentShowManagementSection: View {
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
-    @State private var hasArrivedHero = true
-    @State private var hasArrivedCountdown = true
-    @State private var hasArrivedActions = true
+    @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
+    /// SwiftUI may nil an item binding before the dismissal animation has ended.
+    /// Keep this raised until the corresponding onDismiss fires so a pending
+    /// arrival never plays underneath a disappearing child-owned presentation.
+    @State private var isPresentationVisibilityLatched = false
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
@@ -45,6 +49,18 @@ struct CurrentShowManagementSection: View {
 
     private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
     private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
+
+    private var hasPresentationRequest: Bool {
+        presentedSheet != nil
+            || pendingMemoryCreate != nil
+            || companionErrorMessage != nil
+            || ceremonyLightsOutShowID != nil
+            || ceremonySheetShowID != nil
+    }
+
+    private var isPresentationActive: Bool {
+        hasPresentationRequest || isPresentationVisibilityLatched
+    }
 
     /// 给仪式 sheet 用的极简快照:只含 `shows`,足以让 `FootprintDetailIdentityBuilder`
     /// 推导出「第 N 场现场」「与X第 N 次见面」。城市/艺人/年份在卡片里不显示,
@@ -62,8 +78,7 @@ struct CurrentShowManagementSection: View {
         CurrentShowPlaybackPolicy.isActive(
             baseIsActive: isPlaybackActive,
             sceneIsActive: scenePhase == .active,
-            hasOverlay: presentedSheet != nil
-                || companionErrorMessage != nil
+            hasOverlay: isPresentationActive
         )
     }
 
@@ -77,7 +92,7 @@ struct CurrentShowManagementSection: View {
             }
         }
         #endif
-        .sheet(item: $presentedSheet) { sheet in
+        .sheet(item: $presentedSheet, onDismiss: presentedSheetDidDismiss) { sheet in
             switch sheet {
             case .endConfirmation:
                 CurrentShowEndConfirmationSheet(
@@ -135,7 +150,9 @@ struct CurrentShowManagementSection: View {
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
-            // cover 彻底消失后再升 sheet,转场不重叠,熄灯黑场直接接上 sheet 升起。
+            // Keep the presentation latch raised across the full-screen → sheet
+            // handoff so Current never becomes momentarily "visible" in between.
+            isPresentationVisibilityLatched = true
             ceremonySheetShowID = show.id
         }) { id in
             DispersalLightsOutOverlay(
@@ -147,7 +164,7 @@ struct CurrentShowManagementSection: View {
                 }
             }
         }
-        .sheet(item: $ceremonySheetShowID) { id in
+        .sheet(item: $ceremonySheetShowID, onDismiss: releasePresentationLatchIfPossible) { id in
             if id == show.id {
                 DispersalCeremonySheet(
                     show: show,
@@ -173,13 +190,36 @@ struct CurrentShowManagementSection: View {
         .onChange(of: notificationRouter.pendingDeepLink) { _, _ in
             consumeNotificationDeepLink()
         }
-        .onChange(of: presentedSheet) { oldSheet, newSheet in
+        .onChange(of: presentedSheet, initial: true) { oldSheet, newSheet in
+            if newSheet != nil {
+                isPresentationVisibilityLatched = true
+            }
             if newSheet == nil, oldSheet == .memoryCreate, pendingMemoryCreate != nil {
                 presentedSheet = .memory
             }
             if newSheet == nil, oldSheet == .memory {
                 pendingMemoryCreate = nil
             }
+        }
+        .onChange(of: ceremonyLightsOutShowID, initial: true) { _, showID in
+            if showID != nil {
+                isPresentationVisibilityLatched = true
+            }
+        }
+        .onChange(of: ceremonySheetShowID, initial: true) { _, showID in
+            if showID != nil {
+                isPresentationVisibilityLatched = true
+            }
+        }
+        .onChange(of: companionErrorMessage, initial: true) { _, message in
+            if message != nil {
+                isPresentationVisibilityLatched = true
+            } else {
+                releasePresentationLatchIfPossible()
+            }
+        }
+        .onChange(of: isPresentationActive, initial: true) { _, isActive in
+            onPresentationVisibilityChange(isActive)
         }
         .alert(
             BSLocalization.text("同行"),
@@ -207,9 +247,7 @@ struct CurrentShowManagementSection: View {
     @MainActor
     private func runHomeArrivalIfNeeded() async {
         guard let homeArrival, homeArrival.showID == show.id else {
-            hasArrivedHero = true
-            hasArrivedCountdown = true
-            hasArrivedActions = true
+            homeArrivalFlags = .arrived
             return
         }
 
@@ -217,18 +255,29 @@ struct CurrentShowManagementSection: View {
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
-                hasArrivedHero = false
-                hasArrivedCountdown = false
-                hasArrivedActions = false
+                homeArrivalFlags = .prepared
             }
+
+            // Parent must not advance to `.animating` until this child has
+            // consumed `.prepared`. Yield once after the non-animated state write,
+            // then report readiness for this exact show identity.
+            await Task.yield()
+            guard !Task.isCancelled,
+                  homeArrivalFlags.isPreparedForAnimation else {
+                return
+            }
+            onHomeArrivalPrepared(homeArrival.showID)
             return
         }
 
+        // `.animating` is only issued after the prepared callback above, so the
+        // three surfaces are guaranteed to start hidden rather than collapsing
+        // prepared + animating into one SwiftUI update cycle.
+        guard homeArrivalFlags.isPreparedForAnimation else { return }
+
         if reduceMotion {
             withAnimation(.easeOut(duration: 0.22)) {
-                hasArrivedHero = true
-                hasArrivedCountdown = true
-                hasArrivedActions = true
+                homeArrivalFlags = .arrived
             }
             try? await Task.sleep(for: .milliseconds(240))
             onHomeArrivalFinished()
@@ -236,15 +285,15 @@ struct CurrentShowManagementSection: View {
         }
 
         withAnimation(.spring(response: 0.55, dampingFraction: 0.88)) {
-            hasArrivedHero = true
+            homeArrivalFlags.hasArrivedHero = true
         }
         try? await Task.sleep(for: .milliseconds(100))
         withAnimation(.easeOut(duration: 0.34)) {
-            hasArrivedCountdown = true
+            homeArrivalFlags.hasArrivedCountdown = true
         }
         try? await Task.sleep(for: .milliseconds(100))
         withAnimation(.easeOut(duration: 0.3)) {
-            hasArrivedActions = true
+            homeArrivalFlags.hasArrivedActions = true
         }
         try? await Task.sleep(for: .milliseconds(360))
         onHomeArrivalFinished()
@@ -291,9 +340,9 @@ struct CurrentShowManagementSection: View {
                     }
                     .buttonStyle(.plain)
                     .padding(.top, 18)
-                    .opacity(hasArrivedHero ? 1 : 0)
-                    .scaleEffect(hasArrivedHero ? 1 : 0.94)
-                    .offset(y: hasArrivedHero ? 0 : 24)
+                    .opacity(homeArrivalFlags.hasArrivedHero ? 1 : 0)
+                    .scaleEffect(homeArrivalFlags.hasArrivedHero ? 1 : 0.94)
+                    .offset(y: homeArrivalFlags.hasArrivedHero ? 0 : 24)
 
                     HomeCountdownLockup(
                         show: show,
@@ -315,8 +364,8 @@ struct CurrentShowManagementSection: View {
                     )
                         .padding(.horizontal, 21)
                         .padding(.top, 20)
-                        .opacity(hasArrivedCountdown ? 1 : 0)
-                        .offset(y: hasArrivedCountdown ? 0 : 18)
+                        .opacity(homeArrivalFlags.hasArrivedCountdown ? 1 : 0)
+                        .offset(y: homeArrivalFlags.hasArrivedCountdown ? 0 : 18)
 
                     quickActionRow(
                         CurrentShowQuickAction.actions(
@@ -335,8 +384,8 @@ struct CurrentShowManagementSection: View {
                     )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 17)
-                        .opacity(hasArrivedActions ? 1 : 0)
-                        .offset(y: hasArrivedActions ? 0 : 12)
+                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
+                        .offset(y: homeArrivalFlags.hasArrivedActions ? 0 : 12)
 
                     if !followUpShows.isEmpty {
                         CurrentShowFollowUpSummary(
@@ -348,7 +397,7 @@ struct CurrentShowManagementSection: View {
                         )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
-                        .opacity(hasArrivedActions ? 1 : 0)
+                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                     } else if candidateShows.count > 1 {
                         CurrentShowLibraryEntryTile(
                             totalShowCount: candidateShows.count,
@@ -356,7 +405,7 @@ struct CurrentShowManagementSection: View {
                         )
                         .padding(.horizontal, contentInset)
                         .padding(.top, 25)
-                        .opacity(hasArrivedActions ? 1 : 0)
+                        .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                     }
                 }
                 .padding(.bottom, BSLayout.tabBarContentInset)
@@ -521,6 +570,25 @@ struct CurrentShowManagementSection: View {
             presentedSheet = .memory
         case .endShow:
             presentedSheet = .endConfirmation
+        }
+    }
+
+    private func presentedSheetDidDismiss() {
+        if presentedSheet != nil || pendingMemoryCreate != nil {
+            isPresentationVisibilityLatched = true
+            return
+        }
+        releasePresentationLatchIfPossible()
+    }
+
+    private func releasePresentationLatchIfPossible() {
+        Task { @MainActor in
+            await Task.yield()
+            guard !hasPresentationRequest else {
+                isPresentationVisibilityLatched = true
+                return
+            }
+            isPresentationVisibilityLatched = false
         }
     }
 

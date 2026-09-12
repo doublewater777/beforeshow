@@ -15,24 +15,9 @@ enum CurrentShowPlaybackPolicy {
     }
 }
 
-struct CurrentShowHomeArrival: Hashable {
-    enum Phase: Hashable {
-        case prepared
-        case animating
-    }
-
-    let showID: UUID
-    var phase: Phase
-}
-
-enum CurrentShowHomeArrivalPolicy {
-    static func shouldAnimate(newShowID: UUID, currentShowID: UUID?) -> Bool {
-        newShowID == currentShowID
-    }
-}
-
 struct CurrentShowHomeView: View {
     var isPlaybackActive = true
+    var isFeaturePresentationActive = false
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
     /// 仪式结束→现场回忆导航:子视图在 onCeremonySkipToMemory 写它,
     /// RootView 监听后切到 .footprints tab。FootprintsView 自己也监听同一 binding。
@@ -61,13 +46,45 @@ struct CurrentShowHomeView: View {
     @State private var isImportingDynamicCover = false
     @State private var dynamicCoverErrorMessage: String?
     @State private var isDetailVisible = false
-    @State private var homeArrival: CurrentShowHomeArrival?
+    @State private var isManagementPresentationActive = false
+    @State private var homeArrivalLifecycle = CurrentShowHomeArrivalLifecycle()
 
     private let session = CurrentShowSession()
     private let formatter = ShowDisplayFormatter()
 
     private var currentShow: Show? {
         session.selectCurrentShow(from: shows, manualSelection: selections.first)
+    }
+
+    private var homeArrival: CurrentShowHomeArrival? {
+        homeArrivalLifecycle.arrival
+    }
+
+    private var isHomePresentationActive: Bool {
+        #if DEBUG
+        let debugPresentationActive = isShowingAddShowReview || isShowingWidgetPreview
+        #else
+        let debugPresentationActive = false
+        #endif
+
+        return isDetailVisible
+            || isShowingSettings
+            || isShowingShowLibrary
+            || isShowingDynamicCoverPicker
+            || isImportingDynamicCover
+            || isShowingAddShowCoordinator
+            || dynamicCoverErrorMessage != nil
+            || debugPresentationActive
+    }
+
+    private var canStartHomeArrival: Bool {
+        CurrentShowHomeVisibilityPolicy.isVisible(
+            tabIsActive: isPlaybackActive,
+            sceneIsActive: scenePhase == .active,
+            featurePresentationActive: isFeaturePresentationActive,
+            homePresentationActive: isHomePresentationActive,
+            managementPresentationActive: isManagementPresentationActive
+        )
     }
 
     /// shows 的增删改 + 手动切换现场,都会改变这个指纹,从而触发 widget 同步。
@@ -97,15 +114,15 @@ struct CurrentShowHomeView: View {
                         show: show,
                         formatter: formatter,
                         isPlaybackActive: isPlaybackActive
-                            && !isDetailVisible
-                            && !isShowingSettings
-                            && !isShowingShowLibrary
-                            && !isImportingDynamicCover
-                            && !isShowingAddShowCoordinator,
+                            && !isFeaturePresentationActive
+                            && !isHomePresentationActive,
                         candidateShows: shows,
                         onDetailVisibilityChange: { isVisible in
                             isDetailVisible = isVisible
                             onDetailVisibilityChange(isVisible)
+                        },
+                        onPresentationVisibilityChange: { isVisible in
+                            isManagementPresentationActive = isVisible
                         },
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
@@ -116,8 +133,11 @@ struct CurrentShowHomeView: View {
                             confirmEnd(show, at: endDate)
                         },
                         homeArrival: homeArrival,
+                        onHomeArrivalPrepared: { showID in
+                            handleHomeArrivalPrepared(showID)
+                        },
                         onHomeArrivalFinished: {
-                            homeArrival = nil
+                            homeArrivalLifecycle.finish(showID: show.id)
                         },
                         ceremonyLightsOutShowID: $ceremonyLightsOutShowID,
                         ceremonySheetShowID: $ceremonySheetShowID,
@@ -169,12 +189,8 @@ struct CurrentShowHomeView: View {
             } message: {
                 Text(dynamicCoverErrorMessage ?? BSLocalization.text("请重试"))
             }
-            .sheet(isPresented: $isShowingAddShowCoordinator, onDismiss: {
-                beginPreparedHomeArrivalIfPossible()
-            }) {
-                AddShowCoordinatorSheet { showID in
-                    homeArrival = CurrentShowHomeArrival(showID: showID, phase: .prepared)
-                }
+            .sheet(isPresented: $isShowingAddShowCoordinator) {
+                AddShowCoordinatorSheet()
             }
             #if DEBUG
             .sheet(isPresented: $isShowingAddShowReview) {
@@ -192,6 +208,13 @@ struct CurrentShowHomeView: View {
             #endif
             .task(id: widgetSyncFingerprint) {
                 WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
+            }
+            .onChange(of: currentShow?.id, initial: true) { _, newShowID in
+                homeArrivalLifecycle.observeCurrentShow(newShowID)
+            }
+            .onChange(of: canStartHomeArrival, initial: true) { _, canStart in
+                guard canStart else { return }
+                beginPreparedHomeArrivalIfPossible()
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
@@ -295,16 +318,16 @@ struct CurrentShowHomeView: View {
         }
     }
 
+    private func handleHomeArrivalPrepared(_ showID: UUID) {
+        homeArrivalLifecycle.childDidPrepare(showID: showID)
+        beginPreparedHomeArrivalIfPossible()
+    }
+
     private func beginPreparedHomeArrivalIfPossible() {
-        guard let arrival = homeArrival, arrival.phase == .prepared else { return }
-        guard CurrentShowHomeArrivalPolicy.shouldAnimate(
-            newShowID: arrival.showID,
-            currentShowID: currentShow?.id
-        ) else {
-            homeArrival = nil
-            return
-        }
-        homeArrival = CurrentShowHomeArrival(showID: arrival.showID, phase: .animating)
+        _ = homeArrivalLifecycle.beginAnimationIfPossible(
+            currentShowID: currentShow?.id,
+            isVisible: canStartHomeArrival
+        )
     }
 
     private func commitCeremonyData(show: Show, rating: Int?, note: String?) async throws {
