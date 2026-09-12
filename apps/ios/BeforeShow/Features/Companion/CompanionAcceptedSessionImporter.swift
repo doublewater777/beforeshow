@@ -179,6 +179,13 @@ enum CompanionAcceptedSessionImporter {
         in modelContext: ModelContext,
         now: Date
     ) throws -> Bool {
+        // Production includes CurrentShowSelection in the app schema. Some lightweight
+        // recovery/unit-test containers intentionally model only Show; importing the Show
+        // should still succeed there instead of failing the accepted-share recovery.
+        guard modelContext.container.schema.entity(for: CurrentShowSelection.self) != nil else {
+            return false
+        }
+
         let store = CurrentShowSelectionStore(modelContext: modelContext)
         let selection = try store.canonicalSelection()
         let current = CurrentShowSession().selectCurrentShow(
