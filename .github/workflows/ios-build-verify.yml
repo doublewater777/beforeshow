@@ -7,6 +7,7 @@ on:
     paths:
       - "apps/ios/**"
       - "scripts/verify-pr.sh"
+      - "scripts/verify-pr-ci.sh"
       - ".github/workflows/ios-build-verify.yml"
   pull_request:
     branches:
@@ -14,6 +15,7 @@ on:
     paths:
       - "apps/ios/**"
       - "scripts/verify-pr.sh"
+      - "scripts/verify-pr-ci.sh"
       - ".github/workflows/ios-build-verify.yml"
 
 permissions:
@@ -27,9 +29,26 @@ concurrency:
 jobs:
   verify-pr:
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, xcode-26]
+    # PR verification needs a healthy CoreSimulator stack. The self-hosted Mac
+    # is also used interactively and has repeatedly accumulated unrecoverable
+    # CoreSimulatorService state, so run PR tests on a fresh hosted macOS VM.
+    # macos-26 currently ships Xcode 26.6 by default, matching the project CI.
+    runs-on: macos-26
     timeout-minutes: 45
+    env:
+      # Existing date/time fixtures were authored against the product's China
+      # locale baseline. Pin the hosted VM too so Calendar.current and simulator
+      # fallback calendars do not silently switch those fixtures to UTC.
+      TZ: Asia/Shanghai
     steps:
+      - name: Set deterministic timezone
+        run: |
+          sudo /usr/sbin/systemsetup -settimezone Asia/Shanghai
+          date '+Verifier timezone: %Z %z'
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
       - name: Prepare exact PR HEAD in fresh repo
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,12 +64,101 @@ jobs:
           git -C "$SRC" checkout --detach FETCH_HEAD
           echo "VERIFY_SOURCE=$SRC" >> "$GITHUB_ENV"
 
-      - name: Phase 1 PR verifier
+      - name: PR verifier
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
+          # GitHub invokes bash with -e. Disable it explicitly so a failed
+          # verifier can still print xcresult diagnostics before we return the
+          # original verifier status at the end of this step.
+          set +e
+          set -uo pipefail
           cd "$VERIFY_SOURCE"
-          scripts/verify-pr.sh "${{ github.event.pull_request.number }}" --no-comment
+
+          bash scripts/verify-pr-ci.sh "$PR_NUMBER" --no-comment
+          VERIFY_STATUS=$?
+
+          VERIFY_RESULT_DIR=""
+          for candidate in /tmp/beforeshow-verify/pr"${PR_NUMBER}"-*-${GITHUB_RUN_ID}/.verify; do
+            if [ -d "$candidate" ]; then
+              VERIFY_RESULT_DIR="$candidate"
+              break
+            fi
+          done
+
+          if [ "$VERIFY_STATUS" -ne 0 ] && [ -n "$VERIFY_RESULT_DIR" ]; then
+            shopt -s nullglob
+            XCRESULTS=("$VERIFY_RESULT_DIR"/*.xcresult)
+
+            if [ "${#XCRESULTS[@]}" -eq 0 ]; then
+              echo "No xcresult bundles found under $VERIFY_RESULT_DIR"
+            fi
+
+            for bundle in "${XCRESULTS[@]}"; do
+              name=$(basename "$bundle")
+              summary_json="$RUNNER_TEMP/${name}.summary.json"
+              echo "::group::xcresult failure summary: $name"
+
+              if xcrun xcresulttool get test-results summary \
+                  --path "$bundle" --compact > "$summary_json"; then
+                python3 - "$summary_json" <<'PY' || true
+          import json
+          import sys
+
+          path = sys.argv[1]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
+
+          print(
+              "result={result} total={total} passed={passed} failed={failed} skipped={skipped}".format(
+                  result=data.get("result", "unknown"),
+                  total=data.get("totalTestCount", "unknown"),
+                  passed=data.get("passedTests", "unknown"),
+                  failed=data.get("failedTests", "unknown"),
+                  skipped=data.get("skippedTests", "unknown"),
+              )
+          )
+
+          failures = data.get("testFailures") or []
+          if not failures:
+              print("No testFailures entries were present in the xcresult summary.")
+
+          for index, failure in enumerate(failures, 1):
+              identifier = (
+                  failure.get("testIdentifierString")
+                  or failure.get("testName")
+                  or "unknown test"
+              )
+              target = failure.get("targetName") or "unknown target"
+              text = (failure.get("failureText") or "no failure text").replace("\r\n", "\n")
+              print(f"\n[{index}] {identifier}")
+              print(f"target: {target}")
+              print("failure:")
+              for line in text.splitlines() or [text]:
+                  print(f"  {line}")
+          PY
+              else
+                echo "xcresulttool could not read $bundle"
+              fi
+
+              echo "::endgroup::"
+            done
+          fi
+
+          exit "$VERIFY_STATUS"
+
+      - name: Upload verifier diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-pr-diagnostics-${{ github.run_id }}
+          path: |
+            /tmp/beforeshow-verify/pr${{ github.event.pull_request.number }}-*-${{ github.run_id }}/.verify/*.xcresult
+            /tmp/beforeshow-verify/pr${{ github.event.pull_request.number }}-*-${{ github.run_id }}/.verify/*.log
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
 
   verify-main:
     if: github.event_name == 'push'
