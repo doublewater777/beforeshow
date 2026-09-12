@@ -158,14 +158,19 @@ if ! boot_warmed_simulator; then
 fi
 
 # verify-pr.sh remains the local verifier. Patch a temporary CI-only copy to pin
-# all xcodebuild test destinations to the exact warmed simulator UDID and enforce
-# hard process-group timeouts. The repository's local verifier behavior is not
-# changed.
+# all xcodebuild test destinations to the exact warmed simulator UDID, enforce
+# hard process-group timeouts, and retry Phase 1 once only for known simulator /
+# test-runner transport failures. The repository's local verifier behavior is
+# not changed.
 {
   head -n 1 scripts/verify-pr.sh
   cat <<'PREAMBLE'
 
 VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS="${XCODEBUILD_TEST_TIMEOUT_SECONDS:-720}"
+CI_SIM_UDID="${CI_SIM_UDID:-}"
+# Preserve the runner's original stderr so retry/diagnostic messages remain
+# visible even while verify-pr.sh redirects xcodebuild output to its phase log.
+exec 3>&2
 
 ci_run_with_timeout() {
   local seconds="$1"
@@ -207,8 +212,179 @@ sys.exit(return_code)
 PY
 }
 
+ci_wait_for_simctl() {
+  local attempt
+  for attempt in 1 2 3 4 5 6; do
+    if ci_run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
+      return 0
+    fi
+    echo "Phase 1 recovery: CoreSimulatorService not ready ($attempt/6)." >&3
+    sleep 4
+  done
+  return 1
+}
+
+ci_recover_test_simulator() {
+  local attempt
+
+  if [ -z "$CI_SIM_UDID" ]; then
+    echo "Phase 1 recovery: CI_SIM_UDID is empty." >&3
+    return 1
+  fi
+
+  for attempt in 1 2; do
+    # Escalate to a service restart only when simctl itself is unavailable.
+    if ! ci_run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
+      echo "Phase 1 recovery: simctl is unavailable; restarting CoreSimulatorService." >&3
+      killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+      launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
+        >/dev/null 2>&1 || true
+      if ! ci_wait_for_simctl; then
+        continue
+      fi
+    fi
+
+    ci_run_with_timeout 30 xcrun simctl shutdown "$CI_SIM_UDID" >/dev/null 2>&1 || true
+    if ci_run_with_timeout 60 xcrun simctl boot "$CI_SIM_UDID" >/dev/null 2>&1 \
+      && ci_run_with_timeout 180 xcrun simctl bootstatus "$CI_SIM_UDID" -b >/dev/null 2>&1; then
+      echo "Phase 1 recovery: simulator is ready for retry." >&3
+      return 0
+    fi
+
+    echo "Phase 1 recovery: simulator boot attempt $attempt/2 failed." >&3
+  done
+
+  return 1
+}
+
+ci_collect_simulator_diagnostics() {
+  local label="$1"
+  echo "==> Phase 1 simulator diagnostics ($label)" >&3
+
+  if [ -n "$CI_SIM_UDID" ]; then
+    ci_run_with_timeout 30 xcrun simctl spawn "$CI_SIM_UDID" log show \
+      --style compact --last 8m \
+      --predicate '(process == "BeforeShow") OR (process == "xctest") OR (process == "testmanagerd") OR (process == "CoreSimulatorBridge")' \
+      2>/dev/null | tail -200 >&3 || true
+  fi
+
+  python3 - "$CI_SIM_UDID" <<'PY' >&3 2>&1 || true
+import os
+import sys
+import time
+from pathlib import Path
+
+udid = sys.argv[1] if len(sys.argv) > 1 else ""
+home = Path.home()
+roots = [
+    home / "Library/Logs/DiagnosticReports",
+]
+if udid:
+    roots.extend([
+        home / "Library/Developer/CoreSimulator/Devices" / udid / "data/Library/Logs/CrashReporter",
+        home / "Library/Developer/CoreSimulator/Devices" / udid / "data/Library/Logs/DiagnosticReports",
+    ])
+
+needles = ("beforeshow", "xctest", "testmanager", "coresimulator")
+cutoff = time.time() - 15 * 60
+candidates = []
+for root in roots:
+    if not root.exists():
+        continue
+    try:
+        entries = list(root.iterdir())
+    except OSError:
+        continue
+    for path in entries:
+        try:
+            if not path.is_file() or path.stat().st_mtime < cutoff:
+                continue
+        except OSError:
+            continue
+        if any(needle in path.name.lower() for needle in needles):
+            candidates.append(path)
+
+candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+if not candidates:
+    print("No recent matching crash reports found.")
+else:
+    for path in candidates[:4]:
+        print(f"--- crash report: {path} ---")
+        try:
+            text = path.read_text(errors="replace")
+        except OSError as exc:
+            print(f"unable to read: {exc}")
+            continue
+        lines = text.splitlines()
+        for line in lines[-140:]:
+            print(line)
+PY
+}
+
+ci_phase1_failure_is_retryable() {
+  local result_bundle="$1"
+  local phase_log="${result_bundle%phase1-tests.xcresult}phase1-test.log"
+
+  [ -f "$phase_log" ] || return 1
+  grep -Eqi \
+    'Failed to establish communication with the test runner|Channel disconnected|CoreSimulatorService connection interrupted|Logging connection interrupted|Early unexpected exit|Mach error|server died' \
+    "$phase_log"
+}
+
 ci_xcodebuild() {
-  ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" xcodebuild "$@"
+  local result_bundle=""
+  local previous=""
+  local arg
+  local first_status
+  local retry_status
+
+  for arg in "$@"; do
+    if [ "$previous" = "-resultBundlePath" ]; then
+      result_bundle="$arg"
+    fi
+    previous="$arg"
+  done
+
+  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" xcodebuild "$@"; then
+    return 0
+  else
+    first_status=$?
+  fi
+
+  # Only Phase 1 transport/infrastructure failures get one retry. Assertion or
+  # ordinary test failures remain final on the first attempt.
+  case "$result_bundle" in
+    *phase1-tests.xcresult)
+      if ! ci_phase1_failure_is_retryable "$result_bundle"; then
+        return "$first_status"
+      fi
+      ;;
+    *)
+      return "$first_status"
+      ;;
+  esac
+
+  echo "==> Phase 1 hit a transient simulator/test-runner failure; retrying once." >&3
+  ci_collect_simulator_diagnostics "after first failure"
+
+  if ! ci_recover_test_simulator; then
+    echo "Phase 1 retry skipped: simulator recovery failed." >&3
+    return "$first_status"
+  fi
+
+  # xcodebuild refuses to reuse an existing result bundle path.
+  rm -rf "$result_bundle"
+  echo "==> Phase 1 retry starting on recovered simulator $CI_SIM_UDID." >&3
+
+  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" xcodebuild "$@"; then
+    echo "==> Phase 1 retry passed." >&3
+    return 0
+  else
+    retry_status=$?
+  fi
+
+  ci_collect_simulator_diagnostics "after retry failure"
+  return "$retry_status"
 }
 PREAMBLE
   tail -n +2 scripts/verify-pr.sh \
@@ -233,5 +409,6 @@ if [ "$PATCHED_DESTINATION_COUNT" -ne 6 ]; then
 fi
 
 exec_status=0
-XCODEBUILD_TEST_TIMEOUT_SECONDS="$XCODEBUILD_TEST_TIMEOUT_SECONDS" "$TEMP_VERIFY" "$@" || exec_status=$?
+CI_SIM_UDID="$SIM_UDID" XCODEBUILD_TEST_TIMEOUT_SECONDS="$XCODEBUILD_TEST_TIMEOUT_SECONDS" \
+  "$TEMP_VERIFY" "$@" || exec_status=$?
 exit "$exec_status"
