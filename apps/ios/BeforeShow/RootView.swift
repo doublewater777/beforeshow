@@ -24,6 +24,16 @@ struct RootView: View {
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
+    private var companionResultMessage: String? {
+        if let accepted = companionCoordinator.pendingAcceptMessage {
+            return accepted
+        }
+        if companionCoordinator.lastErrorKind == .statusSyncPending {
+            return companionCoordinator.lastErrorMessage
+        }
+        return nil
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -50,6 +60,23 @@ struct RootView: View {
         .statusBarHidden(!hasFinishedSplash)
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
+        }
+        .alert(
+            BSLocalization.text("同行"),
+            isPresented: Binding(
+                get: { companionResultMessage != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        dismissCompanionResultMessage()
+                    }
+                }
+            )
+        ) {
+            Button(BSLocalization.text("知道了"), role: .cancel) {
+                dismissCompanionResultMessage()
+            }
+        } message: {
+            Text(companionResultMessage ?? "")
         }
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
@@ -84,6 +111,13 @@ struct RootView: View {
             }
         }
         #endif
+    }
+
+    private func dismissCompanionResultMessage() {
+        _ = companionCoordinator.consumePendingAcceptMessage()
+        if companionCoordinator.lastErrorKind == .statusSyncPending {
+            _ = companionCoordinator.consumeLastErrorMessage()
+        }
     }
 
     private func persistedShowExists() -> Bool {
