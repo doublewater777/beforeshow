@@ -53,25 +53,60 @@ PY
 }
 
 wait_for_simctl() {
+  local attempts="${1:-8}"
+  local probe_timeout="${2:-15}"
+  local delay="${3:-5}"
   local attempt
-  for attempt in 1 2 3 4 5 6 7 8; do
-    if run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
+
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    if run_with_timeout "$probe_timeout" xcrun simctl list devices >/dev/null 2>&1; then
       return 0
     fi
-    echo "CoreSimulatorService not ready (attempt $attempt/8)." >&2
-    sleep 5
+    echo "CoreSimulatorService not ready (attempt $attempt/$attempts)." >&2
+    sleep "$delay"
   done
   return 1
 }
 
-recover_core_simulator_service() {
-  echo "==> Recovering CoreSimulatorService" >&2
-  killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-  # On an interactive self-hosted runner the service is a per-user launch agent.
-  # kickstart is best-effort; simctl itself will also request the service.
+wake_simulator_app() {
+  # Simulator.app is a useful bootstrap path for the per-user CoreSimulator XPC
+  # stack on a self-hosted interactive Mac. -g keeps it in the background.
+  open -gj -a Simulator >/dev/null 2>&1 || true
+}
+
+hard_reset_core_simulator_processes() {
+  echo "==> Hard-resetting stale simulator processes" >&2
+  killall -9 SimulatorTrampoline >/dev/null 2>&1 || true
+  killall -9 CoreSimulatorBridge >/dev/null 2>&1 || true
+  killall -9 launchd_sim >/dev/null 2>&1 || true
+  killall -9 Simulator >/dev/null 2>&1 || true
+  sudo -n killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 \
+    || killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 \
+    || true
+
+  # The service location varies across macOS/Xcode combinations. Try both user
+  # launchctl domains, then let Simulator.app/simctl lazily bootstrap it too.
   launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
     >/dev/null 2>&1 || true
-  wait_for_simctl
+  launchctl kickstart -k "user/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
+    >/dev/null 2>&1 || true
+  wake_simulator_app
+}
+
+recover_core_simulator_service() {
+  echo "==> Recovering CoreSimulatorService" >&2
+
+  # Do not hard-kill immediately. The service can be temporarily unavailable
+  # while the user-session simulator stack is relaunching; opening Simulator is
+  # less destructive and often enough to reconnect simctl.
+  wake_simulator_app
+  if wait_for_simctl 3 20 4; then
+    return 0
+  fi
+
+  echo "Graceful CoreSimulator wake did not recover simctl; escalating." >&2
+  hard_reset_core_simulator_processes
+  wait_for_simctl 8 15 5
 }
 
 cleanup() {
@@ -82,9 +117,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Do not kill CoreSimulatorService unconditionally: doing so while a newly
-# created device is migrating can make simctl itself disappear for minutes.
-# First verify that simctl is healthy, and recover the service only if needed.
+# Do not kill CoreSimulatorService unconditionally: doing so while a device is
+# migrating/restarting can make simctl itself disappear for minutes. First probe
+# it, then use graceful wake-up before escalating to process cleanup.
 echo "==> Preparing warmed simulator for CI verification"
 if ! run_with_timeout 20 xcrun simctl list devices >/dev/null 2>&1; then
   if ! recover_core_simulator_service; then
@@ -213,15 +248,48 @@ PY
 }
 
 ci_wait_for_simctl() {
+  local attempts="${1:-6}"
+  local probe_timeout="${2:-15}"
+  local delay="${3:-4}"
   local attempt
-  for attempt in 1 2 3 4 5 6; do
-    if ci_run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
+
+  for ((attempt=1; attempt<=attempts; attempt++)); do
+    if ci_run_with_timeout "$probe_timeout" xcrun simctl list devices >/dev/null 2>&1; then
       return 0
     fi
-    echo "Phase 1 recovery: CoreSimulatorService not ready ($attempt/6)." >&3
-    sleep 4
+    echo "Phase 1 recovery: CoreSimulatorService not ready ($attempt/$attempts)." >&3
+    sleep "$delay"
   done
   return 1
+}
+
+ci_wake_simulator_app() {
+  open -gj -a Simulator >/dev/null 2>&1 || true
+}
+
+ci_hard_reset_core_simulator_processes() {
+  echo "Phase 1 recovery: hard-resetting stale simulator processes." >&3
+  killall -9 SimulatorTrampoline >/dev/null 2>&1 || true
+  killall -9 CoreSimulatorBridge >/dev/null 2>&1 || true
+  killall -9 launchd_sim >/dev/null 2>&1 || true
+  killall -9 Simulator >/dev/null 2>&1 || true
+  sudo -n killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 \
+    || killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 \
+    || true
+  launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
+    >/dev/null 2>&1 || true
+  launchctl kickstart -k "user/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
+    >/dev/null 2>&1 || true
+  ci_wake_simulator_app
+}
+
+ci_recover_core_simulator_service() {
+  ci_wake_simulator_app
+  if ci_wait_for_simctl 3 20 4; then
+    return 0
+  fi
+  ci_hard_reset_core_simulator_processes
+  ci_wait_for_simctl 8 15 5
 }
 
 ci_recover_test_simulator() {
@@ -233,13 +301,10 @@ ci_recover_test_simulator() {
   fi
 
   for attempt in 1 2; do
-    # Escalate to a service restart only when simctl itself is unavailable.
+    # Escalate to service recovery only when simctl itself is unavailable.
     if ! ci_run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
-      echo "Phase 1 recovery: simctl is unavailable; restarting CoreSimulatorService." >&3
-      killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-      launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
-        >/dev/null 2>&1 || true
-      if ! ci_wait_for_simctl; then
+      echo "Phase 1 recovery: simctl is unavailable; recovering CoreSimulatorService." >&3
+      if ! ci_recover_core_simulator_service; then
         continue
       fi
     fi
@@ -269,16 +334,13 @@ ci_collect_simulator_diagnostics() {
   fi
 
   python3 - "$CI_SIM_UDID" <<'PY' >&3 2>&1 || true
-import os
 import sys
 import time
 from pathlib import Path
 
 udid = sys.argv[1] if len(sys.argv) > 1 else ""
 home = Path.home()
-roots = [
-    home / "Library/Logs/DiagnosticReports",
-]
+roots = [home / "Library/Logs/DiagnosticReports"]
 if udid:
     roots.extend([
         home / "Library/Developer/CoreSimulator/Devices" / udid / "data/Library/Logs/CrashReporter",
@@ -315,8 +377,7 @@ else:
         except OSError as exc:
             print(f"unable to read: {exc}")
             continue
-        lines = text.splitlines()
-        for line in lines[-140:]:
+        for line in text.splitlines()[-140:]:
             print(line)
 PY
 }
