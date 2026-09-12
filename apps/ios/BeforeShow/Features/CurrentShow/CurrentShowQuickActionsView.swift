@@ -77,7 +77,7 @@ struct CurrentShowQuickActionTile: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(BSColor.Stage.accent)
             }
-            Text(action.title)
+            Text(companion?.title ?? action.title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(1)
