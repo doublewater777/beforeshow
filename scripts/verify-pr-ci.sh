@@ -53,8 +53,11 @@ fi
 
 SIM_UDID=$(xcrun simctl create "$SIM_NAME" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
 echo "==> Created dedicated simulator: $SIM_NAME ($SIM_UDID)"
-xcrun simctl boot "$SIM_UDID"
-xcrun simctl bootstatus "$SIM_UDID" -b >/dev/null
+
+# Do not pre-boot the device with simctl. On the self-hosted runner a wedged
+# CoreSimulator bootstatus can block before tests even start. xcodebuild owns
+# simulator booting for the test destination and is already responsible for
+# waiting until the destination is usable.
 
 # verify-pr.sh currently selects the simulator by name. Patch only the temporary
 # executable copy so the source script stays unchanged and all existing local
