@@ -64,7 +64,11 @@ struct RootView: View {
         .alert(
             BSLocalization.text("同行"),
             isPresented: Binding(
-                get: { companionResultMessage != nil },
+                get: {
+                    hasFinishedSplash
+                        && hasResolvedOnboardingRoute
+                        && companionResultMessage != nil
+                },
                 set: { isPresented in
                     if !isPresented {
                         dismissCompanionResultMessage()
@@ -84,12 +88,12 @@ struct RootView: View {
         }
         .task {
             // A CloudKit share can cold-launch the app before AppDelegate dependencies are
-            // wired. Drain the durable acceptance inbox on the main app context before
-            // deciding whether this is a brand-new user who needs onboarding. Otherwise
-            // the imported Show can arrive one beat later while the UI stays locked in the
-            // onboarding route for the rest of this launch.
+            // wired. Only a real pending acceptance should block onboarding resolution;
+            // ordinary launches must not wait for a CloudKit discovery round-trip.
             companionCoordinator.reloadPersistedAcceptedShares()
-            await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+            if companionCoordinator.hasPendingAcceptedShares {
+                await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+            }
             resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
             if notificationRouter.featureRootDeepLink != nil {
                 selectedTab = .current
