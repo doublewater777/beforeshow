@@ -39,6 +39,66 @@ import SwiftData
         XCTAssertTrue(result.isEmpty)
     }
 
+    func testArtistSearchPrefersMusicKitCatalogForLongTailChineseArtist() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { query, _ in
+                [RecognizedArtist(
+                    id: "1766242527",
+                    canonicalName: query,
+                    avatarURL: nil,
+                    appleMusicURL: URL(string: "https://music.apple.com/cn/artist/1766242527")
+                )]
+            },
+            fallbackSearch: { _, _ in
+                throw ArtistSearchPolicyTestError.unexpectedFallback
+            }
+        )
+
+        let results = try await service.searchArtists(query: "姜思达")
+        XCTAssertEqual(results.map(\.id), ["1766242527"])
+        XCTAssertEqual(results.map(\.canonicalName), ["姜思达"])
+    }
+
+    func testArtistSearchFallsBackWhenCatalogReturnsNoResults() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _ in [] },
+            fallbackSearch: { query, _ in
+                [RecognizedArtist(id: "legacy", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+            }
+        )
+
+        let results = try await service.searchArtists(query: "Long Tail Artist")
+        XCTAssertEqual(results.map(\.id), ["legacy"])
+    }
+
+    func testArtistSearchFallsBackWhenCatalogFails() async throws {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
+            fallbackSearch: { query, _ in
+                [RecognizedArtist(id: "fallback", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+            }
+        )
+
+        let results = try await service.searchArtists(query: "Artist")
+        XCTAssertEqual(results.map(\.id), ["fallback"])
+    }
+
+    func testArtistSearchSurfacesFallbackFailureInsteadOfPretendingNoResults() async {
+        let service = AppleMusicArtistSearchService(
+            catalogSearch: { _, _ in throw ArtistSearchPolicyTestError.catalogUnavailable },
+            fallbackSearch: { _, _ in throw ArtistSearchError.rateLimited }
+        )
+
+        do {
+            _ = try await service.searchArtists(query: "Artist")
+            XCTFail("Expected search failure")
+        } catch let error as ArtistSearchError {
+            XCTAssertEqual(error, .rateLimited)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     func testLoadingAutomaticallyConnectsArtistsAndBuildsSeparateShelves() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .multiFull)
         let context = fixture.container.mainContext
@@ -109,6 +169,11 @@ import SwiftData
     private func candidate(_ id: String, _ name: String) -> RecognizedArtist {
         RecognizedArtist(id: id, canonicalName: name, avatarURL: nil, appleMusicURL: nil)
     }
+}
+
+private enum ArtistSearchPolicyTestError: Error {
+    case catalogUnavailable
+    case unexpectedFallback
 }
 
 private actor AutoMatchSearchStub: ArtistSearchServicing {
