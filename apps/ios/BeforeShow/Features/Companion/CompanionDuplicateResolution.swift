@@ -89,9 +89,14 @@ enum CompanionDuplicateMerger {
         // If the temporary imported copy became Current because there was no previous
         // selection, keep Current pointing at the surviving local Show after the merge.
         let selectionStore = CurrentShowSelectionStore(modelContext: modelContext)
-        if let selection = try? selectionStore.canonicalSelection(),
-           selection?.selectedShowID == imported.id {
-            _ = try? selectionStore.select(showID: target.id)
+        do {
+            if let selection = try selectionStore.canonicalSelection(),
+               selection.selectedShowID == imported.id {
+                _ = try selectionStore.select(showID: target.id)
+            }
+        } catch {
+            // The companion relationship is more important than this optional selection
+            // repair. Lightweight model containers may not include CurrentShowSelection.
         }
 
         modelContext.delete(imported)
