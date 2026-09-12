@@ -148,15 +148,15 @@ struct ListeningRoomView: View {
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
                             .frame(maxWidth: .infinity)
-                            .background {
-                                ListeningAtmosphere(
-                                    disc: room.mechanism.position == .seated ? room.mechanism.disc : nil,
-                                    isPlaying: room.isPlaying
-                                )
-                            }
-                            .padding(.top, -geometry.viewportTop * scale)
+                           .background {
+                               ListeningAtmosphere(
+                                   disc: room.mechanism.position == .seated ? room.mechanism.disc : nil,
+                                   isPlaying: room.isPlaying
+                               )
+                           }
+                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
 
-                        ListeningCurrentSong(room: room)
+                       ListeningCurrentSong(room: room)
 
                         if !room.libraryDiscs.isEmpty,
                            room.display.recoveryAction != nil || room.isAuthorizing {

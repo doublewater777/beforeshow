@@ -29,12 +29,12 @@ struct ListeningPreparingView: View {
                         .listeningFrame("cabinet")
                         let geometry = CDPlayerConfiguration.standard.geometry
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
-                        ListeningPreparingMachineView(scale: scale)
-                            .listeningFrame("stage")
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, -geometry.viewportTop * scale)
-                    }
-                    .coordinateSpace(name: "listeningContent")
+                       ListeningPreparingMachineView(scale: scale)
+                           .listeningFrame("stage")
+                           .frame(maxWidth: .infinity)
+                            .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
+                   }
+                   .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSLayout.tabBarContentInset)

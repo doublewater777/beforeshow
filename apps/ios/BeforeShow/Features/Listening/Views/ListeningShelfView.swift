@@ -9,13 +9,12 @@ struct ListeningShelfView<Content: View>: View {
     var showAll: () -> Void = {}
     @ViewBuilder let content: Content
 
-    private let contentHeight = BSListeningTokens.shelfContentHeight
-    private var fixedHeight: CGFloat {
-        BSLayout.minTouchTarget
-            + BSSpacing.xs / 2
-            + BSSpacing.sm
-            + contentHeight
-    }
+   private let contentHeight = BSListeningTokens.shelfContentHeight
+   private var fixedHeight: CGFloat {
+       BSLayout.minTouchTarget
+           + BSSpacing.sm
+           + contentHeight
+   }
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
@@ -52,13 +51,12 @@ struct ListeningShelfView<Content: View>: View {
                 .opacity(showsAllDiscs ? 1 : 0)
                 .disabled(!showsAllDiscs)
                 .accessibilityHidden(!showsAllDiscs)
-                .accessibilityIdentifier("listening.allDiscs")
-            }
-            .frame(height: BSLayout.minTouchTarget)
-            .padding(.top, BSSpacing.xs / 2)
+               .accessibilityIdentifier("listening.allDiscs")
+           }
+           .frame(height: BSLayout.minTouchTarget)
 
-            content
-                .frame(maxWidth: .infinity)
+           content
+               .frame(maxWidth: .infinity)
                 .frame(height: contentHeight, alignment: .bottom)
         }
         .frame(height: fixedHeight, alignment: .top)

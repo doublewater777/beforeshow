@@ -19,7 +19,7 @@ options:
   xcodeVersion: "26.0"
 settings:
   base:
-    CURRENT_PROJECT_VERSION: 4
+    CURRENT_PROJECT_VERSION: 16
     MARKETING_VERSION: 1.0
     SWIFT_VERSION: 6.0
     DEVELOPMENT_LANGUAGE: zh-Hans
