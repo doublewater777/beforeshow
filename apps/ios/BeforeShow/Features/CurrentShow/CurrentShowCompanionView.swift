@@ -33,11 +33,15 @@ enum CompanionHomeMessagePolicy {
 }
 
 struct CompanionQuickActionPresentation: Equatable {
+    /// Legacy semantic title retained for existing presentation tests/callers.
     let title: String
+    /// Product-facing title used by the quick-action tile.
+    let displayTitle: String
     let accessibilityLabel: String
     let companionName: String?
     let companionNames: [String]
     let showsPendingIndicator: Bool
+    let displayShowsPendingIndicator: Bool
     let showsAvatars: Bool
 
     init(status: ShowCompanionStatus, companionName: String?, isEnded: Bool) {
@@ -48,29 +52,50 @@ struct CompanionQuickActionPresentation: Equatable {
         )
     }
 
-    init(status: ShowCompanionStatus, companionNames: [String], isEnded _: Bool) {
+    init(status: ShowCompanionStatus, companionNames: [String], isEnded: Bool) {
         let names = CompanionNameList.normalized(companionNames)
         let joined = CompanionNameList.joined(names)
         self.companionNames = names
         self.companionName = joined
 
         switch status {
-        case .none, .pending, .canceled:
-            title = BSLocalization.text("添加同行")
-            accessibilityLabel = BSLocalization.text("添加同行")
+        case .none:
+            title = BSLocalization.text("同行")
+            displayTitle = BSLocalization.text("添加同行")
+            accessibilityLabel = BSLocalization.text("同行，邀请朋友")
             showsPendingIndicator = false
+            displayShowsPendingIndicator = false
+            showsAvatars = false
+        case .pending:
+            title = BSLocalization.text("待确认")
+            displayTitle = BSLocalization.text("添加同行")
+            accessibilityLabel = joined.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
+            showsPendingIndicator = true
+            displayShowsPendingIndicator = false
             showsAvatars = false
         case .confirmed:
+            let displayName = joined ?? BSLocalization.text("同行者")
+            title = isEnded ? BSLocalization.text("共同足迹") : BSLocalization.format("与%@", displayName)
             if names.count == 1, let name = names.first {
-                title = BSLocalization.format("与%@同行", name)
+                displayTitle = BSLocalization.format("与%@同行", name)
             } else if names.count > 1 {
-                title = BSLocalization.format("%lld 人同行", Int64(names.count + 1))
+                displayTitle = BSLocalization.format("%lld 人同行", Int64(names.count + 1))
             } else {
-                title = BSLocalization.text("同行")
+                displayTitle = BSLocalization.text("同行")
             }
-            accessibilityLabel = title
+            accessibilityLabel = isEnded
+                ? (joined.map { BSLocalization.format("同行，与%@的共同足迹", $0) } ?? BSLocalization.text("同行，共同足迹"))
+                : BSLocalization.format("同行，与%@已确认", displayName)
             showsPendingIndicator = false
-            showsAvatars = !names.isEmpty
+            displayShowsPendingIndicator = false
+            showsAvatars = true
+        case .canceled:
+            title = BSLocalization.text("重新邀请")
+            displayTitle = BSLocalization.text("添加同行")
+            accessibilityLabel = joined.map { BSLocalization.format("同行，重新邀请%@", $0) } ?? BSLocalization.text("同行，重新邀请")
+            showsPendingIndicator = false
+            displayShowsPendingIndicator = false
+            showsAvatars = false
         }
     }
 }
