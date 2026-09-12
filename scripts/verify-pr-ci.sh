@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # CI wrapper for verify-pr.sh.
-# Resets CoreSimulator on the self-hosted runner, reuses one dedicated warmed
-# simulator, and adds hard timeouts around simulator/test operations so a dead
-# CoreSimulatorService cannot wedge the runner for the entire job timeout.
+# On the self-hosted Mac, keep simulator state deterministic without forcing a
+# fresh device through first-boot migrations on every PR. Reuse the already
+# warmed iPhone 17, shut down competing simulators, and put hard timeouts around
+# simulator/test operations so CoreSimulator failures cannot wedge the runner.
 set -euo pipefail
 
-BASE_SIM_NAME="iPhone 17"
-SIM_NAME="BeforeShow Verify"
+SIM_NAME="iPhone 17"
 RUN_SCOPE="${GITHUB_RUN_ID:-local-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-verify}"
 TEMP_VERIFY="${RUNNER_TEMP:-/tmp}/verify-pr-${RUN_SCOPE}.sh"
 SIM_UDID=""
@@ -52,145 +52,115 @@ sys.exit(return_code)
 PY
 }
 
-restart_core_simulator_service() {
+wait_for_simctl() {
+  local attempt
+  for attempt in 1 2 3 4 5 6 7 8; do
+    if run_with_timeout 15 xcrun simctl list devices >/dev/null 2>&1; then
+      return 0
+    fi
+    echo "CoreSimulatorService not ready (attempt $attempt/8)." >&2
+    sleep 5
+  done
+  return 1
+}
+
+recover_core_simulator_service() {
+  echo "==> Recovering CoreSimulatorService" >&2
   killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-  sleep 2
-  run_with_timeout 30 xcrun simctl list devices >/dev/null
+  # On an interactive self-hosted runner the service is a per-user launch agent.
+  # kickstart is best-effort; simctl itself will also request the service.
+  launchctl kickstart -k "gui/$(id -u)/com.apple.CoreSimulator.CoreSimulatorService" \
+    >/dev/null 2>&1 || true
+  wait_for_simctl
 }
 
 cleanup() {
   rm -f "$TEMP_VERIFY"
   if [ -n "$SIM_UDID" ]; then
-    # Keep the CI-owned device around so its one-time data migrations remain
-    # warmed for the next run. Only shut it down between jobs.
     run_with_timeout 30 xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
 
-echo "==> Resetting CoreSimulatorService before CI verification"
-# The self-hosted Mac is also used interactively. Multiple booted simulators can
-# leave CoreSimulatorService in a state where test launch hangs with Mach -308.
-# Restart the service, then shut down every registered simulator. We preserve all
-# non-CI simulator data and only delete obsolete run-scoped CI devices.
-if ! restart_core_simulator_service; then
-  echo "CoreSimulatorService did not recover after restart." >&2
-  exit 2
-fi
-run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1 || true
-
-STALE_UDIDS=$(
-  xcrun simctl list devices -j | python3 -c '
-import json, sys
-for runtime in json.load(sys.stdin).get("devices", {}).values():
-    for device in runtime:
-        name = device.get("name", "")
-        if name.startswith("BeforeShow Verify "):
-            print(device.get("udid", ""))
-'
-)
-if [ -n "$STALE_UDIDS" ]; then
-  while IFS= read -r stale_udid; do
-    [ -n "$stale_udid" ] || continue
-    run_with_timeout 30 xcrun simctl shutdown "$stale_udid" >/dev/null 2>&1 || true
-    run_with_timeout 30 xcrun simctl delete "$stale_udid" >/dev/null 2>&1 || true
-  done <<< "$STALE_UDIDS"
+# Do not kill CoreSimulatorService unconditionally: doing so while a newly
+# created device is migrating can make simctl itself disappear for minutes.
+# First verify that simctl is healthy, and recover the service only if needed.
+echo "==> Preparing warmed simulator for CI verification"
+if ! run_with_timeout 20 xcrun simctl list devices >/dev/null 2>&1; then
+  if ! recover_core_simulator_service; then
+    echo "CoreSimulatorService did not recover." >&2
+    exit 2
+  fi
 fi
 
-DEVICE_TYPE_ID=$(
-  xcrun simctl list devicetypes -j | python3 -c '
-import json, sys
-for device_type in json.load(sys.stdin).get("devicetypes", []):
-    if device_type.get("name") == "iPhone 17":
-        print(device_type["identifier"])
-        break
-'
-)
-
-# Prefer the runtime already used by the machine's normal iPhone 17 simulator,
-# rather than blindly selecting the newest installed runtime.
-BASE_RUNTIME_ID=$(
-  xcrun simctl list devices -j | python3 -c '
-import json, sys
-data = json.load(sys.stdin)
-for runtime_id, devices in data.get("devices", {}).items():
-    for device in devices:
-        if device.get("name") == "iPhone 17" and device.get("isAvailable", True):
-            print(runtime_id)
-            raise SystemExit
-'
-)
-
-if [ -n "$BASE_RUNTIME_ID" ]; then
-  RUNTIME_ID="$BASE_RUNTIME_ID"
-else
-  RUNTIME_ID=$(
-    xcrun simctl list runtimes -j | python3 -c '
-import json, re, sys
-runtimes = [
-    runtime for runtime in json.load(sys.stdin).get("runtimes", [])
-    if runtime.get("isAvailable")
-    and ".SimRuntime.iOS-" in runtime.get("identifier", "")
-]
-def version(runtime):
-    value = runtime.get("version", "0")
-    return tuple(int(part) for part in re.findall(r"\d+", value))
-runtimes.sort(key=version)
-if runtimes:
-    print(runtimes[-1]["identifier"])
-'
-  )
+# The runner is also used interactively. Never allow another booted simulator
+# (for example Listening QA) to compete with the verifier for CoreSimulator.
+if ! run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1; then
+  if ! recover_core_simulator_service; then
+    echo "Unable to recover CoreSimulatorService after shutdown-all failure." >&2
+    exit 2
+  fi
+  run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1 || true
 fi
 
-if [ -z "$DEVICE_TYPE_ID" ] || [ -z "$RUNTIME_ID" ]; then
-  echo "Unable to resolve an available iPhone 17 device type/runtime." >&2
-  exit 2
-fi
-
+SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available) || {
+  if ! recover_core_simulator_service; then
+    echo "Unable to list available simulators." >&2
+    exit 2
+  fi
+  SIM_LIST=$(run_with_timeout 30 xcrun simctl list devices available)
+}
 SIM_UDID=$(
-  xcrun simctl list devices -j | python3 -c '
-import json, sys
-name = sys.argv[1]
-for devices in json.load(sys.stdin).get("devices", {}).values():
-    for device in devices:
-        if device.get("name") == name and device.get("isAvailable", True):
-            print(device.get("udid", ""))
-            raise SystemExit
-' "$SIM_NAME"
+  printf '%s\n' "$SIM_LIST" | awk -F '[()]' -v name="$SIM_NAME" '
+    {
+      candidate=$1
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", candidate)
+      if (candidate == name) {
+        print $2
+        exit
+      }
+    }
+  '
 )
 
 if [ -z "$SIM_UDID" ]; then
-  SIM_UDID=$(run_with_timeout 60 xcrun simctl create "$SIM_NAME" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
-  echo "==> Created persistent dedicated simulator: $SIM_NAME ($SIM_UDID)"
-else
-  echo "==> Reusing persistent dedicated simulator: $SIM_NAME ($SIM_UDID)"
+  echo "Warmed simulator '$SIM_NAME' was not found; refusing to create a cold CI device." >&2
+  exit 2
 fi
+echo "==> Using warmed simulator: $SIM_NAME ($SIM_UDID)"
 
-boot_dedicated_simulator() {
+boot_warmed_simulator() {
   local attempt
+
+  # Two graceful boot cycles first. A shutdown/boot is enough to recover the
+  # failure mode seen on this runner more often than killing the whole service.
   for attempt in 1 2; do
     run_with_timeout 30 xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
     if run_with_timeout 60 xcrun simctl boot "$SIM_UDID" \
-      && run_with_timeout 300 xcrun simctl bootstatus "$SIM_UDID" -b; then
+      && run_with_timeout 180 xcrun simctl bootstatus "$SIM_UDID" -b; then
       return 0
     fi
-
-    echo "Dedicated simulator boot attempt $attempt failed; resetting CoreSimulatorService." >&2
-    if ! restart_core_simulator_service; then
-      return 1
-    fi
+    echo "Warmed simulator boot attempt $attempt failed; retrying cleanly." >&2
   done
-  return 1
+
+  # Escalate only after graceful recovery failed twice.
+  if ! recover_core_simulator_service; then
+    return 1
+  fi
+  run_with_timeout 60 xcrun simctl shutdown all >/dev/null 2>&1 || true
+  run_with_timeout 60 xcrun simctl boot "$SIM_UDID" \
+    && run_with_timeout 180 xcrun simctl bootstatus "$SIM_UDID" -b
 }
 
-if ! boot_dedicated_simulator; then
-  echo "Dedicated simulator failed to become ready after recovery attempts: $SIM_UDID." >&2
+if ! boot_warmed_simulator; then
+  echo "Warmed simulator failed to become ready after recovery: $SIM_UDID." >&2
   exit 2
 fi
 
-# verify-pr.sh is the local verifier and should keep its normal behavior. Patch a
-# temporary CI-only copy to use the dedicated simulator and to enforce timeouts
-# around xcodebuild test / final boot / launch operations.
+# verify-pr.sh remains the local verifier. Patch a temporary CI-only copy to pin
+# all xcodebuild test destinations to the exact warmed simulator UDID and enforce
+# hard process-group timeouts. The repository's local verifier behavior is not
+# changed.
 {
   head -n 1 scripts/verify-pr.sh
   cat <<'PREAMBLE'
@@ -242,17 +212,23 @@ ci_xcodebuild() {
 }
 PREAMBLE
   tail -n +2 scripts/verify-pr.sh \
-    | sed "s/^SIM_NAME=\"$BASE_SIM_NAME\"$/SIM_NAME=\"$SIM_NAME\"/" \
+    | sed "s|platform=iOS Simulator,name=\$SIM_NAME|platform=iOS Simulator,id=$SIM_UDID|g" \
     | sed 's/if ! xcodebuild test \\/if ! ci_xcodebuild test \\/g' \
-    | sed 's/xcrun simctl bootstatus \"$UDID\" -b/ci_run_with_timeout 300 xcrun simctl bootstatus \"$UDID\" -b/g' \
+    | sed 's/xcrun simctl bootstatus \"$UDID\" -b/ci_run_with_timeout 180 xcrun simctl bootstatus \"$UDID\" -b/g' \
     | sed 's/xcrun simctl boot \"$UDID\"/ci_run_with_timeout 60 xcrun simctl boot \"$UDID\"/g' \
+    | sed 's/xcrun simctl shutdown \"$UDID\"/ci_run_with_timeout 30 xcrun simctl shutdown \"$UDID\"/g' \
     | sed 's/LAUNCH_OUT=$(xcrun simctl launch \"$UDID\" \"$BID\")/LAUNCH_OUT=$(ci_run_with_timeout 60 xcrun simctl launch \"$UDID\" \"$BID\")/g'
 } > "$TEMP_VERIFY"
 chmod +x "$TEMP_VERIFY"
 
 PATCHED_TEST_COUNT=$(grep -c 'if ! ci_xcodebuild test \\' "$TEMP_VERIFY" || true)
+PATCHED_DESTINATION_COUNT=$(grep -c "platform=iOS Simulator,id=$SIM_UDID" "$TEMP_VERIFY" || true)
 if [ "$PATCHED_TEST_COUNT" -ne 6 ]; then
   echo "Expected to wrap 6 xcodebuild test commands, wrapped $PATCHED_TEST_COUNT." >&2
+  exit 2
+fi
+if [ "$PATCHED_DESTINATION_COUNT" -ne 6 ]; then
+  echo "Expected to pin 6 xcodebuild destinations, pinned $PATCHED_DESTINATION_COUNT." >&2
   exit 2
 fi
 
