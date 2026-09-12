@@ -29,9 +29,16 @@ concurrency:
 jobs:
   verify-pr:
     if: github.event_name == 'pull_request'
-    runs-on: [self-hosted, xcode-26]
+    # PR verification needs a healthy CoreSimulator stack. The self-hosted Mac
+    # is also used interactively and has repeatedly accumulated unrecoverable
+    # CoreSimulatorService state, so run PR tests on a fresh hosted macOS VM.
+    # macos-26 currently ships Xcode 26.6 by default, matching the project CI.
+    runs-on: macos-26
     timeout-minutes: 45
     steps:
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
       - name: Prepare exact PR HEAD in fresh repo
         env:
           GH_TOKEN: ${{ github.token }}
