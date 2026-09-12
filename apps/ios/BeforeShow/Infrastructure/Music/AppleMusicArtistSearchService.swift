@@ -297,9 +297,12 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
     }
 
     private static func upgradedArtworkURL(_ rawValue: String?, size: Int) -> URL? {
-        rawValue?
-            .replacingOccurrences(of: "100x100", with: "\(size)x\(size)")
-            .flatMap(URL.init(string:))
+        guard let rawValue else { return nil }
+        let upgradedValue = rawValue.replacingOccurrences(
+            of: "100x100",
+            with: "\(size)x\(size)"
+        )
+        return URL(string: upgradedValue)
     }
 }
 
