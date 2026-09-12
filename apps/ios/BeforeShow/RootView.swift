@@ -18,6 +18,8 @@ struct RootView: View {
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
+    @State private var companionDuplicateResolution: CompanionDuplicateResolution?
+    @State private var companionDuplicateErrorMessage: String?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     /// Root owns only cross-feature tab dispatch. The Current Show feature root owns
     /// the concrete notification destination and never mutates CurrentShowSelection.
@@ -25,6 +27,9 @@ struct RootView: View {
     @ObservedObject private var languageController = AppLanguageController.shared
 
     private var companionResultMessage: String? {
+        if let companionDuplicateErrorMessage {
+            return companionDuplicateErrorMessage
+        }
         if let accepted = companionCoordinator.pendingAcceptMessage {
             return accepted
         }
@@ -61,12 +66,24 @@ struct RootView: View {
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
+        .sheet(item: $companionDuplicateResolution) { resolution in
+            CompanionDuplicateResolutionSheet(
+                resolution: resolution,
+                onMerge: { target in
+                    resolveCompanionDuplicate(resolution, mergeInto: target)
+                },
+                onKeepSeparate: {
+                    keepCompanionDuplicateSeparate(resolution)
+                }
+            )
+        }
         .alert(
             BSLocalization.text("同行"),
             isPresented: Binding(
                 get: {
                     hasFinishedSplash
                         && hasResolvedOnboardingRoute
+                        && companionDuplicateResolution == nil
                         && companionResultMessage != nil
                 },
                 set: { isPresented in
@@ -86,6 +103,9 @@ struct RootView: View {
             guard deepLink != nil else { return }
             selectedTab = .current
         }
+        .onChange(of: rootShows.map(\.id)) { _, _ in
+            refreshCompanionDuplicateResolution()
+        }
         .task {
             // A CloudKit share can cold-launch the app before AppDelegate dependencies are
             // wired. Only a real pending acceptance should block onboarding resolution;
@@ -95,6 +115,7 @@ struct RootView: View {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
             }
             resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
+            refreshCompanionDuplicateResolution()
             if notificationRouter.featureRootDeepLink != nil {
                 selectedTab = .current
             }
@@ -118,10 +139,42 @@ struct RootView: View {
     }
 
     private func dismissCompanionResultMessage() {
+        companionDuplicateErrorMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
         if companionCoordinator.lastErrorKind == .statusSyncPending {
             _ = companionCoordinator.consumeLastErrorMessage()
         }
+    }
+
+    private func refreshCompanionDuplicateResolution() {
+        guard companionDuplicateResolution == nil else { return }
+        companionDuplicateResolution = CompanionDuplicateResolutionFinder.first(in: rootShows)
+    }
+
+    private func resolveCompanionDuplicate(
+        _ resolution: CompanionDuplicateResolution,
+        mergeInto target: Show
+    ) {
+        do {
+            try CompanionDuplicateMerger.merge(
+                imported: resolution.importedShow,
+                into: target,
+                in: modelContext
+            )
+            companionDuplicateResolution = nil
+            refreshCompanionDuplicateResolution()
+        } catch {
+            companionDuplicateErrorMessage = CompanionSharingCoordinator.userMessage(for: error)
+            companionDuplicateResolution = nil
+        }
+    }
+
+    private func keepCompanionDuplicateSeparate(_ resolution: CompanionDuplicateResolution) {
+        if let sessionRecordName = resolution.importedShow.companionCloudRecordName {
+            CompanionDuplicateResolutionStore.ignore(sessionRecordName: sessionRecordName)
+        }
+        companionDuplicateResolution = nil
+        refreshCompanionDuplicateResolution()
     }
 
     private func persistedShowExists() -> Bool {
