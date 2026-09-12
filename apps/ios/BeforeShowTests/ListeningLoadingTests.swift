@@ -111,6 +111,61 @@ final class ListeningLoadingTests: XCTestCase {
         }
     }
 
+    func testCabinetKeepsTheActiveTouchViewUntilTheDragEnds() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .singleFull)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        await room.load(show: show)
+        room.selectScope(.artist("fixture-artist-0"))
+        let disc = try XCTUnwrap(room.shelfDiscs.first)
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+        let host = UIHostingController(rootView: ListeningCabinetView(
+            room: room, scale: 1, showAll: {}, showDetails: { _ in }
+        ) { Color.clear })
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; room.mechanism.motion.stop() }
+        try await settleLayout(host.view)
+        let pan = try XCTUnwrap(cabinetPan(in: host.view))
+        let touchView = try XCTUnwrap(pan.view)
+        XCTAssertTrue(touchView.window === window)
+
+        XCTAssertTrue(room.beginPlayableDiscDrag(disc))
+        try await settleLayout(host.view)
+
+        XCTAssertTrue(room.mechanism.isCabinetDragging)
+        XCTAssertTrue(touchView.window === window, "Picking up the CD must not remove the view receiving the active touch")
+        XCTAssertTrue(cabinetPan(in: host.view) === pan, "The same recognizer must receive the rest of the drag")
+        let center = room.mechanism.configuration.geometry.discCenter
+        room.mechanism.dragDisc(CGSize(width: center.x - room.mechanism.motion.discX.value,
+                                      height: center.y - room.mechanism.motion.discY.value))
+        room.mechanism.endDiscDrag()
+        for _ in 0..<20 {
+            let motion = room.mechanism.motion
+            motion.lid.step(1); motion.discX.step(1); motion.discY.step(1)
+            motion.lift.step(1); motion.discScale.step(1)
+            room.mechanism.refresh()
+        }
+        XCTAssertEqual(room.mechanism.position, .seated)
+        XCTAssertFalse(room.mechanism.isCabinetDragging)
+        try await settleLayout(host.view)
+        XCTAssertNil(touchView.window)
+    }
+
+    private func cabinetPan(in view: UIView) -> UIPanGestureRecognizer? {
+        if let pan = view.gestureRecognizers?.compactMap({ $0 as? UIPanGestureRecognizer }).first {
+            return pan
+        }
+        return view.subviews.lazy.compactMap { self.cabinetPan(in: $0) }.first
+    }
+
     private func assertFrames(_ frames: [String: CGRect], stage: CGRect, cabinet: CGRect, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(frames["stage"]?.minY ?? -1, stage.minY, accuracy: 1, file: file, line: line)
         XCTAssertEqual(frames["cabinet"]?.height ?? -1, cabinet.height, accuracy: 1, file: file, line: line)

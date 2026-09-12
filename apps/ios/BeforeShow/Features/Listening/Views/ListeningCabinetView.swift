@@ -212,7 +212,8 @@ private struct ListeningCabinetDiscButton: View {
                         .listeningFrame("slot:\(disc.id)")
 
                     #if canImport(UIKit)
-                    if !isLoaded {
+                    // Keep the active touch receiver mounted until the finger lifts.
+                    if !isLoaded || room.mechanism.isCabinetDragging {
                         CabinetDiscGestureBridge(
                             canDrag: presentation.canLoad,
                             onBegin: {
