@@ -2,15 +2,28 @@ import CloudKit
 import Foundation
 
 enum CompanionSharingPresentation {
-    static func acceptedMessage(ownerDisplayName: String?) -> String {
-        BSLocalization.format(
-            "已与%@确认同行",
-            ownerDisplayName ?? BSLocalization.text("朋友")
-        )
+    static func acceptedMessage(
+        ownerDisplayName: String?,
+        importResult: CompanionAcceptedImportResult? = nil
+    ) -> String {
+        let owner = ownerDisplayName ?? BSLocalization.text("朋友")
+        guard let importResult else {
+            return BSLocalization.format("已与%@确认同行", owner)
+        }
+        if !importResult.inserted {
+            return BSLocalization.text("这场已经在你的现场里，已添加同行关系")
+        }
+        if importResult.wasHistorical {
+            return BSLocalization.format("已加入足迹，你和%@已记录为同行", owner)
+        }
+        if importResult.becameCurrent {
+            return BSLocalization.format("已加入现场并设为当前，你和%@已成为同行", owner)
+        }
+        return BSLocalization.format("已加入我的现场，你和%@已成为同行", owner)
     }
 
     static var companionLeftMessage: String {
-        BSLocalization.text("同行者已退出，同行关系已取消")
+        BSLocalization.text("同行关系已结束")
     }
 
     static var membershipSyncWarning: String {
@@ -37,7 +50,7 @@ enum CompanionSharingPresentation {
             case .conflict:
                 return BSLocalization.text("同行状态已变更，请刷新后重试")
             case .statusSyncPending:
-                return BSLocalization.text("已接受邀请，正在等待云端状态同步")
+                return BSLocalization.text("已接受邀请，现场还没添加成功，请重试")
             }
         }
         if error is ShowCompanionMutationError {
