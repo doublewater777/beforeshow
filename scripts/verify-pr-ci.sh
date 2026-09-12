@@ -11,6 +11,8 @@ RUN_SCOPE="${GITHUB_RUN_ID:-local-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-ver
 TEMP_VERIFY="${RUNNER_TEMP:-/tmp}/verify-pr-${RUN_SCOPE}.sh"
 SIM_UDID=""
 XCODEBUILD_TEST_TIMEOUT_SECONDS="${XCODEBUILD_TEST_TIMEOUT_SECONDS:-720}"
+VERIFY_TEST_LANGUAGE="${VERIFY_TEST_LANGUAGE:-zh-Hans}"
+VERIFY_TEST_REGION="${VERIFY_TEST_REGION:-CN}"
 
 run_with_timeout() {
   local seconds="$1"
@@ -193,15 +195,17 @@ if ! boot_warmed_simulator; then
 fi
 
 # verify-pr.sh remains the local verifier. Patch a temporary CI-only copy to pin
-# all xcodebuild test destinations to the exact warmed simulator UDID, enforce
-# hard process-group timeouts, and retry Phase 1 once only for known simulator /
-# test-runner transport failures. The repository's local verifier behavior is
-# not changed.
+# all xcodebuild test destinations to the exact warmed simulator UDID, enforce a
+# deterministic test language/region, apply hard process-group timeouts, and
+# retry Phase 1 once only for known simulator/test-runner transport failures.
+# The repository's local verifier behavior is not changed.
 {
   head -n 1 scripts/verify-pr.sh
   cat <<'PREAMBLE'
 
 VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS="${XCODEBUILD_TEST_TIMEOUT_SECONDS:-720}"
+VERIFY_TEST_LANGUAGE="${VERIFY_TEST_LANGUAGE:-zh-Hans}"
+VERIFY_TEST_REGION="${VERIFY_TEST_REGION:-CN}"
 CI_SIM_UDID="${CI_SIM_UDID:-}"
 # Preserve the runner's original stderr so retry/diagnostic messages remain
 # visible even while verify-pr.sh redirects xcodebuild output to its phase log.
@@ -406,7 +410,8 @@ ci_xcodebuild() {
     previous="$arg"
   done
 
-  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" xcodebuild "$@"; then
+  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" \
+      xcodebuild -testLanguage "$VERIFY_TEST_LANGUAGE" -testRegion "$VERIFY_TEST_REGION" "$@"; then
     return 0
   else
     first_status=$?
@@ -437,7 +442,8 @@ ci_xcodebuild() {
   rm -rf "$result_bundle"
   echo "==> Phase 1 retry starting on recovered simulator $CI_SIM_UDID." >&3
 
-  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" xcodebuild "$@"; then
+  if ci_run_with_timeout "$VERIFY_XCODEBUILD_TEST_TIMEOUT_SECONDS" \
+      xcodebuild -testLanguage "$VERIFY_TEST_LANGUAGE" -testRegion "$VERIFY_TEST_REGION" "$@"; then
     echo "==> Phase 1 retry passed." >&3
     return 0
   else
@@ -456,6 +462,23 @@ PREAMBLE
     | sed 's/xcrun simctl shutdown \"$UDID\"/ci_run_with_timeout 30 xcrun simctl shutdown \"$UDID\"/g' \
     | sed 's/LAUNCH_OUT=$(xcrun simctl launch \"$UDID\" \"$BID\")/LAUNCH_OUT=$(ci_run_with_timeout 60 xcrun simctl launch \"$UDID\" \"$BID\")/g'
 } > "$TEMP_VERIFY"
+
+# `head -1` closes the pipe before Xcode 26.6 finishes writing `xcodebuild
+# -version`, which can raise NSFileHandleOperationException/Broken pipe. Make the
+# generated report command consume the whole stream with awk instead.
+python3 - "$TEMP_VERIFY" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1])
+text = path.read_text()
+old = "xcodebuild -version | head -1 | awk '{print $2}'"
+new = "xcodebuild -version | awk 'NR == 1 {print $2}'"
+if old not in text:
+    raise SystemExit("Expected xcodebuild version pipeline was not found")
+path.write_text(text.replace(old, new))
+PY
+
 chmod +x "$TEMP_VERIFY"
 
 PATCHED_TEST_COUNT=$(grep -c 'if ! ci_xcodebuild test \\' "$TEMP_VERIFY" || true)
@@ -469,7 +492,12 @@ if [ "$PATCHED_DESTINATION_COUNT" -ne 6 ]; then
   exit 2
 fi
 
+echo "==> Test locale: $VERIFY_TEST_LANGUAGE / $VERIFY_TEST_REGION"
+
 exec_status=0
-CI_SIM_UDID="$SIM_UDID" XCODEBUILD_TEST_TIMEOUT_SECONDS="$XCODEBUILD_TEST_TIMEOUT_SECONDS" \
+CI_SIM_UDID="$SIM_UDID" \
+VERIFY_TEST_LANGUAGE="$VERIFY_TEST_LANGUAGE" \
+VERIFY_TEST_REGION="$VERIFY_TEST_REGION" \
+XCODEBUILD_TEST_TIMEOUT_SECONDS="$XCODEBUILD_TEST_TIMEOUT_SECONDS" \
   "$TEMP_VERIFY" "$@" || exec_status=$?
 exit "$exec_status"
