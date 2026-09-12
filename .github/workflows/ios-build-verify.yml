@@ -52,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "$VERIFY_SOURCE"
-          scripts/verify-pr-ci.sh "${{ github.event.pull_request.number }}" --no-comment
+          bash scripts/verify-pr-ci.sh "${{ github.event.pull_request.number }}" --no-comment
 
   verify-main:
     if: github.event_name == 'push'
