@@ -87,6 +87,7 @@ struct CurrentShowFeatureRootView: View {
     var body: some View {
         CurrentShowHomeView(
             isPlaybackActive: isPlaybackActive,
+            isFeaturePresentationActive: notificationPresentation != nil,
             ceremonyPendingDetail: $ceremonyPendingDetail
         )
         .task {
