@@ -101,7 +101,7 @@ enum CompanionAcceptedSessionImporter {
         )
 
         if snapshot.changeStatus == .postponed {
-            show.markPostponed(newDate: snapshot.postponedDate ?? snapshot.showDate)
+            show.markPostponed(newDate: snapshot.postponedDate)
         }
         return show
     }
@@ -135,7 +135,7 @@ enum CompanionAcceptedSessionImporter {
             }
         case .postponed:
             if show.changeStatus == .scheduled {
-                show.markPostponed(newDate: snapshot.postponedDate ?? snapshot.showDate)
+                show.markPostponed(newDate: snapshot.postponedDate)
             }
         case .scheduled:
             break
