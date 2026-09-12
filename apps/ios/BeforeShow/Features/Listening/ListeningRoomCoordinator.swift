@@ -88,6 +88,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
     @ObservationIgnored private var showCatalogKey: String?
+    @ObservationIgnored private var completedCatalogKey: String?
     @ObservationIgnored private var preparedSongID: String?
     @ObservationIgnored private var finishedSongID: String?
     private(set) var initialLoaded = false
@@ -153,9 +154,10 @@ private let listeningCatalogFetchConcurrency = 4
         show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
     }
     func shouldReloadCatalog(for show: Show) -> Bool {
-        if self.show?.id != show.id || showCatalogKey != catalogKey(for: show) { return true }
+        let key = catalogKey(for: show)
+        if self.show?.id != show.id || showCatalogKey != key { return true }
         if isLoadingShow || isCatalogEnriching { return false }
-        return !initialLoaded
+        return completedCatalogKey != key
     }
 
     func load(show: Show, force: Bool = false) async {
@@ -165,18 +167,19 @@ private let listeningCatalogFetchConcurrency = 4
         defer {
             if generation == catalogGeneration {
                 isLoadingShow = false
-                initialLoaded = true
             }
         }
 
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
+            initialLoaded = false
             browser = ListeningBrowseState()
             pendingSleeveSongID = nil
             sleevePlaybackSongID = nil
             recentListening = nil
         }
         if showCatalogKey != newKey {
+            completedCatalogKey = nil
             stop(); trackBelongsToShow = false; discs = []; runtimeSongs = [:]
             if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
         }
@@ -195,21 +198,28 @@ private let listeningCatalogFetchConcurrency = 4
             catalogState = .cacheFailed
         }
 
-        // Resolve Apple Music capability first so the fixed Listen room can expose
-        // authorization immediately. Identity fallback then runs while the same room
-        // stays on screen; imported lineups are normally already enriched by AddShow.
-        let newAccess = await catalogService.currentAccess()
-        guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess
-        accessResolved = true
+        // `initialLoaded` means the fixed room and any cached records are ready to
+        // present. It deliberately does not wait for artist lookup or catalog IO.
+        initialLoaded = true
 
+        // Keep a known-authorized room in `.connecting` while identity fallback is
+        // still running. Imported shows normally arrive pre-matched, so this path is
+        // mostly a legacy/manual fallback; publishing full capability waits until it
+        // has finished, preserving the first-load presentation contract.
         let slots = show.artists
         let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
         guard generation == catalogGeneration, !Task.isCancelled else { return }
         applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
         guard generation == catalogGeneration, !Task.isCancelled else { return }
 
+        let newAccess = await catalogService.currentAccess()
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        access = newAccess
+        accessResolved = true
+
         await loadCatalog(generation: generation, force: force)
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        completedCatalogKey = showCatalogKey
     }
 
     private func applyAutomaticArtistMatches(
@@ -252,7 +262,10 @@ private let listeningCatalogFetchConcurrency = 4
         catalogGeneration = generation
         catalogState = .loading
         await loadCatalog(generation: generation, force: force)
-        if generation == catalogGeneration { initialLoaded = true }
+        if generation == catalogGeneration, !Task.isCancelled {
+            initialLoaded = true
+            completedCatalogKey = showCatalogKey
+        }
     }
 
     private func loadCatalog(generation: UUID, force: Bool) async {
