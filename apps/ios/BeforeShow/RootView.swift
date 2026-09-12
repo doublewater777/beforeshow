@@ -10,6 +10,7 @@ extension UUID: @retroactive Identifiable {
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
@@ -55,7 +56,14 @@ struct RootView: View {
             selectedTab = .current
         }
         .task {
-            resolveOnboardingRouteIfNeeded()
+            // A CloudKit share can cold-launch the app before AppDelegate dependencies are
+            // wired. Drain the durable acceptance inbox on the main app context before
+            // deciding whether this is a brand-new user who needs onboarding. Otherwise
+            // the imported Show can arrive one beat later while the UI stays locked in the
+            // onboarding route for the rest of this launch.
+            companionCoordinator.reloadPersistedAcceptedShares()
+            await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+            resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
             if notificationRouter.featureRootDeepLink != nil {
                 selectedTab = .current
             }
@@ -78,7 +86,13 @@ struct RootView: View {
         #endif
     }
 
-    private func resolveOnboardingRouteIfNeeded() {
+    private func persistedShowExists() -> Bool {
+        var descriptor = FetchDescriptor<Show>()
+        descriptor.fetchLimit = 1
+        return ((try? modelContext.fetch(descriptor))?.isEmpty == false)
+    }
+
+    private func resolveOnboardingRouteIfNeeded(hasShowsOverride: Bool? = nil) {
         guard !hasResolvedOnboardingRoute else { return }
 
         #if DEBUG
@@ -102,7 +116,7 @@ struct RootView: View {
         }
         #endif
 
-        let hasShows = !rootShows.isEmpty
+        let hasShows = hasShowsOverride ?? !rootShows.isEmpty
         if OnboardingRoutingPolicy.shouldMigrateExistingUser(
             hasCompleted: hasCompletedOnboarding,
             hasShows: hasShows
