@@ -50,6 +50,8 @@ struct CurrentShowHomeArrivalLifecycle: Equatable {
     private(set) var observedShowID: UUID?
     private(set) var hasObservedIdentity = false
 
+    init() {}
+
     mutating func observeCurrentShow(_ newShowID: UUID?) {
         let previousShowID = observedShowID
         observedShowID = newShowID
