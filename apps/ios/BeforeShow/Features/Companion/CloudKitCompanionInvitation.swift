@@ -25,6 +25,13 @@ extension CloudKitCompanionSharingService {
         if let location = show.showLocation, !location.isEmpty {
             session[CompanionSessionRecord.showLocation] = location as CKRecordValue
         }
+        do {
+            let snapshotData = try JSONEncoder().encode(show)
+            session[CompanionSessionRecord.showSnapshotV1] = snapshotData as CKRecordValue
+        } catch {
+            CompanionDebugLog.write("Encoding frozen companion show snapshot failed: \(error)")
+            throw CompanionSharingError.sharePreparationFailed
+        }
         if let ownerDisplayName, !ownerDisplayName.isEmpty {
             session[CompanionSessionRecord.ownerDisplayName] = ownerDisplayName as CKRecordValue
         }
