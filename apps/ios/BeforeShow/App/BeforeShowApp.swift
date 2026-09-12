@@ -1,3 +1,4 @@
+import Foundation
 import PostHog
 import RevenueCat
 import SwiftData
@@ -15,55 +16,70 @@ struct BeforeShowApp: App {
 
     private let modelContainer: ModelContainer
 
+    private static var isRunningHostedUnitTests: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["XCTestConfigurationFilePath"] != nil
+            || environment["XCInjectBundleInto"] != nil
+    }
+
     init() {
+        let isRunningHostedUnitTests = Self.isRunningHostedUnitTests
+
         do {
-            modelContainer = try ModelContainerFactory.make()
+            modelContainer = try ModelContainerFactory.make(
+                isStoredInMemoryOnly: isRunningHostedUnitTests
+            )
         } catch {
             fatalError("Failed to create ModelContainer: \(error)")
         }
 
-        // Run development-store repairs exactly once before RootView can read state.
-        MainActor.assumeIsolated {
-            AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
-            try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
-        }
+        if !isRunningHostedUnitTests {
+            // Run development-store repairs exactly once before RootView can read state.
+            MainActor.assumeIsolated {
+                AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
+                try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
+            }
 
-        let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
-        let posthogHost = Bundle.main.object(forInfoDictionaryKey: "PostHogHost") as? String ?? ""
-        #if DEBUG
-        if posthogAPIKey.isEmpty {
-            assertionFailure("PostHogAPIKey variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogAPIKey is configured")
-        }
-        if posthogHost.isEmpty {
-            assertionFailure("PostHogHost variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogHost is configured")
-        }
-        #endif
-        if !posthogAPIKey.isEmpty, !posthogHost.isEmpty {
-            let config = PostHogConfig(projectToken: posthogAPIKey, host: posthogHost)
-            config.captureApplicationLifecycleEvents = true
-            config.errorTrackingConfig.autoCapture = true
-            config.sessionReplay = true
+            let posthogAPIKey = Bundle.main.object(forInfoDictionaryKey: "PostHogAPIKey") as? String ?? ""
+            let posthogHost = Bundle.main.object(forInfoDictionaryKey: "PostHogHost") as? String ?? ""
             #if DEBUG
-            config.debug = true
+            if posthogAPIKey.isEmpty {
+                assertionFailure("PostHogAPIKey variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogAPIKey is configured")
+            }
+            if posthogHost.isEmpty {
+                assertionFailure("PostHogHost variable required by PostHog is missing or un-configured, this causes events to be silently missed. This error stops appearing once PostHogHost is configured")
+            }
             #endif
-            PostHogSDK.shared.setup(config)
-            ProductAnalyticsPreferences.syncPostHog()
+            if !posthogAPIKey.isEmpty, !posthogHost.isEmpty {
+                let config = PostHogConfig(projectToken: posthogAPIKey, host: posthogHost)
+                config.captureApplicationLifecycleEvents = true
+                config.errorTrackingConfig.autoCapture = true
+                config.sessionReplay = true
+                #if DEBUG
+                config.debug = true
+                #endif
+                PostHogSDK.shared.setup(config)
+                ProductAnalyticsPreferences.syncPostHog()
+            }
         }
 
         AppLanguageManager.apply(AppLanguageManager.persisted)
-        AppAudioSession.configureAmbient()
 
-        let revenueCatAPIKey = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String ?? ""
-        if !revenueCatAPIKey.isEmpty, revenueCatAPIKey != "appl_REPLACE_ME" {
-            #if DEBUG
-            Purchases.logLevel = .debug
-            #endif
-            Purchases.configure(withAPIKey: revenueCatAPIKey)
-            MainActor.assumeIsolated {
-                Purchases.shared.delegate = ProEntitlementSyncDelegate.shared
-            }
-            Task { @MainActor in
-                await ProEntitlementSyncDelegate.shared.refreshFromServer()
+        if !isRunningHostedUnitTests {
+            AppAudioSession.configureAmbient()
+
+            let revenueCatAPIKey = Bundle.main.object(forInfoDictionaryKey: "RevenueCatAPIKey") as? String ?? ""
+            if !revenueCatAPIKey.isEmpty, revenueCatAPIKey != "appl_REPLACE_ME" {
+                #if DEBUG
+                Purchases.logLevel = .debug
+                #endif
+                Purchases.configure(withAPIKey: revenueCatAPIKey)
+                MainActor.assumeIsolated {
+                    Purchases.shared.delegate = ProEntitlementSyncDelegate.shared
+                }
+                Task { @MainActor in
+                    await ProEntitlementSyncDelegate.shared.refreshFromServer()
+                }
             }
         }
 
@@ -76,11 +92,13 @@ struct BeforeShowApp: App {
                 .environment(companionCoordinator)
                 .environment(\.locale, languageController.language.locale)
                 .onAppear {
+                    guard !Self.isRunningHostedUnitTests else { return }
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
                 }
                 .task {
+                    guard !Self.isRunningHostedUnitTests else { return }
                     isLocalMediaMaintenanceRunning = true
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
@@ -102,6 +120,7 @@ struct BeforeShowApp: App {
                     )
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    guard !Self.isRunningHostedUnitTests else { return }
                     guard newPhase == .active else { return }
                     let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
                         lastRun: lastLocalMediaMaintenanceAt,
