@@ -22,8 +22,6 @@ struct RootView: View {
     @State private var companionDuplicateErrorMessage: String?
     @State private var companionAcceptanceMessage: String?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
-    /// Root owns only cross-feature tab dispatch. The Current Show feature root owns
-    /// the concrete notification destination and never mutates CurrentShowSelection.
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
@@ -124,9 +122,6 @@ struct RootView: View {
             refreshCompanionDuplicateResolution()
         }
         .task {
-            // A CloudKit share can cold-launch the app before AppDelegate dependencies are
-            // wired. Only a real pending acceptance should block onboarding resolution;
-            // ordinary launches must not wait for a CloudKit discovery round-trip.
             companionCoordinator.reloadPersistedAcceptedShares()
             if companionCoordinator.hasPendingAcceptedShares {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
@@ -265,7 +260,6 @@ struct RootView: View {
         }
     }
 
-    /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             CurrentShowFeatureRootView(
