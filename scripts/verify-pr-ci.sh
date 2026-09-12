@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # CI wrapper for verify-pr.sh.
-# Resets CoreSimulator on the self-hosted runner, creates a fresh dedicated
+# Resets CoreSimulator on the self-hosted runner, reuses one dedicated warmed
 # simulator, and adds hard timeouts around simulator/test operations so a dead
 # CoreSimulatorService cannot wedge the runner for the entire job timeout.
 set -euo pipefail
 
 BASE_SIM_NAME="iPhone 17"
+SIM_NAME="BeforeShow Verify"
 RUN_SCOPE="${GITHUB_RUN_ID:-local-$$}-${GITHUB_RUN_ATTEMPT:-1}-${GITHUB_JOB:-verify}"
-SIM_NAME="BeforeShow Verify ${RUN_SCOPE}"
 TEMP_VERIFY="${RUNNER_TEMP:-/tmp}/verify-pr-${RUN_SCOPE}.sh"
 SIM_UDID=""
 XCODEBUILD_TEST_TIMEOUT_SECONDS="${XCODEBUILD_TEST_TIMEOUT_SECONDS:-720}"
@@ -52,11 +52,18 @@ sys.exit(return_code)
 PY
 }
 
+restart_core_simulator_service() {
+  killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
+  sleep 2
+  run_with_timeout 30 xcrun simctl list devices >/dev/null
+}
+
 cleanup() {
   rm -f "$TEMP_VERIFY"
   if [ -n "$SIM_UDID" ]; then
+    # Keep the CI-owned device around so its one-time data migrations remain
+    # warmed for the next run. Only shut it down between jobs.
     run_with_timeout 30 xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
-    run_with_timeout 30 xcrun simctl delete "$SIM_UDID" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -64,12 +71,9 @@ trap cleanup EXIT
 echo "==> Resetting CoreSimulatorService before CI verification"
 # The self-hosted Mac is also used interactively. Multiple booted simulators can
 # leave CoreSimulatorService in a state where test launch hangs with Mach -308.
-# Stop the service first so simctl talks to a fresh server, then shut down every
-# still-registered booted device. We only delete stale CI-owned devices; local
-# simulator data is preserved.
-killall -9 com.apple.CoreSimulator.CoreSimulatorService >/dev/null 2>&1 || true
-sleep 2
-if ! run_with_timeout 30 xcrun simctl list devices >/dev/null; then
+# Restart the service, then shut down every registered simulator. We preserve all
+# non-CI simulator data and only delete obsolete run-scoped CI devices.
+if ! restart_core_simulator_service; then
   echo "CoreSimulatorService did not recover after restart." >&2
   exit 2
 fi
@@ -80,7 +84,8 @@ STALE_UDIDS=$(
 import json, sys
 for runtime in json.load(sys.stdin).get("devices", {}).values():
     for device in runtime:
-        if device.get("name", "").startswith("BeforeShow Verify "):
+        name = device.get("name", "")
+        if name.startswith("BeforeShow Verify "):
             print(device.get("udid", ""))
 '
 )
@@ -102,8 +107,25 @@ for device_type in json.load(sys.stdin).get("devicetypes", []):
 '
 )
 
-RUNTIME_ID=$(
-  xcrun simctl list runtimes -j | python3 -c '
+# Prefer the runtime already used by the machine's normal iPhone 17 simulator,
+# rather than blindly selecting the newest installed runtime.
+BASE_RUNTIME_ID=$(
+  xcrun simctl list devices -j | python3 -c '
+import json, sys
+data = json.load(sys.stdin)
+for runtime_id, devices in data.get("devices", {}).items():
+    for device in devices:
+        if device.get("name") == "iPhone 17" and device.get("isAvailable", True):
+            print(runtime_id)
+            raise SystemExit
+'
+)
+
+if [ -n "$BASE_RUNTIME_ID" ]; then
+  RUNTIME_ID="$BASE_RUNTIME_ID"
+else
+  RUNTIME_ID=$(
+    xcrun simctl list runtimes -j | python3 -c '
 import json, re, sys
 runtimes = [
     runtime for runtime in json.load(sys.stdin).get("runtimes", [])
@@ -117,24 +139,52 @@ runtimes.sort(key=version)
 if runtimes:
     print(runtimes[-1]["identifier"])
 '
-)
+  )
+fi
 
 if [ -z "$DEVICE_TYPE_ID" ] || [ -z "$RUNTIME_ID" ]; then
   echo "Unable to resolve an available iPhone 17 device type/runtime." >&2
   exit 2
 fi
 
-SIM_UDID=$(run_with_timeout 60 xcrun simctl create "$SIM_NAME" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
-echo "==> Created dedicated simulator: $SIM_NAME ($SIM_UDID)"
+SIM_UDID=$(
+  xcrun simctl list devices -j | python3 -c '
+import json, sys
+name = sys.argv[1]
+for devices in json.load(sys.stdin).get("devices", {}).values():
+    for device in devices:
+        if device.get("name") == name and device.get("isAvailable", True):
+            print(device.get("udid", ""))
+            raise SystemExit
+' "$SIM_NAME"
+)
 
-# Boot the fresh device explicitly after the CoreSimulator reset. This catches a
-# dead simulator service before xcodebuild enters its much longer launch path.
-if ! run_with_timeout 60 xcrun simctl boot "$SIM_UDID"; then
-  echo "Failed to boot dedicated simulator $SIM_UDID." >&2
-  exit 2
+if [ -z "$SIM_UDID" ]; then
+  SIM_UDID=$(run_with_timeout 60 xcrun simctl create "$SIM_NAME" "$DEVICE_TYPE_ID" "$RUNTIME_ID")
+  echo "==> Created persistent dedicated simulator: $SIM_NAME ($SIM_UDID)"
+else
+  echo "==> Reusing persistent dedicated simulator: $SIM_NAME ($SIM_UDID)"
 fi
-if ! run_with_timeout 180 xcrun simctl bootstatus "$SIM_UDID" -b; then
-  echo "Dedicated simulator failed to become ready: $SIM_UDID." >&2
+
+boot_dedicated_simulator() {
+  local attempt
+  for attempt in 1 2; do
+    run_with_timeout 30 xcrun simctl shutdown "$SIM_UDID" >/dev/null 2>&1 || true
+    if run_with_timeout 60 xcrun simctl boot "$SIM_UDID" \
+      && run_with_timeout 300 xcrun simctl bootstatus "$SIM_UDID" -b; then
+      return 0
+    fi
+
+    echo "Dedicated simulator boot attempt $attempt failed; resetting CoreSimulatorService." >&2
+    if ! restart_core_simulator_service; then
+      return 1
+    fi
+  done
+  return 1
+}
+
+if ! boot_dedicated_simulator; then
+  echo "Dedicated simulator failed to become ready after recovery attempts: $SIM_UDID." >&2
   exit 2
 fi
 
@@ -194,7 +244,7 @@ PREAMBLE
   tail -n +2 scripts/verify-pr.sh \
     | sed "s/^SIM_NAME=\"$BASE_SIM_NAME\"$/SIM_NAME=\"$SIM_NAME\"/" \
     | sed 's/if ! xcodebuild test \\/if ! ci_xcodebuild test \\/g' \
-    | sed 's/xcrun simctl bootstatus \"$UDID\" -b/ci_run_with_timeout 180 xcrun simctl bootstatus \"$UDID\" -b/g' \
+    | sed 's/xcrun simctl bootstatus \"$UDID\" -b/ci_run_with_timeout 300 xcrun simctl bootstatus \"$UDID\" -b/g' \
     | sed 's/xcrun simctl boot \"$UDID\"/ci_run_with_timeout 60 xcrun simctl boot \"$UDID\"/g' \
     | sed 's/LAUNCH_OUT=$(xcrun simctl launch \"$UDID\" \"$BID\")/LAUNCH_OUT=$(ci_run_with_timeout 60 xcrun simctl launch \"$UDID\" \"$BID\")/g'
 } > "$TEMP_VERIFY"
