@@ -11,6 +11,8 @@ enum CompanionSessionRecord {
     static let showDate = "showDate"
     static let showStartTime = "showStartTime"
     static let showLocation = "showLocation"
+    /// Versioned immutable full-show payload captured when the share is first created.
+    static let showSnapshotV1 = "showSnapshotV1"
     static let ownerDisplayName = "ownerDisplayName"
     static let participantDisplayName = "participantDisplayName"
     static let status = "status"
