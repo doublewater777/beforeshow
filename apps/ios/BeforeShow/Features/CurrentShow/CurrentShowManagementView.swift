@@ -37,6 +37,10 @@ struct CurrentShowManagementSection: View {
     @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
+    /// SwiftUI may nil an item binding before the dismissal animation has ended.
+    /// Keep this raised until the corresponding onDismiss fires so a pending
+    /// arrival never plays underneath a disappearing child-owned presentation.
+    @State private var isPresentationVisibilityLatched = false
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
@@ -46,12 +50,16 @@ struct CurrentShowManagementSection: View {
     private var currentTimeState: CurrentShowTimeState { CurrentShowTimeState(show: show, now: Date()) }
     private var currentPhase: HomeShowPhase { HomeShowPhase(timeState: currentTimeState) }
 
-    private var isPresentationActive: Bool {
+    private var hasPresentationRequest: Bool {
         presentedSheet != nil
             || pendingMemoryCreate != nil
             || companionErrorMessage != nil
             || ceremonyLightsOutShowID != nil
             || ceremonySheetShowID != nil
+    }
+
+    private var isPresentationActive: Bool {
+        hasPresentationRequest || isPresentationVisibilityLatched
     }
 
     /// 给仪式 sheet 用的极简快照:只含 `shows`,足以让 `FootprintDetailIdentityBuilder`
@@ -84,7 +92,7 @@ struct CurrentShowManagementSection: View {
             }
         }
         #endif
-        .sheet(item: $presentedSheet) { sheet in
+        .sheet(item: $presentedSheet, onDismiss: presentedSheetDidDismiss) { sheet in
             switch sheet {
             case .endConfirmation:
                 CurrentShowEndConfirmationSheet(
@@ -142,7 +150,9 @@ struct CurrentShowManagementSection: View {
             }
         }
         .fullScreenCover(item: $ceremonyLightsOutShowID, onDismiss: {
-            // cover 彻底消失后再升 sheet,转场不重叠,熄灯黑场直接接上 sheet 升起。
+            // Keep the presentation latch raised across the full-screen → sheet
+            // handoff so Current never becomes momentarily "visible" in between.
+            isPresentationVisibilityLatched = true
             ceremonySheetShowID = show.id
         }) { id in
             DispersalLightsOutOverlay(
@@ -154,7 +164,7 @@ struct CurrentShowManagementSection: View {
                 }
             }
         }
-        .sheet(item: $ceremonySheetShowID) { id in
+        .sheet(item: $ceremonySheetShowID, onDismiss: releasePresentationLatchIfPossible) { id in
             if id == show.id {
                 DispersalCeremonySheet(
                     show: show,
@@ -180,12 +190,32 @@ struct CurrentShowManagementSection: View {
         .onChange(of: notificationRouter.pendingDeepLink) { _, _ in
             consumeNotificationDeepLink()
         }
-        .onChange(of: presentedSheet) { oldSheet, newSheet in
+        .onChange(of: presentedSheet, initial: true) { oldSheet, newSheet in
+            if newSheet != nil {
+                isPresentationVisibilityLatched = true
+            }
             if newSheet == nil, oldSheet == .memoryCreate, pendingMemoryCreate != nil {
                 presentedSheet = .memory
             }
             if newSheet == nil, oldSheet == .memory {
                 pendingMemoryCreate = nil
+            }
+        }
+        .onChange(of: ceremonyLightsOutShowID, initial: true) { _, showID in
+            if showID != nil {
+                isPresentationVisibilityLatched = true
+            }
+        }
+        .onChange(of: ceremonySheetShowID, initial: true) { _, showID in
+            if showID != nil {
+                isPresentationVisibilityLatched = true
+            }
+        }
+        .onChange(of: companionErrorMessage, initial: true) { _, message in
+            if message != nil {
+                isPresentationVisibilityLatched = true
+            } else {
+                releasePresentationLatchIfPossible()
             }
         }
         .onChange(of: isPresentationActive, initial: true) { _, isActive in
@@ -540,6 +570,25 @@ struct CurrentShowManagementSection: View {
             presentedSheet = .memory
         case .endShow:
             presentedSheet = .endConfirmation
+        }
+    }
+
+    private func presentedSheetDidDismiss() {
+        if presentedSheet != nil || pendingMemoryCreate != nil {
+            isPresentationVisibilityLatched = true
+            return
+        }
+        releasePresentationLatchIfPossible()
+    }
+
+    private func releasePresentationLatchIfPossible() {
+        Task { @MainActor in
+            await Task.yield()
+            guard !hasPresentationRequest else {
+                isPresentationVisibilityLatched = true
+                return
+            }
+            isPresentationVisibilityLatched = false
         }
     }
 
