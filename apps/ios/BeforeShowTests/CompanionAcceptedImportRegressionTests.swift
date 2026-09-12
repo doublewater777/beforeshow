@@ -206,6 +206,57 @@ final class CompanionAcceptedImportRegressionTests: XCTestCase {
         XCTAssertEqual(shows.first?.companionCloudRecordName, session.sessionLocator.recordName)
     }
 
+    func testSnapshotDropsDeviceLocalCoverButKeepsRemoteCover() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let local = try Show(
+            name: "本地封面现场",
+            date: now,
+            startTime: now,
+            coverImageURL: "file:///private/var/mobile/Containers/Data/cover.jpg"
+        )
+        XCTAssertNil(CompanionShowSnapshot(show: local).coverImageURL)
+
+        let remote = try Show(
+            name: "远程封面现场",
+            date: now,
+            startTime: now,
+            coverImageURL: "https://example.com/cover.jpg"
+        )
+        XCTAssertEqual(
+            CompanionShowSnapshot(show: remote).coverImageURL,
+            "https://example.com/cover.jpg"
+        )
+    }
+
+    func testUndatedPostponedSnapshotStaysUndatedAndDoesNotBecomeCurrent() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let originalDate = now.addingTimeInterval(30 * 86_400)
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "延期待定现场",
+            showDate: originalDate,
+            showStartTime: originalDate,
+            sourceShowDate: originalDate,
+            showChangeStatusRawValue: ShowChangeStatus.postponed.rawValue,
+            postponedDate: nil
+        )
+
+        let result = try CompanionAcceptedSessionImporter.apply(
+            makeSession(show: snapshot),
+            in: context,
+            now: now
+        )
+
+        let imported = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        XCTAssertEqual(imported.changeStatus, .postponed)
+        XCTAssertNil(imported.postponedDate)
+        XCTAssertEqual(CurrentShowTimeState(show: imported, now: now).kind, .postponed)
+        XCTAssertFalse(result.becameCurrent)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<CurrentShowSelection>()).isEmpty)
+    }
+
     func testCloudSnapshotDecoderPrefersFrozenFullPayloadAndKeepsLegacyFieldsCompatible() throws {
         let zone = CKRecordZone.ID(
             zoneName: CompanionRecordLocator.companionZoneName,
