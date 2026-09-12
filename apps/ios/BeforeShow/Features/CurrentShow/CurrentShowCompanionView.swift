@@ -107,8 +107,10 @@ struct CurrentShowCompanionSheet: View {
     let coordinator: CompanionSharingCoordinator
 
     @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Show.date) private var allShows: [Show]
     @State private var isShowingHistory = false
     @State private var isShowingShareSheet = false
+    @State private var selectedPairName: String?
     @State private var isPreparingInvite = false
     @State private var errorMessage: String?
 
@@ -149,6 +151,24 @@ struct CurrentShowCompanionSheet: View {
         }
         .sheet(isPresented: $isShowingShareSheet) {
             CompanionFootprintShareSheet(show: show, sharedHistory: sharedHistory)
+        }
+        .sheet(
+            isPresented: Binding(
+                get: { selectedPairName != nil },
+                set: { if !$0 { selectedPairName = nil } }
+            )
+        ) {
+            if let selectedPairName {
+                NavigationStack {
+                    CompanionPairFootprintView(
+                        companionName: selectedPairName,
+                        shows: CompanionPairHistory.shows(
+                            with: selectedPairName,
+                            from: allShows
+                        )
+                    )
+                }
+            }
         }
         .alert(
             BSLocalization.text("同行邀请"),
@@ -258,7 +278,17 @@ struct CurrentShowCompanionSheet: View {
             HStack(spacing: BSSpacing.md) {
                 person(name: BSLocalization.text("你"), initial: BSLocalization.text("我"))
                 ForEach(Array(memberNames.enumerated()), id: \.offset) { _, name in
-                    person(name: name, initial: String(name.prefix(1)))
+                    if isEnded {
+                        Button {
+                            selectedPairName = name
+                        } label: {
+                            person(name: name, initial: String(name.prefix(1)))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityHint(BSLocalization.text("查看你们的共同足迹"))
+                    } else {
+                        person(name: name, initial: String(name.prefix(1)))
+                    }
                 }
             }
             .padding(.vertical, BSSpacing.sm)
