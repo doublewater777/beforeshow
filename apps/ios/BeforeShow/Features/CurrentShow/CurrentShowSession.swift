@@ -83,11 +83,15 @@ struct CurrentShowFeatureRootView: View {
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @State private var notificationPresentation: CurrentShowNotificationPresentation?
     @State private var pendingMemoryCreate: PendingNotificationMemoryCreate?
+    /// `notificationPresentation` may become nil before the sheet dismissal
+    /// animation has actually finished. Keep a root-owned latch until onDismiss
+    /// decides whether another notification destination follows immediately.
+    @State private var isNotificationPresentationActive = false
 
     var body: some View {
         CurrentShowHomeView(
             isPlaybackActive: isPlaybackActive,
-            isFeaturePresentationActive: notificationPresentation != nil,
+            isFeaturePresentationActive: isNotificationPresentationActive,
             ceremonyPendingDetail: $ceremonyPendingDetail
         )
         .task {
@@ -96,7 +100,7 @@ struct CurrentShowFeatureRootView: View {
         .onChange(of: notificationRouter.featureRootDeepLink) { _, _ in
             consumeNotificationRouteIfNeeded()
         }
-        .sheet(item: $notificationPresentation, onDismiss: presentPendingMemoryCreateIfNeeded) { presentation in
+        .sheet(item: $notificationPresentation, onDismiss: notificationPresentationDidDismiss) { presentation in
             if let show = shows.first(where: { $0.id == presentation.showID }) {
                 switch presentation.destination {
                 case .home:
@@ -130,6 +134,7 @@ struct CurrentShowFeatureRootView: View {
             _ = notificationRouter.consumeFeatureRoot()
             return
         }
+        isNotificationPresentationActive = true
         notificationPresentation = CurrentShowNotificationPresentation(
             showID: deepLink.showID,
             destination: deepLink.destination,
@@ -138,21 +143,27 @@ struct CurrentShowFeatureRootView: View {
         _ = notificationRouter.consumeFeatureRoot()
     }
 
-    private func presentPendingMemoryCreateIfNeeded() {
-        guard let pendingMemoryCreate else {
-            // A second notification may have arrived while the previous destination
-            // was presented. Consume it only after presentation ownership is free.
-            consumeNotificationRouteIfNeeded()
+    private func notificationPresentationDidDismiss() {
+        if let pendingMemoryCreate {
+            self.pendingMemoryCreate = nil
+            // Keep the latch raised across the sheet-to-sheet handoff. The next
+            // presentation is installed only after the previous sheet is gone.
+            Task { @MainActor in
+                await Task.yield()
+                notificationPresentation = CurrentShowNotificationPresentation(
+                    showID: pendingMemoryCreate.showID,
+                    destination: .memoryFragments,
+                    pendingCreate: pendingMemoryCreate.option
+                )
+            }
             return
         }
-        self.pendingMemoryCreate = nil
-        Task { @MainActor in
-            await Task.yield()
-            notificationPresentation = CurrentShowNotificationPresentation(
-                showID: pendingMemoryCreate.showID,
-                destination: .memoryFragments,
-                pendingCreate: pendingMemoryCreate.option
-            )
+
+        // A second notification may have arrived while the previous destination
+        // was presented. Consume it only after presentation ownership is free.
+        consumeNotificationRouteIfNeeded()
+        if notificationPresentation == nil {
+            isNotificationPresentationActive = false
         }
     }
 }
