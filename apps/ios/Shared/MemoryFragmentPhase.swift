@@ -102,11 +102,16 @@ enum MemoryFragmentPhase: String, Codable, CaseIterable, Equatable, Sendable {
 enum MemoryFragmentRelativeTime {
     static func format(_ date: Date, now: Date = Date(), calendar: Calendar = .current) -> String {
         let diff = max(0, now.timeIntervalSince(date))
+
+        // Keep truly recent fragments relative even when they cross midnight.
+        // A fragment from 23:59 viewed at 00:04 is still more useful as “5 分钟前”
+        // than as a calendar-day label.
+        if diff < 60 { return BSLocalization.text("刚刚") }
+        if diff < 3_600 {
+            return BSLocalization.format("%lld 分钟前", Int64(max(1, Int(diff / 60))))
+        }
+
         if calendar.isDate(date, inSameDayAs: now) {
-            if diff < 60 { return BSLocalization.text("刚刚") }
-            if diff < 3_600 {
-                return BSLocalization.format("%lld 分钟前", Int64(max(1, Int(diff / 60))))
-            }
             return BSLocalization.format("%lld 小时前", Int64(max(1, Int(diff / 3_600))))
         }
 
