@@ -89,41 +89,41 @@ jobs:
               if xcrun xcresulttool get test-results summary \
                   --path "$bundle" --compact > "$summary_json"; then
                 python3 - "$summary_json" <<'PY' || true
-import json
-import sys
+          import json
+          import sys
 
-path = sys.argv[1]
-with open(path, encoding="utf-8") as handle:
-    data = json.load(handle)
+          path = sys.argv[1]
+          with open(path, encoding="utf-8") as handle:
+              data = json.load(handle)
 
-print(
-    "result={result} total={total} passed={passed} failed={failed} skipped={skipped}".format(
-        result=data.get("result", "unknown"),
-        total=data.get("totalTestCount", "unknown"),
-        passed=data.get("passedTests", "unknown"),
-        failed=data.get("failedTests", "unknown"),
-        skipped=data.get("skippedTests", "unknown"),
-    )
-)
+          print(
+              "result={result} total={total} passed={passed} failed={failed} skipped={skipped}".format(
+                  result=data.get("result", "unknown"),
+                  total=data.get("totalTestCount", "unknown"),
+                  passed=data.get("passedTests", "unknown"),
+                  failed=data.get("failedTests", "unknown"),
+                  skipped=data.get("skippedTests", "unknown"),
+              )
+          )
 
-failures = data.get("testFailures") or []
-if not failures:
-    print("No testFailures entries were present in the xcresult summary.")
+          failures = data.get("testFailures") or []
+          if not failures:
+              print("No testFailures entries were present in the xcresult summary.")
 
-for index, failure in enumerate(failures, 1):
-    identifier = (
-        failure.get("testIdentifierString")
-        or failure.get("testName")
-        or "unknown test"
-    )
-    target = failure.get("targetName") or "unknown target"
-    text = (failure.get("failureText") or "no failure text").replace("\r\n", "\n")
-    print(f"\n[{index}] {identifier}")
-    print(f"target: {target}")
-    print("failure:")
-    for line in text.splitlines() or [text]:
-        print(f"  {line}")
-PY
+          for index, failure in enumerate(failures, 1):
+              identifier = (
+                  failure.get("testIdentifierString")
+                  or failure.get("testName")
+                  or "unknown test"
+              )
+              target = failure.get("targetName") or "unknown target"
+              text = (failure.get("failureText") or "no failure text").replace("\r\n", "\n")
+              print(f"\n[{index}] {identifier}")
+              print(f"target: {target}")
+              print("failure:")
+              for line in text.splitlines() or [text]:
+                  print(f"  {line}")
+          PY
               else
                 echo "xcresulttool could not read $bundle"
               fi
