@@ -48,35 +48,29 @@ struct CompanionQuickActionPresentation: Equatable {
         )
     }
 
-    init(status: ShowCompanionStatus, companionNames: [String], isEnded: Bool) {
+    init(status: ShowCompanionStatus, companionNames: [String], isEnded _: Bool) {
         let names = CompanionNameList.normalized(companionNames)
         let joined = CompanionNameList.joined(names)
         self.companionNames = names
         self.companionName = joined
+
         switch status {
-        case .none:
-            title = BSLocalization.text("同行")
-            accessibilityLabel = BSLocalization.text("同行，邀请朋友")
+        case .none, .pending, .canceled:
+            title = BSLocalization.text("添加同行")
+            accessibilityLabel = BSLocalization.text("添加同行")
             showsPendingIndicator = false
-            showsAvatars = false
-        case .pending:
-            title = BSLocalization.text("待确认")
-            accessibilityLabel = joined.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
-            showsPendingIndicator = true
             showsAvatars = false
         case .confirmed:
-            let displayName = joined ?? BSLocalization.text("同行者")
-            title = isEnded ? BSLocalization.text("共同足迹") : BSLocalization.format("与%@", displayName)
-            accessibilityLabel = isEnded
-                ? (joined.map { BSLocalization.format("同行，与%@的共同足迹", $0) } ?? BSLocalization.text("同行，共同足迹"))
-                : BSLocalization.format("同行，与%@已确认", displayName)
+            if names.count == 1, let name = names.first {
+                title = BSLocalization.format("与%@同行", name)
+            } else if names.count > 1 {
+                title = BSLocalization.format("%lld 人同行", Int64(names.count + 1))
+            } else {
+                title = BSLocalization.text("同行")
+            }
+            accessibilityLabel = title
             showsPendingIndicator = false
-            showsAvatars = true
-        case .canceled:
-            title = BSLocalization.text("重新邀请")
-            accessibilityLabel = joined.map { BSLocalization.format("同行，重新邀请%@", $0) } ?? BSLocalization.text("同行，重新邀请")
-            showsPendingIndicator = false
-            showsAvatars = false
+            showsAvatars = !names.isEmpty
         }
     }
 }
@@ -91,8 +85,6 @@ struct CurrentShowCompanionSheet: View {
     @State private var isShowingHistory = false
     @State private var isShowingShareSheet = false
     @State private var isPreparingInvite = false
-    @State private var isRefreshing = false
-    @State private var isCanceling = false
     @State private var errorMessage: String?
 
     init(
@@ -115,14 +107,10 @@ struct CurrentShowCompanionSheet: View {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     switch show.companionStatus {
-                    case .none:
-                        invitationContent(isRetry: false)
-                    case .pending:
-                        pendingContent
+                    case .none, .pending, .canceled:
+                        invitationContent
                     case .confirmed:
                         confirmedContent
-                    case .canceled:
-                        invitationContent(isRetry: true)
                     }
                 }
             }
@@ -138,13 +126,13 @@ struct CurrentShowCompanionSheet: View {
             CompanionFootprintShareSheet(show: show, sharedHistory: sharedHistory)
         }
         .alert(
-            "同行邀请",
+            BSLocalization.text("同行邀请"),
             isPresented: Binding(
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )
         ) {
-            Button("知道了", role: .cancel) { errorMessage = nil }
+            Button(BSLocalization.text("知道了"), role: .cancel) { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
@@ -157,54 +145,16 @@ struct CurrentShowCompanionSheet: View {
         }
     }
 
-    private func invitationContent(isRetry: Bool) -> some View {
+    private var invitationContent: some View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
-                title: isRetry ? BSLocalization.text("邀请未接受") : BSLocalization.text("邀请同行"),
-                subtitle: isRetry
-                    ? BSLocalization.text("可以通过系统分享重新发送邀请，对方点开链接后加入这场同行。")
-                    : BSLocalization.text("通过系统分享邀请朋友。对方接受后，会加入这场同行。")
+                title: BSLocalization.text("添加同行"),
+                subtitle: BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
             )
 
             Button {
-                Task { await sendInvitation(isRetry: isRetry) }
-            } label: {
-                if isPreparingInvite {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .tint(.black)
-                        Text(CompanionInvitePreparingPresentation.primaryActionTitle(
-                            isPreparing: true,
-                            isRetry: isRetry
-                        ))
-                    }
-                    .frame(maxWidth: .infinity)
-                } else {
-                    Label(
-                        CompanionInvitePreparingPresentation.primaryActionTitle(
-                            isPreparing: false,
-                            isRetry: isRetry
-                        ),
-                        systemImage: "square.and.arrow.up"
-                    )
-                }
-            }
-            .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isPreparingInvite)
-        }
-    }
-
-    private var pendingContent: some View {
-        VStack(spacing: BSSpacing.md) {
-            BSStageSheetHeader(
-                icon: "hourglass",
-                title: pendingTitle,
-                subtitle: BSLocalization.text("已通过系统分享发出邀请。对方点开链接并接受后，这里会自动变成已确认。")
-            )
-
-            Button {
-                Task { await resendInvitation() }
+                Task { await sendInvitation(isRetry: show.companionStatus == .canceled) }
             } label: {
                 if isPreparingInvite {
                     HStack(spacing: 8) {
@@ -214,71 +164,27 @@ struct CurrentShowCompanionSheet: View {
                     }
                     .frame(maxWidth: .infinity)
                 } else {
-                    Label(BSLocalization.text("再次发送邀请"), systemImage: "paperplane")
+                    Label(inviteActionTitle, systemImage: "square.and.arrow.up")
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isPreparingInvite || show.companionShareRecordName == nil)
-
-            Button {
-                Task { await refreshStatus() }
-            } label: {
-                HStack(spacing: 6) {
-                    if isRefreshing {
-                        ProgressView()
-                            .scaleEffect(0.85)
-                            .tint(BSColor.Stage.muted)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    Text(isRefreshing ? BSLocalization.text("正在检查...") : BSLocalization.text("检查状态"))
-                }
-                .font(BSFont.caption)
-                .foregroundColor(BSColor.Stage.muted)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 8)
-            }
-            .disabled(isRefreshing)
-
-            destructiveButton("取消邀请") {
-                Task { await cancelInvitation() }
-            }
-            .disabled(isCanceling)
+            .disabled(isPreparingInvite)
         }
     }
 
     @ViewBuilder
     private var confirmedContent: some View {
-        if isEnded {
-            VStack(spacing: BSSpacing.md) {
-                BSStageSheetHeader(
-                    icon: "person.2.fill",
-                    title: BSLocalization.text("共同足迹"),
-                    subtitle: BSLocalization.text("这场现场已经收进你们共同的记录。")
-                )
+        VStack(spacing: BSSpacing.md) {
+            BSStageSheetHeader(
+                icon: "person.2.fill",
+                title: companionTitle,
+                subtitle: BSLocalization.text("这场现场已记录同行。")
+            )
 
+            companionMembers
+
+            if isEnded {
                 sharedMemoryCard
-
-                Button {
-                    isShowingShareSheet = true
-                } label: {
-                    Label(BSLocalization.text("分享共同足迹卡"), systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(BSPrimaryButtonStyle())
-            }
-        } else {
-            VStack(spacing: BSSpacing.md) {
-                BSStageSheetHeader(
-                    icon: "person.2.fill",
-                    title: BSLocalization.format("与%@同行", displayName),
-                    subtitle: BSLocalization.text("这场现场已确认同行。")
-                )
-
-                companionMembers
-
-                Text(BSLocalization.format("你们共同看过 %lld 场现场", sharedHistory.count))
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.muted)
 
                 if isShowingHistory {
                     historyList
@@ -290,28 +196,28 @@ struct CurrentShowCompanionSheet: View {
                     } label: {
                         Label(BSLocalization.text("查看共同足迹"), systemImage: "clock.arrow.circlepath")
                     }
-                    .buttonStyle(BSPrimaryButtonStyle())
-                }
-
-                if show.companionIsOwner != false {
-                    Button {
-                        Task { await resendInvitation() }
-                    } label: {
-                        if isPreparingInvite {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                        } else {
-                            Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
-                        }
-                    }
                     .buttonStyle(BSSecondaryButtonStyle())
-                    .disabled(isPreparingInvite || show.companionShareRecordName == nil)
                 }
 
-                destructiveButton(show.companionIsOwner == false ? "退出同行" : "取消同行") {
-                    Task { await cancelInvitation() }
+                Button {
+                    isShowingShareSheet = true
+                } label: {
+                    Label(BSLocalization.text("分享共同足迹卡"), systemImage: "square.and.arrow.up")
                 }
-                .disabled(isCanceling)
+                .buttonStyle(BSPrimaryButtonStyle())
+            } else if show.companionIsOwner != false {
+                Button {
+                    Task { await resendInvitation() }
+                } label: {
+                    if isPreparingInvite {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
+                    }
+                }
+                .buttonStyle(BSSecondaryButtonStyle())
+                .disabled(isPreparingInvite || show.companionShareRecordName == nil)
             }
         }
     }
@@ -345,9 +251,6 @@ struct CurrentShowCompanionSheet: View {
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
-            Text("已确认")
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundColor(BSColor.Stage.prepare)
         }
     }
 
@@ -357,7 +260,13 @@ struct CurrentShowCompanionSheet: View {
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
                 .foregroundColor(BSColor.Stage.accent)
-            Text(BSLocalization.format("我们一起看的\n第 %lld 场现场", max(1, sharedHistory.count)))
+            Text(
+                BSLocalization.format(
+                    "我们 %lld 人一起看过 %lld 场现场",
+                    Int64(max(2, memberNames.count + 1)),
+                    Int64(sharedHistory.count)
+                )
+            )
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
             Text(show.name)
@@ -380,7 +289,7 @@ struct CurrentShowCompanionSheet: View {
     @ViewBuilder
     private var historyList: some View {
         if sharedHistory.isEmpty {
-            Text("散场后，共同足迹会从这里开始。")
+            Text(BSLocalization.text("共同足迹会从这里开始。"))
                 .font(BSFont.caption)
                 .foregroundColor(BSColor.Stage.muted)
                 .frame(maxWidth: .infinity)
@@ -405,33 +314,24 @@ struct CurrentShowCompanionSheet: View {
         }
     }
 
-    private func destructiveButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(role: .destructive, action: action) {
-            Text(title)
-                .font(BSFont.caption)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 11)
-        }
-        .foregroundColor(BSColor.Stage.liveTitle)
-    }
-
     private var memberNames: [String] {
         CompanionNameList.normalized(show.companionNames)
     }
 
-    private var displayName: String {
-        CompanionNameList.joined(memberNames) ?? BSLocalization.text("同行者")
-    }
-
-    private var pendingTitle: String {
-        if let names = CompanionNameList.joined(memberNames) {
-            return BSLocalization.format("等待%@确认", names)
+    private var companionTitle: String {
+        if memberNames.count == 1, let name = memberNames.first {
+            return BSLocalization.format("与%@同行", name)
         }
-        return BSLocalization.text("等待确认")
+        if memberNames.count > 1 {
+            return BSLocalization.format("%lld 人同行", Int64(memberNames.count + 1))
+        }
+        return BSLocalization.text("同行")
     }
 
-    private var sharedFootprintShareText: String {
-        BSLocalization.format("我和%@一起看了 %@。\n这是我们共同记录的第 %lld 场现场。", displayName, show.name, max(1, sharedHistory.count))
+    private var inviteActionTitle: String {
+        show.companionShareLocator == nil
+            ? BSLocalization.text("分享邀请")
+            : BSLocalization.text("再次分享邀请")
     }
 
     private var preparingOverlay: some View {
@@ -469,7 +369,7 @@ struct CurrentShowCompanionSheet: View {
         }
         guard show.companionCloudRecordName == nil else {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("这场现场已有正在进行的同行邀请，请稍候检查状态")
+            errorMessage = BSLocalization.text("这场现场已有正在进行的同行邀请，请稍候再试")
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext)
@@ -508,7 +408,6 @@ struct CurrentShowCompanionSheet: View {
             let data = try await coordinator.shareSystemFieldsForResend(show: show)
             presentPreparedShare(data)
         } catch let error as CompanionSharingError where error == .sessionNotFound {
-            // Only recreate when CloudKit positively reports the share is gone.
             await sendInvitation(isRetry: true, alreadyPreparing: true)
         } catch {
             isPreparingInvite = false
@@ -556,27 +455,6 @@ struct CurrentShowCompanionSheet: View {
         if !presented {
             isPreparingInvite = false
             errorMessage = BSLocalization.text("无法打开系统分享")
-        }
-    }
-
-    @MainActor
-    private func refreshStatus() async {
-        isRefreshing = true
-        defer { isRefreshing = false }
-        await coordinator.refreshCompanion(for: show, in: modelContext)
-        if let error = coordinator.consumeLastErrorMessage() {
-            errorMessage = error
-        }
-    }
-
-    @MainActor
-    private func cancelInvitation() async {
-        isCanceling = true
-        defer { isCanceling = false }
-        do {
-            try await coordinator.cancelCompanion(for: show, in: modelContext)
-        } catch {
-            errorMessage = CompanionSharingCoordinator.userMessage(for: error)
         }
     }
 }
