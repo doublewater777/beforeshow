@@ -47,6 +47,16 @@ final class ListeningCatalogStore {
             artistID: artistID,
             fetchedAt: now
         )
+        return try persistArtistCatalog(payload)
+    }
+
+    /// Persist an already-fetched complete payload. Keeping network fetch separate
+    /// lets the Listen coordinator fetch multiple artists concurrently while all
+    /// SwiftData mutation remains serialized on the main actor.
+    @discardableResult
+    func persistArtistCatalog(
+        _ payload: ListeningArtistCatalogPayload
+    ) throws -> ArtistCatalogSnapshot {
         let repository = ListeningRepository(modelContext: modelContext)
 
         do {
@@ -105,7 +115,7 @@ final class ListeningCatalogStore {
             // if the derived tier repair itself cannot be persisted.
             try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
                 in: modelContext,
-                now: now
+                now: payload.fetchedAt
             )
             return snapshot
         } catch {

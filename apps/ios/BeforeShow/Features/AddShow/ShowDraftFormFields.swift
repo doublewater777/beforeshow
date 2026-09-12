@@ -137,6 +137,12 @@ struct ShowDraftFormFields: View {
                 await importCover(from: newItem)
             }
         }
+        // Imported lineup names are enriched before the user ever reaches Listen.
+        // This is best-effort and invisible: only one unambiguous exact match is
+        // accepted, and any user edit immediately stops automatic matching.
+        .task(id: artistAutoMatchKey) {
+            await autoMatchRecognizedArtists()
+        }
     }
 
     /// 四张卡片布局（Stage 色板，与首页 V4 / 现场状态卡同一语言）。
@@ -315,6 +321,43 @@ struct ShowDraftFormFields: View {
                         keyboardType: .URL
                     )
                 }
+            }
+        }
+    }
+
+    private var artistAutoMatchKey: String {
+        guard recognizedHighlight,
+              draft.recognizedFields.contains(.artist),
+              !userEditedFields.contains(.artist) else {
+            return "disabled"
+        }
+        return draft.artists.map(\.name).joined(separator: "\u{1F}")
+    }
+
+    @MainActor
+    private func autoMatchRecognizedArtists() async {
+        guard recognizedHighlight,
+              draft.recognizedFields.contains(.artist),
+              !userEditedFields.contains(.artist) else { return }
+
+        let importedArtists = draft.artists
+        let matches = await ShowDraftArtistAutoMatcher(search: artistSearch).matches(for: importedArtists)
+        guard !Task.isCancelled, !userEditedFields.contains(.artist) else { return }
+
+        for (index, match) in matches {
+            guard importedArtists.indices.contains(index),
+                  draft.artists.indices.contains(index),
+                  draft.artists[index].appleMusicArtistID == nil,
+                  ShowDraftArtistAutoMatcher.normalized(draft.artists[index].name)
+                    == ShowDraftArtistAutoMatcher.normalized(importedArtists[index].name) else {
+                continue
+            }
+
+            // Identity enrichment must not rewrite the imported/user-visible name.
+            draft.artists[index].appleMusicArtistID = match.id
+            draft.artists[index].appleMusicURL = match.appleMusicURL?.absoluteString
+            if draft.artists[index].avatarURL == nil {
+                draft.artists[index].avatarURL = match.avatarURL?.absoluteString
             }
         }
     }

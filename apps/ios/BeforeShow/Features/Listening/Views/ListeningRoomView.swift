@@ -27,9 +27,11 @@ struct ListenRootView: View {
         return shows.first { $0.id == id }
     }
 
+    /// Only Current Show identity owns the root loading task. Artist identity
+    /// enrichment happens inside the bound room and must not cancel/restart that
+    /// same load when it writes Apple Music IDs back to the Show.
     private var loadKey: String {
-        guard let show else { return "empty" }
-        return show.id.uuidString + show.artists.map { $0.name + ($0.appleMusicArtistID ?? "") }.joined(separator: "|")
+        show?.id.uuidString ?? "empty"
     }
 
     var body: some View {
@@ -236,6 +238,10 @@ struct ListeningRoomView: View {
             ) {
                 if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
             }
+        } else if room.isCatalogEnriching && room.libraryDiscs.isEmpty {
+            // Keep the cabinet geometry stable while the selected artist's full
+            // albums are still arriving instead of briefly claiming no records exist.
+            ListeningShelfSkeleton()
         } else {
             switch room.presentation {
             case .loading, .loadingCatalog:
