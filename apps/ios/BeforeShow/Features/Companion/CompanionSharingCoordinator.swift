@@ -13,6 +13,7 @@ final class CompanionSharingCoordinator {
     }
 
     private(set) var pendingAcceptMessage: String?
+    private(set) var pendingAcceptResult: CompanionAcceptedImportResult?
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -121,6 +122,7 @@ final class CompanionSharingCoordinator {
                 participantDisplayName: participantDisplayName
             )
             let importResult = try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+            pendingAcceptResult = importResult
             pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
                 ownerDisplayName: session.ownerDisplayName,
                 importResult: importResult
@@ -128,6 +130,7 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
+            pendingAcceptResult = nil
             lastErrorMessage = Self.userMessage(for: error)
             if let sharing = error as? CompanionSharingError {
                 lastErrorKind = sharing
@@ -433,6 +436,12 @@ final class CompanionSharingCoordinator {
         let message = pendingAcceptMessage
         pendingAcceptMessage = nil
         return message
+    }
+
+    func consumePendingAcceptResult() -> CompanionAcceptedImportResult? {
+        let result = pendingAcceptResult
+        pendingAcceptResult = nil
+        return result
     }
 
     func consumeLastErrorMessage() -> String? {
