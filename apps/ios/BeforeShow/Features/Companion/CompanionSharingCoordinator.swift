@@ -120,8 +120,11 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: participantDisplayName
             )
-            try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
-            pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(ownerDisplayName: session.ownerDisplayName)
+            let importResult = try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+            pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
+                ownerDisplayName: session.ownerDisplayName,
+                importResult: importResult
+            )
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
