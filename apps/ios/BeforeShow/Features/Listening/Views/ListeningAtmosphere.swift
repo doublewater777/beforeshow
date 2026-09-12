@@ -1,34 +1,111 @@
 import SwiftUI
 
+/// One light field and tabletop for both the sleeves and the player.
 struct ListeningAtmosphere: View {
     let disc: ListeningDisc?
     let isPlaying: Bool
+    var isOpen = false
+    var hasDisc = false
+    var show: Show?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @State private var artworkColor: Color?
+    @State private var isVisible = false
 
     private var color: Color {
         guard let disc else { return BSColor.Stage.accent }
-        if case .compilation = disc.origin { return ListeningSleeveIdentity(disc: disc).color }
         return artworkColor ?? ListeningSleeveIdentity(disc: disc).color
     }
 
+    private var artworkURL: URL? {
+        guard let disc else { return nil }
+        return ListeningSleeveIdentity(disc: disc, show: show).artworkURL
+            ?? disc.tracks.compactMap(\.artworkURL).first
+    }
+
+    private var lightOpacity: Double {
+        if isPlaying { return BSListeningTokens.playingLightOpacity }
+        if isOpen { return BSListeningTokens.openLightOpacity }
+        return hasDisc ? BSListeningTokens.pausedLightOpacity : BSListeningTokens.restingLightOpacity
+    }
+
+    private var breathes: Bool {
+        isPlaying && !reduceMotion && isVisible && scenePhase == .active
+    }
+
     var body: some View {
-        Ellipse()
-            .fill(color.opacity(isPlaying ? BSListeningTokens.playingLightOpacity : BSListeningTokens.restingLightOpacity))
-            .frame(height: BSListeningTokens.lightHeight)
-            .blur(radius: BSListeningTokens.lightBlur)
-            .offset(y: BSListeningTokens.lightOffset)
-            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: color)
-            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: isPlaying)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .task(id: disc?.artworkURL) {
-                artworkColor = nil
-                guard let url = disc?.artworkURL,
-                      let image = await ShowCoverImageCache.shared.image(from: url),
-                      let sampled = await ArtworkColorSampler.color(in: image), !Task.isCancelled else { return }
-                artworkColor = Color(uiColor: sampled)
+        GeometryReader { proxy in
+            let width = proxy.size.width
+            let height = proxy.size.height
+            let tableTop = height * BSListeningTokens.tableTopFraction
+            let table = Path { path in
+                path.move(to: CGPoint(x: width * BSListeningTokens.tableRearInset, y: tableTop))
+                path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableRearInset), y: tableTop))
+                path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableFrontInset), y: height))
+                path.addLine(to: CGPoint(x: width * BSListeningTokens.tableFrontInset, y: height))
+                path.closeSubpath()
             }
+            ZStack {
+                table.fill(LinearGradient(
+                    colors: [BSListeningTokens.tableTop, BSListeningTokens.tableBottom],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                RadialGradient(
+                    colors: [.white.opacity(BSListeningTokens.sideLightOpacity), .clear],
+                    center: BSListeningTokens.sideLightCenter,
+                    startRadius: 0, endRadius: width * BSListeningTokens.tableLightRadiusFraction
+                )
+                .clipShape(table)
+                Path { path in
+                    path.move(to: CGPoint(x: width * BSListeningTokens.tableRearInset, y: tableTop))
+                    path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableRearInset), y: tableTop))
+                }
+                .stroke(LinearGradient(
+                    colors: [.clear, .white.opacity(BSListeningTokens.tableEdgeOpacity), .clear],
+                    startPoint: .leading, endPoint: .trailing
+                ), lineWidth: BSListeningTokens.hairline)
+
+                TimelineView(.animation(minimumInterval: BSListeningTokens.lightFrameInterval, paused: !breathes)) { timeline in
+                    let breath = breathes
+                        ? sin(timeline.date.timeIntervalSinceReferenceDate * 2 * .pi / BSListeningTokens.lightBreathPeriod) * BSListeningTokens.lightBreathAmplitude
+                        : 0
+                    RadialGradient(
+                        colors: [color.opacity(lightOpacity + breath), .clear],
+                        center: BSListeningTokens.ambientLightCenter,
+                        startRadius: 0, endRadius: width * BSListeningTokens.roomLightRadiusFraction
+                    )
+                    .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: lightOpacity)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: color)
+                }
+            }
+            .mask {
+                LinearGradient(stops: [
+                    .init(color: .white, location: 0),
+                    .init(color: .white, location: BSListeningTokens.tableFadeStart),
+                    .init(color: .clear, location: 1)
+                ], startPoint: .top, endPoint: .bottom)
+            }
+            .mask {
+                LinearGradient(stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .white, location: BSListeningTokens.tableRearInset),
+                    .init(color: .white, location: 1 - BSListeningTokens.tableRearInset),
+                    .init(color: .clear, location: 1)
+                ], startPoint: .leading, endPoint: .trailing)
+            }
+        }
+        .clipped()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear { isVisible = true }
+        .onDisappear { isVisible = false }
+        .task(id: artworkURL) {
+            artworkColor = nil
+            guard let url = artworkURL,
+                  let image = await ShowCoverImageCache.shared.image(from: url),
+                  let sampled = await ArtworkColorSampler.color(in: image), !Task.isCancelled else { return }
+            artworkColor = Color(uiColor: sampled)
+        }
     }
 }
 
@@ -39,11 +116,11 @@ struct ListeningCurrentSong: View {
     private var player: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: BSListeningTokens.songSpacing) {
             if room.mechanism.position == .seated, let track = room.track {
-                VStack(spacing: 3) {
+                VStack(spacing: BSSpacing.xs) {
                     Text(track.title)
-                        .font(BSListeningTokens.headline)
+                        .font(BSListeningTokens.songTitle)
                         .foregroundStyle(BSColor.Stage.foreground)
                         .lineLimit(2)
                     Text(track.artistName)
@@ -56,7 +133,7 @@ struct ListeningCurrentSong: View {
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("listening.currentSong")
-                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                .transition(.opacity)
             } else {
                 statusLine
                     .frame(maxWidth: .infinity)
@@ -77,7 +154,7 @@ struct ListeningCurrentSong: View {
                 .accessibilityIdentifier("listening.playerRecovery")
             }
         }
-        .frame(minHeight: 58)
+        .frame(minHeight: BSListeningTokens.songHeight)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)

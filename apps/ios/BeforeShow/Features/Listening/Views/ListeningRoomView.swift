@@ -136,6 +136,8 @@ struct ListeningRoomView: View {
                                     matchingArtistName = name
                                 }
                             )
+                            .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
+                            .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: room.isPlaying)
                         }
 
                         let geometry = room.mechanism.configuration.geometry
@@ -148,15 +150,9 @@ struct ListeningRoomView: View {
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
                             .frame(maxWidth: .infinity)
-                           .background {
-                               ListeningAtmosphere(
-                                   disc: room.mechanism.position == .seated ? room.mechanism.disc : nil,
-                                   isPlaying: room.isPlaying
-                               )
-                           }
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
 
-                       ListeningCurrentSong(room: room)
+                        ListeningCurrentSong(room: room)
 
                         if !room.libraryDiscs.isEmpty,
                            room.display.recoveryAction != nil || room.isAuthorizing {
@@ -170,6 +166,16 @@ struct ListeningRoomView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .accessibilityIdentifier("listening.mechanismNotice")
                         }
+                    }
+                    .background {
+                        ListeningAtmosphere(
+                            disc: room.mechanism.disc ?? room.display.shelfDiscs.first,
+                            isPlaying: room.isPlaying,
+                            isOpen: room.mechanism.isOpen,
+                            hasDisc: room.mechanism.position == .seated,
+                            show: show
+                        )
+                        .padding(.horizontal, -BSSpacing.roomy)
                     }
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
