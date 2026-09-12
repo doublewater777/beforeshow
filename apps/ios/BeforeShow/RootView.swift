@@ -20,6 +20,7 @@ struct RootView: View {
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
     @State private var companionDuplicateResolution: CompanionDuplicateResolution?
     @State private var companionDuplicateErrorMessage: String?
+    @State private var companionAcceptanceMessage: String?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     /// Root owns only cross-feature tab dispatch. The Current Show feature root owns
     /// the concrete notification destination and never mutates CurrentShowSelection.
@@ -29,6 +30,9 @@ struct RootView: View {
     private var companionResultMessage: String? {
         if let companionDuplicateErrorMessage {
             return companionDuplicateErrorMessage
+        }
+        if let companionAcceptanceMessage {
+            return companionAcceptanceMessage
         }
         if let accepted = companionCoordinator.pendingAcceptMessage {
             return accepted
@@ -103,6 +107,11 @@ struct RootView: View {
             guard deepLink != nil else { return }
             selectedTab = .current
         }
+        .onChange(of: companionCoordinator.pendingAcceptMessage, initial: true) { _, message in
+            if let message {
+                companionAcceptanceMessage = message
+            }
+        }
         .onChange(of: rootShows.map(\.id)) { _, _ in
             refreshCompanionDuplicateResolution()
         }
@@ -140,6 +149,7 @@ struct RootView: View {
 
     private func dismissCompanionResultMessage() {
         companionDuplicateErrorMessage = nil
+        companionAcceptanceMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
         if companionCoordinator.lastErrorKind == .statusSyncPending {
             _ = companionCoordinator.consumeLastErrorMessage()
