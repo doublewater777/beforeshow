@@ -29,6 +29,7 @@ enum CompanionPairHistory {
     }
 }
 
+@MainActor
 struct CompanionPairFootprintView: View {
     let companionName: String
     let shows: [Show]
