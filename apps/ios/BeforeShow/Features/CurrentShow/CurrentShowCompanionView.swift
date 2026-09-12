@@ -230,21 +230,27 @@ struct CurrentShowCompanionSheet: View {
                     Label(BSLocalization.text("分享共同足迹卡"), systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(BSPrimaryButtonStyle())
-            } else if show.companionIsOwner != false {
-                Button {
-                    Task { await resendInvitation() }
-                } label: {
-                    if isPreparingInvite {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    } else {
-                        Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
-                    }
-                }
-                .buttonStyle(BSSecondaryButtonStyle())
-                .disabled(isPreparingInvite || show.companionShareRecordName == nil)
+            }
+
+            if show.companionIsOwner != false {
+                inviteMoreButton
             }
         }
+    }
+
+    private var inviteMoreButton: some View {
+        Button {
+            Task { await resendInvitation() }
+        } label: {
+            if isPreparingInvite {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+            } else {
+                Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
+            }
+        }
+        .buttonStyle(BSSecondaryButtonStyle())
+        .disabled(isPreparingInvite || show.companionShareRecordName == nil)
     }
 
     private var companionMembers: some View {
