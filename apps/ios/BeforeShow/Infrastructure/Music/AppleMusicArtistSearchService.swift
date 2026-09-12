@@ -91,9 +91,19 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return [] }
 
+        var catalogResults: [RecognizedArtist] = []
+        var catalogSucceeded = false
         do {
-            let catalogResults = try await catalogSearch(trimmed, limit)
-            if !catalogResults.isEmpty { return catalogResults }
+            catalogResults = try await catalogSearch(trimmed, limit)
+            catalogSucceeded = true
+            if Self.containsExactName(catalogResults, query: trimmed) {
+                return Self.mergedCandidates(
+                    primary: catalogResults,
+                    secondary: [],
+                    query: trimmed,
+                    limit: limit
+                )
+            }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -101,7 +111,20 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
             // failure is surfaced so the UI can distinguish service failure from no result.
         }
 
-        return try await fallbackSearch(trimmed, limit)
+        do {
+            let fallbackResults = try await fallbackSearch(trimmed, limit)
+            return Self.mergedCandidates(
+                primary: catalogResults,
+                secondary: fallbackResults,
+                query: trimmed,
+                limit: limit
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if catalogSucceeded { return catalogResults }
+            throw error
+        }
     }
 
     private static func searchMusicKitCatalog(query: String, limit: Int) async throws -> [RecognizedArtist] {
@@ -130,14 +153,24 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
             country: country,
             session: session
         )
-        if !direct.isEmpty { return direct }
+        if containsExactName(direct, query: query) {
+            return mergedCandidates(primary: direct, secondary: [], query: query, limit: limit)
+        }
 
-        return try await inferITunesArtistsFromSongs(
-            query: query,
-            limit: limit,
-            country: country,
-            session: session
-        )
+        do {
+            let inferred = try await inferITunesArtistsFromSongs(
+                query: query,
+                limit: limit,
+                country: country,
+                session: session
+            )
+            return mergedCandidates(primary: direct, secondary: inferred, query: query, limit: limit)
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            if !direct.isEmpty { return direct }
+            throw error
+        }
     }
 
     private static func searchITunesArtists(
@@ -227,6 +260,40 @@ struct AppleMusicArtistSearchService: ArtistSearchServicing {
             avatarURL: upgradedArtworkURL(result.artworkUrl100, size: 240),
             appleMusicURL: result.artistLinkUrl.flatMap(URL.init(string:))
         )
+    }
+
+    private static func containsExactName(_ candidates: [RecognizedArtist], query: String) -> Bool {
+        let normalizedQuery = normalizedName(query)
+        return candidates.contains { normalizedName($0.canonicalName) == normalizedQuery }
+    }
+
+    private static func mergedCandidates(
+        primary: [RecognizedArtist],
+        secondary: [RecognizedArtist],
+        query: String,
+        limit: Int
+    ) -> [RecognizedArtist] {
+        let normalizedQuery = normalizedName(query)
+        let combined = primary + secondary
+        let ordered = combined.filter { normalizedName($0.canonicalName) == normalizedQuery }
+            + combined.filter { normalizedName($0.canonicalName) != normalizedQuery }
+
+        var seenIDs = Set<String>()
+        var result: [RecognizedArtist] = []
+        for candidate in ordered where seenIDs.insert(candidate.id).inserted {
+            result.append(candidate)
+            if result.count == limit { break }
+        }
+        return result
+    }
+
+    private static func normalizedName(_ name: String) -> String {
+        name.folding(
+            options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive],
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        .split { $0.isWhitespace || $0.isNewline }
+        .joined(separator: " ")
     }
 
     private static func upgradedArtworkURL(_ rawValue: String?, size: Int) -> URL? {
