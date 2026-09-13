@@ -41,6 +41,22 @@ final class OnboardingTests: XCTestCase {
         )
     }
 
+    func testCompletedOnboardingWithoutShowsRoutesToMainApp() {
+        let suiteName = "onboarding-skip-tests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        OnboardingCompletionStore.markCompleted(in: defaults)
+
+        XCTAssertTrue(OnboardingCompletionStore.hasCompleted(in: defaults))
+        XCTAssertFalse(
+            OnboardingRoutingPolicy.shouldPresent(
+                hasCompleted: OnboardingCompletionStore.hasCompleted(in: defaults),
+                hasShows: false
+            )
+        )
+    }
+
     func testCompletionStorePersistsOnlyAfterExplicitCompletion() {
         let suiteName = "onboarding-tests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
