@@ -1,0 +1,48 @@
+name: Validate Xcode project follow-up once
+
+on:
+  push:
+    branches:
+      - codex/tmp-validate-xcode-project-followup
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout follow-up HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: codex/fix-stale-listening-artist-chip-project-reference
+          fetch-depth: 0
+
+      - name: Verify XcodeGen is idempotent
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen generate
+          git diff --exit-code -- BeforeShow.xcodeproj/project.pbxproj
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'stale ListeningArtistChip.swift reference remains' >&2
+            exit 1
+          fi
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py
+
+      - name: Signed iPhone 17 simulator build
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination 'platform=iOS Simulator,name=iPhone 17' \
+            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
+
+      - name: Full repository verifier
+        run: bash scripts/verify-pr.sh 183 --no-comment
