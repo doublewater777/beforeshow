@@ -4,6 +4,9 @@ enum CompanionPendingInviteFailureAction: Equatable {
     case discardCurrentAndContinue
     case discardCurrent
     case retainCurrentForRetry
+
+    var discardsCurrent: Bool { self != .retainCurrentForRetry }
+    var continues: Bool { self == .discardCurrentAndContinue }
 }
 
 /// Sequencing policy for the durable companion-invite inbox.
