@@ -5,8 +5,6 @@ import Foundation
 
 extension Show {
     /// Apply a CloudKit session onto local cache fields.
-    /// Companion membership is append-only at the product layer: once a person has
-    /// been recorded as a companion for this Show, refreshes never remove that fact.
     func applyCompanionSession(
         _ snapshot: CompanionSessionSnapshot,
         isOwner: Bool,
@@ -24,29 +22,18 @@ extension Show {
 
         let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
         let fallback = CompanionNameList.normalized([preferredName].compactMap { $0 })
-        let existingNames = CompanionNameList.normalized(companionNames)
-
         let resolvedNames: [String]
-        if snapshot.status == .accepted {
-            resolvedNames = CompanionNameList.normalized(existingNames + cloudNames + fallback)
+        if isOwner, snapshot.status == .accepted {
+            resolvedNames = cloudNames
         } else if !cloudNames.isEmpty {
-            resolvedNames = CompanionNameList.normalized(existingNames + cloudNames)
+            resolvedNames = cloudNames
         } else if !fallback.isEmpty {
-            resolvedNames = CompanionNameList.normalized(existingNames + fallback)
+            resolvedNames = fallback
         } else {
-            resolvedNames = existingNames
+            resolvedNames = companionNames
         }
 
-        let resolvedStatus: ShowCompanionStatus
-        if companionStatus == .confirmed, snapshot.status == .pending {
-            // A CloudKit refresh can temporarily omit accepted participant state.
-            // The product does not downgrade an already-recorded companion fact.
-            resolvedStatus = .confirmed
-        } else {
-            resolvedStatus = snapshot.status.localStatus
-        }
-
-        applyCompanionState(status: resolvedStatus, names: resolvedNames)
+        applyCompanionState(status: snapshot.status.localStatus, names: resolvedNames)
     }
 
     func clearCompanionCloudLinkage() {
