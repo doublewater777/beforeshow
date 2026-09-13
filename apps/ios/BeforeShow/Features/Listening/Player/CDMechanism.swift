@@ -24,6 +24,7 @@ import SwiftUI
 
     private enum AutomaticRhythm {
         static let afterOpen = Duration.milliseconds(140)
+        static let afterLift = Duration.milliseconds(120)
         static let afterStore = Duration.milliseconds(180)
         static let afterPickup = Duration.milliseconds(140)
         static let afterSeat = Duration.milliseconds(220)
@@ -316,13 +317,31 @@ import SwiftUI
         try await settle()
         if paced { try await automaticBeat(AutomaticRhythm.afterOpen) }
 
-        if position == .seated { returnCurrentDiscToCabinet() }
-        else if position == .removed { returnDisc() }
+        if position == .seated, paced {
+            liftCurrentDiscForAutomaticReturn()
+            try await settle()
+            try await automaticBeat(AutomaticRhythm.afterLift)
+            returnDisc()
+        } else if position == .seated {
+            returnCurrentDiscToCabinet()
+        } else if position == .removed {
+            returnDisc()
+        }
         try await settle()
 
         if paced, hadDisc {
             try await automaticBeat(AutomaticRhythm.afterStore)
         }
+    }
+
+    private func liftCurrentDiscForAutomaticReturn() {
+        guard isOpen, position == .seated else { return }
+        pendingSeat = false
+        waitingForOpenToSeat = false
+        position = .removed
+        motion.lift.move(to: 1)
+        motion.wake()
+        onTransition("remove")
     }
 
     private func automaticBeat(_ duration: Duration) async throws {
