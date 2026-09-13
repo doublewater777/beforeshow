@@ -1,5 +1,11 @@
 @MainActor enum ListeningRoomCache {
     static var shared: ListeningRoomCoordinator?
+
+    static func discardLocalState() {
+        shared?.discardLoadedDiscState()
+        shared?.mechanism.motion.stop()
+        shared = nil
+    }
 }
 
 import SwiftUI
@@ -84,11 +90,7 @@ struct ListenRootView: View {
         guard isActive else { return }
         ListeningPlayerWarmup.prepareIfNeeded()
         guard let show else {
-            if shows.isEmpty {
-                room?.discardLoadedDiscState()
-            } else {
-                room?.stop()
-            }
+            room?.stop()
             room?.mechanism.motion.stop()
             room = nil
             ListeningRoomCache.shared = nil
