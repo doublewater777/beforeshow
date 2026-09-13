@@ -135,14 +135,9 @@ private struct CompanionJoinConfirmationView: View {
 
     private var isHistorical: Bool {
         guard let show = try? CompanionAcceptedShowMapping.makeShow(from: session.show) else {
-            return session.show.showStartTime < Date()
-        }
-        switch CurrentShowTimeState(show: show).kind {
-        case .postShow, .ended:
-            return true
-        default:
             return false
         }
+        return CurrentShowTimeState(show: show).kind == .ended
     }
 
     private var ownerName: String {
