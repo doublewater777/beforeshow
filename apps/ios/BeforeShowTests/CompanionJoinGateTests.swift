@@ -56,6 +56,101 @@ final class CompanionJoinGateTests: XCTestCase {
         XCTAssertNil(coordinator.pendingAcceptResult)
         XCTAssertNil(coordinator.pendingAcceptMessage)
     }
+
+    func testLiveAcceptedShowOffersCurrentSwitchWhenAnotherShowIsCurrent() throws {
+        let (show, now) = try makeLiveShow()
+        let result = CompanionAcceptedImportResult(
+            showID: show.id,
+            inserted: true,
+            becameCurrent: false,
+            wasHistorical: false
+        )
+
+        XCTAssertTrue(
+            CompanionLiveCurrentPromptPolicy.shouldOffer(
+                importResult: result,
+                show: show,
+                selectedShowID: UUID(),
+                now: now
+            )
+        )
+    }
+
+    func testFutureAcceptedShowDoesNotOfferCurrentSwitch() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2030, month: 6, day: 1, hour: 20
+        )))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: now))
+        let show = try Show(
+            name: "明天的同行现场",
+            date: tomorrow,
+            startTime: tomorrow,
+            timeZoneIdentifier: "UTC"
+        )
+        let result = CompanionAcceptedImportResult(
+            showID: show.id,
+            inserted: true,
+            becameCurrent: false,
+            wasHistorical: false
+        )
+
+        XCTAssertFalse(
+            CompanionLiveCurrentPromptPolicy.shouldOffer(
+                importResult: result,
+                show: show,
+                selectedShowID: UUID(),
+                now: now
+            )
+        )
+    }
+
+    func testLiveAcceptedShowDoesNotOfferSwitchWhenItAlreadyBecameCurrent() throws {
+        let (show, now) = try makeLiveShow()
+        let result = CompanionAcceptedImportResult(
+            showID: show.id,
+            inserted: true,
+            becameCurrent: true,
+            wasHistorical: false
+        )
+
+        XCTAssertFalse(
+            CompanionLiveCurrentPromptPolicy.shouldOffer(
+                importResult: result,
+                show: show,
+                selectedShowID: show.id,
+                now: now
+            )
+        )
+    }
+
+    private func makeLiveShow() throws -> (Show, Date) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let date = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2030, month: 6, day: 1, hour: 12
+        )))
+        let start = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2030, month: 6, day: 1, hour: 19
+        )))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2030, month: 6, day: 1, hour: 20
+        )))
+        let end = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2030, month: 6, day: 1, hour: 22
+        )))
+        let show = try Show(
+            name: "正在进行的同行现场",
+            date: date,
+            startTime: start,
+            endDate: date,
+            endTime: end,
+            timeZoneIdentifier: "UTC",
+            endTimeZoneIdentifier: "UTC"
+        )
+        return (show, now)
+    }
 }
 
 private struct PendingDiscoveryService: CompanionSharingService {
