@@ -12,11 +12,22 @@ extension CloudKitCompanionSharingService {
         metadata: CKShare.Metadata,
         participantDisplayName _: String?
     ) async throws -> CompanionSessionSnapshot {
-        let context = try await acceptedShareContext(metadata: metadata)
+        try await ensureAccountAvailable()
+
+        let previewMetadata = try await metadataIncludingRootRecord(metadata)
+        guard let record = previewMetadata.rootRecord else {
+            throw CompanionSharingError.invalidPayload
+        }
+        if let statusRaw = record[CompanionSessionRecord.status] as? String,
+           statusRaw == CompanionCloudStatus.canceled.rawValue {
+            throw CompanionSharingError.permissionDenied
+        }
+
+        let shareLocator = CompanionRecordLocator(recordID: previewMetadata.share.recordID)
         return try Self.snapshot(
-            from: context.record,
-            shareLocator: context.shareLocator,
-            participantDisplayNames: context.participantDisplayNames
+            from: record,
+            shareLocator: shareLocator,
+            participantDisplayNames: Self.participantNames(from: previewMetadata.share)
         )
     }
 
@@ -28,7 +39,7 @@ extension CloudKitCompanionSharingService {
         let record = context.record
 
         // A root already accepted by an earlier member remains idempotent. This device
-        // still reaches this method only after its explicit in-app join confirmation.
+        // reaches this method only after its explicit in-app join confirmation.
         if let existingStatus = record[CompanionSessionRecord.status] as? String,
            existingStatus == CompanionCloudStatus.accepted.rawValue {
             return try Self.snapshot(
@@ -58,6 +69,32 @@ extension CloudKitCompanionSharingService {
             )
         } catch {
             throw CompanionSharingError.statusSyncPending
+        }
+    }
+
+    private func metadataIncludingRootRecord(
+        _ metadata: CKShare.Metadata
+    ) async throws -> CKShare.Metadata {
+        if metadata.rootRecord != nil {
+            return metadata
+        }
+        guard let shareURL = metadata.share.url else {
+            throw CompanionSharingError.invalidPayload
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
+            let operation = CKFetchShareMetadataOperation(shareURLs: [shareURL])
+            operation.shouldFetchRootRecord = true
+            operation.qualityOfService = .userInitiated
+            operation.perShareMetadataResultBlock = { _, result in
+                switch result {
+                case .success(let metadata):
+                    continuation.resume(returning: metadata)
+                case .failure(let error):
+                    continuation.resume(throwing: Self.mapError(error, fallback: .acceptFailed))
+                }
+            }
+            container.add(operation)
         }
     }
 
