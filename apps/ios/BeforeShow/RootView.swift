@@ -256,7 +256,7 @@ struct RootView: View {
         hasResolvedOnboardingRoute = true
     }
 
-    private func completeOnboarding(showID _: UUID) {
+    private func completeOnboarding() {
         hasCompletedOnboarding = true
         if reduceMotion {
             isShowingOnboarding = false
