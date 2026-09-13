@@ -106,9 +106,6 @@ struct OnboardingFlowView: View {
         .preferredColorScheme(.dark)
         .sheet(isPresented: $isShowingAddShow) {
             AddShowCoordinatorSheet { _ in
-                // AddShowCoordinatorSheet invokes this before dismissing itself.
-                // Complete onboarding here so the sheet reveals the main app while
-                // it animates away instead of briefly exposing the onboarding page.
                 completeOnboarding(method: "add_show")
             }
         }
