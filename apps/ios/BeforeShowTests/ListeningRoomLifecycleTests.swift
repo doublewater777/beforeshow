@@ -41,9 +41,15 @@ import SwiftData
         XCTAssertFalse(reopened.isPlaying)
 
         await reopened.load(show: show)
+        for _ in 0..<10 { await Task.yield() }
+        try await ListenTestData.settle(reopened) { !reopened.busy }
+        XCTAssertEqual(reopened.mechanism.position, .seated)
+        XCTAssertTrue(reopened.mechanism.isClosed)
         XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
         XCTAssertEqual(reopened.track?.id, songID)
+        XCTAssertEqual(reopened.playbackState, .idle)
         XCTAssertFalse(reopened.isPlaying)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
         reopened.mechanism.motion.stop()
     }
 
