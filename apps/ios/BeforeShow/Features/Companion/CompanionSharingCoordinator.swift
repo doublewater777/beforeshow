@@ -213,28 +213,22 @@ final class CompanionSharingCoordinator {
         return true
     }
 
+    /// Closing the in-app preview is not a CloudKit membership action. The share has
+    /// not been accepted yet, so dismiss only the local pending callback. Reopening the
+    /// same invitation URL later will enqueue fresh metadata and offer joining again.
     func declinePendingJoin() async -> Bool {
-        guard let session = pendingJoinSession,
-              let key = pendingJoinMetadataKey else {
-            return true
-        }
-        do {
-            _ = try await service.cancelSession(
-                sessionLocator: session.sessionLocator,
-                shareLocator: session.shareLocator,
-                isOwner: false
-            )
+        guard let key = pendingJoinMetadataKey else {
             pendingJoinSession = nil
-            pendingJoinMetadataKey = nil
-            removePendingShare(key: key)
             lastErrorMessage = nil
             lastErrorKind = nil
             return true
-        } catch {
-            lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError ?? .statusSyncPending
-            return false
         }
+        pendingJoinSession = nil
+        pendingJoinMetadataKey = nil
+        removePendingShare(key: key)
+        lastErrorMessage = nil
+        lastErrorKind = nil
+        return true
     }
 
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
