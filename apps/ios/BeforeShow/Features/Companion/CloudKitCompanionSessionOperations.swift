@@ -1,11 +1,69 @@
 import CloudKit
 import Foundation
 
+private struct CompanionAcceptedShareContext {
+    let shareLocator: CompanionRecordLocator
+    let record: CKRecord
+    let participantDisplayNames: [String]
+}
+
 extension CloudKitCompanionSharingService {
+    func previewAcceptedShare(
+        metadata: CKShare.Metadata,
+        participantDisplayName _: String?
+    ) async throws -> CompanionSessionSnapshot {
+        let context = try await acceptedShareContext(metadata: metadata)
+        return try Self.snapshot(
+            from: context.record,
+            shareLocator: context.shareLocator,
+            participantDisplayNames: context.participantDisplayNames
+        )
+    }
+
     func acceptShare(
         metadata: CKShare.Metadata,
         participantDisplayName: String?
     ) async throws -> CompanionSessionSnapshot {
+        let context = try await acceptedShareContext(metadata: metadata)
+        let record = context.record
+
+        // A root already accepted by an earlier member remains idempotent. This device
+        // still reaches this method only after its explicit in-app join confirmation.
+        if let existingStatus = record[CompanionSessionRecord.status] as? String,
+           existingStatus == CompanionCloudStatus.accepted.rawValue {
+            return try Self.snapshot(
+                from: record,
+                shareLocator: context.shareLocator,
+                participantDisplayNames: context.participantDisplayNames
+            )
+        }
+
+        let existingParticipantName = (record[CompanionSessionRecord.participantDisplayName] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let participantDisplayName, !participantDisplayName.isEmpty,
+           existingParticipantName == nil || existingParticipantName?.isEmpty == true {
+            record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
+        }
+        record[CompanionSessionRecord.status] = CompanionCloudStatus.accepted.rawValue as CKRecordValue
+        record[CompanionSessionRecord.acceptedAt] = Date() as CKRecordValue
+        record[CompanionSessionRecord.canceledAt] = nil
+
+        do {
+            let results = try await modifyRecords(in: sharedDB, saving: [record])
+            let saved = results.first ?? record
+            return try Self.snapshot(
+                from: saved,
+                shareLocator: context.shareLocator,
+                participantDisplayNames: context.participantDisplayNames
+            )
+        } catch {
+            throw CompanionSharingError.statusSyncPending
+        }
+    }
+
+    private func acceptedShareContext(
+        metadata: CKShare.Metadata
+    ) async throws -> CompanionAcceptedShareContext {
         try await ensureAccountAvailable()
 
         let shareLocator = CompanionRecordLocator(recordID: metadata.share.recordID)
@@ -13,7 +71,6 @@ extension CloudKitCompanionSharingService {
         do {
             acceptedShare = try await container.accept(metadata)
         } catch {
-            // Accepting an already-accepted share is fine; map other failures precisely.
             let ck = error as? CKError
             if ck?.code != .alreadyShared {
                 throw Self.mapError(error, fallback: .acceptFailed)
@@ -24,8 +81,6 @@ extension CloudKitCompanionSharingService {
                 }
                 acceptedShare = existingShare
             } catch {
-                // The share was already accepted, but a transient refetch failure must remain
-                // retryable so the durable inbox is not discarded.
                 throw Self.mapError(error, fallback: .statusSyncPending)
             }
         }
@@ -41,8 +96,6 @@ extension CloudKitCompanionSharingService {
             throw Self.mapError(error)
         }
 
-        // Validate root payload BEFORE mutating status. If invalid after container.accept,
-        // attempt compensating leave so residual access is not retained silently.
         func leaveShareOrThrowCleanupPending() async throws {
             do {
                 _ = try await modifyRecords(
@@ -58,58 +111,24 @@ extension CloudKitCompanionSharingService {
             }
         }
 
-        // Reject resurrecting a canceled invitation.
         if let statusRaw = record[CompanionSessionRecord.status] as? String,
            statusRaw == CompanionCloudStatus.canceled.rawValue {
             try await leaveShareOrThrowCleanupPending()
             throw CompanionSharingError.permissionDenied
         }
 
-        // Validate required fields before writing acceptance.
         do {
             _ = try Self.snapshot(from: record, shareLocator: shareLocator)
         } catch {
-            // Successful compensating leave makes this terminal for the accept job.
             try await leaveShareOrThrowCleanupPending()
             throw CompanionSharingError.invalidPayload
         }
 
-        let harvestedNames = Self.participantNames(from: acceptedShare)
-
-        // A root already accepted by this participant — or by earlier members —
-        // is idempotent. Additional members join the same accepted session.
-        if let existingStatus = record[CompanionSessionRecord.status] as? String,
-           existingStatus == CompanionCloudStatus.accepted.rawValue {
-            return try Self.snapshot(
-                from: record,
-                shareLocator: shareLocator,
-                participantDisplayNames: harvestedNames
-            )
-        }
-
-        let existingParticipantName = (record[CompanionSessionRecord.participantDisplayName] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let participantDisplayName, !participantDisplayName.isEmpty,
-           existingParticipantName == nil || existingParticipantName?.isEmpty == true {
-            record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
-        }
-        record[CompanionSessionRecord.status] = CompanionCloudStatus.accepted.rawValue as CKRecordValue
-        record[CompanionSessionRecord.acceptedAt] = Date() as CKRecordValue
-        // Clear a previous cancel marker if present so timestamps stay consistent.
-        record[CompanionSessionRecord.canceledAt] = nil
-
-        do {
-            let results = try await modifyRecords(in: sharedDB, saving: [record])
-            let saved = results.first ?? record
-            return try Self.snapshot(
-                from: saved,
-                shareLocator: shareLocator,
-                participantDisplayNames: harvestedNames
-            )
-        } catch {
-            // Share is accepted in CloudKit, but session status is not durable yet.
-            throw CompanionSharingError.statusSyncPending
-        }
+        return CompanionAcceptedShareContext(
+            shareLocator: shareLocator,
+            record: record,
+            participantDisplayNames: Self.participantNames(from: acceptedShare)
+        )
     }
 
     func cancelSession(
@@ -138,7 +157,6 @@ extension CloudKitCompanionSharingService {
 
     func listAcceptedSharedSessions() async throws -> [CompanionSessionSnapshot] {
         try await ensureAccountAvailable()
-        // Query all CompanionSession records visible in the shared database.
         let query = CKQuery(
             recordType: CompanionSessionRecord.recordType,
             predicate: NSPredicate(value: true)
@@ -184,7 +202,6 @@ extension CloudKitCompanionSharingService {
                     cursor = page.queryCursor
                 } while cursor != nil
             } catch {
-                // A stale or unavailable shared zone must not hide sessions from other zones.
                 firstZoneError = firstZoneError ?? Self.mapError(error)
             }
         }
@@ -226,14 +243,11 @@ extension CloudKitCompanionSharingService {
     ) async throws -> CompanionSessionSnapshot {
         let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
 
-        // Mark canceled first so late acceptors can reject and participants can observe cancel
-        // before access is revoked.
         record[CompanionSessionRecord.status] = CompanionCloudStatus.canceled.rawValue as CKRecordValue
         record[CompanionSessionRecord.canceledAt] = Date() as CKRecordValue
         record[CompanionSessionRecord.acceptedAt] = nil
         let saved = try await modifyRecords(in: database, saving: [record]).first ?? record
 
-        // Revoke the share so old invitation URLs stop granting access.
         var retainedShareLocator: CompanionRecordLocator? = nil
         if let shareLocator {
             do {
@@ -250,7 +264,6 @@ extension CloudKitCompanionSharingService {
                 if mapped == .sessionNotFound {
                     retainedShareLocator = nil
                 } else {
-                    // Keep share locator so the coordinator can retry revocation.
                     retainedShareLocator = shareLocator
                     throw mapped
                 }
@@ -264,8 +277,6 @@ extension CloudKitCompanionSharingService {
         sessionLocator: CompanionRecordLocator,
         shareLocator: CompanionRecordLocator?
     ) async throws -> CompanionSessionSnapshot {
-        // Leave the share only. Writing session status=canceled would dissolve the
-        // remaining group. The leaving device still marks local companion canceled.
         var currentSnapshot: CompanionSessionSnapshot?
         var fetchError: CompanionSharingError?
         do {
@@ -294,7 +305,6 @@ extension CloudKitCompanionSharingService {
                 shareLeaveSucceeded = true
             } catch {
                 let mapped = Self.mapError(error)
-                // Already gone is success; anything else means access may still exist.
                 if mapped == .sessionNotFound {
                     shareLeaveSucceeded = true
                 } else {
@@ -348,8 +358,6 @@ extension CloudKitCompanionSharingService {
     private func fetchSessionRecord(
         locator: CompanionRecordLocator
     ) async throws -> (CKRecord, CKDatabase) {
-        // Deterministic database selection: current-user zones live in private DB;
-        // owner-qualified zones (participant view of a shared hierarchy) live in shared DB.
         let database: CKDatabase =
             locator.ownerName == CKCurrentUserDefaultName ? privateDB : sharedDB
         do {
