@@ -115,6 +115,16 @@ struct ListeningCatalogAlbumPayload: Equatable, Sendable {
     }
 }
 
+struct ListeningCatalogPlaylistPayload: Codable, Equatable, Sendable {
+    let playlistID: String
+    let name: String
+    let artworkURL: String?
+    let curatorName: String?
+    let descriptionText: String?
+    let appleMusicURL: String?
+    let orderedTrackIDs: [String]
+}
+
 struct ListeningArtistCatalogPayload: Equatable, Sendable {
     let artistID: String
     let artistName: String
@@ -124,9 +134,38 @@ struct ListeningArtistCatalogPayload: Equatable, Sendable {
     let orderedSongIDs: [String]
     let topSongIDs: [String]
     let albumIDs: [String]
+    let featuredPlaylists: [ListeningCatalogPlaylistPayload]
     let songs: [ListeningCatalogSongPayload]
     let albums: [ListeningCatalogAlbumPayload]
     let fetchedAt: Date
+
+    init(
+        artistID: String,
+        artistName: String,
+        artworkURL: String?,
+        editorialText: String?,
+        genreNames: [String],
+        orderedSongIDs: [String],
+        topSongIDs: [String],
+        albumIDs: [String],
+        featuredPlaylists: [ListeningCatalogPlaylistPayload] = [],
+        songs: [ListeningCatalogSongPayload],
+        albums: [ListeningCatalogAlbumPayload],
+        fetchedAt: Date
+    ) {
+        self.artistID = artistID
+        self.artistName = artistName
+        self.artworkURL = artworkURL
+        self.editorialText = editorialText
+        self.genreNames = genreNames
+        self.orderedSongIDs = orderedSongIDs
+        self.topSongIDs = topSongIDs
+        self.albumIDs = albumIDs
+        self.featuredPlaylists = featuredPlaylists
+        self.songs = songs
+        self.albums = albums
+        self.fetchedAt = fetchedAt
+    }
 }
 
 protocol ListeningMusicCatalogServicing: Sendable {
