@@ -166,6 +166,55 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertFalse(failed.player.canPlayPause)
     }
 
+    func testDiscDetailCurrentTrackUsesTransportToggleWhenPlayingOrPaused() {
+        let playing = player(phase: .playing, canPlayPause: true)
+        let paused = player(phase: .paused, canPlayPause: true)
+
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
+                player: playing
+            ),
+            .togglePlayback
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
+                player: paused
+            ),
+            .togglePlayback
+        )
+    }
+
+    func testDiscDetailTrackSelectionRemainsForOtherOrUnavailableTracks() {
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: false,
+                player: player(phase: .playing, canPlayPause: true)
+            ),
+            .selectTrack
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: true,
+                isCurrentTrack: true,
+                player: player(phase: .failed, canPlayPause: false)
+            ),
+            .selectTrack
+        )
+        XCTAssertEqual(
+            ListeningDiscDetailTrackAction.resolve(
+                isLoaded: false,
+                isCurrentTrack: true,
+                player: player(phase: .paused, canPlayPause: true)
+            ),
+            .selectTrack
+        )
+    }
+
     func testNoDiscGuidanceDependsOnRealRoomCapability() {
         let metadata = ListeningDisc(
             id: "metadata",
@@ -204,6 +253,19 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             currentTrack: nil,
             playbackState: .idle,
             playbackError: nil
+        )
+    }
+
+    private func player(phase: ListeningPlayerPhase, canPlayPause: Bool) -> ListeningPlayerPresentation {
+        ListeningPlayerPresentation(
+            phase: phase,
+            source: .fullCatalog,
+            previewRemaining: nil,
+            canPlayPause: canPlayPause,
+            blockingReason: nil,
+            recoveryAction: nil,
+            errorText: nil,
+            noDiscMessage: nil
         )
     }
 
