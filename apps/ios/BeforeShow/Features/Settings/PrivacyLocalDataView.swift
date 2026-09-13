@@ -169,6 +169,7 @@ struct PrivacyLocalDataView: View {
                     try context.delete(model: ShowAsset.self)
                     try context.delete(model: DynamicCover.self)
                     try context.save()
+                    ListeningRoomCache.discardLocalState()
                     // 系统通知中心里的 pending 请求不受 SwiftData 删除影响，
                     // 必须显式清掉，否则清空数据后通知仍按时弹出、深链指向已删除的现场。
                     UNUserNotificationCenter.current().removeAllPendingNotificationRequests()
