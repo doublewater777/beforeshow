@@ -14,6 +14,8 @@ enum CompanionPendingInviteDrainPolicy {
         for error: CompanionSharingError?,
         remainingInviteCount: Int
     ) -> CompanionPendingInviteFailureAction {
+        guard let error else { return .retainCurrentForRetry }
+
         switch error {
         case .acceptFailed, .sessionNotFound, .invalidPayload, .permissionDenied:
             return remainingInviteCount > 0 ? .discardCurrentAndContinue : .discardCurrent
@@ -21,8 +23,7 @@ enum CompanionPendingInviteDrainPolicy {
              .networkFailure,
              .sharePreparationFailed,
              .conflict,
-             .statusSyncPending,
-             nil:
+             .statusSyncPending:
             return .retainCurrentForRetry
         }
     }
