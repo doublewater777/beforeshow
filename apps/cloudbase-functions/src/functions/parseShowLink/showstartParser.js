@@ -174,24 +174,80 @@ export function parseShowStartDetail(result) {
   const venueName = site.name ?? "";
   const venueAddr = site.address ?? "";
 
-  const { date, startTime } = parseShowTime(result.showTime ?? "");
-  const artist = extractArtists(sessionUserInfos);
-  const artistAvatarURLs = extractArtistAvatarURLs(sessionUserInfos);
+  const timeRange = parseShowTimeRange(result);
+  const artists = extractArtistsWithAvatars(sessionUserInfos);
 
   const price = (result.price ?? "").replace(/^¥\s*/, "").trim();
 
   return {
     name: activityName,
     city,
-    date,
-    startTime,
+    date: timeRange.date,
+    startTime: timeRange.startTime,
+    endDate: timeRange.endDate,
+    endTime: timeRange.endTime,
     venueName,
     venueAddr,
-    artist,
+    artist: artists.names.join(", "),
     coverImageURL: result.avatar ?? result.album?.[0] ?? "",
-    artistAvatarURLs,
+    artistAvatarURLs: artists.avatars,
     priceRange: price,
     source: "showstart"
+  };
+}
+
+function parseShowTimeRange(result) {
+  const start = parseUnixTime(result.showStartTime);
+  const end = parseUnixTime(result.showEndTime);
+
+  if (start) {
+    return {
+      date: start.date,
+      startTime: start.time,
+      endDate: end?.date ?? "",
+      endTime: end?.time ?? ""
+    };
+  }
+
+  const fallback = parseShowTime(result.showTime ?? "");
+  return {
+    date: fallback.date,
+    startTime: fallback.startTime,
+    endDate: "",
+    endTime: ""
+  };
+}
+
+function parseUnixTime(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return null;
+  }
+
+  const milliseconds = numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+  const date = new Date(milliseconds);
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23"
+  });
+  const parts = Object.fromEntries(
+    formatter.formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value])
+  );
+
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}`
   };
 }
 
@@ -221,28 +277,31 @@ function parseShowTime(showTime) {
   return { date: "", startTime: "" };
 }
 
-function extractArtists(sessionUserInfos) {
+function extractArtistsWithAvatars(sessionUserInfos) {
   if (!Array.isArray(sessionUserInfos) || sessionUserInfos.length === 0) {
-    return "";
+    return { names: [], avatars: [] };
   }
 
-  const firstSession = sessionUserInfos[0];
-  const userInfos = firstSession.userInfos ?? [];
-  const names = userInfos
-    .map((u) => u.name)
-    .filter((name) => typeof name === "string" && name.trim().length > 0);
+  const seen = new Set();
+  const names = [];
+  const avatars = [];
 
-  return names.join(", ");
-}
-
-function extractArtistAvatarURLs(sessionUserInfos) {
-  if (!Array.isArray(sessionUserInfos) || sessionUserInfos.length === 0) {
-    return [];
+  for (const session of sessionUserInfos) {
+    const userInfos = Array.isArray(session?.userInfos) ? session.userInfos : [];
+    for (const user of userInfos) {
+      const name = typeof user?.name === "string" ? user.name.trim() : "";
+      if (!name) {
+        continue;
+      }
+      const key = user?.id != null ? `id:${user.id}` : `name:${name}`;
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      names.push(name);
+      avatars.push(typeof user?.avatar === "string" ? user.avatar : "");
+    }
   }
 
-  const firstSession = sessionUserInfos[0];
-  const userInfos = firstSession.userInfos ?? [];
-  return userInfos
-    .map((u) => u.avatar)
-    .filter((url) => typeof url === "string" && url.trim().length > 0);
+  return { names, avatars };
 }
