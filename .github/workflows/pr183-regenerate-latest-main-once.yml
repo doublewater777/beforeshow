@@ -1,0 +1,56 @@
+name: PR183 regenerate latest main once
+
+on:
+  push:
+    branches:
+      - codex/tmp-pr183-regenerate-latest-main
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout temp branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/tmp-pr183-regenerate-latest-main
+          fetch-depth: 1
+
+      - name: Ensure XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Regenerate committed project
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          xcodegen generate
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'stale ListeningArtistChip.swift reference remains' >&2
+            exit 1
+          fi
+          cd ../..
+          git add apps/ios/BeforeShow.xcodeproj/project.pbxproj
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(ios): regenerate project on latest main'
+          git push origin HEAD:codex/tmp-pr183-regenerate-latest-main
+
+      - name: Verify second generate is idempotent
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          xcodegen generate
+          git diff --exit-code -- BeforeShow.xcodeproj/project.pbxproj
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'stale ListeningArtistChip.swift reference remains after second generate' >&2
+            exit 1
+          fi
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py
