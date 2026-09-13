@@ -1,0 +1,57 @@
+name: PR183 regenerate Linux once
+
+on:
+  push:
+    branches:
+      - codex/tmp-pr183-regenerate-linux
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout temp branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/tmp-pr183-regenerate-linux
+          fetch-depth: 1
+
+      - name: Build XcodeGen 2.46.0
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch 2.46.0 https://github.com/yonaskolb/XcodeGen.git /tmp/XcodeGen
+          cd /tmp/XcodeGen
+          swift build -c release --product xcodegen
+          echo "XCODEGEN_BIN=$(swift build -c release --show-bin-path)/xcodegen" >> "$GITHUB_ENV"
+
+      - name: Regenerate committed project
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          "$XCODEGEN_BIN" generate
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'stale ListeningArtistChip.swift reference remains' >&2
+            exit 1
+          fi
+          cd ../..
+          git add apps/ios/BeforeShow.xcodeproj/project.pbxproj
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(ios): regenerate project on latest main'
+          git push origin HEAD:codex/tmp-pr183-regenerate-linux
+
+      - name: Verify second generate is idempotent
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          "$XCODEGEN_BIN" generate
+          git diff --exit-code -- BeforeShow.xcodeproj/project.pbxproj
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'stale ListeningArtistChip.swift reference remains after second generate' >&2
+            exit 1
+          fi
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py
