@@ -36,7 +36,9 @@ extension CompanionShowSnapshot {
             // Local file:// covers are device-private and meaningless to recipients.
             coverImageURL: Self.portableRemoteURLString(show.coverImageURL),
             showChangeStatusRawValue: show.changeStatus.rawValue,
-            postponedDate: show.postponedDate
+            postponedDate: show.postponedDate,
+            endedAt: show.endedAt,
+            wasAddedAsHistorical: show.wasAddedAsHistorical
         )
     }
 
