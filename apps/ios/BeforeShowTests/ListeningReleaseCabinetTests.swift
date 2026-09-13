@@ -171,7 +171,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         reopened.mechanism.motion.stop()
     }
 
-    func testPlaylistOnlyGuestFamiliarityDoesNotChangeTargetArtistCountTierOrDenominator() async throws {
+    func testPlaylistOnlyGuestPlaybackCreatesFamiliarityEvidenceWithoutChangingTargetArtistCountTierOrDenominator() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
         context.insert(CatalogSong(
@@ -186,33 +186,48 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             playlistID: "featured-guest"
         )
 
-        let beforeRoom = ListenTestData.room(context)
-        await beforeRoom.load(show: show)
-        let before = try XCTUnwrap(beforeRoom.artistPresentation("a"))
+        let service = FeaturedPlaylistEvidencePlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: FeaturedPlaylistEvidenceCatalog(),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in service }
+        )
+        await room.load(show: show)
+
+        let before = try XCTUnwrap(room.artistPresentation("a"))
         let beforeDenominator = before.all.count
         XCTAssertEqual(beforeDenominator, 2)
         XCTAssertEqual(before.familiarCount, 0)
+        let featured = try XCTUnwrap(
+            before.albums.first { $0.id == "featured-guest" }
+        )
+        XCTAssertEqual(featured.tracks.first?.id, "playlist-guest")
 
-        _ = try ListeningRepository(modelContext: context)
-            .confirmActualFamiliarity(songID: "playlist-guest", at: Date())
-        try context.save()
+        room.restoreDisc(featured, songID: "playlist-guest")
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
-        let afterRoom = ListenTestData.room(context)
-        await afterRoom.load(show: show)
-        let after = try XCTUnwrap(afterRoom.artistPresentation("a"))
+        service.advance(by: 100)
+        room.tick()
+
+        let evidence = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+            .first { $0.songID == "playlist-guest" }
+        XCTAssertNotNil(evidence?.actualListeningAt, "featured-playlist playback must create real familiarity evidence")
+        XCTAssertTrue(room.familiarSongIDs.contains("playlist-guest"))
+
+        let after = try XCTUnwrap(room.artistPresentation("a"))
         let snapshot = try XCTUnwrap(
             context.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
                 .first { $0.artistID == "a" }
         )
-
-        XCTAssertTrue(afterRoom.familiarSongIDs.contains("playlist-guest"), "fixture must contain real familiarity evidence")
         XCTAssertFalse(snapshot.orderedSongIDs.contains("playlist-guest"))
         XCTAssertEqual(snapshot.orderedSongIDs.count, beforeDenominator)
         XCTAssertEqual(after.all.count, beforeDenominator)
         XCTAssertEqual(after.familiarCount, before.familiarCount)
         XCTAssertEqual(after.tier, before.tier)
-        beforeRoom.mechanism.motion.stop()
-        afterRoom.mechanism.motion.stop()
+        room.stop()
+        room.mechanism.motion.stop()
     }
 
     func testFeaturedPlaylistSnapshotRoundTripsThroughPersistence() throws {
@@ -280,5 +295,74 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             fetchedAt: snapshot.fetchedAt
         )
         try context.save()
+    }
+}
+
+private struct FeaturedPlaylistEvidenceCatalog: ListeningMusicCatalogServicing {
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+}
+
+@MainActor
+private final class FeaturedPlaylistEvidencePlaybackService: ListeningPlaybackServicing {
+    var failure: ListeningPlaybackError?
+    private var item: ListeningPlaybackItem?
+    private var source: ListeningPlaybackSource = .fullCatalog
+    private var currentTime: TimeInterval = 0
+    private var observedAt = Date(timeIntervalSinceReferenceDate: 0)
+    private var playing = false
+
+    func prepare(
+        items: [ListeningPlaybackItem],
+        source: ListeningPlaybackSource,
+        startingAtSongID: String?
+    ) async throws {
+        self.source = source
+        if let startingAtSongID {
+            item = items.first { $0.songID == startingAtSongID }
+        } else {
+            item = items.first
+        }
+        guard item != nil else { throw ListeningPlaybackError.emptyQueue }
+        currentTime = 0
+        observedAt = Date(timeIntervalSinceReferenceDate: 0)
+        playing = false
+    }
+
+    func play() async throws { playing = true }
+    func pause() { playing = false }
+    func skipToNext() async throws { throw ListeningPlaybackError.queueBoundary }
+    func skipToPrevious() async throws { throw ListeningPlaybackError.queueBoundary }
+    func seek(to time: TimeInterval) { currentTime = time }
+
+    func snapshot(observedAt _: Date) -> ListeningPlaybackSample? {
+        guard let item else { return nil }
+        let duration = item.duration ?? 180
+        return ListeningPlaybackSample(
+            songID: item.songID,
+            source: source,
+            currentTime: min(currentTime, duration),
+            duration: duration,
+            isPlaying: playing && currentTime < duration,
+            observedAt: observedAt,
+            hasEnded: currentTime >= duration
+        )
+    }
+
+    func stop() {
+        item = nil
+        currentTime = 0
+        playing = false
+    }
+
+    func advance(by delta: TimeInterval) {
+        currentTime += delta
+        observedAt = observedAt.addingTimeInterval(delta)
     }
 }
