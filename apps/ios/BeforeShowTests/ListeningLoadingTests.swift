@@ -111,7 +111,7 @@ final class ListeningLoadingTests: XCTestCase {
         }
     }
 
-    func testCabinetKeepsTheActiveTouchViewUntilTheDragEnds() async throws {
+    func testCabinetKeepsTheActiveTouchViewUntilTheLongPressDragEnds() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .singleFull)
         let context = fixture.container.mainContext
         let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
@@ -133,8 +133,9 @@ final class ListeningLoadingTests: XCTestCase {
         window.makeKeyAndVisible()
         defer { window.isHidden = true; room.mechanism.motion.stop() }
         try await settleLayout(host.view)
-        let pan = try XCTUnwrap(cabinetPan(in: host.view))
-        let touchView = try XCTUnwrap(pan.view)
+        let longPress = try XCTUnwrap(cabinetLongPress(in: host.view))
+        let touchView = try XCTUnwrap(longPress.view)
+        XCTAssertEqual(longPress.minimumPressDuration, 0.30, accuracy: 0.001)
         XCTAssertTrue(touchView.window === window)
 
         XCTAssertTrue(room.beginPlayableDiscDrag(disc))
@@ -142,7 +143,7 @@ final class ListeningLoadingTests: XCTestCase {
 
         XCTAssertTrue(room.mechanism.isCabinetDragging)
         XCTAssertTrue(touchView.window === window, "Picking up the CD must not remove the view receiving the active touch")
-        XCTAssertTrue(cabinetPan(in: host.view) === pan, "The same recognizer must receive the rest of the drag")
+        XCTAssertTrue(cabinetLongPress(in: host.view) === longPress, "The same recognizer must receive the rest of the drag")
         let center = room.mechanism.configuration.geometry.discCenter
         room.mechanism.dragDisc(CGSize(width: center.x - room.mechanism.motion.discX.value,
                                       height: center.y - room.mechanism.motion.discY.value))
@@ -202,11 +203,11 @@ final class ListeningLoadingTests: XCTestCase {
         }
     }
 
-    private func cabinetPan(in view: UIView) -> UIPanGestureRecognizer? {
-        if let pan = view.gestureRecognizers?.compactMap({ $0 as? UIPanGestureRecognizer }).first {
-            return pan
+    private func cabinetLongPress(in view: UIView) -> UILongPressGestureRecognizer? {
+        if let longPress = view.gestureRecognizers?.compactMap({ $0 as? UILongPressGestureRecognizer }).first {
+            return longPress
         }
-        return view.subviews.lazy.compactMap { self.cabinetPan(in: $0) }.first
+        return view.subviews.lazy.compactMap { self.cabinetLongPress(in: $0) }.first
     }
 
     private func assertFrames(_ frames: [String: CGRect], stage: CGRect, cabinet: CGRect, file: StaticString = #filePath, line: UInt = #line) {
