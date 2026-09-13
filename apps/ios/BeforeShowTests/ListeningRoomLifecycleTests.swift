@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 import SwiftData
 @testable import BeforeShow
@@ -158,6 +159,156 @@ import SwiftData
         room.mechanism.motion.stop()
     }
 
+    func testManualArtistRematchReturnsBeforeCatalogAndKeepsPlaybackTransport() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = GatedRematchCatalog()
+        let playback = TrackingPlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback }
+        )
+        defer {
+            catalog.release()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        room.restoreDisc(disc)
+        try await ListenTestData.settle(room) { room.track != nil && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        let discID = room.mechanism.disc?.id
+        let songID = room.track?.id
+        let trackIndex = room.trackIndex
+        let prepareCount = playback.prepareCount
+        let rematchFinished = expectation(description: "manual rematch saves locally")
+
+        Task {
+            await room.rematch(
+                slotIndex: 1,
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+            )
+            rematchFinished.fulfill()
+        }
+        await fulfillment(of: [rematchFinished], timeout: 0.5)
+
+        XCTAssertEqual(show.artists[1].appleMusicArtistID, "replacement")
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.mechanism.disc?.id, discID)
+        XCTAssertEqual(room.track?.id, songID)
+        XCTAssertEqual(room.trackIndex, trackIndex)
+        XCTAssertEqual(playback.prepareCount, prepareCount)
+        XCTAssertEqual(playback.pauseCount, 0)
+        XCTAssertEqual(playback.stopCount, 0)
+
+        try await waitUntil { catalog.didStartReplacementFetch }
+        XCTAssertTrue(room.isPlaying)
+        catalog.release()
+        try await waitUntil { !room.isCatalogEnriching }
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.mechanism.disc?.id, discID)
+        XCTAssertEqual(room.track?.id, songID)
+        XCTAssertEqual(playback.prepareCount, prepareCount)
+        XCTAssertEqual(playback.pauseCount, 0)
+        XCTAssertEqual(playback.stopCount, 0)
+    }
+
+    func testManualArtistRematchDuringInitialLoadJoinsExistingCatalogGeneration() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = GatedRematchCatalog()
+        let search = GatedArtistSearch()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            search.release()
+            catalog.release()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        let loadTask = Task { await room.load(show: show) }
+        try await waitUntil { search.didStartSearch }
+
+        let rematchFinished = expectation(description: "manual rematch does not start a competing load")
+        Task {
+            await room.rematch(
+                slotIndex: 1,
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+            )
+            rematchFinished.fulfill()
+        }
+        await fulfillment(of: [rematchFinished], timeout: 0.5)
+
+        XCTAssertEqual(show.artists[1].appleMusicArtistID, "replacement")
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertFalse(catalog.didStartReplacementFetch)
+
+        catalog.release()
+        search.release()
+        await loadTask.value
+
+        XCTAssertTrue(catalog.didStartReplacementFetch)
+        XCTAssertFalse(room.shouldReloadCatalog(for: show))
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+    }
+
+    func testManualArtistRematchAfterInitialCatalogFetchStartsReloadsChangedIdentity() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = CatalogStageRaceCatalog()
+        let search = CatalogRaceArtistSearch()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseInitialCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        let loadTask = Task { await room.load(show: show, force: true) }
+        try await waitUntil { catalog.didStartInitialCatalogFetch }
+        let searchCountAfterCatalogStarted = search.searchCount
+
+        let rematchFinished = expectation(description: "catalog-stage rematch still saves locally")
+        Task {
+            await room.rematch(
+                slotIndex: 1,
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+            )
+            rematchFinished.fulfill()
+        }
+        await fulfillment(of: [rematchFinished], timeout: 0.5)
+
+        XCTAssertEqual(show.artists[1].appleMusicArtistID, "replacement")
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertFalse(catalog.didStartReplacementFetch)
+        XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted)
+
+        catalog.releaseInitialCatalog()
+        await loadTask.value
+
+        XCTAssertTrue(catalog.didStartReplacementFetch)
+        XCTAssertGreaterThan(catalog.replacementFetchCount, 0)
+        XCTAssertTrue(room.catalogSongs.contains { $0.appleMusicSongID == "replacement-song" })
+        XCTAssertTrue(room.compilationDiscs.flatMap { $0.tracks }.contains { $0.id == "replacement-song" })
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertFalse(room.shouldReloadCatalog(for: show))
+        XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted, "catalog catch-up must not rerun artist matching")
+    }
+
     func testFailedPlaybackRetryRebuildsTransport() async throws {
         let (container, show) = try ListenTestData.make()
         var services: [RetryPlaybackService] = []
@@ -189,6 +340,217 @@ import SwiftData
         XCTAssertEqual(services[1].prepareCount, 1)
         room.stop(); room.mechanism.motion.stop()
     }
+
+    private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {
+        for _ in 0..<200 {
+            if condition() { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTFail("Condition did not become true")
+    }
+}
+
+private final class GatedRematchCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var released = false
+    private var replacementFetchStarted = false
+
+    var didStartReplacementFetch: Bool { lock.withLock { replacementFetchStarted } }
+
+    func release() {
+        lock.withLock { released = true }
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        guard artistID == "replacement" else { return [] }
+        try await waitForRelease()
+        return [replacementSong]
+    }
+
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        guard artistID == "replacement" else { throw ListeningCatalogError.artistNotFound(artistID) }
+        try await waitForRelease()
+        return ListeningArtistCatalogPayload(
+            artistID: artistID,
+            artistName: "Replacement",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [replacementSong.songID],
+            topSongIDs: [replacementSong.songID],
+            albumIDs: [],
+            songs: [replacementSong],
+            albums: [],
+            fetchedAt: fetchedAt
+        )
+    }
+
+    private var replacementSong: ListeningCatalogSongPayload {
+        .init(
+            songID: "replacement-song",
+            title: "Replacement Song",
+            artistName: "Replacement",
+            albumID: nil,
+            albumTitle: nil,
+            artworkURL: nil,
+            duration: 180,
+            performerArtistIDs: ["replacement"],
+            performerArtistNames: ["Replacement"],
+            previewURL: nil
+        )
+    }
+
+    private func waitForRelease() async throws {
+        lock.withLock { replacementFetchStarted = true }
+        while !lock.withLock({ released }) {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+}
+
+private final class GatedArtistSearch: @unchecked Sendable, ArtistSearchServicing {
+    private let lock = NSLock()
+    private var released = false
+    private var started = false
+
+    var didStartSearch: Bool { lock.withLock { started } }
+
+    func release() {
+        lock.withLock { released = true }
+    }
+
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
+
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        lock.withLock { started = true }
+        while !lock.withLock({ released }) {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        return []
+    }
+}
+
+private final class CatalogStageRaceCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var initialCatalogReleased = false
+    private var initialCatalogFetchStarted = false
+    private var replacementFetches = 0
+
+    var didStartInitialCatalogFetch: Bool { lock.withLock { initialCatalogFetchStarted } }
+    var replacementFetchCount: Int { lock.withLock { replacementFetches } }
+    var didStartReplacementFetch: Bool { replacementFetchCount > 0 }
+
+    func releaseInitialCatalog() {
+        lock.withLock { initialCatalogReleased = true }
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        guard artistID == "replacement" else { return [] }
+        lock.withLock { replacementFetches += 1 }
+        return [replacementSong]
+    }
+
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        if artistID == "replacement" {
+            lock.withLock { replacementFetches += 1 }
+            return replacementPayload(fetchedAt: fetchedAt)
+        }
+
+        lock.withLock { initialCatalogFetchStarted = true }
+        while !lock.withLock({ initialCatalogReleased }) {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+
+    private var replacementSong: ListeningCatalogSongPayload {
+        .init(
+            songID: "replacement-song",
+            title: "Replacement Song",
+            artistName: "Replacement",
+            albumID: nil,
+            albumTitle: nil,
+            artworkURL: nil,
+            duration: 180,
+            performerArtistIDs: ["replacement"],
+            performerArtistNames: ["Replacement"],
+            previewURL: nil
+        )
+    }
+
+    private func replacementPayload(fetchedAt: Date) -> ListeningArtistCatalogPayload {
+        ListeningArtistCatalogPayload(
+            artistID: "replacement",
+            artistName: "Replacement",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [replacementSong.songID],
+            topSongIDs: [replacementSong.songID],
+            albumIDs: [],
+            songs: [replacementSong],
+            albums: [],
+            fetchedAt: fetchedAt
+        )
+    }
+}
+
+private final class CatalogRaceArtistSearch: @unchecked Sendable, ArtistSearchServicing {
+    private let lock = NSLock()
+    private var searches = 0
+
+    var searchCount: Int { lock.withLock { searches } }
+
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        lock.withLock { searches += 1 }
+        return []
+    }
+}
+
+@MainActor
+private final class TrackingPlaybackService: ListeningPlaybackServicing {
+    private let player = ListeningFixturePlayer()
+    private(set) var prepareCount = 0
+    private(set) var playCount = 0
+    private(set) var pauseCount = 0
+    private(set) var stopCount = 0
+
+    func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
+        prepareCount += 1
+        try await player.prepare(items: items, source: source, startingAtSongID: startingAtSongID)
+    }
+    func play() async throws {
+        playCount += 1
+        try await player.play()
+    }
+    func pause() {
+        pauseCount += 1
+        player.pause()
+    }
+    func stop() {
+        stopCount += 1
+        player.stop()
+    }
+    func seek(to time: TimeInterval) { player.seek(to: time) }
+    func skipToNext() async throws { try await player.skipToNext() }
+    func skipToPrevious() async throws { try await player.skipToPrevious() }
+    func snapshot(observedAt: Date) -> ListeningPlaybackSample? { player.snapshot(observedAt: observedAt) }
 }
 
 @MainActor
