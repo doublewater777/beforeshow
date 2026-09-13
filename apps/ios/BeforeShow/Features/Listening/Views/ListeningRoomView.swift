@@ -84,7 +84,11 @@ struct ListenRootView: View {
         guard isActive else { return }
         ListeningPlayerWarmup.prepareIfNeeded()
         guard let show else {
-            room?.stop()
+            if shows.isEmpty {
+                room?.discardLoadedDiscState()
+            } else {
+                room?.stop()
+            }
             room?.mechanism.motion.stop()
             room = nil
             ListeningRoomCache.shared = nil
