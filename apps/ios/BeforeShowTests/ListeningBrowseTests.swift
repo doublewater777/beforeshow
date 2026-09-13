@@ -139,7 +139,8 @@ import SwiftData
         let reopened = ListenTestData.room(container.mainContext)
         await reopened.load(show: show)
         XCTAssertTrue(reopened.isRecentDisc(album))
-        XCTAssertNil(reopened.track)
+        XCTAssertEqual(reopened.mechanism.disc?.id, album.id)
+        XCTAssertNotNil(reopened.track)
         XCTAssertFalse(reopened.isPlaying)
     }
 

@@ -159,6 +159,7 @@ struct PrivacyLocalDataView: View {
                 await ShowAssetMediaStore.shared.acquireCommitGate()
                 ShowAssetCleanupRetry.markFullCleanupPrepared()
                 do {
+                    ListeningRoomCache.discardLocalState()
                     try ListeningLocalDataCleaner.deleteAll(in: context)
                     try context.delete(model: Show.self)
                     try context.delete(model: CurrentShowSelection.self)

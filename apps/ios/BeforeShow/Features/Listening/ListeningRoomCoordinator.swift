@@ -131,8 +131,9 @@ private let listeningCatalogFetchConcurrency = 4
             #endif
             self?.stop()
         }
-        mechanism.onTransition = { transition in
+        mechanism.onTransition = { [weak self] transition in
             CDSoundPlayer.shared.play(transition)
+            self?.handleMechanismTransition(transition)
             #if os(iOS)
             switch transition {
             case "seat", "close":
@@ -146,6 +147,71 @@ private let listeningCatalogFetchConcurrency = 4
             }
             #endif
         }
+        restorePersistedDiscIfNeeded()
+    }
+    private func handleMechanismTransition(_ transition: String) {
+        switch transition {
+        case "seat":
+            persistLoadedDisc()
+        case "remove":
+            if !mechanism.isAutomatic { clearPersistedDisc() }
+        case "store":
+            clearPersistedDisc()
+        default:
+            break
+        }
+    }
+    private func restorePersistedDiscIfNeeded() {
+        guard mechanism.position == .stored else { return }
+        do {
+            let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
+            guard let state = states.max(by: { $0.updatedAt < $1.updatedAt }) else { return }
+            guard let disc = try? JSONDecoder().decode(ListeningDisc.self, from: state.discData), !disc.tracks.isEmpty else {
+                for state in states { context.delete(state) }
+                try context.save()
+                return
+            }
+            mechanism.restoreSeated(disc)
+            trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+            preparedSongID = nil
+            playbackState = .idle
+            trackBelongsToShow = true
+        } catch {}
+    }
+    private func persistLoadedDisc() {
+        guard mechanism.position == .seated, let disc = mechanism.disc else { return }
+        do {
+            let data = try JSONEncoder().encode(disc)
+            let songID = disc.tracks.indices.contains(trackIndex) ? disc.tracks[trackIndex].id : nil
+            let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
+            if let state = states.first {
+                state.discData = data
+                state.songID = songID
+                state.updatedAt = Date()
+                for duplicate in states.dropFirst() { context.delete(duplicate) }
+            } else {
+                context.insert(ListeningLoadedDiscState(discData: data, songID: songID))
+            }
+            try context.save()
+        } catch {}
+    }
+    private func clearPersistedDisc() {
+        do {
+            for state in try context.fetch(FetchDescriptor<ListeningLoadedDiscState>()) {
+                context.delete(state)
+            }
+            try context.save()
+        } catch {}
+    }
+    func discardLoadedDiscState() {
+        operation?.cancel()
+        operation = nil
+        stop()
+        mechanism.discardDisc()
+        trackBelongsToShow = false
+        pendingSleeveSongID = nil
+        sleevePlaybackSongID = nil
+        clearPersistedDisc()
     }
     var track: ListeningDiscTrack? {
         guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
@@ -206,8 +272,7 @@ private let listeningCatalogFetchConcurrency = 4
         }
         if showCatalogKey != newKey {
             completedCatalogKey = nil
-            stop(); trackBelongsToShow = false; discs = []; runtimeSongs = [:]
-            if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
+            discs = []; runtimeSongs = [:]
         }
         showCatalogKey = newKey
         self.show = show
@@ -629,6 +694,7 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         playbackState = .idle
         trackBelongsToShow = true
+        persistLoadedDisc()
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
         if mechanism.disc == disc, mechanism.position == .seated {
@@ -641,6 +707,7 @@ private let listeningCatalogFetchConcurrency = 4
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             preparedSongID = nil; playbackState = .idle; trackBelongsToShow = true
+            persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
     }
@@ -664,6 +731,7 @@ private let listeningCatalogFetchConcurrency = 4
                 try await mechanism.closeForPlayback()
                 guard let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
                 trackIndex = index; trackBelongsToShow = true
+                persistLoadedDisc()
                 try await playCurrentTrack()
             }
             return
@@ -682,10 +750,15 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = autoplay || isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex; trackBelongsToShow = true
+            persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
     }
-    func manualDiscChanged() { guard !mechanism.isAutomatic else { return }; stop(); trackIndex = 0; trackBelongsToShow = true }
+    func manualDiscChanged() {
+        guard !mechanism.isAutomatic else { return }
+        stop(); trackIndex = 0; trackBelongsToShow = true
+        persistLoadedDisc()
+    }
     func playPause() {
         guard mechanism.isClosed, mechanism.position == .seated, !mechanism.isAutomatic else { return }
         run { [self] in
@@ -748,6 +821,7 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex
+            persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
     }
@@ -796,6 +870,7 @@ private let listeningCatalogFetchConcurrency = 4
         if trackIndex != index {
             trackIndex = index
             recordedPlayingSongID = nil
+            persistLoadedDisc()
         }
         preparedSongID = songID
     }

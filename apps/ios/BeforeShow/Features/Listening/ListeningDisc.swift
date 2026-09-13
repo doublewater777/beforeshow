@@ -1,6 +1,6 @@
 import Foundation
 
-struct ListeningDiscTrack: Identifiable, Equatable {
+struct ListeningDiscTrack: Identifiable, Equatable, Codable {
     let id: String
     let title: String
     let artistName: String
@@ -23,8 +23,8 @@ struct ListeningDiscTrack: Identifiable, Equatable {
     }
 }
 
-struct ListeningDisc: Identifiable, Equatable {
-    enum Origin: Equatable { case album, compilation(showID: UUID, number: Int) }
+struct ListeningDisc: Identifiable, Equatable, Codable {
+    enum Origin: Equatable, Codable { case album, compilation(showID: UUID, number: Int) }
     let origin: Origin
     let id: String
     let title: String

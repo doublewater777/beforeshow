@@ -1,5 +1,11 @@
 @MainActor enum ListeningRoomCache {
     static var shared: ListeningRoomCoordinator?
+
+    static func discardLocalState() {
+        shared?.discardLoadedDiscState()
+        shared?.mechanism.motion.stop()
+        shared = nil
+    }
 }
 
 import SwiftUI
