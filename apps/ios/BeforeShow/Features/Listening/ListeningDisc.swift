@@ -24,7 +24,11 @@ struct ListeningDiscTrack: Identifiable, Equatable, Codable {
 }
 
 struct ListeningDisc: Identifiable, Equatable, Codable {
-    enum Origin: Equatable, Codable { case album, compilation(showID: UUID, number: Int) }
+    enum Origin: Equatable, Codable {
+        case album
+        case featuredPlaylist(artistID: String)
+        case compilation(showID: UUID, number: Int)
+    }
     let origin: Origin
     let id: String
     let title: String
@@ -82,7 +86,7 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
     }
 }
 
-/// Album order and full track order come directly from the catalog snapshot.
+/// Apple catalog order and full track order are preserved for every physical-disc source.
 @MainActor enum ListeningDiscAssembler {
     static func discs(albums: [CatalogAlbum], songsByID: [String: CatalogSong]) -> [ListeningDisc] {
         albums.map { album in
@@ -97,6 +101,26 @@ struct ListeningDisc: Identifiable, Equatable, Codable {
                                  isAppleDigitalMaster: album.isAppleDigitalMaster,
                                  isCompilation: album.isCompilation, isSingle: album.isSingle,
                                  appleMusicURL: album.appleMusicURL.flatMap(URL.init(string:)))
+        }
+    }
+
+    static func discs(
+        featuredPlaylists: [ListeningCatalogPlaylistPayload],
+        artistID: String,
+        songsByID: [String: CatalogSong]
+    ) -> [ListeningDisc] {
+        featuredPlaylists.compactMap { playlist in
+            let tracks = playlist.orderedTrackIDs.compactMap { songsByID[$0].map(ListeningDiscTrack.init) }
+            guard !tracks.isEmpty else { return nil }
+            return ListeningDisc(
+                id: playlist.playlistID,
+                title: playlist.name,
+                artworkURL: playlist.artworkURL.flatMap(URL.init(string:)),
+                tracks: tracks,
+                editorialText: playlist.descriptionText,
+                appleMusicURL: playlist.appleMusicURL.flatMap(URL.init(string:)),
+                origin: .featuredPlaylist(artistID: artistID)
+            )
         }
     }
 
