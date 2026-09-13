@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Known limitation (ADR-0027): cross-show companion identity is currently the normalized
+/// display name. Two distinct people with the same name can collide and a renamed person
+/// can split history. This PR does not introduce a new persisted identity/schema solely for
+/// the pairwise view; display names remain the compatibility key until stable identity lands.
 @MainActor
 enum CompanionPairHistory {
     static func shows(
