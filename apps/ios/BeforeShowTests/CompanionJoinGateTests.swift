@@ -5,6 +5,10 @@ import XCTest
 
 @MainActor
 final class CompanionJoinGateTests: XCTestCase {
+    func testInviteAccessUsesReusableReadOnlyLink() {
+        XCTAssertEqual(CompanionInviteAccessPolicy.publicPermission, .readOnly)
+    }
+
     func testPendingSharedSessionIsNotImportedBeforeJoinConfirmation() async throws {
         let suiteName = "CompanionJoinGateTests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
