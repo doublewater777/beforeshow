@@ -1,6 +1,13 @@
 import CloudKit
 import Foundation
 
+enum CompanionInviteAccessPolicy {
+    /// A companion invitation is a reusable link to a frozen Show snapshot.
+    /// Joining records CloudKit participation; participants never need write access
+    /// to the shared root record itself.
+    static let publicPermission: CKShare.ParticipantPermission = .readOnly
+}
+
 extension CloudKitCompanionSharingService {
     func prepareInvitation(
         show: CompanionShowSnapshot,
@@ -43,7 +50,7 @@ extension CloudKitCompanionSharingService {
 
         let share = CKShare(rootRecord: session)
         share[CKShare.SystemFieldKey.title] = BSLocalization.format("一起去 %@", show.showName) as CKRecordValue
-        share.publicPermission = .none
+        share.publicPermission = CompanionInviteAccessPolicy.publicPermission
 
         let saved: [CKRecord]
         do {
@@ -75,9 +82,21 @@ extension CloudKitCompanionSharingService {
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data {
         try await ensureAccountAvailable()
         let record = try await privateDB.record(for: shareLocator.recordID)
-        guard let share = record as? CKShare else {
+        guard var share = record as? CKShare else {
             throw CompanionSharingError.sessionNotFound
         }
+
+        // Invitations created before reusable-link distribution used `.none` and
+        // depended on UICloudSharingController adding named participants. Upgrade
+        // them lazily when the owner taps “再次分享邀请 / 邀请更多”.
+        if share.publicPermission != CompanionInviteAccessPolicy.publicPermission {
+            share.publicPermission = CompanionInviteAccessPolicy.publicPermission
+            let saved = try await modifyRecords(in: privateDB, saving: [share])
+            if let updatedShare = saved.compactMap({ $0 as? CKShare }).first {
+                share = updatedShare
+            }
+        }
+
         return try NSKeyedArchiver.archivedData(withRootObject: share, requiringSecureCoding: true)
     }
 
