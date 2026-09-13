@@ -113,18 +113,6 @@ final class ListeningPlaybackController {
         _ = try refresh(now: now)
     }
 
-    /// Destructive local-data reset must stop transport without taking one last
-    /// playback sample, because that sample can recreate listening evidence after
-    /// the database has already been cleared.
-    func discard() {
-        observationTask?.cancel()
-        observationTask = nil
-        service.stop()
-        evidenceCoordinator.breakContinuity()
-        stateMachine.handle(.reset)
-        ListeningRemoteCommandBridge.shared.detach(controller: self)
-    }
-
     private func startObservation() {
         observationTask?.cancel()
         observationTask = Task { @MainActor [weak self] in
