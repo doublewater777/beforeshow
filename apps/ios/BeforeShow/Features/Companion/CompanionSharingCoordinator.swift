@@ -2,7 +2,6 @@ import CloudKit
 import Foundation
 import SwiftData
 
-/// Orchestrates CloudKit companion invite / accept / cancel against local `Show` cache.
 @MainActor
 @Observable
 final class CompanionSharingCoordinator {
@@ -151,8 +150,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    /// Convert the system CloudKit callback into an in-app confirmation state. The Show
-    /// is not imported and the root session is not marked accepted until the user confirms.
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
         guard !isFlushingAcceptedShares, pendingJoinSession == nil else { return }
         guard let metadata = pendingShareMetadata.first else { return }
@@ -180,18 +177,7 @@ final class CompanionSharingCoordinator {
         } catch {
             lastErrorMessage = Self.userMessage(for: error)
             lastErrorKind = error as? CompanionSharingError ?? .statusSyncPending
-            switch CompanionPendingInviteDrainPolicy.action(
-                for: lastErrorKind,
-                remainingInviteCount: max(0, pendingShareMetadata.count - 1)
-            ) {
-            case .discardCurrentAndContinue:
-                removePendingShare(key: key)
-                continuePendingShareDrain(in: modelContext)
-            case .discardCurrent:
-                removePendingShare(key: key)
-            case .retainCurrentForRetry:
-                break
-            }
+            resolvePendingInviteFailure(key: key, clearJoin: false, in: modelContext)
         }
     }
 
@@ -236,22 +222,7 @@ final class CompanionSharingCoordinator {
             in: modelContext
         )
         guard lastErrorKind == nil, pendingAcceptResult != nil else {
-            switch CompanionPendingInviteDrainPolicy.action(
-                for: lastErrorKind,
-                remainingInviteCount: max(0, pendingShareMetadata.count - 1)
-            ) {
-            case .discardCurrentAndContinue:
-                pendingJoinSession = nil
-                pendingJoinMetadataKey = nil
-                removePendingShare(key: key)
-                continuePendingShareDrain(in: modelContext)
-            case .discardCurrent:
-                pendingJoinSession = nil
-                pendingJoinMetadataKey = nil
-                removePendingShare(key: key)
-            case .retainCurrentForRetry:
-                break
-            }
+            resolvePendingInviteFailure(key: key, clearJoin: true, in: modelContext)
             return false
         }
 
@@ -530,6 +501,26 @@ final class CompanionSharingCoordinator {
             CompanionAcceptedShareInbox.metadataKey($0) == key
         }
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
+    }
+
+    private func resolvePendingInviteFailure(
+        key: String,
+        clearJoin: Bool,
+        in modelContext: ModelContext
+    ) {
+        let action = CompanionPendingInviteDrainPolicy.action(
+            for: lastErrorKind,
+            remainingInviteCount: pendingShareMetadata.count - 1
+        )
+        guard action.discardsCurrent else { return }
+        if clearJoin {
+            pendingJoinSession = nil
+            pendingJoinMetadataKey = nil
+        }
+        removePendingShare(key: key)
+        if action.continues {
+            continuePendingShareDrain(in: modelContext)
+        }
     }
 
     private func continuePendingShareDrain(in modelContext: ModelContext) {
