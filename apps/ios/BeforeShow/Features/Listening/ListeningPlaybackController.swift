@@ -113,6 +113,18 @@ final class ListeningPlaybackController {
         _ = try refresh(now: now)
     }
 
+    /// Destructive local-data reset must stop transport without taking one last
+    /// playback sample, because that sample can recreate listening evidence after
+    /// the database has already been cleared.
+    func discard() {
+        observationTask?.cancel()
+        observationTask = nil
+        service.stop()
+        evidenceCoordinator.breakContinuity()
+        stateMachine.handle(.reset)
+        ListeningRemoteCommandBridge.shared.detach(controller: self)
+    }
+
     private func startObservation() {
         observationTask?.cancel()
         observationTask = Task { @MainActor [weak self] in
@@ -179,26 +191,14 @@ final class ListeningRemoteCommandBridge {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    func update(sample: ListeningPlaybackSample) {
-        guard let item = itemsBySongID[sample.songID] else { return }
-        var info: [String: Any] = [
-            MPNowPlayingInfoPropertyExternalContentIdentifier: sample.songID,
-            MPNowPlayingInfoPropertyElapsedPlaybackTime: sample.currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: sample.isPlaying ? 1.0 : 0.0
-        ]
-        if let title = item.title { info[MPMediaItemPropertyTitle] = title }
-        if let artistName = item.artistName { info[MPMediaItemPropertyArtist] = artistName }
-        if let duration = sample.duration ?? item.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-
     private func play() {
         guard let controller else { return }
-        Task { @MainActor in try? await controller.play() }
+        Task { try? await controller.play() }
     }
 
     private func pause() {
-        try? controller?.pause()
+        guard let controller else { return }
+        try? controller.pause()
     }
 
     private func togglePlayPause() {
@@ -207,31 +207,17 @@ final class ListeningRemoteCommandBridge {
         case .playing:
             try? controller.pause()
         default:
-            Task { @MainActor in try? await controller.play() }
+            Task { try? await controller.play() }
         }
     }
 
     private func next() {
         guard let controller else { return }
-        Task { @MainActor in try? await controller.skipToNext() }
+        Task { try? await controller.skipToNext() }
     }
 
     private func previous() {
         guard let controller else { return }
-        Task { @MainActor in try? await controller.skipToPrevious() }
-    }
-
-    func playForTesting() async throws {
-        try await controller?.play()
-    }
-
-    func togglePlayPauseForTesting() async throws {
-        guard let controller else { return }
-        switch controller.state {
-        case .playing:
-            try controller.pause()
-        default:
-            try await controller.play()
-        }
+        Task { try? await controller.skipToPrevious() }
     }
 }
