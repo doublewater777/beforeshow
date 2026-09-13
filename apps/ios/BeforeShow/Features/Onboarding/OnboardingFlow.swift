@@ -79,12 +79,11 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
 }
 
 struct OnboardingFlowView: View {
-    let onCompleted: (UUID) -> Void
+    let onCompleted: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page: OnboardingPage = .beforeShow
     @State private var isShowingAddShow = false
-    @State private var pendingAddedShowID: UUID?
     @State private var hasCapturedStart = false
 
     var body: some View {
@@ -105,9 +104,9 @@ struct OnboardingFlowView: View {
             chrome
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingAddShow, onDismiss: completeAfterAddIfNeeded) {
-            AddShowCoordinatorSheet { showID in
-                pendingAddedShowID = showID
+        .sheet(isPresented: $isShowingAddShow) {
+            AddShowCoordinatorSheet { _ in
+                completeOnboarding(method: "add_show")
             }
         }
         .onAppear {
@@ -156,23 +155,14 @@ struct OnboardingFlowView: View {
 
                 Spacer()
 
-                if page != .start {
-                    Button {
-                        PostHogSDK.shared.capture(
-                            "onboarding_skipped",
-                            properties: ["from_page": page.analyticsValue]
-                        )
-                        move(to: .start)
-                    } label: {
-                        Text(BSLocalization.text("跳过"))
-                            .font(BSFont.caption)
-                            .foregroundColor(BSColor.Stage.muted)
-                            .frame(minWidth: 64, minHeight: BSLayout.minTouchTarget)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityHint(BSLocalization.text("直接前往添加第一个现场"))
+                Button(action: skipOnboarding) {
+                    Text(BSLocalization.text("跳过"))
+                        .font(BSFont.caption)
+                        .foregroundColor(BSColor.Stage.muted)
+                        .frame(minWidth: 64, minHeight: BSLayout.minTouchTarget)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 22)
             .padding(.top, BSSpacing.xl + BSSpacing.md)
@@ -226,12 +216,21 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private func completeAfterAddIfNeeded() {
-        guard let showID = pendingAddedShowID else { return }
-        pendingAddedShowID = nil
+    private func skipOnboarding() {
+        PostHogSDK.shared.capture(
+            "onboarding_skipped",
+            properties: ["from_page": page.analyticsValue]
+        )
+        completeOnboarding(method: "skip")
+    }
+
+    private func completeOnboarding(method: String) {
         OnboardingCompletionStore.markCompleted()
-        PostHogSDK.shared.capture("onboarding_completed")
-        onCompleted(showID)
+        PostHogSDK.shared.capture(
+            "onboarding_completed",
+            properties: ["method": method]
+        )
+        onCompleted()
     }
 }
 

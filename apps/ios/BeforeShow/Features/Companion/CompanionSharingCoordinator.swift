@@ -198,7 +198,7 @@ final class CompanionSharingCoordinator {
             becameCurrent: false,
             wasHistorical: wasHistorical
         )
-        pendingAcceptMessage = BSLocalization.text("你已经是这场的同行")
+        pendingAcceptMessage = CompanionSharingPresentation.alreadyJoinedMessage
         lastErrorMessage = nil
         lastErrorKind = nil
         return true

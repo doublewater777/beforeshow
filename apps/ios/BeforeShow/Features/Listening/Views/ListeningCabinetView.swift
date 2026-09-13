@@ -100,34 +100,37 @@ private struct CabinetDiscGestureBridge: UIViewRepresentable {
         var onEnded: (() -> Void)?
         var onTap: (() -> Void)?
         private var isDragging = false
+        private var dragOrigin: CGPoint?
 
         func attach(to view: UIView) {
-            let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePan(_:)))
-            pan.delegate = self
-            pan.cancelsTouchesInView = true
-            view.addGestureRecognizer(pan)
+            let longPress = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+            longPress.minimumPressDuration = 0.30
+            longPress.allowableMovement = 24
+            longPress.delegate = self
+            longPress.cancelsTouchesInView = true
+            view.addGestureRecognizer(longPress)
 
             let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
             tap.delegate = self
             view.addGestureRecognizer(tap)
         }
 
-        @objc private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            guard let view = recognizer.view else {
-                return
-            }
+        @objc private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            let location = recognizer.location(in: view)
             switch recognizer.state {
             case .began:
                 isDragging = true
+                dragOrigin = location
                 onBegin?()
-                let translation = recognizer.translation(in: view)
-                onChanged?(CGSize(width: translation.x, height: translation.y))
+                onChanged?(.zero)
             case .changed:
-                let translation = recognizer.translation(in: view)
-                onChanged?(CGSize(width: translation.x, height: translation.y))
+                guard isDragging, let origin = dragOrigin else { return }
+                onChanged?(CGSize(width: location.x - origin.x, height: location.y - origin.y))
             case .ended, .cancelled, .failed:
                 if isDragging {
                     isDragging = false
+                    dragOrigin = nil
                     onEnded?()
                 }
             default:
@@ -141,12 +144,8 @@ private struct CabinetDiscGestureBridge: UIViewRepresentable {
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            if let pan = gestureRecognizer as? UIPanGestureRecognizer {
-                guard canDrag, let view = pan.view else { return false }
-                let velocity = pan.velocity(in: view)
-                // Only recognize downward pull toward the player;
-                // reject leftover horizontal swipes so the cabinet stays still.
-                return velocity.y > 20 && velocity.y > abs(velocity.x) * 0.6
+            if gestureRecognizer is UILongPressGestureRecognizer {
+                return canDrag
             }
             return true
         }
@@ -205,6 +204,7 @@ private struct ListeningCabinetDiscButton: View {
 
     var body: some View {
         Button {
+            guard !suppressTap else { return }
             showDetails(disc)
         } label: {
             VStack(spacing: BSListeningTokens.shelfItemSpacing) {
@@ -275,7 +275,7 @@ private struct ListeningCabinetDiscButton: View {
             return
         }
         suppressTap = true
-        _ = room.beginPlayableDiscDrag(disc)
+        _ = room.mechanism.beginCabinetDrag(disc)
     }
 
     private func updateDrag(_ translation: CGSize) {
@@ -288,13 +288,11 @@ private struct ListeningCabinetDiscButton: View {
     }
 
     private func finishDragIfNeeded() {
-        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else {
-            suppressTap = false
-            return
+        if room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id {
+            room.mechanism.endDiscDrag()
         }
-        room.mechanism.endDiscDrag()
         Task { @MainActor in
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(120))
             suppressTap = false
         }
     }
