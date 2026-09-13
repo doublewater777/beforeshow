@@ -23,6 +23,8 @@ enum CompanionAcceptedShowMapping {
             artists: snapshot.artistSlots,
             coverImageURL: nonEmpty(snapshot.coverImageURL),
             changeStatus: snapshot.changeStatus,
+            endedAt: snapshot.endedAt,
+            wasAddedAsHistorical: snapshot.wasAddedAsHistorical == true,
             creationOrigin: .companionImport
         )
 
@@ -52,6 +54,19 @@ enum CompanionAcceptedShowMapping {
         if nonEmpty(show.coverImageURL) == nil { show.coverImageURL = nonEmpty(snapshot.coverImageURL) }
 
         show.artists = mergeArtists(local: show.artists, incoming: snapshot.artistSlots)
+
+        // A participant-side Show may already exist from an earlier acceptance callback.
+        // Let a newer frozen snapshot restore lifecycle facts that v1 did not carry,
+        // while never overwriting lifecycle choices on a user-created local Show.
+        if show.creationOrigin == .companionImport {
+            if show.endedAt == nil, let endedAt = snapshot.endedAt {
+                show.endedAt = endedAt
+            }
+            if snapshot.wasAddedAsHistorical == true,
+               show.wasAddedAsHistorical != true {
+                show.markAddedAsHistorical()
+            }
+        }
 
         guard show.endedAt == nil else { return }
         switch snapshot.changeStatus {
