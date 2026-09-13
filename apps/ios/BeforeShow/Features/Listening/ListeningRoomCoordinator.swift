@@ -151,9 +151,14 @@ private let listeningCatalogFetchConcurrency = 4
     }
     private func handleMechanismTransition(_ transition: String) {
         switch transition {
-        case "seat": persistLoadedDisc()
-        case "store": clearPersistedDisc()
-        default: break
+        case "seat":
+            persistLoadedDisc()
+        case "remove":
+            if !mechanism.isAutomatic { clearPersistedDisc() }
+        case "store":
+            clearPersistedDisc()
+        default:
+            break
         }
     }
     private func restorePersistedDiscIfNeeded() {
@@ -197,6 +202,16 @@ private let listeningCatalogFetchConcurrency = 4
             }
             try context.save()
         } catch {}
+    }
+    func discardLoadedDiscState() {
+        operation?.cancel()
+        operation = nil
+        stop()
+        mechanism.discardDisc()
+        trackBelongsToShow = false
+        pendingSleeveSongID = nil
+        sleevePlaybackSongID = nil
+        clearPersistedDisc()
     }
     var track: ListeningDiscTrack? {
         guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
@@ -816,7 +831,6 @@ private let listeningCatalogFetchConcurrency = 4
         trackIndex = 0
         do { try controller?.stop() } catch { errorText = BSLocalization.text("熟悉度保存失败，请重试") }
         controller = nil; preparedSongID = nil; preparedSource = nil; playbackState = .idle; finishedSongID = nil; visibility = ListeningVisibilityPolicy(); isPlaying = false; updateTimeText()
-        persistLoadedDisc()
     }
     func tick() {
         mechanism.refresh()
