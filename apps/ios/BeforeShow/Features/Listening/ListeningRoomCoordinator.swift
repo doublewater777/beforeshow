@@ -682,9 +682,31 @@ private let listeningCatalogFetchConcurrency = 4
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
             _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
-            selectScope(.all)
-            await load(show: show)
-        } catch { context.rollback(); errorText = BSLocalization.text("保存失败，请重试") }
+        } catch {
+            context.rollback()
+            errorText = BSLocalization.text("保存失败，请重试")
+            return
+        }
+
+        // Artist confirmation is a local identity mutation. Publish it immediately
+        // without rebuilding the room or touching the playback transport; catalog
+        // enrichment happens independently after the confirmation can dismiss.
+        showCatalogKey = catalogKey(for: show)
+        completedCatalogKey = nil
+        selectScope(.all)
+        do {
+            try rebuildDiscs()
+        } catch {
+            catalogState = .cacheFailed
+        }
+
+        // If first-load preparation is already in flight, its catalog stage reads
+        // the current Show value and will include this newly confirmed artist. Do not
+        // start a competing generation. Otherwise refresh only catalog payloads.
+        guard !isLoadingShow else { return }
+        Task { @MainActor [weak self] in
+            await self?.reloadCatalog()
+        }
     }
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
