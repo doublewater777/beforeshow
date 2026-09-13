@@ -262,6 +262,53 @@ import SwiftData
         XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
     }
 
+    func testManualArtistRematchAfterInitialCatalogFetchStartsReloadsChangedIdentity() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = CatalogStageRaceCatalog()
+        let search = CatalogRaceArtistSearch()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseInitialCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        let loadTask = Task { await room.load(show: show, force: true) }
+        try await waitUntil { catalog.didStartInitialCatalogFetch }
+        let searchCountAfterCatalogStarted = search.searchCount
+
+        let rematchFinished = expectation(description: "catalog-stage rematch still saves locally")
+        Task {
+            await room.rematch(
+                slotIndex: 1,
+                artist: .init(id: "replacement", canonicalName: "Replacement", avatarURL: nil, appleMusicURL: nil)
+            )
+            rematchFinished.fulfill()
+        }
+        await fulfillment(of: [rematchFinished], timeout: 0.5)
+
+        XCTAssertEqual(show.artists[1].appleMusicArtistID, "replacement")
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertFalse(catalog.didStartReplacementFetch)
+        XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted)
+
+        catalog.releaseInitialCatalog()
+        await loadTask.value
+
+        XCTAssertTrue(catalog.didStartReplacementFetch)
+        XCTAssertGreaterThan(catalog.replacementFetchCount, 0)
+        XCTAssertTrue(room.catalogSongs.contains { $0.appleMusicSongID == "replacement-song" })
+        XCTAssertTrue(room.compilationDiscs.flatMap { $0.tracks }.contains { $0.id == "replacement-song" })
+        XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
+        XCTAssertFalse(room.shouldReloadCatalog(for: show))
+        XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted, "catalog catch-up must not rerun artist matching")
+    }
+
     func testFailedPlaybackRetryRebuildsTransport() async throws {
         let (container, show) = try ListenTestData.make()
         var services: [RetryPlaybackService] = []
@@ -387,6 +434,91 @@ private final class GatedArtistSearch: @unchecked Sendable, ArtistSearchServicin
             try Task.checkCancellation()
             try await Task.sleep(for: .milliseconds(5))
         }
+        return []
+    }
+}
+
+private final class CatalogStageRaceCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var initialCatalogReleased = false
+    private var initialCatalogFetchStarted = false
+    private var replacementFetches = 0
+
+    var didStartInitialCatalogFetch: Bool { lock.withLock { initialCatalogFetchStarted } }
+    var replacementFetchCount: Int { lock.withLock { replacementFetches } }
+    var didStartReplacementFetch: Bool { replacementFetchCount > 0 }
+
+    func releaseInitialCatalog() {
+        lock.withLock { initialCatalogReleased = true }
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        guard artistID == "replacement" else { return [] }
+        lock.withLock { replacementFetches += 1 }
+        return [replacementSong]
+    }
+
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        if artistID == "replacement" {
+            lock.withLock { replacementFetches += 1 }
+            return replacementPayload(fetchedAt: fetchedAt)
+        }
+
+        lock.withLock { initialCatalogFetchStarted = true }
+        while !lock.withLock({ initialCatalogReleased }) {
+            try Task.checkCancellation()
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+
+    private var replacementSong: ListeningCatalogSongPayload {
+        .init(
+            songID: "replacement-song",
+            title: "Replacement Song",
+            artistName: "Replacement",
+            albumID: nil,
+            albumTitle: nil,
+            artworkURL: nil,
+            duration: 180,
+            performerArtistIDs: ["replacement"],
+            performerArtistNames: ["Replacement"],
+            previewURL: nil
+        )
+    }
+
+    private func replacementPayload(fetchedAt: Date) -> ListeningArtistCatalogPayload {
+        ListeningArtistCatalogPayload(
+            artistID: "replacement",
+            artistName: "Replacement",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [replacementSong.songID],
+            topSongIDs: [replacementSong.songID],
+            albumIDs: [],
+            songs: [replacementSong],
+            albums: [],
+            fetchedAt: fetchedAt
+        )
+    }
+}
+
+private final class CatalogRaceArtistSearch: @unchecked Sendable, ArtistSearchServicing {
+    private let lock = NSLock()
+    private var searches = 0
+
+    var searchCount: Int { lock.withLock { searches } }
+
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        lock.withLock { searches += 1 }
         return []
     }
 }
