@@ -68,8 +68,8 @@ struct CompanionQuickActionPresentation: Equatable {
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            displayTitle = BSLocalization.text("添加同行")
-            accessibilityLabel = joined.map { BSLocalization.format("同行，等待%@确认", $0) } ?? BSLocalization.text("同行，待确认")
+            displayTitle = BSLocalization.text("同行")
+            accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
             showsPendingIndicator = true
             displayShowsPendingIndicator = false
             showsAvatars = false
@@ -194,8 +194,12 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
-                title: BSLocalization.text("添加同行"),
-                subtitle: BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
+                title: show.companionStatus == .pending
+                    ? BSLocalization.text("等待朋友加入")
+                    : BSLocalization.text("添加同行"),
+                subtitle: show.companionStatus == .pending
+                    ? BSLocalization.text("邀请已经发出。你可以再次分享同一份邀请。")
+                    : BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
             )
 
             Button {
