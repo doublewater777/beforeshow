@@ -1,0 +1,18 @@
+name: Run PR183 verifier fast once
+
+on:
+  push:
+    branches:
+      - codex/tmp-run-pr183-verifier-fast
+
+jobs:
+  verify:
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout follow-up HEAD
+        uses: actions/checkout@v4
+        with:
+          ref: codex/fix-stale-listening-artist-chip-project-reference
+          fetch-depth: 1
+      - name: Run repository verifier
+        run: scripts/verify-pr.sh 183 --no-comment
