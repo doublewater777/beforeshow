@@ -67,13 +67,14 @@ extension CloudKitCompanionSharingService {
             CompanionDebugLog.write("Companion save succeeded without a CKShare payload")
             throw CompanionSharingError.sharePreparationFailed
         }
+        let distributableShare = try await shareWithInvitationURL(savedShare)
 
         let snapshot = try Self.snapshot(
             from: savedSession,
-            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID)
+            shareLocator: CompanionRecordLocator(recordID: distributableShare.recordID)
         )
         let fields = try NSKeyedArchiver.archivedData(
-            withRootObject: savedShare,
+            withRootObject: distributableShare,
             requiringSecureCoding: true
         )
         return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
@@ -96,8 +97,24 @@ extension CloudKitCompanionSharingService {
                 share = updatedShare
             }
         }
+        share = try await shareWithInvitationURL(share)
 
         return try NSKeyedArchiver.archivedData(withRootObject: share, requiringSecureCoding: true)
+    }
+
+    private func shareWithInvitationURL(_ share: CKShare) async throws -> CKShare {
+        if share.url != nil { return share }
+        do {
+            guard let refetched = try await privateDB.record(for: share.recordID) as? CKShare,
+                  refetched.url != nil else {
+                throw CompanionSharingError.sharePreparationFailed
+            }
+            return refetched
+        } catch let error as CompanionSharingError {
+            throw error
+        } catch {
+            throw Self.mapError(error)
+        }
     }
 
     private func debugProbeDefaultZone() async {
