@@ -83,22 +83,15 @@ struct CompanionPendingJoinHost: View {
     @MainActor
     private func offerCurrentSwitchForLiveShowIfNeeded(now: Date = Date()) {
         guard let result = coordinator.pendingAcceptResult,
-              !result.becameCurrent,
-              !result.wasHistorical,
               let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
               let target = shows.first(where: { $0.id == result.showID }),
               let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection(),
-              let currentID = selection.selectedShowID,
-              currentID != target.id else {
-            return
-        }
-
-        let state = CurrentShowTimeState(show: target, now: now)
-        guard state.kind == .today,
-              let start = state.effectiveStartTime,
-              let end = state.endBoundary,
-              now >= start,
-              now < end else {
+              CompanionLiveCurrentPromptPolicy.shouldOffer(
+                  importResult: result,
+                  show: target,
+                  selectedShowID: selection.selectedShowID,
+                  now: now
+              ) else {
             return
         }
 
