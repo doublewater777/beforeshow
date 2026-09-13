@@ -20,6 +20,7 @@ enum ModelContainerFactory {
             CatalogAlbum.self,
             SongFamiliarityRecord.self,
             ShowRecentListening.self,
+            ListeningLoadedDiscState.self,
             ShowWantsLiveSong.self,
             ShowArtistListeningPreference.self,
             ShowOpeningFamiliarityBaseline.self,
