@@ -180,11 +180,16 @@ final class CompanionSharingCoordinator {
         } catch {
             lastErrorMessage = Self.userMessage(for: error)
             lastErrorKind = error as? CompanionSharingError ?? .statusSyncPending
-            switch lastErrorKind {
-            case .acceptFailed, .sessionNotFound, .invalidPayload, .permissionDenied:
+            switch CompanionPendingInviteDrainPolicy.action(
+                for: lastErrorKind,
+                remainingInviteCount: max(0, pendingShareMetadata.count - 1)
+            ) {
+            case .discardCurrentAndContinue:
                 removePendingShare(key: key)
                 continuePendingShareDrain(in: modelContext)
-            default:
+            case .discardCurrent:
+                removePendingShare(key: key)
+            case .retainCurrentForRetry:
                 break
             }
         }
@@ -230,7 +235,25 @@ final class CompanionSharingCoordinator {
             participantDisplayName: nil,
             in: modelContext
         )
-        guard lastErrorKind == nil, pendingAcceptResult != nil else { return false }
+        guard lastErrorKind == nil, pendingAcceptResult != nil else {
+            switch CompanionPendingInviteDrainPolicy.action(
+                for: lastErrorKind,
+                remainingInviteCount: max(0, pendingShareMetadata.count - 1)
+            ) {
+            case .discardCurrentAndContinue:
+                pendingJoinSession = nil
+                pendingJoinMetadataKey = nil
+                removePendingShare(key: key)
+                continuePendingShareDrain(in: modelContext)
+            case .discardCurrent:
+                pendingJoinSession = nil
+                pendingJoinMetadataKey = nil
+                removePendingShare(key: key)
+            case .retainCurrentForRetry:
+                break
+            }
+            return false
+        }
 
         pendingJoinSession = nil
         pendingJoinMetadataKey = nil
