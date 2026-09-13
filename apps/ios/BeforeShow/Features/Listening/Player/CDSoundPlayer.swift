@@ -1,18 +1,18 @@
 import AVFoundation
 
-/// Mechanical foley for the CD machine, keyed by transition name. Only two
-/// moments speak: "seat" (the disc clicks onto the spindle), "read"
-/// (spin-up and laser seek while a new track prepares), and "button" (the
-/// panel keys). Everything else —
-/// lid, insert, remove, release, store — stays silent; its files remain in
-/// Resources/Sounds as `cd-<name>.caf`, so re-enabling one is one line here.
+/// Mechanical foley for the CD machine, keyed by transition name. Disc seating
+/// speaks twice: "seat" clicks the disc onto the spindle, then "read" supplies
+/// the spin-up / laser-seek texture. Track preparation may still request the
+/// legacy "read" cue, but that request is intentionally silent so changing
+/// tracks on the same disc does not replay the loading sound. "button" remains
+/// the panel-key click. Everything else — lid, insert, remove, release, store —
+/// stays silent; its files remain in Resources/Sounds as `cd-<name>.caf`.
 /// Sounds mix with music playback and never duck it; when no music plays the
 /// ambient session keeps them on the silent switch.
 @MainActor final class CDSoundPlayer {
     static let shared = CDSoundPlayer()
 
-    /// Output trim per enabled transition so effects sit under the music.
-    /// A transition not listed here is silent.
+    /// Output trim per enabled audio asset so effects sit under the music.
     private static let gains: [String: Float] = [
         "seat": 0.65,
         "read": 0.3,
@@ -23,6 +23,21 @@ import AVFoundation
 
     private init() {}
 
+    /// Pure routing kept internal so tests can lock down when the read sound is
+    /// allowed to fire without touching AVAudioSession or bundle resources.
+    static func audioCues(for transition: String) -> [String] {
+        switch transition {
+        case "seat":
+            return ["seat", "read"]
+        case "button":
+            return ["button"]
+        case "read":
+            return []
+        default:
+            return []
+        }
+    }
+
     /// Create and prepare every enabled player up front; the first lazy load
     /// otherwise lands noticeably after the first button press.
     func warmup() {
@@ -30,9 +45,11 @@ import AVFoundation
     }
 
     func play(_ transition: String) {
-        guard let player = player(for: transition) else { return }
-        player.currentTime = 0
-        player.play()
+        for cue in Self.audioCues(for: transition) {
+            guard let player = player(for: cue) else { continue }
+            player.currentTime = 0
+            player.play()
+        }
     }
 
     private func player(for transition: String) -> AVAudioPlayer? {
