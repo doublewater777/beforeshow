@@ -18,6 +18,19 @@ struct ListeningMachineView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
+            ListeningPlayerAmbientHalo(
+                artworkURL: player.disc?.artworkURL,
+                isPlaying: room.isPlaying
+            )
+            .frame(
+                width: geometry.discDiameter * 2.55,
+                height: geometry.discDiameter * 1.45
+            )
+            .position(
+                x: geometry.discCenter.x,
+                y: geometry.projectedY(geometry.discCenter.y) + geometry.discDiameter * 0.10
+            )
+
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
