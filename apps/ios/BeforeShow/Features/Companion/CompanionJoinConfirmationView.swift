@@ -80,7 +80,8 @@ private struct CompanionJoinConfirmationView: View {
 
     private var ownerName: String {
         let trimmed = session.ownerDisplayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed?.isEmpty == false ? trimmed! : BSLocalization.text("朋友")
+        if let trimmed, !trimmed.isEmpty { return trimmed }
+        return BSLocalization.text("朋友")
     }
 
     private var locationText: String? {
@@ -145,7 +146,7 @@ private struct CompanionJoinConfirmationView: View {
                     : BSLocalization.format("%@ 邀请你加入同行", ownerName)
             )
             .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(BSColor.Stage.secondaryText)
+            .foregroundStyle(BSColor.Stage.muted)
             .multilineTextAlignment(.center)
         }
     }
@@ -170,12 +171,12 @@ private struct CompanionJoinConfirmationView: View {
                     systemImage: "calendar"
                 )
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(BSColor.Stage.secondaryText)
+                .foregroundStyle(BSColor.Stage.muted)
 
                 if let locationText {
                     Label(locationText, systemImage: "mappin.and.ellipse")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(BSColor.Stage.secondaryText)
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
             }
         }
@@ -220,7 +221,7 @@ private struct CompanionJoinConfirmationView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(BSLocalization.text("同行"))
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.secondaryText)
+                .foregroundStyle(BSColor.Stage.muted)
 
             HStack(spacing: 10) {
                 member(ownerName)
@@ -254,7 +255,7 @@ private struct CompanionJoinConfirmationView: View {
                     : BSLocalization.text("加入后，这场会添加到你的现场，并记录你们同行。")
             )
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(BSColor.Stage.secondaryText)
+            .foregroundStyle(BSColor.Stage.muted)
             .multilineTextAlignment(.center)
 
             Button(action: onJoin) {
