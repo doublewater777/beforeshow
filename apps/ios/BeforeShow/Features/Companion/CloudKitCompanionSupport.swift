@@ -79,10 +79,12 @@ extension CloudKitCompanionSharingService {
         }
     }
 
+    /// Names of accepted members other than the current iCloud user. For the owner,
+    /// this naturally yields accepted companions. For a participant, it also includes
+    /// the owner so later refreshes retain the complete visible companion group.
     static func participantNames(from share: CKShare) -> [String] {
         let currentID = share.currentUserParticipant?.participantID
         return CompanionNameList.normalized(share.participants.compactMap { participant in
-            guard participant.role != .owner else { return nil }
             guard participant.acceptanceStatus == .accepted else { return nil }
             if let currentID, participant.participantID == currentID { return nil }
             return displayName(for: participant)
