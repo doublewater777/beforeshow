@@ -84,7 +84,6 @@ struct OnboardingFlowView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page: OnboardingPage = .beforeShow
     @State private var isShowingAddShow = false
-    @State private var pendingAddedShowID: UUID?
     @State private var hasCapturedStart = false
 
     var body: some View {
@@ -105,9 +104,12 @@ struct OnboardingFlowView: View {
             chrome
         }
         .preferredColorScheme(.dark)
-        .sheet(isPresented: $isShowingAddShow, onDismiss: completeAfterAddIfNeeded) {
-            AddShowCoordinatorSheet { showID in
-                pendingAddedShowID = showID
+        .sheet(isPresented: $isShowingAddShow) {
+            AddShowCoordinatorSheet { _ in
+                // AddShowCoordinatorSheet invokes this before dismissing itself.
+                // Complete onboarding here so the sheet reveals the main app while
+                // it animates away instead of briefly exposing the onboarding page.
+                completeOnboarding(method: "add_show")
             }
         }
         .onAppear {
@@ -223,12 +225,6 @@ struct OnboardingFlowView: View {
             properties: ["from_page": page.analyticsValue]
         )
         completeOnboarding(method: "skip")
-    }
-
-    private func completeAfterAddIfNeeded() {
-        guard pendingAddedShowID != nil else { return }
-        pendingAddedShowID = nil
-        completeOnboarding(method: "add_show")
     }
 
     private func completeOnboarding(method: String) {
