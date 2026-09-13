@@ -24,22 +24,61 @@ import SwiftData
         XCTAssertFalse(room.isPlaying)
         room.stop(); room.mechanism.motion.stop()
     }
-    func testCurrentShowChangeClearsOldCardEvenWhenNewShowHasNoArtist() async throws {
+
+    func testLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
         await room.load(show: show)
-        room.restoreDisc(try XCTUnwrap(room.discs.first))
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.last?.id)
+        room.restoreDisc(disc, songID: songID)
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(reopened.track?.id, songID)
+        XCTAssertEqual(reopened.playbackState, .idle)
+        XCTAssertFalse(reopened.isPlaying)
+
+        await reopened.load(show: show)
+        XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(reopened.track?.id, songID)
+        XCTAssertFalse(reopened.isPlaying)
+        reopened.mechanism.motion.stop()
+    }
+
+    func testCurrentShowChangeKeepsLoadedDiscEvenWhenNewShowHasNoArtist() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.last?.id)
+        room.restoreDisc(disc, songID: songID)
         try await ListenTestData.settle(room) { room.track != nil && !room.busy }
         let other = try Show(name: "Other", date: Date().addingTimeInterval(10000), startTime: Date().addingTimeInterval(10000))
         container.mainContext.insert(other); try container.mainContext.save()
         await room.load(show: other)
-        XCTAssertNil(room.track)
+        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(room.track?.id, songID)
         XCTAssertNil(room.onlyArtistID)
         XCTAssertTrue(room.discs.isEmpty)
         XCTAssertEqual(room.show?.id, other.id)
         XCTAssertFalse(room.isPlaying)
         try await ListenTestData.settle(room) { !room.busy }
         room.mechanism.motion.stop()
+    }
+
+    func testReturningDiscToCabinetClearsColdLaunchState() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        room.restoreDisc(try XCTUnwrap(room.discs.first))
+        try await room.mechanism.unload()
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertFalse(reopened.mechanism.hasDisc)
+        XCTAssertNil(reopened.mechanism.disc)
+        XCTAssertNil(reopened.track)
+        reopened.mechanism.motion.stop()
     }
 
     func testSameShowArtistChangeRequiresCatalogReload() async throws {
