@@ -252,7 +252,6 @@ enum ListeningDisplayProjector {
         if let firstPlayable {
             primaryAction = .load(songID: firstPlayable)
         } else if capability == .metadataOnly,
-                  case .album = disc.origin,
                   let url = disc.appleMusicURL {
             primaryAction = .openAppleMusic(url)
         } else if capability == .metadataOnly {
