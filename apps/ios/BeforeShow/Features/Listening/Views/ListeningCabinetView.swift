@@ -204,6 +204,7 @@ private struct ListeningCabinetDiscButton: View {
 
     var body: some View {
         Button {
+            guard !suppressTap else { return }
             showDetails(disc)
         } label: {
             VStack(spacing: BSListeningTokens.shelfItemSpacing) {
@@ -287,13 +288,11 @@ private struct ListeningCabinetDiscButton: View {
     }
 
     private func finishDragIfNeeded() {
-        guard room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id else {
-            suppressTap = false
-            return
+        if room.mechanism.isCabinetDragging, room.mechanism.disc?.id == disc.id {
+            room.mechanism.endDiscDrag()
         }
-        room.mechanism.endDiscDrag()
         Task { @MainActor in
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(120))
             suppressTap = false
         }
     }
