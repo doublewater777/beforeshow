@@ -15,3 +15,16 @@ final class ShowRecentListening {
         self.playedAt = playedAt
     }
 }
+
+@Model
+final class ListeningLoadedDiscState {
+    var discData: Data
+    var songID: String?
+    var updatedAt: Date
+
+    init(discData: Data, songID: String?, updatedAt: Date = Date()) {
+        self.discData = discData
+        self.songID = songID
+        self.updatedAt = updatedAt
+    }
+}
