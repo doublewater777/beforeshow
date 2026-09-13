@@ -3,24 +3,6 @@ import Foundation
 
 // MARK: - Local show mapping
 
-extension CompanionShowSnapshot {
-    init(show: Show) {
-        let locationParts = [show.venueName, show.city]
-            .compactMap { value -> String? in
-                let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard let trimmed, !trimmed.isEmpty else { return nil }
-                return trimmed
-            }
-        self.init(
-            showID: show.id.uuidString,
-            showName: show.name,
-            showDate: show.effectiveDate,
-            showStartTime: show.startTime,
-            showLocation: locationParts.isEmpty ? nil : locationParts.joined(separator: " · ")
-        )
-    }
-}
-
 extension Show {
     /// Apply a CloudKit session onto local cache fields.
     func applyCompanionSession(

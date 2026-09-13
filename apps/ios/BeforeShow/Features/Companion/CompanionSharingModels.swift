@@ -61,14 +61,6 @@ struct CompanionRecordLocator: Equatable, Sendable, Codable, Hashable {
     }
 }
 
-struct CompanionShowSnapshot: Equatable, Sendable {
-    var showID: String
-    var showName: String
-    var showDate: Date
-    var showStartTime: Date
-    var showLocation: String?
-}
-
 struct CompanionSessionSnapshot: Equatable, Sendable {
     var sessionLocator: CompanionRecordLocator
     var shareLocator: CompanionRecordLocator?
@@ -151,7 +143,6 @@ enum CompanionMembershipPolicy {
         nonOwnerStatuses: [CompanionShareMemberStatus]
     ) -> CompanionMembershipState {
         let accepted = nonOwnerStatuses.filter { $0 == .accepted }.count
-        let pending = nonOwnerStatuses.filter { $0 == .pending }.count
         let unknown = nonOwnerStatuses.filter { $0 == .unknown }.count
 
         if accepted == 0, unknown == 0 {

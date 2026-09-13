@@ -1,6 +1,13 @@
 import CloudKit
 import Foundation
 
+enum CompanionInviteAccessPolicy {
+    /// A companion invitation is a reusable link to a frozen Show snapshot.
+    /// Joining records CloudKit participation; participants never need write access
+    /// to the shared root record itself.
+    static let publicPermission: CKShare.ParticipantPermission = .readOnly
+}
+
 extension CloudKitCompanionSharingService {
     func prepareInvitation(
         show: CompanionShowSnapshot,
@@ -25,6 +32,13 @@ extension CloudKitCompanionSharingService {
         if let location = show.showLocation, !location.isEmpty {
             session[CompanionSessionRecord.showLocation] = location as CKRecordValue
         }
+        do {
+            let snapshotData = try JSONEncoder().encode(show)
+            session[CompanionSessionRecord.showSnapshotV1] = snapshotData as CKRecordValue
+        } catch {
+            CompanionDebugLog.write("Encoding frozen companion show snapshot failed: \(error)")
+            throw CompanionSharingError.sharePreparationFailed
+        }
         if let ownerDisplayName, !ownerDisplayName.isEmpty {
             session[CompanionSessionRecord.ownerDisplayName] = ownerDisplayName as CKRecordValue
         }
@@ -36,7 +50,7 @@ extension CloudKitCompanionSharingService {
 
         let share = CKShare(rootRecord: session)
         share[CKShare.SystemFieldKey.title] = BSLocalization.format("一起去 %@", show.showName) as CKRecordValue
-        share.publicPermission = .none
+        share.publicPermission = CompanionInviteAccessPolicy.publicPermission
 
         let saved: [CKRecord]
         do {
@@ -53,13 +67,14 @@ extension CloudKitCompanionSharingService {
             CompanionDebugLog.write("Companion save succeeded without a CKShare payload")
             throw CompanionSharingError.sharePreparationFailed
         }
+        let distributableShare = try await shareWithInvitationURL(savedShare)
 
         let snapshot = try Self.snapshot(
             from: savedSession,
-            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID)
+            shareLocator: CompanionRecordLocator(recordID: distributableShare.recordID)
         )
         let fields = try NSKeyedArchiver.archivedData(
-            withRootObject: savedShare,
+            withRootObject: distributableShare,
             requiringSecureCoding: true
         )
         return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
@@ -68,10 +83,38 @@ extension CloudKitCompanionSharingService {
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data {
         try await ensureAccountAvailable()
         let record = try await privateDB.record(for: shareLocator.recordID)
-        guard let share = record as? CKShare else {
+        guard var share = record as? CKShare else {
             throw CompanionSharingError.sessionNotFound
         }
+
+        // Invitations created before reusable-link distribution used `.none` and
+        // depended on UICloudSharingController adding named participants. Upgrade
+        // them lazily when the owner taps “再次分享邀请 / 邀请更多”.
+        if share.publicPermission != CompanionInviteAccessPolicy.publicPermission {
+            share.publicPermission = CompanionInviteAccessPolicy.publicPermission
+            let saved = try await modifyRecords(in: privateDB, saving: [share])
+            if let updatedShare = saved.compactMap({ $0 as? CKShare }).first {
+                share = updatedShare
+            }
+        }
+        share = try await shareWithInvitationURL(share)
+
         return try NSKeyedArchiver.archivedData(withRootObject: share, requiringSecureCoding: true)
+    }
+
+    private func shareWithInvitationURL(_ share: CKShare) async throws -> CKShare {
+        if share.url != nil { return share }
+        do {
+            guard let refetched = try await privateDB.record(for: share.recordID) as? CKShare,
+                  refetched.url != nil else {
+                throw CompanionSharingError.sharePreparationFailed
+            }
+            return refetched
+        } catch let error as CompanionSharingError {
+            throw error
+        } catch {
+            throw Self.mapError(error)
+        }
     }
 
     private func debugProbeDefaultZone() async {

@@ -1,7 +1,5 @@
 import SwiftData
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 
 extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
@@ -10,6 +8,7 @@ extension UUID: @retroactive Identifiable {
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
@@ -17,11 +16,31 @@ struct RootView: View {
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
     @State private var ceremonyPendingDetail: FootprintDetailDestination?
+    @State private var companionDuplicateResolution: CompanionDuplicateResolution?
+    @State private var companionDuplicateErrorMessage: String?
+    @State private var companionAcceptanceMessage: String?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
-    /// Root owns only cross-feature tab dispatch. The Current Show feature root owns
-    /// the concrete notification destination and never mutates CurrentShowSelection.
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
+
+    private var companionResultMessage: String? {
+        if let companionDuplicateErrorMessage {
+            return companionDuplicateErrorMessage
+        }
+        if let companionAcceptanceMessage {
+            return companionAcceptanceMessage
+        }
+        if let accepted = companionCoordinator.pendingAcceptMessage {
+            return accepted
+        }
+        if let result = companionCoordinator.pendingAcceptResult {
+            return CompanionSharingPresentation.acceptedMessage(ownerDisplayName: nil, importResult: result)
+        }
+        if companionCoordinator.lastErrorKind == .statusSyncPending {
+            return companionCoordinator.lastErrorMessage
+        }
+        return nil
+    }
 
     var body: some View {
         ZStack {
@@ -44,18 +63,78 @@ struct RootView: View {
                     }
                 }
             }
+
+            CompanionPendingJoinHost()
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
+        .sheet(item: $companionDuplicateResolution) { resolution in
+            CompanionDuplicateResolutionSheet(
+                resolution: resolution,
+                onMerge: { target in
+                    resolveCompanionDuplicate(resolution, mergeInto: target)
+                },
+                onKeepSeparate: {
+                    keepCompanionDuplicateSeparate(resolution)
+                }
+            )
+        }
+        .alert(
+            BSLocalization.text("同行"),
+            isPresented: Binding(
+                get: {
+                    hasFinishedSplash
+                        && hasResolvedOnboardingRoute
+                        && companionDuplicateResolution == nil
+                        && companionResultMessage != nil
+                },
+                set: { isPresented in
+                    if !isPresented {
+                        dismissCompanionResultMessage()
+                    }
+                }
+            )
+        ) {
+            if companionDuplicateErrorMessage == nil,
+               let result = companionCoordinator.pendingAcceptResult {
+                Button(BSLocalization.text(
+                    result.wasHistorical ? "查看足迹" : (result.becameCurrent ? "进入现场" : "查看这场现场")
+                )) {
+                    openAcceptedShow(result)
+                }
+            }
+            Button(BSLocalization.text("知道了"), role: .cancel) {
+                dismissCompanionResultMessage()
+            }
+        } message: {
+            Text(companionResultMessage ?? "")
+        }
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
             selectedTab = .current
         }
+        .onChange(of: companionCoordinator.pendingAcceptMessage, initial: true) { _, message in
+            if let message {
+                companionAcceptanceMessage = message
+            }
+        }
+        .onChange(of: rootShows.map(\.id)) { _, _ in
+            if isShowingOnboarding, !rootShows.isEmpty {
+                hasCompletedOnboarding = true
+                isShowingOnboarding = false
+            }
+            refreshCompanionDuplicateResolution()
+        }
         .task {
-            resolveOnboardingRouteIfNeeded()
+            companionCoordinator.reloadPersistedAcceptedShares()
+            if companionCoordinator.hasPendingAcceptedShares {
+                await companionCoordinator.refreshAllLinkedShows(in: modelContext)
+            }
+            resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
+            refreshCompanionDuplicateResolution()
             if notificationRouter.featureRootDeepLink != nil {
                 selectedTab = .current
             }
@@ -78,7 +157,68 @@ struct RootView: View {
         #endif
     }
 
-    private func resolveOnboardingRouteIfNeeded() {
+    private func openAcceptedShow(_ result: CompanionAcceptedImportResult) {
+        if result.wasHistorical, let show = rootShows.first(where: { $0.id == result.showID }) {
+            ceremonyPendingDetail = FootprintDetailDestination(show: show)
+            selectedTab = .footprints
+        } else if result.becameCurrent {
+            selectedTab = .current
+        } else {
+            selectedTab = .current
+            notificationRouter.route(to: NotificationDeepLink(showID: result.showID, destination: .home))
+        }
+        dismissCompanionResultMessage()
+    }
+
+    private func dismissCompanionResultMessage() {
+        companionDuplicateErrorMessage = nil
+        companionAcceptanceMessage = nil
+        _ = companionCoordinator.consumePendingAcceptMessage()
+        _ = companionCoordinator.consumePendingAcceptResult()
+        if companionCoordinator.lastErrorKind == .statusSyncPending {
+            _ = companionCoordinator.consumeLastErrorMessage()
+        }
+    }
+
+    private func refreshCompanionDuplicateResolution() {
+        guard companionDuplicateResolution == nil else { return }
+        companionDuplicateResolution = CompanionDuplicateResolutionFinder.first(in: rootShows)
+    }
+
+    private func resolveCompanionDuplicate(
+        _ resolution: CompanionDuplicateResolution,
+        mergeInto target: Show
+    ) {
+        do {
+            try CompanionDuplicateMerger.merge(
+                imported: resolution.importedShow,
+                into: target,
+                in: modelContext
+            )
+            companionDuplicateResolution = nil
+            dismissCompanionResultMessage()
+            refreshCompanionDuplicateResolution()
+        } catch {
+            companionDuplicateErrorMessage = CompanionSharingCoordinator.userMessage(for: error)
+            companionDuplicateResolution = nil
+        }
+    }
+
+    private func keepCompanionDuplicateSeparate(_ resolution: CompanionDuplicateResolution) {
+        if let sessionRecordName = resolution.importedShow.companionCloudRecordName {
+            CompanionDuplicateResolutionStore.ignore(sessionRecordName: sessionRecordName)
+        }
+        companionDuplicateResolution = nil
+        refreshCompanionDuplicateResolution()
+    }
+
+    private func persistedShowExists() -> Bool {
+        var descriptor = FetchDescriptor<Show>()
+        descriptor.fetchLimit = 1
+        return ((try? modelContext.fetch(descriptor))?.isEmpty == false)
+    }
+
+    private func resolveOnboardingRouteIfNeeded(hasShowsOverride: Bool? = nil) {
         guard !hasResolvedOnboardingRoute else { return }
 
         #if DEBUG
@@ -102,7 +242,7 @@ struct RootView: View {
         }
         #endif
 
-        let hasShows = !rootShows.isEmpty
+        let hasShows = hasShowsOverride ?? !rootShows.isEmpty
         if OnboardingRoutingPolicy.shouldMigrateExistingUser(
             hasCompleted: hasCompletedOnboarding,
             hasShows: hasShows
@@ -127,7 +267,6 @@ struct RootView: View {
         }
     }
 
-    /// System TabView so iOS 26+ applies Liquid Glass to the tab bar.
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             CurrentShowFeatureRootView(

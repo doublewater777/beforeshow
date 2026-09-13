@@ -77,7 +77,7 @@ struct CurrentShowQuickActionTile: View {
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(BSColor.Stage.accent)
             }
-            Text(action.title)
+            Text(companion?.displayTitle ?? action.title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineLimit(1)
@@ -92,7 +92,7 @@ struct CurrentShowQuickActionTile: View {
                 .stroke(Color.white.opacity(0.09), lineWidth: 1)
         )
         .overlay(alignment: .topTrailing) {
-            if companion?.showsPendingIndicator == true {
+            if companion?.displayShowsPendingIndicator == true {
                 Circle()
                     .fill(BSColor.Stage.accent)
                     .frame(width: 7, height: 7)
