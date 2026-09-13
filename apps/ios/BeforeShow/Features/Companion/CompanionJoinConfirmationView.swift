@@ -72,7 +72,7 @@ struct CompanionPendingJoinHost: View {
         guard !isWorking else { return }
         isWorking = true
         Task { @MainActor in
-            let succeeded = await coordinator.declinePendingJoin()
+            let succeeded = await coordinator.declinePendingJoin(in: modelContext)
             if !succeeded {
                 errorMessage = coordinator.lastErrorMessage ?? BSLocalization.text("暂时无法关闭这份邀请，请重试")
             }
@@ -135,9 +135,10 @@ private struct CompanionJoinConfirmationView: View {
 
     private var isHistorical: Bool {
         guard let show = try? CompanionAcceptedShowMapping.makeShow(from: session.show) else {
-            return false
+            return session.show.wasAddedAsHistorical == true
         }
-        return CurrentShowTimeState(show: show).kind == .ended
+        return show.wasAddedAsHistorical == true
+            || CurrentShowTimeState(show: show).kind == .ended
     }
 
     private var ownerName: String {
