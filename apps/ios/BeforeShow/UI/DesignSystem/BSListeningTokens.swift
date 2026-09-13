@@ -10,15 +10,8 @@ enum BSListeningTokens {
     static let shelfItemWidth: CGFloat = 96
     static let shelfLabelHeight: CGFloat = 18
     static let shelfItemSpacing: CGFloat = 6
-    static let featuredArtwork: CGFloat = 92
-    static let solitaryArtwork: CGFloat = 100
-    static let sleevePeek: CGFloat = 18
-    static let sleeveDiscFraction: CGFloat = 0.9
-    static let shelfContentHeight: CGFloat = solitaryArtwork + shelfItemSpacing + shelfLabelHeight + BSSpacing.sm
-    static let sleeveRestingScale = 0.88
-    static let sleeveRestingOpacity = 0.78
+    static let shelfContentHeight: CGFloat = shelfArtwork + shelfItemSpacing + shelfLabelHeight + BSSpacing.sm
     static let selectionRestingOpacity = 0.68
-    static let featuredLift: CGFloat = 6
     static let shelfShadowHeight: CGFloat = 12
     static let shelfShadowBlur: CGFloat = 7
     static let sleeveLabel = Font.caption.weight(.medium)
@@ -47,25 +40,7 @@ enum BSListeningTokens {
     static let flipDuration = 0.4
     static let lightDuration = 1.2
     static let lightBlur: CGFloat = 45
-    static let playingLightOpacity = 0.30
-    static let restingLightOpacity = 0.12
-    static let openLightOpacity = 0.20
-    static let pausedLightOpacity = 0.16
-    static let lightBreathPeriod: Double = 8
-    static let lightBreathAmplitude = 0.025
-    static let lightFrameInterval = 1.0 / 15
-    static let tableTopFraction: CGFloat = 0.15
-    static let tableRearInset: CGFloat = 0.08
-    static let tableFrontInset: CGFloat = -0.3
-    static let tableTop = Color(white: 0.085)
-    static let tableBottom = Color(white: 0.035)
-    static let tableEdgeOpacity = 0.08
-    static let sideLightOpacity = 0.04
-    static let sideLightCenter = UnitPoint(x: 0.05, y: 0.22)
-    static let ambientLightCenter = UnitPoint(x: 0.75, y: 0.56)
-    static let tableLightRadiusFraction: CGFloat = 1.4
-    static let roomLightRadiusFraction: CGFloat = 1.1
-    static let tableFadeStart: CGFloat = 0.78
+    static let playingLightOpacity = 0.7
 }
 
 /// Subtle press feedback shared by the listening controls.

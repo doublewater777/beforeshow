@@ -111,6 +111,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
     @ObservationIgnored private var preparedSongID: String?
+    @ObservationIgnored private var preparedDiscID: String?
     @ObservationIgnored private var finishedSongID: String?
     private(set) var initialLoaded = false
     @ObservationIgnored private var isLoadingShow = false
@@ -132,8 +133,10 @@ private let listeningCatalogFetchConcurrency = 4
             self?.stop()
         }
         mechanism.onTransition = { [weak self] transition in
+            if transition == "remove" || transition == "store" {
+                self?.preparedDiscID = nil
+            }
             CDSoundPlayer.shared.play(transition)
-            self?.handleMechanismTransition(transition)
             #if os(iOS)
             switch transition {
             case "seat", "close":
@@ -147,71 +150,6 @@ private let listeningCatalogFetchConcurrency = 4
             }
             #endif
         }
-        restorePersistedDiscIfNeeded()
-    }
-    private func handleMechanismTransition(_ transition: String) {
-        switch transition {
-        case "seat":
-            persistLoadedDisc()
-        case "remove":
-            if !mechanism.isAutomatic { clearPersistedDisc() }
-        case "store":
-            clearPersistedDisc()
-        default:
-            break
-        }
-    }
-    private func restorePersistedDiscIfNeeded() {
-        guard mechanism.position == .stored else { return }
-        do {
-            let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
-            guard let state = states.max(by: { $0.updatedAt < $1.updatedAt }) else { return }
-            guard let disc = try? JSONDecoder().decode(ListeningDisc.self, from: state.discData), !disc.tracks.isEmpty else {
-                for state in states { context.delete(state) }
-                try context.save()
-                return
-            }
-            mechanism.restoreSeated(disc)
-            trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            preparedSongID = nil
-            playbackState = .idle
-            trackBelongsToShow = true
-        } catch {}
-    }
-    private func persistLoadedDisc() {
-        guard mechanism.position == .seated, let disc = mechanism.disc else { return }
-        do {
-            let data = try JSONEncoder().encode(disc)
-            let songID = disc.tracks.indices.contains(trackIndex) ? disc.tracks[trackIndex].id : nil
-            let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
-            if let state = states.first {
-                state.discData = data
-                state.songID = songID
-                state.updatedAt = Date()
-                for duplicate in states.dropFirst() { context.delete(duplicate) }
-            } else {
-                context.insert(ListeningLoadedDiscState(discData: data, songID: songID))
-            }
-            try context.save()
-        } catch {}
-    }
-    private func clearPersistedDisc() {
-        do {
-            for state in try context.fetch(FetchDescriptor<ListeningLoadedDiscState>()) {
-                context.delete(state)
-            }
-            try context.save()
-        } catch {}
-    }
-    func discardLoadedDiscState() {
-        operation?.cancel()
-        operation = nil
-        stop()
-        mechanism.discardDisc()
-        trackBelongsToShow = false
-        pendingSleeveSongID = nil
-        sleevePlaybackSongID = nil
-        clearPersistedDisc()
     }
     var track: ListeningDiscTrack? {
         guard trackBelongsToShow, mechanism.position != .stored, let disc = mechanism.disc, disc.tracks.indices.contains(trackIndex) else { return nil }
@@ -269,10 +207,13 @@ private let listeningCatalogFetchConcurrency = 4
             pendingSleeveSongID = nil
             sleevePlaybackSongID = nil
             recentListening = nil
+            preparedDiscID = nil
         }
         if showCatalogKey != newKey {
             completedCatalogKey = nil
-            discs = []; runtimeSongs = [:]
+            stop(); trackBelongsToShow = false; discs = []; runtimeSongs = [:]
+            preparedDiscID = nil
+            if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
         }
         showCatalogKey = newKey
         self.show = show
@@ -308,9 +249,9 @@ private let listeningCatalogFetchConcurrency = 4
         access = newAccess
         accessResolved = true
 
-        if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
-            completedCatalogKey = completedKey
-        }
+        await loadCatalog(generation: generation, force: force)
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        completedCatalogKey = showCatalogKey
     }
 
     private func applyAutomaticArtistMatches(
@@ -352,34 +293,11 @@ private let listeningCatalogFetchConcurrency = 4
         let generation = UUID()
         catalogGeneration = generation
         catalogState = .loading
-        if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
+        await loadCatalog(generation: generation, force: force)
+        if generation == catalogGeneration, !Task.isCancelled {
             initialLoaded = true
-            completedCatalogKey = completedKey
+            completedCatalogKey = showCatalogKey
         }
-    }
-
-    /// A catalog pass snapshots the artist IDs at its start. Identity can still change
-    /// while that network work is suspended, so only mark the exact key that the pass
-    /// actually covered as complete. If it drifted, repeat just the catalog stage with
-    /// the same generation; artist matching and room setup are never repeated.
-    private func loadCatalogUntilIdentityStable(generation: UUID, force: Bool) async -> String? {
-        guard let show else { return nil }
-        while generation == catalogGeneration, !Task.isCancelled {
-            let startedKey = catalogKey(for: show)
-            showCatalogKey = startedKey
-            await loadCatalog(generation: generation, force: force)
-            guard generation == catalogGeneration, !Task.isCancelled else { return nil }
-
-            let latestKey = catalogKey(for: show)
-            showCatalogKey = latestKey
-            guard latestKey != startedKey else { return startedKey }
-
-            // A rematch landed after this pass captured its artist IDs. Keep the new
-            // identity pending and immediately run one catalog-only pass for it.
-            completedCatalogKey = nil
-            catalogState = .loading
-        }
-        return nil
     }
 
     private func loadCatalog(generation: UUID, force: Bool) async {
@@ -582,7 +500,7 @@ private let listeningCatalogFetchConcurrency = 4
         let mappedArtists: [ListeningBrowseArtist] = show.artists.enumerated().map { index, slot in
             if let id = slot.appleMusicArtistID {
                 let snapshot = catalogSnapshots.first { $0.artistID == id }
-                let albums = (snapshot?.albumIDs ?? []).compactMap { albumsByID[$0] }
+                let albums = (snapshot?.albumIDs ?? []).compactMap { albumsByID[$0] }.filter { $0.isSingle != true }
                 return ListeningBrowseArtist(
                     slotIndex: index,
                     id: id,
@@ -705,40 +623,19 @@ private let listeningCatalogFetchConcurrency = 4
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
             _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
-        } catch {
-            context.rollback()
-            errorText = BSLocalization.text("保存失败，请重试")
-            return
-        }
-
-        // Artist confirmation is a local identity mutation. Publish it immediately
-        // without rebuilding the room or touching the playback transport; catalog
-        // enrichment happens independently after the confirmation can dismiss.
-        showCatalogKey = catalogKey(for: show)
-        completedCatalogKey = nil
-        selectScope(.all)
-        do {
-            try rebuildDiscs()
-        } catch {
-            catalogState = .cacheFailed
-        }
-
-        // An active initial load detects key drift after its current catalog pass and
-        // repeats only that catalog stage. Otherwise start a catalog-only refresh now.
-        guard !isLoadingShow else { return }
-        Task { @MainActor [weak self] in
-            await self?.reloadCatalog()
-        }
+            selectScope(.all)
+            await load(show: show)
+        } catch { context.rollback(); errorText = BSLocalization.text("保存失败，请重试") }
     }
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }
         stop()
         mechanism.restoreSeated(disc)
         trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+        preparedDiscID = nil
         preparedSongID = nil
         playbackState = .idle
         trackBelongsToShow = true
-        persistLoadedDisc()
     }
     func loadDisc(_ disc: ListeningDisc, songID: String? = nil, autoplay: Bool = true) {
         if mechanism.disc == disc, mechanism.position == .seated {
@@ -751,7 +648,6 @@ private let listeningCatalogFetchConcurrency = 4
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             preparedSongID = nil; playbackState = .idle; trackBelongsToShow = true
-            persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
     }
@@ -775,7 +671,6 @@ private let listeningCatalogFetchConcurrency = 4
                 try await mechanism.closeForPlayback()
                 guard let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
                 trackIndex = index; trackBelongsToShow = true
-                persistLoadedDisc()
                 try await playCurrentTrack()
             }
             return
@@ -794,17 +689,19 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = autoplay || isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex; trackBelongsToShow = true
-            persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
     }
-    func manualDiscChanged() {
-        guard !mechanism.isAutomatic else { return }
-        stop(); trackIndex = 0; trackBelongsToShow = true
-        persistLoadedDisc()
-    }
+    func manualDiscChanged() { guard !mechanism.isAutomatic else { return }; stop(); trackIndex = 0; trackBelongsToShow = true; preparedDiscID = nil }
     func playPause() {
-        guard mechanism.isClosed, mechanism.position == .seated, !mechanism.isAutomatic else { return }
+        guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
+        if !mechanism.isClosed {
+            run { [self] in
+                try await mechanism.closeForPlayback()
+                try await playCurrentTrack()
+            }
+            return
+        }
         run { [self] in
             if isPlaying { visibility.userPause(); try controller?.pause(); playbackState = controller?.state ?? .idle }
             else { visibility.userPlay(); try await playCurrentTrack() }
@@ -824,9 +721,12 @@ private let listeningCatalogFetchConcurrency = 4
             let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
             let next = ListeningPlaybackController(service: service, evidenceCoordinator: evidence)
             controller = next
-            // Reading the disc: spin-up whir and laser seek while a new track
-            // prepares. Pause/resume reuses the prepared queue and stays silent.
-            CDSoundPlayer.shared.play("read")
+            // Reading the disc: spin-up whir and laser seek only when a new disc
+            // is seated. Switching tracks on the same disc or resuming playback stays silent.
+            if preparedDiscID != disc.id {
+                CDSoundPlayer.shared.play("read")
+                preparedDiscID = disc.id
+            }
             // A single physical disc owns continuation. The transport receives the
             // whole CD so iOS can advance tracks even while this view is not running.
             try await next.prepare(
@@ -865,7 +765,6 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex
-            persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
     }
@@ -914,7 +813,6 @@ private let listeningCatalogFetchConcurrency = 4
         if trackIndex != index {
             trackIndex = index
             recordedPlayingSongID = nil
-            persistLoadedDisc()
         }
         preparedSongID = songID
     }

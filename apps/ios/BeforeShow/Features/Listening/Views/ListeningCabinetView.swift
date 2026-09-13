@@ -41,8 +41,8 @@ struct ListeningCabinetView<Placeholder: View>: View {
                     }
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 2)
-                .padding(.vertical, 4)
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, BSSpacing.sm)
             }
         }
         .foregroundStyle(BSColor.Stage.muted)
@@ -181,6 +181,8 @@ private struct ListeningCabinetDiscButton: View {
     let showsPullHint: Bool
     let showDetails: (ListeningDisc) -> Void
     @State private var suppressTap = false
+    @ScaledMetric(relativeTo: .caption) private var labelHeight = BSListeningTokens.shelfLabelHeight
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var isLoaded: Bool {
         room.mechanism.disc?.id == disc.id && room.mechanism.position != .stored
@@ -205,11 +207,20 @@ private struct ListeningCabinetDiscButton: View {
         Button {
             showDetails(disc)
         } label: {
-            VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
+            VStack(spacing: BSListeningTokens.shelfItemSpacing) {
                 ZStack(alignment: .topTrailing) {
-                    ListeningSleeveCard(disc: disc, isLoaded: isLoaded, showsPullHint: showsPullHint, show: room.show)
-                        .offset(y: room.isRecentDisc(disc) ? -BSListeningTokens.recentLift : 0)
-                        .listeningFrame("slot:\(disc.id)")
+                    ListeningSleeveCard(
+                        disc: disc, isLoaded: isLoaded,
+                        showsPullHint: showsPullHint, show: room.show
+                    )
+                    .background(alignment: .bottom) {
+                        Ellipse()
+                            .fill(.black.opacity(BSListeningTokens.selectionRestingOpacity))
+                            .frame(height: BSListeningTokens.shelfShadowHeight)
+                            .blur(radius: BSListeningTokens.shelfShadowBlur)
+                            .offset(y: BSSpacing.xs)
+                    }
+                    .listeningFrame("slot:\(disc.id)")
 
                     #if canImport(UIKit)
                     // Keep the active touch receiver mounted until the finger lifts.
@@ -229,21 +240,22 @@ private struct ListeningCabinetDiscButton: View {
                                 showDetails(disc)
                             }
                         )
-                        .frame(width: 44, height: 76)
+                        .frame(width: BSLayout.minTouchTarget, height: BSListeningTokens.shelfArtwork)
                         .accessibilityHidden(true)
                     }
                     #endif
                 }
 
                 Text(disc.title)
-                    .font(BSListeningTokens.captionMedium)
-                    .lineLimit(1)
+                    .font(BSListeningTokens.sleeveLabel)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
+                    .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.85)
                     .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                    .frame(width: 94, alignment: .leading)
-                    .frame(height: BSListeningTokens.shelfLabelHeight, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: labelHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1))
             }
-            .frame(width: BSListeningTokens.shelfItemWidth, alignment: .leading)
+            .frame(width: BSListeningTokens.shelfItemWidth)
         }
         .buttonStyle(BSListeningPressStyle(scale: 0.95))
         .accessibilityLabel("\(disc.title), \(accessibilityArtistName)")

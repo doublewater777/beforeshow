@@ -1,111 +1,51 @@
 import SwiftUI
 
-/// One light field and tabletop for both the sleeves and the player.
-struct ListeningAtmosphere: View {
-    let disc: ListeningDisc?
-    let isPlaying: Bool
-    var isOpen = false
-    var hasDisc = false
-    var show: Show?
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.scenePhase) private var scenePhase
-    @State private var artworkColor: Color?
-    @State private var isVisible = false
-
-    private var color: Color {
-        guard let disc else { return BSColor.Stage.accent }
-        return artworkColor ?? ListeningSleeveIdentity(disc: disc).color
-    }
-
-    private var artworkURL: URL? {
-        guard let disc else { return nil }
-        return ListeningSleeveIdentity(disc: disc, show: show).artworkURL
-            ?? disc.tracks.compactMap(\.artworkURL).first
-    }
-
-    private var lightOpacity: Double {
-        if isPlaying { return BSListeningTokens.playingLightOpacity }
-        if isOpen { return BSListeningTokens.openLightOpacity }
-        return hasDisc ? BSListeningTokens.pausedLightOpacity : BSListeningTokens.restingLightOpacity
-    }
-
-    private var breathes: Bool {
-        isPlaying && !reduceMotion && isVisible && scenePhase == .active
-    }
-
+/// Bottom-of-screen stage glows matching the "当前" and "足迹" tabs.
+struct ListeningStageBackground: View {
     var body: some View {
-        GeometryReader { proxy in
-            let width = proxy.size.width
-            let height = proxy.size.height
-            let tableTop = height * BSListeningTokens.tableTopFraction
-            let table = Path { path in
-                path.move(to: CGPoint(x: width * BSListeningTokens.tableRearInset, y: tableTop))
-                path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableRearInset), y: tableTop))
-                path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableFrontInset), y: height))
-                path.addLine(to: CGPoint(x: width * BSListeningTokens.tableFrontInset, y: height))
-                path.closeSubpath()
-            }
-            ZStack {
-                table.fill(LinearGradient(
-                    colors: [BSListeningTokens.tableTop, BSListeningTokens.tableBottom],
-                    startPoint: .topLeading, endPoint: .bottomTrailing
-                ))
-                RadialGradient(
-                    colors: [.white.opacity(BSListeningTokens.sideLightOpacity), .clear],
-                    center: BSListeningTokens.sideLightCenter,
-                    startRadius: 0, endRadius: width * BSListeningTokens.tableLightRadiusFraction
-                )
-                .clipShape(table)
-                Path { path in
-                    path.move(to: CGPoint(x: width * BSListeningTokens.tableRearInset, y: tableTop))
-                    path.addLine(to: CGPoint(x: width * (1 - BSListeningTokens.tableRearInset), y: tableTop))
-                }
-                .stroke(LinearGradient(
-                    colors: [.clear, .white.opacity(BSListeningTokens.tableEdgeOpacity), .clear],
-                    startPoint: .leading, endPoint: .trailing
-                ), lineWidth: BSListeningTokens.hairline)
+        ZStack {
+            GeometryReader { geometry in
+                ZStack {
+                    listeningGlow(color: Color(red: 0.69, green: 0.36, blue: 1.0).opacity(0.18))
+                        .frame(width: geometry.size.width * 0.92, height: geometry.size.height * 0.58)
+                        .position(x: geometry.size.width * 0.50, y: geometry.size.height * 1.02)
 
-                TimelineView(.animation(minimumInterval: BSListeningTokens.lightFrameInterval, paused: !breathes)) { timeline in
-                    let breath = breathes
-                        ? sin(timeline.date.timeIntervalSinceReferenceDate * 2 * .pi / BSListeningTokens.lightBreathPeriod) * BSListeningTokens.lightBreathAmplitude
-                        : 0
-                    RadialGradient(
-                        colors: [color.opacity(lightOpacity + breath), .clear],
-                        center: BSListeningTokens.ambientLightCenter,
-                        startRadius: 0, endRadius: width * BSListeningTokens.roomLightRadiusFraction
-                    )
-                    .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: lightOpacity)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: BSListeningTokens.lightDuration), value: color)
+                    listeningGlow(color: Color(red: 0.11, green: 0.73, blue: 0.33).opacity(0.12))
+                        .frame(width: geometry.size.width * 0.58, height: geometry.size.height * 0.40)
+                        .position(x: geometry.size.width * 0.18, y: geometry.size.height * 0.92)
+
+                    listeningGlow(color: Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.10))
+                        .frame(width: geometry.size.width * 0.48, height: geometry.size.height * 0.34)
+                        .position(x: geometry.size.width * 0.82, y: geometry.size.height * 0.92)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .mask {
-                LinearGradient(stops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: BSListeningTokens.tableFadeStart),
-                    .init(color: .clear, location: 1)
-                ], startPoint: .top, endPoint: .bottom)
-            }
-            .mask {
-                LinearGradient(stops: [
-                    .init(color: .clear, location: 0),
-                    .init(color: .white, location: BSListeningTokens.tableRearInset),
-                    .init(color: .white, location: 1 - BSListeningTokens.tableRearInset),
-                    .init(color: .clear, location: 1)
-                ], startPoint: .leading, endPoint: .trailing)
-            }
+            .blendMode(.screen)
+
+            LinearGradient(
+                colors: [
+                    Color.clear,
+                    Color.black.opacity(0.10),
+                    Color.black.opacity(0.70)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
-        .clipped()
-        .allowsHitTesting(false)
         .accessibilityHidden(true)
-        .onAppear { isVisible = true }
-        .onDisappear { isVisible = false }
-        .task(id: artworkURL) {
-            artworkColor = nil
-            guard let url = artworkURL,
-                  let image = await ShowCoverImageCache.shared.image(from: url),
-                  let sampled = await ArtworkColorSampler.color(in: image), !Task.isCancelled else { return }
-            artworkColor = Color(uiColor: sampled)
-        }
+    }
+
+    private func listeningGlow(color: Color) -> some View {
+        Ellipse()
+            .fill(
+                RadialGradient(
+                    colors: [color, color.opacity(0.55), .clear],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 230
+                )
+            )
+            .blur(radius: 22)
     }
 }
 

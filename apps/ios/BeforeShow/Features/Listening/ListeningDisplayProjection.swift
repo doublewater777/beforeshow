@@ -388,7 +388,7 @@ enum ListeningDisplayProjector {
             phase: phase,
             source: source(from: playbackState),
             previewRemaining: previewRemaining(from: playbackState),
-            canPlayPause: isLidClosed && phase != .preparing,
+            canPlayPause: phase != .preparing,
             blockingReason: lidReason,
             recoveryAction: nil,
             errorText: nil,
@@ -521,15 +521,13 @@ extension ListeningRoomCoordinator {
         }
     }
 
-    /// Manual insertion keeps the lid open and never autoplays, but once the
-    /// disc is seated its selected track is normalized to the first playable
-    /// track rather than blindly selecting track zero.
+    /// Once the disc is seated into the tray, close the lid and start playback automatically.
     func finalizeManualDiscInsertionIfNeeded() {
         guard !mechanism.isAutomatic,
               mechanism.position == .seated,
               let disc = mechanism.disc,
               let songID = discPresentation(for: disc).defaultPlayableTrackID else { return }
-        loadDisc(disc, songID: songID, autoplay: false)
+        playFromSleeve(disc, songID: songID)
     }
 
     func retryCurrentPlayback() {

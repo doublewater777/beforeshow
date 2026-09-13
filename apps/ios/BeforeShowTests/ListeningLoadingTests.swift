@@ -159,6 +159,49 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertNil(touchView.window)
     }
 
+    func testSelectingAndPlayingDiscsKeepsThePlayerAndShelfInPlace() async throws {
+        for scenario in [ListeningFixtureScenario.singleFull, .manyDiscs] {
+            let fixture = try ListeningDebugFixtures(scenario: scenario)
+            let context = fixture.container.mainContext
+            let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+            let room = ListeningRoomCoordinator(
+                context: context,
+                catalogService: ListeningFixtureCatalog(scenario: scenario),
+                artistSearchService: ListeningFixtureArtistSearch(),
+                playbackFactory: { _ in ListeningFixturePlayer() }
+            )
+            await room.load(show: show)
+            let probe = ListeningLayoutProbe()
+            let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+            let window = UIWindow(windowScene: scene)
+            window.frame = CGRect(x: 0, y: 0, width: 402, height: 874)
+            let host = UIHostingController(rootView: ListeningRoomView(room: room, show: show)
+                .onPreferenceChange(ListeningFramesKey.self) { probe.frames = $0 })
+            window.rootViewController = host
+            window.makeKeyAndVisible()
+            defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
+            try await settleLayout(host.view)
+            let stage = try XCTUnwrap(probe.frames["stage"])
+            let cabinet = try XCTUnwrap(probe.frames["cabinet"])
+            let disc = try XCTUnwrap(room.shelfDiscs.last)
+
+            room.loadPlayableDisc(disc)
+            for _ in 0..<300 {
+                if room.isPlaying { break }
+                try await Task.sleep(for: .milliseconds(20))
+            }
+            XCTAssertTrue(room.isPlaying)
+            try await settleLayout(host.view)
+            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
+
+            room.perform(.playPause)
+            try await wait { !room.isPlaying }
+            try await settleLayout(host.view)
+            XCTAssertEqual(room.display.player.phase, .paused)
+            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
+        }
+    }
+
     private func cabinetPan(in view: UIView) -> UIPanGestureRecognizer? {
         if let pan = view.gestureRecognizers?.compactMap({ $0 as? UIPanGestureRecognizer }).first {
             return pan

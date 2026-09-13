@@ -33,8 +33,9 @@ struct ListeningPreparingView: View {
                            .listeningFrame("stage")
                            .frame(maxWidth: .infinity)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
+                        Color.clear.frame(height: BSListeningTokens.songHeight)
                    }
-                   .coordinateSpace(name: "listeningContent")
+                    .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSLayout.tabBarContentInset)

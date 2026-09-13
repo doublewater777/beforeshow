@@ -57,6 +57,50 @@ import XCTest
         XCTAssertTrue(mechanism.isClosed)
         XCTAssertEqual(mechanism.disc?.id, "b")
     }
+    func testMechanicalTravelSettlesWithinHalfASecondAtEveryRefreshRate() {
+        for fps in [30, 60, 120] {
+            var lid = CDSpringChannel(value: 0)
+            var disc = CDSpringChannel(value: 100, tolerance: CDPlayerConfiguration.Motion.positionTolerance)
+            lid.move(to: 1)
+            disc.move(to: 489)
+            for _ in 0..<(fps / 2) {
+                lid.step(1 / Double(fps))
+                disc.step(1 / Double(fps))
+            }
+            XCTAssertNil(lid.target, "Lid still blocking at \(fps) Hz")
+            XCTAssertNil(disc.target, "Disc still blocking at \(fps) Hz")
+            XCTAssertEqual(lid.value, 1)
+            XCTAssertEqual(disc.value, 489)
+        }
+    }
+
+    func testSpringReversalRetainsCurrentPositionAndVelocity() {
+        var lid = CDSpringChannel(value: 0)
+        lid.move(to: 1)
+        lid.step(0.08)
+        let position = lid.value
+        let velocity = lid.velocity
+        lid.move(to: 0)
+        XCTAssertEqual(lid.value, position)
+        XCTAssertEqual(lid.velocity, velocity)
+        for _ in 0..<60 { lid.step(1 / 60) }
+        XCTAssertNil(lid.target)
+        XCTAssertEqual(lid.value, 0)
+    }
+
+    func testReducedMotionSettlesAutomaticTravelButPreservesDirectDragging() {
+        var disc = CDSpringChannel(value: 100)
+        disc.move(to: 489)
+        disc.step(1 / 60, reducedMotion: true)
+        XCTAssertEqual(disc.value, 489)
+        XCTAssertNil(disc.target)
+        XCTAssertEqual(disc.velocity, 0)
+        disc.grab()
+        disc.value = 320
+        disc.step(1 / 60, reducedMotion: true)
+        XCTAssertEqual(disc.value, 320)
+    }
+
     func testSpringGrabKeepsPresentationAngle() async throws {
         let mechanism = CDMechanism()
         mechanism.motion.lid.value = 0.42; mechanism.motion.lid.target = 1

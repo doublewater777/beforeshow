@@ -4,6 +4,7 @@ struct ListeningDiscDetailView: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
     var onLoad: () -> Void = {}
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.dismiss) private var dismiss
     @State private var requestedTrackID: String?
 
@@ -120,8 +121,8 @@ struct ListeningDiscDetailView: View {
                 ListeningPeekingDisc(disc: disc, size: 132)
                     .offset(x: 144 - 132 + 46)
                     .opacity(isLoaded ? 0 : 1)
-                    .scaleEffect(isLoaded ? 0.75 : 1.0)
-                    .animation(.spring(response: 0.38, dampingFraction: 0.72), value: isLoaded)
+                    .scaleEffect(isLoaded && !reduceMotion ? 0.95 : 1.0)
+                    .animation(BSListeningTokens.selectionAnimation, value: isLoaded)
 
                 ListeningDiscCover(disc: disc, show: room.show)
                     .frame(width: 144, height: 144)

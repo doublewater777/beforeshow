@@ -87,10 +87,10 @@ private struct CDPlayerDiscView: View {
                 else { player.returnDisc() }
             }
             .accessibilityAction(named: BSLocalization.text("放入")) { player.insertDisc() }
-            .position(x: motion.reducedMotion ? geometry.discCenter.x : motion.discX.value, y: geometry.projectedY(motion.reducedMotion ? geometry.discCenter.y : motion.discY.value) - motion.lift.value * 20)
+            .position(x: motion.discX.value, y: geometry.projectedY(motion.discY.value) - (motion.reducedMotion ? 0 : motion.lift.value * 20))
             .allowsHitTesting(player.position != .stored && !player.isReturning)
             .phaseAnimator([false, true, false], trigger: player.occupiedAttemptCount) { content, emphasized in
-                content.scaleEffect(emphasized ? 1.035 : 1)
+                content.scaleEffect(emphasized && !motion.reducedMotion ? 1.035 : 1)
             } animation: { _ in
                 .easeInOut(duration: 0.09)
             }
@@ -103,7 +103,7 @@ private struct CDPlayerLidView: View {
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
     private var motion: CDMotionDriver { player.motion }
     private var lidAngle: Double {
-        geometry.tiltDegrees + (motion.reducedMotion ? (player.isOpen ? 1.0 : 0.0) : motion.lid.value) * geometry.maximumOpening
+        geometry.tiltDegrees + motion.lid.value * geometry.maximumOpening
     }
 
     var body: some View {
@@ -194,4 +194,3 @@ struct CDHardwareButtonStyle: ButtonStyle {
             .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: configuration.isPressed)
     }
 }
-

@@ -28,6 +28,13 @@ struct CDPlayerConfiguration {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
         }
     }
+    enum Motion {
+        // Mechanical travel stays legible; subpixel tails must not delay playback.
+        static let springFrequency = 24.0
+        static let normalizedTolerance = 0.001
+        static let positionTolerance = 0.25
+    }
+
     struct Assets {
         var body = "listen_01_body_shell"
         var lidOuter = "listen_02_lid_outer"

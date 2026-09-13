@@ -294,8 +294,9 @@ import SwiftUI
 
     private func unloadSteps() async throws {
         setLid(open: true); try await settle()
-        if position == .seated { removeDisc(); try await settle() }
-        if position == .removed { returnDisc(); try await settle(); refresh() }
+        if position == .seated { returnCurrentDiscToCabinet() }
+        else if position == .removed { returnDisc() }
+        try await settle()
     }
 
     private var discSettled: Bool {

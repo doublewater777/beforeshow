@@ -58,7 +58,7 @@ struct ListenRootView: View {
                     .transition(.opacity)
             }
         }
-        .background(BSColor.Stage.background.ignoresSafeArea())
+        .background(listeningRootBackground.ignoresSafeArea())
         .sheet(isPresented: $isShowingAddShow) {
             AddShowCoordinatorSheet()
                 .presentationDetents([.large])
@@ -113,6 +113,13 @@ struct ListenRootView: View {
         room?.setActive(true)
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
+        }
+    }
+
+    private var listeningRootBackground: some View {
+        ZStack {
+            BSColor.Stage.background
+            ListeningStageBackground()
         }
     }
 }
@@ -172,16 +179,6 @@ struct ListeningRoomView: View {
                                 .fixedSize(horizontal: false, vertical: true)
                                 .accessibilityIdentifier("listening.mechanismNotice")
                         }
-                    }
-                    .background {
-                        ListeningAtmosphere(
-                            disc: room.mechanism.disc ?? room.display.shelfDiscs.first,
-                            isPlaying: room.isPlaying,
-                            isOpen: room.mechanism.isOpen,
-                            hasDisc: room.mechanism.position == .seated,
-                            show: show
-                        )
-                        .padding(.horizontal, -BSSpacing.roomy)
                     }
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
