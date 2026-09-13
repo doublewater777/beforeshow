@@ -22,6 +22,13 @@ import SwiftUI
     @ObservationIgnored private var pendingSeat = false
     @ObservationIgnored private var waitingForOpenToSeat = false
 
+    private enum AutomaticRhythm {
+        static let afterOpen = Duration.milliseconds(140)
+        static let afterStore = Duration.milliseconds(180)
+        static let afterPickup = Duration.milliseconds(140)
+        static let afterSeat = Duration.milliseconds(220)
+    }
+
     init() {
         motion.onFrame = { [weak self] in self?.refresh() }
     }
@@ -264,23 +271,34 @@ import SwiftUI
         motion.wake()
     }
 
-    /// Automatic loading invokes the exact same mechanical mutations as gestures.
-    /// Every leg awaits the actual spring's resting position, not a guessed delay.
+    /// Automatic loading invokes the same mechanical state changes as gestures,
+    /// with short beats between physical legs so a swap reads as a machine action
+    /// instead of one continuous UI transition.
     func load(_ disc: ListeningDisc) async throws {
         guard !isAutomatic else { return }
         isAutomatic = true
         defer { isAutomatic = false }
-        try await unloadSteps()
+        try await unloadSteps(paced: true)
         try Task.checkCancellation()
-        liftFromCabinet(disc); insertDisc(); try await settle()
-        setLid(open: false); try await settle()
+
+        // Let the replacement visibly leave its sleeve before travelling to the tray.
+        liftFromCabinet(disc)
+        try await settle()
+        try await automaticBeat(AutomaticRhythm.afterPickup)
+
+        insertDisc()
+        try await settle()
+        try await automaticBeat(AutomaticRhythm.afterSeat)
+
+        setLid(open: false)
+        try await settle()
     }
 
     func unload() async throws {
         guard !isAutomatic else { return }
         isAutomatic = true
         defer { isAutomatic = false }
-        try await unloadSteps()
+        try await unloadSteps(paced: false)
     }
 
     func closeForPlayback() async throws {
@@ -292,11 +310,24 @@ import SwiftUI
         try Task.checkCancellation()
     }
 
-    private func unloadSteps() async throws {
-        setLid(open: true); try await settle()
+    private func unloadSteps(paced: Bool) async throws {
+        let hadDisc = position != .stored
+        setLid(open: true)
+        try await settle()
+        if paced { try await automaticBeat(AutomaticRhythm.afterOpen) }
+
         if position == .seated { returnCurrentDiscToCabinet() }
         else if position == .removed { returnDisc() }
         try await settle()
+
+        if paced, hadDisc {
+            try await automaticBeat(AutomaticRhythm.afterStore)
+        }
+    }
+
+    private func automaticBeat(_ duration: Duration) async throws {
+        try await Task.sleep(for: duration)
+        try Task.checkCancellation()
     }
 
     private var discSettled: Bool {
