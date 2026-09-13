@@ -181,6 +181,33 @@ import SwiftUI
         motion.resetDiscRotation()
     }
 
+    /// Destructive local-data reset. This is intentionally silent so it cannot
+    /// recreate persistence through normal mechanical transition callbacks.
+    func discardDisc() {
+        disc = nil
+        position = .stored
+        isAutomatic = false
+        isReturning = false
+        isCabinetDragging = false
+        pendingClose = false
+        pendingSeat = false
+        waitingForOpenToSeat = false
+        lidOrigin = nil
+        discOrigin = nil
+        notice = nil
+        motion.lid.value = 0
+        motion.lid.target = nil
+        motion.discX.value = configuration.geometry.parkedDisc.x
+        motion.discX.target = nil
+        motion.discY.value = configuration.geometry.parkedDisc.y
+        motion.discY.target = nil
+        motion.discScale.value = 1
+        motion.discScale.target = nil
+        motion.lift.value = 0
+        motion.lift.target = nil
+        motion.resetDiscRotation()
+    }
+
     private func liftFromCabinet(_ disc: ListeningDisc) {
         motion.resetDiscRotation()
         self.disc = disc; position = .removed
