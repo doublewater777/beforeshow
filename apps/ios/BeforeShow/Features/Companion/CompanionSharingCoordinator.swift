@@ -167,12 +167,9 @@ final class CompanionSharingCoordinator {
                 participantDisplayName: nil
             )
 
-            let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
-            if shows.contains(where: { $0.companionCloudRecordName == session.sessionLocator.recordName }) {
-                let result = try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
-                pendingAcceptResult = result
-                pendingAcceptMessage = BSLocalization.text("你已经是这场的同行")
+            if resolvePreviewedShareForExistingLocalShow(session, in: modelContext) {
                 removePendingShare(key: key)
+                continuePendingShareDrain(in: modelContext)
                 return
             }
 
@@ -186,10 +183,43 @@ final class CompanionSharingCoordinator {
             switch lastErrorKind {
             case .acceptFailed, .sessionNotFound, .invalidPayload, .permissionDenied:
                 removePendingShare(key: key)
+                continuePendingShareDrain(in: modelContext)
             default:
                 break
             }
         }
+    }
+
+    /// A reusable-link callback can arrive again after this device already joined.
+    /// Preview metadata still contains the immutable root `.pending` status, so never
+    /// feed that preview back through `applyCompanionSession`: doing so would downgrade
+    /// a durable local `.confirmed` relationship. Recovery refreshes may fail later; the
+    /// repeat callback itself must therefore be non-destructive and self-contained.
+    @discardableResult
+    func resolvePreviewedShareForExistingLocalShow(
+        _ session: CompanionSessionSnapshot,
+        in modelContext: ModelContext,
+        now: Date = Date()
+    ) -> Bool {
+        let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
+        guard let existing = shows.first(where: {
+            $0.companionCloudRecordName == session.sessionLocator.recordName
+        }) else {
+            return false
+        }
+
+        let wasHistorical = existing.wasAddedAsHistorical == true
+            || CurrentShowTimeState(show: existing, now: now).kind == .ended
+        pendingAcceptResult = CompanionAcceptedImportResult(
+            showID: existing.id,
+            inserted: false,
+            becameCurrent: false,
+            wasHistorical: wasHistorical
+        )
+        pendingAcceptMessage = BSLocalization.text("你已经是这场的同行")
+        lastErrorMessage = nil
+        lastErrorKind = nil
+        return true
     }
 
     func confirmPendingJoin(in modelContext: ModelContext) async -> Bool {
@@ -210,17 +240,19 @@ final class CompanionSharingCoordinator {
         pendingJoinSession = nil
         pendingJoinMetadataKey = nil
         removePendingShare(key: key)
+        continuePendingShareDrain(in: modelContext)
         return true
     }
 
     /// Closing the in-app preview is not a CloudKit membership action. The share has
     /// not been accepted yet, so dismiss only the local pending callback. Reopening the
     /// same invitation URL later will enqueue fresh metadata and offer joining again.
-    func declinePendingJoin() async -> Bool {
+    func declinePendingJoin(in modelContext: ModelContext) async -> Bool {
         guard let key = pendingJoinMetadataKey else {
             pendingJoinSession = nil
             lastErrorMessage = nil
             lastErrorKind = nil
+            continuePendingShareDrain(in: modelContext)
             return true
         }
         pendingJoinSession = nil
@@ -228,6 +260,7 @@ final class CompanionSharingCoordinator {
         removePendingShare(key: key)
         lastErrorMessage = nil
         lastErrorKind = nil
+        continuePendingShareDrain(in: modelContext)
         return true
     }
 
@@ -482,6 +515,16 @@ final class CompanionSharingCoordinator {
             CompanionAcceptedShareInbox.metadataKey($0) == key
         }
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
+    }
+
+    private func continuePendingShareDrain(in modelContext: ModelContext) {
+        guard !pendingShareMetadata.isEmpty else { return }
+        Task { @MainActor [weak self] in
+            // If called from inside `flushPendingAcceptedShares`, yield until its
+            // reentrancy guard is released before advancing the next durable invite.
+            await Task.yield()
+            await self?.flushPendingAcceptedShares(in: modelContext)
+        }
     }
 
     private var isCloudSyncEnabled: Bool {
