@@ -24,6 +24,28 @@ struct ListeningWantsLivePresentation: Equatable {
     var symbol: String { selected ? "heart.fill" : "heart" }
 }
 
+enum ListeningDiscDetailTrackAction: Equatable {
+    case selectTrack
+    case togglePlayback
+
+    static func resolve(
+        isLoaded: Bool,
+        isCurrentTrack: Bool,
+        player: ListeningPlayerPresentation
+    ) -> Self {
+        guard isLoaded, isCurrentTrack, player.canPlayPause else {
+            return .selectTrack
+        }
+
+        switch player.phase {
+        case .playing, .paused:
+            return .togglePlayback
+        case .noDisc, .preparing, .stopped, .finished, .failed:
+            return .selectTrack
+        }
+    }
+}
+
 extension ListeningFamiliarityTier {
     var localizationKey: String {
         switch self {

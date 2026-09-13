@@ -163,14 +163,34 @@ struct ListeningDiscDetailView: View {
                     .multilineTextAlignment(.center)
                     .padding(.top, 2)
                 ListeningSleeveMarks(room: room, disc: disc)
+
+                if isLoaded {
+                    loadedStatus
+                }
             }
         }
+    }
+
+    private var loadedStatus: some View {
+        HStack(spacing: 6) {
+            Image(systemName: room.isPlaying ? "waveform" : "opticaldisc")
+                .font(.system(size: 11, weight: .bold))
+            Text(BSLocalization.text(room.isPlaying ? "正在播放中" : "已在播放机中"))
+                .font(BSFont.caption.weight(.semibold))
+        }
+        .foregroundStyle(BSColor.Stage.accent)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(BSColor.Stage.accent.opacity(0.08), in: Capsule())
+        .padding(.top, 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("listening.loadedDiscStatus")
     }
 
     @ViewBuilder
     private var actionSection: some View {
         if isLoaded {
-            loadedActionSection
+            loadedFallbackActions
         } else {
             switch presentation.primaryAction {
             case .load:
@@ -206,68 +226,26 @@ struct ListeningDiscDetailView: View {
         }
     }
 
-    private var loadedActionSection: some View {
+    @ViewBuilder
+    private var loadedFallbackActions: some View {
         let player = room.display.player
-        return VStack(spacing: BSSpacing.sm) {
-            HStack(spacing: BSSpacing.md) {
-                HStack(spacing: BSSpacing.sm) {
-                    Image(systemName: room.isPlaying ? "waveform" : "opticaldisc")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.accent)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(BSLocalization.text(room.isPlaying ? "正在播放中" : "已在播放机中"))
-                            .font(BSFont.headline)
-                            .foregroundStyle(BSColor.Stage.foreground)
-                        if let track = room.track {
-                            Text(track.title)
-                                .font(BSFont.caption)
-                                .foregroundStyle(BSColor.Stage.muted)
-                                .lineLimit(2)
-                        }
-                        Text(player.statusText)
-                            .font(BSFont.caption)
-                            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                Spacer(minLength: BSSpacing.sm)
-                if player.canPlayPause {
-                    Button {
-                        room.perform(.playPause)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: room.isPlaying ? "pause.fill" : "play.fill")
-                            Text(BSLocalization.text(room.isPlaying ? "暂停" : "播放"))
-                        }
-                        .font(BSFont.caption.weight(.semibold))
-                        .foregroundStyle(Color.black)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 8)
-                        .background(BSColor.Stage.accent, in: Capsule())
-                    }
-                    .buttonStyle(BSListeningPressStyle(scale: 0.95))
-                }
-            }
 
-            if let recovery = player.recoveryAction {
-                Button(recovery.title) {
-                    room.performListeningRecovery(recovery)
-                }
-                .font(BSFont.caption.weight(.semibold))
-                .foregroundStyle(BSColor.Stage.accent)
-                .frame(minHeight: BSLayout.minTouchTarget)
+        if let recovery = player.recoveryAction {
+            Button(recovery.title) {
+                room.performListeningRecovery(recovery)
             }
-
-            if !player.canPlayPause,
-               case .metadataOnly = presentation.capability,
-               let url = disc.appleMusicURL {
-                appleMusicPrimaryAction(url)
-            }
+            .font(BSFont.caption.weight(.semibold))
+            .foregroundStyle(BSColor.Stage.accent)
+            .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
+            .background(BSColor.Stage.surfaceRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
         }
-        .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 12)
-        .background(BSColor.Stage.surfaceRaised.opacity(0.85), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(BSColor.Stage.border, lineWidth: 1))
+
+        if !player.canPlayPause,
+           case .metadataOnly = presentation.capability,
+           let url = disc.appleMusicURL {
+            appleMusicPrimaryAction(url)
+        }
     }
 
     private func capabilityNotice(_ text: String) -> some View {
@@ -362,16 +340,27 @@ struct ListeningDiscDetailView: View {
     private func trackRow(index: Int, track: ListeningDiscTrack) -> some View {
         let trackPresentation = room.display.trackPresentation(for: track)
         let state = trackRowState(for: track, isPlayable: trackPresentation.isPlayable)
+        let action = ListeningDiscDetailTrackAction.resolve(
+            isLoaded: isLoaded,
+            isCurrentTrack: room.track?.id == track.id,
+            player: room.display.player
+        )
         let row = ListeningDiscTrackRow(
             index: index,
             track: track,
             state: state,
-            isMultiArtist: isMultiArtist
+            isMultiArtist: isMultiArtist,
+            showsPlaybackToggle: action == .togglePlayback
         )
 
         if trackPresentation.isPlayable {
             Button {
-                selectTrack(track)
+                switch action {
+                case .selectTrack:
+                    selectTrack(track)
+                case .togglePlayback:
+                    room.perform(.playPause)
+                }
             } label: {
                 row
             }
@@ -533,6 +522,7 @@ private struct ListeningDiscTrackRow: View {
     let track: ListeningDiscTrack
     let state: ListeningDiscTrackRowState
     let isMultiArtist: Bool
+    let showsPlaybackToggle: Bool
 
     var body: some View {
         HStack(alignment: .center, spacing: BSSpacing.compact) {
@@ -559,10 +549,15 @@ private struct ListeningDiscTrackRow: View {
                     .font(.system(size: 12, weight: .regular, design: .monospaced))
                     .foregroundStyle(state == .unavailable ? BSColor.Stage.dim.opacity(0.45) : BSColor.Stage.dim)
             }
+
+            if showsPlaybackToggle {
+                playbackControl
+            }
         }
         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
         .padding(.horizontal, BSSpacing.md)
         .padding(.vertical, 8)
+        .background(state.isActive ? BSColor.Stage.accent.opacity(0.07) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
@@ -570,19 +565,44 @@ private struct ListeningDiscTrackRow: View {
     @ViewBuilder
     private var leadingIndicator: some View {
         switch state {
-        case .preparing, .playing:
+        case .preparing:
+            ProgressView()
+                .controlSize(.small)
+                .tint(BSColor.Stage.accent)
+        case .playing:
             Image(systemName: "waveform")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(BSColor.Stage.accent)
         case .paused:
-            Image(systemName: "play.fill")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(BSColor.Stage.accent)
+            Image(systemName: "waveform")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(BSColor.Stage.accent.opacity(0.65))
         case .normal:
             trackNumber(color: BSColor.Stage.dim)
         case .unavailable:
             trackNumber(color: BSColor.Stage.dim.opacity(0.45))
         }
+    }
+
+    @ViewBuilder
+    private var playbackControl: some View {
+        switch state {
+        case .playing:
+            playbackControlIcon("pause.fill")
+        case .paused:
+            playbackControlIcon("play.fill")
+        case .normal, .preparing, .unavailable:
+            EmptyView()
+        }
+    }
+
+    private func playbackControlIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(Color.black)
+            .frame(width: 28, height: 28)
+            .background(BSColor.Stage.accent, in: Circle())
+            .accessibilityHidden(true)
     }
 
     private var titleColor: Color {
