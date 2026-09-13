@@ -26,17 +26,17 @@ enum CompanionFootprintShareTokens {
 struct CompanionFootprintShareCard: View {
     let show: Show
     let sharedHistory: [Show]
+    var companionName: String? = nil
 
     private var count: Int {
         max(1, sharedHistory.count)
     }
 
     private var memberNames: [String] {
-        CompanionNameList.normalized(show.companionNames)
-    }
-
-    private var displayName: String {
-        CompanionNameList.joined(memberNames) ?? BSLocalization.text("同行者")
+        if let companionName {
+            return CompanionNameList.normalized([companionName])
+        }
+        return CompanionNameList.normalized(show.companionNames)
     }
 
     private var cityText: String? {
@@ -59,6 +59,13 @@ struct CompanionFootprintShareCard: View {
         formatter.dateFormat = "yyyy.MM.dd"
         let date = formatter.string(from: show.effectiveDate)
         return [date, cityText].compactMap { $0 }.joined(separator: " · ")
+    }
+
+    private var relationshipTitle: String {
+        if let companionName {
+            return BSLocalization.format("我和%@一起看过\n%lld 场现场", companionName, Int64(count))
+        }
+        return BSLocalization.format("我们一起看过\n%lld 场现场", Int64(count))
     }
 
     var body: some View {
@@ -174,7 +181,7 @@ struct CompanionFootprintShareCard: View {
                 Spacer()
             }
 
-            Text(BSLocalization.format("我们一起看的\n第 %lld 场现场", count))
+            Text(relationshipTitle)
                 .font(.system(size: 24 * scale, weight: .bold))
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineSpacing(4 * scale)
@@ -249,7 +256,10 @@ struct CompanionFootprintShareCard: View {
 
             Spacer()
 
-            Text(BSLocalization.text("已收进共同足迹"))
+            Text(
+                companionName.map { BSLocalization.format("与%@的共同足迹", $0) }
+                    ?? BSLocalization.text("已收进共同足迹")
+            )
                 .font(.system(size: 10.5 * scale, weight: .medium))
                 .foregroundColor(CompanionFootprintShareTokens.brand.opacity(0.85))
         }
@@ -261,12 +271,14 @@ struct CompanionFootprintShareCard: View {
 struct CompanionFootprintShareSheet: View {
     let show: Show
     let sharedHistory: [Show]
+    var companionName: String? = nil
     var onSaved: (() -> Void)? = nil
 
     var body: some View {
         FootprintShareActionSheet(
-            title: BSLocalization.text("分享共同足迹"),
-            subtitle: BSLocalization.text("记录你们一起走过的现场，可保存图片或直接分享。"),
+            title: companionName.map { BSLocalization.format("分享与%@的共同足迹", $0) }
+                ?? BSLocalization.text("分享共同足迹"),
+            subtitle: BSLocalization.text("记录一起走过的现场，可保存图片或直接分享。"),
             previewHeight: 380,
             exportSize: CompanionFootprintShareTokens.renderSize,
             exportScale: CompanionFootprintShareTokens.renderScale,
@@ -274,7 +286,8 @@ struct CompanionFootprintShareSheet: View {
             preview: {
                 CompanionFootprintShareCard(
                     show: show,
-                    sharedHistory: sharedHistory
+                    sharedHistory: sharedHistory,
+                    companionName: companionName
                 )
                 .aspectRatio(
                     CompanionFootprintShareTokens.renderSize.width
@@ -285,7 +298,8 @@ struct CompanionFootprintShareSheet: View {
             exportContent: {
                 CompanionFootprintShareCard(
                     show: show,
-                    sharedHistory: sharedHistory
+                    sharedHistory: sharedHistory,
+                    companionName: companionName
                 )
                 .frame(
                     width: CompanionFootprintShareTokens.renderSize.width,
@@ -296,4 +310,3 @@ struct CompanionFootprintShareSheet: View {
         )
     }
 }
-

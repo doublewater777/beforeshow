@@ -2,7 +2,8 @@ import CloudKit
 import SwiftUI
 import UIKit
 
-/// Events from system `UICloudSharingController` that the coordinator must reconcile.
+/// Events retained for compatibility with the companion coordinator callback surface.
+/// Invite distribution itself no longer opens CloudKit's participant-management UI.
 enum CloudSharingControllerEvent: Equatable {
     case didSave
     case didStopSharing
@@ -31,13 +32,12 @@ enum CompanionInvitePreparingPresentation {
     }
 }
 
-/// Presents `UICloudSharingController` from the top UIKit controller.
-/// Embedding it as a SwiftUI `fullScreenCover` root dismisses the share sheet as soon
-/// as the system presents its own activity UI.
+/// Distributes the stable `CKShare.url` through the ordinary system activity sheet.
+/// We intentionally do not present `UICloudSharingController`: that controller also
+/// exposes participant removal, stop-sharing and leave-share controls, while the
+/// BeforeShow companion product only exposes joining and re-sharing the same invite.
 @MainActor
 enum SystemCloudSharePresenter {
-    private static var activeSession: Session?
-
     @discardableResult
     static func present(
         shareData: Data,
@@ -61,25 +61,28 @@ enum SystemCloudSharePresenter {
     @discardableResult
     static func present(
         share: CKShare,
-        container: CKContainer,
-        onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
+        container _: CKContainer,
+        onEvent _: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping () -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
-        guard let presenter = SystemPNGSharePresenter.topViewController() else {
+        guard let invitationURL = share.url,
+              let presenter = SystemPNGSharePresenter.topViewController() else {
             return false
         }
-        if presenter is UICloudSharingController {
+        if presenter is UIActivityViewController {
             return false
         }
 
-        let session = Session(onEvent: onEvent, onDismiss: onDismiss)
-        activeSession = session
-
-        let controller = UICloudSharingController(share: share, container: container)
-        controller.delegate = session
-        controller.availablePermissions = [.allowReadWrite, .allowPrivate]
-        controller.presentationController?.delegate = session
+        let controller = UIActivityViewController(
+            activityItems: [invitationURL],
+            applicationActivities: nil
+        )
+        controller.completionWithItemsHandler = { _, _, _, _ in
+            Task { @MainActor in
+                onDismiss()
+            }
+        }
         if let popover = controller.popoverPresentationController {
             popover.sourceView = presenter.view
             popover.sourceRect = CGRect(
@@ -91,55 +94,5 @@ enum SystemCloudSharePresenter {
         }
         presenter.present(controller, animated: true, completion: onPresented)
         return true
-    }
-
-    private final class Session: NSObject, UICloudSharingControllerDelegate, UIAdaptivePresentationControllerDelegate {
-        var onEvent: (CloudSharingControllerEvent, CKShare?, Error?) -> Void
-        var onDismiss: () -> Void
-        private(set) var isFinished = false
-
-        init(
-            onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
-            onDismiss: @escaping () -> Void
-        ) {
-            self.onEvent = onEvent
-            self.onDismiss = onDismiss
-        }
-
-        func cloudSharingControllerDidSaveShare(_ csc: UICloudSharingController) {
-            onEvent(.didSave, csc.share, nil)
-        }
-
-        func cloudSharingControllerDidStopSharing(_ csc: UICloudSharingController) {
-            onEvent(.didStopSharing, csc.share, nil)
-            finish()
-        }
-
-        func cloudSharingController(
-            _ csc: UICloudSharingController,
-            failedToSaveShareWithError error: Error
-        ) {
-            onEvent(.failedToSave, csc.share, error)
-        }
-
-        func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
-            finish()
-        }
-
-        func itemThumbnailData(for csc: UICloudSharingController) -> Data? { nil }
-
-        func itemTitle(for csc: UICloudSharingController) -> String? {
-            csc.share?[CKShare.SystemFieldKey.title] as? String
-        }
-
-        private func finish() {
-            guard !isFinished else { return }
-            isFinished = true
-            let dismiss = onDismiss
-            onEvent = { _, _, _ in }
-            onDismiss = {}
-            SystemCloudSharePresenter.activeSession = nil
-            dismiss()
-        }
     }
 }

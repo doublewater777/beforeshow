@@ -12,6 +12,14 @@ protocol CompanionSharingService: Sendable {
 
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data
 
+    /// Read the frozen invitation payload without accepting the CloudKit share.
+    /// Product membership is not committed until `acceptShare` runs after the user taps
+    /// the in-app join action.
+    func previewAcceptedShare(
+        metadata: CKShare.Metadata,
+        participantDisplayName: String?
+    ) async throws -> CompanionSessionSnapshot
+
     func acceptShare(
         metadata: CKShare.Metadata,
         participantDisplayName: String?
@@ -32,4 +40,18 @@ protocol CompanionSharingService: Sendable {
     func reconcileOwnerMembership(
         shareLocator: CompanionRecordLocator
     ) async throws -> CompanionMembershipState
+}
+
+extension CompanionSharingService {
+    /// Non-CloudKit test doubles can retain the old single-step behavior unless a test
+    /// specifically exercises the preview phase.
+    func previewAcceptedShare(
+        metadata: CKShare.Metadata,
+        participantDisplayName: String?
+    ) async throws -> CompanionSessionSnapshot {
+        try await acceptShare(
+            metadata: metadata,
+            participantDisplayName: participantDisplayName
+        )
+    }
 }
