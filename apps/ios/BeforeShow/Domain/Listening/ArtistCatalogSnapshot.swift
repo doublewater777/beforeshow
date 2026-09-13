@@ -12,7 +12,13 @@ final class ArtistCatalogSnapshot {
     var orderedSongIDs: [String]
     var topSongIDs: [String]
     var albumIDs: [String]
+    private var featuredPlaylistsData: Data?
     var fetchedAt: Date
+
+    var featuredPlaylists: [ListeningCatalogPlaylistPayload] {
+        guard let featuredPlaylistsData else { return [] }
+        return (try? JSONDecoder().decode([ListeningCatalogPlaylistPayload].self, from: featuredPlaylistsData)) ?? []
+    }
 
     init(
         artistID: String,
@@ -23,6 +29,7 @@ final class ArtistCatalogSnapshot {
         orderedSongIDs: [String] = [],
         topSongIDs: [String] = [],
         albumIDs: [String] = [],
+        featuredPlaylists: [ListeningCatalogPlaylistPayload] = [],
         fetchedAt: Date = Date()
     ) {
         self.artistID = artistID
@@ -33,6 +40,7 @@ final class ArtistCatalogSnapshot {
         self.orderedSongIDs = orderedSongIDs
         self.topSongIDs = topSongIDs
         self.albumIDs = albumIDs
+        self.featuredPlaylistsData = try? JSONEncoder().encode(featuredPlaylists)
         self.fetchedAt = fetchedAt
     }
 
@@ -44,6 +52,7 @@ final class ArtistCatalogSnapshot {
         orderedSongIDs: [String],
         topSongIDs: [String],
         albumIDs: [String],
+        featuredPlaylists: [ListeningCatalogPlaylistPayload] = [],
         fetchedAt: Date
     ) {
         self.artistName = artistName
@@ -53,6 +62,7 @@ final class ArtistCatalogSnapshot {
         self.orderedSongIDs = orderedSongIDs
         self.topSongIDs = topSongIDs
         self.albumIDs = albumIDs
+        self.featuredPlaylistsData = try? JSONEncoder().encode(featuredPlaylists)
         self.fetchedAt = fetchedAt
     }
 }

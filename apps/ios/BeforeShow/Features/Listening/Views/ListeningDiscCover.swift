@@ -7,7 +7,7 @@ struct ListeningDiscCover: View {
     var body: some View {
         Group {
             switch disc.origin {
-            case .album:
+            case .album, .featuredPlaylist:
                 ListeningArtwork(url: disc.artworkURL, title: disc.title)
             case let .compilation(_, number):
                 ListeningCompilationJacket(identity: .init(disc: disc, show: show), number: number)

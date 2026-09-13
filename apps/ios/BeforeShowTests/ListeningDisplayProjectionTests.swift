@@ -25,6 +25,48 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertFalse(state.canLoad)
     }
 
+    func testMetadataOnlyFeaturedPlaylistOpensAppleMusicWhenURLExists() {
+        let url = URL(string: "https://music.apple.com/playlist/featured")!
+        let disc = ListeningDisc(
+            id: "featured",
+            title: "Featured",
+            artworkURL: nil,
+            tracks: [track("metadata", preview: false)],
+            appleMusicURL: url,
+            origin: .featuredPlaylist(artistID: "artist")
+        )
+        let projection = makeProjection(
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: false),
+            discs: [disc]
+        )
+
+        let state = projection.discPresentation(for: disc)
+        XCTAssertEqual(state.capability, .metadataOnly)
+        XCTAssertNil(state.defaultPlayableTrackID)
+        XCTAssertEqual(state.primaryAction, .openAppleMusic(url))
+        XCTAssertFalse(state.canLoad)
+    }
+
+    func testMetadataOnlyFeaturedPlaylistWithoutURLIsInformationOnly() {
+        let disc = ListeningDisc(
+            id: "featured-no-url",
+            title: "Featured",
+            artworkURL: nil,
+            tracks: [track("metadata", preview: false)],
+            origin: .featuredPlaylist(artistID: "artist")
+        )
+        let projection = makeProjection(
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: false),
+            discs: [disc]
+        )
+
+        let state = projection.discPresentation(for: disc)
+        XCTAssertEqual(state.capability, .metadataOnly)
+        XCTAssertNil(state.defaultPlayableTrackID)
+        XCTAssertEqual(state.primaryAction, .informationOnly)
+        XCTAssertFalse(state.canLoad)
+    }
+
     func testMixedPreviewDiscUsesFirstPlayableTrackAndExplainsPartialPreview() {
         let first = track("metadata", preview: false)
         let second = track("preview", preview: true)

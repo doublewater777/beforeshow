@@ -21,24 +21,22 @@ struct ListeningArtistPresentation: Identifiable {
         func tracks(_ ids: [String]) -> [ListeningDiscTrack] { ids.compactMap { byID[$0].map(ListeningDiscTrack.init) } }
         let familiar = snapshot.orderedSongIDs.filter { familiarSongIDs.contains($0) }.count
         let albumsByID = Dictionary(catalogAlbums.map { ($0.appleMusicAlbumID, $0) }, uniquingKeysWith: { a, _ in a })
+        let featuredPlaylists = ListeningDiscAssembler.discs(
+            featuredPlaylists: snapshot.featuredPlaylists,
+            artistID: id,
+            songsByID: byID
+        )
+        let releases = ListeningDiscAssembler.discs(
+            albums: snapshot.albumIDs.compactMap { albumsByID[$0] },
+            songsByID: byID
+        )
         return ListeningArtistPresentation(id: id, name: snapshot.artistName,
             artworkURL: snapshot.artworkURL.flatMap(URL.init(string:)), editorialText: snapshot.editorialText,
             genres: snapshot.genreNames,
             tier: openingTiers.first { $0.artistID == id }.flatMap { ListeningFamiliarityTier(rawValue: $0.tierRawValue) }
                 ?? (show.map { WantsLivePolicy.isMutable(show: $0) } == true ? ListeningFamiliarityTier.resolve(familiarCount: familiar, totalCount: snapshot.orderedSongIDs.count) : nil),
             familiarCount: familiar, top: tracks(snapshot.topSongIDs), all: tracks(snapshot.orderedSongIDs),
-            albums: snapshot.albumIDs.compactMap { albumsByID[$0] }.map {
-                ListeningDisc(id: $0.appleMusicAlbumID, title: $0.title,
-                              artworkURL: $0.artworkURL.flatMap(URL.init(string:)), tracks: tracks($0.orderedTrackIDs),
-                              artistNames: $0.artistNames, editorialText: $0.editorialText,
-                              genreNames: $0.genreNames, releaseDate: $0.releaseDate,
-                              copyright: $0.copyright, recordLabelName: $0.recordLabelName,
-                              contentRatingRawValue: $0.contentRatingRawValue,
-                              audioVariantRawValues: $0.audioVariantRawValues,
-                              isAppleDigitalMaster: $0.isAppleDigitalMaster,
-                              isCompilation: $0.isCompilation, isSingle: $0.isSingle,
-                              appleMusicURL: $0.appleMusicURL.flatMap(URL.init(string:)))
-            })
+            albums: featuredPlaylists + releases)
     }
     var currentArtistID: String? {
         guard let track else { return nil }
@@ -74,8 +72,13 @@ struct ListeningArtistPresentation: Identifiable {
     }
     func playLibrarySong(_ track: ListeningDiscTrack, artistID: String) {
         guard let artist = artistPresentation(artistID) else { return }
-        let album = artist.albums.first { $0.tracks.contains { $0.id == track.id } }
-        let disc = album ?? ListeningDisc(id: "artist-\(artistID)", title: artist.name, artworkURL: artist.artworkURL, tracks: artist.all)
+        let release = artist.albums.first { disc in
+            guard case .album = disc.origin else { return false }
+            return disc.tracks.contains { $0.id == track.id }
+        }
+        let disc = release
+            ?? artist.albums.first { $0.tracks.contains { $0.id == track.id } }
+            ?? ListeningDisc(id: "artist-\(artistID)", title: artist.name, artworkURL: artist.artworkURL, tracks: artist.all)
         loadDisc(disc, songID: track.id, autoplay: true)
     }
 }

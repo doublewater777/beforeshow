@@ -15,6 +15,7 @@ struct ListeningRepository {
         orderedSongIDs: [String],
         topSongIDs: [String],
         albumIDs: [String],
+        featuredPlaylists: [ListeningCatalogPlaylistPayload] = [],
         fetchedAt: Date
     ) throws -> ArtistCatalogSnapshot {
         let snapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
@@ -27,6 +28,7 @@ struct ListeningRepository {
                 orderedSongIDs: orderedSongIDs,
                 topSongIDs: topSongIDs,
                 albumIDs: albumIDs,
+                featuredPlaylists: featuredPlaylists,
                 fetchedAt: fetchedAt
             )
             return existing
@@ -40,6 +42,7 @@ struct ListeningRepository {
             orderedSongIDs: orderedSongIDs,
             topSongIDs: topSongIDs,
             albumIDs: albumIDs,
+            featuredPlaylists: featuredPlaylists,
             fetchedAt: fetchedAt
         )
         modelContext.insert(created)

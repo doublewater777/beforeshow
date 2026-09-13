@@ -106,6 +106,7 @@ final class ListeningCatalogStore {
                 orderedSongIDs: payload.orderedSongIDs,
                 topSongIDs: payload.topSongIDs,
                 albumIDs: payload.albumIDs,
+                featuredPlaylists: payload.featuredPlaylists,
                 fetchedAt: payload.fetchedAt
             )
             try modelContext.save()

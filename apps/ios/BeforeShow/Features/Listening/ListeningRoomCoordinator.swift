@@ -566,14 +566,20 @@ private let listeningCatalogFetchConcurrency = 4
         let mappedArtists: [ListeningBrowseArtist] = show.artists.enumerated().map { index, slot in
             if let id = slot.appleMusicArtistID {
                 let snapshot = catalogSnapshots.first { $0.artistID == id }
-                let albums = (snapshot?.albumIDs ?? []).compactMap { albumsByID[$0] }.filter { $0.isSingle != true }
+                let albums = (snapshot?.albumIDs ?? []).compactMap { albumsByID[$0] }
+                let featuredPlaylists = ListeningDiscAssembler.discs(
+                    featuredPlaylists: snapshot?.featuredPlaylists ?? [],
+                    artistID: id,
+                    songsByID: songsByID
+                )
+                let releases = ListeningDiscAssembler.discs(albums: albums, songsByID: songsByID)
                 return ListeningBrowseArtist(
                     slotIndex: index,
                     id: id,
                     name: slot.name,
                     artworkURL: (slot.avatarURL ?? snapshot?.artworkURL).flatMap(URL.init(string:)),
                     appleMusicArtistID: id,
-                    albums: ListeningDiscAssembler.discs(albums: albums, songsByID: songsByID)
+                    albums: featuredPlaylists + releases
                 )
             } else {
                 return ListeningBrowseArtist(
