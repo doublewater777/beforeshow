@@ -12,7 +12,7 @@ struct CompanionArtistSnapshot: Equatable, Sendable, Codable {
 /// New fields are encoded into one versioned Data field so the share remains a static
 /// invitation snapshot rather than a live show-sync surface.
 struct CompanionShowSnapshot: Equatable, Sendable, Codable {
-    static let currentSchemaVersion = 1
+    static let currentSchemaVersion = 2
 
     var schemaVersion: Int
     var showID: String
@@ -39,6 +39,13 @@ struct CompanionShowSnapshot: Equatable, Sendable, Codable {
     var coverImageURL: String?
     var showChangeStatusRawValue: String
     var postponedDate: Date?
+    /// User-confirmed curtain time, frozen with the invitation. Optional keeps v1
+    /// snapshots decodable without inventing a value.
+    var endedAt: Date?
+    /// Explicit lifecycle disposition for shows that were added directly to history.
+    /// This must survive the snapshot even when the show is only one day old and would
+    /// otherwise fall inside the ordinary post-show retention window on the recipient.
+    var wasAddedAsHistorical: Bool?
 
     init(
         showID: String,
@@ -60,7 +67,9 @@ struct CompanionShowSnapshot: Equatable, Sendable, Codable {
         artists: [CompanionArtistSnapshot] = [],
         coverImageURL: String? = nil,
         showChangeStatusRawValue: String = ShowChangeStatus.scheduled.rawValue,
-        postponedDate: Date? = nil
+        postponedDate: Date? = nil,
+        endedAt: Date? = nil,
+        wasAddedAsHistorical: Bool? = nil
     ) {
         self.schemaVersion = schemaVersion
         self.showID = showID
@@ -82,6 +91,8 @@ struct CompanionShowSnapshot: Equatable, Sendable, Codable {
         self.coverImageURL = coverImageURL
         self.showChangeStatusRawValue = showChangeStatusRawValue
         self.postponedDate = postponedDate
+        self.endedAt = endedAt
+        self.wasAddedAsHistorical = wasAddedAsHistorical
     }
 
     var changeStatus: ShowChangeStatus {
