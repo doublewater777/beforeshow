@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class CompanionPostShowImportTests: XCTestCase {
-    func testAcceptedShareAfterShowEndedWithinRetentionGoesToFootprints() throws {
+    func testAcceptedShareAfterShowEndedWithinRetentionStaysInMyShows() throws {
         let container = try ModelContainer(
             for: Show.self,
             CurrentShowSelection.self,
@@ -52,9 +52,13 @@ final class CompanionPostShowImportTests: XCTestCase {
 
         let imported = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
         XCTAssertEqual(CurrentShowTimeState(show: imported, now: now).kind, .postShow)
-        XCTAssertEqual(imported.wasAddedAsHistorical, true)
-        XCTAssertTrue(result.wasHistorical)
-        XCTAssertFalse(result.becameCurrent)
-        XCTAssertTrue(try context.fetch(FetchDescriptor<CurrentShowSelection>()).isEmpty)
+        XCTAssertNotEqual(imported.wasAddedAsHistorical, true)
+        XCTAssertFalse(result.wasHistorical)
+        XCTAssertTrue(result.becameCurrent)
+
+        let selection = try XCTUnwrap(
+            CurrentShowSelectionStore(modelContext: context).canonicalSelection()
+        )
+        XCTAssertEqual(selection.selectedShowID, imported.id)
     }
 }
