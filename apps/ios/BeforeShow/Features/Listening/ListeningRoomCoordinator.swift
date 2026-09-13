@@ -277,9 +277,7 @@ private let listeningCatalogFetchConcurrency = 4
         }
         if showCatalogKey != newKey {
             completedCatalogKey = nil
-            stop(); trackBelongsToShow = false; discs = []; runtimeSongs = [:]
-            preparedDiscID = nil
-            if mechanism.hasDisc || mechanism.position == .removed { run { [self] in try await mechanism.unload() } }
+            discs = []; runtimeSongs = [:]
         }
         showCatalogKey = newKey
         self.show = show
