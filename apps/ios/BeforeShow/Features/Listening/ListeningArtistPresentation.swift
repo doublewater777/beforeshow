@@ -72,8 +72,13 @@ struct ListeningArtistPresentation: Identifiable {
     }
     func playLibrarySong(_ track: ListeningDiscTrack, artistID: String) {
         guard let artist = artistPresentation(artistID) else { return }
-        let album = artist.albums.first { $0.tracks.contains { $0.id == track.id } }
-        let disc = album ?? ListeningDisc(id: "artist-\(artistID)", title: artist.name, artworkURL: artist.artworkURL, tracks: artist.all)
+        let release = artist.albums.first { disc in
+            guard case .album = disc.origin else { return false }
+            return disc.tracks.contains { $0.id == track.id }
+        }
+        let disc = release
+            ?? artist.albums.first { $0.tracks.contains { $0.id == track.id } }
+            ?? ListeningDisc(id: "artist-\(artistID)", title: artist.name, artworkURL: artist.artworkURL, tracks: artist.all)
         loadDisc(disc, songID: track.id, autoplay: true)
     }
 }
