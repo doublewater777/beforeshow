@@ -46,6 +46,65 @@ import SwiftData
         reopened.mechanism.motion.stop()
     }
 
+    func testManualEjectClearsColdLaunchStateBeforeCabinetReturn() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        room.restoreDisc(try XCTUnwrap(room.discs.first))
+        room.mechanism.setLid(open: true)
+        try await ListenTestData.settle(room) { room.mechanism.isOpen }
+
+        room.mechanism.removeDisc()
+        XCTAssertEqual(room.mechanism.position, .removed)
+        XCTAssertEqual(try container.mainContext.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertFalse(reopened.mechanism.hasDisc)
+        XCTAssertNil(reopened.mechanism.disc)
+        XCTAssertNil(reopened.track)
+        reopened.mechanism.motion.stop()
+    }
+
+    func testAutomaticDiscSwapKeepsFinalLoadedDiscSnapshot() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        let first = try XCTUnwrap(room.discs.first)
+        let second = try XCTUnwrap(room.discs.first { $0.id != first.id })
+        room.restoreDisc(first)
+
+        room.loadDisc(second, autoplay: false)
+        try await ListenTestData.settle(room) {
+            !room.busy && room.mechanism.position == .seated && room.mechanism.disc?.id == second.id
+        }
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertEqual(reopened.mechanism.disc?.id, second.id)
+        XCTAssertEqual(reopened.playbackState, .idle)
+        XCTAssertFalse(reopened.isPlaying)
+        reopened.mechanism.motion.stop()
+    }
+
+    func testOpeningLidPreservesPersistedNonFirstTrackSelection() async throws {
+        let (container, show) = try ListenTestData.make()
+        let room = ListenTestData.room(container.mainContext)
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.browseArtists.first?.albums.first)
+        let songID = try XCTUnwrap(disc.tracks.last?.id)
+        XCTAssertNotEqual(songID, disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+
+        room.mechanism.setLid(open: true)
+        try await ListenTestData.settle(room) { room.mechanism.isOpen }
+        XCTAssertEqual(room.trackIndex, 0)
+
+        let reopened = ListenTestData.room(container.mainContext)
+        XCTAssertEqual(reopened.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(reopened.track?.id, songID)
+        XCTAssertFalse(reopened.isPlaying)
+        reopened.mechanism.motion.stop()
+    }
+
     func testCurrentShowChangeKeepsLoadedDiscEvenWhenNewShowHasNoArtist() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
