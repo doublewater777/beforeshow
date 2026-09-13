@@ -190,11 +190,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    /// A reusable-link callback can arrive again after this device already joined.
-    /// Preview metadata still contains the immutable root `.pending` status, so never
-    /// feed that preview back through `applyCompanionSession`: doing so would downgrade
-    /// a durable local `.confirmed` relationship. Recovery refreshes may fail later; the
-    /// repeat callback itself must therefore be non-destructive and self-contained.
     @discardableResult
     func resolvePreviewedShareForExistingLocalShow(
         _ session: CompanionSessionSnapshot,
@@ -244,9 +239,6 @@ final class CompanionSharingCoordinator {
         return true
     }
 
-    /// Closing the in-app preview is not a CloudKit membership action. The share has
-    /// not been accepted yet, so dismiss only the local pending callback. Reopening the
-    /// same invitation URL later will enqueue fresh metadata and offer joining again.
     func declinePendingJoin(in modelContext: ModelContext) async -> Bool {
         guard let key = pendingJoinMetadataKey else {
             pendingJoinSession = nil
@@ -520,8 +512,6 @@ final class CompanionSharingCoordinator {
     private func continuePendingShareDrain(in modelContext: ModelContext) {
         guard !pendingShareMetadata.isEmpty else { return }
         Task { @MainActor [weak self] in
-            // If called from inside `flushPendingAcceptedShares`, yield until its
-            // reentrancy guard is released before advancing the next durable invite.
             await Task.yield()
             await self?.flushPendingAcceptedShares(in: modelContext)
         }
