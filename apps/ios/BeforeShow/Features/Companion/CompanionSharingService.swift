@@ -12,7 +12,7 @@ protocol CompanionSharingService: Sendable {
 
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data
 
-    /// Accept the system CKShare only far enough to read the frozen invitation payload.
+    /// Read the frozen invitation payload without accepting the CloudKit share.
     /// Product membership is not committed until `acceptShare` runs after the user taps
     /// the in-app join action.
     func previewAcceptedShare(
