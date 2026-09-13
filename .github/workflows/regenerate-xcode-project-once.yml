@@ -1,0 +1,55 @@
+name: Regenerate Xcode project once
+
+on:
+  push:
+    branches:
+      - codex/tmp-regenerate-xcode-project
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate:
+    runs-on: [self-hosted, xcode-26]
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: codex/tmp-regenerate-xcode-project
+          fetch-depth: 0
+
+      - name: Ensure XcodeGen
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Regenerate and verify idempotence
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          xcodegen generate
+          if grep -Fq 'ListeningArtistChip.swift' BeforeShow.xcodeproj/project.pbxproj; then
+            echo 'Generated project still references ListeningArtistChip.swift' >&2
+            exit 1
+          fi
+          first=$(shasum -a 256 BeforeShow.xcodeproj/project.pbxproj | awk '{print $1}')
+          xcodegen generate
+          second=$(shasum -a 256 BeforeShow.xcodeproj/project.pbxproj | awk '{print $1}')
+          test "$first" = "$second"
+          echo "Generated project SHA256: $second"
+
+      - name: Commit generated project
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/ios/BeforeShow.xcodeproj/project.pbxproj
+          if git diff --cached --quiet; then
+            echo 'xcodegen produced no project diff; expected stale-reference cleanup.' >&2
+            exit 1
+          fi
+          git commit -m 'fix(ios): regenerate Xcode project from project.yml'
+          git push origin HEAD:codex/tmp-regenerate-xcode-project
