@@ -101,7 +101,7 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
 
 struct CompanionPreparedShare: Equatable, Sendable {
     var session: CompanionSessionSnapshot
-    /// Archived saved `CKShare`. Distribution reads its stable invitation URL.
+    /// Opaque handle for presenting system CloudKit sharing UI.
     var shareSystemFields: Data
 }
 
@@ -114,7 +114,7 @@ enum CompanionSharingError: Error, Equatable, Sendable {
     case invalidPayload
     case permissionDenied
     case conflict
-    /// Share was accepted but local reconciliation could not complete yet.
+    /// Share was accepted but session status could not be synchronized yet.
     case statusSyncPending
 }
 
@@ -137,13 +137,17 @@ enum CompanionShareMemberStatus: Equatable, Sendable {
 }
 
 /// Owner-side share membership without mutating CloudKit.
-/// Product membership is append-only: missing/pending/removed CloudKit participants
-/// never erase an already-recorded local companion fact.
+/// Multiple accepted members are a valid group; outstanding invites are not warnings.
 enum CompanionMembershipPolicy {
     static func evaluate(
         nonOwnerStatuses: [CompanionShareMemberStatus]
     ) -> CompanionMembershipState {
+        let accepted = nonOwnerStatuses.filter { $0 == .accepted }.count
         let unknown = nonOwnerStatuses.filter { $0 == .unknown }.count
+
+        if accepted == 0, unknown == 0 {
+            return .removed
+        }
         if unknown > 0 {
             return .warning("同行成员状态暂时无法确认，请稍后重试")
         }
