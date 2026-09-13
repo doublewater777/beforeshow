@@ -6,12 +6,9 @@ import XCTest
 @MainActor
 final class CompanionJoinGateTests: XCTestCase {
     func testPendingSharedSessionIsNotImportedBeforeJoinConfirmation() async throws {
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: "CompanionJoinGateTests-\(UUID().uuidString)"))
-        defer {
-            if let suite = defaults.volatileDomainNames.first(where: { $0.hasPrefix("CompanionJoinGateTests-") }) {
-                defaults.removePersistentDomain(forName: suite)
-            }
-        }
+        let suiteName = "CompanionJoinGateTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
         defaults.set(true, forKey: CompanionCloudSyncMarker.userDefaultsKey)
 
         let date = Date(timeIntervalSince1970: 2_100_000_000)
