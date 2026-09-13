@@ -1,7 +1,5 @@
 import SwiftData
 import SwiftUI
-import UIKit
-import UniformTypeIdentifiers
 
 extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
@@ -65,6 +63,8 @@ struct RootView: View {
                     }
                 }
             }
+
+            CompanionPendingJoinHost()
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
@@ -122,6 +122,10 @@ struct RootView: View {
             }
         }
         .onChange(of: rootShows.map(\.id)) { _, _ in
+            if isShowingOnboarding, !rootShows.isEmpty {
+                hasCompletedOnboarding = true
+                isShowingOnboarding = false
+            }
             refreshCompanionDuplicateResolution()
         }
         .task {
