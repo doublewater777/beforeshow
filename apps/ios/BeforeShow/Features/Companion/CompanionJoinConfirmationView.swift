@@ -8,30 +8,49 @@ struct CompanionPendingJoinHost: View {
     @Environment(CompanionSharingCoordinator.self) private var coordinator
     @State private var isWorking = false
     @State private var errorMessage: String?
+    @State private var liveSwitchShowID: UUID?
 
     var body: some View {
-        if let session = coordinator.pendingJoinSession {
-            CompanionJoinConfirmationView(
-                session: session,
-                isWorking: isWorking,
-                onJoin: { confirmJoin() },
-                onClose: { declineJoin() }
-            )
-            .transition(.opacity)
-            .zIndex(1000)
-            .alert(
-                BSLocalization.text("同行邀请"),
-                isPresented: Binding(
-                    get: { errorMessage != nil },
-                    set: { if !$0 { errorMessage = nil } }
+        ZStack {
+            if let session = coordinator.pendingJoinSession {
+                CompanionJoinConfirmationView(
+                    session: session,
+                    isWorking: isWorking,
+                    onJoin: { confirmJoin() },
+                    onClose: { declineJoin() }
                 )
-            ) {
-                Button(BSLocalization.text("知道了"), role: .cancel) {
-                    errorMessage = nil
+                .transition(.opacity)
+                .zIndex(1000)
+                .alert(
+                    BSLocalization.text("同行邀请"),
+                    isPresented: Binding(
+                        get: { errorMessage != nil },
+                        set: { if !$0 { errorMessage = nil } }
+                    )
+                ) {
+                    Button(BSLocalization.text("知道了"), role: .cancel) {
+                        errorMessage = nil
+                    }
+                } message: {
+                    Text(errorMessage ?? "")
                 }
-            } message: {
-                Text(errorMessage ?? "")
             }
+        }
+        .alert(
+            BSLocalization.text("这场正在进行"),
+            isPresented: Binding(
+                get: { liveSwitchShowID != nil },
+                set: { if !$0 { liveSwitchShowID = nil } }
+            )
+        ) {
+            Button(BSLocalization.text("设为当前")) {
+                switchLiveShowToCurrent()
+            }
+            Button(BSLocalization.text("暂不切换"), role: .cancel) {
+                liveSwitchShowID = nil
+            }
+        } message: {
+            Text(BSLocalization.text("是否把刚加入的这场设为当前现场？"))
         }
     }
 
@@ -40,7 +59,9 @@ struct CompanionPendingJoinHost: View {
         isWorking = true
         Task { @MainActor in
             let succeeded = await coordinator.confirmPendingJoin(in: modelContext)
-            if !succeeded {
+            if succeeded {
+                offerCurrentSwitchForLiveShowIfNeeded()
+            } else {
                 errorMessage = coordinator.lastErrorMessage ?? BSLocalization.text("现场还没添加成功，请重试")
             }
             isWorking = false
@@ -54,6 +75,59 @@ struct CompanionPendingJoinHost: View {
             let succeeded = await coordinator.declinePendingJoin()
             if !succeeded {
                 errorMessage = coordinator.lastErrorMessage ?? BSLocalization.text("暂时无法关闭这份邀请，请重试")
+            }
+            isWorking = false
+        }
+    }
+
+    @MainActor
+    private func offerCurrentSwitchForLiveShowIfNeeded(now: Date = Date()) {
+        guard let result = coordinator.pendingAcceptResult,
+              !result.becameCurrent,
+              !result.wasHistorical,
+              let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
+              let target = shows.first(where: { $0.id == result.showID }),
+              let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection(),
+              let currentID = selection?.selectedShowID,
+              currentID != target.id else {
+            return
+        }
+
+        let state = CurrentShowTimeState(show: target, now: now)
+        guard state.kind == .today,
+              let start = state.effectiveStartTime,
+              let end = state.endBoundary,
+              now >= start,
+              now < end else {
+            return
+        }
+
+        liveSwitchShowID = target.id
+        // This confirmation owns the live-switch decision. Avoid also showing the
+        // generic root acceptance alert underneath it.
+        _ = coordinator.consumePendingAcceptMessage()
+        _ = coordinator.consumePendingAcceptResult()
+    }
+
+    private func switchLiveShowToCurrent() {
+        guard let showID = liveSwitchShowID, !isWorking else { return }
+        isWorking = true
+        Task { @MainActor in
+            do {
+                let shows = try modelContext.fetch(FetchDescriptor<Show>())
+                let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+                let notificationStates = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
+                _ = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: showID,
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext
+                )
+                liveSwitchShowID = nil
+            } catch {
+                modelContext.rollback()
+                errorMessage = BSLocalization.text("切换失败，请重试")
             }
             isWorking = false
         }
