@@ -88,7 +88,7 @@ struct CompanionPendingJoinHost: View {
               let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
               let target = shows.first(where: { $0.id == result.showID }),
               let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection(),
-              let currentID = selection?.selectedShowID,
+              let currentID = selection.selectedShowID,
               currentID != target.id else {
             return
         }
