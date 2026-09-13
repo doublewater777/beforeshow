@@ -5,6 +5,17 @@ private struct CompanionAcceptedShareContext {
     let shareLocator: CompanionRecordLocator
     let record: CKRecord
     let participantDisplayNames: [String]
+    let ownerDisplayName: String?
+}
+
+private struct CompanionShareParticipationState {
+    let participantDisplayNames: [String]
+    let hasAcceptedNonOwner: Bool
+
+    static let empty = CompanionShareParticipationState(
+        participantDisplayNames: [],
+        hasAcceptedNonOwner: false
+    )
 }
 
 extension CloudKitCompanionSharingService {
@@ -24,52 +35,36 @@ extension CloudKitCompanionSharingService {
         }
 
         let shareLocator = CompanionRecordLocator(recordID: previewMetadata.share.recordID)
-        return try Self.snapshot(
+        var snapshot = try Self.snapshot(
             from: record,
             shareLocator: shareLocator,
             participantDisplayNames: Self.participantNames(from: previewMetadata.share)
         )
+        if snapshot.ownerDisplayName == nil {
+            snapshot.ownerDisplayName = Self.displayName(for: previewMetadata.ownerIdentity)
+        }
+        return snapshot
     }
 
     func acceptShare(
         metadata: CKShare.Metadata,
-        participantDisplayName: String?
+        participantDisplayName _: String?
     ) async throws -> CompanionSessionSnapshot {
         let context = try await acceptedShareContext(metadata: metadata)
-        let record = context.record
 
-        // A root already accepted by an earlier member remains idempotent. This device
-        // reaches this method only after its explicit in-app join confirmation.
-        if let existingStatus = record[CompanionSessionRecord.status] as? String,
-           existingStatus == CompanionCloudStatus.accepted.rawValue {
-            return try Self.snapshot(
-                from: record,
-                shareLocator: context.shareLocator,
-                participantDisplayNames: context.participantDisplayNames
-            )
+        // Joining a companion invite is represented by CloudKit share acceptance.
+        // The root record is a frozen, read-only Show snapshot and is never mutated
+        // by participants after they tap the in-app join confirmation.
+        var snapshot = try Self.snapshot(
+            from: context.record,
+            shareLocator: context.shareLocator,
+            forcedStatus: .accepted,
+            participantDisplayNames: context.participantDisplayNames
+        )
+        if snapshot.ownerDisplayName == nil {
+            snapshot.ownerDisplayName = context.ownerDisplayName
         }
-
-        let existingParticipantName = (record[CompanionSessionRecord.participantDisplayName] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let participantDisplayName, !participantDisplayName.isEmpty,
-           existingParticipantName == nil || existingParticipantName?.isEmpty == true {
-            record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
-        }
-        record[CompanionSessionRecord.status] = CompanionCloudStatus.accepted.rawValue as CKRecordValue
-        record[CompanionSessionRecord.acceptedAt] = Date() as CKRecordValue
-        record[CompanionSessionRecord.canceledAt] = nil
-
-        do {
-            let results = try await modifyRecords(in: sharedDB, saving: [record])
-            let saved = results.first ?? record
-            return try Self.snapshot(
-                from: saved,
-                shareLocator: context.shareLocator,
-                participantDisplayNames: context.participantDisplayNames
-            )
-        } catch {
-            throw CompanionSharingError.statusSyncPending
-        }
+        return snapshot
     }
 
     private func metadataIncludingRootRecord(
@@ -103,10 +98,11 @@ extension CloudKitCompanionSharingService {
     ) async throws -> CompanionAcceptedShareContext {
         try await ensureAccountAvailable()
 
-        let shareLocator = CompanionRecordLocator(recordID: metadata.share.recordID)
+        let acceptedMetadata = try await metadataIncludingRootRecord(metadata)
+        let shareLocator = CompanionRecordLocator(recordID: acceptedMetadata.share.recordID)
         let acceptedShare: CKShare
         do {
-            acceptedShare = try await container.accept(metadata)
+            acceptedShare = try await container.accept(acceptedMetadata)
         } catch {
             let ck = error as? CKError
             if ck?.code != .alreadyShared {
@@ -122,7 +118,7 @@ extension CloudKitCompanionSharingService {
             }
         }
 
-        guard let rootID = metadata.hierarchicalRootRecordID else {
+        guard let rootID = acceptedMetadata.hierarchicalRootRecordID else {
             throw CompanionSharingError.invalidPayload
         }
 
@@ -164,7 +160,8 @@ extension CloudKitCompanionSharingService {
         return CompanionAcceptedShareContext(
             shareLocator: shareLocator,
             record: record,
-            participantDisplayNames: Self.participantNames(from: acceptedShare)
+            participantDisplayNames: Self.participantNames(from: acceptedShare),
+            ownerDisplayName: Self.displayName(for: acceptedMetadata.ownerIdentity)
         )
     }
 
@@ -184,11 +181,24 @@ extension CloudKitCompanionSharingService {
     func fetchSession(sessionLocator: CompanionRecordLocator) async throws -> CompanionSessionSnapshot {
         try await ensureAccountAvailable()
         let (record, database) = try await fetchSessionRecord(locator: sessionLocator)
-        let names = try await participantNames(for: record, in: database)
+        let participation = try await shareParticipationState(for: record, in: database)
+
+        let rootStatus = (record[CompanionSessionRecord.status] as? String)
+            .flatMap(CompanionCloudStatus.init(rawValue:))
+        let forcedStatus: CompanionCloudStatus?
+        if rootStatus == .canceled {
+            forcedStatus = nil
+        } else if database.databaseScope == .shared || participation.hasAcceptedNonOwner {
+            forcedStatus = .accepted
+        } else {
+            forcedStatus = nil
+        }
+
         return try Self.snapshot(
             from: record,
             shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) },
-            participantDisplayNames: names
+            forcedStatus: forcedStatus,
+            participantDisplayNames: participation.participantDisplayNames
         )
     }
 
@@ -228,11 +238,17 @@ extension CloudKitCompanionSharingService {
                     }
                     for (_, result) in page.matchResults {
                         guard case .success(let record) = result else { continue }
+                        let participation = (try? await shareParticipationState(for: record, in: sharedDB)) ?? .empty
+                        let rootStatus = (record[CompanionSessionRecord.status] as? String)
+                            .flatMap(CompanionCloudStatus.init(rawValue:))
+                        let forcedStatus: CompanionCloudStatus? = rootStatus == .canceled ? nil : .accepted
                         guard let snapshot = try? Self.snapshot(
                             from: record,
-                            shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) }
+                            shareLocator: record.share.map { CompanionRecordLocator(recordID: $0.recordID) },
+                            forcedStatus: forcedStatus,
+                            participantDisplayNames: participation.participantDisplayNames
                         ) else { continue }
-                        if snapshot.status == .accepted || snapshot.status == .pending {
+                        if snapshot.status == .accepted {
                             sessionsByLocator[snapshot.sessionLocator] = snapshot
                         }
                     }
@@ -322,6 +338,7 @@ extension CloudKitCompanionSharingService {
             currentSnapshot = try Self.snapshot(
                 from: record,
                 shareLocator: shareLocator,
+                forcedStatus: .accepted,
                 participantDisplayNames: names
             )
         } catch {
@@ -381,12 +398,25 @@ extension CloudKitCompanionSharingService {
     }
 
     private func participantNames(for record: CKRecord, in database: CKDatabase) async throws -> [String] {
-        guard let shareRef = record.share else { return [] }
+        try await shareParticipationState(for: record, in: database).participantDisplayNames
+    }
+
+    private func shareParticipationState(
+        for record: CKRecord,
+        in database: CKDatabase
+    ) async throws -> CompanionShareParticipationState {
+        guard let shareRef = record.share else { return .empty }
         do {
             guard let share = try await database.record(for: shareRef.recordID) as? CKShare else {
-                return []
+                return .empty
             }
-            return Self.participantNames(from: share)
+            let hasAcceptedNonOwner = share.participants.contains { participant in
+                participant.role != .owner && participant.acceptanceStatus == .accepted
+            }
+            return CompanionShareParticipationState(
+                participantDisplayNames: Self.participantNames(from: share),
+                hasAcceptedNonOwner: hasAcceptedNonOwner
+            )
         } catch {
             throw Self.mapError(error)
         }
@@ -403,5 +433,12 @@ extension CloudKitCompanionSharingService {
         } catch {
             throw Self.mapError(error)
         }
+    }
+
+    private static func displayName(for identity: CKUserIdentity) -> String? {
+        guard let components = identity.nameComponents else { return nil }
+        let formatted = PersonNameComponentsFormatter().string(from: components)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return formatted.isEmpty ? nil : formatted
     }
 }
