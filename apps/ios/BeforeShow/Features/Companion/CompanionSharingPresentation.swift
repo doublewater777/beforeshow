@@ -22,6 +22,10 @@ enum CompanionSharingPresentation {
         return BSLocalization.format("已加入我的现场，你和%@已成为同行", owner)
     }
 
+    static var alreadyJoinedMessage: String {
+        BSLocalization.text("你已经是这场的同行")
+    }
+
     static var companionLeftMessage: String {
         BSLocalization.text("同行关系已结束")
     }
