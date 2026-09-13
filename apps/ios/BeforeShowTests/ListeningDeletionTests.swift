@@ -101,7 +101,7 @@ final class ListeningDeletionTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowSetlistMemory>()), 0)
     }
 
-    func testDeleteAllThenStopAndRuntimeDiscardDoNotResurrectLoadedDisc() async throws {
+    func testRuntimeDiscardBeforeDeleteAllPreventsRootStopResurrection() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
         let room = ListenTestData.room(context)
@@ -109,20 +109,25 @@ final class ListeningDeletionTests: XCTestCase {
         defer { ListeningRoomCache.shared = nil }
         await room.load(show: show)
         room.restoreDisc(try XCTUnwrap(room.discs.first))
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
 
-        try ListeningLocalDataCleaner.deleteAll(in: context)
-        try context.save()
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
-
-        room.stop()
-        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
         ListeningRoomCache.discardLocalState()
         XCTAssertNil(ListeningRoomCache.shared)
         XCTAssertFalse(room.mechanism.hasDisc)
         XCTAssertNil(room.mechanism.disc)
         XCTAssertNil(room.track)
+
+        try ListeningLocalDataCleaner.deleteAll(in: context)
+        try context.save()
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
+
+        // Mirrors the Listen root reacting after all Shows/selection rows disappear.
+        room.stop()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
 
         let reopened = ListenTestData.room(context)
         XCTAssertFalse(reopened.mechanism.hasDisc)
