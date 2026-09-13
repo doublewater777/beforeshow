@@ -41,8 +41,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    // MARK: Invite (owner)
-
     func prepareInvitation(
         for show: Show,
         preferredParticipantName: String?,
@@ -101,8 +99,6 @@ final class CompanionSharingCoordinator {
         }
         return try await service.loadShareSystemFields(shareLocator: shareLocator)
     }
-
-    // MARK: Accept (participant)
 
     func handleAcceptedShare(
         metadata: CKShare.Metadata,
@@ -259,8 +255,6 @@ final class CompanionSharingCoordinator {
         CompanionAcceptedShareInbox.append(metadata, to: userDefaults)
         CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
     }
-
-    // MARK: Cancel / sync
 
     func cancelCompanion(for show: Show, in modelContext: ModelContext) async throws {
         let isOwner = show.companionIsOwner ?? true
@@ -494,8 +488,6 @@ final class CompanionSharingCoordinator {
         return message
     }
 
-    // MARK: Private
-
     private func removePendingShare(key: String) {
         pendingShareMetadata.removeAll {
             CompanionAcceptedShareInbox.metadataKey($0) == key
@@ -563,5 +555,3 @@ final class CompanionSharingCoordinator {
         CompanionSharingPresentation.userMessage(for: error)
     }
 }
-
-// MARK: - App / scene delegate bridge for CloudKit share acceptance
