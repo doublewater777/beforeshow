@@ -66,8 +66,6 @@ enum CompanionAcceptedSessionImporter {
 
         let state = CurrentShowTimeState(show: candidate, now: now)
         if isHistoricalPhase(state.kind) {
-            // Post-show retention is still auto-selectable for ordinary Current Show logic,
-            // but an invite accepted after the show has already ended belongs in footprints.
             candidate.markAddedAsHistorical()
         }
 
@@ -127,6 +125,9 @@ enum CompanionAcceptedSessionImporter {
     }
 
     private static func isHistoricalPhase(_ kind: CurrentShowTimeKind) -> Bool {
-        kind == .postShow || kind == .ended
+        // The ordinary Current Show model intentionally keeps a just-ended show around
+        // for the post-show retention window. Companion acceptance follows the same rule:
+        // only a fully ended show is imported directly as history/footprint.
+        kind == .ended
     }
 }
