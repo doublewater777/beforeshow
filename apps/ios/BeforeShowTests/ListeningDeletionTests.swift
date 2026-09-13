@@ -105,6 +105,8 @@ final class ListeningDeletionTests: XCTestCase {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
         let room = ListenTestData.room(context)
+        ListeningRoomCache.shared = room
+        defer { ListeningRoomCache.shared = nil }
         await room.load(show: show)
         room.restoreDisc(try XCTUnwrap(room.discs.first))
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
@@ -115,7 +117,8 @@ final class ListeningDeletionTests: XCTestCase {
 
         room.stop()
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
-        room.discardLoadedDiscState()
+        ListeningRoomCache.discardLocalState()
+        XCTAssertNil(ListeningRoomCache.shared)
         XCTAssertFalse(room.mechanism.hasDisc)
         XCTAssertNil(room.mechanism.disc)
         XCTAssertNil(room.track)
