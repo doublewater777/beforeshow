@@ -111,7 +111,7 @@ final class ListeningReleaseCabinetTests: XCTestCase {
 
         room.playLibrarySong(song, artistID: "a")
         try await ListenTestData.settle(room) {
-            room.mechanism.position == .seated && room.mechanism.disc?.id == "album"
+            !room.busy && room.mechanism.position == .seated && room.mechanism.disc?.id == "album"
         }
 
         XCTAssertEqual(room.mechanism.disc?.id, "album")

@@ -313,9 +313,9 @@ private let listeningCatalogFetchConcurrency = 4
         access = newAccess
         accessResolved = true
 
-        await loadCatalog(generation: generation, force: force)
-        guard generation == catalogGeneration, !Task.isCancelled else { return }
-        completedCatalogKey = showCatalogKey
+        if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
+            completedCatalogKey = completedKey
+        }
     }
 
     private func applyAutomaticArtistMatches(
@@ -357,11 +357,34 @@ private let listeningCatalogFetchConcurrency = 4
         let generation = UUID()
         catalogGeneration = generation
         catalogState = .loading
-        await loadCatalog(generation: generation, force: force)
-        if generation == catalogGeneration, !Task.isCancelled {
+        if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
             initialLoaded = true
-            completedCatalogKey = showCatalogKey
+            completedCatalogKey = completedKey
         }
+    }
+
+    /// A catalog pass snapshots the artist IDs at its start. Identity can still change
+    /// while that network work is suspended, so only mark the exact key that the pass
+    /// actually covered as complete. If it drifted, repeat just the catalog stage with
+    /// the same generation; artist matching and room setup are never repeated.
+    private func loadCatalogUntilIdentityStable(generation: UUID, force: Bool) async -> String? {
+        guard let show else { return nil }
+        while generation == catalogGeneration, !Task.isCancelled {
+            let startedKey = catalogKey(for: show)
+            showCatalogKey = startedKey
+            await loadCatalog(generation: generation, force: force)
+            guard generation == catalogGeneration, !Task.isCancelled else { return nil }
+
+            let latestKey = catalogKey(for: show)
+            showCatalogKey = latestKey
+            guard latestKey != startedKey else { return startedKey }
+
+            // A rematch landed after this pass captured its artist IDs. Keep the new
+            // identity pending and immediately run one catalog-only pass for it.
+            completedCatalogKey = nil
+            catalogState = .loading
+        }
+        return nil
     }
 
     private func loadCatalog(generation: UUID, force: Bool) async {
@@ -693,9 +716,30 @@ private let listeningCatalogFetchConcurrency = 4
             _ = try ListeningShowLifecycleCoordinator.reconcileStoredState(in: context)
             _ = try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, saveChanges: false)
             try context.save()
-            selectScope(.all)
-            await load(show: show)
-        } catch { context.rollback(); errorText = BSLocalization.text("保存失败，请重试") }
+        } catch {
+            context.rollback()
+            errorText = BSLocalization.text("保存失败，请重试")
+            return
+        }
+
+        // Artist confirmation is a local identity mutation. Publish it immediately
+        // without rebuilding the room or touching the playback transport; catalog
+        // enrichment happens independently after the confirmation can dismiss.
+        showCatalogKey = catalogKey(for: show)
+        completedCatalogKey = nil
+        selectScope(.all)
+        do {
+            try rebuildDiscs()
+        } catch {
+            catalogState = .cacheFailed
+        }
+
+        // An active initial load detects key drift after its current catalog pass and
+        // repeats only that catalog stage. Otherwise start a catalog-only refresh now.
+        guard !isLoadingShow else { return }
+        Task { @MainActor [weak self] in
+            await self?.reloadCatalog()
+        }
     }
     func restoreDisc(_ disc: ListeningDisc, songID: String? = nil) {
         guard mechanism.position == .stored, !busy else { return }

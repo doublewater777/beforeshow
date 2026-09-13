@@ -897,12 +897,15 @@ final class CompanionSharingTests: XCTestCase {
         firstContext.insert(show)
         try firstContext.save()
 
-        _ = try await coordinator.prepareInvitation(
+        let prepared = try await coordinator.prepareInvitation(
             for: show,
             preferredParticipantName: "林嘉",
             ownerDisplayName: "Alex",
             in: firstContext
         )
+        // Pending joins stay behind the in-app confirmation gate; only an accepted
+        // session is recoverable through cloud discovery after a local reset.
+        service.sessions[prepared.session.recordName]?.status = .accepted
 
         let secondCoordinator = CompanionSharingCoordinator(service: service, userDefaults: userDefaults)
         let secondContainer = try ModelContainer(for: Show.self, configurations: configuration)

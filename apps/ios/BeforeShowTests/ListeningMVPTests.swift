@@ -331,9 +331,11 @@ import XCTest
         XCTAssertEqual(room.trackIndex, 1)
         show.artists[0].appleMusicArtistID = "replacement-artist"
         await room.load(show: show)
-        try await wait { room.mechanism.position == .stored && !room.busy }
-        XCTAssertFalse(room.mechanism.hasDisc)
-        XCTAssertFalse(room.isPlaying)
+        // Artist identity changes keep the loaded disc and the playback transport;
+        // only the catalog around them reloads.
+        XCTAssertEqual(room.mechanism.disc?.id, disc.id)
+        XCTAssertEqual(room.track?.id, "b")
+        XCTAssertTrue(room.isPlaying)
     }
     func testSelectingAnotherTrackOnTheSeatedDiscDoesNotReloadMechanically() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
