@@ -1,0 +1,4 @@
+interface:
+  display_name: "PR Verifier"
+  short_description: "Run local runtime verification for a PR"
+  default_prompt: "Use $pr-verifier to locally verify the current PR HEAD in an isolated worktree and produce a LOCAL_AGENT_VERIFY report."
