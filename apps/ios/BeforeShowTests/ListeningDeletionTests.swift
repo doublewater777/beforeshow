@@ -67,6 +67,7 @@ final class ListeningDeletionTests: XCTestCase {
         context.insert(CatalogSong(appleMusicSongID: "song", title: "Song", artistName: "Artist"))
         context.insert(CatalogAlbum(appleMusicAlbumID: "album", title: "Album"))
         context.insert(SongFamiliarityRecord(songID: "song", actualListeningAt: now))
+        context.insert(ListeningLoadedDiscState(discData: Data([0x01]), songID: "song"))
         context.insert(ShowWantsLiveSong(showID: showID, songID: "song"))
         context.insert(ShowArtistListeningPreference(showID: showID, artistID: "artist", isExcluded: true))
         context.insert(ShowOpeningFamiliarityBaseline(
@@ -92,11 +93,39 @@ final class ListeningDeletionTests: XCTestCase {
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogSong>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<CatalogAlbum>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<SongFamiliarityRecord>()), 0)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowWantsLiveSong>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowArtistListeningPreference>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningFamiliarityBaseline>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowOpeningArtistTier>()), 0)
         XCTAssertEqual(try context.fetchCount(FetchDescriptor<ShowSetlistMemory>()), 0)
+    }
+
+    func testDeleteAllThenStopAndRuntimeDiscardDoNotResurrectLoadedDisc() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let room = ListenTestData.room(context)
+        await room.load(show: show)
+        room.restoreDisc(try XCTUnwrap(room.discs.first))
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 1)
+
+        try ListeningLocalDataCleaner.deleteAll(in: context)
+        try context.save()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+
+        room.stop()
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+        room.discardLoadedDiscState()
+        XCTAssertFalse(room.mechanism.hasDisc)
+        XCTAssertNil(room.mechanism.disc)
+        XCTAssertNil(room.track)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+
+        let reopened = ListenTestData.room(context)
+        XCTAssertFalse(reopened.mechanism.hasDisc)
+        XCTAssertNil(reopened.mechanism.disc)
+        XCTAssertNil(reopened.track)
+        reopened.mechanism.motion.stop()
     }
 
     func testLocalDataInventoryIsNotEmptyWhenOnlyListeningDataExists() async throws {
