@@ -117,6 +117,14 @@ enum AddShowPersistenceCoordinator {
 
         switch lifecycle {
         case .ended:
+            // Historical shows still belong to Footprints, but Current Show is a
+            // durable user-owned selection rather than a lifecycle filter. When
+            // there is no valid Current yet, let the newly added historical show
+            // bootstrap it; otherwise never steal the existing selection.
+            if existingCurrent == nil {
+                _ = try selectionStore.select(showID: show.id)
+            }
+
             if show.endedAt == nil {
                 show.markAddedAsHistorical()
                 try modelContext.save()
@@ -127,8 +135,8 @@ enum AddShowPersistenceCoordinator {
             }
 
             // A confirmed ended import can still own a future after-show reminder.
-            // Stage it as a one-shot portfolio backfill candidate without changing
-            // the user's Current Show.
+            // Stage it as a one-shot portfolio backfill candidate independently of
+            // whether it bootstrapped an otherwise-empty Current Show selection.
             let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
             state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()

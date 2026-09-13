@@ -218,7 +218,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
-    func testUnifiedClearlyHistoricalAddCannotBecomeCurrent() throws {
+    func testUnifiedClearlyHistoricalAddBootstrapsCurrentWhenEmpty() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
             configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
@@ -242,14 +242,14 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertEqual(historical.wasAddedAsHistorical, true)
         let shows = try context.fetch(FetchDescriptor<Show>())
-        let selection = try context.fetch(FetchDescriptor<CurrentShowSelection>()).first
-        XCTAssertNil(
-            CurrentShowSession(calendar: calendar).selectCurrentShow(
-                from: shows,
-                manualSelection: selection,
-                now: date(2026, 8, 29, 12)
-            )
+        let selection = try XCTUnwrap(context.fetch(FetchDescriptor<CurrentShowSelection>()).first)
+        let selected = CurrentShowSession(calendar: calendar).selectCurrentShow(
+            from: shows,
+            manualSelection: selection,
+            now: date(2026, 8, 29, 12)
         )
+        XCTAssertEqual(selection.selectedShowID, historical.id)
+        XCTAssertEqual(selected?.id, historical.id)
     }
 
     func testUnifiedConfirmedEndedAddReplansAfterShowWithoutStealingCurrent() throws {
