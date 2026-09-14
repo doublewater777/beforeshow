@@ -37,6 +37,53 @@ final class ListeningLoadingTests: XCTestCase {
         await refresh.value
     }
 
+    func testLargeFestivalPublishesRuntimeCompilationBeforeFullCatalogAndPersistsOneCompleteBatch() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Large Festival", date: start, startTime: start)
+        show.artists = (0..<17).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        let load = Task { await room.load(show: show) }
+        defer {
+            load.cancel()
+            catalog.releaseFullCatalog()
+            room.mechanism.motion.stop()
+        }
+
+        try await wait {
+            catalog.runtimeFetchCount == 17
+                && catalog.fullFetchCount > 0
+                && !room.compilationDiscs.isEmpty
+        }
+
+        XCTAssertEqual(catalog.featuredPlaylistFetchCount, 0)
+        XCTAssertFalse(room.compilationDiscs.isEmpty, "BeforeShow compilation should be usable before full enrichment finishes")
+        let preCoreRead = ModelContext(container)
+        XCTAssertEqual(try preCoreRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 0)
+        XCTAssertEqual(try preCoreRead.fetchCount(FetchDescriptor<CatalogSong>()), 0, "runtime top songs must remain memory-only")
+
+        catalog.releaseFullCatalog()
+        await load.value
+
+        let finalRead = ModelContext(container)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 17)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogSong>()), 1_700)
+        XCTAssertEqual(try finalRead.fetchCount(FetchDescriptor<CatalogAlbum>()), 255)
+        XCTAssertEqual(catalog.featuredPlaylistFetchCount, 0, "initial load must not request browse-only playlists")
+    }
+
     func testPlayerPositionAcrossColdLaunchAuthorizationAndCatalogArrival() async throws {
         for size in [DynamicTypeSize.large, .accessibility3] {
             let fixture = try ListeningDebugFixtures(scenario: .authorizationFlow)
@@ -224,7 +271,7 @@ final class ListeningLoadingTests: XCTestCase {
     }
 
     private func wait(_ condition: () -> Bool) async throws {
-        for _ in 0..<100 {
+        for _ in 0..<300 {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(10))
         }
@@ -242,5 +289,124 @@ private struct LoadingArtistSearch: ArtistSearchServicing {
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         try await Task.sleep(for: .seconds(5))
         return []
+    }
+}
+
+private struct EmptyArtistSearch: ArtistSearchServicing {
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
+    func searchArtists(query: String) async throws -> [RecognizedArtist] { [] }
+}
+
+private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var fullCatalogReleased = false
+    private var fullCatalogWaiters: [CheckedContinuation<Void, Never>] = []
+    private var storedRuntimeFetchCount = 0
+    private var storedFullFetchCount = 0
+    private var storedFeaturedPlaylistFetchCount = 0
+
+    var runtimeFetchCount: Int { lock.withLock { storedRuntimeFetchCount } }
+    var fullFetchCount: Int { lock.withLock { storedFullFetchCount } }
+    var featuredPlaylistFetchCount: Int { lock.withLock { storedFeaturedPlaylistFetchCount } }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        lock.withLock { storedRuntimeFetchCount += 1 }
+        return Array(Self.payload(artistID: artistID, fetchedAt: Date()).songs.prefix(10))
+    }
+
+    func fetchArtistCatalog(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningArtistCatalogPayload {
+        lock.withLock { storedFullFetchCount += 1 }
+        await waitForFullCatalogRelease()
+        return Self.payload(artistID: artistID, fetchedAt: fetchedAt)
+    }
+
+    func fetchFeaturedPlaylists(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningFeaturedPlaylistsPayload {
+        lock.withLock { storedFeaturedPlaylistFetchCount += 1 }
+        return ListeningFeaturedPlaylistsPayload(
+            artistID: artistID,
+            playlists: [],
+            songs: [],
+            fetchedAt: fetchedAt
+        )
+    }
+
+    func releaseFullCatalog() {
+        let waiters: [CheckedContinuation<Void, Never>] = lock.withLock {
+            guard !fullCatalogReleased else { return [] }
+            fullCatalogReleased = true
+            defer { fullCatalogWaiters.removeAll() }
+            return fullCatalogWaiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    private func waitForFullCatalogRelease() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock {
+                if fullCatalogReleased { return true }
+                fullCatalogWaiters.append(continuation)
+                return false
+            }
+            if resumeImmediately { continuation.resume() }
+        }
+    }
+
+    private static func payload(
+        artistID: String,
+        fetchedAt: Date
+    ) -> ListeningArtistCatalogPayload {
+        let songIDs = (0..<100).map { "\(artistID)-song-\($0)" }
+        let songs = songIDs.enumerated().map { offset, songID in
+            ListeningCatalogSongPayload(
+                songID: songID,
+                title: "Song \(offset)",
+                artistName: artistID,
+                albumID: "\(artistID)-album-\(min(offset / 7, 14))",
+                albumTitle: "Album \(min(offset / 7, 14))",
+                artworkURL: nil,
+                duration: 180,
+                performerArtistIDs: [artistID],
+                performerArtistNames: [artistID],
+                previewURL: nil
+            )
+        }
+        let albums = (0..<15).map { albumIndex in
+            let lower = albumIndex * 7
+            let upper = min(lower + 7, songIDs.count)
+            let tracks = lower < upper ? Array(songIDs[lower..<upper]) : []
+            return ListeningCatalogAlbumPayload(
+                albumID: "\(artistID)-album-\(albumIndex)",
+                title: "Album \(albumIndex)",
+                artworkURL: nil,
+                releaseDate: nil,
+                artistIDs: [artistID],
+                orderedTrackIDs: tracks
+            )
+        }
+        return ListeningArtistCatalogPayload(
+            artistID: artistID,
+            artistName: artistID,
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: songIDs,
+            topSongIDs: Array(songIDs.prefix(10)),
+            albumIDs: albums.map(\.albumID),
+            songs: songs,
+            albums: albums,
+            fetchedAt: fetchedAt
+        )
     }
 }
