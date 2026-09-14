@@ -1,0 +1,74 @@
+name: PR 193 fix verify
+
+on:
+  push:
+    branches:
+      - feat/listening-mini-player-morph
+    paths:
+      - ".github/workflows/pr193-fix-verify.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      TZ: Asia/Shanghai
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Select newest Xcode
+        run: |
+          set -euo pipefail
+          latest=$(find /Applications -maxdepth 1 -name 'Xcode*.app' -type d | sort -V | tail -1)
+          echo "Using $latest"
+          sudo xcode-select -s "$latest/Contents/Developer"
+          xcodebuild -version
+          xcrun simctl list devices available | grep 'iPhone' | head -20 || true
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate and commit project references
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          xcodegen generate
+          grep -q 'ListeningMiniPlayerChrome.swift' BeforeShow.xcodeproj/project.pbxproj
+          grep -q 'ListeningMiniPlayerChromeTests.swift' BeforeShow.xcodeproj/project.pbxproj
+          cd ../..
+          if ! git diff --quiet -- apps/ios/BeforeShow.xcodeproj/project.pbxproj; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add apps/ios/BeforeShow.xcodeproj/project.pbxproj
+            git commit -m 'Regenerate iOS project for mini player chrome'
+            git push origin HEAD:feat/listening-mini-player-morph
+          fi
+          cd apps/ios
+          xcodegen generate
+          cd ../..
+          git diff --exit-code -- apps/ios/BeforeShow.xcodeproj/project.pbxproj
+
+      - name: Architecture guard
+        run: python3 apps/ios/scripts/check_architecture.py
+
+      - name: Build and focused tests
+        run: |
+          set -euo pipefail
+          cd apps/ios
+          device='iPhone 17'
+          if ! xcrun simctl list devices available | grep -q "$device"; then
+            device=$(xcrun simctl list devices available | sed -n 's/^[[:space:]]*\(iPhone[^()]\{1,40\}\) (.*$/\1/p' | head -1 | sed 's/[[:space:]]*$//')
+          fi
+          test -n "$device"
+          echo "Simulator: $device"
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination "platform=iOS Simulator,name=$device" \
+            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
+          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
+            -destination "platform=iOS Simulator,name=$device" \
+            -only-testing:BeforeShowTests/ListeningMiniPlayerChromeTests test
