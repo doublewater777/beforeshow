@@ -5,11 +5,57 @@ extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
 }
 
+@MainActor
+enum ListeningChromeBootstrapper {
+    static func prepare(
+        show: Show?,
+        context: ModelContext,
+        catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
+        artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
+        playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
+            $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
+        }
+    ) async -> ListeningRoomCoordinator? {
+        guard let show else {
+            ListeningPlaybackChromeStore.shared.room = nil
+            return nil
+        }
+
+        let room: ListeningRoomCoordinator
+        if let cached = ListeningRoomCache.shared {
+            room = cached
+        } else {
+            let next = ListeningRoomCoordinator(
+                context: context,
+                catalogService: catalogService,
+                artistSearchService: artistSearchService,
+                playbackFactory: playbackFactory
+            )
+            ListeningRoomCache.shared = next
+            room = next
+        }
+
+        // A restored disc is visible immediately on the coordinator, but chrome is
+        // not published until the current show and music access have been hydrated.
+        // This keeps compact play/pause on the same transport that Listen later adopts
+        // and prevents a cold-start tap from choosing preview/metadata capability from
+        // the coordinator's initial `.notDetermined` access state.
+        if room.shouldReloadCatalog(for: show) {
+            await room.load(show: show)
+        }
+        guard !Task.isCancelled, room.show?.id == show.id else { return nil }
+
+        ListeningPlaybackChromeStore.shared.room = room
+        return room
+    }
+}
+
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
+    @Query private var rootSelections: [CurrentShowSelection]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var hasResolvedOnboardingRoute = false
@@ -40,6 +86,15 @@ struct RootView: View {
             return companionCoordinator.lastErrorMessage
         }
         return nil
+    }
+
+    private var listeningChromeShow: Show? {
+        let id = CurrentShowSelectionStore.canonical(in: rootSelections)?.selectedShowID
+        return rootShows.first { $0.id == id }
+    }
+
+    private var listeningChromeShowID: UUID? {
+        listeningChromeShow?.id
     }
 
     var body: some View {
@@ -128,8 +183,10 @@ struct RootView: View {
             }
             refreshCompanionDuplicateResolution()
         }
+        .task(id: listeningChromeShowID) {
+            await bootstrapListeningChrome()
+        }
         .task {
-            bootstrapListeningChrome()
             companionCoordinator.reloadPersistedAcceptedShares()
             if companionCoordinator.hasPendingAcceptedShares {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
@@ -213,15 +270,11 @@ struct RootView: View {
         refreshCompanionDuplicateResolution()
     }
 
-    private func bootstrapListeningChrome() {
-        let room: ListeningRoomCoordinator
-        if let cached = ListeningRoomCache.shared {
-            room = cached
-        } else {
-            room = ListeningRoomCoordinator(context: modelContext)
-            ListeningRoomCache.shared = room
-        }
-        ListeningPlaybackChromeStore.shared.room = room
+    private func bootstrapListeningChrome() async {
+        _ = await ListeningChromeBootstrapper.prepare(
+            show: listeningChromeShow,
+            context: modelContext
+        )
     }
 
     private func persistedShowExists() -> Bool {
@@ -309,7 +362,7 @@ struct RootView: View {
             .tag(BeforeShowTab.footprints)
         }
         .toolbar(.hidden, for: .tabBar)
-        .overlay(alignment: .bottom) {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             ListeningBottomChrome(selectedTab: $selectedTab)
         }
         .sensoryFeedback(.selection, trigger: selectedTab)
