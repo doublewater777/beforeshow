@@ -40,6 +40,41 @@ final class ListeningReleaseCabinetTests: XCTestCase {
         room.mechanism.motion.stop()
     }
 
+    func testFeaturedPlaylistsAreRequestedOnlyAfterSelectingOneArtistAndThenCached() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let catalog = OnDemandFeaturedPlaylistCatalog()
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        XCTAssertEqual(catalog.featuredArtistIDs, [])
+        XCTAssertEqual(room.browser.scope, .all)
+        XCTAssertEqual(room.artistPresentation("a")?.all.count, 2)
+
+        room.selectScope(.artist("a"))
+        for _ in 0..<100 where catalog.featuredArtistIDs.isEmpty {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        XCTAssertEqual(catalog.featuredArtistIDs, ["a"])
+        for _ in 0..<100 where !room.libraryDiscs.contains(where: { $0.id == "featured-on-demand" }) {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTAssertTrue(room.libraryDiscs.contains { $0.id == "featured-on-demand" })
+        XCTAssertEqual(room.artistPresentation("a")?.all.count, 2, "browse-only guest songs must not change familiarity denominator")
+
+        room.selectScope(.all)
+        room.selectScope(.artist("a"))
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertEqual(catalog.featuredArtistIDs, ["a"], "successful browse enrichment should be cached")
+    }
+
     func testFeaturedPlaylistsAppearBeforeReleasesAndPreserveTrackOrder() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
@@ -295,6 +330,56 @@ final class ListeningReleaseCabinetTests: XCTestCase {
             fetchedAt: snapshot.fetchedAt
         )
         try context.save()
+    }
+}
+
+private final class OnDemandFeaturedPlaylistCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedFeaturedArtistIDs: [String] = []
+
+    var featuredArtistIDs: [String] {
+        lock.withLock { storedFeaturedArtistIDs }
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+    func currentAccess() async -> ListeningMusicAccess {
+        .init(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+    func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+    func fetchFeaturedPlaylists(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningFeaturedPlaylistsPayload {
+        lock.withLock { storedFeaturedArtistIDs.append(artistID) }
+        let guestID = "guest-\(artistID)"
+        return ListeningFeaturedPlaylistsPayload(
+            artistID: artistID,
+            playlists: [ListeningCatalogPlaylistPayload(
+                playlistID: "featured-on-demand",
+                name: "Artist Essentials",
+                artworkURL: nil,
+                curatorName: "Apple Music",
+                descriptionText: nil,
+                appleMusicURL: nil,
+                orderedTrackIDs: ["a2", guestID]
+            )],
+            songs: [ListeningCatalogSongPayload(
+                songID: guestID,
+                title: "Guest",
+                artistName: "Guest Artist",
+                albumID: nil,
+                albumTitle: nil,
+                artworkURL: nil,
+                duration: 180,
+                performerArtistIDs: ["guest"],
+                performerArtistNames: ["Guest Artist"],
+                previewURL: nil
+            )],
+            fetchedAt: fetchedAt
+        )
     }
 }
 
