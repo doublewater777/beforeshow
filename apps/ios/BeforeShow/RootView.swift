@@ -296,6 +296,10 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
         }
+        .toolbar(.hidden, for: .tabBar)
+        .overlay(alignment: .bottom) {
+            ListeningBottomChrome(selectedTab: $selectedTab)
+        }
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {
