@@ -115,11 +115,26 @@ final class ListeningCatalogStore {
     }
 }
 
-@ModelActor
 private actor ListeningCatalogPersistenceActor {
+    private let modelContainer: ModelContainer
+    private var storedModelContext: ModelContext?
+
+    init(modelContainer: ModelContainer) {
+        self.modelContainer = modelContainer
+    }
+
+    private func persistenceContext() -> ModelContext {
+        if let storedModelContext { return storedModelContext }
+        let context = ModelContext(modelContainer)
+        context.autosaveEnabled = false
+        storedModelContext = context
+        return context
+    }
+
     func persistCore(
         _ payloads: [ListeningArtistCatalogPayload]
     ) throws -> Set<String> {
+        let modelContext = persistenceContext()
         do {
             return try ListeningCatalogBatchWriter.persistCore(payloads, in: modelContext)
         } catch {
@@ -131,6 +146,7 @@ private actor ListeningCatalogPersistenceActor {
     func persistFeaturedPlaylists(
         _ payload: ListeningFeaturedPlaylistsPayload
     ) throws -> Bool {
+        let modelContext = persistenceContext()
         do {
             return try ListeningCatalogBatchWriter.persistFeaturedPlaylists(payload, in: modelContext)
         } catch {
