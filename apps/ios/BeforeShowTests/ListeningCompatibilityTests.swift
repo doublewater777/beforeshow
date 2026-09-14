@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class ListeningCompatibilityTests: XCTestCase {
     func testArtistSlotDecodesPreArtistIDPayload() throws {
-        let data = Data(#"{\"name\":\"Artist\",\"avatarURL\":null,\"appleMusicURL\":\"https://music.apple.com/cn/artist/name/123\",\"albumArtworkURL\":null}"#.utf8)
+        let data = Data(#"{"name":"Artist","avatarURL":null,"appleMusicURL":"https://music.apple.com/cn/artist/name/123","albumArtworkURL":null}"#.utf8)
 
         let decoded = try JSONDecoder().decode(ArtistSlot.self, from: data)
 
@@ -303,9 +303,10 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         let persisted = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
         XCTAssertEqual(persisted.count, 1, "Clearing Current Show stops runtime playback but keeps the restored CD snapshot")
-        let restored = try JSONDecoder().decode(ListeningDisc.self, from: try XCTUnwrap(persisted.first).discData)
+        let persistedState = try XCTUnwrap(persisted.first)
+        let restored = try JSONDecoder().decode(ListeningDisc.self, from: persistedState.discData)
         XCTAssertEqual(restored.id, disc.id)
-        XCTAssertEqual(persisted.first?.songID, song.appleMusicSongID)
+        XCTAssertEqual(persistedState.songID, song.appleMusicSongID)
     }
 
     func testRootBootstrapWithoutRestoredDiscStaysLazyUntilListenActivation() async throws {
