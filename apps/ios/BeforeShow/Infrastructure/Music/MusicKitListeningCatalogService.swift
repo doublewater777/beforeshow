@@ -55,13 +55,15 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             throw ListeningCatalogError.artistNotFound(artistID)
         }
 
+        // Core enrichment contains only data required for the complete familiarity
+        // denominator and release cabinet. Featured playlists are browse-only and are
+        // fetched separately after the user selects an artist browsing scope.
         let artist = try await baseArtist.with([
             .topSongs,
             .fullAlbums,
             .albums,
             .singles,
-            .compilationAlbums,
-            .featuredPlaylists
+            .compilationAlbums
         ])
 
         let topSongs = try await Self.allItems(from: artist.topSongs)
@@ -69,7 +71,6 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         let albums = try await Self.allItems(from: artist.albums)
         let singles = try await Self.allItems(from: artist.singles)
         let compilationAlbums = try await Self.allItems(from: artist.compilationAlbums)
-        let featuredPlaylists = try await Self.allItems(from: artist.featuredPlaylists)
 
         var albumSources: [AlbumSource] = []
         var seenAlbumIDs = Set<String>()
@@ -102,28 +103,12 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             ))
         }
 
-        var detailedPlaylists: [DetailedPlaylist] = []
-        for playlist in featuredPlaylists {
-            let detailed = try await playlist.with([.tracks])
-            let tracks = try await Self.allItems(from: detailed.tracks)
-            let songs = tracks.compactMap { track -> Song? in
-                guard case let .song(song) = track else { return nil }
-                return song
-            }
-            guard !songs.isEmpty else { continue }
-            for song in songs {
-                baseSongsByID[song.id.rawValue] = song
-            }
-            detailedPlaylists.append(DetailedPlaylist(playlist: detailed, songs: songs))
-        }
-
         let requestedSongIDs = Self.uniqueSongIDs(
             topSongIDs: topSongIDs,
-            albums: detailedAlbums,
-            playlists: detailedPlaylists
+            albums: detailedAlbums
         )
-        // Top-song, album-track and playlist-track responses already carry the
-        // playback metadata needed here. Avoid refetching every song serially.
+        // Top-song and album-track responses already carry the playback metadata
+        // needed here. Avoid refetching every song serially.
         let enrichedSongs = baseSongsByID
 
         var trustedTargetSongIDs = Set(topSongIDs)
@@ -202,27 +187,8 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             ))
         }
 
-        let playlistPayloads = detailedPlaylists.map { detailedPlaylist in
-            ListeningCatalogPlaylistPayload(
-                playlistID: detailedPlaylist.playlist.id.rawValue,
-                name: detailedPlaylist.playlist.name,
-                artworkURL: Self.artworkURL(detailedPlaylist.playlist.artwork),
-                curatorName: detailedPlaylist.playlist.curatorName,
-                descriptionText: detailedPlaylist.playlist.standardDescription
-                    ?? detailedPlaylist.playlist.shortDescription,
-                appleMusicURL: detailedPlaylist.playlist.url?.absoluteString,
-                orderedTrackIDs: detailedPlaylist.songs.map { $0.id.rawValue }
-            )
-        }
-
-        // Featured playlists are browsing sources, not part of the artist familiarity
-        // denominator. Persist their songs for playback without adding them to
-        // `orderedSongIDs` unless those songs already belong to the artist catalog.
-        let persistedSongIDs = Self.deduplicated(
-            assembly.orderedSongIDs + playlistPayloads.flatMap(\.orderedTrackIDs)
-        )
-        let retainedSongPayloads = persistedSongIDs.compactMap { songPayloadsByID[$0] }
-        guard retainedSongPayloads.count == persistedSongIDs.count else {
+        let retainedSongPayloads = assembly.orderedSongIDs.compactMap { songPayloadsByID[$0] }
+        guard retainedSongPayloads.count == assembly.orderedSongIDs.count else {
             throw ListeningCatalogError.incompleteCatalog(artistID)
         }
 
@@ -237,9 +203,67 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             orderedSongIDs: assembly.orderedSongIDs,
             topSongIDs: topSongIDs,
             albumIDs: albumPayloads.map(\.albumID),
-            featuredPlaylists: playlistPayloads,
+            featuredPlaylists: [],
             songs: retainedSongPayloads,
             albums: albumPayloads,
+            fetchedAt: fetchedAt
+        )
+    }
+
+    func fetchFeaturedPlaylists(
+        artistID: String,
+        fetchedAt: Date = Date()
+    ) async throws -> ListeningFeaturedPlaylistsPayload {
+        guard currentAuthorizationStatus() == .authorized else {
+            throw ListeningCatalogError.authorizationRequired
+        }
+
+        var request = MusicCatalogResourceRequest<Artist>(
+            matching: \.id,
+            equalTo: MusicItemID(artistID)
+        )
+        request.limit = 1
+        guard let baseArtist = try await request.response().items.first else {
+            throw ListeningCatalogError.artistNotFound(artistID)
+        }
+
+        let artist = try await baseArtist.with([.featuredPlaylists])
+        let featuredPlaylists = try await Self.allItems(from: artist.featuredPlaylists)
+        var playlistPayloads: [ListeningCatalogPlaylistPayload] = []
+        var songPayloadsByID: [String: ListeningCatalogSongPayload] = [:]
+
+        for playlist in featuredPlaylists {
+            let detailed = try await playlist.with([.tracks])
+            let tracks = try await Self.allItems(from: detailed.tracks)
+            let songs = tracks.compactMap { track -> Song? in
+                guard case let .song(song) = track else { return nil }
+                return song
+            }
+            guard !songs.isEmpty else { continue }
+
+            for song in songs where songPayloadsByID[song.id.rawValue] == nil {
+                songPayloadsByID[song.id.rawValue] = Self.songPayload(
+                    from: song,
+                    targetArtistID: artistID,
+                    fallbackAlbum: nil,
+                    assumesTargetArtistWhenRelationshipMissing: false
+                )
+            }
+            playlistPayloads.append(ListeningCatalogPlaylistPayload(
+                playlistID: detailed.id.rawValue,
+                name: detailed.name,
+                artworkURL: Self.artworkURL(detailed.artwork),
+                curatorName: detailed.curatorName,
+                descriptionText: detailed.standardDescription ?? detailed.shortDescription,
+                appleMusicURL: detailed.url?.absoluteString,
+                orderedTrackIDs: songs.map { $0.id.rawValue }
+            ))
+        }
+
+        return ListeningFeaturedPlaylistsPayload(
+            artistID: artistID,
+            playlists: playlistPayloads,
+            songs: Array(songPayloadsByID.values),
             fetchedAt: fetchedAt
         )
     }
@@ -312,13 +336,11 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
 
     private static func uniqueSongIDs(
         topSongIDs: [String],
-        albums: [DetailedAlbum],
-        playlists: [DetailedPlaylist]
+        albums: [DetailedAlbum]
     ) -> [String] {
         deduplicated(
             topSongIDs
                 + albums.flatMap { detail in detail.songs.map { $0.id.rawValue } }
-                + playlists.flatMap { detail in detail.songs.map { $0.id.rawValue } }
         )
     }
 
@@ -368,9 +390,4 @@ private struct DetailedAlbum {
     func containsSong(_ songID: String) -> Bool {
         songs.contains { $0.id.rawValue == songID }
     }
-}
-
-private struct DetailedPlaylist {
-    let playlist: Playlist
-    let songs: [Song]
 }

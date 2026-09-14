@@ -65,4 +65,8 @@ final class ArtistCatalogSnapshot {
         self.featuredPlaylistsData = try? JSONEncoder().encode(featuredPlaylists)
         self.fetchedAt = fetchedAt
     }
+
+    func updateFeaturedPlaylists(_ featuredPlaylists: [ListeningCatalogPlaylistPayload]) {
+        featuredPlaylistsData = try? JSONEncoder().encode(featuredPlaylists)
+    }
 }

@@ -113,6 +113,9 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var preparedSongID: String?
     @ObservationIgnored private var preparedDiscID: String?
     @ObservationIgnored private var finishedSongID: String?
+    @ObservationIgnored private var catalogProjectionContext: ModelContext?
+    @ObservationIgnored private var featuredPlaylistTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var loadedFeaturedPlaylistArtistIDs: Set<String> = []
     private(set) var initialLoaded = false
     @ObservationIgnored private var isLoadingShow = false
     @ObservationIgnored private var active = true
@@ -292,6 +295,7 @@ private let listeningCatalogFetchConcurrency = 4
 
         let newKey = catalogKey(for: show)
         if self.show?.id != show.id {
+            cancelFeaturedPlaylistTasks(clearLoaded: true)
             initialLoaded = false
             browser = ListeningBrowseState()
             pendingSleeveSongID = nil
@@ -300,6 +304,7 @@ private let listeningCatalogFetchConcurrency = 4
             preparedDiscID = nil
         }
         if showCatalogKey != newKey {
+            cancelFeaturedPlaylistTasks(clearLoaded: true)
             completedCatalogKey = nil
             discs = []; runtimeSongs = [:]
         }
@@ -433,11 +438,15 @@ private let listeningCatalogFetchConcurrency = 4
         }
 
         var failedIDs = Set<String>()
-        let cachedIDs = Set(catalogSnapshots.map(\.artistID))
+        let snapshotsByID = Dictionary(
+            catalogSnapshots.map { ($0.artistID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        let cachedIDs = Set(snapshotsByID.keys)
         let quickIDs = ids.filter { !cachedIDs.contains($0) && runtimeSongs[$0] == nil }
 
-        // Stage 1: fetch all top-song previews concurrently, then publish one UI
-        // update. Festival lineups no longer cause one rebuild per artist.
+        // Stage 1: fetch all runtime top songs and publish one prompt compilation
+        // update. These songs stay in memory and never become a complete denominator.
         if !quickIDs.isEmpty {
             let quickResults = await fetchRuntimeCatalog(for: quickIDs)
             guard generation == catalogGeneration, !Task.isCancelled else { return }
@@ -468,36 +477,33 @@ private let listeningCatalogFetchConcurrency = 4
 
         guard generation == catalogGeneration, !Task.isCancelled else { return }
 
-        // Cached complete catalogs are immediately usable. Preserve the store's
-        // stale-while-revalidate behavior without waiting on network here.
-        if !force {
-            for id in ids where cachedIDs.contains(id) {
-                do {
-                    _ = try await catalogStore.loadArtistCatalog(artistID: id)
-                } catch {
-                    failedIDs.insert(id)
-                }
-                guard generation == catalogGeneration, !Task.isCancelled else { return }
-            }
+        // Cached complete snapshots stay visible while stale ones revalidate. Core
+        // refresh work is collected into one network pass and one persistence batch.
+        let now = Date()
+        let fullIDs = ids.filter { id in
+            if force { return true }
+            guard let snapshot = snapshotsByID[id] else { return true }
+            return ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: snapshot.fetchedAt, now: now)
         }
-
-        // Stage 2: full catalog network work is concurrent, while persistence remains
-        // serialized on MainActor. Publish one final rebuild after every payload has
-        // been committed.
-        let fullIDs = force ? ids : ids.filter { !cachedIDs.contains($0) }
         if !fullIDs.isEmpty {
             let fullResults = await fetchFullCatalog(for: fullIDs)
             guard generation == catalogGeneration, !Task.isCancelled else { return }
+
+            var successfulPayloads: [ListeningArtistCatalogPayload] = []
             for result in fullResults {
                 guard let payload = result.payload, !result.failed else {
                     failedIDs.insert(result.artistID)
                     continue
                 }
+                successfulPayloads.append(payload)
+            }
+
+            if !successfulPayloads.isEmpty {
                 do {
-                    _ = try catalogStore.persistArtistCatalog(payload)
-                    failedIDs.remove(result.artistID)
+                    let persistedIDs = try await catalogStore.persistArtistCatalogBatch(successfulPayloads)
+                    failedIDs.subtract(persistedIDs)
                 } catch {
-                    failedIDs.insert(result.artistID)
+                    failedIDs.formUnion(successfulPayloads.map(\.artistID))
                 }
                 guard generation == catalogGeneration, !Task.isCancelled else { return }
             }
@@ -506,6 +512,9 @@ private let listeningCatalogFetchConcurrency = 4
         do {
             try rebuildDiscs()
             catalogState = failedIDs.isEmpty ? (discs.isEmpty ? .unavailable : .ready) : .cacheFailed
+            if case let .artist(artistID) = browser.scope {
+                loadFeaturedPlaylistsIfNeeded(for: artistID)
+            }
         } catch {
             catalogState = .cacheFailed
         }
@@ -600,12 +609,21 @@ private let listeningCatalogFetchConcurrency = 4
         guard let show else { return }
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())
             .filter { $0.showID == show.id && $0.isExcluded }.map(\.artistID))
-        catalogSongs = try context.fetch(FetchDescriptor<CatalogSong>())
+
+        // A fresh read context observes background actor saves immediately without
+        // passing managed objects across actor boundaries.
+        let projectionContext = ModelContext(context.container)
+        catalogProjectionContext = projectionContext
+        catalogSongs = try projectionContext.fetch(FetchDescriptor<CatalogSong>())
         let cachedIDs = Set(catalogSongs.map(\.appleMusicSongID))
         catalogSongs += runtimeSongs.values.flatMap { $0 }.filter { !cachedIDs.contains($0.appleMusicSongID) }
-        catalogAlbums = try context.fetch(FetchDescriptor<CatalogAlbum>())
-        openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>()).filter { $0.showID == show.id }
-        catalogSnapshots = try context.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        catalogAlbums = try projectionContext.fetch(FetchDescriptor<CatalogAlbum>())
+        openingTiers = try projectionContext.fetch(FetchDescriptor<ShowOpeningArtistTier>()).filter { $0.showID == show.id }
+        catalogSnapshots = try projectionContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        loadedFeaturedPlaylistArtistIDs.formUnion(
+            catalogSnapshots.filter { !$0.featuredPlaylists.isEmpty }.map(\.artistID)
+        )
+
         let songsByID = Dictionary(catalogSongs.map { ($0.appleMusicSongID, $0) }, uniquingKeysWith: { a, _ in a })
         let albumsByID = Dictionary(catalogAlbums.map { ($0.appleMusicAlbumID, $0) }, uniquingKeysWith: { a, _ in a })
         let mappedArtists: [ListeningBrowseArtist] = show.artists.enumerated().map { index, slot in
@@ -702,6 +720,53 @@ private let listeningCatalogFetchConcurrency = 4
     func selectScope(_ scope: ListeningBrowseState.Scope) {
         let connectedIDs = Set(browseArtists.compactMap(\.appleMusicArtistID))
         browser.select(scope, validArtistIDs: connectedIDs)
+        if case let .artist(artistID) = browser.scope {
+            loadFeaturedPlaylistsIfNeeded(for: artistID)
+        }
+    }
+    private func loadFeaturedPlaylistsIfNeeded(for artistID: String) {
+        guard active,
+              access.authorizationStatus == .authorized,
+              loadedFeaturedPlaylistArtistIDs.contains(artistID) == false,
+              featuredPlaylistTasks[artistID] == nil,
+              catalogSnapshots.contains(where: { $0.artistID == artistID }) else { return }
+
+        let generation = catalogGeneration
+        let showID = show?.id
+        let service = catalogService
+        let store = catalogStore
+        featuredPlaylistTasks[artistID] = Task { @MainActor [weak self] in
+            defer { self?.featuredPlaylistTasks[artistID] = nil }
+            do {
+                let payload = try await service.fetchFeaturedPlaylists(
+                    artistID: artistID,
+                    fetchedAt: Date()
+                )
+                guard let self,
+                      !Task.isCancelled,
+                      generation == self.catalogGeneration,
+                      showID == self.show?.id else { return }
+
+                let persisted = try await store.persistFeaturedPlaylists(payload)
+                guard !Task.isCancelled,
+                      generation == self.catalogGeneration,
+                      showID == self.show?.id else { return }
+                guard persisted else { return }
+
+                self.loadedFeaturedPlaylistArtistIDs.insert(artistID)
+                try self.rebuildDiscs()
+            } catch is CancellationError {
+                return
+            } catch {
+                // Browse-only failures never downgrade the complete core catalog.
+                return
+            }
+        }
+    }
+    private func cancelFeaturedPlaylistTasks(clearLoaded: Bool = false) {
+        for task in featuredPlaylistTasks.values { task.cancel() }
+        featuredPlaylistTasks.removeAll()
+        if clearLoaded { loadedFeaturedPlaylistArtistIDs.removeAll() }
     }
     var browsingArtist: ListeningBrowseArtist? {
         guard case let .artist(id) = browser.scope else { return nil }
@@ -966,7 +1031,17 @@ private let listeningCatalogFetchConcurrency = 4
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
     func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
-    func setActive(_ value: Bool) { active = value; updateVisibility() }
+    func setActive(_ value: Bool) {
+        active = value
+        if value {
+            if case let .artist(artistID) = browser.scope {
+                loadFeaturedPlaylistsIfNeeded(for: artistID)
+            }
+        } else {
+            cancelFeaturedPlaylistTasks()
+        }
+        updateVisibility()
+    }
     private func updateVisibility() {
         let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
         if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {

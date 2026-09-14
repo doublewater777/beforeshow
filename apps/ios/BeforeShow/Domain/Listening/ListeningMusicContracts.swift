@@ -168,12 +168,20 @@ struct ListeningArtistCatalogPayload: Equatable, Sendable {
     }
 }
 
+struct ListeningFeaturedPlaylistsPayload: Equatable, Sendable {
+    let artistID: String
+    let playlists: [ListeningCatalogPlaylistPayload]
+    let songs: [ListeningCatalogSongPayload]
+    let fetchedAt: Date
+}
+
 protocol ListeningMusicCatalogServicing: Sendable {
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus
     func currentAccess() async -> ListeningMusicAccess
     func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload]
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload
+    func fetchFeaturedPlaylists(artistID: String, fetchedAt: Date) async throws -> ListeningFeaturedPlaylistsPayload
 }
 
 enum ListeningCatalogRefreshPolicy {
@@ -186,4 +194,16 @@ enum ListeningCatalogRefreshPolicy {
 
 extension ListeningMusicCatalogServicing {
     func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] { [] }
+
+    func fetchFeaturedPlaylists(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningFeaturedPlaylistsPayload {
+        ListeningFeaturedPlaylistsPayload(
+            artistID: artistID,
+            playlists: [],
+            songs: [],
+            fetchedAt: fetchedAt
+        )
+    }
 }
