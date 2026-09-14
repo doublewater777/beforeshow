@@ -207,27 +207,16 @@ struct ListeningCurrentSong: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var player: ListeningPlayerPresentation { room.display.player }
+    private var showsInlineGuidance: Bool {
+        room.mechanism.position != .seated || room.track == nil
+    }
+    private var recovery: ListeningRecoveryAction? {
+        player.recoveryAction ?? room.display.recoveryAction
+    }
 
     var body: some View {
         VStack(spacing: BSListeningTokens.songSpacing) {
-            if room.mechanism.position == .seated, let track = room.track {
-                VStack(spacing: BSSpacing.xs) {
-                    Text(track.title)
-                        .font(BSListeningTokens.songTitle)
-                        .foregroundStyle(BSColor.Stage.foreground)
-                        .lineLimit(2)
-                    Text(track.artistName)
-                        .font(BSListeningTokens.caption)
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .lineLimit(2)
-                    statusLine
-                }
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .combine)
-                .accessibilityIdentifier("listening.currentSong")
-                .transition(.opacity)
-            } else {
+            if showsInlineGuidance {
                 statusLine
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
@@ -236,7 +225,7 @@ struct ListeningCurrentSong: View {
                     .accessibilityIdentifier("listening.playerGuidance")
             }
 
-            if let recovery = player.recoveryAction ?? room.display.recoveryAction {
+            if let recovery {
                 Button(recovery.title) {
                     room.performListeningRecovery(recovery)
                 }
@@ -247,10 +236,13 @@ struct ListeningCurrentSong: View {
                 .accessibilityIdentifier("listening.playerRecovery")
             }
         }
-        .frame(minHeight: BSListeningTokens.songHeight)
+        .frame(minHeight: showsInlineGuidance || recovery != nil ? BSListeningTokens.songHeight : 0)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
+        .onAppear {
+            ListeningPlaybackChromeStore.shared.room = room
+        }
     }
 
     private var statusLine: some View {
