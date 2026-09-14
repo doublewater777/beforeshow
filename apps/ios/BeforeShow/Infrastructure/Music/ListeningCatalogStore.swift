@@ -120,13 +120,23 @@ private actor ListeningCatalogPersistenceActor {
     func persistCore(
         _ payloads: [ListeningArtistCatalogPayload]
     ) throws -> Set<String> {
-        try ListeningCatalogBatchWriter.persistCore(payloads, in: modelContext)
+        do {
+            return try ListeningCatalogBatchWriter.persistCore(payloads, in: modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 
     func persistFeaturedPlaylists(
         _ payload: ListeningFeaturedPlaylistsPayload
     ) throws -> Bool {
-        try ListeningCatalogBatchWriter.persistFeaturedPlaylists(payload, in: modelContext)
+        do {
+            return try ListeningCatalogBatchWriter.persistFeaturedPlaylists(payload, in: modelContext)
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
     }
 }
 
