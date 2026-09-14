@@ -76,7 +76,7 @@ struct ListeningShelfView<Content: View>: View {
         } else {
             Text(count)
                 .font(BSListeningTokens.caption)
-                .foregroundStyle(BSColor.Stage.dim)
+                .foregroundStyle(BSColor.Stage.accent)
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
                 .redacted(reason: isLoading ? .placeholder : [])

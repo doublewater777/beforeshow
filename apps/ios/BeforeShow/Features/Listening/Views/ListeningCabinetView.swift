@@ -40,8 +40,11 @@ struct ListeningCabinetView<Placeholder: View>: View {
                             showsPullHint: hintedDiscID == disc.id,
                             showDetails: showDetails
                         )
+                        .frame(maxWidth: shelfDiscs.count >= ListeningDisplayProjector.Shelf.visibleCount ? .infinity : nil)
                     }
-                    Spacer(minLength: 0)
+                    if shelfDiscs.count < ListeningDisplayProjector.Shelf.visibleCount {
+                        Spacer(minLength: 0)
+                    }
                 }
                 .frame(maxHeight: .infinity, alignment: .bottom)
                 .padding(.bottom, BSSpacing.sm)

@@ -6,8 +6,8 @@ enum BSListeningTokens {
     static let artwork: CGFloat = 82
     static let detailArtwork: CGFloat = 160
     static let playerWidthFraction: CGFloat = 0.78
-    static let shelfArtwork: CGFloat = 76
-    static let shelfItemWidth: CGFloat = 96
+    static let shelfArtwork: CGFloat = 84
+    static let shelfItemWidth: CGFloat = 104
     static let shelfLabelHeight: CGFloat = 18
     static let shelfItemSpacing: CGFloat = 6
     static let shelfContentHeight: CGFloat = shelfArtwork + shelfItemSpacing + shelfLabelHeight + BSSpacing.sm

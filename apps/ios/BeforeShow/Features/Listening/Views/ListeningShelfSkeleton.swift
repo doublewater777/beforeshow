@@ -5,8 +5,8 @@ struct ListeningShelfSkeleton: View {
         HStack(alignment: .bottom, spacing: BSSpacing.compact) {
             ForEach(0..<ListeningDisplayProjector.Shelf.visibleCount, id: \.self) { _ in
                 ListeningCabinetDiscPlaceholder()
+                    .frame(maxWidth: .infinity)
             }
-            Spacer(minLength: 0)
         }
         .padding(.horizontal, 2)
         .padding(.vertical, 4)
@@ -19,17 +19,16 @@ struct ListeningShelfSkeleton: View {
 
 private struct ListeningCabinetDiscPlaceholder: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
+        VStack(spacing: BSListeningTokens.shelfItemSpacing) {
             ListeningSleeveCard(
                 disc: .init(id: "skeleton", title: "Album", artworkURL: nil, tracks: []),
                 isLoaded: false
             )
             Text("Album title")
                 .font(BSListeningTokens.captionMedium)
-                .frame(width: 94, alignment: .leading)
-                .frame(height: BSListeningTokens.shelfLabelHeight, alignment: .leading)
+                .frame(width: 94)
+                .frame(height: BSListeningTokens.shelfLabelHeight)
         }
-        .frame(width: BSListeningTokens.shelfItemWidth, alignment: .leading)
         .redacted(reason: .placeholder)
         .accessibilityHidden(true)
     }
