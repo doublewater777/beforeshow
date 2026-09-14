@@ -14,8 +14,8 @@ enum ListeningBottomChromeMode: Equatable {
     case fullPlayer
     case compactPlayer
 
-    static func resolve(selectedTab: BeforeShowTab, hasTrack: Bool) -> Self {
-        guard hasTrack else { return .tabsOnly }
+    static func resolve(selectedTab: BeforeShowTab, hasLoadedDisc: Bool) -> Self {
+        guard hasLoadedDisc else { return .tabsOnly }
         return selectedTab == .listen ? .fullPlayer : .compactPlayer
     }
 }
@@ -32,10 +32,13 @@ struct ListeningBottomChrome: View {
     private let spinDegreesPerSecond = 132.0
 
     private var room: ListeningRoomCoordinator? { store.room }
-    private var hasTrack: Bool { room?.track != nil }
+    private var hasLoadedDisc: Bool {
+        guard let room else { return false }
+        return room.mechanism.hasDisc && room.track != nil
+    }
     private var isPlaying: Bool { room?.isPlaying == true }
     private var mode: ListeningBottomChromeMode {
-        .resolve(selectedTab: selectedTab, hasTrack: hasTrack)
+        .resolve(selectedTab: selectedTab, hasLoadedDisc: hasLoadedDisc)
     }
 
     var body: some View {
@@ -205,7 +208,7 @@ private struct ListeningMorphingTabBar: View {
 
             if mode == .compactPlayer, let room, let track = room.track {
                 compactListenPlayer(room: room, track: track)
-                    .frame(minWidth: 190, maxWidth: .infinity)
+                    .frame(minWidth: 164, maxWidth: .infinity)
                     .layoutPriority(2)
             } else {
                 rootTab(.listen)
@@ -287,6 +290,7 @@ private struct ListeningMorphingTabBar: View {
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .frame(minHeight: 44)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -299,7 +303,7 @@ private struct ListeningMorphingTabBar: View {
                 Image(systemName: room.isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(Color.cyan.opacity(0.92))
-                    .frame(width: 38, height: 44)
+                    .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -406,6 +410,8 @@ private struct ListeningPlayerSurface: View {
 private struct ListeningLidGlyph: View {
     let isOpen: Bool
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 3, style: .continuous)
@@ -427,6 +433,6 @@ private struct ListeningLidGlyph: View {
         .foregroundStyle(Color.white.opacity(0.80))
         .background(Color.white.opacity(0.045), in: Circle())
         .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 1))
-        .animation(.spring(response: 0.30, dampingFraction: 0.86), value: isOpen)
+        .animation(reduceMotion ? nil : .spring(response: 0.30, dampingFraction: 0.86), value: isOpen)
     }
 }
