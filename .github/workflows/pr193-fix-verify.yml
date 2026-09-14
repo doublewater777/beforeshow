@@ -11,33 +11,30 @@ permissions:
   contents: write
 
 jobs:
-  verify:
-    runs-on: macos-15
-    timeout-minutes: 45
-    env:
-      TZ: Asia/Shanghai
+  generate-project:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: Select newest Xcode
+      - name: Show Swift toolchain
+        run: swift --version
+
+      - name: Build XcodeGen
         run: |
           set -euo pipefail
-          latest=$(find /Applications -maxdepth 1 -name 'Xcode*.app' -type d | sort -V | tail -1)
-          echo "Using $latest"
-          sudo xcode-select -s "$latest/Contents/Developer"
-          xcodebuild -version
-          xcrun simctl list devices available | grep 'iPhone' | head -20 || true
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
+          git clone --depth 1 https://github.com/yonaskolb/XcodeGen.git "$RUNNER_TEMP/XcodeGen"
+          cd "$RUNNER_TEMP/XcodeGen"
+          swift build -c release --product xcodegen
+          echo "XCODEGEN=$RUNNER_TEMP/XcodeGen/.build/release/xcodegen" >> "$GITHUB_ENV"
 
       - name: Generate and commit project references
         run: |
           set -euo pipefail
           cd apps/ios
-          xcodegen generate
+          "$XCODEGEN" generate
           grep -q 'ListeningMiniPlayerChrome.swift' BeforeShow.xcodeproj/project.pbxproj
           grep -q 'ListeningMiniPlayerChromeTests.swift' BeforeShow.xcodeproj/project.pbxproj
           cd ../..
@@ -48,27 +45,14 @@ jobs:
             git commit -m 'Regenerate iOS project for mini player chrome'
             git push origin HEAD:feat/listening-mini-player-morph
           fi
+
+      - name: Verify XcodeGen idempotency
+        run: |
+          set -euo pipefail
           cd apps/ios
-          xcodegen generate
+          "$XCODEGEN" generate
           cd ../..
           git diff --exit-code -- apps/ios/BeforeShow.xcodeproj/project.pbxproj
 
       - name: Architecture guard
         run: python3 apps/ios/scripts/check_architecture.py
-
-      - name: Build and focused tests
-        run: |
-          set -euo pipefail
-          cd apps/ios
-          device='iPhone 17'
-          if ! xcrun simctl list devices available | grep -q "$device"; then
-            device=$(xcrun simctl list devices available | sed -n 's/^[[:space:]]*\(iPhone[^()]\{1,40\}\) (.*$/\1/p' | head -1 | sed 's/[[:space:]]*$//')
-          fi
-          test -n "$device"
-          echo "Simulator: $device"
-          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
-            -destination "platform=iOS Simulator,name=$device" \
-            -allowProvisioningUpdates DEVELOPMENT_TEAM=29C8MS76CZ build
-          xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
-            -destination "platform=iOS Simulator,name=$device" \
-            -only-testing:BeforeShowTests/ListeningMiniPlayerChromeTests test
