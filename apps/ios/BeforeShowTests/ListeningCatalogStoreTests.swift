@@ -142,6 +142,75 @@ final class ListeningCatalogStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testLargeBatchPersistenceKeepsMainActorResponsiveAndForceRefreshDoesNotDuplicateRows() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let store = ListeningCatalogStore(modelContext: context, service: StubListeningMusicCatalogService())
+        let fetchedAt = Date(timeIntervalSince1970: 2_000_000_000)
+        let payloads = Self.largeFestivalPayloads(fetchedAt: fetchedAt)
+
+        var maximumHeartbeatGap: TimeInterval = 0
+        let heartbeat = Task { @MainActor in
+            var previous = Date()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(10))
+                let current = Date()
+                maximumHeartbeatGap = max(maximumHeartbeatGap, current.timeIntervalSince(previous))
+                previous = current
+            }
+        }
+        defer { heartbeat.cancel() }
+
+        let persisted = try await store.persistArtistCatalogBatch(payloads)
+        XCTAssertEqual(persisted.count, 17)
+        XCTAssertLessThan(maximumHeartbeatGap, 0.5)
+
+        var readContext = ModelContext(container)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 17)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<CatalogSong>()), 1_700)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<CatalogAlbum>()), 255)
+
+        _ = try await store.persistArtistCatalogBatch(payloads)
+        readContext = ModelContext(container)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<ArtistCatalogSnapshot>()), 17)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<CatalogSong>()), 1_700)
+        XCTAssertEqual(try readContext.fetchCount(FetchDescriptor<CatalogAlbum>()), 255)
+    }
+
+    @MainActor
+    func testCoreBatchPreservesPreviouslyCachedFeaturedPlaylists() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let playlist = ListeningCatalogPlaylistPayload(
+            playlistID: "featured",
+            name: "Featured",
+            artworkURL: nil,
+            curatorName: "Apple Music",
+            descriptionText: nil,
+            appleMusicURL: nil,
+            orderedTrackIDs: ["guest"]
+        )
+        context.insert(ArtistCatalogSnapshot(
+            artistID: "artist-1",
+            artistName: "Cached",
+            orderedSongIDs: ["old"],
+            featuredPlaylists: [playlist],
+            fetchedAt: Date(timeIntervalSince1970: 1_000)
+        ))
+        try context.save()
+
+        let store = ListeningCatalogStore(modelContext: context, service: StubListeningMusicCatalogService())
+        _ = try await store.persistArtistCatalogBatch([Self.payload(fetchedAt: Date(timeIntervalSince1970: 2_000))])
+
+        let readContext = ModelContext(container)
+        let snapshot = try XCTUnwrap(
+            try readContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>()).first { $0.artistID == "artist-1" }
+        )
+        XCTAssertEqual(snapshot.featuredPlaylists, [playlist])
+        XCTAssertEqual(snapshot.orderedSongIDs, ["song-top", "song-album"])
+    }
+
+    @MainActor
     private func insertSnapshot(
         artistID: String,
         artistName: String,
@@ -225,6 +294,53 @@ final class ListeningCatalogStoreTests: XCTestCase {
             ],
             fetchedAt: fetchedAt
         )
+    }
+
+    private static func largeFestivalPayloads(fetchedAt: Date) -> [ListeningArtistCatalogPayload] {
+        (0..<17).map { artistIndex in
+            let artistID = "artist-\(artistIndex)"
+            let songIDs = (0..<100).map { "song-\(artistIndex)-\($0)" }
+            let songs = songIDs.enumerated().map { offset, songID in
+                ListeningCatalogSongPayload(
+                    songID: songID,
+                    title: "Song \(offset)",
+                    artistName: "Artist \(artistIndex)",
+                    albumID: "album-\(artistIndex)-\(min(offset / 7, 14))",
+                    albumTitle: "Album \(min(offset / 7, 14))",
+                    artworkURL: nil,
+                    duration: 180,
+                    performerArtistIDs: [artistID],
+                    performerArtistNames: ["Artist \(artistIndex)"],
+                    previewURL: nil
+                )
+            }
+            let albums = (0..<15).map { albumIndex in
+                let lower = albumIndex * 7
+                let upper = min(lower + 7, songIDs.count)
+                let tracks = lower < upper ? Array(songIDs[lower..<upper]) : []
+                return ListeningCatalogAlbumPayload(
+                    albumID: "album-\(artistIndex)-\(albumIndex)",
+                    title: "Album \(albumIndex)",
+                    artworkURL: nil,
+                    releaseDate: nil,
+                    artistIDs: [artistID],
+                    orderedTrackIDs: tracks
+                )
+            }
+            return ListeningArtistCatalogPayload(
+                artistID: artistID,
+                artistName: "Artist \(artistIndex)",
+                artworkURL: nil,
+                editorialText: nil,
+                genreNames: [],
+                orderedSongIDs: songIDs,
+                topSongIDs: Array(songIDs.prefix(10)),
+                albumIDs: albums.map(\.albumID),
+                songs: songs,
+                albums: albums,
+                fetchedAt: fetchedAt
+            )
+        }
     }
 }
 
