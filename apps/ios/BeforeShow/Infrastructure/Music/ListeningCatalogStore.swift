@@ -5,6 +5,7 @@ import SwiftData
 final class ListeningCatalogStore {
     private let modelContext: ModelContext
     private let service: any ListeningMusicCatalogServicing
+    private let persistenceActor: ListeningCatalogPersistenceActor
     private var revalidationTasks: [String: Task<Void, Never>] = [:]
 
     init(
@@ -13,6 +14,7 @@ final class ListeningCatalogStore {
     ) {
         self.modelContext = modelContext
         self.service = service
+        persistenceActor = ListeningCatalogPersistenceActor(modelContainer: modelContext.container)
     }
 
     func cachedSnapshot(artistID: String) throws -> ArtistCatalogSnapshot? {
@@ -50,19 +52,127 @@ final class ListeningCatalogStore {
         return try persistArtistCatalog(payload)
     }
 
-    /// Persist an already-fetched complete payload. Keeping network fetch separate
-    /// lets the Listen coordinator fetch multiple artists concurrently while all
-    /// SwiftData mutation remains serialized on the main actor.
+    /// Synchronous compatibility seam for single-payload callers and focused store
+    /// tests. It uses the same indexed writer as the background batch path, so it is
+    /// linear rather than performing one full-table fetch per song or album.
     @discardableResult
     func persistArtistCatalog(
         _ payload: ListeningArtistCatalogPayload
     ) throws -> ArtistCatalogSnapshot {
-        let repository = ListeningRepository(modelContext: modelContext)
-
         do {
+            _ = try ListeningCatalogBatchWriter.persistCore([payload], in: modelContext)
+            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
+                in: modelContext,
+                now: payload.fetchedAt
+            )
+            guard let snapshot = try cachedSnapshot(artistID: payload.artistID) else {
+                throw ListeningCatalogError.incompleteCatalog(payload.artistID)
+            }
+            return snapshot
+        } catch {
+            modelContext.rollback()
+            throw error
+        }
+    }
+
+    /// Production core-catalog persistence boundary. All successful artist payloads
+    /// from one coordinator pass cross this actor boundary together as Sendable values.
+    /// Managed SwiftData objects never cross the boundary.
+    func persistArtistCatalogBatch(
+        _ payloads: [ListeningArtistCatalogPayload]
+    ) async throws -> Set<String> {
+        guard !payloads.isEmpty else { return [] }
+        let persistedArtistIDs = try await persistenceActor.persistCore(payloads)
+
+        // Opening tiers are derived presentation data and remain MainActor-owned.
+        // Resolve once after the batch instead of once per artist.
+        if let fetchedAt = payloads.map(\.fetchedAt).max() {
+            let resolutionContext = ModelContext(modelContext.container)
+            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
+                in: resolutionContext,
+                now: fetchedAt
+            )
+        }
+        return persistedArtistIDs
+    }
+
+    /// Optional artist browsing data is persisted independently from the complete
+    /// catalog denominator. A browse failure therefore cannot downgrade a last-good
+    /// core snapshot or alter its completeness/freshness fields.
+    func persistFeaturedPlaylists(
+        _ payload: ListeningFeaturedPlaylistsPayload
+    ) async throws -> Bool {
+        try await persistenceActor.persistFeaturedPlaylists(payload)
+    }
+
+    private func scheduleRevalidation(artistID: String, now: Date) {
+        guard revalidationTasks[artistID] == nil else { return }
+        revalidationTasks[artistID] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.revalidationTasks[artistID] = nil }
+            _ = try? await self.refreshArtistCatalog(artistID: artistID, now: now)
+        }
+    }
+}
+
+@ModelActor
+private actor ListeningCatalogPersistenceActor {
+    func persistCore(
+        _ payloads: [ListeningArtistCatalogPayload]
+    ) throws -> Set<String> {
+        try ListeningCatalogBatchWriter.persistCore(payloads, in: modelContext)
+    }
+
+    func persistFeaturedPlaylists(
+        _ payload: ListeningFeaturedPlaylistsPayload
+    ) throws -> Bool {
+        try ListeningCatalogBatchWriter.persistFeaturedPlaylists(payload, in: modelContext)
+    }
+}
+
+private enum ListeningCatalogBatchWriter {
+    static func persistCore(
+        _ payloads: [ListeningArtistCatalogPayload],
+        in modelContext: ModelContext
+    ) throws -> Set<String> {
+        guard !payloads.isEmpty else { return [] }
+
+        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>())
+        let existingAlbums = try modelContext.fetch(FetchDescriptor<CatalogAlbum>())
+        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+
+        var songsByID = Dictionary(
+            existingSongs.map { ($0.appleMusicSongID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var albumsByID = Dictionary(
+            existingAlbums.map { ($0.appleMusicAlbumID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var snapshotsByID = Dictionary(
+            existingSnapshots.map { ($0.artistID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        var incomingSongs: [String: (ListeningCatalogSongPayload, Date)] = [:]
+        var incomingAlbums: [String: (ListeningCatalogAlbumPayload, Date)] = [:]
+        var incomingSnapshots: [String: ListeningArtistCatalogPayload] = [:]
+
+        for payload in payloads {
+            incomingSnapshots[payload.artistID] = payload
             for song in payload.songs {
-                try repository.upsertCatalogSong(
-                    songID: song.songID,
+                incomingSongs[song.songID] = (song, payload.fetchedAt)
+            }
+            for album in payload.albums {
+                incomingAlbums[album.albumID] = (album, payload.fetchedAt)
+            }
+        }
+
+        for (songID, value) in incomingSongs {
+            let song = value.0
+            let updatedAt = value.1
+            if let existing = songsByID[songID] {
+                existing.update(
                     title: song.title,
                     artistName: song.artistName,
                     albumID: song.albumID,
@@ -72,12 +182,32 @@ final class ListeningCatalogStore {
                     performerArtistIDs: song.performerArtistIDs,
                     performerArtistNames: song.performerArtistNames,
                     previewURL: song.previewURL,
-                    updatedAt: payload.fetchedAt
+                    updatedAt: updatedAt
                 )
+            } else {
+                let created = CatalogSong(
+                    appleMusicSongID: song.songID,
+                    title: song.title,
+                    artistName: song.artistName,
+                    albumID: song.albumID,
+                    albumTitle: song.albumTitle,
+                    artworkURL: song.artworkURL,
+                    duration: song.duration,
+                    performerArtistIDs: song.performerArtistIDs,
+                    performerArtistNames: song.performerArtistNames,
+                    previewURL: song.previewURL,
+                    updatedAt: updatedAt
+                )
+                modelContext.insert(created)
+                songsByID[songID] = created
             }
-            for album in payload.albums {
-                try repository.upsertCatalogAlbum(
-                    albumID: album.albumID,
+        }
+
+        for (albumID, value) in incomingAlbums {
+            let album = value.0
+            let updatedAt = value.1
+            if let existing = albumsByID[albumID] {
+                existing.update(
                     title: album.title,
                     artworkURL: album.artworkURL,
                     releaseDate: album.releaseDate,
@@ -94,43 +224,107 @@ final class ListeningCatalogStore {
                     isSingle: album.isSingle,
                     appleMusicURL: album.appleMusicURL,
                     orderedTrackIDs: album.orderedTrackIDs,
-                    updatedAt: payload.fetchedAt
+                    updatedAt: updatedAt
                 )
+            } else {
+                let created = CatalogAlbum(
+                    appleMusicAlbumID: album.albumID,
+                    title: album.title,
+                    artworkURL: album.artworkURL,
+                    releaseDate: album.releaseDate,
+                    artistIDs: album.artistIDs,
+                    artistNames: album.artistNames,
+                    editorialText: album.editorialText,
+                    genreNames: album.genreNames,
+                    copyright: album.copyright,
+                    recordLabelName: album.recordLabelName,
+                    contentRatingRawValue: album.contentRatingRawValue,
+                    audioVariantRawValues: album.audioVariantRawValues,
+                    isAppleDigitalMaster: album.isAppleDigitalMaster,
+                    isCompilation: album.isCompilation,
+                    isSingle: album.isSingle,
+                    appleMusicURL: album.appleMusicURL,
+                    orderedTrackIDs: album.orderedTrackIDs,
+                    updatedAt: updatedAt
+                )
+                modelContext.insert(created)
+                albumsByID[albumID] = created
             }
-            let snapshot = try repository.upsertArtistCatalogSnapshot(
-                artistID: payload.artistID,
-                artistName: payload.artistName,
-                artworkURL: payload.artworkURL,
-                editorialText: payload.editorialText,
-                genreNames: payload.genreNames,
-                orderedSongIDs: payload.orderedSongIDs,
-                topSongIDs: payload.topSongIDs,
-                albumIDs: payload.albumIDs,
-                featuredPlaylists: payload.featuredPlaylists,
-                fetchedAt: payload.fetchedAt
-            )
-            try modelContext.save()
-            // A show may have opened before its artist catalog arrived. Resolve the
-            // immutable opening tier from the frozen baseline as soon as a complete
-            // denominator becomes available; catalog refresh remains successful even
-            // if the derived tier repair itself cannot be persisted.
-            try? OpeningFamiliarityCoordinator.resolveAvailableTiers(
-                in: modelContext,
-                now: payload.fetchedAt
-            )
-            return snapshot
-        } catch {
-            modelContext.rollback()
-            throw error
         }
+
+        for (artistID, payload) in incomingSnapshots {
+            if let existing = snapshotsByID[artistID] {
+                let cachedBrowseData = existing.featuredPlaylists
+                existing.update(
+                    artistName: payload.artistName,
+                    artworkURL: payload.artworkURL,
+                    editorialText: payload.editorialText,
+                    genreNames: payload.genreNames,
+                    orderedSongIDs: payload.orderedSongIDs,
+                    topSongIDs: payload.topSongIDs,
+                    albumIDs: payload.albumIDs,
+                    featuredPlaylists: cachedBrowseData,
+                    fetchedAt: payload.fetchedAt
+                )
+            } else {
+                let created = ArtistCatalogSnapshot(
+                    artistID: payload.artistID,
+                    artistName: payload.artistName,
+                    artworkURL: payload.artworkURL,
+                    editorialText: payload.editorialText,
+                    genreNames: payload.genreNames,
+                    orderedSongIDs: payload.orderedSongIDs,
+                    topSongIDs: payload.topSongIDs,
+                    albumIDs: payload.albumIDs,
+                    featuredPlaylists: [],
+                    fetchedAt: payload.fetchedAt
+                )
+                modelContext.insert(created)
+                snapshotsByID[artistID] = created
+            }
+        }
+
+        try modelContext.save()
+        return Set(incomingSnapshots.keys)
     }
 
-    private func scheduleRevalidation(artistID: String, now: Date) {
-        guard revalidationTasks[artistID] == nil else { return }
-        revalidationTasks[artistID] = Task { @MainActor [weak self] in
-            guard let self else { return }
-            defer { self.revalidationTasks[artistID] = nil }
-            _ = try? await self.refreshArtistCatalog(artistID: artistID, now: now)
+    static func persistFeaturedPlaylists(
+        _ payload: ListeningFeaturedPlaylistsPayload,
+        in modelContext: ModelContext
+    ) throws -> Bool {
+        let existingSnapshots = try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+        guard let snapshot = existingSnapshots.first(where: { $0.artistID == payload.artistID }) else {
+            return false
         }
+
+        let existingSongs = try modelContext.fetch(FetchDescriptor<CatalogSong>())
+        var songsByID = Dictionary(
+            existingSongs.map { ($0.appleMusicSongID, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+
+        // Browse-only payloads may contain guest tracks. Insert tracks that core
+        // enrichment does not already own, but never overwrite richer core metadata.
+        for song in payload.songs where songsByID[song.songID] == nil {
+            let created = CatalogSong(
+                appleMusicSongID: song.songID,
+                title: song.title,
+                artistName: song.artistName,
+                albumID: song.albumID,
+                albumTitle: song.albumTitle,
+                artworkURL: song.artworkURL,
+                duration: song.duration,
+                performerArtistIDs: song.performerArtistIDs,
+                performerArtistNames: song.performerArtistNames,
+                previewURL: song.previewURL,
+                updatedAt: payload.fetchedAt
+            )
+            modelContext.insert(created)
+            songsByID[song.songID] = created
+        }
+
+        snapshot.updateFeaturedPlaylists(payload.playlists)
+        try modelContext.save()
+        return true
     }
 }
