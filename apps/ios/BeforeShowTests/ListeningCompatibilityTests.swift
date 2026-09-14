@@ -6,7 +6,7 @@ import XCTest
 @MainActor
 final class ListeningCompatibilityTests: XCTestCase {
     func testArtistSlotDecodesPreArtistIDPayload() throws {
-        let data = Data(#"{"name":"Artist","avatarURL":null,"appleMusicURL":"https://music.apple.com/cn/artist/name/123","albumArtworkURL":null}"#.utf8)
+        let data = Data(#"{\"name\":\"Artist\",\"avatarURL\":null,\"appleMusicURL\":\"https://music.apple.com/cn/artist/name/123\",\"albumArtworkURL\":null}"#.utf8)
 
         let decoded = try JSONDecoder().decode(ArtistSlot.self, from: data)
 
@@ -243,6 +243,123 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(playback.stopCount, 0)
     }
 
+    func testClearingCurrentShowStopsCachedPlaybackAndPreservesRestoredDisc() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Cleared Current", date: now, startTime: now)
+        context.insert(show)
+
+        let song = CatalogSong(
+            appleMusicSongID: "cleared-song",
+            title: "Cleared Song",
+            artistName: "Artist",
+            duration: 180,
+            previewURL: "https://example.invalid/cleared.m4a"
+        )
+        let disc = ListeningDisc(
+            id: "cleared-disc",
+            title: "Cleared Disc",
+            artworkURL: nil,
+            tracks: [ListeningDiscTrack(song)]
+        )
+        context.insert(
+            ListeningLoadedDiscState(
+                discData: try JSONEncoder().encode(disc),
+                songID: song.appleMusicSongID
+            )
+        )
+        try context.save()
+
+        let playback = ListeningChromePlaybackSpy()
+        let prepared = await ListeningChromeBootstrapper.prepare(
+            show: show,
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+        let room = try XCTUnwrap(prepared)
+        room.playPause()
+        try await waitUntil { room.isPlaying && !room.busy }
+        XCTAssertTrue(playback.transportIsPlaying)
+        XCTAssertEqual(playback.stopCount, 0)
+
+        let cleared = await ListeningChromeBootstrapper.prepare(
+            show: nil,
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+
+        XCTAssertNil(cleared)
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertFalse(playback.transportIsPlaying)
+        XCTAssertEqual(playback.stopCount, 1)
+        XCTAssertNil(ListeningRoomCache.shared)
+        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
+
+        let persisted = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
+        XCTAssertEqual(persisted.count, 1, "Clearing Current Show stops runtime playback but keeps the restored CD snapshot")
+        let restored = try JSONDecoder().decode(ListeningDisc.self, from: try XCTUnwrap(persisted.first).discData)
+        XCTAssertEqual(restored.id, disc.id)
+        XCTAssertEqual(persisted.first?.songID, song.appleMusicSongID)
+    }
+
+    func testRootBootstrapWithoutRestoredDiscStaysLazyUntilListenActivation() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Lazy Root", date: now, startTime: now)
+        show.artists = [ArtistSlot(name: "Artist", avatarURL: nil)]
+        context.insert(show)
+        try context.save()
+
+        let catalog = ListeningChromeCatalogPipelineSpy()
+        let search = ListeningChromeArtistSearchSpy()
+        let rootPrepared = await ListeningChromeBootstrapper.prepare(
+            show: show,
+            context: context,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+        )
+
+        XCTAssertNil(rootPrepared)
+        XCTAssertNil(ListeningRoomCache.shared)
+        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
+        XCTAssertEqual(catalog.totalCallCount, 0, "Root bootstrap without a restored CD must not touch Music access/catalog")
+        XCTAssertEqual(search.totalCallCount, 0, "Root bootstrap without a restored CD must not run artist matching")
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+
+        // Simulate the normal Listen activation path: only now create/cache a room
+        // and execute its standard load pipeline.
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: search,
+            playbackFactory: { _ in ListeningChromePlaybackSpy() }
+        )
+        ListeningRoomCache.shared = room
+        await room.load(show: show)
+
+        XCTAssertEqual(room.show?.id, show.id)
+        XCTAssertTrue(room.initialLoaded)
+        XCTAssertGreaterThan(catalog.authorizationStatusCount, 0)
+        XCTAssertGreaterThan(catalog.accessCount, 0)
+        XCTAssertGreaterThan(search.searchCount, 0)
+        XCTAssertGreaterThan(catalog.runtimeFetchCount, 0)
+        XCTAssertGreaterThan(catalog.fullFetchCount, 0)
+        XCTAssertTrue(room.catalogSongs.contains { $0.appleMusicSongID == "lazy-song" })
+        room.stop()
+        room.mechanism.motion.stop()
+    }
+
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
@@ -275,6 +392,112 @@ private struct ListeningChromeCatalogStub: ListeningMusicCatalogServicing {
     }
 }
 
+private final class ListeningChromeCatalogPipelineSpy: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var authorizationStatusCalls = 0
+    private var authorizationRequestCalls = 0
+    private var accessCalls = 0
+    private var runtimeFetchCalls = 0
+    private var fullFetchCalls = 0
+
+    var authorizationStatusCount: Int { locked { authorizationStatusCalls } }
+    var accessCount: Int { locked { accessCalls } }
+    var runtimeFetchCount: Int { locked { runtimeFetchCalls } }
+    var fullFetchCount: Int { locked { fullFetchCalls } }
+    var totalCallCount: Int {
+        locked {
+            authorizationStatusCalls + authorizationRequestCalls + accessCalls + runtimeFetchCalls + fullFetchCalls
+        }
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        locked { authorizationStatusCalls += 1 }
+        return .authorized
+    }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        locked { authorizationRequestCalls += 1 }
+        return .authorized
+    }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        locked { accessCalls += 1 }
+        return ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
+        locked { runtimeFetchCalls += 1 }
+        return [songPayload(artistID: artistID)]
+    }
+
+    func fetchArtistCatalog(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningArtistCatalogPayload {
+        locked { fullFetchCalls += 1 }
+        let song = songPayload(artistID: artistID)
+        return ListeningArtistCatalogPayload(
+            artistID: artistID,
+            artistName: "Artist",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [song.songID],
+            topSongIDs: [song.songID],
+            albumIDs: [],
+            songs: [song],
+            albums: [],
+            fetchedAt: fetchedAt
+        )
+    }
+
+    private func songPayload(artistID: String) -> ListeningCatalogSongPayload {
+        ListeningCatalogSongPayload(
+            songID: "lazy-song",
+            title: "Lazy Song",
+            artistName: "Artist",
+            albumID: nil,
+            albumTitle: nil,
+            artworkURL: nil,
+            duration: 180,
+            performerArtistIDs: [artistID],
+            performerArtistNames: ["Artist"],
+            previewURL: nil
+        )
+    }
+
+    private func locked<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
+private final class ListeningChromeArtistSearchSpy: @unchecked Sendable, ArtistSearchServicing {
+    private let lock = NSLock()
+    private var searches = 0
+    private var authorizationRequests = 0
+
+    var searchCount: Int { locked { searches } }
+    var totalCallCount: Int { locked { searches + authorizationRequests } }
+
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        locked { searches += 1 }
+        return [RecognizedArtist(id: "lazy-artist", canonicalName: query, avatarURL: nil, appleMusicURL: nil)]
+    }
+
+    func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus {
+        locked { authorizationRequests += 1 }
+        return .authorized
+    }
+
+    private func locked<T>(_ body: () -> T) -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return body()
+    }
+}
+
 @MainActor
 private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     private(set) var preparedSource: ListeningPlaybackSource?
@@ -284,6 +507,8 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     private var items: [ListeningPlaybackItem] = []
     private var index = 0
     private var playing = false
+
+    var transportIsPlaying: Bool { playing }
 
     func prepare(
         items: [ListeningPlaybackItem],
