@@ -13,22 +13,50 @@ enum ListeningChromeBootstrapper {
         }
     ) async -> ListeningRoomCoordinator? {
         guard let show else {
+            let cached = ListeningRoomCache.shared
+            let published = ListeningPlaybackChromeStore.shared.room
+            cached?.stop()
+            cached?.mechanism.motion.stop()
+            if let published, published !== cached {
+                published.stop()
+                published.mechanism.motion.stop()
+            }
+            ListeningRoomCache.shared = nil
             ListeningPlaybackChromeStore.shared.room = nil
             return nil
         }
 
         let room: ListeningRoomCoordinator
+        let createdCandidate: Bool
         if let cached = ListeningRoomCache.shared {
             room = cached
+            createdCandidate = false
         } else {
-            let next = ListeningRoomCoordinator(
+            room = ListeningRoomCoordinator(
                 context: context,
                 catalogService: catalogService,
                 artistSearchService: artistSearchService,
                 playbackFactory: playbackFactory
             )
-            ListeningRoomCache.shared = next
-            room = next
+            createdCandidate = true
+        }
+
+        // Root bootstrap exists only to restore chrome for a persisted disc. A fresh
+        // coordinator with no restored disc must not trigger artist matching, Music
+        // access, or catalog IO before the user actually enters Listen.
+        guard room.mechanism.hasDisc, room.track != nil else {
+            ListeningPlaybackChromeStore.shared.room = nil
+            if createdCandidate {
+                room.mechanism.motion.stop()
+            }
+            return nil
+        }
+
+        // Publish a restored-disc candidate to the cache before suspension so Listen
+        // can adopt this exact coordinator even if the user enters while hydration is
+        // still running. Candidates without a restored disc never enter the cache.
+        if createdCandidate {
+            ListeningRoomCache.shared = room
         }
 
         // A restored disc is visible immediately on the coordinator, but chrome is
