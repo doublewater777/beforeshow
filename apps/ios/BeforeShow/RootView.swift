@@ -129,6 +129,7 @@ struct RootView: View {
             refreshCompanionDuplicateResolution()
         }
         .task {
+            bootstrapListeningChrome()
             companionCoordinator.reloadPersistedAcceptedShares()
             if companionCoordinator.hasPendingAcceptedShares {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
@@ -210,6 +211,17 @@ struct RootView: View {
         }
         companionDuplicateResolution = nil
         refreshCompanionDuplicateResolution()
+    }
+
+    private func bootstrapListeningChrome() {
+        let room: ListeningRoomCoordinator
+        if let cached = ListeningRoomCache.shared {
+            room = cached
+        } else {
+            room = ListeningRoomCoordinator(context: modelContext)
+            ListeningRoomCache.shared = room
+        }
+        ListeningPlaybackChromeStore.shared.room = room
     }
 
     private func persistedShowExists() -> Bool {
