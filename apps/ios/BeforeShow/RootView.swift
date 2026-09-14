@@ -5,51 +5,6 @@ extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
 }
 
-@MainActor
-enum ListeningChromeBootstrapper {
-    static func prepare(
-        show: Show?,
-        context: ModelContext,
-        catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
-        artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
-        playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
-            $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
-        }
-    ) async -> ListeningRoomCoordinator? {
-        guard let show else {
-            ListeningPlaybackChromeStore.shared.room = nil
-            return nil
-        }
-
-        let room: ListeningRoomCoordinator
-        if let cached = ListeningRoomCache.shared {
-            room = cached
-        } else {
-            let next = ListeningRoomCoordinator(
-                context: context,
-                catalogService: catalogService,
-                artistSearchService: artistSearchService,
-                playbackFactory: playbackFactory
-            )
-            ListeningRoomCache.shared = next
-            room = next
-        }
-
-        // A restored disc is visible immediately on the coordinator, but chrome is
-        // not published until the current show and music access have been hydrated.
-        // This keeps compact play/pause on the same transport that Listen later adopts
-        // and prevents a cold-start tap from choosing preview/metadata capability from
-        // the coordinator's initial `.notDetermined` access state.
-        if room.shouldReloadCatalog(for: show) {
-            await room.load(show: show)
-        }
-        guard !Task.isCancelled, room.show?.id == show.id else { return nil }
-
-        ListeningPlaybackChromeStore.shared.room = room
-        return room
-    }
-}
-
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
