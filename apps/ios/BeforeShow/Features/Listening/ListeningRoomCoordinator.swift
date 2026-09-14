@@ -117,6 +117,8 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var isLoadingShow = false
     @ObservationIgnored private var active = true
     @ObservationIgnored private var playbackGeneration = UUID()
+    @ObservationIgnored private var lidOpenedDiscID: String?
+    @ObservationIgnored private var lidOpenedSongID: String?
 
     init(context: ModelContext, catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
          artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
@@ -130,7 +132,10 @@ private let listeningCatalogFetchConcurrency = 4
             #if DEBUG
             if self?.opensWithoutStopping == true { return }
             #endif
-            self?.stop()
+            guard let self else { return }
+            self.lidOpenedDiscID = self.mechanism.disc?.id
+            self.lidOpenedSongID = self.track?.id
+            self.stop()
         }
         mechanism.onTransition = { [weak self] transition in
             if transition == "remove" || transition == "store" {
@@ -157,13 +162,32 @@ private let listeningCatalogFetchConcurrency = 4
         switch transition {
         case "seat":
             persistLoadedDisc()
+        case "close":
+            restoreLidSelectionIfNeeded()
         case "remove":
+            clearLidSelection()
             if !mechanism.isAutomatic { clearPersistedDisc() }
         case "store":
+            clearLidSelection()
             clearPersistedDisc()
         default:
             break
         }
+    }
+    private func restoreLidSelectionIfNeeded() {
+        defer { clearLidSelection() }
+        guard mechanism.position == .seated,
+              let disc = mechanism.disc,
+              disc.id == lidOpenedDiscID,
+              let songID = lidOpenedSongID,
+              let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
+        trackIndex = index
+        trackBelongsToShow = true
+        persistLoadedDisc()
+    }
+    private func clearLidSelection() {
+        lidOpenedDiscID = nil
+        lidOpenedSongID = nil
     }
     private func restorePersistedDiscIfNeeded() {
         guard mechanism.position == .stored else { return }
