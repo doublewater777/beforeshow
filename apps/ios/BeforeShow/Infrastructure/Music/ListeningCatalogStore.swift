@@ -5,7 +5,7 @@ import SwiftData
 final class ListeningCatalogStore {
     private let modelContext: ModelContext
     private let service: any ListeningMusicCatalogServicing
-    private let persistenceActor: ListeningCatalogPersistenceActor
+    private let persistenceBoundary: ListeningCatalogPersistenceBoundary
     private var revalidationTasks: [String: Task<Void, Never>] = [:]
 
     init(
@@ -14,7 +14,7 @@ final class ListeningCatalogStore {
     ) {
         self.modelContext = modelContext
         self.service = service
-        persistenceActor = ListeningCatalogPersistenceActor(modelContainer: modelContext.container)
+        persistenceBoundary = ListeningCatalogPersistenceBoundary(modelContainer: modelContext.container)
     }
 
     func cachedSnapshot(artistID: String) throws -> ArtistCatalogSnapshot? {
@@ -82,7 +82,7 @@ final class ListeningCatalogStore {
         _ payloads: [ListeningArtistCatalogPayload]
     ) async throws -> Set<String> {
         guard !payloads.isEmpty else { return [] }
-        let persistedArtistIDs = try await persistenceActor.persistCore(payloads)
+        let persistedArtistIDs = try await persistenceBoundary.persistCore(payloads)
 
         // Opening tiers are derived presentation data and remain MainActor-owned.
         // Resolve once after the batch instead of once per artist.
@@ -102,7 +102,7 @@ final class ListeningCatalogStore {
     func persistFeaturedPlaylists(
         _ payload: ListeningFeaturedPlaylistsPayload
     ) async throws -> Bool {
-        try await persistenceActor.persistFeaturedPlaylists(payload)
+        try await persistenceBoundary.persistFeaturedPlaylists(payload)
     }
 
     private func scheduleRevalidation(artistID: String, now: Date) {
@@ -115,26 +115,36 @@ final class ListeningCatalogStore {
     }
 }
 
-private actor ListeningCatalogPersistenceActor {
+/// The outer actor delays creation of the SwiftData model actor until work actually
+/// crosses this boundary. Because the lazy property is initialized from this actor's
+/// executor instead of ListeningCatalogStore's MainActor initializer, the generated
+/// ModelContext/DefaultSerialModelExecutor is not main-actor-bound.
+private actor ListeningCatalogPersistenceBoundary {
     private let modelContainer: ModelContainer
-    private var storedModelContext: ModelContext?
+    private lazy var persistenceActor = ListeningCatalogPersistenceActor(modelContainer: modelContainer)
 
     init(modelContainer: ModelContainer) {
         self.modelContainer = modelContainer
     }
 
-    private func persistenceContext() -> ModelContext {
-        if let storedModelContext { return storedModelContext }
-        let context = ModelContext(modelContainer)
-        context.autosaveEnabled = false
-        storedModelContext = context
-        return context
+    func persistCore(
+        _ payloads: [ListeningArtistCatalogPayload]
+    ) async throws -> Set<String> {
+        try await persistenceActor.persistCore(payloads)
     }
 
+    func persistFeaturedPlaylists(
+        _ payload: ListeningFeaturedPlaylistsPayload
+    ) async throws -> Bool {
+        try await persistenceActor.persistFeaturedPlaylists(payload)
+    }
+}
+
+@ModelActor
+private actor ListeningCatalogPersistenceActor {
     func persistCore(
         _ payloads: [ListeningArtistCatalogPayload]
     ) throws -> Set<String> {
-        let modelContext = persistenceContext()
         do {
             return try ListeningCatalogBatchWriter.persistCore(payloads, in: modelContext)
         } catch {
@@ -146,7 +156,6 @@ private actor ListeningCatalogPersistenceActor {
     func persistFeaturedPlaylists(
         _ payload: ListeningFeaturedPlaylistsPayload
     ) throws -> Bool {
-        let modelContext = persistenceContext()
         do {
             return try ListeningCatalogBatchWriter.persistFeaturedPlaylists(payload, in: modelContext)
         } catch {
