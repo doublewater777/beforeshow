@@ -51,22 +51,25 @@ struct HomeCountdownLockup: View {
             let venueSummary = identity.venueSummary
 
             if dateText != nil || venueSummary != nil {
-                HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    if let dateText {
-                        Text(dateText)
-                            .font(.system(size: 12.5, weight: .regular))
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                    if dateText != nil, venueSummary != nil {
-                        Text(" · ")
-                            .font(.system(size: 12.5, weight: .regular))
-                            .foregroundColor(BSColor.Stage.muted)
-                    }
-                    if let venueSummary {
-                        locationControl(venueSummary, opensRoute: onOpenRoute != nil)
-                    }
+                ViewThatFits(in: .horizontal) {
+                    identityDetails(
+                        dateText: dateText,
+                        venueSummary: venueSummary,
+                        opensRoute: onOpenRoute != nil,
+                        stacked: false
+                    )
+                    // Keep the inline candidate unwrapped so ViewThatFits can
+                    // choose the stacked layout before a date breaks in half.
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+
+                    identityDetails(
+                        dateText: dateText,
+                        venueSummary: venueSummary,
+                        opensRoute: onOpenRoute != nil,
+                        stacked: true
+                    )
                 }
-                .lineLimit(2)
                 .padding(.top, 5)
             }
 
@@ -125,6 +128,46 @@ struct HomeCountdownLockup: View {
             kind: timeState.kind,
             hasConfirmedEnd: show.endedAt != nil
         )
+    }
+
+    @ViewBuilder
+    private func identityDetails(
+        dateText: String?,
+        venueSummary: String?,
+        opensRoute: Bool,
+        stacked: Bool
+    ) -> some View {
+        if stacked {
+            VStack(alignment: .leading, spacing: 3) {
+                if let dateText {
+                    identityDateText(dateText)
+                }
+                if let venueSummary {
+                    locationControl(venueSummary, opensRoute: opensRoute)
+                }
+            }
+            .lineLimit(2)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                if let dateText {
+                    identityDateText(dateText)
+                }
+                if dateText != nil, venueSummary != nil {
+                    Text(" · ")
+                        .font(.system(size: 12.5, weight: .regular))
+                        .foregroundColor(BSColor.Stage.muted)
+                }
+                if let venueSummary {
+                    locationControl(venueSummary, opensRoute: opensRoute)
+                }
+            }
+        }
+    }
+
+    private func identityDateText(_ value: String) -> some View {
+        Text(value)
+            .font(.system(size: 12.5, weight: .regular))
+            .foregroundColor(BSColor.Stage.muted)
     }
 
     @ViewBuilder
