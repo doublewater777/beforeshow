@@ -146,20 +146,20 @@ struct ListeningDiscDetailView: View {
 
             VStack(spacing: 6) {
                 Text(disc.title)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(BSListeningTokens.discTitle)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(BSColor.Stage.foreground)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if isMultiArtist && !artistsSummary.isEmpty {
                     Text(artistsSummary)
-                        .font(BSFont.body)
+                        .font(BSListeningTokens.body)
                         .foregroundStyle(BSColor.Stage.accent)
                         .multilineTextAlignment(.center)
                 }
 
                 Text(metadataSummary)
-                    .font(BSFont.caption)
+                    .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.muted)
                     .multilineTextAlignment(.center)
                     .padding(.top, 2)
@@ -177,11 +177,11 @@ struct ListeningDiscDetailView: View {
             Image(systemName: room.isPlaying ? "waveform" : "opticaldisc")
                 .font(.system(size: 11, weight: .bold))
             Text(BSLocalization.text(room.isPlaying ? "正在播放中" : "已在播放机中"))
-                .font(BSFont.caption.weight(.semibold))
+                .font(BSListeningTokens.caption.weight(.semibold))
         }
         .foregroundStyle(BSColor.Stage.accent)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.horizontal, BSSpacing.compact)
+        .padding(.vertical, BSSpacing.xs)
         .background(BSColor.Stage.accent.opacity(0.08), in: Capsule())
         .padding(.top, 2)
         .accessibilityElement(children: .combine)
@@ -200,7 +200,7 @@ struct ListeningDiscDetailView: View {
                         Image(systemName: "opticaldisc")
                             .font(.system(size: 17, weight: .semibold))
                         Text(BSLocalization.text("装入播放机"))
-                            .font(BSFont.headline)
+                            .font(BSListeningTokens.headline)
                     }
                     .foregroundStyle(Color.black)
                     .frame(maxWidth: .infinity, minHeight: 50)
@@ -235,7 +235,7 @@ struct ListeningDiscDetailView: View {
             Button(recovery.title) {
                 room.performListeningRecovery(recovery)
             }
-            .font(BSFont.caption.weight(.semibold))
+            .font(BSListeningTokens.caption.weight(.semibold))
             .foregroundStyle(BSColor.Stage.accent)
             .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
             .background(BSColor.Stage.surfaceRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
@@ -254,7 +254,7 @@ struct ListeningDiscDetailView: View {
             Image(systemName: "info.circle")
                 .foregroundStyle(BSColor.Stage.muted)
             Text(text)
-                .font(BSFont.body)
+                .font(BSListeningTokens.body)
                 .foregroundStyle(BSColor.Stage.muted)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -270,7 +270,7 @@ struct ListeningDiscDetailView: View {
             HStack(spacing: BSSpacing.sm) {
                 Image(systemName: "music.note")
                 Text(BSLocalization.text("在 Apple Music 中打开"))
-                    .font(BSFont.headline)
+                    .font(BSListeningTokens.headline)
                 Image(systemName: "arrow.up.right.square")
                     .font(.system(size: 13, weight: .semibold))
             }
@@ -289,8 +289,8 @@ struct ListeningDiscDetailView: View {
                     Text(badge)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(BSColor.Stage.muted)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
+                        .padding(.horizontal, BSSpacing.compact)
+                        .padding(.vertical, BSSpacing.xs)
                         .background(BSColor.Stage.surfaceRaised.opacity(0.7), in: Capsule())
                         .overlay(Capsule().stroke(BSColor.Stage.border, lineWidth: 0.75))
                 }
@@ -319,9 +319,11 @@ struct ListeningDiscDetailView: View {
                 ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { index, track in
                     trackRow(index: index, track: track)
 
-                    Divider()
-                        .overlay(BSColor.Stage.border)
-                        .accessibilityHidden(true)
+                    if index < disc.tracks.count - 1 {
+                        Divider()
+                            .overlay(BSColor.Stage.border)
+                            .accessibilityHidden(true)
+                    }
                 }
             }
         }
@@ -436,10 +438,10 @@ struct ListeningDiscDetailView: View {
     private func editorialSection(_ editorial: String) -> some View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
             Text(BSLocalization.text("专辑简介"))
-                .font(BSFont.caption.weight(.semibold))
+                .font(BSListeningTokens.caption.weight(.semibold))
                 .foregroundStyle(BSColor.Stage.dim)
             Text(editorial)
-                .font(BSFont.body)
+                .font(BSListeningTokens.body)
                 .lineSpacing(5)
                 .foregroundStyle(BSColor.Stage.muted)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -453,28 +455,28 @@ struct ListeningDiscDetailView: View {
         VStack(spacing: BSSpacing.sm) {
             if let releaseDate = disc.releaseDate {
                 Text("\(BSLocalization.text("发行日期")): \(releaseDate.formatted(date: .long, time: .omitted))")
-                    .font(BSFont.caption)
+                    .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
             }
             if let label = disc.recordLabelName, !label.isEmpty {
                 Text("\(BSLocalization.text("唱片公司")): \(label)")
-                    .font(BSFont.caption)
+                    .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
             }
             if let copyright = disc.copyright, !copyright.isEmpty {
                 Text(copyright)
-                    .font(BSFont.caption)
+                    .font(BSListeningTokens.caption)
                     .foregroundStyle(BSColor.Stage.dim)
                     .multilineTextAlignment(.center)
             }
             if let url = disc.appleMusicURL {
                 Link(destination: url) {
-                    HStack(spacing: 4) {
+                    HStack(spacing: BSSpacing.xs) {
                         Text(BSLocalization.text("在 Apple Music 中打开"))
                         Image(systemName: "arrow.up.right.square")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .font(BSFont.caption.weight(.semibold))
+                    .font(BSListeningTokens.caption.weight(.semibold))
                     .foregroundStyle(BSColor.Stage.accent)
                     .padding(.top, 4)
                 }
@@ -530,14 +532,14 @@ private struct ListeningDiscTrackRow: View {
             leadingIndicator
                 .frame(width: 24, alignment: .leading)
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: BSSpacing.xs) {
                 Text(track.title)
-                    .font(BSFont.body)
+                    .font(BSListeningTokens.body)
                     .foregroundStyle(titleColor)
                     .lineLimit(2)
                 if isMultiArtist {
                     Text(track.artistName)
-                        .font(BSFont.caption)
+                        .font(BSListeningTokens.caption)
                         .foregroundStyle(state == .unavailable ? BSColor.Stage.dim.opacity(0.55) : BSColor.Stage.muted)
                         .lineLimit(1)
                 }
@@ -557,7 +559,7 @@ private struct ListeningDiscTrackRow: View {
         }
         .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget, alignment: .leading)
         .padding(.horizontal, BSSpacing.md)
-        .padding(.vertical, 8)
+        .padding(.vertical, BSSpacing.sm)
         .background(state.isActive ? BSColor.Stage.accent.opacity(0.07) : Color.clear)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)

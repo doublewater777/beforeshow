@@ -15,7 +15,8 @@ struct ListeningCabinetView<Placeholder: View>: View {
     }
 
     private var isLoading: Bool {
-        room.libraryDiscs.isEmpty && (room.isAuthorizing || !room.accessResolved || room.presentation == .loadingCatalog)
+        room.libraryDiscs.isEmpty && (room.isAuthorizing || !room.accessResolved
+            || room.access.authorizationStatus != .authorized || room.presentation == .loadingCatalog)
     }
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
@@ -25,9 +26,10 @@ struct ListeningCabinetView<Placeholder: View>: View {
     }
 
     var body: some View {
-        ListeningShelfView(title: shelfTitle, count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count), isLoading: isLoading, showsAllDiscs: room.display.showsAllDiscs, showAll: showAll) {
+        ListeningShelfView(title: room.browseArtists.isEmpty ? shelfTitle : nil, count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count), isLoading: isLoading, showsAllDiscs: room.display.showsAllDiscs, showAll: showAll) {
             if shelfDiscs.isEmpty {
                 placeholder
+                    .frame(maxHeight: .infinity)
             } else {
                 HStack(alignment: .bottom, spacing: BSSpacing.compact) {
                     ForEach(shelfDiscs) { disc in

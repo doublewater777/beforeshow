@@ -167,11 +167,6 @@ struct ListeningRoomView: View {
 
                         ListeningCurrentSong(room: room)
 
-                        if !room.libraryDiscs.isEmpty,
-                           room.display.recoveryAction != nil || room.isAuthorizing {
-                            catalogStatus
-                        }
-
                         if let notice = room.mechanism.notice {
                             Text(notice)
                                 .font(BSListeningTokens.caption)

@@ -236,7 +236,7 @@ struct ListeningCurrentSong: View {
                     .accessibilityIdentifier("listening.playerGuidance")
             }
 
-            if let recovery = player.recoveryAction {
+            if let recovery = player.recoveryAction ?? room.display.recoveryAction {
                 Button(recovery.title) {
                     room.performListeningRecovery(recovery)
                 }

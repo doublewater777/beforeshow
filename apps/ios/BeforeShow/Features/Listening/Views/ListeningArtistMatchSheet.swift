@@ -101,7 +101,7 @@ struct ListeningArtistMatchSheet: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(BSColor.Stage.muted)
             TextField(BSLocalization.text("艺人名称"), text: $query)
-                .font(BSFont.body)
+                .font(BSListeningTokens.body)
                 .textInputAutocapitalization(.words)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
@@ -177,7 +177,7 @@ struct ListeningArtistMatchSheet: View {
                 .background(Color.white.opacity(0.045), in: Circle())
                 .overlay(Circle().stroke(BSColor.Stage.border))
             Text(text)
-                .font(BSFont.body)
+                .font(BSListeningTokens.body)
                 .foregroundStyle(BSColor.Stage.muted)
         }
         .frame(maxWidth: .infinity)

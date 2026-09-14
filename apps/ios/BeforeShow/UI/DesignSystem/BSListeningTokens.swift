@@ -16,6 +16,7 @@ enum BSListeningTokens {
     static let shelfShadowBlur: CGFloat = 7
     static let sleeveLabel = Font.caption.weight(.medium)
     static let songTitle = Font.title3.weight(.medium)
+    static let discTitle = Font.system(size: 24, weight: .bold)
     static let songSpacing: CGFloat = 6
     static let songHeight: CGFloat = 70
     static let stageTopOffset: CGFloat = 24

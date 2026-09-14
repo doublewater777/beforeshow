@@ -280,9 +280,14 @@ struct ListeningArtistArtwork: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                ZStack {
-                    BSColor.Stage.surfaceRaised
-                    Text(String(name.prefix(1))).font(.largeTitle).foregroundStyle(BSColor.Stage.muted)
+                GeometryReader { proxy in
+                    ZStack {
+                        BSColor.Stage.surfaceRaised
+                        Text(String(name.prefix(1)))
+                            .font(.system(size: proxy.size.width * 0.5, weight: .semibold))
+                            .foregroundStyle(BSColor.Stage.muted)
+                    }
+                    .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
         }

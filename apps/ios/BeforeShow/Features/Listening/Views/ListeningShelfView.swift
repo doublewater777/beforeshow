@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Keeps the cabinet and player in place as catalog content arrives.
 struct ListeningShelfView<Content: View>: View {
-    let title: String
+    let title: String?
     let count: String
     var isLoading = false
     var showsAllDiscs = false
@@ -21,53 +21,18 @@ struct ListeningShelfView<Content: View>: View {
     }
 
     var body: some View {
-        let titleLabel = Text(title)
-            .font(BSListeningTokens.captionMedium)
-            .foregroundStyle(BSColor.Stage.muted)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-        let countLabel = Text(count)
-            .font(BSListeningTokens.caption)
-            .foregroundStyle(BSColor.Stage.dim)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-            .redacted(reason: isLoading ? .placeholder : [])
-            .accessibilityHidden(isLoading)
-        let allButton = Button(action: showAll) {
-            HStack(spacing: 3) {
-                Text(BSLocalization.text("查看全部"))
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .font(BSFont.caption)
-            .foregroundStyle(BSColor.Stage.accent)
-            .lineLimit(1)
-            .minimumScaleFactor(0.72)
-            .frame(minHeight: BSLayout.minTouchTarget)
-        }
-        .buttonStyle(BSListeningPressStyle(scale: 0.95))
-        .opacity(showsAllDiscs ? 1 : 0)
-        .disabled(!showsAllDiscs)
-        .accessibilityHidden(!showsAllDiscs)
-        .accessibilityIdentifier("listening.allDiscs")
-
         VStack(alignment: .leading, spacing: BSSpacing.sm) {
             Group {
                 if dynamicTypeSize.isAccessibilitySize {
                     VStack(alignment: .leading, spacing: BSSpacing.xs) {
                         titleLabel
-                        HStack {
-                            countLabel
-                            Spacer(minLength: 0)
-                            allButton
-                        }
+                        countView
                     }
                 } else {
                     HStack(alignment: .firstTextBaseline) {
                         titleLabel
-                        countLabel
+                        countView
                         Spacer(minLength: 0)
-                        allButton
                     }
                 }
             }
@@ -78,5 +43,44 @@ struct ListeningShelfView<Content: View>: View {
                 .frame(height: contentHeight, alignment: .bottom)
         }
         .frame(height: fixedHeight, alignment: .top)
+    }
+
+    @ViewBuilder
+    private var titleLabel: some View {
+        if let title {
+            Text(title)
+                .font(BSListeningTokens.captionMedium)
+                .foregroundStyle(BSColor.Stage.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+    }
+
+    @ViewBuilder
+    private var countView: some View {
+        if showsAllDiscs {
+            Button(action: showAll) {
+                HStack(spacing: 3) {
+                    Text(count)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                }
+                .font(BSListeningTokens.caption)
+                .foregroundStyle(BSColor.Stage.accent)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .frame(minHeight: BSLayout.minTouchTarget)
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.95))
+            .accessibilityIdentifier("listening.allDiscs")
+        } else {
+            Text(count)
+                .font(BSListeningTokens.caption)
+                .foregroundStyle(BSColor.Stage.dim)
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+                .redacted(reason: isLoading ? .placeholder : [])
+                .accessibilityHidden(isLoading)
+        }
     }
 }
