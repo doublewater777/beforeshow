@@ -51,14 +51,10 @@ final class ListeningLocalizationTests: XCTestCase {
 
 @MainActor
 final class ListeningReviewerRegressionTests: XCTestCase {
-    override func tearDown() {
-        ListeningPlaybackChromeStore.shared.room = nil
-        ListeningRoomCache.shared?.mechanism.motion.stop()
-        ListeningRoomCache.shared = nil
-        super.tearDown()
-    }
-
     func testCurrentShowChangeClearsOldChromeAndLoadedDisc() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let now = Date()
@@ -94,8 +90,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             catalogService: ListeningReviewerCatalogStub()
         ))
         XCTAssertEqual(firstRoom.show?.id, firstShow.id)
-        XCTAssertTrue(ListeningPlaybackChromeStore.shared.room === firstRoom)
-        XCTAssertTrue(ListeningRoomCache.shared === firstRoom)
+        XCTAssertTrue(ListeningPlaybackChromeStore.shared.room.map { $0 === firstRoom } == true)
+        XCTAssertTrue(ListeningRoomCache.shared.map { $0 === firstRoom } == true)
 
         let secondRoom = await ListeningChromeBootstrapper.prepare(
             show: secondShow,
@@ -167,6 +163,12 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let data = try Data(contentsOf: root.appendingPathComponent("BeforeShow/RootView.swift"))
         XCTAssertLessThanOrEqual(data.count, 12_000)
+    }
+
+    private func resetChromeGlobals() {
+        ListeningPlaybackChromeStore.shared.room = nil
+        ListeningRoomCache.shared?.mechanism.motion.stop()
+        ListeningRoomCache.shared = nil
     }
 
     private func listeningSource(_ relativePath: String) throws -> String {
