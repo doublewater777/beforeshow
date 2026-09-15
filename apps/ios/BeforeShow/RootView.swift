@@ -1,10 +1,8 @@
 import SwiftData
 import SwiftUI
-
 extension UUID: @retroactive Identifiable {
     public var id: UUID { self }
 }
-
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,7 +39,6 @@ struct RootView: View {
         }
         return nil
     }
-
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -156,7 +153,6 @@ struct RootView: View {
         }
         #endif
     }
-
     private func openAcceptedShow(_ result: CompanionAcceptedImportResult) {
         if result.wasHistorical, let show = rootShows.first(where: { $0.id == result.showID }) {
             ceremonyPendingDetail = FootprintDetailDestination(show: show)
@@ -169,7 +165,6 @@ struct RootView: View {
         }
         dismissCompanionResultMessage()
     }
-
     private func dismissCompanionResultMessage() {
         companionDuplicateErrorMessage = nil
         companionAcceptanceMessage = nil
@@ -179,12 +174,10 @@ struct RootView: View {
             _ = companionCoordinator.consumeLastErrorMessage()
         }
     }
-
     private func refreshCompanionDuplicateResolution() {
         guard companionDuplicateResolution == nil else { return }
         companionDuplicateResolution = CompanionDuplicateResolutionFinder.first(in: rootShows)
     }
-
     private func resolveCompanionDuplicate(
         _ resolution: CompanionDuplicateResolution,
         mergeInto target: Show
@@ -203,7 +196,6 @@ struct RootView: View {
             companionDuplicateResolution = nil
         }
     }
-
     private func keepCompanionDuplicateSeparate(_ resolution: CompanionDuplicateResolution) {
         if let sessionRecordName = resolution.importedShow.companionCloudRecordName {
             CompanionDuplicateResolutionStore.ignore(sessionRecordName: sessionRecordName)
@@ -211,13 +203,11 @@ struct RootView: View {
         companionDuplicateResolution = nil
         refreshCompanionDuplicateResolution()
     }
-
     private func persistedShowExists() -> Bool {
         var descriptor = FetchDescriptor<Show>()
         descriptor.fetchLimit = 1
         return ((try? modelContext.fetch(descriptor))?.isEmpty == false)
     }
-
     private func resolveOnboardingRouteIfNeeded(hasShowsOverride: Bool? = nil) {
         guard !hasResolvedOnboardingRoute else { return }
 
@@ -255,7 +245,6 @@ struct RootView: View {
         )
         hasResolvedOnboardingRoute = true
     }
-
     private func completeOnboarding() {
         hasCompletedOnboarding = true
         if reduceMotion {
@@ -266,7 +255,6 @@ struct RootView: View {
             }
         }
     }
-
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
             CurrentShowFeatureRootView(
@@ -296,6 +284,7 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
         }
+        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {
