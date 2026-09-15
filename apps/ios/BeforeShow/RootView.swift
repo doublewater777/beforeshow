@@ -256,33 +256,29 @@ struct RootView: View {
         }
     }
     private var mainTabView: some View {
-        TabView(selection: $selectedTab) {
+        ZStack {
             CurrentShowFeatureRootView(
                 isPlaybackActive: selectedTab == .current,
                 ceremonyPendingDetail: $ceremonyPendingDetail
             )
-            .tabItem {
-                Label(
-                    BeforeShowTab.current.localizedTitle,
-                    systemImage: BeforeShowTab.current.iconName
-                )
-            }
-            .tag(BeforeShowTab.current)
+            .opacity(selectedTab == .current ? 1 : 0)
+            .allowsHitTesting(selectedTab == .current)
+            .accessibilityHidden(selectedTab != .current)
+            .zIndex(selectedTab == .current ? 1 : 0)
 
             ListeningFeatureRootView(isActive: selectedTab == .listen)
-                .tabItem { Label(BeforeShowTab.listen.localizedTitle, systemImage: BeforeShowTab.listen.iconName) }
-                .tag(BeforeShowTab.listen)
+                .opacity(selectedTab == .listen ? 1 : 0)
+                .allowsHitTesting(selectedTab == .listen)
+                .accessibilityHidden(selectedTab != .listen)
+                .zIndex(selectedTab == .listen ? 1 : 0)
 
             FootprintsView(
                 pendingDetailTarget: ceremonyPendingDetail
             )
-            .tabItem {
-                Label(
-                    BeforeShowTab.footprints.localizedTitle,
-                    systemImage: BeforeShowTab.footprints.iconName
-                )
-            }
-            .tag(BeforeShowTab.footprints)
+            .opacity(selectedTab == .footprints ? 1 : 0)
+            .allowsHitTesting(selectedTab == .footprints)
+            .accessibilityHidden(selectedTab != .footprints)
+            .zIndex(selectedTab == .footprints ? 1 : 0)
         }
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
         .sensoryFeedback(.selection, trigger: selectedTab)
