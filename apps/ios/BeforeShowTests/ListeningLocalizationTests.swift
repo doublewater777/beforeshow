@@ -1,3 +1,5 @@
+import Foundation
+import SwiftData
 import XCTest
 @testable import BeforeShow
 
@@ -44,5 +46,148 @@ final class ListeningLocalizationTests: XCTestCase {
             XCTAssertTrue(values["试听中 · 剩余 %d 秒"]?.contains("%d") == true)
             XCTAssertTrue(values["试听暂停 · 剩余 %d 秒"]?.contains("%d") == true)
         }
+    }
+}
+
+@MainActor
+final class ListeningReviewerRegressionTests: XCTestCase {
+    override func tearDown() {
+        ListeningPlaybackChromeStore.shared.room = nil
+        ListeningRoomCache.shared?.mechanism.motion.stop()
+        ListeningRoomCache.shared = nil
+        super.tearDown()
+    }
+
+    func testCurrentShowChangeClearsOldChromeAndLoadedDisc() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let firstShow = try Show(name: "First", date: now, startTime: now)
+        let secondShow = try Show(name: "Second", date: now.addingTimeInterval(60), startTime: now.addingTimeInterval(60))
+        context.insert(firstShow)
+        context.insert(secondShow)
+
+        let song = CatalogSong(
+            appleMusicSongID: "review-song",
+            title: "Review Song",
+            artistName: "Artist",
+            duration: 180,
+            previewURL: "https://example.invalid/review.m4a"
+        )
+        let disc = ListeningDisc(
+            id: "review-disc",
+            title: "Review Disc",
+            artworkURL: nil,
+            tracks: [ListeningDiscTrack(song)]
+        )
+        context.insert(
+            ListeningLoadedDiscState(
+                discData: try JSONEncoder().encode(disc),
+                songID: song.appleMusicSongID
+            )
+        )
+        try context.save()
+
+        let firstRoom = try XCTUnwrap(await ListeningChromeBootstrapper.prepare(
+            show: firstShow,
+            context: context,
+            catalogService: ListeningReviewerCatalogStub()
+        ))
+        XCTAssertEqual(firstRoom.show?.id, firstShow.id)
+        XCTAssertTrue(ListeningPlaybackChromeStore.shared.room === firstRoom)
+        XCTAssertTrue(ListeningRoomCache.shared === firstRoom)
+
+        let secondRoom = await ListeningChromeBootstrapper.prepare(
+            show: secondShow,
+            context: context,
+            catalogService: ListeningReviewerCatalogStub()
+        )
+
+        XCTAssertNil(secondRoom, "A disc restored for the previous Current Show must not appear under the new Current Show")
+        XCTAssertNil(ListeningPlaybackChromeStore.shared.room)
+        XCTAssertNil(ListeningRoomCache.shared)
+        XCTAssertEqual(try context.fetchCount(FetchDescriptor<ListeningLoadedDiscState>()), 0)
+        XCTAssertFalse(firstRoom.mechanism.hasDisc)
+    }
+
+    func testMiniPlayerAccessibilityAndReduceMotionContractsAreLockedInSource() throws {
+        let listeningRoot = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
+
+        XCTAssertGreaterThanOrEqual(
+            listeningRoot.components(separatedBy: ".frame(width: 44, height: 44)").count - 1,
+            3,
+            "Full lid/play controls and compact play control must each retain a 44x44 hit target"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".frame(minHeight: 44)"),
+            "Compact return-to-Listen interaction must retain at least a 44pt hit height"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("paused: reduceMotion || !isPlaying"),
+            "Disc spin must pause when Reduce Motion is enabled"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.48"),
+            "Full/compact morph must disable its spring under Reduce Motion"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.30"),
+            "Lid glyph must disable its spring under Reduce Motion"
+        )
+    }
+
+    func testFullPlayerReservesBottomSafeAreaInsteadOfOverlayingListenContent() throws {
+        let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
+        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertFalse(rootChrome.contains(".overlay(alignment: .bottom)"))
+    }
+
+    func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
+        let iosRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let sourceRoot = iosRoot.appendingPathComponent("BeforeShow")
+        let testsRoot = iosRoot.appendingPathComponent("BeforeShowTests")
+        let project = try String(
+            contentsOf: iosRoot.appendingPathComponent("BeforeShow.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMiniPlayerChrome.swift").path
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerChromeTests.swift").path
+        ))
+        XCTAssertTrue(project.contains("ListeningAtmosphere.swift in Sources"))
+        XCTAssertTrue(project.contains("ListeningCompatibilityTests.swift in Sources"))
+        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift").contains("struct ListeningBottomChrome"))
+        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningCompatibilityTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerChromeTests"))
+    }
+
+    func testRootViewRemainsWithinArchitectureBudget() throws {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let data = try Data(contentsOf: root.appendingPathComponent("BeforeShow/RootView.swift"))
+        XCTAssertLessThanOrEqual(data.count, 12_000)
+    }
+
+    private func listeningSource(_ relativePath: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow")
+        return try String(contentsOf: root.appendingPathComponent(relativePath), encoding: .utf8)
+    }
+}
+
+private struct ListeningReviewerCatalogStub: ListeningMusicCatalogServicing {
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        ListeningMusicAccess(authorizationStatus: .authorized, canPlayCatalogContent: true)
+    }
+
+    func fetchArtistCatalog(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
     }
 }
