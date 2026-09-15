@@ -29,10 +29,10 @@ concurrency:
 jobs:
   verify-pr:
     if: github.event_name == 'pull_request'
-    # macos-26 allocation has been failing before runner assignment. macos-15
-    # also carries Xcode 26.3, so pin that toolchain explicitly and keep the
-    # verifier on a hosted CoreSimulator-capable runner.
-    runs-on: macos-15
+    # PR verification needs a healthy CoreSimulator stack, so run tests on a
+    # fresh hosted macOS VM.
+    # macos-26 currently ships Xcode 26.6 by default, matching the project CI.
+    runs-on: macos-26
     timeout-minutes: 45
     env:
       # Existing date/time fixtures were authored against the product's China
@@ -40,11 +40,6 @@ jobs:
       # fallback calendars do not silently switch those fixtures to UTC.
       TZ: Asia/Shanghai
     steps:
-      - name: Select Xcode 26.3
-        run: |
-          sudo xcode-select -s /Applications/Xcode_26.3.app/Contents/Developer
-          xcodebuild -version
-
       - name: Set deterministic timezone
         run: |
           sudo /usr/sbin/systemsetup -settimezone Asia/Shanghai
