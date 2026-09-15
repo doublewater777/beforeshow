@@ -74,6 +74,34 @@ enum ListeningChromeBootstrapper {
     }
 }
 
+struct ListeningRootChromeModifier: ViewModifier {
+    @Binding var selectedTab: BeforeShowTab
+    @Environment(\.modelContext) private var modelContext
+    @Query private var shows: [Show]
+    @Query private var selections: [CurrentShowSelection]
+
+    private var currentShow: Show? {
+        let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
+        return shows.first { $0.id == id }
+    }
+
+    private var currentShowID: UUID? { currentShow?.id }
+
+    func body(content: Content) -> some View {
+        content
+            .toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ListeningBottomChrome(selectedTab: $selectedTab)
+            }
+            .task(id: currentShowID) {
+                _ = await ListeningChromeBootstrapper.prepare(
+                    show: currentShow,
+                    context: modelContext
+                )
+            }
+    }
+}
+
 struct ListeningFeatureRootView: View {
     let isActive: Bool
     #if DEBUG
