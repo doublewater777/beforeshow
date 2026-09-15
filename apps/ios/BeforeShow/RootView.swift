@@ -10,7 +10,6 @@ struct RootView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
-    @Query private var rootSelections: [CurrentShowSelection]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var hasResolvedOnboardingRoute = false
@@ -41,15 +40,6 @@ struct RootView: View {
             return companionCoordinator.lastErrorMessage
         }
         return nil
-    }
-
-    private var listeningChromeShow: Show? {
-        let id = CurrentShowSelectionStore.canonical(in: rootSelections)?.selectedShowID
-        return rootShows.first { $0.id == id }
-    }
-
-    private var listeningChromeShowID: UUID? {
-        listeningChromeShow?.id
     }
 
     var body: some View {
@@ -138,9 +128,6 @@ struct RootView: View {
             }
             refreshCompanionDuplicateResolution()
         }
-        .task(id: listeningChromeShowID) {
-            await bootstrapListeningChrome()
-        }
         .task {
             companionCoordinator.reloadPersistedAcceptedShares()
             if companionCoordinator.hasPendingAcceptedShares {
@@ -223,13 +210,6 @@ struct RootView: View {
         }
         companionDuplicateResolution = nil
         refreshCompanionDuplicateResolution()
-    }
-
-    private func bootstrapListeningChrome() async {
-        _ = await ListeningChromeBootstrapper.prepare(
-            show: listeningChromeShow,
-            context: modelContext
-        )
     }
 
     private func persistedShowExists() -> Bool {
@@ -316,10 +296,7 @@ struct RootView: View {
             }
             .tag(BeforeShowTab.footprints)
         }
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ListeningBottomChrome(selectedTab: $selectedTab)
-        }
+        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {
