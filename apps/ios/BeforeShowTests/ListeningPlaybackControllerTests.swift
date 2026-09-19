@@ -135,6 +135,78 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNotNil(record.actualListeningAt)
     }
 
+    func testPendingEvidenceFailureDoesNotBlockNextTrackAccumulation() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let service = PlaybackServiceStub()
+        var persistenceAvailable = false
+        var evidenceFailureCount = 0
+        var evidenceChangeCount = 0
+        let evidence = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable else {
+                    throw ControllerEvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: evidence,
+            evidenceDidChange: { evidenceChangeCount += 1 },
+            evidenceDidFail: { evidenceFailureCount += 1 }
+        )
+        let items = [
+            ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-b", duration: 100, previewURL: nil)
+        ]
+
+        try await controller.prepare(
+            items: items,
+            source: .fullCatalog,
+            startingAtSongID: "song-a",
+            now: time(0)
+        )
+        try await service.play()
+        _ = try controller.refresh(now: time(0))
+
+        service.currentTime = 51
+        _ = try controller.refresh(now: time(51))
+        XCTAssertEqual(evidenceFailureCount, 1)
+
+        try service.selectSongForTesting("song-b")
+        _ = try controller.refresh(now: time(52))
+        service.currentTime = 51
+        _ = try controller.refresh(now: time(103))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "song-b", source: .fullCatalog, currentTime: 51, duration: 100)
+        )
+        XCTAssertEqual(evidenceFailureCount, 3)
+        XCTAssertEqual(evidenceChangeCount, 0)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        _ = try controller.refresh(now: time(104))
+        _ = try controller.refresh(now: time(105))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "song-b", source: .fullCatalog, currentTime: 51, duration: 100)
+        )
+        XCTAssertEqual(evidenceChangeCount, 2)
+        let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+        XCTAssertEqual(
+            Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a", "song-b"]
+        )
+    }
+
     func testPreparePreservesWholeQueueAndStartingTrack() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -336,6 +408,15 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
 
     func play() async throws { isPlaying = true }
     func pause() { isPlaying = false }
+
+    func selectSongForTesting(_ songID: String) throws {
+        guard let selected = preparedItems.first(where: { $0.songID == songID }) else {
+            throw ListeningPlaybackError.songUnavailable(songID)
+        }
+        item = selected
+        currentTime = 0
+    }
+
     func skipToNext() async throws { throw ListeningPlaybackError.queueBoundary }
     func skipToPrevious() async throws { throw ListeningPlaybackError.queueBoundary }
     func seek(to time: TimeInterval) { currentTime = time }
