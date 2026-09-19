@@ -22,6 +22,42 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertEqual(records.first?.actualListeningAt, heardAt)
     }
 
+    func testFailedPersistenceRollsBackAndRetriesPendingThreshold() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        var shouldFail = true
+        let coordinator = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                if shouldFail {
+                    shouldFail = false
+                    throw EvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+        let firstAttempt = Date(timeIntervalSince1970: 500)
+        let retryAttempt = Date(timeIntervalSince1970: 501)
+
+        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: firstAttempt))
+        XCTAssertThrowsError(
+            try coordinator.ingest(full(time: 51, observedAt: 51), at: firstAttempt)
+        )
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        XCTAssertTrue(
+            try coordinator.ingest(full(time: 51, observedAt: 52), at: retryAttempt)
+        )
+        let record = try XCTUnwrap(
+            context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .first { $0.songID == "song-a" }
+        )
+        XCTAssertEqual(record.actualListeningAt, retryAttempt)
+    }
+
     func testManualFamiliarityDoesNotSuppressLaterActualEvidence() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -50,4 +86,8 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
             observedAt: Date(timeIntervalSince1970: observedAt)
         )
     }
+}
+
+private enum EvidencePersistenceTestError: Error {
+    case expectedFailure
 }
