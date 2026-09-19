@@ -92,6 +92,12 @@ enum ListeningChromeBootstrapper {
     }
 }
 
+enum ListeningRootChromeVisibilityPolicy {
+    static func usesCompactChrome(for selectedTab: BeforeShowTab) -> Bool {
+        selectedTab != .listen
+    }
+}
+
 struct ListeningRootChromeModifier: ViewModifier {
     @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
@@ -113,7 +119,10 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar(selectedTab == .listen ? .visible : .hidden, for: .tabBar)
+            .toolbar(
+                ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: selectedTab) ? .hidden : .visible,
+                for: .tabBar
+            )
             .tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen) {
                 ListeningBottomAccessory(
                     isListenSelected: true,
@@ -121,7 +130,7 @@ struct ListeningRootChromeModifier: ViewModifier {
                 )
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                if selectedTab != .listen {
+                if ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: selectedTab) {
                     ListeningCompactRootChrome(selectedTab: $selectedTab)
                 }
             }
