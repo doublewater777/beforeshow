@@ -49,12 +49,6 @@ enum ListeningBottomBarPresentation {
     }
 }
 
-enum ListeningBottomBarMotionPolicy {
-    static func animatesMorph(reduceMotion: Bool) -> Bool {
-        !reduceMotion
-    }
-}
-
 enum ListeningBottomBarLayout {
     static let tabSize: CGFloat = 58
     static let gap: CGFloat = 10
@@ -66,9 +60,13 @@ enum ListeningBottomBarLayout {
 /// into the compact player on Current / Footprints when a disc is loaded.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var listenSlotNamespace
+    @State private var presentedTab: BeforeShowTab
     @State private var store = ListeningPlaybackChromeStore.shared
+
+    init(selectedTab: Binding<BeforeShowTab>) {
+        self._selectedTab = selectedTab
+        self._presentedTab = State(initialValue: selectedTab.wrappedValue)
+    }
 
     private var room: ListeningRoomCoordinator? { store.room }
     private var track: ListeningDiscTrack? { room?.track }
@@ -78,47 +76,46 @@ struct ListeningPolishedBottomChrome: View {
     }
     private var showsMiniPlayer: Bool {
         ListeningBottomBarPresentation.showsMiniPlayer(
-            selectedTab: selectedTab,
+            selectedTab: presentedTab,
             hasLoadedDisc: hasLoadedDisc
         )
     }
-    private var listenMorphAnimation: Animation? {
-        guard ListeningBottomBarMotionPolicy.animatesMorph(reduceMotion: reduceMotion) else {
-            return nil
-        }
-        return .spring(response: BSMotion.interface, dampingFraction: 0.86)
-    }
 
     var body: some View {
-        HStack(spacing: ListeningBottomBarLayout.gap) {
-            tabButton(.current)
+        ZStack {
+            HStack(spacing: ListeningBottomBarLayout.gap) {
+                tabButton(.current)
 
-            ZStack {
-                if showsMiniPlayer, let room, let track {
-                    ListeningCompactPlayerTab(
-                        room: room,
-                        track: track,
-                        onSelectListen: { selectedTab = .listen }
-                    )
-                    .matchedGeometryEffect(id: "listen-slot", in: listenSlotNamespace)
-                    .transition(.opacity)
-                } else {
-                    tabButton(.listen)
-                        .matchedGeometryEffect(id: "listen-slot", in: listenSlotNamespace)
-                        .transition(.opacity)
+                Group {
+                    if showsMiniPlayer, let room, let track {
+                        ListeningCompactPlayerTab(
+                            room: room,
+                            track: track,
+                            onSelectListen: { selectedTab = .listen }
+                        )
+                    } else {
+                        tabButton(.listen)
+                    }
                 }
-            }
-            .frame(width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize)
-            .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
-            .animation(listenMorphAnimation, value: showsMiniPlayer)
+                .frame(width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize)
+                .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
 
-            tabButton(.footprints)
+                tabButton(.footprints)
+            }
+            .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
         }
-        .frame(maxWidth: showsMiniPlayer ? ListeningBottomBarLayout.playerGroupMaxWidth : nil)
+        .frame(maxWidth: ListeningBottomBarLayout.playerGroupMaxWidth)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
+        .task(id: selectedTab) {
+            // Let TabView commit the destination first. Chrome follows on the next
+            // main-actor turn without a competing layout/matched-geometry animation.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            presentedTab = selectedTab
+        }
     }
 
     @ViewBuilder
