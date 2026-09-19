@@ -230,14 +230,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
     }
 
     func testNotificationRequestKeepsAbsoluteFireDateAcrossDeviceTimeZones() throws {
-        let fireDate = DateComponents(
-            calendar: calendar,
-            timeZone: calendar.timeZone,
-            year: 2026,
-            month: 9,
-            day: 16,
-            hour: 23
-        ).date!
+        let fireDate = makeDate(year: 2027, month: 9, day: 16, hour: 23)
         let request = ScheduledShowNotification(
             showID: UUID(),
             milestone: .showDay,
