@@ -84,7 +84,7 @@ struct ListeningPolishedBottomChrome: View {
     }
 
     var body: some View {
-        HStack(spacing: BSSpacing.sm) {
+        HStack(spacing: 6) {
             tabButton(.current)
 
             ZStack {
@@ -107,8 +107,19 @@ struct ListeningPolishedBottomChrome: View {
 
             tabButton(.footprints)
         }
-        .padding(.horizontal, BSSpacing.compact)
-        .frame(height: 58)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: 360)
+        .frame(height: 64)
+        .background {
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white.opacity(0.025))
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(BSColor.borderProminent, lineWidth: 0.7)
+        }
+        .shadow(color: Color.black.opacity(0.24), radius: 16, y: 7)
+        .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
     }
@@ -120,21 +131,17 @@ struct ListeningPolishedBottomChrome: View {
             selectedTab = tab
         } label: {
             Image(systemName: tab.iconName)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 21, weight: .semibold))
                 .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
-                .frame(width: 48, height: 48)
-                .contentShape(Circle())
+                .frame(width: 58, height: 52)
+                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .background {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                    if isSelected {
-                        Circle()
-                            .fill(BSColor.Stage.accent.opacity(0.12))
-                    }
-                    Circle()
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(isSelected ? BSColor.Stage.accent.opacity(0.16) : Color.clear)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .stroke(
-                            isSelected ? BSColor.Stage.accent.opacity(0.34) : BSColor.borderProminent,
-                            lineWidth: 0.7
+                            isSelected ? BSColor.Stage.accent.opacity(0.30) : Color.clear,
+                            lineWidth: 0.8
                         )
                 }
         }
@@ -239,18 +246,23 @@ private struct ListeningCompactPlayerTab: View {
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
-        .frame(height: 48)
+        .frame(height: 50)
         .background {
-            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                .fill(.ultraThinMaterial)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .fill(Color.white.opacity(0.055))
 
             if showsPlayingState {
-                RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .fill(BSColor.Accent.info.opacity(0.08))
             }
 
-            RoundedRectangle(cornerRadius: BSRadius.lg, style: .continuous)
-                .stroke(BSColor.borderProminent, lineWidth: 0.7)
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(
+                    showsPlayingState
+                        ? BSColor.Accent.info.opacity(0.22)
+                        : BSColor.border,
+                    lineWidth: 0.7
+                )
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
