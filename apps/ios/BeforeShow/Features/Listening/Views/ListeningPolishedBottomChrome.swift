@@ -206,20 +206,6 @@ private struct ListeningExpandedAccessoryView: View {
                 .disabled(room.busy)
                 .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
-
-                Button {
-                    room.perform(.open)
-                } label: {
-                    Image(systemName: "eject.fill")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(BSListeningPressStyle(scale: 0.90))
-                .disabled(room.busy)
-                .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
-                .accessibilityIdentifier("listening.miniPlayer.open")
             }
         }
         .padding(.leading, 8)
