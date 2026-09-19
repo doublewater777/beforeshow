@@ -92,8 +92,8 @@ enum ListeningChromeBootstrapper {
     }
 }
 
-enum ListeningRootChromeVisibilityPolicy {
-    static func usesCompactChrome(for selectedTab: BeforeShowTab) -> Bool {
+enum ListeningBottomChromeInteractionPolicy {
+    static func minimizesTabBar(for selectedTab: BeforeShowTab) -> Bool {
         selectedTab != .listen
     }
 }
@@ -119,16 +119,16 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen) {
+            .tabBarMinimizeBehavior(
+                ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: selectedTab)
+                    ? .onScrollDown
+                    : .never
+            )
+            .tabViewBottomAccessory(isEnabled: hasLoadedDisc) {
                 ListeningBottomAccessory(
-                    isListenSelected: true,
+                    isListenSelected: selectedTab == .listen,
                     onSelectListen: { selectedTab = .listen }
                 )
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                if ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: selectedTab) {
-                    ListeningCompactRootChrome(selectedTab: $selectedTab)
-                }
             }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
@@ -147,7 +147,6 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
-            .toolbarVisibility(.visible, for: .tabBar)
             .onAppear {
                 if isActive { ListeningPlayerWarmup.prepareIfNeeded() }
             }
