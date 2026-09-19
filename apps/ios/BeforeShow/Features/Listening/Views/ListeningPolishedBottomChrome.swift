@@ -56,7 +56,7 @@ enum ListeningBottomBarLayout {
     static let miniPlayerWidth = playerGroupMaxWidth - tabSize * 2 - gap * 2
     static let iconGroupWidth = tabSize * 3 + gap * 2
     static let transitionDelay = Duration.milliseconds(45)
-    static let transitionDuration = 0.28
+    static let transitionDuration = 0.34
 }
 
 /// Root navigation chrome. The middle Listen destination owns playback chrome:
@@ -91,19 +91,13 @@ struct ListeningPolishedBottomChrome: View {
             HStack(spacing: ListeningBottomBarLayout.gap) {
                 tabButton(.current)
 
-                Group {
-                    if showsMiniPlayer, let room, let track {
-                        ListeningCompactPlayerTab(
-                            room: room,
-                            track: track,
-                            onSelectListen: { selectedTab = .listen }
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                    } else {
-                        tabButton(.listen)
-                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                    }
-                }
+                ListeningMorphingListenControl(
+                    expanded: showsMiniPlayer,
+                    isSelected: selectedTab == .listen,
+                    room: room,
+                    track: track,
+                    onSelectListen: { selectedTab = .listen }
+                )
                 .frame(
                     width: showsMiniPlayer
                         ? ListeningBottomBarLayout.miniPlayerWidth
@@ -123,9 +117,8 @@ struct ListeningPolishedBottomChrome: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
         .task(id: selectedTab) {
-            // TabView owns the selection frame. After that frame has committed,
-            // animate only the chrome's width/content change so navigation stays
-            // responsive while Listen still visibly contracts/expands.
+            // TabView owns the selection frame. The persistent Listen control then
+            // morphs independently, so page navigation never shares its layout work.
             await Task.yield()
             guard !Task.isCancelled else { return }
 
@@ -136,7 +129,7 @@ struct ListeningPolishedBottomChrome: View {
 
             try? await Task.sleep(for: ListeningBottomBarLayout.transitionDelay)
             guard !Task.isCancelled else { return }
-            withAnimation(.easeInOut(duration: ListeningBottomBarLayout.transitionDuration)) {
+            withAnimation(.smooth(duration: ListeningBottomBarLayout.transitionDuration)) {
                 presentedTab = selectedTab
             }
         }
@@ -193,9 +186,11 @@ struct ListeningPolishedBottomChrome: View {
     }
 }
 
-private struct ListeningCompactPlayerTab: View {
-    @Bindable var room: ListeningRoomCoordinator
-    let track: ListeningDiscTrack
+private struct ListeningMorphingListenControl: View {
+    let expanded: Bool
+    let isSelected: Bool
+    @Bindable var room: ListeningRoomCoordinator?
+    let track: ListeningDiscTrack?
     let onSelectListen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -204,19 +199,33 @@ private struct ListeningCompactPlayerTab: View {
     @State private var spinAnchor = Date()
 
     private let spinDegreesPerSecond = 128.0
+    private let collapsedHeight: CGFloat = 58
+    private let expandedHeight: CGFloat = 52
+    private let artworkSize: CGFloat = 34
 
-    private var playerPhase: ListeningPlayerPhase { room.display.player.phase }
+    private var playerPhase: ListeningPlayerPhase {
+        room?.display.player.phase ?? .noDisc
+    }
     private var showsPlayingState: Bool {
         ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: playerPhase)
     }
     private var artworkURL: URL? {
         ListeningMiniPlayerArtworkSource.resolve(
-            trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.mechanism.disc?.artworkURL
+            trackArtworkURL: track?.artworkURL,
+            discArtworkURL: room?.mechanism.disc?.artworkURL
         )
     }
     private var displayedArtwork: UIImage? {
         ListeningMiniPlayerArtworkImage.displayed(loaded: artworkImage, url: artworkURL)
+    }
+    private var controlHeight: CGFloat {
+        expanded ? expandedHeight : collapsedHeight
+    }
+    private var cornerRadius: CGFloat {
+        expanded ? 24 : collapsedHeight / 2
+    }
+    private var artworkOffset: CGFloat {
+        expanded ? -(ListeningBottomBarLayout.miniPlayerWidth / 2 - 29) : 0
     }
 
     var body: some View {
@@ -226,75 +235,53 @@ private struct ListeningCompactPlayerTab: View {
                 paused: reduceMotion || !showsPlayingState
             )
         ) { timeline in
-            HStack(spacing: BSSpacing.xs) {
-                Button(action: onSelectListen) {
-                    HStack(spacing: BSSpacing.sm) {
-                        ListeningArtworkDisc(
-                            artwork: displayedArtwork,
-                            angle: discAngle(at: timeline.date),
-                            size: 34,
-                            isPlaying: showsPlayingState
-                        )
+            ZStack {
+                selectSurface
 
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(track.title)
-                                .font(BSFont.caption)
-                                .foregroundStyle(BSColor.textPrimary)
-                                .lineLimit(1)
+                ListeningArtworkDisc(
+                    artwork: displayedArtwork,
+                    angle: discAngle(at: timeline.date),
+                    size: artworkSize,
+                    isPlaying: showsPlayingState
+                )
+                .offset(x: artworkOffset)
+                .allowsHitTesting(false)
 
-                            Text(track.artistName)
-                                .font(BSFont.V3.caption)
-                                .foregroundStyle(BSColor.textTertiary)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .padding(.leading, BSSpacing.sm)
-                    .contentShape(Rectangle())
+                trackMetadata
+                    .offset(x: 5)
+                    .allowsHitTesting(false)
+
+                if let room {
+                    playPauseButton(room: room)
+                        .offset(x: ListeningBottomBarLayout.miniPlayerWidth / 2 - 30)
                 }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-                .accessibilityLabel("\(track.title)，\(track.artistName)")
-                .accessibilityHint(BSLocalization.text("返回听"))
-                .accessibilityIdentifier("listening.miniPlayer.openListen")
-
-                Button {
-                    room.perform(.playPause)
-                } label: {
-                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(BSColor.textPrimary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(BSListeningPressStyle(scale: 0.88))
-                .disabled(room.busy)
-                .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
-                .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
-        .frame(height: 52)
+        .frame(height: controlHeight)
         .background {
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(.ultraThinMaterial)
 
-            if showsPlayingState {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
+            if isSelected {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(BSColor.Stage.accent.opacity(0.16))
+            } else if showsPlayingState {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(BSColor.Accent.info.opacity(0.08))
             }
 
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .stroke(
-                    showsPlayingState
-                        ? BSColor.Accent.info.opacity(0.24)
-                        : BSColor.borderProminent,
+                    isSelected
+                        ? BSColor.Stage.accent.opacity(0.34)
+                        : (showsPlayingState
+                            ? BSColor.Accent.info.opacity(0.24)
+                            : BSColor.borderProminent),
                     lineWidth: 0.8
                 )
         }
         .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("listening.miniPlayer.compact")
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .task(id: artworkURL) {
             guard let artworkURL else {
                 artworkImage = nil
@@ -324,6 +311,85 @@ private struct ListeningCompactPlayerTab: View {
                 spinAnchor = now
             }
         }
+    }
+
+    @ViewBuilder
+    private var selectSurface: some View {
+        let button = Button(action: onSelectListen) {
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(
+            expanded && track != nil
+                ? "\(track?.title ?? "")，\(track?.artistName ?? "")"
+                : BeforeShowTab.listen.localizedTitle
+        )
+        .accessibilityHint(expanded ? BSLocalization.text("返回听") : "")
+        .accessibilityIdentifier(
+            expanded ? "listening.miniPlayer.openListen" : "root.tab.listen"
+        )
+
+        if isSelected {
+            button.accessibilityAddTraits(.isSelected)
+        } else {
+            button
+        }
+    }
+
+    private var trackMetadata: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(track?.title ?? "")
+                .font(BSFont.caption)
+                .foregroundStyle(BSColor.textPrimary)
+                .lineLimit(1)
+
+            Text(track?.artistName ?? "")
+                .font(BSFont.V3.caption)
+                .foregroundStyle(BSColor.textTertiary)
+                .lineLimit(1)
+        }
+        .frame(width: 108, alignment: .leading)
+        .mask(
+            Rectangle()
+                .scaleEffect(x: expanded ? 1 : 0.02, anchor: .leading)
+        )
+        .opacity(expanded ? 1 : 0)
+        .scaleEffect(expanded ? 1 : 0.97, anchor: .leading)
+        .animation(
+            reduceMotion
+                ? nil
+                : .easeOut(duration: 0.18).delay(expanded ? 0.07 : 0),
+            value: expanded
+        )
+    }
+
+    @ViewBuilder
+    private func playPauseButton(room: ListeningRoomCoordinator) -> some View {
+        Button {
+            room.perform(.playPause)
+        } label: {
+            Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(BSColor.textPrimary)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(BSListeningPressStyle(scale: 0.88))
+        .disabled(room.busy || !expanded)
+        .opacity(expanded ? 1 : 0)
+        .scaleEffect(expanded ? 1 : 0.82)
+        .animation(
+            reduceMotion
+                ? nil
+                : .easeOut(duration: 0.16).delay(expanded ? 0.13 : 0),
+            value: expanded
+        )
+        .accessibilityHidden(!expanded)
+        .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
+        .accessibilityIdentifier("listening.miniPlayer.playPause")
     }
 
     private func runningDiscAngle(at date: Date) -> Double {
