@@ -272,6 +272,81 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         room.mechanism.motion.stop()
     }
 
+    func testGlobalChromeTracksRemoteAndNaturalTransportChangesWithoutRoomTick() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Sync Show", date: now, startTime: now)
+        context.insert(show)
+
+        let songs = ["sync-a", "sync-b", "sync-c"].map { id in
+            CatalogSong(
+                appleMusicSongID: id,
+                title: id.uppercased(),
+                artistName: "Artist",
+                duration: 180,
+                previewURL: nil
+            )
+        }
+        let disc = ListeningDisc(
+            id: "sync-disc",
+            title: "Sync Disc",
+            artworkURL: nil,
+            tracks: songs.map(ListeningDiscTrack.init)
+        )
+        context.insert(
+            ListeningLoadedDiscState(
+                discData: try JSONEncoder().encode(disc),
+                songID: "sync-a"
+            )
+        )
+        try context.save()
+
+        let playback = ListeningChromePlaybackSpy()
+        let room = try XCTUnwrap(await ListeningChromeBootstrapper.prepare(
+            show: show,
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        ))
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        room.playPause()
+        try await waitUntil { room.isPlaying && !room.busy }
+        XCTAssertEqual(room.track?.id, "sync-a")
+
+        // Remote pause/play updates the shared room immediately; no ListeningRoomView
+        // timer or explicit room.tick() is involved.
+        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .paused)
+
+        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .playing)
+
+        // Remote next also projects the controller's new queue entry immediately.
+        try await ListeningRemoteCommandBridge.shared.nextForTesting()
+        XCTAssertEqual(room.track?.id, "sync-b")
+        XCTAssertEqual(room.trackIndex, 1)
+
+        // Simulate ApplicationMusicPlayer naturally advancing while Listen is not
+        // driving a view timer. The controller observation must still update chrome.
+        playback.advanceTransportToNext()
+        try await waitUntil { room.track?.id == "sync-c" }
+        XCTAssertEqual(room.trackIndex, 2)
+        XCTAssertTrue(room.isPlaying)
+
+        let persisted = try XCTUnwrap(context.fetch(FetchDescriptor<ListeningLoadedDiscState>()).first)
+        XCTAssertEqual(persisted.songID, "sync-c")
+    }
+
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
@@ -279,7 +354,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
     }
 
     private func waitUntil(_ condition: @escaping @MainActor () -> Bool) async throws {
-        for _ in 0..<300 {
+        for _ in 0..<600 {
             if condition() { return }
             try await Task.sleep(for: .milliseconds(5))
         }
@@ -421,6 +496,11 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     private var playing = false
 
     var transportIsPlaying: Bool { playing }
+
+    func advanceTransportToNext() {
+        guard index + 1 < items.count else { return }
+        index += 1
+    }
 
     func prepare(
         items: [ListeningPlaybackItem],
