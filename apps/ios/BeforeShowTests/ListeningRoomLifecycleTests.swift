@@ -406,6 +406,70 @@ import SwiftData
         room.stop()
     }
 
+    func testEvidenceFailureDoesNotOverrideExistingUnrelatedErrorOrClearItOnRecovery() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        let unrelatedError = BSLocalization.text("保存失败，请重试")
+        room.errorText = unrelatedError
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence failure must not take alert ownership from an existing unrelated error"
+        )
+
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence recovery must preserve the unrelated error that existed before the outage"
+        )
+        room.errorText = nil
+        room.stop()
+    }
+
     func testLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
