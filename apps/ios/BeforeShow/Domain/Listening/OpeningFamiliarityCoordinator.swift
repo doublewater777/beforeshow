@@ -87,8 +87,6 @@ enum OpeningFamiliarityCoordinator {
             for artist in show.artists {
                 guard let artistID = artist.appleMusicArtistID,
                       !artistID.isEmpty,
-                      let snapshot = snapshotsByArtistID[artistID],
-                      snapshot.orderedSongIDs.contains(songID),
                       let tier = tiersByKey[
                         ShowOpeningArtistTier.makeUniqueKey(
                             showID: show.id,
@@ -98,11 +96,24 @@ enum OpeningFamiliarityCoordinator {
                     continue
                 }
 
-                let catalogSongIDs = Set(snapshot.orderedSongIDs)
+                let catalogSongIDsAtResolution: [String]
+                if !tier.catalogSongIDsAtResolution.isEmpty {
+                    catalogSongIDsAtResolution = tier.catalogSongIDsAtResolution
+                } else if let snapshot = snapshotsByArtistID[artistID],
+                          snapshot.fetchedAt == tier.catalogSnapshotFetchedAt {
+                    catalogSongIDsAtResolution = snapshot.orderedSongIDs
+                    tier.catalogSongIDsAtResolution = snapshot.orderedSongIDs
+                    didChange = true
+                } else {
+                    continue
+                }
+
+                guard catalogSongIDsAtResolution.contains(songID) else { continue }
+                let catalogSongIDs = Set(catalogSongIDsAtResolution)
                 let familiarCount = familiarAtOpening.intersection(catalogSongIDs).count
                 guard let correctedTier = ListeningFamiliarityTier.resolve(
                     familiarCount: familiarCount,
-                    totalCount: snapshot.orderedSongIDs.count
+                    totalCount: catalogSongIDsAtResolution.count
                 ),
                 tier.tierRawValue != correctedTier.rawValue else {
                     continue
@@ -165,6 +176,7 @@ enum OpeningFamiliarityCoordinator {
                     tierRawValue: tier.rawValue,
                     baselineCapturedAt: baseline.capturedAt,
                     catalogSnapshotFetchedAt: snapshot.fetchedAt,
+                    catalogSongIDsAtResolution: snapshot.orderedSongIDs,
                     resolvedAt: now
                 )
                 existingKeys.insert(key)
