@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Chrome-only playback intent. `preparing` is treated as an active playback
-/// presentation so the mini player does not flash a paused/play state while a
-/// user-initiated song is still loading.
+/// Chrome-only playback intent. `preparing` is treated as active so the compact
+/// playback control never flashes a paused state while a user-initiated track loads.
 enum ListeningMiniPlayerPlaybackAppearance {
     static func showsPlayingState(for phase: ListeningPlayerPhase) -> Bool {
         switch phase {
@@ -43,105 +42,375 @@ enum ListeningMiniPlayerArtworkImage {
     }
 }
 
-/// iOS 26 Native Tab View Bottom Accessory for BeforeShow playback.
-/// Responds to `@Environment(\.tabViewBottomAccessoryPlacement)`:
-/// - `.expanded`: Floating Liquid Glass card above the floating Tab Bar.
-/// - `.inline`: Seamlessly merges into the minimized Tab Bar on scroll down.
-@available(iOS 26.1, *)
-struct ListeningBottomAccessory: View {
-    let isListenSelected: Bool
+enum ListeningBottomBarPresentation {
+    static func showsMiniPlayer(selectedTab: BeforeShowTab, hasLoadedDisc: Bool) -> Bool {
+        hasLoadedDisc && selectedTab != .listen
+    }
+}
+
+enum ListeningBottomBarLayout {
+    static let tabSize: CGFloat = 58
+    static let gap: CGFloat = 10
+    static let miniPlayerWidth: CGFloat = 112
+    static let iconGroupWidth = tabSize * 3 + gap * 2
+    static let playerGroupWidth = tabSize * 2 + miniPlayerWidth + gap * 2
+    static let transitionDuration = 0.30
+}
+
+/// The root navigation is intentionally always compact and icon-only.
+/// SwiftUI's TabView owns destination state, while this detached chrome owns the
+/// visible root controls. On iOS 26+ Liquid Glass itself performs the Listen
+/// circle <-> compact-player morph; older systems keep the same geometry with
+/// a stable material fallback.
+struct ListeningPolishedBottomChrome: View {
+    @Binding var selectedTab: BeforeShowTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var presentedTab: BeforeShowTab
+    @State private var store = ListeningPlaybackChromeStore.shared
+
+    init(selectedTab: Binding<BeforeShowTab>) {
+        self._selectedTab = selectedTab
+        self._presentedTab = State(initialValue: selectedTab.wrappedValue)
+    }
+
+    private var room: ListeningRoomCoordinator? { store.room }
+    private var track: ListeningDiscTrack? { room?.track }
+
+    private var hasLoadedDisc: Bool {
+        guard let room, track != nil else { return false }
+        return room.mechanism.hasDisc
+    }
+
+    private var showsMiniPlayer: Bool {
+        ListeningBottomBarPresentation.showsMiniPlayer(
+            selectedTab: presentedTab,
+            hasLoadedDisc: hasLoadedDisc
+        )
+    }
+
+    @ViewBuilder
+    var body: some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                ListeningLiquidGlassBottomChrome(
+                    selectedTab: $selectedTab,
+                    showsMiniPlayer: showsMiniPlayer,
+                    room: room,
+                    track: track
+                )
+            } else {
+                ListeningLegacyDetachedBottomChrome(
+                    selectedTab: $selectedTab,
+                    showsMiniPlayer: showsMiniPlayer,
+                    room: room,
+                    track: track
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, BSSpacing.md)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("root.bottomBar")
+        .task(id: selectedTab) {
+            // Give TabView the selection turn first. The glass transition follows
+            // on the next main-actor turn without any manual geometry animation.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+
+            if reduceMotion {
+                presentedTab = selectedTab
+            } else {
+                withAnimation(.smooth(duration: ListeningBottomBarLayout.transitionDuration)) {
+                    presentedTab = selectedTab
+                }
+            }
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct ListeningLiquidGlassBottomChrome: View {
+    @Binding var selectedTab: BeforeShowTab
+    let showsMiniPlayer: Bool
+    let room: ListeningRoomCoordinator?
+    let track: ListeningDiscTrack?
+
+    @Namespace private var glassNamespace
+
+    var body: some View {
+        GlassEffectContainer(spacing: ListeningBottomBarLayout.gap) {
+            HStack(spacing: ListeningBottomBarLayout.gap) {
+                glassTabButton(.current)
+
+                if showsMiniPlayer, let room, let track {
+                    ListeningCompactPlaybackControl(
+                        room: room,
+                        track: track,
+                        onSelectListen: { selectedTab = .listen }
+                    )
+                    .frame(
+                        width: ListeningBottomBarLayout.miniPlayerWidth,
+                        height: ListeningBottomBarLayout.tabSize
+                    )
+                    .glassEffect(.regular.interactive(), in: Capsule())
+                    .glassEffectID("listen", in: glassNamespace)
+                    .glassEffectTransition(.matchedGeometry)
+                } else {
+                    glassListenButton
+                        .glassEffectID("listen", in: glassNamespace)
+                        .glassEffectTransition(.matchedGeometry)
+                }
+
+                glassTabButton(.footprints)
+            }
+            .frame(
+                width: showsMiniPlayer
+                    ? ListeningBottomBarLayout.playerGroupWidth
+                    : ListeningBottomBarLayout.iconGroupWidth
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func glassTabButton(_ tab: BeforeShowTab) -> some View {
+        let isSelected = selectedTab == tab
+        let button = Button {
+            selectedTab = tab
+        } label: {
+            Image(systemName: tab.iconName)
+                .font(.system(size: 21, weight: .semibold))
+                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
+                .frame(
+                    width: ListeningBottomBarLayout.tabSize,
+                    height: ListeningBottomBarLayout.tabSize
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .glassEffectID(glassID(for: tab), in: glassNamespace)
+        .accessibilityLabel(tab.localizedTitle)
+        .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
+
+        if isSelected {
+            button.accessibilityAddTraits(.isSelected)
+        } else {
+            button
+        }
+    }
+
+    private var glassListenButton: some View {
+        let isSelected = selectedTab == .listen
+        let button = Button {
+            selectedTab = .listen
+        } label: {
+            Image(systemName: "opticaldisc")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
+                .frame(
+                    width: ListeningBottomBarLayout.tabSize,
+                    height: ListeningBottomBarLayout.tabSize
+                )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.interactive(), in: Circle())
+        .accessibilityLabel(BeforeShowTab.listen.localizedTitle)
+        .accessibilityIdentifier("root.tab.listen")
+
+        if isSelected {
+            return AnyView(button.accessibilityAddTraits(.isSelected))
+        }
+        return AnyView(button)
+    }
+
+    private func glassID(for tab: BeforeShowTab) -> String {
+        switch tab {
+        case .current: return "current"
+        case .listen: return "listen"
+        case .footprints: return "footprints"
+        }
+    }
+}
+
+private struct ListeningLegacyDetachedBottomChrome: View {
+    @Binding var selectedTab: BeforeShowTab
+    let showsMiniPlayer: Bool
+    let room: ListeningRoomCoordinator?
+    let track: ListeningDiscTrack?
+
+    var body: some View {
+        HStack(spacing: ListeningBottomBarLayout.gap) {
+            legacyTabButton(.current)
+
+            if showsMiniPlayer, let room, let track {
+                ListeningCompactPlaybackControl(
+                    room: room,
+                    track: track,
+                    onSelectListen: { selectedTab = .listen }
+                )
+                .frame(
+                    width: ListeningBottomBarLayout.miniPlayerWidth,
+                    height: ListeningBottomBarLayout.tabSize
+                )
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(BSColor.borderProminent, lineWidth: 0.8)
+                }
+                .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
+            } else {
+                legacyTabButton(.listen)
+            }
+
+            legacyTabButton(.footprints)
+        }
+        .frame(
+            width: showsMiniPlayer
+                ? ListeningBottomBarLayout.playerGroupWidth
+                : ListeningBottomBarLayout.iconGroupWidth
+        )
+    }
+
+    @ViewBuilder
+    private func legacyTabButton(_ tab: BeforeShowTab) -> some View {
+        let isSelected = selectedTab == tab
+        let systemName = tab == .listen ? "opticaldisc" : tab.iconName
+        let button = Button {
+            selectedTab = tab
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: tab == .listen ? 22 : 21, weight: .semibold))
+                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
+                .frame(
+                    width: ListeningBottomBarLayout.tabSize,
+                    height: ListeningBottomBarLayout.tabSize
+                )
+                .contentShape(Circle())
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(
+                            isSelected
+                                ? BSColor.Stage.accent.opacity(0.34)
+                                : BSColor.borderProminent,
+                            lineWidth: 0.8
+                        )
+                }
+                .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.localizedTitle)
+        .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
+
+        if isSelected {
+            button.accessibilityAddTraits(.isSelected)
+        } else {
+            button
+        }
+    }
+}
+
+private struct ListeningCompactPlaybackControl: View {
+    @Bindable var room: ListeningRoomCoordinator
+    let track: ListeningDiscTrack
     let onSelectListen: () -> Void
 
-    @Environment(\.tabViewBottomAccessoryPlacement) private var placement
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var store = ListeningPlaybackChromeStore.shared
     @State private var artworkImage: UIImage?
     @State private var frozenDiscAngle = 0.0
     @State private var spinAnchor = Date()
 
     private let spinDegreesPerSecond = 128.0
 
-    private var room: ListeningRoomCoordinator? { store.room }
-    private var track: ListeningDiscTrack? { room?.track }
-    private var playerPhase: ListeningPlayerPhase {
-        room?.display.player.phase ?? .noDisc
-    }
+    private var playerPhase: ListeningPlayerPhase { room.display.player.phase }
     private var showsPlayingState: Bool {
         ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: playerPhase)
     }
-
     private var artworkURL: URL? {
-        guard let room, let track else { return nil }
-        return ListeningMiniPlayerArtworkSource.resolve(
+        ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
             discArtworkURL: room.mechanism.disc?.artworkURL
         )
     }
-
     private var displayedArtwork: UIImage? {
         ListeningMiniPlayerArtworkImage.displayed(loaded: artworkImage, url: artworkURL)
     }
 
     var body: some View {
-        if let room, let track {
-            TimelineView(
-                .animation(
-                    minimumInterval: 1.0 / 30.0,
-                    paused: reduceMotion || !showsPlayingState
-                )
-            ) { timeline in
-                Group {
-                    switch placement {
-                    case .inline:
-                        ListeningInlineAccessoryView(
-                            room: room,
-                            track: track,
-                            artwork: displayedArtwork,
-                            discAngle: discAngle(at: timeline.date),
-                            showsPlayingState: showsPlayingState,
-                            onSelectListen: onSelectListen
+        TimelineView(
+            .animation(
+                minimumInterval: 1.0 / 30.0,
+                paused: reduceMotion || !showsPlayingState
+            )
+        ) { timeline in
+            HStack(spacing: 2) {
+                Button(action: onSelectListen) {
+                    ListeningArtworkDisc(
+                        artwork: displayedArtwork,
+                        angle: discAngle(at: timeline.date),
+                        size: 34,
+                        isPlaying: showsPlayingState
+                    )
+                    .frame(
+                        width: ListeningBottomBarLayout.tabSize,
+                        height: ListeningBottomBarLayout.tabSize
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(track.title)，\(track.artistName)")
+                .accessibilityHint(BSLocalization.text("返回听"))
+                .accessibilityIdentifier("listening.miniPlayer.openListen")
+
+                Button {
+                    room.perform(.playPause)
+                } label: {
+                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(BSColor.textPrimary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(
+                            width: BSLayout.minTouchTarget,
+                            height: BSLayout.minTouchTarget
                         )
-                    default:
-                        ListeningExpandedAccessoryView(
-                            room: room,
-                            track: track,
-                            artwork: displayedArtwork,
-                            discAngle: discAngle(at: timeline.date),
-                            showsPlayingState: showsPlayingState,
-                            isListenSelected: isListenSelected,
-                            onSelectListen: onSelectListen
-                        )
-                    }
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(BSListeningPressStyle(scale: 0.88))
+                .disabled(room.busy)
+                .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
+                .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
-            .task(id: artworkURL) {
-                guard let artworkURL else {
-                    artworkImage = nil
-                    return
-                }
-                if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
-                    artworkImage = cached
-                    return
-                }
-                let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
-                guard !Task.isCancelled else { return }
-                artworkImage = loaded
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("listening.miniPlayer.compact")
+        .task(id: artworkURL) {
+            guard let artworkURL else {
+                artworkImage = nil
+                return
             }
-            .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
-                let now = Date()
-                if wasPlaying && !nowPlaying {
-                    frozenDiscAngle = runningDiscAngle(at: now)
-                } else if !wasPlaying && nowPlaying {
-                    spinAnchor = now
-                }
+            if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
+                artworkImage = cached
+                return
             }
-            .onChange(of: reduceMotion) { wasReduced, isReduced in
-                let now = Date()
-                if !wasReduced && isReduced && showsPlayingState {
-                    frozenDiscAngle = runningDiscAngle(at: now)
-                } else if wasReduced && !isReduced && showsPlayingState {
-                    spinAnchor = now
-                }
+            let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
+            guard !Task.isCancelled else { return }
+            artworkImage = loaded
+        }
+        .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
+            let now = Date()
+            if wasPlaying && !nowPlaying {
+                frozenDiscAngle = runningDiscAngle(at: now)
+            } else if !wasPlaying && nowPlaying {
+                spinAnchor = now
+            }
+        }
+        .onChange(of: reduceMotion) { wasReduced, isReduced in
+            let now = Date()
+            if !wasReduced && isReduced && showsPlayingState {
+                frozenDiscAngle = runningDiscAngle(at: now)
+            } else if wasReduced && !isReduced && showsPlayingState {
+                spinAnchor = now
             }
         }
     }
@@ -157,160 +426,6 @@ struct ListeningBottomAccessory: View {
     }
 }
 
-/// Expanded floating Liquid Glass accessory card that hovers above the floating Tab Bar.
-private struct ListeningExpandedAccessoryView: View {
-    @Bindable var room: ListeningRoomCoordinator
-    let track: ListeningDiscTrack
-    let artwork: UIImage?
-    let discAngle: Double
-    let showsPlayingState: Bool
-    let isListenSelected: Bool
-    let onSelectListen: () -> Void
-
-    private var progress: Double? {
-        guard let duration = track.duration, duration.isFinite, duration > 0 else { return nil }
-        return min(max(room.elapsed / duration, 0), 1)
-    }
-
-    var body: some View {
-        HStack(spacing: 8) {
-            if isListenSelected {
-                trackSummary
-                    .accessibilityElement(children: .combine)
-                    .accessibilityLabel(expandedAccessibilityLabel)
-            } else {
-                Button {
-                    onSelectListen()
-                } label: {
-                    trackSummary
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .frame(minHeight: 44)
-                .accessibilityLabel(expandedAccessibilityLabel)
-                .accessibilityHint(BSLocalization.text("返回听"))
-            }
-
-            HStack(spacing: 0) {
-                Button {
-                    room.perform(.playPause)
-                } label: {
-                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(BSColor.textPrimary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(BSListeningPressStyle(scale: 0.88))
-                .tint(BSColor.textPrimary)
-                .disabled(room.busy)
-                .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
-                .accessibilityIdentifier("listening.miniPlayer.playPause")
-            }
-        }
-        .padding(.leading, 8)
-        .padding(.trailing, 2)
-        .frame(height: 54)
-        .background {
-            ListeningPolishedLiquidGlassSurface(
-                cornerRadius: 18,
-                accentGlow: showsPlayingState,
-                progress: progress
-            )
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("listening.miniPlayer.expanded")
-    }
-
-    private var trackSummary: some View {
-        HStack(spacing: 10) {
-            ListeningArtworkDisc(
-                artwork: artwork,
-                angle: discAngle,
-                size: 40,
-                isPlaying: showsPlayingState
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(track.title)
-                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.white)
-                    .lineLimit(1)
-
-                Text(track.artistName)
-                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var expandedAccessibilityLabel: String {
-        let state = BSLocalization.text(showsPlayingState ? "正在播放" : "已暂停")
-        return "\(BeforeShowTab.listen.localizedTitle)，\(state) \(track.title)，\(track.artistName)"
-    }
-}
-
-/// Compact inline accessory merged into the minimized Tab Bar during scroll.
-private struct ListeningInlineAccessoryView: View {
-    @Bindable var room: ListeningRoomCoordinator
-    let track: ListeningDiscTrack
-    let artwork: UIImage?
-    let discAngle: Double
-    let showsPlayingState: Bool
-    let onSelectListen: () -> Void
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Button {
-                onSelectListen()
-            } label: {
-                HStack(spacing: 8) {
-                    ListeningArtworkDisc(
-                        artwork: artwork,
-                        angle: discAngle,
-                        size: 26,
-                        isPlaying: showsPlayingState
-                    )
-
-                    Text(track.title)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(Color.white)
-                        .lineLimit(1)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(minHeight: 44)
-            .accessibilityLabel("\(track.title)，\(track.artistName)")
-            .accessibilityHint(BSLocalization.text("返回听"))
-
-            Button {
-                room.perform(.playPause)
-            } label: {
-                Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(BSColor.textPrimary)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(BSListeningPressStyle(scale: 0.88))
-            .tint(BSColor.textPrimary)
-            .disabled(room.busy)
-            .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
-            .accessibilityIdentifier("listening.miniPlayer.inlinePlayPause")
-        }
-        .padding(.horizontal, 6)
-        .frame(minHeight: 44)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("listening.miniPlayer.inline")
-    }
-}
-
-/// Rotating optical disc view with CD grooves, rainbow refraction, and center spindle.
 private struct ListeningArtworkDisc: View {
     let artwork: UIImage?
     let angle: Double
@@ -319,13 +434,6 @@ private struct ListeningArtworkDisc: View {
 
     var body: some View {
         ZStack {
-            if isPlaying {
-                Circle()
-                    .fill(BSColor.Accent.info.opacity(0.25))
-                    .frame(width: size + 4, height: size + 4)
-                    .blur(radius: 5)
-            }
-
             Circle()
                 .fill(BSColor.Stage.surface)
 
@@ -338,7 +446,6 @@ private struct ListeningArtworkDisc: View {
                 fallbackArtwork
             }
 
-            // Realistic CD optical groove rings
             Circle()
                 .stroke(Color.white.opacity(0.08), lineWidth: 0.6)
                 .frame(width: size * 0.72, height: size * 0.72)
@@ -346,13 +453,12 @@ private struct ListeningArtworkDisc: View {
                 .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
                 .frame(width: size * 0.48, height: size * 0.48)
 
-            // Holographic rainbow optical diffraction sheen
             AngularGradient(
                 gradient: Gradient(colors: [
                     Color.white.opacity(0.16),
-                    Color.cyan.opacity(0.12),
+                    BSColor.Accent.info.opacity(0.12),
                     Color.clear,
-                    Color.purple.opacity(0.14),
+                    BSColor.Accent.violet.opacity(0.14),
                     Color.clear,
                     Color.white.opacity(0.18),
                     Color.clear
@@ -362,7 +468,6 @@ private struct ListeningArtworkDisc: View {
             )
             .blendMode(.screen)
 
-            // Center spindle
             Circle()
                 .fill(Color.black.opacity(0.85))
                 .frame(width: size * 0.22, height: size * 0.22)
@@ -377,21 +482,11 @@ private struct ListeningArtworkDisc: View {
         .overlay(
             Circle()
                 .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.35),
-                            BSColor.Accent.info.opacity(isPlaying ? 0.45 : 0.20),
-                            Color.white.opacity(0.10)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
+                    isPlaying ? BSColor.Accent.info.opacity(0.45) : BSColor.borderProminent,
                     lineWidth: 0.8
                 )
         )
         .rotationEffect(.degrees(angle))
-        .shadow(color: isPlaying ? BSColor.Accent.info.opacity(0.18) : Color.clear, radius: 6)
-        .shadow(color: .black.opacity(0.28), radius: 6, y: 3)
         .accessibilityHidden(true)
     }
 
@@ -405,215 +500,10 @@ private struct ListeningArtworkDisc: View {
     }
 }
 
-/// Liquid Glass surface styling for floating accessory.
-private struct ListeningPolishedLiquidGlassSurface: View {
-    let cornerRadius: CGFloat
-    var accentGlow: Bool = false
-    var progress: Double? = nil
-
-    var body: some View {
-        ZStack(alignment: .bottom) {
-            // 1. Apple Ultra Thin Material blur base
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
-
-            // 2. Crystal luminous frosted glass wash (pure, airy, translucent)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color.white.opacity(0.18), location: 0.0),
-                            .init(color: Color.white.opacity(0.06), location: 0.45),
-                            .init(color: Color.white.opacity(0.02), location: 1.0)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-
-            // 3. Subtle accent glow when playing
-            if accentGlow {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                BSColor.Accent.info.opacity(0.10),
-                                BSColor.Accent.info.opacity(0.02),
-                                Color.clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-            }
-
-            // 4. Precision hairline progress bar docked flush along the bottom curve
-            if let progress {
-                GeometryReader { proxy in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.08))
-                            .frame(height: 1.5)
-
-                        Capsule()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        BSColor.Accent.info.opacity(0.95),
-                                        BSColor.Accent.info.opacity(0.70)
-                                    ],
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                )
-                            )
-                            .frame(width: max(2, proxy.size.width * progress), height: 1.5)
-                    }
-                    .frame(maxHeight: .infinity, alignment: .bottom)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            }
-
-            // 5. Precision Fresnel specular rim light (Apple glass beveled reflection)
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        stops: [
-                            .init(color: Color.white.opacity(0.55), location: 0.0),
-                            .init(color: Color.white.opacity(0.20), location: 0.35),
-                            .init(color: Color.white.opacity(0.06), location: 0.70),
-                            .init(color: accentGlow ? BSColor.Accent.info.opacity(0.35) : Color.white.opacity(0.15), location: 1.0)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 0.6
-                )
-        }
-        // Multi-layer airy shadows
-        .shadow(
-            color: accentGlow ? BSColor.Accent.info.opacity(0.18) : Color.clear,
-            radius: 10,
-            y: 2
-        )
-        .shadow(color: Color.black.opacity(0.24), radius: 14, y: 5)
-        .shadow(color: Color.black.opacity(0.10), radius: 3, y: 1)
-    }
-}
-
-/// iOS 18–25 fallback: a stable mini player above the native Tab Bar.
-/// No inline morphing is attempted on older systems; the system TabView owns
-/// navigation and this accessory only exposes now-playing + play/pause.
-struct ListeningLegacyBottomAccessory: View {
-    let onSelectListen: () -> Void
-
-    @State private var store = ListeningPlaybackChromeStore.shared
-    @State private var artworkImage: UIImage?
-
-    private var room: ListeningRoomCoordinator? { store.room }
-    private var track: ListeningDiscTrack? { room?.track }
-    private var showsPlayingState: Bool {
-        guard let room else { return false }
-        return ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: room.display.player.phase)
-    }
-    private var artworkURL: URL? {
-        guard let room, let track else { return nil }
-        return ListeningMiniPlayerArtworkSource.resolve(
-            trackArtworkURL: track.artworkURL,
-            discArtworkURL: room.mechanism.disc?.artworkURL
-        )
-    }
-
-    var body: some View {
-        if let room, let track {
-            HStack(spacing: 8) {
-                Button(action: onSelectListen) {
-                    HStack(spacing: 10) {
-                        ListeningArtworkDisc(
-                            artwork: artworkImage,
-                            angle: 0,
-                            size: 38,
-                            isPlaying: showsPlayingState
-                        )
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(track.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(BSColor.textPrimary)
-                                .lineLimit(1)
-
-                            Text(track.artistName)
-                                .font(.caption)
-                                .foregroundStyle(BSColor.textTertiary)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
-                .accessibilityLabel("\(track.title)，\(track.artistName)")
-                .accessibilityHint(BSLocalization.text("返回听"))
-
-                Button {
-                    room.perform(.playPause)
-                } label: {
-                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(BSColor.textPrimary)
-                        .contentTransition(.symbolEffect(.replace))
-                        .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(BSListeningPressStyle(scale: 0.88))
-                .disabled(room.busy)
-                .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
-                .accessibilityIdentifier("listening.miniPlayer.legacyPlayPause")
-            }
-            .padding(.leading, 8)
-            .padding(.trailing, 4)
-            .frame(height: 56)
-            .background {
-                ListeningPolishedLiquidGlassSurface(
-                    cornerRadius: 20,
-                    accentGlow: showsPlayingState,
-                    progress: nil
-                )
-            }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("listening.miniPlayer.legacy")
-            .task(id: artworkURL) {
-                guard let artworkURL else {
-                    artworkImage = nil
-                    return
-                }
-                if let cached = ShowCoverImageCache.shared.memoryImage(for: artworkURL) {
-                    artworkImage = cached
-                    return
-                }
-                let loaded = await ShowCoverImageCache.shared.image(from: artworkURL)
-                guard !Task.isCancelled else { return }
-                artworkImage = loaded
-            }
-        }
-    }
-}
-
-/// Compatibility wrapper for standalone bottom chrome preview.
-struct ListeningPolishedBottomChrome: View {
-    @Binding var selectedTab: BeforeShowTab
-
-    @ViewBuilder
-    var body: some View {
-        if #available(iOS 26.1, *) {
-            ListeningBottomAccessory(
-                isListenSelected: selectedTab == .listen,
-                onSelectListen: { selectedTab = .listen }
-            )
-        } else {
-            ListeningLegacyBottomAccessory(
-                onSelectListen: { selectedTab = .listen }
-            )
-        }
+private func tabAccessibilityIdentifier(_ tab: BeforeShowTab) -> String {
+    switch tab {
+    case .current: return "root.tab.current"
+    case .listen: return "root.tab.listen"
+    case .footprints: return "root.tab.footprints"
     }
 }
