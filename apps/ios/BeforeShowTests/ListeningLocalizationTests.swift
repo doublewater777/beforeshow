@@ -139,18 +139,18 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "iOS 18–25 must keep the same detached icon-only geometry with a material fallback"
         )
         XCTAssertTrue(
-            listeningRoot.contains("static let miniPlayerWidth: CGFloat = 112"),
-            "Compact playback must stay small instead of becoming a wide text player"
+            listeningRoot.contains("static let miniPlayerWidth: CGFloat = 216"),
+            "Compact playback must have enough room for disc, track/artist metadata, and play/pause"
         )
         XCTAssertTrue(
             listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
         XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
-        XCTAssertFalse(
+        XCTAssertTrue(
             listeningRoot.contains("Text(track.title)")
-                || listeningRoot.contains("Text(track.artistName)"),
-            "Root chrome must remain icon-only with no song or tab labels"
+                && listeningRoot.contains("Text(track.artistName)"),
+            "Expanded compact playback must show both track title and artist"
         )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessory")
