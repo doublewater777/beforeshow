@@ -63,30 +63,37 @@ struct ListeningPolishedBottomChrome: View {
                 paused: reduceMotion || !showsPlayingState
             )
         ) { timeline in
-            VStack(spacing: 7) {
+            VStack(spacing: 8) {
                 if mode == .fullPlayer, let room, let track = room.track {
                     ListeningPolishedFullMiniPlayer(
                         room: room,
                         track: track,
                         discAngle: discAngle(at: timeline.date),
+                        currentDate: timeline.date,
                         namespace: playerNamespace
                     )
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .padding(.horizontal, 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if mode == .compactPlayer, let room, let track = room.track {
+                    ListeningPolishedCompactMiniPlayer(
+                        room: room,
+                        track: track,
+                        discAngle: discAngle(at: timeline.date),
+                        currentDate: timeline.date,
+                        namespace: playerNamespace,
+                        onSelectListen: {
+                            selectTab(.listen)
+                        }
+                    )
+                    .padding(.horizontal, 10)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                ListeningPolishedTabBar(
-                    selectedTab: $selectedTab,
-                    room: room,
-                    mode: mode,
-                    discAngle: discAngle(at: timeline.date),
-                    namespace: playerNamespace
-                )
+                ListeningPolishedTabBar(selectedTab: $selectedTab)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
         .animation(
-            reduceMotion ? nil : .spring(response: 0.46, dampingFraction: 0.91),
+            reduceMotion ? nil : .spring(response: 0.44, dampingFraction: 0.88),
             value: mode
         )
         .onChange(of: showsPlayingState, initial: true) { wasPlaying, nowPlaying in
@@ -107,6 +114,17 @@ struct ListeningPolishedBottomChrome: View {
         }
     }
 
+    private func selectTab(_ tab: BeforeShowTab) {
+        guard selectedTab != tab else { return }
+        if reduceMotion {
+            selectedTab = tab
+        } else {
+            withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
+                selectedTab = tab
+            }
+        }
+    }
+
     private func runningDiscAngle(at date: Date) -> Double {
         (frozenDiscAngle + date.timeIntervalSince(spinAnchor) * spinDegreesPerSecond)
             .truncatingRemainder(dividingBy: 360)
@@ -122,6 +140,7 @@ private struct ListeningPolishedFullMiniPlayer: View {
     @Bindable var room: ListeningRoomCoordinator
     let track: ListeningDiscTrack
     let discAngle: Double
+    let currentDate: Date
     let namespace: Namespace.ID
 
     private var player: ListeningPlayerPresentation { room.display.player }
@@ -151,32 +170,72 @@ private struct ListeningPolishedFullMiniPlayer: View {
             ListeningArtworkDisc(
                 artworkURL: artworkURL,
                 angle: discAngle,
-                size: 48
+                size: 48,
+                isPlaying: showsPlayingState
             )
             .matchedGeometryEffect(id: "listeningPolishedMiniPlayer.disc", in: namespace)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 5) {
                 Text(track.title)
                     .font(.system(size: 15, weight: .semibold, design: .rounded))
                     .foregroundStyle(BSColor.Stage.foreground)
                     .lineLimit(1)
 
-                Text("TR \(trackNumber) · \(track.artistName) · \(statusText)")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Text("TR \(trackNumber)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(BSColor.Accent.info.opacity(0.95))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(BSColor.Accent.info.opacity(0.14), in: RoundedRectangle(cornerRadius: 4))
+
+                    Text("·")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.dim)
+
+                    Text(track.artistName)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(1)
+
+                    Text("·")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.dim)
+
+                    if showsPlayingState {
+                        ListeningMiniEqualizerBars(
+                            isPlaying: true,
+                            currentDate: currentDate
+                        )
+                    }
+
+                    Text(statusText)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(showsPlayingState ? BSColor.Accent.info : BSColor.Stage.muted)
+                        .lineLimit(1)
+                }
 
                 if let progress {
                     GeometryReader { proxy in
-                        Capsule()
-                            .fill(Color.white.opacity(0.08))
-                            .overlay(alignment: .leading) {
-                                Capsule()
-                                    .fill(BSColor.brandGradientSoft)
-                                    .frame(width: max(3, proxy.size.width * progress))
+                        ZStack(alignment: .leading) {
+                            Capsule()
+                                .fill(Color.white.opacity(0.08))
+
+                            Capsule()
+                                .fill(BSColor.brandGradientSoft)
+                                .frame(width: max(3, proxy.size.width * progress))
+
+                            if showsPlayingState && progress > 0.02 {
+                                Circle()
+                                    .fill(Color.white)
+                                    .frame(width: 4, height: 4)
+                                    .shadow(color: BSColor.Accent.info, radius: 2)
+                                    .offset(x: max(0, proxy.size.width * progress - 2))
                             }
+                        }
                     }
                     .frame(height: 3)
+                    .padding(.top, 1)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -192,22 +251,50 @@ private struct ListeningPolishedFullMiniPlayer: View {
             .accessibilityIdentifier("listening.miniPlayer.open")
 
             Button { room.perform(.playPause) } label: {
-                Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(BSColor.Accent.info)
-                    .frame(width: 44, height: 44)
-                    .background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                ZStack {
+                    Circle()
+                        .fill(
+                            showsPlayingState
+                                ? LinearGradient(
+                                    colors: [
+                                        BSColor.Accent.info.opacity(0.30),
+                                        BSColor.Accent.info.opacity(0.12)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                : LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.14),
+                                        Color.white.opacity(0.04)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                        )
+                    Circle()
+                        .strokeBorder(
+                            showsPlayingState ? BSColor.Accent.info.opacity(0.45) : Color.white.opacity(0.20),
+                            lineWidth: 1
+                        )
+                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(BSColor.Accent.info)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .frame(width: 44, height: 44)
+                .shadow(color: showsPlayingState ? BSColor.Accent.info.opacity(0.30) : Color.clear, radius: 8)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(room.busy)
             .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
             .accessibilityIdentifier("listening.miniPlayer.playPause")
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(height: 76)
         .background {
-            ListeningPolishedPlayerSurface(cornerRadius: 24)
+            ListeningPolishedPlayerSurface(cornerRadius: 24, accentGlow: showsPlayingState)
                 .matchedGeometryEffect(id: "listeningPolishedMiniPlayer.surface", in: namespace)
         }
         .accessibilityElement(children: .contain)
@@ -215,108 +302,60 @@ private struct ListeningPolishedFullMiniPlayer: View {
     }
 }
 
-private struct ListeningPolishedTabBar: View {
-    @Binding var selectedTab: BeforeShowTab
-    let room: ListeningRoomCoordinator?
-    let mode: ListeningBottomChromeMode
+private struct ListeningPolishedCompactMiniPlayer: View {
+    @Bindable var room: ListeningRoomCoordinator
+    let track: ListeningDiscTrack
     let discAngle: Double
+    let currentDate: Date
     let namespace: Namespace.ID
+    let onSelectListen: () -> Void
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        HStack(spacing: 6) {
-            rootTab(.current)
-
-            if mode == .compactPlayer, let room, let track = room.track {
-                compactListenPlayer(room: room, track: track)
-                    .frame(minWidth: 170, maxWidth: .infinity)
-                    .layoutPriority(2)
-            } else {
-                rootTab(.listen)
-            }
-
-            rootTab(.footprints)
-        }
-        .padding(6)
-        .frame(height: 66)
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
-        )
-        .background(
-            BSColor.Stage.surfaceRaised.opacity(0.76),
-            in: RoundedRectangle(cornerRadius: 28, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(BSColor.Stage.border, lineWidth: 1)
-        }
-        .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
-        .accessibilityIdentifier("root.customTabBar")
+    private var player: ListeningPlayerPresentation { room.display.player }
+    private var showsPlayingState: Bool {
+        ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: player.phase)
     }
-
-    private func rootTab(_ tab: BeforeShowTab) -> some View {
-        let selected = selectedTab == tab
-
-        return Button { select(tab) } label: {
-            VStack(spacing: 4) {
-                Image(systemName: tab.iconName)
-                    .font(.system(size: 18, weight: .medium))
-                Text(tab.localizedTitle)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(selected ? BSColor.Accent.info : BSColor.Stage.muted)
-            .frame(maxWidth: .infinity, minHeight: 54)
-            .background {
-                if selected {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(Color.white.opacity(0.055))
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .frame(
-            minWidth: mode == .compactPlayer ? 68 : 0,
-            maxWidth: mode == .compactPlayer ? 82 : .infinity
-        )
-        .accessibilityLabel(tab.localizedTitle)
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .accessibilityIdentifier("root.tab.\(tab.id)")
-    }
-
-    private func compactListenPlayer(
-        room: ListeningRoomCoordinator,
-        track: ListeningDiscTrack
-    ) -> some View {
-        let artworkURL = ListeningMiniPlayerArtworkSource.resolve(
+    private var artworkURL: URL? {
+        ListeningMiniPlayerArtworkSource.resolve(
             trackArtworkURL: track.artworkURL,
             discArtworkURL: room.mechanism.disc?.artworkURL
         )
-        let player = room.display.player
-        let showsPlayingState = ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: player.phase)
+    }
 
-        return HStack(spacing: 8) {
-            Button { select(.listen) } label: {
-                HStack(spacing: 8) {
+    var body: some View {
+        HStack(spacing: 10) {
+            Button {
+                onSelectListen()
+            } label: {
+                HStack(spacing: 10) {
                     ListeningArtworkDisc(
                         artworkURL: artworkURL,
                         angle: discAngle,
-                        size: 36
+                        size: 38,
+                        isPlaying: showsPlayingState
                     )
                     .matchedGeometryEffect(id: "listeningPolishedMiniPlayer.disc", in: namespace)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(track.title)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .font(.system(size: 13, weight: .semibold, design: .rounded))
                             .foregroundStyle(BSColor.Stage.foreground)
                             .lineLimit(1)
-                        Text(track.artistName)
-                            .font(.system(size: 9.5, weight: .medium, design: .rounded))
-                            .foregroundStyle(BSColor.Stage.muted)
-                            .lineLimit(1)
+
+                        HStack(spacing: 5) {
+                            Text(track.artistName)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(BSColor.Stage.muted)
+                                .lineLimit(1)
+
+                            if showsPlayingState {
+                                ListeningMiniEqualizerBars(
+                                    isPlaying: true,
+                                    currentDate: currentDate,
+                                    barCount: 3,
+                                    maxHeight: 8.0
+                                )
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -324,44 +363,146 @@ private struct ListeningPolishedTabBar: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(compactAccessibilityLabel(room: room, track: track))
+            .accessibilityLabel(compactAccessibilityLabel)
             .accessibilityHint(BSLocalization.text("返回听"))
 
-            Button { room.perform(.playPause) } label: {
-                Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(BSColor.Accent.info)
-                    .frame(width: 38, height: 38)
-                    .background(Color.white.opacity(0.045), in: Circle())
-                    .overlay(
-                        Circle()
-                            .stroke(BSColor.Accent.info.opacity(0.22), lineWidth: 1)
-                    )
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            Button {
+                room.perform(.playPause)
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(
+                            showsPlayingState
+                                ? LinearGradient(
+                                    colors: [
+                                        BSColor.Accent.info.opacity(0.30),
+                                        BSColor.Accent.info.opacity(0.12)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                                : LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(0.14),
+                                        Color.white.opacity(0.04)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                        )
+                    Circle()
+                        .strokeBorder(
+                            showsPlayingState ? BSColor.Accent.info.opacity(0.45) : Color.white.opacity(0.20),
+                            lineWidth: 1
+                        )
+                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(BSColor.Accent.info)
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                .frame(width: 38, height: 38)
+                .shadow(color: showsPlayingState ? BSColor.Accent.info.opacity(0.25) : Color.clear, radius: 6)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .disabled(room.busy)
             .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
+            .accessibilityIdentifier("listening.miniPlayer.playPause")
         }
-        .padding(.horizontal, 10)
-        .frame(maxWidth: .infinity, minHeight: 54)
+        .padding(.horizontal, 12)
+        .frame(height: 56)
         .background {
-            ListeningPolishedPlayerSurface(cornerRadius: 20)
+            ListeningPolishedPlayerSurface(cornerRadius: 20, accentGlow: showsPlayingState)
                 .matchedGeometryEffect(id: "listeningPolishedMiniPlayer.surface", in: namespace)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
     }
 
-    private func compactAccessibilityLabel(
-        room: ListeningRoomCoordinator,
-        track: ListeningDiscTrack
-    ) -> String {
-        let playing = ListeningMiniPlayerPlaybackAppearance.showsPlayingState(
-            for: room.display.player.phase
-        )
-        let state = BSLocalization.text(playing ? "正在播放" : "已暂停")
+    private var compactAccessibilityLabel: String {
+        let state = BSLocalization.text(showsPlayingState ? "正在播放" : "已暂停")
         return "\(BeforeShowTab.listen.localizedTitle)，\(state) \(track.title)，\(track.artistName)"
+    }
+}
+
+private struct ListeningPolishedTabBar: View {
+    @Binding var selectedTab: BeforeShowTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(BeforeShowTab.allCases) { tab in
+                tabButton(tab)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 49)
+        .background {
+            ZStack(alignment: .top) {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.16),
+                                Color.white.opacity(0.06),
+                                Color.white.opacity(0.02)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.20),
+                                Color.white.opacity(0.04),
+                                Color.clear
+                            ],
+                            startPoint: .top,
+                            endPoint: UnitPoint(x: 0.5, y: 0.35)
+                        )
+                    )
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.20))
+                    .frame(height: 0.5)
+            }
+            .padding(.bottom, -50)
+            .ignoresSafeArea(edges: .bottom)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("root.customTabBar")
+    }
+
+    private func tabButton(_ tab: BeforeShowTab) -> some View {
+        let isSelected = selectedTab == tab
+
+        return Button {
+            select(tab)
+        } label: {
+            VStack(spacing: 3) {
+                Image(systemName: tab.iconName)
+                    .font(.system(size: 21, weight: isSelected ? .semibold : .regular))
+                    .symbolEffect(.bounce, value: isSelected)
+
+                Text(tab.localizedTitle)
+                    .font(.system(size: 10, weight: isSelected ? .medium : .regular))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(isSelected ? BSColor.Accent.info : Color.white.opacity(0.50))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(tab.localizedTitle)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("root.tab.\(tab.id)")
     }
 
     private func select(_ tab: BeforeShowTab) {
@@ -369,7 +510,7 @@ private struct ListeningPolishedTabBar: View {
         if reduceMotion {
             selectedTab = tab
         } else {
-            withAnimation(.spring(response: 0.46, dampingFraction: 0.91)) {
+            withAnimation(.spring(response: 0.40, dampingFraction: 0.88)) {
                 selectedTab = tab
             }
         }
@@ -380,9 +521,17 @@ private struct ListeningArtworkDisc: View {
     let artworkURL: URL?
     let angle: Double
     let size: CGFloat
+    var isPlaying: Bool = false
 
     var body: some View {
         ZStack {
+            if isPlaying {
+                Circle()
+                    .fill(BSColor.Accent.info.opacity(0.24))
+                    .frame(width: size + 4, height: size + 4)
+                    .blur(radius: 6)
+            }
+
             Circle()
                 .fill(BSColor.Stage.surface)
 
@@ -400,22 +549,58 @@ private struct ListeningArtworkDisc: View {
                 fallbackArtwork
             }
 
+            // Realistic CD optical groove rings
             Circle()
-                .fill(Color.black.opacity(0.78))
+                .stroke(Color.white.opacity(0.08), lineWidth: 0.8)
+                .frame(width: size * 0.72, height: size * 0.72)
+            Circle()
+                .stroke(Color.white.opacity(0.05), lineWidth: 0.6)
+                .frame(width: size * 0.48, height: size * 0.48)
+
+            // Holographic rainbow optical diffraction sheen
+            AngularGradient(
+                gradient: Gradient(colors: [
+                    Color.white.opacity(0.16),
+                    Color.cyan.opacity(0.12),
+                    Color.clear,
+                    Color.purple.opacity(0.14),
+                    Color.clear,
+                    Color.white.opacity(0.18),
+                    Color.clear
+                ]),
+                center: .center,
+                angle: .degrees(-angle * 0.35)
+            )
+            .blendMode(.screen)
+
+            // Center spindle
+            Circle()
+                .fill(Color.black.opacity(0.85))
                 .frame(width: size * 0.22, height: size * 0.22)
 
             Circle()
-                .stroke(Color.white.opacity(0.50), lineWidth: 0.6)
+                .stroke(Color.white.opacity(0.60), lineWidth: 0.7)
                 .frame(width: size * 0.12, height: size * 0.12)
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
         .overlay(
             Circle()
-                .stroke(BSColor.Accent.info.opacity(0.24), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.35),
+                            BSColor.Accent.info.opacity(isPlaying ? 0.45 : 0.20),
+                            Color.white.opacity(0.10)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
         .rotationEffect(.degrees(angle))
-        .shadow(color: BSColor.Accent.info.opacity(0.08), radius: 8)
+        .shadow(color: isPlaying ? BSColor.Accent.info.opacity(0.18) : Color.clear, radius: 8)
         .shadow(color: .black.opacity(0.32), radius: 8, y: 4)
         .accessibilityHidden(true)
     }
@@ -430,33 +615,119 @@ private struct ListeningArtworkDisc: View {
     }
 }
 
-private struct ListeningPolishedPlayerSurface: View {
+private struct ListeningPolishedGlassSurface: View {
     let cornerRadius: CGFloat
+    var accentGlow: Bool = false
 
     var body: some View {
-        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(.ultraThinMaterial)
-            .background(
-                BSColor.Stage.surfaceRaised.opacity(0.72),
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
+        ZStack {
+            // 1. Apple Ultra Thin Material blur base
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+
+            // 2. Luminous frosted glass wash (gives visible frosted depth over dark backgrounds)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.14),
+                            Color.white.opacity(0.05),
+                            Color(white: 0.12).opacity(0.20)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+
+            // 3. Top specular shine / glass reflection
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.22),
+                            Color.white.opacity(0.04),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: UnitPoint(x: 0.5, y: 0.45)
+                    )
+                )
+
+            // 4. Precision glass rim light / light-catching beveled edge
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.55),
+                            Color.white.opacity(0.20),
+                            Color.white.opacity(0.08),
+                            accentGlow ? BSColor.Accent.info.opacity(0.45) : Color.white.opacity(0.24)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
+                )
+        }
+        .shadow(
+            color: accentGlow ? BSColor.Accent.info.opacity(0.18) : Color.clear,
+            radius: 16,
+            y: 4
+        )
+        .shadow(color: Color.black.opacity(0.35), radius: 24, y: 10)
+    }
+}
+
+private struct ListeningPolishedPlayerSurface: View {
+    let cornerRadius: CGFloat
+    var accentGlow: Bool = false
+
+    var body: some View {
+        ListeningPolishedGlassSurface(
+            cornerRadius: cornerRadius,
+            accentGlow: accentGlow
+        )
+    }
+}
+
+private struct ListeningMiniEqualizerBars: View {
+    let isPlaying: Bool
+    var currentDate: Date = Date()
+    var barCount: Int = 4
+    var maxHeight: CGFloat = 11.0
+    var color: Color = BSColor.Accent.info
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 1.8) {
+            ForEach(0..<barCount, id: \.self) { index in
+                Capsule()
+                    .fill(
                         LinearGradient(
                             colors: [
-                                BSColor.Accent.info.opacity(0.30),
-                                Color.white.opacity(0.08),
-                                Color.purple.opacity(0.20)
+                                color,
+                                color.opacity(0.75)
                             ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        lineWidth: 1
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
                     )
+                    .frame(width: 2.0, height: height(for: index))
             }
-            .shadow(color: BSColor.Accent.info.opacity(0.06), radius: 18)
-            .shadow(color: .black.opacity(0.24), radius: 16, y: 7)
+        }
+        .frame(height: maxHeight, alignment: .bottom)
+        .shadow(color: color.opacity(0.45), radius: 2)
+        .accessibilityHidden(true)
+    }
+
+    private func height(for index: Int) -> CGFloat {
+        guard isPlaying else { return 3.0 }
+        let t = currentDate.timeIntervalSinceReferenceDate
+        let frequencies: [Double] = [8.5, 12.8, 6.9, 10.4]
+        let phases: [Double] = [0.0, 1.8, 3.4, 0.9]
+        let f = frequencies[index % frequencies.count]
+        let p = phases[index % phases.count]
+        let wave = (sin(t * f + p) + 1.0) / 2.0
+        return 3.0 + CGFloat(wave) * (maxHeight - 3.0)
     }
 }
 
@@ -466,28 +737,59 @@ private struct ListeningPolishedLidGlyph: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(BSColor.Stage.muted.opacity(0.72), lineWidth: 1.4)
-                .frame(width: 18, height: 10)
-                .offset(y: 4)
-
+            // Disc tray well
             Circle()
-                .stroke(BSColor.Accent.info.opacity(0.72), lineWidth: 1.1)
-                .frame(width: 6, height: 6)
-                .offset(y: 4)
+                .stroke(
+                    isOpen ? BSColor.Accent.info.opacity(0.75) : Color.white.opacity(0.28),
+                    lineWidth: 1.2
+                )
+                .frame(width: 17, height: 17)
 
-            Capsule()
-                .fill(BSColor.Stage.foreground.opacity(0.78))
-                .frame(width: 18, height: 1.5)
-                .rotationEffect(.degrees(isOpen ? -22 : 0), anchor: .leading)
-                .offset(x: isOpen ? 1 : 0, y: isOpen ? -4 : -2)
+            // Center spindle dot
+            Circle()
+                .fill(isOpen ? BSColor.Accent.info : Color.white.opacity(0.55))
+                .frame(width: 4, height: 4)
+
+            // Hinged lid visor that flips open with spring
+            RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.55),
+                            Color.white.opacity(0.18)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: 18, height: 2.2)
+                .rotationEffect(.degrees(isOpen ? -28 : 0), anchor: .leading)
+                .offset(x: isOpen ? 1 : 0, y: isOpen ? -8 : -8)
         }
-        .foregroundStyle(BSColor.Stage.foreground.opacity(0.82))
-        .background(Color.white.opacity(0.035), in: Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.09), lineWidth: 1))
+        .frame(width: 38, height: 38)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(isOpen ? 0.14 : 0.08),
+                    Color.white.opacity(isOpen ? 0.05 : 0.02)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            ),
+            in: Circle()
+        )
+        .overlay(
+            Circle()
+                .stroke(
+                    isOpen ? BSColor.Accent.info.opacity(0.40) : Color.white.opacity(0.18),
+                    lineWidth: 1
+                )
+        )
         .animation(
-            reduceMotion ? nil : .spring(response: 0.30, dampingFraction: 0.86),
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.82),
             value: isOpen
         )
     }
 }
+
+
