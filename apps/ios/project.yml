@@ -15,7 +15,7 @@ packages:
 options:
   bundleIdPrefix: com.doublewaterapps
   deploymentTarget:
-    iOS: "17.0"
+    iOS: "26.1"
   xcodeVersion: "26.0"
 settings:
   base:

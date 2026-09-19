@@ -257,34 +257,28 @@ struct RootView: View {
     }
     private var mainTabView: some View {
         TabView(selection: $selectedTab) {
-            CurrentShowFeatureRootView(
-                isPlaybackActive: selectedTab == .current,
-                ceremonyPendingDetail: $ceremonyPendingDetail
-            )
-            .tabItem {
-                Label(
-                    BeforeShowTab.current.localizedTitle,
-                    systemImage: BeforeShowTab.current.iconName
+            Tab(BeforeShowTab.current.localizedTitle, systemImage: BeforeShowTab.current.iconName, value: .current) {
+                CurrentShowFeatureRootView(
+                    isPlaybackActive: selectedTab == .current,
+                    ceremonyPendingDetail: $ceremonyPendingDetail
                 )
             }
-            .tag(BeforeShowTab.current)
+            .accessibilityIdentifier("root.tab.current")
 
-            ListeningFeatureRootView(isActive: selectedTab == .listen)
-                .tabItem { Label(BeforeShowTab.listen.localizedTitle, systemImage: BeforeShowTab.listen.iconName) }
-                .tag(BeforeShowTab.listen)
+            Tab(BeforeShowTab.listen.localizedTitle, systemImage: BeforeShowTab.listen.iconName, value: .listen) {
+                ListeningFeatureRootView(isActive: selectedTab == .listen)
+            }
+            .accessibilityIdentifier("root.tab.listen")
 
-            FootprintsView(
-                pendingDetailTarget: ceremonyPendingDetail
-            )
-            .tabItem {
-                Label(
-                    BeforeShowTab.footprints.localizedTitle,
-                    systemImage: BeforeShowTab.footprints.iconName
+            Tab(BeforeShowTab.footprints.localizedTitle, systemImage: BeforeShowTab.footprints.iconName, value: .footprints) {
+                FootprintsView(
+                    pendingDetailTarget: ceremonyPendingDetail
                 )
             }
-            .tag(BeforeShowTab.footprints)
+            .accessibilityIdentifier("root.tab.footprints")
         }
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
+        .tint(BSColor.Stage.accent)
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {

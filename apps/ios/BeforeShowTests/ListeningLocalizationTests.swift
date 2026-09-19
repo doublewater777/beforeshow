@@ -108,35 +108,60 @@ final class ListeningReviewerRegressionTests: XCTestCase {
     }
 
     func testMiniPlayerAccessibilityAndReduceMotionContractsAreLockedInSource() throws {
-        let listeningRoot = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
+        let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertGreaterThanOrEqual(
             listeningRoot.components(separatedBy: ".frame(width: 44, height: 44)").count - 1,
             3,
-            "Full lid/play controls and compact play control must each retain a 44x44 hit target"
+            "Expanded play/eject controls and compact play control must each retain a 44x44 hit target"
         )
         XCTAssertTrue(
             listeningRoot.contains(".frame(minHeight: 44)"),
             "Compact return-to-Listen interaction must retain at least a 44pt hit height"
         )
         XCTAssertTrue(
-            listeningRoot.contains("paused: reduceMotion || !isPlaying"),
+            listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
-        XCTAssertTrue(
-            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.48"),
-            "Full/compact morph must disable its spring under Reduce Motion"
+        XCTAssertFalse(
+            listeningRoot.contains("value: placement"),
+            "Native tab bar placement should own the collapse animation instead of a second accessory spring"
         )
         XCTAssertTrue(
-            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.30"),
-            "Lid glyph must disable its spring under Reduce Motion"
+            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
+            "Expanded CD mechanism control should use the simple eject symbol"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("ListeningAccessoryLidGlyph"),
+            "Expanded player should not reintroduce the custom lid glyph"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("ListeningMiniEqualizerBars"),
+            "Expanded player should not show a redundant live/equalizer playback indicator"
+        )
+        let playControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.playPause"))
+        let ejectControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.open"))
+        XCTAssertLessThan(
+            listeningRoot.distance(from: listeningRoot.startIndex, to: playControl.lowerBound),
+            listeningRoot.distance(from: listeningRoot.startIndex, to: ejectControl.lowerBound),
+            "Play/pause must remain immediately to the left of the CD mechanism control"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains(".background(Color.white.opacity(0.055), in: Circle())"),
+            "Expanded play/pause must not regain a visible circular background"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains(".background(Color.white.opacity(0.045), in: Circle())"),
+            "Inline play/pause must not retain a visible circular background"
         )
     }
 
-    func testFullPlayerReservesBottomSafeAreaInsteadOfOverlayingListenContent() throws {
+    func testNativeBottomAccessoryOwnsPlayerPlacementAndListenStaysExpanded() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
-        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertFalse(rootChrome.contains(".overlay(alignment: .bottom)"))
+        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc)"))
+        XCTAssertTrue(rootChrome.contains("? .onScrollDown"))
+        XCTAssertTrue(rootChrome.contains(": .never"))
+        XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
@@ -148,16 +173,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMiniPlayerChrome.swift").path
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningPolishedBottomChrome.swift").path
         ))
-        XCTAssertFalse(FileManager.default.fileExists(
-            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerChromeTests.swift").path
+        XCTAssertTrue(FileManager.default.fileExists(
+            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift").path
         ))
-        XCTAssertTrue(project.contains("ListeningAtmosphere.swift in Sources"))
-        XCTAssertTrue(project.contains("ListeningCompatibilityTests.swift in Sources"))
-        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift").contains("struct ListeningBottomChrome"))
-        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningCompatibilityTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerChromeTests"))
+        XCTAssertTrue(project.contains("ListeningPolishedBottomChrome.swift in Sources"))
+        XCTAssertTrue(project.contains("ListeningMiniPlayerPlaybackAppearanceTests.swift in Sources"))
+        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift").contains("struct ListeningBottomAccessory"))
+        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerPlaybackAppearanceTests"))
     }
 
     func testRootViewRemainsWithinArchitectureBudget() throws {
