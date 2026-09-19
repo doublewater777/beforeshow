@@ -151,6 +151,7 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
+            .toolbarVisibility(.visible, for: .tabBar)
             .onAppear {
                 if isActive { ListeningPlayerWarmup.prepareIfNeeded() }
             }
