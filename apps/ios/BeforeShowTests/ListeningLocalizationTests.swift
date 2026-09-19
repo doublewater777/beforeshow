@@ -111,7 +111,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains("@available(iOS 26.0, *)\nstruct ListeningBottomAccessory"),
+            listeningRoot.contains("@available(iOS 26.1, *)\nstruct ListeningBottomAccessory"),
             "iOS 26-only accessory APIs must be availability-gated"
         )
         XCTAssertTrue(
@@ -181,7 +181,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let rootView = try listeningSource("RootView.swift")
 
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
-        XCTAssertTrue(rootChrome.contains("if #available(iOS 26.0, *)"))
+        XCTAssertTrue(rootChrome.contains("if #available(iOS 26.1, *)"))
         XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory("))
         XCTAssertTrue(rootChrome.contains(".tabBarMinimizeBehavior("))
         XCTAssertTrue(rootChrome.contains("isEnabled: hasLoadedDisc && selectedTab != .listen"))
