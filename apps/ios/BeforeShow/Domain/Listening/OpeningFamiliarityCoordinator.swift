@@ -65,10 +65,6 @@ enum OpeningFamiliarityCoordinator {
             uniqueKeysWithValues: try modelContext.fetch(FetchDescriptor<Show>())
                 .map { ($0.id, $0) }
         )
-        let snapshotsByArtistID = Dictionary(
-            uniqueKeysWithValues: try modelContext.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
-                .map { ($0.artistID, $0) }
-        )
         let tiersByKey = Dictionary(
             uniqueKeysWithValues: try modelContext.fetch(FetchDescriptor<ShowOpeningArtistTier>())
                 .map { ($0.uniqueKey, $0) }
@@ -96,19 +92,11 @@ enum OpeningFamiliarityCoordinator {
                     continue
                 }
 
-                let catalogSongIDsAtResolution: [String]
-                if !tier.catalogSongIDsAtResolution.isEmpty {
-                    catalogSongIDsAtResolution = tier.catalogSongIDsAtResolution
-                } else if let snapshot = snapshotsByArtistID[artistID],
-                          snapshot.fetchedAt == tier.catalogSnapshotFetchedAt {
-                    catalogSongIDsAtResolution = snapshot.orderedSongIDs
-                    tier.catalogSongIDsAtResolution = snapshot.orderedSongIDs
-                    didChange = true
-                } else {
+                let catalogSongIDsAtResolution = tier.catalogSongIDsAtResolution
+                guard !catalogSongIDsAtResolution.isEmpty,
+                      catalogSongIDsAtResolution.contains(songID) else {
                     continue
                 }
-
-                guard catalogSongIDsAtResolution.contains(songID) else { continue }
                 let catalogSongIDs = Set(catalogSongIDsAtResolution)
                 let familiarCount = familiarAtOpening.intersection(catalogSongIDs).count
                 guard let correctedTier = ListeningFamiliarityTier.resolve(
