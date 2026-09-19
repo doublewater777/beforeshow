@@ -156,7 +156,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         )
     }
 
-    func testRetryAfterOpeningReconcilesAlreadyFrozenBaselineAndTierUsingThresholdTime() throws {
+    func testRetryAfterOpeningReconcilesTierAgainstCatalogSnapshotUsedAtOriginalResolution() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
@@ -164,6 +164,8 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         let thresholdAt = opening.addingTimeInterval(-10)
         let lifecycleAt = opening.addingTimeInterval(1)
         let postOpeningAt = opening.addingTimeInterval(10)
+        let v1FetchedAt = opening.addingTimeInterval(-100)
+        let v1SongIDs = ["song-a", "song-b", "song-c", "song-d"]
         let show = try Show(
             name: "Opening",
             date: opening,
@@ -174,8 +176,8 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         context.insert(ArtistCatalogSnapshot(
             artistID: "artist",
             artistName: "Artist",
-            orderedSongIDs: ["song-a", "song-b", "song-c", "song-d"],
-            fetchedAt: opening.addingTimeInterval(-100)
+            orderedSongIDs: v1SongIDs,
+            fetchedAt: v1FetchedAt
         ))
         try context.save()
 
@@ -211,11 +213,36 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
                 .first { $0.showID == show.id }
         )
         XCTAssertTrue(frozenBeforeRetry.familiarSongIDsAtCapture.isEmpty)
-        XCTAssertEqual(
-            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
-                .first { $0.showID == show.id }?.tierRawValue,
-            ListeningFamiliarityTier.firstEncounter.rawValue
+        let originalTier = try XCTUnwrap(
+            context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                .first { $0.showID == show.id }
         )
+        XCTAssertEqual(originalTier.tierRawValue, ListeningFamiliarityTier.firstEncounter.rawValue)
+        XCTAssertEqual(originalTier.catalogSnapshotFetchedAt, v1FetchedAt)
+        XCTAssertEqual(originalTier.catalogSongIDsAtResolution, v1SongIDs)
+
+        _ = try ListeningRepository(modelContext: context).upsertArtistCatalogSnapshot(
+            artistID: "artist",
+            artistName: "Artist",
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: [
+                "song-a", "song-b", "song-c", "song-d",
+                "song-e", "song-f", "song-g", "song-h"
+            ],
+            topSongIDs: [],
+            albumIDs: [],
+            fetchedAt: opening.addingTimeInterval(5)
+        )
+        try context.save()
+
+        let refreshedSnapshot = try XCTUnwrap(
+            context.fetch(FetchDescriptor<ArtistCatalogSnapshot>())
+                .first { $0.artistID == "artist" }
+        )
+        XCTAssertEqual(refreshedSnapshot.orderedSongIDs.count, 8)
+        XCTAssertNotEqual(refreshedSnapshot.fetchedAt, originalTier.catalogSnapshotFetchedAt)
 
         persistenceAvailable = true
         let recovered = try coordinator.flushPending()
@@ -233,11 +260,17 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
                 .first { $0.showID == show.id }
         )
         XCTAssertEqual(reconciledBaseline.familiarSongIDsAtCapture, ["song-a"])
-        XCTAssertEqual(
-            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
-                .first { $0.showID == show.id }?.tierRawValue,
-            ListeningFamiliarityTier.gettingIntoIt.rawValue
+        let reconciledTier = try XCTUnwrap(
+            context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                .first { $0.showID == show.id }
         )
+        XCTAssertEqual(
+            reconciledTier.tierRawValue,
+            ListeningFamiliarityTier.gettingIntoIt.rawValue,
+            "late pre-opening evidence must use V1's 1/4 denominator, not refreshed V2's 1/8"
+        )
+        XCTAssertEqual(reconciledTier.catalogSnapshotFetchedAt, v1FetchedAt)
+        XCTAssertEqual(reconciledTier.catalogSongIDsAtResolution, v1SongIDs)
 
         _ = try ListeningRepository(modelContext: context)
             .confirmActualFamiliarity(songID: "song-b", at: postOpeningAt)
@@ -249,8 +282,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
             "post-opening evidence must not be mixed into the frozen opening baseline"
         )
         XCTAssertEqual(
-            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
-                .first { $0.showID == show.id }?.tierRawValue,
+            reconciledTier.tierRawValue,
             ListeningFamiliarityTier.gettingIntoIt.rawValue
         )
     }
