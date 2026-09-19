@@ -119,7 +119,15 @@ struct ListeningPolishedBottomChrome: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.localizedTitle)
-        .accessibilityIdentifier("root.tab.\(tab.rawValue)")
+        .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
+    }
+
+    private func tabAccessibilityIdentifier(_ tab: BeforeShowTab) -> String {
+        switch tab {
+        case .current: return "root.tab.current"
+        case .listen: return "root.tab.listen"
+        case .footprints: return "root.tab.footprints"
+        }
     }
 }
 
