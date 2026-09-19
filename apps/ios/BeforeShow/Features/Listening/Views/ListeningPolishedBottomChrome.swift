@@ -674,7 +674,9 @@ struct ListeningCompactRootChrome: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 50)
                     .glassEffect(
-                        .regular.tint(Color.black.opacity(0.16)),
+                        .regular
+                            .tint(Color.black.opacity(0.16))
+                            .interactive(),
                         in: Capsule()
                     )
                     .overlay {
