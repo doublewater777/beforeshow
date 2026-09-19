@@ -102,7 +102,7 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         )
     }
 
-    func testBatchDrainReportsPartialCommitBeforeFailureAndDoesNotRetryCommittedItems() throws {
+    func testBatchDrainStopsAtFailureAndDoesNotRetryCommittedItems() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
