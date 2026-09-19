@@ -410,7 +410,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         // observation, so this sample must both persist and immediately re-project
         // evidence into the shared room without a later polling tick.
         playback.currentTime = 2.1
-        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+        try ListeningRemoteCommandBridge.shared.pauseForTesting()
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.display.player.phase, .paused)
