@@ -171,12 +171,32 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Chrome animation must start after the TabView selection frame"
         )
         XCTAssertTrue(
-            listeningRoot.contains("static let transitionDuration = 0.28"),
+            listeningRoot.contains("static let transitionDuration = 0.34"),
             "Listen contraction/expansion should remain visible instead of snapping"
         )
         XCTAssertTrue(
-            listeningRoot.contains("withAnimation(.easeInOut(duration: ListeningBottomBarLayout.transitionDuration))"),
-            "Only the deferred chrome update should animate"
+            listeningRoot.contains("withAnimation(.smooth(duration: ListeningBottomBarLayout.transitionDuration))"),
+            "Only the deferred persistent control morph should animate"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("struct ListeningMorphingListenControl"),
+            "Listen icon and compact player must be one persistent morphing control"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("struct ListeningCompactPlayerTab"),
+            "The chrome must not swap between two independent middle controls"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("private var artworkOffset: CGFloat"),
+            "The disc must move continuously from center to leading position"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".delay(expanded ? 0.07 : 0)"),
+            "Track metadata must enter after the shell begins expanding"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".delay(expanded ? 0.13 : 0)"),
+            "Playback control must enter after the metadata for staged choreography"
         )
         XCTAssertTrue(
             listeningRoot.contains("if reduceMotion {\n                presentedTab = selectedTab"),
