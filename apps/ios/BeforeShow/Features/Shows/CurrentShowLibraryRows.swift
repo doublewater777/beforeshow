@@ -9,53 +9,62 @@ struct CurrentShowLibraryCoverCard: View {
 
     var body: some View {
         Button(action: onOpen) {
-            ZStack(alignment: .topLeading) {
-                ShowCoverImageView(
-                    urlString: show.coverImageURL,
-                    aspectRatio: 3.0 / 4.0,
-                    contentMode: .fill,
-                    enforcesAspectRatio: false,
-                    cornerRadius: BSRadius.md
+            // Let the grid cell define the card size. The cover is rendered only inside
+            // this fixed 3:4 canvas so a large source image can never grow the ZStack
+            // beyond its column or overlap the neighboring card.
+            Color.clear
+                .aspectRatio(3.0 / 4.0, contentMode: .fit)
+                .overlay {
+                    ZStack(alignment: .topLeading) {
+                        ShowCoverImageView(
+                            urlString: show.coverImageURL,
+                            aspectRatio: 3.0 / 4.0,
+                            contentMode: .fill,
+                            enforcesAspectRatio: false,
+                            cornerRadius: BSRadius.v3Medium
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            if isCurrent {
+                                tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent)
+                            }
+                            if show.changeStatus != .scheduled {
+                                tag(statusTag, color: statusColor)
+                            }
+                        }
+                        .padding(BSSpacing.sm)
+
+                        VStack {
+                            Spacer()
+                            LinearGradient(
+                                colors: [Color.clear, Color.black.opacity(0.85)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 38)
+                            .overlay(alignment: .bottomLeading) {
+                                Text(show.name)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundColor(.white.opacity(0.92))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 7)
+                                    .padding(.bottom, 6)
+                            }
+                        }
+                    }
+                    .clipped()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+                .overlay(
+                    RoundedRectangle(cornerRadius: BSRadius.v3Medium)
+                        .stroke(
+                            isCurrent ? BSColor.Stage.accent.opacity(0.72) : BSColor.Stage.border,
+                            lineWidth: isCurrent ? 1.5 : 1
+                        )
                 )
-
-                VStack(alignment: .leading, spacing: 4) {
-                    if isCurrent {
-                        tag(BSLocalization.text("当前展示"), color: BSColor.Stage.glowBlue)
-                    }
-                    if show.changeStatus != .scheduled {
-                        tag(statusTag, color: statusColor)
-                    }
-                }
-                .padding(BSSpacing.sm)
-
-                VStack {
-                    Spacer()
-                    LinearGradient(
-                        colors: [Color.clear, Color.black.opacity(0.85)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 38)
-                    .overlay(alignment: .bottomLeading) {
-                        Text(show.name)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.92))
-                            .lineLimit(1)
-                            .padding(.horizontal, 7)
-                            .padding(.bottom, 6)
-                    }
-                }
-            }
-            // 外层固定 3:4 比例，让封面始终吃列宽；否则加载中的图会按内禀尺寸
-            // 撑大 ZStack，溢出列边界——与 HomeHeroPresentation 的处理一致。
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .clipShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
-            .overlay(
-                RoundedRectangle(cornerRadius: BSRadius.v3Medium)
-                    .stroke(isCurrent ? BSColor.Stage.glowBlue.opacity(0.65) : BSColor.Stage.border, lineWidth: isCurrent ? 1.5 : 1)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
+                .contentShape(RoundedRectangle(cornerRadius: BSRadius.v3Medium))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(show.name)
@@ -107,7 +116,7 @@ struct CurrentShowLibraryRow: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: 5) {
-                            if isCurrent { tag(BSLocalization.text("当前展示"), color: BSColor.Stage.glowBlue) }
+                            if isCurrent { tag(BSLocalization.text("当前展示"), color: BSColor.Stage.accent) }
                             if show.changeStatus != .scheduled { tag(statusTag, color: BSColor.Accent.warm) }
                         }
                         Text(show.name)
