@@ -261,6 +261,10 @@ final class ListeningRemoteCommandBridge {
         }
     }
 
+    func pauseForTesting() throws {
+        try controller?.pause()
+    }
+
     func nextForTesting() async throws {
         try await controller?.skipToNext()
     }
