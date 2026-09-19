@@ -107,7 +107,6 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 ListeningPolishedBottomChrome(selectedTab: $selectedTab)
                     .padding(.bottom, BSSpacing.xs)
@@ -129,6 +128,7 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
+            .toolbar(.hidden, for: .tabBar)
             .onAppear {
                 if isActive { ListeningPlayerWarmup.prepareIfNeeded() }
             }
