@@ -206,6 +206,116 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
     }
 
+    func testPartialBatchCommitPublishesEvidenceChangeAndFailureTogether() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let service = PlaybackServiceStub()
+        var persistenceAvailable = false
+        var failSongID: String?
+        var evidenceChangeCount = 0
+        var evidenceFailureCount = 0
+        let evidence = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable, failSongID != songID else {
+                    throw ControllerEvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: evidence,
+            evidenceDidChange: { evidenceChangeCount += 1 },
+            evidenceDidFail: { evidenceFailureCount += 1 }
+        )
+        let items = [
+            ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-b", duration: 100, previewURL: nil)
+        ]
+
+        try await controller.prepare(items: items, source: .fullCatalog, startingAtSongID: "song-a", now: time(0))
+        try await service.play()
+        _ = try controller.refresh(now: time(0))
+        service.currentTime = 51
+        _ = try controller.refresh(now: time(51))
+        try service.selectSongForTesting("song-b")
+        _ = try controller.refresh(now: time(52))
+        service.currentTime = 51
+        _ = try controller.refresh(now: time(103))
+
+        persistenceAvailable = true
+        failSongID = "song-b"
+        let changeBefore = evidenceChangeCount
+        let failureBefore = evidenceFailureCount
+
+        _ = try controller.refresh(now: time(104))
+
+        XCTAssertEqual(evidenceChangeCount, changeBefore + 1)
+        XCTAssertEqual(evidenceFailureCount, failureBefore + 1)
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a"]
+        )
+    }
+
+    func testPendingEvidenceSurvivesControllerStopFailureAndCanFlushAfterControllerDeallocation() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let service = PlaybackServiceStub()
+        var persistenceAvailable = false
+        let evidence = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable else {
+                    throw ControllerEvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+        var controller: ListeningPlaybackController? = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: evidence
+        )
+        let items = [
+            ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
+            ListeningPlaybackItem(songID: "song-b", duration: 100, previewURL: nil)
+        ]
+
+        try await controller?.prepare(items: items, source: .fullCatalog, startingAtSongID: "song-a", now: time(0))
+        try await service.play()
+        _ = try controller?.refresh(now: time(0))
+        service.currentTime = 51
+        _ = try controller?.refresh(now: time(51))
+        try service.selectSongForTesting("song-b")
+        _ = try controller?.refresh(now: time(52))
+        service.currentTime = 51
+        _ = try controller?.refresh(now: time(103))
+
+        try controller?.stop(now: time(104))
+        controller = nil
+        XCTAssertTrue(service.didStop)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        let recovered = try evidence.flushPending()
+
+        XCTAssertEqual(recovered.committedSongIDs, ["song-a", "song-b"])
+        XCTAssertFalse(recovered.hasFailure)
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a", "song-b"]
+        )
+    }
+
     func testStopDrainsAllPendingEvidenceInSingleFinalRefresh() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
