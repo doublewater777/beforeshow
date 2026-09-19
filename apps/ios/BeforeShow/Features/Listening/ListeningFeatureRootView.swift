@@ -92,18 +92,10 @@ enum ListeningChromeBootstrapper {
     }
 }
 
-enum ListeningBottomChromeInteractionPolicy {
-    static func minimizesTabBar(for selectedTab: BeforeShowTab) -> Bool {
-        selectedTab != .listen
-    }
-}
-
 struct ListeningRootChromeModifier: ViewModifier {
-    @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
-    @State private var store = ListeningPlaybackChromeStore.shared
 
     private var currentShow: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
@@ -112,24 +104,8 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     private var currentShowID: UUID? { currentShow?.id }
 
-    private var hasLoadedDisc: Bool {
-        guard let room = store.room else { return false }
-        return room.mechanism.hasDisc && room.track != nil
-    }
-
     func body(content: Content) -> some View {
         content
-            .tabBarMinimizeBehavior(
-                ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: selectedTab)
-                    ? .onScrollDown
-                    : .never
-            )
-            .tabViewBottomAccessory(isEnabled: hasLoadedDisc) {
-                ListeningBottomAccessory(
-                    isListenSelected: selectedTab == .listen,
-                    onSelectListen: { selectedTab = .listen }
-                )
-            }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,
