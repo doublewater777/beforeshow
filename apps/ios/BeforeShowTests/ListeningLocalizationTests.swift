@@ -113,7 +113,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(
             listeningRoot.components(separatedBy: ".frame(width: 44, height: 44)").count - 1,
             3,
-            "Full lid/play controls and compact play control must each retain a 44x44 hit target"
+            "Expanded play/eject controls and compact play control must each retain a 44x44 hit target"
         )
         XCTAssertTrue(
             listeningRoot.contains(".frame(minHeight: 44)"),
@@ -134,6 +134,10 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(
             listeningRoot.contains("ListeningAccessoryLidGlyph"),
             "Expanded player should not reintroduce the custom lid glyph"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("ListeningMiniEqualizerBars"),
+            "Expanded player should not show a redundant live/equalizer playback indicator"
         )
         let playControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.playPause"))
         let ejectControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.open"))
