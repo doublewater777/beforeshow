@@ -33,6 +33,7 @@ struct FootprintDashboardView: View {
                 sections.memorySection
                 sections.timelineSection
             }
+            .padding(.bottom, BSLayout.tabBarContentInset)
         }
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
