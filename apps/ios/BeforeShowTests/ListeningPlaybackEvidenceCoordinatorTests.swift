@@ -156,15 +156,27 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         )
     }
 
-    func testRetryAfterOpeningUsesOriginalThresholdTimeAndPreservesOpeningBaseline() throws {
+    func testRetryAfterOpeningReconcilesAlreadyFrozenBaselineAndTierUsingThresholdTime() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
         let opening = Date(timeIntervalSince1970: 10_000)
         let thresholdAt = opening.addingTimeInterval(-10)
-        let retryAt = opening.addingTimeInterval(10)
-        let show = try Show(name: "Opening", date: opening, startTime: opening)
+        let lifecycleAt = opening.addingTimeInterval(1)
+        let postOpeningAt = opening.addingTimeInterval(10)
+        let show = try Show(
+            name: "Opening",
+            date: opening,
+            startTime: opening,
+            artists: [ArtistSlot(name: "Artist", avatarURL: nil, appleMusicArtistID: "artist")]
+        )
         context.insert(show)
+        context.insert(ArtistCatalogSnapshot(
+            artistID: "artist",
+            artistName: "Artist",
+            orderedSongIDs: ["song-a", "song-b", "song-c", "song-d"],
+            fetchedAt: opening.addingTimeInterval(-100)
+        ))
         try context.save()
 
         var persistenceAvailable = false
@@ -191,9 +203,24 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertTrue(failed.hasFailure)
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: context, now: lifecycleAt)
+        try OpeningFamiliarityCoordinator.resolveAvailableTiers(in: context, now: lifecycleAt)
+
+        let frozenBeforeRetry = try XCTUnwrap(
+            context.fetch(FetchDescriptor<ShowOpeningFamiliarityBaseline>())
+                .first { $0.showID == show.id }
+        )
+        XCTAssertTrue(frozenBeforeRetry.familiarSongIDsAtCapture.isEmpty)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                .first { $0.showID == show.id }?.tierRawValue,
+            ListeningFamiliarityTier.firstEncounter.rawValue
+        )
+
         persistenceAvailable = true
         let recovered = try coordinator.flushPending()
         XCTAssertEqual(recovered.committedSongIDs, ["song-a"])
+        XCTAssertFalse(recovered.hasFailure)
 
         let record = try XCTUnwrap(
             context.fetch(FetchDescriptor<SongFamiliarityRecord>())
@@ -201,12 +228,31 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         )
         XCTAssertEqual(record.actualListeningAt, thresholdAt)
 
-        try OpeningFamiliarityCoordinator.captureDueBaselines(in: context, now: retryAt)
-        let baseline = try XCTUnwrap(
+        let reconciledBaseline = try XCTUnwrap(
             context.fetch(FetchDescriptor<ShowOpeningFamiliarityBaseline>())
                 .first { $0.showID == show.id }
         )
-        XCTAssertTrue(baseline.familiarSongIDsAtCapture.contains("song-a"))
+        XCTAssertEqual(reconciledBaseline.familiarSongIDsAtCapture, ["song-a"])
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                .first { $0.showID == show.id }?.tierRawValue,
+            ListeningFamiliarityTier.gettingIntoIt.rawValue
+        )
+
+        _ = try ListeningRepository(modelContext: context)
+            .confirmActualFamiliarity(songID: "song-b", at: postOpeningAt)
+        try context.save()
+
+        XCTAssertEqual(
+            reconciledBaseline.familiarSongIDsAtCapture,
+            ["song-a"],
+            "post-opening evidence must not be mixed into the frozen opening baseline"
+        )
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                .first { $0.showID == show.id }?.tierRawValue,
+            ListeningFamiliarityTier.gettingIntoIt.rawValue
+        )
     }
 
     func testManualFamiliarityDoesNotSuppressLaterActualEvidence() throws {
