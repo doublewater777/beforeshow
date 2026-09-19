@@ -55,6 +55,12 @@ enum ListeningBottomBarMotionPolicy {
     }
 }
 
+enum ListeningBottomBarLayout {
+    static let tabSize: CGFloat = 58
+    static let gap: CGFloat = 10
+    static let playerGroupMaxWidth: CGFloat = 352
+}
+
 /// Root navigation chrome. The middle Listen destination owns playback chrome:
 /// it is a simple tab icon with no disc (or while Listen is selected), and expands
 /// into the compact player on Current / Footprints when a disc is loaded.
@@ -84,7 +90,7 @@ struct ListeningPolishedBottomChrome: View {
     }
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: ListeningBottomBarLayout.gap) {
             tabButton(.current)
 
             ZStack {
@@ -102,23 +108,16 @@ struct ListeningPolishedBottomChrome: View {
                         .transition(.opacity)
                 }
             }
-            .frame(maxWidth: .infinity)
+            .frame(
+                width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize,
+                maxWidth: showsMiniPlayer ? .infinity : nil
+            )
             .animation(listenMorphAnimation, value: showsMiniPlayer)
 
             tabButton(.footprints)
         }
-        .padding(.horizontal, 8)
-        .frame(maxWidth: 360)
-        .frame(height: 64)
-        .background {
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(.ultraThinMaterial)
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.white.opacity(0.025))
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(BSColor.borderProminent, lineWidth: 0.7)
-        }
-        .shadow(color: Color.black.opacity(0.24), radius: 16, y: 7)
+        .frame(maxWidth: showsMiniPlayer ? ListeningBottomBarLayout.playerGroupMaxWidth : nil)
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
@@ -133,17 +132,27 @@ struct ListeningPolishedBottomChrome: View {
             Image(systemName: tab.iconName)
                 .font(.system(size: 21, weight: .semibold))
                 .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
-                .frame(width: 58, height: 52)
-                .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .frame(
+                    width: ListeningBottomBarLayout.tabSize,
+                    height: ListeningBottomBarLayout.tabSize
+                )
+                .contentShape(Circle())
                 .background {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(isSelected ? BSColor.Stage.accent.opacity(0.16) : Color.clear)
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    Circle()
+                        .fill(.ultraThinMaterial)
+                    if isSelected {
+                        Circle()
+                            .fill(BSColor.Stage.accent.opacity(0.16))
+                    }
+                    Circle()
                         .stroke(
-                            isSelected ? BSColor.Stage.accent.opacity(0.30) : Color.clear,
+                            isSelected
+                                ? BSColor.Stage.accent.opacity(0.34)
+                                : BSColor.borderProminent,
                             lineWidth: 0.8
                         )
                 }
+                .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(tab.localizedTitle)
@@ -246,24 +255,25 @@ private struct ListeningCompactPlayerTab: View {
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
-        .frame(height: 50)
+        .frame(height: 52)
         .background {
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(Color.white.opacity(0.055))
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(.ultraThinMaterial)
 
             if showsPlayingState {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(BSColor.Accent.info.opacity(0.08))
             }
 
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(
                     showsPlayingState
-                        ? BSColor.Accent.info.opacity(0.22)
-                        : BSColor.border,
-                    lineWidth: 0.7
+                        ? BSColor.Accent.info.opacity(0.24)
+                        : BSColor.borderProminent,
+                    lineWidth: 0.8
                 )
         }
+        .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
         .task(id: artworkURL) {
