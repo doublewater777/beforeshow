@@ -108,6 +108,9 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
     @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
     @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
+    @ObservationIgnored private var evidenceRetryPending = false
+    @ObservationIgnored private var evidenceFailureAlertShown = false
+    @ObservationIgnored private var evidenceFailureOwnsErrorText = false
     @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
@@ -1080,12 +1083,38 @@ private let listeningCatalogFetchConcurrency = 4
         }
         if result.hasFailure {
             handlePlaybackEvidenceFailure()
+        } else {
+            handlePlaybackEvidenceRecovery()
         }
     }
 
+    private var playbackEvidenceFailureMessage: String {
+        BSLocalization.text("熟悉度保存失败，请重试")
+    }
+
     private func handlePlaybackEvidenceFailure() {
-        errorText = BSLocalization.text("熟悉度保存失败，请重试")
+        evidenceRetryPending = true
+        if !evidenceFailureAlertShown {
+            evidenceFailureAlertShown = true
+            errorText = playbackEvidenceFailureMessage
+            evidenceFailureOwnsErrorText = true
+        }
         schedulePlaybackEvidenceRetry()
+    }
+
+    private func handlePlaybackEvidenceRecovery() {
+        guard evidenceRetryPending
+                || evidenceFailureAlertShown
+                || evidenceFailureOwnsErrorText else {
+            return
+        }
+        evidenceRetryPending = false
+        evidenceFailureAlertShown = false
+        if evidenceFailureOwnsErrorText,
+           errorText == playbackEvidenceFailureMessage {
+            errorText = nil
+        }
+        evidenceFailureOwnsErrorText = false
     }
 
     func retryPendingPlaybackEvidence() {
@@ -1115,12 +1144,13 @@ private let listeningCatalogFetchConcurrency = 4
                     if result.committedAny {
                         self.refreshPlaybackEvidenceProjection()
                     }
-                    if !result.hasFailure {
-                        return
+                    if result.hasFailure {
+                        continue
                     }
-                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
+                    self.handlePlaybackEvidenceRecovery()
+                    return
                 } catch {
-                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
+                    continue
                 }
             }
         }
