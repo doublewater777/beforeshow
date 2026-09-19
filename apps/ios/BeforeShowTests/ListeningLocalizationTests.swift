@@ -133,36 +133,12 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testCurrentAndFootprintsUseCompactChromeWhileListenKeepsNativeAccessory() throws {
+    func testNativeBottomAccessoryOwnsPlayerPlacementAndListenStaysExpanded() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
-        let currentRoot = try listeningSource("Features/CurrentShow/CurrentShowSession.swift")
-        let footprintsRoot = try listeningSource("Features/Footprints/FootprintsView.swift")
-        let polishedChrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
-
-        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen)"))
-        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(rootChrome.contains("ListeningCompactRootChrome(selectedTab: $selectedTab)"))
-        XCTAssertFalse(rootChrome.contains(".toolbarVisibility("))
-        XCTAssertTrue(rootChrome.contains("usesCompactChrome(for: selectedTab)"))
-
-        XCTAssertTrue(currentRoot.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
-        XCTAssertTrue(footprintsRoot.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
-        XCTAssertTrue(rootChrome.contains(".toolbarVisibility(.visible, for: .tabBar)"))
-
-        XCTAssertTrue(polishedChrome.contains("GlassEffectContainer(spacing: 4)"))
-        XCTAssertTrue(polishedChrome.contains(".tint(Color.black.opacity(0.16))"))
-        XCTAssertTrue(polishedChrome.contains(".interactive()"))
-        XCTAssertTrue(polishedChrome.contains(".frame(width: 46, height: 46)"))
-        XCTAssertTrue(polishedChrome.contains(".buttonStyle(.plain)"))
-        XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
-        XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
-
-        let tokens = try listeningSource("UI/DesignSystem/BSTokens.swift")
-        let currentManagement = try listeningSource("Features/CurrentShow/CurrentShowManagementView.swift")
-        let footprintsDashboard = try listeningSource("Features/Footprints/FootprintDashboardView.swift")
-        XCTAssertTrue(tokens.contains("compactChromeContentInset: CGFloat = 120"))
-        XCTAssertTrue(currentManagement.contains(".padding(.bottom, BSLayout.compactChromeContentInset)"))
-        XCTAssertTrue(footprintsDashboard.contains(".padding(.bottom, BSLayout.compactChromeContentInset)"))
+        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc)"))
+        XCTAssertTrue(rootChrome.contains("? .onScrollDown"))
+        XCTAssertTrue(rootChrome.contains(": .never"))
+        XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
