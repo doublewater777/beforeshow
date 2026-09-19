@@ -34,6 +34,44 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertEqual(record.actualListeningAt, time(51))
     }
 
+    func testEvidenceChangeCallbackRunsAfterPersistenceAndFinalPauseStateIsPublished() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let service = PlaybackServiceStub()
+        var projectedStates: [ListeningPlaybackState] = []
+        var evidenceCallbackSawPersistedRecord = false
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: context),
+            stateDidChange: { projectedStates.append($0) },
+            evidenceDidChange: {
+                evidenceCallbackSawPersistedRecord = (try? context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                    .contains { $0.songID == "threshold-song" && $0.actualListeningAt != nil }) == true
+            }
+        )
+        let item = ListeningPlaybackItem(songID: "threshold-song", duration: 4, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await controller.play(now: time(0))
+        service.currentTime = 1.4
+        _ = try controller.refresh(now: time(1))
+        XCTAssertFalse(evidenceCallbackSawPersistedRecord)
+
+        service.currentTime = 2.1
+        try controller.pause(now: time(2))
+
+        XCTAssertEqual(
+            controller.state,
+            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
+        )
+        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertTrue(evidenceCallbackSawPersistedRecord)
+        let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+            .first { $0.songID == "threshold-song" })
+        XCTAssertNotNil(record.actualListeningAt)
+    }
+
     func testPreparePreservesWholeQueueAndStartingTrack() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
