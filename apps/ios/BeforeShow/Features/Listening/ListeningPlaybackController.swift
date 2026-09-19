@@ -6,6 +6,8 @@ final class ListeningPlaybackController {
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
     private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
+    private let evidenceDidChange: @MainActor () -> Void
+    private let evidenceDidFail: @MainActor () -> Void
     private var stateMachine = ListeningPlaybackStateMachine()
     private var observationTask: Task<Void, Never>?
 
@@ -14,11 +16,15 @@ final class ListeningPlaybackController {
     init(
         service: ListeningPlaybackServicing,
         evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
-        stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in }
+        stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
+        evidenceDidChange: @escaping @MainActor () -> Void = {},
+        evidenceDidFail: @escaping @MainActor () -> Void = {}
     ) {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
         self.stateDidChange = stateDidChange
+        self.evidenceDidChange = evidenceDidChange
+        self.evidenceDidFail = evidenceDidFail
     }
 
     func prepare(
@@ -105,8 +111,14 @@ final class ListeningPlaybackController {
         }
         stateMachine.handle(.sample(sample))
         publishState()
-        _ = try evidenceCoordinator.ingest(sample, at: now)
         ListeningRemoteCommandBridge.shared.update(sample: sample)
+        do {
+            if try evidenceCoordinator.ingest(sample, at: now) {
+                evidenceDidChange()
+            }
+        } catch {
+            evidenceDidFail()
+        }
         return state
     }
 
@@ -251,5 +263,10 @@ final class ListeningRemoteCommandBridge {
 
     func nextForTesting() async throws {
         try await controller?.skipToNext()
+    }
+
+    @discardableResult
+    func refreshForTesting(now: Date = Date()) throws -> ListeningPlaybackState? {
+        try controller?.refresh(now: now)
     }
 }
