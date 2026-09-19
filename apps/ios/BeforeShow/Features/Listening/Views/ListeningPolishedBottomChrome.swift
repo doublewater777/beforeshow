@@ -53,6 +53,8 @@ enum ListeningBottomBarLayout {
     static let tabSize: CGFloat = 58
     static let gap: CGFloat = 10
     static let playerGroupMaxWidth: CGFloat = 352
+    static let miniPlayerWidth = playerGroupMaxWidth - tabSize * 2 - gap * 2
+    static let iconGroupWidth = tabSize * 3 + gap * 2
     static let transitionDelay = Duration.milliseconds(45)
     static let transitionDuration = 0.28
 }
@@ -102,14 +104,20 @@ struct ListeningPolishedBottomChrome: View {
                             .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     }
                 }
-                .frame(width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize)
-                .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
+                .frame(
+                    width: showsMiniPlayer
+                        ? ListeningBottomBarLayout.miniPlayerWidth
+                        : ListeningBottomBarLayout.tabSize
+                )
 
                 tabButton(.footprints)
             }
-            .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
+            .frame(
+                width: showsMiniPlayer
+                    ? ListeningBottomBarLayout.playerGroupMaxWidth
+                    : ListeningBottomBarLayout.iconGroupWidth
+            )
         }
-        .frame(maxWidth: ListeningBottomBarLayout.playerGroupMaxWidth)
         .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
