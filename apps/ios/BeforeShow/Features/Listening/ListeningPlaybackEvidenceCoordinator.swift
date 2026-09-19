@@ -27,20 +27,32 @@ final class ListeningPlaybackEvidenceCoordinator {
 
     @discardableResult
     func ingest(_ sample: ListeningPlaybackSample, at date: Date = Date()) throws -> Bool {
-        guard case let .becameFamiliar(songID) = tracker.ingest(sample) else {
-            return false
-        }
-        do {
-            try persistActualFamiliarity(songID, date)
-            tracker.commitFamiliarity(songID: songID)
-            return true
-        } catch {
-            modelContext.rollback()
-            throw error
-        }
+        _ = tracker.ingest(sample)
+        return try drainPending(at: date)
+    }
+
+    @discardableResult
+    func flushPending(at date: Date = Date()) throws -> Bool {
+        try drainPending(at: date)
     }
 
     func breakContinuity() {
         tracker.breakContinuity()
+    }
+
+    @discardableResult
+    private func drainPending(at date: Date) throws -> Bool {
+        var persistedAny = false
+        while let songID = tracker.nextPendingFamiliaritySongID {
+            do {
+                try persistActualFamiliarity(songID, date)
+                tracker.commitFamiliarity(songID: songID)
+                persistedAny = true
+            } catch {
+                modelContext.rollback()
+                throw error
+            }
+        }
+        return persistedAny
     }
 }
