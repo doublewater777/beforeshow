@@ -127,20 +127,31 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Collapsed Listen and compact playback surfaces must share one system glass identity"
         )
         XCTAssertTrue(
-            listeningRoot.contains(".glassEffectTransition(.matchedGeometry)"),
-            "Listen morphing must keep the existing GlassEffectTransition choreography in Phase 1"
+            listeningRoot.contains(".glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)"),
+            "Reduce Motion must opt out of geometric glass morphing while normal motion uses matched geometry"
         )
         XCTAssertTrue(
-            listeningRoot.contains("@State private var presentedTab"),
-            "Phase 1 must preserve the existing delayed presentation state"
+            listeningRoot.contains("selectedTab: selectedTab,"),
+            "Mini-player presentation must derive directly from the selected destination"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("@State private var presentedTab")
+                || listeningRoot.contains("await Task.yield()")
+                || listeningRoot.contains("ListeningBottomBarLayout.transitionDuration")
+                || listeningRoot.contains(".smooth(duration:"),
+            "Phase 2 must remove delayed duplicate tab presentation and fixed-duration morph choreography"
         )
         XCTAssertTrue(
-            listeningRoot.contains("await Task.yield()"),
-            "Phase 1 must preserve the existing post-selection choreography"
+            listeningRoot.contains(".animation(reduceMotion ? nil : .spring("),
+            "Normal Liquid Glass morphing must use a native spring instead of a fixed-duration animation"
         )
         XCTAssertTrue(
-            listeningRoot.contains("ListeningBottomBarLayout.transitionDuration"),
-            "Phase 1 must not begin the Phase 2 animation rewrite"
+            listeningRoot.contains(".transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)"),
+            "Reduce Motion must replace geometric travel with a short crossfade"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".frame(height: ListeningBottomBarLayout.tabSize)"),
+            "Root chrome must keep a constant vertical footprint while Listen changes width"
         )
         XCTAssertTrue(
             listeningRoot.contains("static let miniPlayerWidth: CGFloat = 216"),
@@ -161,7 +172,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
                 || listeningRoot.contains("if #available(iOS 26.0, *)")
                 || listeningRoot.contains("@available(iOS 26.0, *)")
                 || listeningRoot.contains(".ultraThinMaterial"),
-            "iOS 26-only Bottom Chrome must not retain the legacy material compatibility path"
+            "iOS 26-only Bottom Chrome must stay backgroundless and free of the legacy compatibility path"
         )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessory")
@@ -177,6 +188,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains("Image(systemName: \"eject.fill\")"),
             "Global playback chrome must not expose the CD mechanism control"
         )
+    }
+
+    func testCurrentShowAmbientBackgroundCarriesCoverHueIntoLowerSafeArea() throws {
+        let stage = try listeningSource("UI/DesignSystem/BSStagePresentation.swift")
+
+        XCTAssertTrue(stage.contains("ambientColor.opacity(0.20)"))
+        XCTAssertTrue(stage.contains("ambientColor.opacity(0.08)"))
+        XCTAssertTrue(stage.contains("geometry.size.height * 0.88"))
+        XCTAssertTrue(stage.contains(".blur(radius: 76)"))
+        XCTAssertTrue(stage.contains(".ignoresSafeArea()"))
     }
 
     func testListenWarmupAndActivationDoNotCompeteWithInitialTabFrame() throws {
