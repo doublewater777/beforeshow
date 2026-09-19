@@ -107,10 +107,11 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .safeAreaInset(edge: .bottom, spacing: 0) {
+            .safeAreaBar(edge: .bottom, spacing: 0) {
                 ListeningPolishedBottomChrome(selectedTab: $selectedTab)
                     .padding(.bottom, BSSpacing.xs)
             }
+            .scrollEdgeEffectStyle(.soft, for: .bottom)
             .task {
                 ListeningPlayerWarmup.prepareIfNeeded()
             }
