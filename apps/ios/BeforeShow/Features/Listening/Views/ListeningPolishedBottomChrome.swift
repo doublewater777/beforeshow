@@ -189,7 +189,7 @@ struct ListeningPolishedBottomChrome: View {
 private struct ListeningMorphingListenControl: View {
     let expanded: Bool
     let isSelected: Bool
-    @Bindable var room: ListeningRoomCoordinator?
+    let room: ListeningRoomCoordinator?
     let track: ListeningDiscTrack?
     let onSelectListen: () -> Void
 
