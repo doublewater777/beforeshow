@@ -306,12 +306,13 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         try context.save()
 
         let playback = ListeningChromePlaybackSpy()
-        let room = try XCTUnwrap(await ListeningChromeBootstrapper.prepare(
+        let prepared = await ListeningChromeBootstrapper.prepare(
             show: show,
             context: context,
             catalogService: ListeningChromeCatalogStub(),
             playbackFactory: { _ in playback }
-        ))
+        )
+        let room = try XCTUnwrap(prepared)
         defer {
             room.stop()
             room.mechanism.motion.stop()
