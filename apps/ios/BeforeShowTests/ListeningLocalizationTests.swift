@@ -126,6 +126,18 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(listeningRoot.contains("\"root.tab.listen\""))
         XCTAssertTrue(listeningRoot.contains("\"root.tab.footprints\""))
         XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
+        XCTAssertTrue(
+            listeningRoot.contains("accessibilityAddTraits(.isSelected)"),
+            "Custom root tabs must preserve the native selected-tab VoiceOver state"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("matchedGeometryEffect(id: \"listen-slot\""),
+            "Listen icon and compact player must share a stable morph identity"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("ListeningBottomBarMotionPolicy.animatesMorph"),
+            "Listen morph animation must respect Reduce Motion"
+        )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessoryPlacement"),
             "The root chrome must not depend on the iOS 26 accessory placement environment"
@@ -144,9 +156,26 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
         XCTAssertFalse(rootView.contains(".tabViewBottomAccessory"))
         XCTAssertFalse(rootView.contains(".tabBarMinimizeBehavior"))
-        XCTAssertTrue(rootView.contains(".toolbar(.hidden, for: .tabBar)"))
-        XCTAssertTrue(rootView.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(rootView.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertFalse(rootView.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains(".toolbar(.hidden, for: .tabBar)"))
+        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+    }
+
+    func testRootPagesDoNotStackLegacyTabBarClearanceOnSafeAreaInset() throws {
+        for path in [
+            "Features/CurrentShow/CurrentShowManagementView.swift",
+            "Features/Listening/Views/ListeningRoomView.swift",
+            "Features/Listening/Views/ListeningPreparingView.swift",
+            "Features/Footprints/FootprintDashboardView.swift",
+            "Features/Footprints/FootprintsView.swift"
+        ] {
+            XCTAssertFalse(
+                try listeningSource(path).contains("BSLayout.tabBarContentInset"),
+                "\(path) must rely on the root safe-area inset instead of adding the old 96pt tab clearance"
+            )
+        }
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
