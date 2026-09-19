@@ -111,10 +111,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains("@available(iOS 26.0, *)\nprivate struct ListeningLiquidGlassBottomChrome"),
-            "Liquid Glass must be availability-gated while the app still targets iOS 18"
-        )
-        XCTAssertTrue(
             listeningRoot.contains("GlassEffectContainer(spacing: ListeningBottomBarLayout.gap)"),
             "Nearby root controls must share one system glass sampling container"
         )
@@ -132,11 +128,19 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         XCTAssertTrue(
             listeningRoot.contains(".glassEffectTransition(.matchedGeometry)"),
-            "Listen morphing must use GlassEffectTransition instead of hand-built geometry"
+            "Listen morphing must keep the existing GlassEffectTransition choreography in Phase 1"
         )
         XCTAssertTrue(
-            listeningRoot.contains("struct ListeningLegacyDetachedBottomChrome"),
-            "iOS 18–25 must keep the same detached icon-only geometry with a material fallback"
+            listeningRoot.contains("@State private var presentedTab"),
+            "Phase 1 must preserve the existing delayed presentation state"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("await Task.yield()"),
+            "Phase 1 must preserve the existing post-selection choreography"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("ListeningBottomBarLayout.transitionDuration"),
+            "Phase 1 must not begin the Phase 2 animation rewrite"
         )
         XCTAssertTrue(
             listeningRoot.contains("static let miniPlayerWidth: CGFloat = 216"),
@@ -151,6 +155,13 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains("Text(track.title)")
                 && listeningRoot.contains("Text(track.artistName)"),
             "Expanded compact playback must show both track title and artist"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("ListeningLegacyDetachedBottomChrome")
+                || listeningRoot.contains("if #available(iOS 26.0, *)")
+                || listeningRoot.contains("@available(iOS 26.0, *)")
+                || listeningRoot.contains(".ultraThinMaterial"),
+            "iOS 26-only Bottom Chrome must not retain the legacy material compatibility path"
         )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessory")
@@ -202,13 +213,15 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testRootUsesDetachedAlwaysCompactChromeOnEverySupportedVersion() throws {
+    func testRootUsesNativeIOS26SafeAreaBarAndSoftBottomScrollEdge() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
         let rootView = try listeningSource("RootView.swift")
 
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
-        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootChrome.contains(".safeAreaBar(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootChrome.contains(".scrollEdgeEffectStyle(.soft, for: .bottom)"))
         XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom"))
         XCTAssertFalse(rootChrome.contains(".tabViewBottomAccessory"))
         XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
     }
@@ -256,7 +269,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         }
     }
 
-    func testProjectDeploymentTargetIsIOS18WithIOS26GlassEnhancementGated() throws {
+    func testProjectDeploymentTargetIsIOS26AndBottomChromeNeedsNoAvailabilityGate() throws {
         let iosRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -269,14 +282,15 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(projectYAML.contains("iOS: \"18.0\""))
-        XCTAssertFalse(projectYAML.contains("iOS: \"26.1\""))
-        XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
-        XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.1;"))
+        XCTAssertTrue(projectYAML.contains("iOS: \"26.0\""))
+        XCTAssertFalse(projectYAML.contains("iOS: \"18.0\""))
+        XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.0;"))
+        XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
 
         let chrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
-        XCTAssertTrue(chrome.contains("if #available(iOS 26.0, *)"))
-        XCTAssertTrue(chrome.contains("@available(iOS 26.0, *)"))
+        XCTAssertFalse(chrome.contains("if #available(iOS 26.0, *)"))
+        XCTAssertFalse(chrome.contains("@available(iOS 26.0, *)"))
+        XCTAssertFalse(chrome.contains("ListeningLegacyDetachedBottomChrome"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {

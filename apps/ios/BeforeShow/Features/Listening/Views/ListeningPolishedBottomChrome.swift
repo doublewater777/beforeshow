@@ -59,9 +59,8 @@ enum ListeningBottomBarLayout {
 
 /// The root navigation is intentionally always compact and icon-only.
 /// SwiftUI's TabView owns destination state, while this detached chrome owns the
-/// visible root controls. On iOS 26+ Liquid Glass itself performs the Listen
-/// circle <-> compact-player morph; older systems keep the same geometry with
-/// a stable material fallback.
+/// visible root controls. Liquid Glass itself performs the Listen
+/// circle <-> compact-player morph inside the stable root-bar footprint.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -88,25 +87,13 @@ struct ListeningPolishedBottomChrome: View {
         )
     }
 
-    @ViewBuilder
     var body: some View {
-        Group {
-            if #available(iOS 26.0, *) {
-                ListeningLiquidGlassBottomChrome(
-                    selectedTab: $selectedTab,
-                    showsMiniPlayer: showsMiniPlayer,
-                    room: room,
-                    track: track
-                )
-            } else {
-                ListeningLegacyDetachedBottomChrome(
-                    selectedTab: $selectedTab,
-                    showsMiniPlayer: showsMiniPlayer,
-                    room: room,
-                    track: track
-                )
-            }
-        }
+        ListeningLiquidGlassBottomChrome(
+            selectedTab: $selectedTab,
+            showsMiniPlayer: showsMiniPlayer,
+            room: room,
+            track: track
+        )
         .frame(maxWidth: .infinity)
         .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
@@ -128,7 +115,6 @@ struct ListeningPolishedBottomChrome: View {
     }
 }
 
-@available(iOS 26.0, *)
 private struct ListeningLiquidGlassBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
     let showsMiniPlayer: Bool
@@ -229,84 +215,6 @@ private struct ListeningLiquidGlassBottomChrome: View {
         case .current: return "current"
         case .listen: return "listen"
         case .footprints: return "footprints"
-        }
-    }
-}
-
-private struct ListeningLegacyDetachedBottomChrome: View {
-    @Binding var selectedTab: BeforeShowTab
-    let showsMiniPlayer: Bool
-    let room: ListeningRoomCoordinator?
-    let track: ListeningDiscTrack?
-
-    var body: some View {
-        HStack(spacing: ListeningBottomBarLayout.gap) {
-            legacyTabButton(.current)
-
-            if showsMiniPlayer, let room, let track {
-                ListeningCompactPlaybackControl(
-                    room: room,
-                    track: track,
-                    onSelectListen: { selectedTab = .listen }
-                )
-                .frame(
-                    width: ListeningBottomBarLayout.miniPlayerWidth,
-                    height: ListeningBottomBarLayout.tabSize
-                )
-                .background(.ultraThinMaterial, in: Capsule())
-                .overlay {
-                    Capsule()
-                        .stroke(BSColor.borderProminent, lineWidth: 0.8)
-                }
-                .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
-            } else {
-                legacyTabButton(.listen)
-            }
-
-            legacyTabButton(.footprints)
-        }
-        .frame(
-            width: showsMiniPlayer
-                ? ListeningBottomBarLayout.playerGroupWidth
-                : ListeningBottomBarLayout.iconGroupWidth
-        )
-    }
-
-    @ViewBuilder
-    private func legacyTabButton(_ tab: BeforeShowTab) -> some View {
-        let isSelected = selectedTab == tab
-        let systemName = tab == .listen ? "opticaldisc" : tab.iconName
-        let button = Button {
-            selectedTab = tab
-        } label: {
-            Image(systemName: systemName)
-                .font(.system(size: tab == .listen ? 22 : 21, weight: .semibold))
-                .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.textSecondary)
-                .frame(
-                    width: ListeningBottomBarLayout.tabSize,
-                    height: ListeningBottomBarLayout.tabSize
-                )
-                .contentShape(Circle())
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(
-                            isSelected
-                                ? BSColor.Stage.accent.opacity(0.34)
-                                : BSColor.borderProminent,
-                            lineWidth: 0.8
-                        )
-                }
-                .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(tab.localizedTitle)
-        .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
-
-        if isSelected {
-            button.accessibilityAddTraits(.isSelected)
-        } else {
-            button
         }
     }
 }
