@@ -92,12 +92,6 @@ enum ListeningChromeBootstrapper {
     }
 }
 
-enum ListeningBottomChromeInteractionPolicy {
-    static func minimizesTabBar(for selectedTab: BeforeShowTab) -> Bool {
-        selectedTab != .listen
-    }
-}
-
 struct ListeningRootChromeModifier: ViewModifier {
     @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
@@ -159,11 +153,7 @@ private struct ListeningNativeRootChrome<Content: View>: View {
 
     var body: some View {
         content
-            .tabBarMinimizeBehavior(
-                ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: selectedTab)
-                    ? .onScrollDown
-                    : .never
-            )
+            .tabBarMinimizeBehavior(.onScrollDown)
             .tabViewBottomAccessory(
                 isEnabled: hasLoadedDisc && selectedTab != .listen
             ) {
