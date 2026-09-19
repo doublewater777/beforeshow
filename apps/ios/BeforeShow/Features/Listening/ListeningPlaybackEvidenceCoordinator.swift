@@ -8,10 +8,6 @@ struct ListeningPlaybackEvidenceDrainResult {
     var committedAny: Bool { !committedSongIDs.isEmpty }
     var hasFailure: Bool { failure != nil }
 
-    static let empty = ListeningPlaybackEvidenceDrainResult(
-        committedSongIDs: [],
-        failure: nil
-    )
 }
 
 @MainActor
