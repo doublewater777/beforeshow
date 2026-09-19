@@ -11,6 +11,21 @@ final class ListeningPlaybackEvidenceTests: XCTestCase {
         XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 51)), .becameFamiliar(songID: "song-a"))
     }
 
+    func testThresholdRemainsPendingUntilPersistenceCommit() {
+        var tracker = ListeningPlaybackEvidenceTracker()
+
+        XCTAssertEqual(tracker.ingest(full(time: 0, observedAt: 0)), .none)
+        XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 51)), .becameFamiliar(songID: "song-a"))
+        XCTAssertEqual(
+            tracker.ingest(full(time: 51, observedAt: 52, isPlaying: false)),
+            .becameFamiliar(songID: "song-a")
+        )
+
+        tracker.commitFamiliarity(songID: "song-a")
+
+        XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 53, isPlaying: false)), .none)
+    }
+
     func testForwardSeekDoesNotCountSkippedTime() {
         var tracker = ListeningPlaybackEvidenceTracker()
 
