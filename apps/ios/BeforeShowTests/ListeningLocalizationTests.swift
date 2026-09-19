@@ -334,9 +334,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
     }
 
-    func testCompatibilityLayerDoesNotRewriteRootPageSpacing() throws {
+    func testCurrentShowScrollContentClearsRootBottomChrome() throws {
+        let currentShow = try listeningSource("Features/CurrentShow/CurrentShowManagementView.swift")
+        XCTAssertTrue(
+            currentShow.contains(".padding(.bottom, BSLayout.tabBarContentInset)"),
+            "Current Show must keep enough trailing scroll room for the follow-up card to clear Bottom Chrome"
+        )
+    }
+
+    func testCompatibilityLayerDoesNotRewriteOtherRootPageSpacing() throws {
         for path in [
-            "Features/CurrentShow/CurrentShowManagementView.swift",
             "Features/Listening/Views/ListeningRoomView.swift",
             "Features/Listening/Views/ListeningPreparingView.swift",
             "Features/Footprints/FootprintDashboardView.swift",
