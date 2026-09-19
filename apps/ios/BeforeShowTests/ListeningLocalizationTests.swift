@@ -107,108 +107,38 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(firstRoom.mechanism.hasDisc)
     }
 
-    func testCompactRootBarAccessibilityAndReduceMotionContractsAreLockedInSource() throws {
+    func testNativeAndLegacyBottomChromeContractsAreLockedInSource() throws {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains("static let tabSize: CGFloat = 58"),
-            "Detached root buttons must keep a generous touch target"
+            listeningRoot.contains("@available(iOS 26.0, *)\nstruct ListeningBottomAccessory"),
+            "iOS 26-only accessory APIs must be availability-gated"
         )
         XCTAssertTrue(
-            listeningRoot.contains("static let gap: CGFloat = 10"),
-            "Detached root controls must stay visually grouped instead of drifting to the screen edges"
+            listeningRoot.contains("@Environment(\\.tabViewBottomAccessoryPlacement)"),
+            "iOS 26 must let the system own expanded vs inline accessory placement"
         )
         XCTAssertTrue(
-            listeningRoot.contains("static let playerGroupMaxWidth: CGFloat = 352"),
-            "Compact-player mode must remain centered as a tight three-piece group"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("static let miniPlayerWidth = playerGroupMaxWidth - tabSize * 2 - gap * 2"),
-            "Mini-player expansion must use an explicit animatable width"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("static let iconGroupWidth = tabSize * 3 + gap * 2"),
-            "Listen icon mode must use an explicit compact group width"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("RoundedRectangle(cornerRadius: 30"),
-            "Root navigation must not reintroduce a full-width shared dock background"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("minHeight: BSLayout.minTouchTarget"),
-            "Compact player interactions must retain at least a 44pt hit height"
+            listeningRoot.contains("struct ListeningLegacyBottomAccessory"),
+            "iOS 18–25 must retain a stable fallback mini player"
         )
         XCTAssertTrue(
             listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
-        XCTAssertTrue(listeningRoot.contains("\"root.tab.current\""))
-        XCTAssertTrue(listeningRoot.contains("\"root.tab.listen\""))
-        XCTAssertTrue(listeningRoot.contains("\"root.tab.footprints\""))
-        XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
         XCTAssertTrue(
-            listeningRoot.contains("accessibilityAddTraits(.isSelected)"),
-            "Custom root tabs must preserve the native selected-tab VoiceOver state"
+            listeningRoot.contains("minHeight: BSLayout.minTouchTarget"),
+            "Legacy return-to-Listen interaction must keep a full touch target"
+        )
+        XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
+        XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.legacyPlayPause\""))
+        XCTAssertFalse(
+            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
+            "Global playback chrome must not expose the CD mechanism control"
         )
         XCTAssertFalse(
             listeningRoot.contains("matchedGeometryEffect"),
-            "Tab switching must not compete with matched-geometry layout animation"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains(".spring("),
-            "Root chrome must not run a spring layout animation during TabView selection changes"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("@State private var presentedTab: BeforeShowTab"),
-            "Chrome presentation state must be decoupled from the immediate TabView selection"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("await Task.yield()"),
-            "Chrome presentation must follow after TabView gets the first transition turn"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("static let transitionDelay = Duration.milliseconds(45)"),
-            "Chrome animation must start after the TabView selection frame"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("static let transitionDuration = 0.34"),
-            "Listen contraction/expansion should remain visible instead of snapping"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("withAnimation(.smooth(duration: ListeningBottomBarLayout.transitionDuration))"),
-            "Only the deferred persistent control morph should animate"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("struct ListeningMorphingListenControl"),
-            "Listen icon and compact player must be one persistent morphing control"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("struct ListeningCompactPlayerTab"),
-            "The chrome must not swap between two independent middle controls"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("private var artworkOffset: CGFloat"),
-            "The disc must move continuously from center to leading position"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains(".delay(expanded ? 0.07 : 0)"),
-            "Track metadata must enter after the shell begins expanding"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains(".delay(expanded ? 0.13 : 0)"),
-            "Playback control must enter after the metadata for staged choreography"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("if reduceMotion {\n                presentedTab = selectedTab"),
-            "Reduce Motion must bypass the chrome expansion animation"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("tabViewBottomAccessoryPlacement"),
-            "The root chrome must not depend on the iOS 26 accessory placement environment"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
-            "The global bottom bar must not expose the CD mechanism control"
+            "Native placement must own the morph instead of a hand-built geometry transition"
         )
     }
 
@@ -246,29 +176,28 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testRootUsesStableCompactBarWithoutNativeBottomAccessory() throws {
+    func testRootUsesNativeAccessoryOn26AndSafeFallbackOn18() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
         let rootView = try listeningSource("RootView.swift")
 
-        XCTAssertFalse(rootChrome.contains(".tabViewBottomAccessory"))
-        XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
-        XCTAssertFalse(rootView.contains(".tabViewBottomAccessory"))
-        XCTAssertFalse(rootView.contains(".tabBarMinimizeBehavior"))
-        XCTAssertFalse(rootView.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains("if #available(iOS 26.0, *)"))
+        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory("))
+        XCTAssertTrue(rootChrome.contains(".tabBarMinimizeBehavior("))
+        XCTAssertTrue(rootChrome.contains("isEnabled: hasLoadedDisc && selectedTab != .listen"))
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains("ListeningLegacyBottomAccessory("))
     }
 
-    func testEachRootDestinationHidesTheSystemTabBar() throws {
+    func testRootDestinationsKeepTheNativeSystemTabBarVisible() throws {
         for path in [
             "Features/CurrentShow/CurrentShowSession.swift",
             "Features/Listening/ListeningFeatureRootView.swift",
             "Features/Footprints/FootprintsView.swift"
         ] {
-            XCTAssertTrue(
+            XCTAssertFalse(
                 try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
-                "\(path) must hide the native TabView bar so only the custom root chrome is visible"
+                "\(path) must leave system TabView navigation visible"
             )
         }
     }
@@ -288,7 +217,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
     }
 
-    func testRootPagesDoNotStackLegacyTabBarClearanceOnSafeAreaInset() throws {
+    func testRootPagesRetainScrollClearanceForNativeTabBarAndAccessory() throws {
         for path in [
             "Features/CurrentShow/CurrentShowManagementView.swift",
             "Features/Listening/Views/ListeningRoomView.swift",
@@ -296,11 +225,30 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Features/Footprints/FootprintDashboardView.swift",
             "Features/Footprints/FootprintsView.swift"
         ] {
-            XCTAssertFalse(
+            XCTAssertTrue(
                 try listeningSource(path).contains("BSLayout.tabBarContentInset"),
-                "\(path) must rely on the root safe-area inset instead of adding the old 96pt tab clearance"
+                "\(path) must keep the final scroll content clear of native tab chrome"
             )
         }
+    }
+
+    func testProjectDeploymentTargetIsIOS18WithIOS26EnhancementGated() throws {
+        let iosRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let projectYAML = try String(
+            contentsOf: iosRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+        let project = try String(
+            contentsOf: iosRoot.appendingPathComponent("BeforeShow.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(projectYAML.contains("iOS: \"18.0\""))
+        XCTAssertFalse(projectYAML.contains("iOS: \"26.1\""))
+        XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
+        XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.1;"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
