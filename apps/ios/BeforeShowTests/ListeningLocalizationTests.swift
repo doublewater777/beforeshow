@@ -108,7 +108,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
     }
 
     func testMiniPlayerAccessibilityAndReduceMotionContractsAreLockedInSource() throws {
-        let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        let listeningRoot = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
 
         XCTAssertGreaterThanOrEqual(
             listeningRoot.components(separatedBy: ".frame(width: 44, height: 44)").count - 1,
@@ -120,25 +120,23 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Compact return-to-Listen interaction must retain at least a 44pt hit height"
         )
         XCTAssertTrue(
-            listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
+            listeningRoot.contains("paused: reduceMotion || !isPlaying"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
         XCTAssertTrue(
-            listeningRoot.contains("rootTab(.current)") && listeningRoot.contains("rootTab(.footprints)"),
-            "Compact chrome must keep Current and Footprints visible around the center mini player"
+            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.48"),
+            "Full/compact morph must disable its spring under Reduce Motion"
         )
         XCTAssertTrue(
-            listeningRoot.contains("reduceMotion ? nil : .easeInOut(duration: 0.22)"),
-            "Lid glyph animation must disable itself under Reduce Motion"
+            listeningRoot.contains("reduceMotion ? nil : .spring(response: 0.30"),
+            "Lid glyph must disable its spring under Reduce Motion"
         )
     }
 
-    func testFixedThreeSlotChromeReservesBottomSafeArea() throws {
+    func testFullPlayerReservesBottomSafeAreaInsteadOfOverlayingListenContent() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
-        XCTAssertTrue(rootChrome.contains(".toolbar(.hidden, for: .tabBar)"))
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
-        XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior("))
+        XCTAssertFalse(rootChrome.contains(".overlay(alignment: .bottom)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
@@ -150,16 +148,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             encoding: .utf8
         )
 
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningPolishedBottomChrome.swift").path
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMiniPlayerChrome.swift").path
         ))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift").path
+        XCTAssertFalse(FileManager.default.fileExists(
+            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerChromeTests.swift").path
         ))
-        XCTAssertTrue(project.contains("ListeningPolishedBottomChrome.swift in Sources"))
-        XCTAssertTrue(project.contains("ListeningMiniPlayerPlaybackAppearanceTests.swift in Sources"))
-        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift").contains("struct ListeningFixedRootTabBar"))
-        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerPlaybackAppearanceTests"))
+        XCTAssertTrue(project.contains("ListeningAtmosphere.swift in Sources"))
+        XCTAssertTrue(project.contains("ListeningCompatibilityTests.swift in Sources"))
+        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift").contains("struct ListeningBottomChrome"))
+        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningCompatibilityTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerChromeTests"))
     }
 
     func testRootViewRemainsWithinArchitectureBudget() throws {
