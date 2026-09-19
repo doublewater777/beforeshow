@@ -128,8 +128,23 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Native tab bar placement should own the collapse animation instead of a second accessory spring"
         )
         XCTAssertTrue(
-            listeningRoot.contains("reduceMotion ? nil : .easeInOut(duration: 0.22)"),
-            "Lid glyph animation must disable itself under Reduce Motion"
+            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
+            "Expanded CD mechanism control should use the simple eject symbol"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("ListeningAccessoryLidGlyph"),
+            "Expanded player should not reintroduce the custom lid glyph"
+        )
+        let playControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.playPause"))
+        let ejectControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.open"))
+        XCTAssertLessThan(
+            listeningRoot.distance(from: listeningRoot.startIndex, to: playControl.lowerBound),
+            listeningRoot.distance(from: listeningRoot.startIndex, to: ejectControl.lowerBound),
+            "Play/pause must remain immediately to the left of the CD mechanism control"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains(".background(Color.white.opacity(0.055), in: Circle())"),
+            "Expanded play/pause must not regain a visible circular background"
         )
     }
 
