@@ -192,38 +192,40 @@ private struct ListeningExpandedAccessoryView: View {
                 .accessibilityHint(BSLocalization.text("返回听"))
             }
 
-            Button {
-                room.perform(.playPause)
-            } label: {
-                Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(BSColor.textPrimary)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(BSListeningPressStyle(scale: 0.88))
-            .tint(BSColor.textPrimary)
-            .disabled(room.busy)
-            .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
-            .accessibilityIdentifier("listening.miniPlayer.playPause")
+            HStack(spacing: 0) {
+                Button {
+                    room.perform(.playPause)
+                } label: {
+                    Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(BSColor.textPrimary)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(BSListeningPressStyle(scale: 0.88))
+                .tint(BSColor.textPrimary)
+                .disabled(room.busy)
+                .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
+                .accessibilityIdentifier("listening.miniPlayer.playPause")
 
-            Button {
-                room.perform(.open)
-            } label: {
-                Image(systemName: "eject.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                Button {
+                    room.perform(.open)
+                } label: {
+                    Image(systemName: "eject.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(BSListeningPressStyle(scale: 0.90))
+                .disabled(room.busy)
+                .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
+                .accessibilityIdentifier("listening.miniPlayer.open")
             }
-            .buttonStyle(BSListeningPressStyle(scale: 0.90))
-            .disabled(room.busy)
-            .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
-            .accessibilityIdentifier("listening.miniPlayer.open")
         }
         .padding(.leading, 8)
-        .padding(.trailing, 10)
+        .padding(.trailing, 2)
         .frame(height: 54)
         .background {
             ListeningPolishedLiquidGlassSurface(
