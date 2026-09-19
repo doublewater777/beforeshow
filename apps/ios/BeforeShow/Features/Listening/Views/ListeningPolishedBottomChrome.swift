@@ -48,6 +48,7 @@ enum ListeningMiniPlayerArtworkImage {
 /// - `.expanded`: Floating Liquid Glass card above the floating Tab Bar.
 /// - `.inline`: Seamlessly merges into the minimized Tab Bar on scroll down.
 struct ListeningBottomAccessory: View {
+    let isListenSelected: Bool
     let onSelectListen: () -> Void
 
     @Environment(\.tabViewBottomAccessoryPlacement) private var placement
@@ -107,15 +108,12 @@ struct ListeningBottomAccessory: View {
                             discAngle: discAngle(at: timeline.date),
                             currentDate: timeline.date,
                             showsPlayingState: showsPlayingState,
+                            isListenSelected: isListenSelected,
                             onSelectListen: onSelectListen
                         )
                     }
                 }
             }
-            .animation(
-                reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.85),
-                value: placement
-            )
             .task(id: artworkURL) {
                 guard let artworkURL else {
                     artworkImage = nil
@@ -167,7 +165,12 @@ private struct ListeningExpandedAccessoryView: View {
     let discAngle: Double
     let currentDate: Date
     let showsPlayingState: Bool
+    let isListenSelected: Bool
     let onSelectListen: () -> Void
+
+    private var lidIsOpen: Bool {
+        (room.mechanism.motion.lid.target ?? room.mechanism.motion.lid.value) > 0.5
+    }
 
     private var progress: Double? {
         guard let duration = track.duration, duration.isFinite, duration > 0 else { return nil }
@@ -175,47 +178,35 @@ private struct ListeningExpandedAccessoryView: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                onSelectListen()
-            } label: {
-                HStack(spacing: 12) {
-                    ListeningArtworkDisc(
-                        artwork: artwork,
-                        angle: discAngle,
-                        size: 40,
-                        isPlaying: showsPlayingState
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(track.title)
-                            .font(.system(size: 13.5, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color.white)
-                            .lineLimit(1)
-
-                        HStack(spacing: 5) {
-                            Text(track.artistName)
-                                .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                                .foregroundStyle(BSColor.Stage.muted)
-                                .lineLimit(1)
-
-                            if showsPlayingState {
-                                ListeningMiniEqualizerBars(
-                                    isPlaying: true,
-                                    currentDate: currentDate,
-                                    barCount: 3,
-                                    maxHeight: 8.0
-                                )
-                            }
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        HStack(spacing: 8) {
+            if isListenSelected {
+                trackSummary
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(expandedAccessibilityLabel)
+            } else {
+                Button {
+                    onSelectListen()
+                } label: {
+                    trackSummary
+                        .contentShape(Rectangle())
                 }
-                .contentShape(Rectangle())
+                .buttonStyle(.plain)
+                .frame(minHeight: 44)
+                .accessibilityLabel(expandedAccessibilityLabel)
+                .accessibilityHint(BSLocalization.text("返回听"))
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(expandedAccessibilityLabel)
-            .accessibilityHint(BSLocalization.text("返回听"))
+
+            Button {
+                room.perform(.open)
+            } label: {
+                ListeningAccessoryLidGlyph(isOpen: lidIsOpen)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.90))
+            .disabled(room.busy)
+            .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
+            .accessibilityIdentifier("listening.miniPlayer.open")
 
             Button {
                 room.perform(.playPause)
@@ -224,7 +215,9 @@ private struct ListeningExpandedAccessoryView: View {
                     .font(.system(size: 16, weight: .bold))
                     .foregroundStyle(BSColor.textPrimary)
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 40, height: 40)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.055), in: Circle())
+                    .overlay(Circle().stroke(BSColor.Accent.info.opacity(0.22), lineWidth: 0.8))
                     .contentShape(Circle())
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.88))
@@ -245,6 +238,41 @@ private struct ListeningExpandedAccessoryView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.expanded")
+    }
+
+    private var trackSummary: some View {
+        HStack(spacing: 10) {
+            ListeningArtworkDisc(
+                artwork: artwork,
+                angle: discAngle,
+                size: 40,
+                isPlaying: showsPlayingState
+            )
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.title)
+                    .font(.system(size: 13.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+
+                HStack(spacing: 5) {
+                    Text(track.artistName)
+                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                        .foregroundStyle(BSColor.Stage.muted)
+                        .lineLimit(1)
+
+                    if showsPlayingState {
+                        ListeningMiniEqualizerBars(
+                            isPlaying: true,
+                            currentDate: currentDate,
+                            barCount: 3,
+                            maxHeight: 8.0
+                        )
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private var expandedAccessibilityLabel: String {
@@ -283,6 +311,7 @@ private struct ListeningInlineAccessoryView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .frame(minHeight: 44)
             .accessibilityLabel("\(track.title)，\(track.artistName)")
             .accessibilityHint(BSLocalization.text("返回听"))
 
@@ -293,7 +322,8 @@ private struct ListeningInlineAccessoryView: View {
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(BSColor.textPrimary)
                     .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 28, height: 28)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.045), in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.88))
@@ -302,10 +332,38 @@ private struct ListeningInlineAccessoryView: View {
             .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
             .accessibilityIdentifier("listening.miniPlayer.inlinePlayPause")
         }
-        .padding(.horizontal, 8)
-        .frame(height: 38)
+        .padding(.horizontal, 6)
+        .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.inline")
+    }
+}
+
+private struct ListeningAccessoryLidGlyph: View {
+    let isOpen: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .stroke(Color.white.opacity(0.56), lineWidth: 1.4)
+                .frame(width: 18, height: 10)
+                .offset(y: 4)
+
+            Circle()
+                .stroke(BSColor.Accent.info.opacity(0.68), lineWidth: 1.1)
+                .frame(width: 6, height: 6)
+                .offset(y: 4)
+
+            Capsule()
+                .fill(Color.white.opacity(0.76))
+                .frame(width: 18, height: 1.5)
+                .rotationEffect(.degrees(isOpen ? -22 : 0), anchor: .leading)
+                .offset(x: isOpen ? 1 : 0, y: isOpen ? -4 : -2)
+        }
+        .background(Color.white.opacity(0.045), in: Circle())
+        .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 0.8))
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: isOpen)
     }
 }
 
@@ -546,6 +604,9 @@ struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
 
     var body: some View {
-        ListeningBottomAccessory(onSelectListen: { selectedTab = .listen })
+        ListeningBottomAccessory(
+            isListenSelected: selectedTab == .listen,
+            onSelectListen: { selectedTab = .listen }
+        )
     }
 }
