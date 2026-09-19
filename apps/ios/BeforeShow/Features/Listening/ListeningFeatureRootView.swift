@@ -92,11 +92,18 @@ enum ListeningChromeBootstrapper {
     }
 }
 
+enum ListeningBottomChromeInteractionPolicy {
+    static func minimizesTabBar(for selectedTab: BeforeShowTab) -> Bool {
+        selectedTab != .listen
+    }
+}
+
 struct ListeningRootChromeModifier: ViewModifier {
     @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+    @State private var store = ListeningPlaybackChromeStore.shared
 
     private var currentShow: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
@@ -105,19 +112,64 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     private var currentShowID: UUID? { currentShow?.id }
 
+    private var hasLoadedDisc: Bool {
+        guard let room = store.room else { return false }
+        return room.mechanism.hasDisc && room.track != nil
+    }
+
+    @ViewBuilder
     func body(content: Content) -> some View {
+        Group {
+            if #available(iOS 26.0, *) {
+                ListeningNativeRootChrome(
+                    content: content,
+                    selectedTab: $selectedTab,
+                    hasLoadedDisc: hasLoadedDisc
+                )
+            } else {
+                content
+                    .safeAreaInset(edge: .bottom, spacing: 0) {
+                        if hasLoadedDisc, selectedTab != .listen {
+                            ListeningLegacyBottomAccessory(
+                                onSelectListen: { selectedTab = .listen }
+                            )
+                            .padding(.horizontal, BSSpacing.md)
+                            .padding(.bottom, BSSpacing.xs)
+                        }
+                    }
+            }
+        }
+        .task {
+            ListeningPlayerWarmup.prepareIfNeeded()
+        }
+        .task(id: currentShowID) {
+            _ = await ListeningChromeBootstrapper.prepare(
+                show: currentShow,
+                context: modelContext
+            )
+        }
+    }
+}
+
+@available(iOS 26.0, *)
+private struct ListeningNativeRootChrome<Content: View>: View {
+    let content: Content
+    @Binding var selectedTab: BeforeShowTab
+    let hasLoadedDisc: Bool
+
+    var body: some View {
         content
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
-                    .padding(.bottom, BSSpacing.xs)
-            }
-            .task {
-                ListeningPlayerWarmup.prepareIfNeeded()
-            }
-            .task(id: currentShowID) {
-                _ = await ListeningChromeBootstrapper.prepare(
-                    show: currentShow,
-                    context: modelContext
+            .tabBarMinimizeBehavior(
+                ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: selectedTab)
+                    ? .onScrollDown
+                    : .never
+            )
+            .tabViewBottomAccessory(
+                isEnabled: hasLoadedDisc && selectedTab != .listen
+            ) {
+                ListeningBottomAccessory(
+                    isListenSelected: false,
+                    onSelectListen: { selectedTab = .listen }
                 )
             }
     }
@@ -131,7 +183,6 @@ struct ListeningFeatureRootView: View {
 
     var body: some View {
         room
-            .toolbar(.hidden, for: .tabBar)
     }
 
     @ViewBuilder
