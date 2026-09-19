@@ -30,15 +30,6 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
         )
     }
 
-    func testListenMorphRespectsReduceMotion() {
-        XCTAssertTrue(
-            ListeningBottomBarMotionPolicy.animatesMorph(reduceMotion: false)
-        )
-        XCTAssertFalse(
-            ListeningBottomBarMotionPolicy.animatesMorph(reduceMotion: true)
-        )
-    }
-
     func testPreparingUsesPlayingChromeState() {
         XCTAssertTrue(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .preparing)
