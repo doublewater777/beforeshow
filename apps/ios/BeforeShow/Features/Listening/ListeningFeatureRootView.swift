@@ -120,7 +120,7 @@ struct ListeningRootChromeModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         Group {
-            if #available(iOS 26.0, *) {
+            if #available(iOS 26.1, *) {
                 ListeningNativeRootChrome(
                     content: content,
                     selectedTab: $selectedTab,
@@ -151,7 +151,7 @@ struct ListeningRootChromeModifier: ViewModifier {
     }
 }
 
-@available(iOS 26.0, *)
+@available(iOS 26.1, *)
 private struct ListeningNativeRootChrome<Content: View>: View {
     let content: Content
     @Binding var selectedTab: BeforeShowTab
