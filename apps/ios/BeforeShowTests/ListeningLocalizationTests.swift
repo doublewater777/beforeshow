@@ -111,8 +111,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains(".frame(width: 48, height: 48)"),
-            "Root navigation icons must retain a full touch surface"
+            listeningRoot.contains(".frame(width: 58, height: 52)"),
+            "Root navigation icons must retain a generous touch surface inside the unified dock"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".frame(maxWidth: 360)"),
+            "The three root destinations must remain grouped in one compact dock"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("RoundedRectangle(cornerRadius: 30"),
+            "The root navigation must render as one shared glass container"
         )
         XCTAssertTrue(
             listeningRoot.contains("minHeight: BSLayout.minTouchTarget"),
@@ -173,6 +181,21 @@ final class ListeningReviewerRegressionTests: XCTestCase {
                 "\(path) must hide the native TabView bar so only the custom root chrome is visible"
             )
         }
+    }
+
+    func testListenStageDoesNotPersistAuthorizationActionUnderMachine() throws {
+        let atmosphere = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
+        XCTAssertTrue(atmosphere.contains("player.recoveryAction == .retryPlayback"))
+        XCTAssertFalse(
+            atmosphere.contains("player.recoveryAction ?? room.display.recoveryAction"),
+            "Authorization and settings recovery must not remain as persistent actions below the CD machine"
+        )
+    }
+
+    func testListenShelfUsesCompactHeaderWhenThereIsNoShowAllAction() throws {
+        let shelf = try listeningSource("Features/Listening/Views/ListeningShelfView.swift")
+        XCTAssertTrue(shelf.contains("compactHeaderHeight: CGFloat = 32"))
+        XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
     }
 
     func testRootPagesDoNotStackLegacyTabBarClearanceOnSafeAreaInset() throws {
