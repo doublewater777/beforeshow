@@ -150,7 +150,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(rootChrome.contains(".toolbarVisibility(.visible, for: .tabBar)"))
 
         XCTAssertTrue(polishedChrome.contains("GlassEffectContainer(spacing: 6)"))
-        XCTAssertTrue(polishedChrome.contains(".regular.tint(Color.black.opacity(0.16))"))
+        XCTAssertTrue(polishedChrome.contains(".tint(Color.black.opacity(0.16))"))
+        XCTAssertTrue(polishedChrome.contains(".interactive()"))
         XCTAssertTrue(polishedChrome.contains(".buttonStyle(.glass)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
