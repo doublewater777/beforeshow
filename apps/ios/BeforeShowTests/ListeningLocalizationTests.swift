@@ -84,11 +84,12 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         try context.save()
 
-        let firstRoom = try XCTUnwrap(await ListeningChromeBootstrapper.prepare(
+        let prepared = await ListeningChromeBootstrapper.prepare(
             show: firstShow,
             context: context,
             catalogService: ListeningReviewerCatalogStub()
-        ))
+        )
+        let firstRoom = try XCTUnwrap(prepared)
         XCTAssertEqual(firstRoom.show?.id, firstShow.id)
         XCTAssertTrue(ListeningPlaybackChromeStore.shared.room.map { $0 === firstRoom } == true)
         XCTAssertTrue(ListeningRoomCache.shared.map { $0 === firstRoom } == true)
