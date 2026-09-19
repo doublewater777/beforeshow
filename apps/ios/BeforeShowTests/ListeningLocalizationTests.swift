@@ -149,11 +149,18 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(footprintsRoot.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
         XCTAssertTrue(rootChrome.contains(".toolbarVisibility(.visible, for: .tabBar)"))
 
-        XCTAssertTrue(polishedChrome.contains("GlassEffectContainer(spacing: 8)"))
-        XCTAssertTrue(polishedChrome.contains(".glassEffect(.regular, in: Capsule())"))
+        XCTAssertTrue(polishedChrome.contains("GlassEffectContainer(spacing: 6)"))
+        XCTAssertTrue(polishedChrome.contains(".regular.tint(Color.black.opacity(0.16))"))
         XCTAssertTrue(polishedChrome.contains(".buttonStyle(.glass)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
+
+        let tokens = try listeningSource("UI/DesignSystem/BSTokens.swift")
+        let currentManagement = try listeningSource("Features/CurrentShow/CurrentShowManagementView.swift")
+        let footprintsDashboard = try listeningSource("Features/Footprints/FootprintDashboardView.swift")
+        XCTAssertTrue(tokens.contains("compactChromeContentInset: CGFloat = 120"))
+        XCTAssertTrue(currentManagement.contains(".padding(.bottom, BSLayout.compactChromeContentInset)"))
+        XCTAssertTrue(footprintsDashboard.contains(".padding(.bottom, BSLayout.compactChromeContentInset)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
