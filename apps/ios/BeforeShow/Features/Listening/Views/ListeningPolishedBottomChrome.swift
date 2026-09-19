@@ -108,10 +108,8 @@ struct ListeningPolishedBottomChrome: View {
                         .transition(.opacity)
                 }
             }
-            .frame(
-                width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize,
-                maxWidth: showsMiniPlayer ? .infinity : nil
-            )
+            .frame(width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize)
+            .frame(maxWidth: showsMiniPlayer ? .infinity : nil)
             .animation(listenMorphAnimation, value: showsMiniPlayer)
 
             tabButton(.footprints)
