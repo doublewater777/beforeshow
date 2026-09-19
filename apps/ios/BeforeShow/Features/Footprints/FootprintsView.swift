@@ -34,7 +34,6 @@ struct FootprintsView: View {
                 FootprintPreparingView()
             }
         }
-        .toolbarVisibility(.hidden, for: .tabBar)
         .task(id: preparationFingerprint()) {
             // Build archive + covers in one pass, then commit atomically so
             // the dashboard's first paint already has the cover it ends with.
