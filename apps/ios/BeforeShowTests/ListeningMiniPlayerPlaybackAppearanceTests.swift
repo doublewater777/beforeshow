@@ -3,6 +3,18 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
+    func testListenKeepsTabBarExpandedWhileOtherTabsMayMinimize() {
+        XCTAssertFalse(
+            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .listen)
+        )
+        XCTAssertTrue(
+            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .current)
+        )
+        XCTAssertTrue(
+            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .footprints)
+        )
+    }
+
     func testPreparingUsesPlayingChromeState() {
         XCTAssertTrue(
             ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: .preparing)
