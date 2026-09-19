@@ -274,28 +274,61 @@ import SwiftData
         room.stop()
     }
 
-    func testCompilationRoundRobinDeduplicationAndGreedyBoundaries() {
+    func testCompilationUsesTwoSongsPerArtistPerDiscInRoundRobinOrder() {
+        func track(_ id: String, _ duration: TimeInterval? = nil) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist", duration: duration))
+        }
+
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [
+            [track("a1"), track("a2"), track("a3"), track("a4"), track("a5"), track("a6"), track("a7")],
+            [track("b1"), track("a2"), track("b3"), track("b4"), track("b5"), track("b6"), track("b7")]
+        ])
+
+        XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
+            ["a1", "b1", "a2"],
+            ["a3", "b3", "a4", "b4"],
+            ["a5", "b5", "a6", "b6"],
+            ["a7", "b7"]
+        ])
+        XCTAssertEqual(ListeningCompilationAssembler.tracksPerArtistPerDisc, 2)
+        XCTAssertEqual(result.count, 4)
+        XCTAssertLessThanOrEqual(result.count, ListeningCompilationAssembler.maxDiscCount)
+    }
+
+    func testCompilationGroupingIgnoresTrackDuration() {
         func track(_ id: String, _ duration: TimeInterval?) -> ListeningDiscTrack {
             .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist", duration: duration))
         }
-        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [
-            [track("a", 2200), track("duplicate", 200), track("long", 5000)],
-            [track("b", 2200), track("duplicate", 200), track("missing", nil)]
+
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [[
+            track("short", 1),
+            track("very-long", 50_000),
+            track("missing", nil),
+            track("also-long", 90_000)
+        ]])
+
+        XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
+            ["short", "very-long"],
+            ["missing", "also-long"]
         ])
-        XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [["a", "b"], ["duplicate"], ["long"], ["missing"]])
-        XCTAssertNil(result.last?.tracks.first?.duration)
-        XCTAssertEqual(ListeningCompilationAssembler.fallbackDuration, 240)
     }
 
-    func testExactCapacityAndMissingDurationPacking() {
-        let tracks = (0..<20).map { index in
-            ListeningDiscTrack(CatalogSong(appleMusicSongID: "\(index)", title: "Song", artistName: "Artist"))
+    func testCompilationStopsAfterNineDiscs() {
+        let tracks = (0..<80).map { index in
+            ListeningDiscTrack(CatalogSong(
+                appleMusicSongID: "\(index)",
+                title: "Song \(index)",
+                artistName: "Artist",
+                duration: 300
+            ))
         }
+
         let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
-        XCTAssertEqual(result.map { $0.tracks.count }, [18, 2])
-        let exact = ListeningDiscTrack(CatalogSong(appleMusicSongID: "exact", title: "Song", artistName: "Artist", duration: 4500))
-        XCTAssertEqual(ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [[exact] + tracks]).map { $0.tracks.count }, [1, 18, 2])
-        XCTAssertTrue(ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: []).isEmpty)
+
+        XCTAssertEqual(ListeningCompilationAssembler.maxDiscCount, 9)
+        XCTAssertEqual(result.count, ListeningCompilationAssembler.maxDiscCount)
+        XCTAssertEqual(result.map { $0.tracks.count }, Array(repeating: 2, count: 9))
+        XCTAssertEqual(result.flatMap { $0.tracks }.map(\.id), (0..<18).map { String($0) })
     }
 
     func testConnectedArtistsAppearBeforeUnconnectedArtists() async throws {
