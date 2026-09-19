@@ -33,7 +33,6 @@ struct FootprintDashboardView: View {
                 sections.memorySection
                 sections.timelineSection
             }
-            .padding(.bottom, 0)
         }
         .scrollIndicators(.hidden)
         .scrollClipDisabled()
