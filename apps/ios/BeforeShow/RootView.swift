@@ -277,12 +277,7 @@ struct RootView: View {
             }
             .accessibilityIdentifier("root.tab.footprints")
         }
-        .modifier(ListeningRootChromeModifier())
-        .toolbar(.hidden, for: .tabBar)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            ListeningPolishedBottomChrome(selectedTab: $selectedTab)
-                .padding(.bottom, BSSpacing.xs)
-        }
+        .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
         .tint(BSColor.Stage.accent)
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
