@@ -115,13 +115,41 @@ struct ListeningPlayerAmbientHalo: View {
 
     var body: some View {
         ZStack {
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            BSColor.Stage.accent.opacity(isPlaying ? 0.20 : 0.12),
+                            BSColor.Stage.accent.opacity(isPlaying ? 0.08 : 0.045),
+                            .clear
+                        ],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 220
+                    )
+                )
+                .blur(radius: 34)
+                .scaleEffect(isBreathing ? 1.035 : 1)
+
+            Ellipse()
+                .fill(BSColor.Accent.info.opacity(isPlaying ? 0.085 : 0.045))
+                .frame(width: 190, height: 120)
+                .offset(x: -105, y: 24)
+                .blur(radius: 42)
+
+            Ellipse()
+                .fill(BSColor.Accent.violet.opacity(isPlaying ? 0.07 : 0.035))
+                .frame(width: 175, height: 110)
+                .offset(x: 112, y: 12)
+                .blur(radius: 42)
+
             if let discAmbientColor {
                 Ellipse()
                     .fill(
                         RadialGradient(
                             colors: [
-                                discAmbientColor.opacity(0.34),
-                                discAmbientColor.opacity(0.14),
+                                discAmbientColor.opacity(isPlaying ? 0.46 : 0.34),
+                                discAmbientColor.opacity(isPlaying ? 0.19 : 0.13),
                                 .clear
                             ],
                             center: .center,
@@ -129,7 +157,7 @@ struct ListeningPlayerAmbientHalo: View {
                             endRadius: 205
                         )
                     )
-                    .blur(radius: 40)
+                    .blur(radius: 34)
                     .scaleEffect(isBreathing ? 1.04 : 0.985)
                     .opacity(isBreathing ? 1 : 0.88)
                     .transition(.opacity)
@@ -140,11 +168,11 @@ struct ListeningPlayerAmbientHalo: View {
                     .stroke(
                         AngularGradient(
                             colors: [
-                                Color.cyan.opacity(0.13),
-                                Color.purple.opacity(0.10),
-                                Color.pink.opacity(0.09),
-                                Color.green.opacity(0.08),
-                                Color.cyan.opacity(0.13)
+                                Color.cyan.opacity(0.16),
+                                Color.purple.opacity(0.13),
+                                Color.pink.opacity(0.10),
+                                Color.green.opacity(0.09),
+                                Color.cyan.opacity(0.16)
                             ],
                             center: .center
                         ),
