@@ -158,9 +158,26 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(rootView.contains(".tabBarMinimizeBehavior"))
         XCTAssertFalse(rootView.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
-        XCTAssertTrue(rootChrome.contains(".toolbar(.hidden, for: .tabBar)"))
+        XCTAssertFalse(
+            rootChrome.components(separatedBy: ".toolbar(.hidden, for: .tabBar)").count > 2,
+            "The outer chrome modifier must not be the only owner of tab-bar visibility"
+        )
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+    }
+
+
+    func testEachRootDestinationHidesTheSystemTabBar() throws {
+        for path in [
+            "Features/CurrentShow/CurrentShowSession.swift",
+            "Features/Listening/ListeningFeatureRootView.swift",
+            "Features/Footprints/FootprintsView.swift"
+        ] {
+            XCTAssertTrue(
+                try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
+                "\(path) must hide the native TabView bar so only the custom root chrome is visible"
+            )
+        }
     }
 
     func testRootPagesDoNotStackLegacyTabBarClearanceOnSafeAreaInset() throws {
