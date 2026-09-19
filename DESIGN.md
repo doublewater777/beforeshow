@@ -421,3 +421,37 @@ The source sheet appears only after the user chooses to add their own show. Link
 - The cabinet is a recessed wooden object with a visible frame, shelf lip, contact shadows and CDs partly exposed behind their sleeves. Reuse this shelf in the all-records bottom sheet, one row per artist.
 - Physical-material colors remain in `ListeningStyle`: wood back `#1A120E`, shadow `#211712`, face `#523829`, edge `#78543B`, highlight `#A3784D`. They describe the cabinet material only; surrounding text and controls use Stage tokens.
 - Artist identities resolve automatically from saved links or an unambiguous name match. Matching is not a required user step; platform music authorization remains a separate system permission.
+
+## iOS 26 Root Bottom Chrome Contract
+
+The app targets iOS 26+ and uses one custom root bottom chrome as the only visible top-level navigation.
+
+### Structure
+
+- `TabView` owns destination selection only; the system tab bar stays hidden.
+- The visible root navigation is three detached Liquid Glass controls: Current, Listen, and Footprints.
+- Listen may morph horizontally into a compact mini player when a disc is loaded and the user is outside Listen.
+- Root chrome uses the iOS 26 safe-area bar relationship; bottom scroll separation uses the system soft scroll-edge effect.
+- Do not add a second Material panel, black gradient, or custom backdrop blur behind the chrome.
+
+### Layout invariants
+
+- Bottom chrome height and vertical anchor are constant across all tabs and mini-player states.
+- Only Listen may change width during circle-to-capsule morphing.
+- Tab changes, disc insertion/ejection, and playback state must not animate page safe-area height or vertically shift root content.
+- The bottom bar is the sole root-chrome occupancy source; feature pages must not guess its height with duplicate spacers.
+- At the end of a scroll, the final interactive element remains fully reachable above the chrome.
+- Feature backgrounds may paint through the bottom safe area; foreground content continues to respect the bar.
+
+### Atmosphere
+
+- Each feature owns its own background color and atmosphere. Bottom chrome never supplies a fixed background color.
+- Current Show keeps cover-derived ambient color visible at low intensity through the bottom safe area instead of collapsing to unrelated pure black.
+- Scroll-edge softening applies to foreground content, not to feature atmosphere itself.
+
+### Motion and accessibility
+
+- Liquid Glass geometry is driven by current product state, not delayed duplicate presentation state.
+- Circle-to-mini-player transitions use one glass identity and native matched-geometry spring behavior inside a `GlassEffectContainer`.
+- Reduce Motion removes geometric travel/spring and uses a short crossfade; disc rotation remains disabled.
+- Every detached control keeps at least a 44x44pt hit target and selection remains perceivable without relying on glass distortion alone.
