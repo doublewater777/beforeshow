@@ -163,7 +163,6 @@ private struct FootprintPreparingView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                 }
-                .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollDisabled(true)
             .scrollIndicators(.hidden)
