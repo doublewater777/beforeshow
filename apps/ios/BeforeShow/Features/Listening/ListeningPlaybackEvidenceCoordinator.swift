@@ -3,11 +3,9 @@ import SwiftData
 
 struct ListeningPlaybackEvidenceDrainResult {
     let committedSongIDs: [String]
-    let failure: Error?
+    let hasFailure: Bool
 
     var committedAny: Bool { !committedSongIDs.isEmpty }
-    var hasFailure: Bool { failure != nil }
-
 }
 
 @MainActor
@@ -66,13 +64,13 @@ final class ListeningPlaybackEvidenceCoordinator {
                 modelContext.rollback()
                 return ListeningPlaybackEvidenceDrainResult(
                     committedSongIDs: committedSongIDs,
-                    failure: error
+                    hasFailure: true
                 )
             }
         }
         return ListeningPlaybackEvidenceDrainResult(
             committedSongIDs: committedSongIDs,
-            failure: nil
+            hasFailure: false
         )
     }
 }
