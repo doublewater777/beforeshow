@@ -106,7 +106,6 @@ struct ListeningBottomAccessory: View {
                             track: track,
                             artwork: displayedArtwork,
                             discAngle: discAngle(at: timeline.date),
-                            currentDate: timeline.date,
                             showsPlayingState: showsPlayingState,
                             isListenSelected: isListenSelected,
                             onSelectListen: onSelectListen
@@ -163,7 +162,6 @@ private struct ListeningExpandedAccessoryView: View {
     let track: ListeningDiscTrack
     let artwork: UIImage?
     let discAngle: Double
-    let currentDate: Date
     let showsPlayingState: Bool
     let isListenSelected: Bool
     let onSelectListen: () -> Void
@@ -253,21 +251,10 @@ private struct ListeningExpandedAccessoryView: View {
                     .foregroundStyle(Color.white)
                     .lineLimit(1)
 
-                HStack(spacing: 5) {
-                    Text(track.artistName)
-                        .font(.system(size: 11.5, weight: .medium, design: .rounded))
-                        .foregroundStyle(BSColor.Stage.muted)
-                        .lineLimit(1)
-
-                    if showsPlayingState {
-                        ListeningMiniEqualizerBars(
-                            isPlaying: true,
-                            currentDate: currentDate,
-                            barCount: 3,
-                            maxHeight: 8.0
-                        )
-                    }
-                }
+                Text(track.artistName)
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -524,48 +511,6 @@ private struct ListeningPolishedLiquidGlassSurface: View {
         )
         .shadow(color: Color.black.opacity(0.24), radius: 14, y: 5)
         .shadow(color: Color.black.opacity(0.10), radius: 3, y: 1)
-    }
-}
-
-/// Animated 3-bar miniature equalizer.
-private struct ListeningMiniEqualizerBars: View {
-    let isPlaying: Bool
-    var currentDate: Date = Date()
-    var barCount: Int = 3
-    var maxHeight: CGFloat = 7.0
-    var color: Color = BSColor.Accent.info
-
-    var body: some View {
-        HStack(alignment: .bottom, spacing: 1.5) {
-            ForEach(0..<barCount, id: \.self) { index in
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                color,
-                                color.opacity(0.75)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .frame(width: 1.8, height: height(for: index))
-            }
-        }
-        .frame(height: maxHeight, alignment: .bottom)
-        .shadow(color: color.opacity(0.40), radius: 2)
-        .accessibilityHidden(true)
-    }
-
-    private func height(for index: Int) -> CGFloat {
-        guard isPlaying else { return 2.0 }
-        let t = currentDate.timeIntervalSinceReferenceDate
-        let frequencies: [Double] = [8.5, 12.8, 6.9, 10.4]
-        let phases: [Double] = [0.0, 1.8, 3.4, 0.9]
-        let f = frequencies[index % frequencies.count]
-        let p = phases[index % phases.count]
-        let wave = (sin(t * f + p) + 1.0) / 2.0
-        return 2.0 + CGFloat(wave) * (maxHeight - 2.0)
     }
 }
 
