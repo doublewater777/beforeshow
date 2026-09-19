@@ -40,6 +40,10 @@ struct ListenRootView: View {
         show?.id.uuidString ?? "empty"
     }
 
+    private var activityKey: String {
+        "\(loadKey)|\(isActive)"
+    }
+
     var body: some View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
@@ -73,21 +77,15 @@ struct ListenRootView: View {
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
         }
-        .task(id: loadKey) {
-            guard isActive else { return }
+        .task(id: activityKey) {
+            // Tab selection owns the first main-actor turn. Listen lifecycle work,
+            // including visibility updates and task cancellation, follows afterward.
             await Task.yield()
-            guard !Task.isCancelled, isActive else { return }
-            await activateRoomIfNeeded()
-        }
-        .onChange(of: isActive) { _, active in
-            guard active else {
-                room?.setActive(false)
-                return
-            }
-            Task { @MainActor in
-                await Task.yield()
-                guard !Task.isCancelled, isActive else { return }
+            guard !Task.isCancelled else { return }
+            if isActive {
                 await activateRoomIfNeeded()
+            } else {
+                room?.setActive(false)
             }
         }
         .onDisappear { room?.setActive(false) }
