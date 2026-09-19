@@ -309,6 +309,7 @@ struct ListeningRepository {
         tierRawValue: String,
         baselineCapturedAt: Date,
         catalogSnapshotFetchedAt: Date,
+        catalogSongIDsAtResolution: [String] = [],
         resolvedAt: Date
     ) throws -> ShowOpeningArtistTier {
         let key = ShowOpeningArtistTier.makeUniqueKey(showID: showID, artistID: artistID)
@@ -323,6 +324,7 @@ struct ListeningRepository {
             tierRawValue: tierRawValue,
             baselineCapturedAt: baselineCapturedAt,
             catalogSnapshotFetchedAt: catalogSnapshotFetchedAt,
+            catalogSongIDsAtResolution: catalogSongIDsAtResolution,
             resolvedAt: resolvedAt
         )
         modelContext.insert(created)
