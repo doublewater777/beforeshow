@@ -3,21 +3,21 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
-    func testFixedChromeKeepsSideTabsAndMorphsOnlyCenterSlot() {
+    func testCurrentAndFootprintsUseCompactPlayerWhileListenUsesFullPlayer() {
         XCTAssertEqual(
-            ListeningPolishedBottomChromeMode.resolve(selectedTab: .listen, hasLoadedDisc: true),
+            ListeningBottomChromeMode.resolve(selectedTab: .listen, hasLoadedDisc: true),
             .fullPlayer
         )
         XCTAssertEqual(
-            ListeningPolishedBottomChromeMode.resolve(selectedTab: .current, hasLoadedDisc: true),
+            ListeningBottomChromeMode.resolve(selectedTab: .current, hasLoadedDisc: true),
             .compactPlayer
         )
         XCTAssertEqual(
-            ListeningPolishedBottomChromeMode.resolve(selectedTab: .footprints, hasLoadedDisc: true),
+            ListeningBottomChromeMode.resolve(selectedTab: .footprints, hasLoadedDisc: true),
             .compactPlayer
         )
         XCTAssertEqual(
-            ListeningPolishedBottomChromeMode.resolve(selectedTab: .current, hasLoadedDisc: false),
+            ListeningBottomChromeMode.resolve(selectedTab: .current, hasLoadedDisc: false),
             .tabsOnly
         )
     }
