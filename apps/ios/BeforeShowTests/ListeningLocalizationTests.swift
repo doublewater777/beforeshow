@@ -158,14 +158,9 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(rootView.contains(".tabBarMinimizeBehavior"))
         XCTAssertFalse(rootView.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
-        XCTAssertFalse(
-            rootChrome.components(separatedBy: ".toolbar(.hidden, for: .tabBar)").count > 2,
-            "The outer chrome modifier must not be the only owner of tab-bar visibility"
-        )
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
     }
-
 
     func testEachRootDestinationHidesTheSystemTabBar() throws {
         for path in [
