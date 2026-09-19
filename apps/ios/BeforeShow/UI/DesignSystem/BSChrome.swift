@@ -28,11 +28,13 @@ extension View {
             .foregroundStyle(BSColor.brandGradient)
     }
 
-    /// iOS 26 scroll-edge pocket so an inline navigation title stays readable.
+    /// Keep navigation scroll edges aligned with the iOS 26 system appearance.
+    /// Automatic is the platform default and avoids imposing a hard cutoff on
+    /// lightweight settings and detail screens.
     @ViewBuilder
     func bsNavigationScrollEdge() -> some View {
         if #available(iOS 26.0, *) {
-            self.scrollEdgeEffectStyle(.hard, for: .top)
+            self.scrollEdgeEffectStyle(.automatic, for: .top)
         } else {
             self
         }
