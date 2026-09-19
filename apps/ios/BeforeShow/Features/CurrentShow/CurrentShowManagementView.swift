@@ -408,7 +408,7 @@ struct CurrentShowManagementSection: View {
                         .opacity(homeArrivalFlags.hasArrivedActions ? 1 : 0)
                     }
                 }
-                .padding(.bottom, BSLayout.compactChromeContentInset)
+                .padding(.bottom, BSLayout.tabBarContentInset)
                 .frame(maxWidth: .infinity)
             }
             .modifier(HomeHeaderScrollObserver(isOverContent: $isHeaderOverContent))
