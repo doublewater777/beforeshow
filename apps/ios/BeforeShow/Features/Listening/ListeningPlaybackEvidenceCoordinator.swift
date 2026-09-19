@@ -4,12 +4,12 @@ import SwiftData
 @MainActor
 final class ListeningPlaybackEvidenceCoordinator {
     private let modelContext: ModelContext
-    private let persistActualFamiliarity: (String, Date) throws -> Void
+    private let persistActualFamiliarity: @MainActor (String, Date) throws -> Void
     private var tracker: ListeningPlaybackEvidenceTracker
 
     init(
         modelContext: ModelContext,
-        persistActualFamiliarity: ((String, Date) throws -> Void)? = nil
+        persistActualFamiliarity: (@MainActor (String, Date) throws -> Void)? = nil
     ) throws {
         self.modelContext = modelContext
         self.persistActualFamiliarity = persistActualFamiliarity ?? { songID, date in
