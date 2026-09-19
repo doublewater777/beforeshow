@@ -26,6 +26,24 @@ enum ListeningChromeBootstrapper {
             return nil
         }
 
+        // A loaded disc is scoped to the Current Show that hydrated it. If Current
+        // changes while another tab is visible, do not let the old compact player or
+        // transport leak into the new show. Clearing the persisted loaded-disc state
+        // also prevents a newly-created coordinator from restoring that stale disc.
+        if let cached = ListeningRoomCache.shared,
+           let cachedShowID = cached.show?.id,
+           cachedShowID != show.id {
+            let published = ListeningPlaybackChromeStore.shared.room
+            cached.discardLoadedDiscState()
+            cached.mechanism.motion.stop()
+            if let published, published !== cached {
+                published.stop()
+                published.mechanism.motion.stop()
+            }
+            ListeningRoomCache.shared = nil
+            ListeningPlaybackChromeStore.shared.room = nil
+        }
+
         let room: ListeningRoomCoordinator
         let createdCandidate: Bool
         if let cached = ListeningRoomCache.shared {
