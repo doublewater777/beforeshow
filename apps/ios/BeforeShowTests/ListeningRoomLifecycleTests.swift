@@ -63,12 +63,16 @@ import SwiftData
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
 
         playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
 
         try await ListeningRemoteCommandBridge.shared.nextForTesting()
         XCTAssertEqual(room.track?.id, secondSongID)
         playback.currentTime = 51
-        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
 
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
