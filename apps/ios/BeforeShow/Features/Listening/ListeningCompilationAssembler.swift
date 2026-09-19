@@ -2,29 +2,32 @@ import Foundation
 
 /// Catalog order is the only ranking input. Packing never changes song order.
 enum ListeningCompilationAssembler {
-    static let targetDuration: TimeInterval = 75 * 60
-    static let fallbackDuration: TimeInterval = 4 * 60
+    static let maxDiscCount = 9
+    static let tracksPerArtistPerDisc = 2
 
     static func discs(showID: UUID, artistTracks: [[ListeningDiscTrack]]) -> [ListeningDisc] {
         var seen = Set<String>()
-        var ordered: [ListeningDiscTrack] = []
-        for index in 0..<(artistTracks.map(\.count).max() ?? 0) {
-            for tracks in artistTracks where tracks.indices.contains(index) {
-                let track = tracks[index]
-                if seen.insert(track.id).inserted { ordered.append(track) }
-            }
-        }
         var batches: [[ListeningDiscTrack]] = []
-        var batch: [ListeningDiscTrack] = []
-        var duration: TimeInterval = 0
-        for track in ordered {
-            let length = track.duration.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } ?? fallbackDuration
-            if !batch.isEmpty, duration + length > targetDuration {
-                batches.append(batch); batch = []; duration = 0
+
+        for discIndex in 0..<maxDiscCount {
+            var batch: [ListeningDiscTrack] = []
+            let firstTrackIndex = discIndex * tracksPerArtistPerDisc
+
+            for offset in 0..<tracksPerArtistPerDisc {
+                let trackIndex = firstTrackIndex + offset
+                for tracks in artistTracks where tracks.indices.contains(trackIndex) {
+                    let track = tracks[trackIndex]
+                    if seen.insert(track.id).inserted {
+                        batch.append(track)
+                    }
+                }
             }
-            batch.append(track); duration += length
+
+            if !batch.isEmpty {
+                batches.append(batch)
+            }
         }
-        if !batch.isEmpty { batches.append(batch) }
+
         return batches.enumerated().map { index, tracks in
             ListeningDisc(id: "compilation-\(showID)-\(index + 1)",
                           title: BSLocalization.format("热门合辑 %02d", index + 1),
