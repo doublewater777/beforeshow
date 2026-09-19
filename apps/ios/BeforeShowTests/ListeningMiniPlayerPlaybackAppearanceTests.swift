@@ -3,15 +3,15 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
-    func testListenKeepsTabBarExpandedWhileOtherTabsMayMinimize() {
+    func testCurrentAndFootprintsUseCompactChromeWhileListenUsesNativeChrome() {
+        XCTAssertTrue(
+            ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: .current)
+        )
         XCTAssertFalse(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .listen)
+            ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: .listen)
         )
         XCTAssertTrue(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .current)
-        )
-        XCTAssertTrue(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .footprints)
+            ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: .footprints)
         )
     }
 
