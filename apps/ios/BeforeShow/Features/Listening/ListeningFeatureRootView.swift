@@ -93,6 +93,7 @@ enum ListeningChromeBootstrapper {
 }
 
 struct ListeningRootChromeModifier: ViewModifier {
+    @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -106,6 +107,11 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .toolbar(.hidden, for: .tabBar)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
+                    .padding(.bottom, BSSpacing.xs)
+            }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,
