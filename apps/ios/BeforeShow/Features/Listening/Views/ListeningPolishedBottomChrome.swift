@@ -230,7 +230,7 @@ private struct ListeningPolishedTabBar: View {
 
             if mode == .compactPlayer, let room, let track = room.track {
                 compactListenPlayer(room: room, track: track)
-                    .frame(minWidth: 160, maxWidth: .infinity)
+                    .frame(minWidth: 170, maxWidth: .infinity)
                     .layoutPriority(2)
             } else {
                 rootTab(.listen)
@@ -278,7 +278,10 @@ private struct ListeningPolishedTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(maxWidth: .infinity)
+        .frame(
+            minWidth: mode == .compactPlayer ? 68 : 0,
+            maxWidth: mode == .compactPlayer ? 82 : .infinity
+        )
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("root.tab.\(tab.id)")
@@ -328,6 +331,12 @@ private struct ListeningPolishedTabBar: View {
                 Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(BSColor.Accent.info)
+                    .frame(width: 38, height: 38)
+                    .background(Color.white.opacity(0.045), in: Circle())
+                    .overlay(
+                        Circle()
+                            .stroke(BSColor.Accent.info.opacity(0.22), lineWidth: 1)
+                    )
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -401,8 +410,12 @@ private struct ListeningArtworkDisc: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.16), lineWidth: 1))
+        .overlay(
+            Circle()
+                .stroke(BSColor.Accent.info.opacity(0.24), lineWidth: 1)
+        )
         .rotationEffect(.degrees(angle))
+        .shadow(color: BSColor.Accent.info.opacity(0.08), radius: 8)
         .shadow(color: .black.opacity(0.32), radius: 8, y: 4)
         .accessibilityHidden(true)
     }
@@ -429,8 +442,20 @@ private struct ListeningPolishedPlayerSurface: View {
             )
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.10), lineWidth: 1)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                BSColor.Accent.info.opacity(0.30),
+                                Color.white.opacity(0.08),
+                                Color.purple.opacity(0.20)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        lineWidth: 1
+                    )
             }
+            .shadow(color: BSColor.Accent.info.opacity(0.06), radius: 18)
             .shadow(color: .black.opacity(0.24), radius: 16, y: 7)
     }
 }
