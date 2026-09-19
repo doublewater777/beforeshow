@@ -150,6 +150,10 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains(".background(Color.white.opacity(0.055), in: Circle())"),
             "Expanded play/pause must not regain a visible circular background"
         )
+        XCTAssertFalse(
+            listeningRoot.contains(".background(Color.white.opacity(0.045), in: Circle())"),
+            "Inline play/pause must not retain a visible circular background"
+        )
     }
 
     func testNativeBottomAccessoryOwnsPlayerPlacementAndListenStaysExpanded() throws {
