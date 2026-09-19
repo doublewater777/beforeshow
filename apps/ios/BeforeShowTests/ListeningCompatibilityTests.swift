@@ -348,6 +348,81 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertEqual(persisted.songID, "sync-c")
     }
 
+    func testRemotePauseThresholdImmediatelyProjectsPersistedEvidenceWithoutRoomTick() async throws {
+        resetChromeGlobals()
+        defer { resetChromeGlobals() }
+
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let now = Date()
+        let show = try Show(name: "Evidence Sync", date: now, startTime: now)
+        context.insert(show)
+
+        let song = CatalogSong(
+            appleMusicSongID: "threshold-song",
+            title: "Threshold Song",
+            artistName: "Artist",
+            duration: 4,
+            previewURL: nil
+        )
+        let disc = ListeningDisc(
+            id: "threshold-disc",
+            title: "Threshold Disc",
+            artworkURL: nil,
+            tracks: [ListeningDiscTrack(song)]
+        )
+        context.insert(
+            ListeningLoadedDiscState(
+                discData: try JSONEncoder().encode(disc),
+                songID: song.appleMusicSongID
+            )
+        )
+        try context.save()
+
+        let playback = ListeningChromePlaybackSpy()
+        let prepared = await ListeningChromeBootstrapper.prepare(
+            show: show,
+            context: context,
+            catalogService: ListeningChromeCatalogStub(),
+            playbackFactory: { _ in playback }
+        )
+        let room = try XCTUnwrap(prepared)
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        room.playPause()
+        try await waitUntil { room.isPlaying && !room.busy }
+        XCTAssertFalse(room.actualSongIDs.contains(song.appleMusicSongID))
+        XCTAssertFalse(room.familiarSongIDs.contains(song.appleMusicSongID))
+
+        // Build continuous full-catalog evidence to just below 50% without using
+        // the ListeningRoomView timer or room.tick().
+        playback.currentTime = 1.4
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+        XCTAssertNil(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .first { $0.songID == song.appleMusicSongID }?.actualListeningAt
+        )
+
+        // The final remote-pause sample crosses 50%. pause() stops controller
+        // observation, so this sample must both persist and immediately re-project
+        // evidence into the shared room without a later polling tick.
+        playback.currentTime = 2.1
+        try await ListeningRemoteCommandBridge.shared.togglePlayPauseForTesting()
+
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .paused)
+        let record = try XCTUnwrap(
+            context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .first { $0.songID == song.appleMusicSongID }
+        )
+        XCTAssertNotNil(record.actualListeningAt)
+        XCTAssertTrue(room.actualSongIDs.contains(song.appleMusicSongID))
+        XCTAssertTrue(room.familiarSongIDs.contains(song.appleMusicSongID))
+    }
+
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
@@ -495,6 +570,7 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     private var items: [ListeningPlaybackItem] = []
     private var index = 0
     private var playing = false
+    var currentTime: TimeInterval = 0
 
     var transportIsPlaying: Bool { playing }
 
@@ -514,6 +590,7 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
             items.firstIndex(where: { $0.songID == id })
         } ?? 0
         prepareCount += 1
+        currentTime = 0
         playing = false
     }
 
@@ -544,7 +621,7 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
         return ListeningPlaybackSample(
             songID: item.songID,
             source: preparedSource,
-            currentTime: 0,
+            currentTime: currentTime,
             duration: item.duration,
             isPlaying: playing,
             observedAt: observedAt
@@ -556,5 +633,6 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
         playing = false
         items = []
         index = 0
+        currentTime = 0
     }
 }
