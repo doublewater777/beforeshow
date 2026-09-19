@@ -164,6 +164,8 @@ enum BSLayout {
     static let floatingTabBarClearance: CGFloat = 108
     /// Extra scroll room so the last row clears the floating system tab bar.
     static let tabBarContentInset: CGFloat = 96
+    /// Scroll clearance for the three-piece compact root chrome used by Current / Footprints.
+    static let compactChromeContentInset: CGFloat = 120
     /// Minimum tap target edge per HIG.
     static let minTouchTarget: CGFloat = 44
     /// Shared top inset for primary page headers across the two root tabs.
