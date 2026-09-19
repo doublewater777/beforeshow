@@ -92,12 +92,62 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertTrue(
             try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false))
         )
-        XCTAssertTrue(
+        XCTAssertFalse(
             try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 105, isPlaying: false))
         )
 
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
         XCTAssertEqual(Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }), ["song-a", "song-b"])
+    }
+
+    func testBatchDrainStopsAtFailureAndDoesNotRetryCommittedItems() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        var persistenceAvailable = false
+        var failSongID: String?
+        var attempts: [String] = []
+        let coordinator = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                attempts.append(songID)
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable, failSongID != songID else {
+                    throw EvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+
+        XCTAssertFalse(try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0)))
+        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51)))
+        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52)))
+        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103)))
+
+        persistenceAvailable = true
+        failSongID = "song-b"
+        attempts.removeAll()
+
+        XCTAssertThrowsError(
+            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false))
+        )
+        XCTAssertEqual(attempts, ["song-a", "song-b"])
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a"]
+        )
+
+        failSongID = nil
+        attempts.removeAll()
+        XCTAssertTrue(try coordinator.flushPending(at: Date(timeIntervalSince1970: 105)))
+        XCTAssertEqual(attempts, ["song-b"])
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a", "song-b"]
+        )
     }
 
     func testManualFamiliarityDoesNotSuppressLaterActualEvidence() throws {
