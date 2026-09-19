@@ -196,6 +196,7 @@ struct ListeningPlaybackEvidenceTracker {
     private var lastSample: ListeningPlaybackSample?
     private var listenedDuration: TimeInterval = 0
     private var recordedSongIDs: Set<String>
+    private var pendingSongID: String?
 
     init(
         alreadyRecordedSongIDs: Set<String> = [],
@@ -217,6 +218,10 @@ struct ListeningPlaybackEvidenceTracker {
         }
         defer { lastSample = sample }
 
+        if let pendingSongID {
+            return .becameFamiliar(songID: pendingSongID)
+        }
+
         guard sample.source == .fullCatalog,
               let duration = sample.duration,
               duration > 0,
@@ -237,10 +242,18 @@ struct ListeningPlaybackEvidenceTracker {
 
         listenedDuration += playbackDelta
         guard listenedDuration > duration / 2,
-              recordedSongIDs.insert(sample.songID).inserted else {
+              !recordedSongIDs.contains(sample.songID) else {
             return .none
         }
+        pendingSongID = sample.songID
         return .becameFamiliar(songID: sample.songID)
+    }
+
+    mutating func commitFamiliarity(songID: String) {
+        recordedSongIDs.insert(songID)
+        if pendingSongID == songID {
+            pendingSongID = nil
+        }
     }
 }
 
