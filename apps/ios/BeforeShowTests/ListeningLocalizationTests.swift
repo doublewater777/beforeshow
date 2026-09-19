@@ -142,13 +142,21 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains("accessibilityAddTraits(.isSelected)"),
             "Custom root tabs must preserve the native selected-tab VoiceOver state"
         )
-        XCTAssertTrue(
-            listeningRoot.contains("matchedGeometryEffect(id: \"listen-slot\""),
-            "Listen icon and compact player must share a stable morph identity"
+        XCTAssertFalse(
+            listeningRoot.contains("matchedGeometryEffect"),
+            "Tab switching must not compete with matched-geometry layout animation"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains(".spring("),
+            "Root chrome must not run a spring layout animation during TabView selection changes"
         )
         XCTAssertTrue(
-            listeningRoot.contains("ListeningBottomBarMotionPolicy.animatesMorph"),
-            "Listen morph animation must respect Reduce Motion"
+            listeningRoot.contains("@State private var presentedTab: BeforeShowTab"),
+            "Chrome presentation state must be decoupled from the immediate TabView selection"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("await Task.yield()"),
+            "Chrome presentation must follow after TabView gets the first transition turn"
         )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessoryPlacement"),
@@ -157,6 +165,28 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(
             listeningRoot.contains("Image(systemName: \"eject.fill\")"),
             "The global bottom bar must not expose the CD mechanism control"
+        )
+    }
+
+    func testListenWarmupAndActivationDoNotCompeteWithInitialTabFrame() throws {
+        let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
+        let room = try listeningSource("Features/Listening/Views/ListeningRoomView.swift")
+
+        XCTAssertTrue(
+            rootChrome.contains(".task {\n                ListeningPlayerWarmup.prepareIfNeeded()"),
+            "CD assets and audio must warm before the user taps Listen"
+        )
+        XCTAssertFalse(
+            rootChrome.contains("if isActive { ListeningPlayerWarmup.prepareIfNeeded() }"),
+            "Entering Listen must not start asset warmup in the tab-selection frame"
+        )
+        XCTAssertFalse(
+            room.contains("ListeningPlayerWarmup.prepareIfNeeded()"),
+            "Room activation must not perform warmup work"
+        )
+        XCTAssertTrue(
+            room.contains("await Task.yield()"),
+            "Listen room activation must yield once so TabView can commit its destination first"
         )
     }
 
