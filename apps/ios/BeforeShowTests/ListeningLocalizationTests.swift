@@ -139,6 +139,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen)"))
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootChrome.contains("ListeningCompactRootChrome(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains(".toolbarVisibility("))
         XCTAssertTrue(rootChrome.contains("usesCompactChrome(for: selectedTab)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
