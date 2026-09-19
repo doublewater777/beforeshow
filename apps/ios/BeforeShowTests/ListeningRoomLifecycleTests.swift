@@ -140,7 +140,9 @@ import SwiftData
         persistenceAvailable = true
         failSongID = secondSongID
         room.errorText = nil
-        room.retryPendingPlaybackEvidence()
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(52)
+        )
 
         XCTAssertTrue(room.actualSongIDs.contains(firstSongID))
         XCTAssertTrue(room.familiarSongIDs.contains(firstSongID))
@@ -203,6 +205,12 @@ import SwiftData
         room.mechanism.setLid(open: true)
 
         XCTAssertTrue(playback.didStop)
+        XCTAssertNil(
+            try ListeningRemoteCommandBridge.shared.refreshForTesting(
+                now: Date().addingTimeInterval(52)
+            ),
+            "lid-open teardown must detach the destroyed playback controller"
+        )
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
         persistenceAvailable = true
