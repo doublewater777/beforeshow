@@ -122,6 +122,14 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains("static let playerGroupMaxWidth: CGFloat = 352"),
             "Compact-player mode must remain centered as a tight three-piece group"
         )
+        XCTAssertTrue(
+            listeningRoot.contains("static let miniPlayerWidth = playerGroupMaxWidth - tabSize * 2 - gap * 2"),
+            "Mini-player expansion must use an explicit animatable width"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("static let iconGroupWidth = tabSize * 3 + gap * 2"),
+            "Listen icon mode must use an explicit compact group width"
+        )
         XCTAssertFalse(
             listeningRoot.contains("RoundedRectangle(cornerRadius: 30"),
             "Root navigation must not reintroduce a full-width shared dock background"
