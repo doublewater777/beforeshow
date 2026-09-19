@@ -133,12 +133,15 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testNativeBottomAccessoryOwnsPlayerPlacementAndListenStaysExpanded() throws {
+    func testCurrentAndFootprintsUseCompactChromeWhileListenKeepsNativeAccessory() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
-        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc)"))
-        XCTAssertTrue(rootChrome.contains("? .onScrollDown"))
-        XCTAssertTrue(rootChrome.contains(": .never"))
-        XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        let polishedChrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen)"))
+        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootChrome.contains("ListeningCompactRootChrome(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains("usesCompactChrome(for: selectedTab)"))
+        XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
+        XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
