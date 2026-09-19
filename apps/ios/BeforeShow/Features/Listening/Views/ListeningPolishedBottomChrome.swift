@@ -282,6 +282,10 @@ private struct ListeningMorphingListenControl: View {
         }
         .shadow(color: Color.black.opacity(0.18), radius: 10, y: 5)
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(
+            expanded ? "listening.miniPlayer.compact" : "listening.morphingListen.compact"
+        )
         .task(id: artworkURL) {
             guard let artworkURL else {
                 artworkImage = nil
