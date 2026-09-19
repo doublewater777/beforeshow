@@ -224,7 +224,7 @@ struct ListeningRoomView: View {
         .onChange(of: scenePhase) { _, phase in room.setForeground(phase == .active) }
         .task {
             while !Task.isCancelled {
-                room.tick()
+                room.tickMechanism()
                 try? await Task.sleep(for: .milliseconds(1000))
             }
         }
