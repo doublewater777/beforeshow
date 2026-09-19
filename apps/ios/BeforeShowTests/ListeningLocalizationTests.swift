@@ -217,7 +217,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
     }
 
-    func testRootPagesRetainScrollClearanceForNativeTabBarAndAccessory() throws {
+    func testCompatibilityLayerDoesNotRewriteRootPageSpacing() throws {
         for path in [
             "Features/CurrentShow/CurrentShowManagementView.swift",
             "Features/Listening/Views/ListeningRoomView.swift",
@@ -225,9 +225,9 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Features/Footprints/FootprintDashboardView.swift",
             "Features/Footprints/FootprintsView.swift"
         ] {
-            XCTAssertTrue(
+            XCTAssertFalse(
                 try listeningSource(path).contains("BSLayout.tabBarContentInset"),
-                "\(path) must keep the final scroll content clear of native tab chrome"
+                "\(path) must not gain compatibility-only bottom padding"
             )
         }
     }
