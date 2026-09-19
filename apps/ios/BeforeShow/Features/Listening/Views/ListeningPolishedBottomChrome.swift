@@ -49,11 +49,19 @@ enum ListeningBottomBarPresentation {
     }
 }
 
+enum ListeningBottomBarMotionPolicy {
+    static func animatesMorph(reduceMotion: Bool) -> Bool {
+        !reduceMotion
+    }
+}
+
 /// Root navigation chrome. The middle Listen destination owns playback chrome:
 /// it is a simple tab icon with no disc (or while Listen is selected), and expands
 /// into the compact player on Current / Footprints when a disc is loaded.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var listenSlotNamespace
     @State private var store = ListeningPlaybackChromeStore.shared
 
     private var room: ListeningRoomCoordinator? { store.room }
@@ -62,27 +70,40 @@ struct ListeningPolishedBottomChrome: View {
         guard let room, track != nil else { return false }
         return room.mechanism.hasDisc
     }
+    private var showsMiniPlayer: Bool {
+        ListeningBottomBarPresentation.showsMiniPlayer(
+            selectedTab: selectedTab,
+            hasLoadedDisc: hasLoadedDisc
+        )
+    }
+    private var listenMorphAnimation: Animation? {
+        guard ListeningBottomBarMotionPolicy.animatesMorph(reduceMotion: reduceMotion) else {
+            return nil
+        }
+        return .spring(response: BSMotion.interface, dampingFraction: 0.86)
+    }
 
     var body: some View {
         HStack(spacing: BSSpacing.sm) {
             tabButton(.current)
 
-            Group {
-                if ListeningBottomBarPresentation.showsMiniPlayer(
-                    selectedTab: selectedTab,
-                    hasLoadedDisc: hasLoadedDisc
-                ), let room, let track {
+            ZStack {
+                if showsMiniPlayer, let room, let track {
                     ListeningCompactPlayerTab(
                         room: room,
                         track: track,
                         onSelectListen: { selectedTab = .listen }
                     )
+                    .matchedGeometryEffect(id: "listen-slot", in: listenSlotNamespace)
+                    .transition(.opacity)
                 } else {
                     tabButton(.listen)
-                        .frame(maxWidth: .infinity)
+                        .matchedGeometryEffect(id: "listen-slot", in: listenSlotNamespace)
+                        .transition(.opacity)
                 }
             }
             .frame(maxWidth: .infinity)
+            .animation(listenMorphAnimation, value: showsMiniPlayer)
 
             tabButton(.footprints)
         }
@@ -92,10 +113,10 @@ struct ListeningPolishedBottomChrome: View {
         .accessibilityIdentifier("root.bottomBar")
     }
 
+    @ViewBuilder
     private func tabButton(_ tab: BeforeShowTab) -> some View {
         let isSelected = selectedTab == tab
-
-        return Button {
+        let button = Button {
             selectedTab = tab
         } label: {
             Image(systemName: tab.iconName)
@@ -120,6 +141,12 @@ struct ListeningPolishedBottomChrome: View {
         .buttonStyle(.plain)
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
+
+        if isSelected {
+            button.accessibilityAddTraits(.isSelected)
+        } else {
+            button
+        }
     }
 
     private func tabAccessibilityIdentifier(_ tab: BeforeShowTab) -> String {
