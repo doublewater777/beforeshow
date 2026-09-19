@@ -111,6 +111,9 @@ struct ListeningRootChromeModifier: ViewModifier {
                 ListeningPolishedBottomChrome(selectedTab: $selectedTab)
                     .padding(.bottom, BSSpacing.xs)
             }
+            .task {
+                ListeningPlayerWarmup.prepareIfNeeded()
+            }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,
@@ -129,12 +132,6 @@ struct ListeningFeatureRootView: View {
     var body: some View {
         room
             .toolbar(.hidden, for: .tabBar)
-            .onAppear {
-                if isActive { ListeningPlayerWarmup.prepareIfNeeded() }
-            }
-            .onChange(of: isActive) { _, active in
-                if active { ListeningPlayerWarmup.prepareIfNeeded() }
-            }
     }
 
     @ViewBuilder
