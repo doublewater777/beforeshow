@@ -196,7 +196,8 @@ struct ListeningPlaybackEvidenceTracker {
     private var lastSample: ListeningPlaybackSample?
     private var listenedDuration: TimeInterval = 0
     private var recordedSongIDs: Set<String>
-    private var pendingSongID: String?
+    private var pendingSongIDs: [String] = []
+    private var pendingSongIDSet: Set<String> = []
 
     init(
         alreadyRecordedSongIDs: Set<String> = [],
@@ -218,10 +219,6 @@ struct ListeningPlaybackEvidenceTracker {
         }
         defer { lastSample = sample }
 
-        if let pendingSongID {
-            return .becameFamiliar(songID: pendingSongID)
-        }
-
         guard sample.source == .fullCatalog,
               let duration = sample.duration,
               duration > 0,
@@ -229,7 +226,7 @@ struct ListeningPlaybackEvidenceTracker {
               previous.songID == sample.songID,
               previous.source == .fullCatalog,
               previous.isPlaying else {
-            return .none
+            return pendingUpdate
         }
 
         let playbackDelta = sample.currentTime - previous.currentTime
@@ -237,23 +234,29 @@ struct ListeningPlaybackEvidenceTracker {
         guard playbackDelta > 0,
               observationDelta >= 0,
               playbackDelta <= observationDelta + observationTolerance else {
-            return .none
+            return pendingUpdate
         }
 
         listenedDuration += playbackDelta
-        guard listenedDuration > duration / 2,
-              !recordedSongIDs.contains(sample.songID) else {
-            return .none
+        if listenedDuration > duration / 2,
+           !recordedSongIDs.contains(sample.songID),
+           pendingSongIDSet.insert(sample.songID).inserted {
+            pendingSongIDs.append(sample.songID)
         }
-        pendingSongID = sample.songID
-        return .becameFamiliar(songID: sample.songID)
+        return pendingUpdate
     }
 
     mutating func commitFamiliarity(songID: String) {
         recordedSongIDs.insert(songID)
-        if pendingSongID == songID {
-            pendingSongID = nil
+        pendingSongIDSet.remove(songID)
+        if let index = pendingSongIDs.firstIndex(of: songID) {
+            pendingSongIDs.remove(at: index)
         }
+    }
+
+    private var pendingUpdate: ListeningPlaybackEvidenceUpdate {
+        guard let songID = pendingSongIDs.first else { return .none }
+        return .becameFamiliar(songID: songID)
     }
 }
 
