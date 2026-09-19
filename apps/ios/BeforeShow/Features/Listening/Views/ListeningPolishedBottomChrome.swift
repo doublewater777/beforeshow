@@ -638,51 +638,48 @@ struct ListeningCompactRootChrome: View {
                 paused: reduceMotion || !showsPlayingState
             )
         ) { timeline in
-            HStack(spacing: 8) {
-                compactTabButton(.current)
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    compactTabButton(.current)
 
-                Group {
-                    if let room, let track {
-                        ListeningInlineAccessoryView(
-                            room: room,
-                            track: track,
-                            artwork: displayedArtwork,
-                            discAngle: discAngle(at: timeline.date),
-                            showsPlayingState: showsPlayingState,
-                            onSelectListen: { select(.listen) }
-                        )
-                    } else {
-                        Button {
-                            select(.listen)
-                        } label: {
-                            HStack(spacing: 8) {
-                                Image(systemName: BeforeShowTab.listen.iconName)
-                                    .font(.system(size: 16, weight: .semibold))
-                                Text(BeforeShowTab.listen.localizedTitle)
-                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
-                                    .lineLimit(1)
+                    Group {
+                        if let room, let track {
+                            ListeningInlineAccessoryView(
+                                room: room,
+                                track: track,
+                                artwork: displayedArtwork,
+                                discAngle: discAngle(at: timeline.date),
+                                showsPlayingState: showsPlayingState,
+                                onSelectListen: { select(.listen) }
+                            )
+                        } else {
+                            Button {
+                                select(.listen)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: BeforeShowTab.listen.iconName)
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text(BeforeShowTab.listen.localizedTitle)
+                                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                        .lineLimit(1)
+                                }
+                                .foregroundStyle(Color.white.opacity(0.92))
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .contentShape(Rectangle())
                             }
-                            .foregroundStyle(Color.white.opacity(0.92))
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("root.tab.listen")
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("root.tab.listen")
                     }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background {
-                    ListeningPolishedLiquidGlassSurface(
-                        cornerRadius: 24,
-                        accentGlow: showsPlayingState
-                    )
-                }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .glassEffect(.regular, in: Capsule())
 
-                compactTabButton(.footprints)
+                    compactTabButton(.footprints)
+                }
             }
             .padding(.horizontal, 12)
-            .padding(.top, 6)
+            .padding(.top, 4)
             .padding(.bottom, 8)
         }
         .task(id: artworkURL) {
@@ -727,19 +724,10 @@ struct ListeningCompactRootChrome: View {
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(selected ? BSColor.Stage.accent : Color.white.opacity(0.78))
                 .frame(width: 52, height: 52)
-                .background(.ultraThinMaterial, in: Circle())
-                .background(Color.black.opacity(0.26), in: Circle())
-                .overlay {
-                    Circle()
-                        .stroke(
-                            selected ? BSColor.Stage.accent.opacity(0.30) : Color.white.opacity(0.12),
-                            lineWidth: 0.8
-                        )
-                }
-                .shadow(color: .black.opacity(0.20), radius: 12, y: 5)
                 .contentShape(Circle())
         }
-        .buttonStyle(BSListeningPressStyle(scale: 0.92))
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("root.tab.\(tab.id)")
