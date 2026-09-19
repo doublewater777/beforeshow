@@ -47,7 +47,7 @@ enum ListeningMiniPlayerArtworkImage {
 /// Responds to `@Environment(\.tabViewBottomAccessoryPlacement)`:
 /// - `.expanded`: Floating Liquid Glass card above the floating Tab Bar.
 /// - `.inline`: Seamlessly merges into the minimized Tab Bar on scroll down.
-@available(iOS 26.0, *)
+@available(iOS 26.1, *)
 struct ListeningBottomAccessory: View {
     let isListenSelected: Bool
     let onSelectListen: () -> Void
@@ -605,7 +605,7 @@ struct ListeningPolishedBottomChrome: View {
 
     @ViewBuilder
     var body: some View {
-        if #available(iOS 26.0, *) {
+        if #available(iOS 26.1, *) {
             ListeningBottomAccessory(
                 isListenSelected: selectedTab == .listen,
                 onSelectListen: { selectedTab = .listen }
