@@ -933,6 +933,14 @@ private let listeningCatalogFetchConcurrency = 4
                 stateDidChange: { [weak self] state in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.applyPlaybackState(state)
+                },
+                evidenceDidChange: { [weak self] in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.refreshPlaybackEvidenceProjection()
+                },
+                evidenceDidFail: { [weak self] in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
                 }
             )
             controller = next
@@ -1027,7 +1035,6 @@ private let listeningCatalogFetchConcurrency = 4
 
         completeSleevePlaybackIfNeeded()
         recordPlayingIfNeeded()
-        try? refreshEvidence()
 
         if case let .finished(songID, _, _) = state {
             finishedSongID = songID
@@ -1035,6 +1042,14 @@ private let listeningCatalogFetchConcurrency = 4
             finishedSongID = nil
         }
     }
+    private func refreshPlaybackEvidenceProjection() {
+        do {
+            try refreshEvidence()
+        } catch {
+            errorText = BSLocalization.text("熟悉度保存失败，请重试")
+        }
+    }
+
     private func syncTrackIndexWithPlaybackState() {
         let songID: String?
         switch playbackState {
