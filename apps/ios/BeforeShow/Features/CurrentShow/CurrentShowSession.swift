@@ -94,7 +94,6 @@ struct CurrentShowFeatureRootView: View {
             isFeaturePresentationActive: isNotificationPresentationActive,
             ceremonyPendingDetail: $ceremonyPendingDetail
         )
-        .toolbarVisibility(.hidden, for: .tabBar)
         .task {
             consumeNotificationRouteIfNeeded()
         }
