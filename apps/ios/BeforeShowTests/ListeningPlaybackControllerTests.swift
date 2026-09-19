@@ -53,7 +53,8 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         let item = ListeningPlaybackItem(songID: "threshold-song", duration: 4, previewURL: nil)
 
         try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
-        try await controller.play(now: time(0))
+        try await service.play()
+        _ = try controller.refresh(now: time(0))
         service.currentTime = 1.4
         _ = try controller.refresh(now: time(1))
         XCTAssertFalse(evidenceCallbackSawPersistedRecord)
