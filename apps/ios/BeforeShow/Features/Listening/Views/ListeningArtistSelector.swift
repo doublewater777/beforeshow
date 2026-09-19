@@ -13,7 +13,7 @@ struct ListeningArtistSelector: View {
                     artistItem(artist)
                 }
             }
-            .padding(.vertical, BSSpacing.xs)
+            .padding(.vertical, 2)
         }
         .accessibilityIdentifier("listening.artistSelector")
     }

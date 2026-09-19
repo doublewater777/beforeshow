@@ -107,61 +107,176 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(firstRoom.mechanism.hasDisc)
     }
 
-    func testMiniPlayerAccessibilityAndReduceMotionContractsAreLockedInSource() throws {
+    func testAlwaysCompactGlassChromeContractsAreLockedInSource() throws {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
-        XCTAssertGreaterThanOrEqual(
-            listeningRoot.components(separatedBy: ".frame(width: 44, height: 44)").count - 1,
-            3,
-            "Expanded play/eject controls and compact play control must each retain a 44x44 hit target"
+        XCTAssertTrue(
+            listeningRoot.contains("@available(iOS 26.0, *)\nprivate struct ListeningLiquidGlassBottomChrome"),
+            "Liquid Glass must be availability-gated while the app still targets iOS 18"
         )
         XCTAssertTrue(
-            listeningRoot.contains(".frame(minHeight: 44)"),
-            "Compact return-to-Listen interaction must retain at least a 44pt hit height"
+            listeningRoot.contains("GlassEffectContainer(spacing: ListeningBottomBarLayout.gap)"),
+            "Nearby root controls must share one system glass sampling container"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffect(.regular.interactive(), in: Circle())"),
+            "Icon-only root controls must use the system interactive circular glass effect"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffect(.regular.interactive(), in: Capsule())"),
+            "The compact playback control must use the system capsule glass effect"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffectID(\"listen\", in: glassNamespace)"),
+            "Collapsed Listen and compact playback surfaces must share one system glass identity"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffectTransition(.matchedGeometry)"),
+            "Listen morphing must use GlassEffectTransition instead of hand-built geometry"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("struct ListeningLegacyDetachedBottomChrome"),
+            "iOS 18–25 must keep the same detached icon-only geometry with a material fallback"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("static let miniPlayerWidth: CGFloat = 216"),
+            "Compact playback must have enough room for disc, track/artist metadata, and play/pause"
         )
         XCTAssertTrue(
             listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
-        XCTAssertFalse(
-            listeningRoot.contains("value: placement"),
-            "Native tab bar placement should own the collapse animation instead of a second accessory spring"
-        )
+        XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
         XCTAssertTrue(
+            listeningRoot.contains("Text(track.title)")
+                && listeningRoot.contains("Text(track.artistName)"),
+            "Expanded compact playback must show both track title and artist"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("tabViewBottomAccessory")
+                || listeningRoot.contains("tabViewBottomAccessoryPlacement")
+                || listeningRoot.contains("tabBarMinimizeBehavior"),
+            "The root must not fall back to the system expanded/text Tab Bar model"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("matchedGeometryEffect"),
+            "Ordinary matchedGeometryEffect must not drive the glass morph"
+        )
+        XCTAssertFalse(
             listeningRoot.contains("Image(systemName: \"eject.fill\")"),
-            "Expanded CD mechanism control should use the simple eject symbol"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("ListeningAccessoryLidGlyph"),
-            "Expanded player should not reintroduce the custom lid glyph"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains("ListeningMiniEqualizerBars"),
-            "Expanded player should not show a redundant live/equalizer playback indicator"
-        )
-        let playControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.playPause"))
-        let ejectControl = try XCTUnwrap(listeningRoot.range(of: "listening.miniPlayer.open"))
-        XCTAssertLessThan(
-            listeningRoot.distance(from: listeningRoot.startIndex, to: playControl.lowerBound),
-            listeningRoot.distance(from: listeningRoot.startIndex, to: ejectControl.lowerBound),
-            "Play/pause must remain immediately to the left of the CD mechanism control"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains(".background(Color.white.opacity(0.055), in: Circle())"),
-            "Expanded play/pause must not regain a visible circular background"
-        )
-        XCTAssertFalse(
-            listeningRoot.contains(".background(Color.white.opacity(0.045), in: Circle())"),
-            "Inline play/pause must not retain a visible circular background"
+            "Global playback chrome must not expose the CD mechanism control"
         )
     }
 
-    func testNativeBottomAccessoryOwnsPlayerPlacementAndListenStaysExpanded() throws {
+    func testListenWarmupAndActivationDoNotCompeteWithInitialTabFrame() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
-        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc)"))
-        XCTAssertTrue(rootChrome.contains("? .onScrollDown"))
-        XCTAssertTrue(rootChrome.contains(": .never"))
-        XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        let room = try listeningSource("Features/Listening/Views/ListeningRoomView.swift")
+
+        XCTAssertTrue(
+            rootChrome.contains(".task {\n                ListeningPlayerWarmup.prepareIfNeeded()"),
+            "CD assets and audio must warm before the user taps Listen"
+        )
+        XCTAssertFalse(
+            rootChrome.contains("if isActive { ListeningPlayerWarmup.prepareIfNeeded() }"),
+            "Entering Listen must not start asset warmup in the tab-selection frame"
+        )
+        XCTAssertFalse(
+            room.contains("ListeningPlayerWarmup.prepareIfNeeded()"),
+            "Room activation must not perform warmup work"
+        )
+        XCTAssertTrue(
+            room.contains("await Task.yield()"),
+            "Listen room lifecycle must yield once so TabView can commit its destination first"
+        )
+        XCTAssertTrue(
+            room.contains(".task(id: activityKey)"),
+            "Listen enter/exit work must share one cancellable deferred task"
+        )
+        XCTAssertFalse(
+            room.contains(".onChange(of: isActive)"),
+            "Listen lifecycle must not perform synchronous tab-change work"
+        )
+        XCTAssertTrue(
+            room.contains("if isActive { room?.setActive(false) }"),
+            "onDisappear must avoid synchronous teardown for ordinary tab switches"
+        )
+    }
+
+    func testRootUsesDetachedAlwaysCompactChromeOnEverySupportedVersion() throws {
+        let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
+        let rootView = try listeningSource("RootView.swift")
+
+        XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertFalse(rootChrome.contains(".tabViewBottomAccessory"))
+        XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
+    }
+
+    func testRootDestinationsHideTheNativeSystemTabBar() throws {
+        for path in [
+            "Features/CurrentShow/CurrentShowSession.swift",
+            "Features/Listening/ListeningFeatureRootView.swift",
+            "Features/Footprints/FootprintsView.swift"
+        ] {
+            XCTAssertTrue(
+                try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
+                "\(path) must hide the labeled system bar behind detached icon-only root controls"
+            )
+        }
+    }
+
+    func testListenStageDoesNotPersistAuthorizationActionUnderMachine() throws {
+        let atmosphere = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
+        XCTAssertTrue(atmosphere.contains("player.recoveryAction == .retryPlayback"))
+        XCTAssertFalse(
+            atmosphere.contains("player.recoveryAction ?? room.display.recoveryAction"),
+            "Authorization and settings recovery must not remain as persistent actions below the CD machine"
+        )
+    }
+
+    func testListenShelfUsesCompactHeaderWhenThereIsNoShowAllAction() throws {
+        let shelf = try listeningSource("Features/Listening/Views/ListeningShelfView.swift")
+        XCTAssertTrue(shelf.contains("compactHeaderHeight: CGFloat = 32"))
+        XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
+    }
+
+    func testCompatibilityLayerDoesNotRewriteRootPageSpacing() throws {
+        for path in [
+            "Features/CurrentShow/CurrentShowManagementView.swift",
+            "Features/Listening/Views/ListeningRoomView.swift",
+            "Features/Listening/Views/ListeningPreparingView.swift",
+            "Features/Footprints/FootprintDashboardView.swift",
+            "Features/Footprints/FootprintsView.swift"
+        ] {
+            XCTAssertFalse(
+                try listeningSource(path).contains("BSLayout.tabBarContentInset"),
+                "\(path) must not gain compatibility-only bottom padding"
+            )
+        }
+    }
+
+    func testProjectDeploymentTargetIsIOS18WithIOS26GlassEnhancementGated() throws {
+        let iosRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let projectYAML = try String(
+            contentsOf: iosRoot.appendingPathComponent("project.yml"),
+            encoding: .utf8
+        )
+        let project = try String(
+            contentsOf: iosRoot.appendingPathComponent("BeforeShow.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(projectYAML.contains("iOS: \"18.0\""))
+        XCTAssertFalse(projectYAML.contains("iOS: \"26.1\""))
+        XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
+        XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.1;"))
+
+        let chrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        XCTAssertTrue(chrome.contains("if #available(iOS 26.0, *)"))
+        XCTAssertTrue(chrome.contains("@available(iOS 26.0, *)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
@@ -181,7 +296,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         ))
         XCTAssertTrue(project.contains("ListeningPolishedBottomChrome.swift in Sources"))
         XCTAssertTrue(project.contains("ListeningMiniPlayerPlaybackAppearanceTests.swift in Sources"))
-        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift").contains("struct ListeningBottomAccessory"))
+        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift").contains("struct ListeningPolishedBottomChrome"))
         XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerPlaybackAppearanceTests"))
     }
 

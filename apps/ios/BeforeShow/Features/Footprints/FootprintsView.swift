@@ -34,6 +34,7 @@ struct FootprintsView: View {
                 FootprintPreparingView()
             }
         }
+        .toolbar(.hidden, for: .tabBar)
         .task(id: preparationFingerprint()) {
             // Build archive + covers in one pass, then commit atomically so
             // the dashboard's first paint already has the cover it ends with.
@@ -163,7 +164,6 @@ private struct FootprintPreparingView: View {
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
                 }
-                .padding(.bottom, BSLayout.tabBarContentInset)
             }
             .scrollDisabled(true)
             .scrollIndicators(.hidden)

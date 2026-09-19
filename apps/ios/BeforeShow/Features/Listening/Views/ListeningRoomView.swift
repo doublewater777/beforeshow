@@ -40,6 +40,10 @@ struct ListenRootView: View {
         show?.id.uuidString ?? "empty"
     }
 
+    private var activityKey: String {
+        "\(loadKey)|\(isActive)"
+    }
+
     var body: some View {
         ZStack {
             if let room, let show, room.show?.id == show.id {
@@ -73,22 +77,27 @@ struct ListenRootView: View {
             .presentationCornerRadius(26)
             .presentationDragIndicator(.visible)
         }
-        .task(id: loadKey) {
-            guard isActive else { return }
-            await activateRoomIfNeeded()
+        .task(id: activityKey) {
+            // Tab selection owns the first main-actor turn. Listen lifecycle work,
+            // including visibility updates and task cancellation, follows afterward.
+            await Task.yield()
+            guard !Task.isCancelled else { return }
+            if isActive {
+                await activateRoomIfNeeded()
+            } else {
+                room?.setActive(false)
+            }
         }
-        .onChange(of: isActive) { _, active in
-            room?.setActive(active)
-            guard active else { return }
-            Task { await activateRoomIfNeeded() }
+        .onDisappear {
+            // Normal tab switches are handled by the deferred activity task above.
+            // Only tear down synchronously if the active Listen root itself leaves.
+            if isActive { room?.setActive(false) }
         }
-        .onDisappear { room?.setActive(false) }
     }
 
     @MainActor
     private func activateRoomIfNeeded() async {
         guard isActive else { return }
-        ListeningPlayerWarmup.prepareIfNeeded()
         guard let show else {
             room?.stop()
             room?.mechanism.motion.stop()
@@ -138,7 +147,7 @@ struct ListeningRoomView: View {
             VStack(spacing: 0) {
                 ListeningRoomHeader(mode: room.display.roomMode)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: BSSpacing.sm) {
+                    VStack(spacing: BSSpacing.xs) {
                         if !room.browseArtists.isEmpty {
                             ListeningArtistSelector(
                                 artists: room.browseArtists,
@@ -178,7 +187,6 @@ struct ListeningRoomView: View {
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
-                    .padding(.bottom, BSLayout.tabBarContentInset)
                 }
             }
         }

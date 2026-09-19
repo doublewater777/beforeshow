@@ -19,7 +19,7 @@ struct ListeningPreparingView: View {
             VStack(spacing: 0) {
                 ListeningRoomHeader(mode: .connecting)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: BSSpacing.sm) {
+                    VStack(spacing: BSSpacing.xs) {
                         if !artists.isEmpty {
                             ListeningArtistSelector(artists: artists, selection: .all, select: { _ in }, onConnect: { _, _ in })
                         }
@@ -38,7 +38,6 @@ struct ListeningPreparingView: View {
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
-                    .padding(.bottom, BSLayout.tabBarContentInset)
                 }
                 .scrollDisabled(true)
             }
