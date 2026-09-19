@@ -1,6 +1,19 @@
 import Foundation
 import SwiftData
 
+struct ListeningPlaybackEvidenceDrainResult {
+    let committedSongIDs: [String]
+    let failure: Error?
+
+    var committedAny: Bool { !committedSongIDs.isEmpty }
+    var hasFailure: Bool { failure != nil }
+
+    static let empty = ListeningPlaybackEvidenceDrainResult(
+        committedSongIDs: [],
+        failure: nil
+    )
+}
+
 @MainActor
 final class ListeningPlaybackEvidenceCoordinator {
     private let modelContext: ModelContext
@@ -26,33 +39,44 @@ final class ListeningPlaybackEvidenceCoordinator {
     }
 
     @discardableResult
-    func ingest(_ sample: ListeningPlaybackSample, at date: Date = Date()) throws -> Bool {
-        _ = tracker.ingest(sample)
-        return try drainPending(at: date)
+    func ingest(
+        _ sample: ListeningPlaybackSample,
+        at date: Date = Date()
+    ) throws -> ListeningPlaybackEvidenceDrainResult {
+        _ = tracker.ingest(sample, familiarityReachedAt: date)
+        return drainPending()
     }
 
     @discardableResult
-    func flushPending(at date: Date = Date()) throws -> Bool {
-        try drainPending(at: date)
+    func flushPending() throws -> ListeningPlaybackEvidenceDrainResult {
+        drainPending()
     }
 
     func breakContinuity() {
         tracker.breakContinuity()
     }
 
-    @discardableResult
-    private func drainPending(at date: Date) throws -> Bool {
-        var persistedAny = false
-        while let songID = tracker.nextPendingFamiliaritySongID {
+    private func drainPending() -> ListeningPlaybackEvidenceDrainResult {
+        var committedSongIDs: [String] = []
+        while let pending = tracker.nextPendingFamiliarity {
             do {
-                try persistActualFamiliarity(songID, date)
-                tracker.commitFamiliarity(songID: songID)
-                persistedAny = true
+                try persistActualFamiliarity(
+                    pending.songID,
+                    pending.familiarityReachedAt
+                )
+                tracker.commitFamiliarity(songID: pending.songID)
+                committedSongIDs.append(pending.songID)
             } catch {
                 modelContext.rollback()
-                throw error
+                return ListeningPlaybackEvidenceDrainResult(
+                    committedSongIDs: committedSongIDs,
+                    failure: error
+                )
             }
         }
-        return persistedAny
+        return ListeningPlaybackEvidenceDrainResult(
+            committedSongIDs: committedSongIDs,
+            failure: nil
+        )
     }
 }
