@@ -135,12 +135,23 @@ final class ListeningReviewerRegressionTests: XCTestCase {
 
     func testCurrentAndFootprintsUseCompactChromeWhileListenKeepsNativeAccessory() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
+        let currentRoot = try listeningSource("Features/CurrentShow/CurrentShowSession.swift")
+        let footprintsRoot = try listeningSource("Features/Footprints/FootprintsView.swift")
         let polishedChrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+
         XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen)"))
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootChrome.contains("ListeningCompactRootChrome(selectedTab: $selectedTab)"))
-        XCTAssertTrue(rootChrome.contains(".toolbarVisibility("))
+        XCTAssertFalse(rootChrome.contains(".toolbarVisibility("))
         XCTAssertTrue(rootChrome.contains("usesCompactChrome(for: selectedTab)"))
+
+        XCTAssertTrue(currentRoot.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
+        XCTAssertTrue(footprintsRoot.contains(".toolbarVisibility(.hidden, for: .tabBar)"))
+        XCTAssertTrue(rootChrome.contains(".toolbarVisibility(.visible, for: .tabBar)"))
+
+        XCTAssertTrue(polishedChrome.contains("GlassEffectContainer(spacing: 8)"))
+        XCTAssertTrue(polishedChrome.contains(".glassEffect(.regular, in: Capsule())"))
+        XCTAssertTrue(polishedChrome.contains(".buttonStyle(.glass)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.current)"))
         XCTAssertTrue(polishedChrome.contains("compactTabButton(.footprints)"))
     }
