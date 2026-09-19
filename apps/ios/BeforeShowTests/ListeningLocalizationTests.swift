@@ -186,7 +186,19 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         XCTAssertTrue(
             room.contains("await Task.yield()"),
-            "Listen room activation must yield once so TabView can commit its destination first"
+            "Listen room lifecycle must yield once so TabView can commit its destination first"
+        )
+        XCTAssertTrue(
+            room.contains(".task(id: activityKey)"),
+            "Listen enter/exit work must share one cancellable deferred task"
+        )
+        XCTAssertFalse(
+            room.contains(".onChange(of: isActive)"),
+            "Listen lifecycle must not perform synchronous tab-change work"
+        )
+        XCTAssertTrue(
+            room.contains("if isActive { room?.setActive(false) }"),
+            "onDisappear must avoid synchronous teardown for ordinary tab switches"
         )
     }
 
