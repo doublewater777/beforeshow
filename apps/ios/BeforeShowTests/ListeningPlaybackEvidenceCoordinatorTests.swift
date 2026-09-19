@@ -11,10 +11,10 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         let coordinator = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
         let heardAt = Date(timeIntervalSince1970: 500)
 
-        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: heardAt))
-        XCTAssertFalse(try coordinator.ingest(full(time: 25, observedAt: 25), at: heardAt))
-        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: heardAt))
-        XCTAssertFalse(try coordinator.ingest(full(time: 75, observedAt: 75), at: heardAt))
+        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: heardAt).committedAny)
+        XCTAssertFalse(try coordinator.ingest(full(time: 25, observedAt: 25), at: heardAt).committedAny)
+        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: heardAt).committedAny)
+        XCTAssertFalse(try coordinator.ingest(full(time: 75, observedAt: 75), at: heardAt).committedAny)
 
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
         XCTAssertEqual(records.count, 1)
@@ -39,23 +39,23 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
                 try context.save()
             }
         )
-        let firstAttempt = Date(timeIntervalSince1970: 500)
-        let retryAttempt = Date(timeIntervalSince1970: 501)
+        let thresholdAt = Date(timeIntervalSince1970: 500)
+        let retryAt = Date(timeIntervalSince1970: 501)
 
-        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: firstAttempt))
-        XCTAssertThrowsError(
-            try coordinator.ingest(full(time: 51, observedAt: 51), at: firstAttempt)
-        )
+        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: thresholdAt).committedAny)
+        let failed = try coordinator.ingest(full(time: 51, observedAt: 51), at: thresholdAt)
+        XCTAssertFalse(failed.committedAny)
+        XCTAssertTrue(failed.hasFailure)
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
-        XCTAssertTrue(
-            try coordinator.ingest(full(time: 51, observedAt: 52), at: retryAttempt)
-        )
+        let retried = try coordinator.ingest(full(time: 51, observedAt: 52), at: retryAt)
+        XCTAssertTrue(retried.committedAny)
+        XCTAssertFalse(retried.hasFailure)
         let record = try XCTUnwrap(
             context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                 .first { $0.songID == "song-a" }
         )
-        XCTAssertEqual(record.actualListeningAt, retryAttempt)
+        XCTAssertEqual(record.actualListeningAt, thresholdAt)
     }
 
     func testFailedPersistenceDoesNotBlockNextSongAndBothRetryWithoutReplay() throws {
@@ -75,32 +75,34 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
             }
         )
 
-        XCTAssertFalse(try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0)))
-        XCTAssertThrowsError(
-            try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51))
-        )
-        XCTAssertThrowsError(
-            try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52))
-        )
-        XCTAssertThrowsError(
-            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103))
-        )
+        XCTAssertFalse(try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0)).committedAny)
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51)).hasFailure)
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52)).hasFailure)
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103)).hasFailure)
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
 
         persistenceAvailable = true
 
-        XCTAssertTrue(
-            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false))
+        let recovered = try coordinator.ingest(
+            full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false)
         )
-        XCTAssertFalse(
-            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 105, isPlaying: false))
+        XCTAssertEqual(recovered.committedSongIDs, ["song-a", "song-b"])
+        XCTAssertFalse(recovered.hasFailure)
+
+        let noOp = try coordinator.ingest(
+            full(songID: "song-b", time: 51, observedAt: 105, isPlaying: false)
         )
+        XCTAssertFalse(noOp.committedAny)
+        XCTAssertFalse(noOp.hasFailure)
 
         let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
-        XCTAssertEqual(Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }), ["song-a", "song-b"])
+        XCTAssertEqual(
+            Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            ["song-a", "song-b"]
+        )
     }
 
-    func testBatchDrainStopsAtFailureAndDoesNotRetryCommittedItems() throws {
+    func testBatchDrainReportsPartialCommitBeforeFailureAndDoesNotRetryCommittedItems() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
         let context = container.mainContext
@@ -120,18 +122,20 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
             }
         )
 
-        XCTAssertFalse(try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0)))
-        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51)))
-        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52)))
-        XCTAssertThrowsError(try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103)))
+        _ = try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0))
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51)).hasFailure)
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52)).hasFailure)
+        XCTAssertTrue(try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103)).hasFailure)
 
         persistenceAvailable = true
         failSongID = "song-b"
         attempts.removeAll()
 
-        XCTAssertThrowsError(
-            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false))
+        let partial = try coordinator.ingest(
+            full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false)
         )
+        XCTAssertEqual(partial.committedSongIDs, ["song-a"])
+        XCTAssertTrue(partial.hasFailure)
         XCTAssertEqual(attempts, ["song-a", "song-b"])
         XCTAssertEqual(
             Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
@@ -141,13 +145,68 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
 
         failSongID = nil
         attempts.removeAll()
-        XCTAssertTrue(try coordinator.flushPending(at: Date(timeIntervalSince1970: 105)))
+        let remaining = try coordinator.flushPending()
+        XCTAssertEqual(remaining.committedSongIDs, ["song-b"])
+        XCTAssertFalse(remaining.hasFailure)
         XCTAssertEqual(attempts, ["song-b"])
         XCTAssertEqual(
             Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                 .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
             ["song-a", "song-b"]
         )
+    }
+
+    func testRetryAfterOpeningUsesOriginalThresholdTimeAndPreservesOpeningBaseline() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let opening = Date(timeIntervalSince1970: 10_000)
+        let thresholdAt = opening.addingTimeInterval(-10)
+        let retryAt = opening.addingTimeInterval(10)
+        let show = try Show(name: "Opening", date: opening, startTime: opening)
+        context.insert(show)
+        try context.save()
+
+        var persistenceAvailable = false
+        let coordinator = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable else {
+                    throw EvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+
+        _ = try coordinator.ingest(
+            full(songID: "song-a", time: 0, observedAt: 0),
+            at: thresholdAt.addingTimeInterval(-51)
+        )
+        let failed = try coordinator.ingest(
+            full(songID: "song-a", time: 51, observedAt: 51),
+            at: thresholdAt
+        )
+        XCTAssertTrue(failed.hasFailure)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        let recovered = try coordinator.flushPending()
+        XCTAssertEqual(recovered.committedSongIDs, ["song-a"])
+
+        let record = try XCTUnwrap(
+            context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .first { $0.songID == "song-a" }
+        )
+        XCTAssertEqual(record.actualListeningAt, thresholdAt)
+
+        try OpeningFamiliarityCoordinator.captureDueBaselines(in: context, now: retryAt)
+        let baseline = try XCTUnwrap(
+            context.fetch(FetchDescriptor<ShowOpeningFamiliarityBaseline>())
+                .first { $0.showID == show.id }
+        )
+        XCTAssertTrue(baseline.familiarSongIDsAtCapture.contains("song-a"))
     }
 
     func testManualFamiliarityDoesNotSuppressLaterActualEvidence() throws {
@@ -160,8 +219,8 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         try context.save()
         let coordinator = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
 
-        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: actualAt))
-        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: actualAt))
+        XCTAssertFalse(try coordinator.ingest(full(time: 0, observedAt: 0), at: actualAt).committedAny)
+        XCTAssertTrue(try coordinator.ingest(full(time: 51, observedAt: 51), at: actualAt).committedAny)
 
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)
         XCTAssertEqual(record.manualConfirmedAt, manualAt)
