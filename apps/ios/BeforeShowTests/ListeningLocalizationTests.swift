@@ -158,6 +158,22 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains("await Task.yield()"),
             "Chrome presentation must follow after TabView gets the first transition turn"
         )
+        XCTAssertTrue(
+            listeningRoot.contains("static let transitionDelay = Duration.milliseconds(45)"),
+            "Chrome animation must start after the TabView selection frame"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("static let transitionDuration = 0.28"),
+            "Listen contraction/expansion should remain visible instead of snapping"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("withAnimation(.easeInOut(duration: ListeningBottomBarLayout.transitionDuration))"),
+            "Only the deferred chrome update should animate"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("if reduceMotion {\n                presentedTab = selectedTab"),
+            "Reduce Motion must bypass the chrome expansion animation"
+        )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessoryPlacement"),
             "The root chrome must not depend on the iOS 26 accessory placement environment"
