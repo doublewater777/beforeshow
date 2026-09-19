@@ -54,7 +54,6 @@ enum ListeningBottomBarLayout {
     static let miniPlayerWidth: CGFloat = 216
     static let iconGroupWidth = tabSize * 3 + gap * 2
     static let playerGroupWidth = tabSize * 2 + miniPlayerWidth + gap * 2
-    static let transitionDuration = 0.30
 }
 
 /// The root navigation is intentionally always compact and icon-only.
@@ -63,14 +62,7 @@ enum ListeningBottomBarLayout {
 /// circle <-> compact-player morph inside the stable root-bar footprint.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var presentedTab: BeforeShowTab
     @State private var store = ListeningPlaybackChromeStore.shared
-
-    init(selectedTab: Binding<BeforeShowTab>) {
-        self._selectedTab = selectedTab
-        self._presentedTab = State(initialValue: selectedTab.wrappedValue)
-    }
 
     private var room: ListeningRoomCoordinator? { store.room }
     private var track: ListeningDiscTrack? { room?.track }
@@ -82,7 +74,7 @@ struct ListeningPolishedBottomChrome: View {
 
     private var showsMiniPlayer: Bool {
         ListeningBottomBarPresentation.showsMiniPlayer(
-            selectedTab: presentedTab,
+            selectedTab: selectedTab,
             hasLoadedDisc: hasLoadedDisc
         )
     }
@@ -98,20 +90,6 @@ struct ListeningPolishedBottomChrome: View {
         .padding(.horizontal, BSSpacing.md)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
-        .task(id: selectedTab) {
-            // Give TabView the selection turn first. The glass transition follows
-            // on the next main-actor turn without any manual geometry animation.
-            await Task.yield()
-            guard !Task.isCancelled else { return }
-
-            if reduceMotion {
-                presentedTab = selectedTab
-            } else {
-                withAnimation(.smooth(duration: ListeningBottomBarLayout.transitionDuration)) {
-                    presentedTab = selectedTab
-                }
-            }
-        }
     }
 }
 
@@ -121,6 +99,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
     let room: ListeningRoomCoordinator?
     let track: ListeningDiscTrack?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var glassNamespace
 
     var body: some View {
@@ -140,11 +119,13 @@ private struct ListeningLiquidGlassBottomChrome: View {
                     )
                     .glassEffect(.regular.interactive(), in: Capsule())
                     .glassEffectID("listen", in: glassNamespace)
-                    .glassEffectTransition(.matchedGeometry)
+                    .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
+                    .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
                 } else {
                     glassListenButton
                         .glassEffectID("listen", in: glassNamespace)
-                        .glassEffectTransition(.matchedGeometry)
+                        .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
+                        .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
                 }
 
                 glassTabButton(.footprints)
@@ -155,6 +136,11 @@ private struct ListeningLiquidGlassBottomChrome: View {
                     : ListeningBottomBarLayout.iconGroupWidth
             )
         }
+        .frame(height: ListeningBottomBarLayout.tabSize)
+        .animation(
+            reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86),
+            value: showsMiniPlayer
+        )
     }
 
     @ViewBuilder

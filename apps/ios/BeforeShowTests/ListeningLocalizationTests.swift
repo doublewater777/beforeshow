@@ -109,6 +109,9 @@ final class ListeningReviewerRegressionTests: XCTestCase {
 
     func testAlwaysCompactGlassChromeContractsAreLockedInSource() throws {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        let whitespaceInsensitiveListeningRoot = listeningRoot
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined()
 
         XCTAssertTrue(
             listeningRoot.contains("GlassEffectContainer(spacing: ListeningBottomBarLayout.gap)"),
@@ -122,25 +125,39 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             listeningRoot.contains(".glassEffect(.regular.interactive(), in: Capsule())"),
             "The compact playback control must use the system capsule glass effect"
         )
-        XCTAssertTrue(
-            listeningRoot.contains(".glassEffectID(\"listen\", in: glassNamespace)"),
-            "Collapsed Listen and compact playback surfaces must share one system glass identity"
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".glassEffectID(\"listen\", in: glassNamespace)").count - 1,
+            2,
+            "Both collapsed Listen and compact playback must keep the same glass identity"
+        )
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)").count - 1,
+            2,
+            "Both Listen states must use matched glass geometry normally and identity under Reduce Motion"
         )
         XCTAssertTrue(
-            listeningRoot.contains(".glassEffectTransition(.matchedGeometry)"),
-            "Listen morphing must keep the existing GlassEffectTransition choreography in Phase 1"
+            listeningRoot.contains("selectedTab: selectedTab,"),
+            "Mini-player presentation must derive directly from the selected destination"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("@State private var presentedTab")
+                || listeningRoot.contains("await Task.yield()")
+                || listeningRoot.contains("ListeningBottomBarLayout.transitionDuration")
+                || listeningRoot.contains(".smooth(duration:"),
+            "Phase 2 must remove delayed duplicate tab presentation and fixed-duration morph choreography"
         )
         XCTAssertTrue(
-            listeningRoot.contains("@State private var presentedTab"),
-            "Phase 1 must preserve the existing delayed presentation state"
+            whitespaceInsensitiveListeningRoot.contains(".animation(reduceMotion?nil:.spring("),
+            "Normal Liquid Glass morphing must use a native spring instead of a fixed-duration animation"
+        )
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)").count - 1,
+            2,
+            "Both Listen states must use the same short Reduce Motion crossfade"
         )
         XCTAssertTrue(
-            listeningRoot.contains("await Task.yield()"),
-            "Phase 1 must preserve the existing post-selection choreography"
-        )
-        XCTAssertTrue(
-            listeningRoot.contains("ListeningBottomBarLayout.transitionDuration"),
-            "Phase 1 must not begin the Phase 2 animation rewrite"
+            listeningRoot.contains(".frame(height: ListeningBottomBarLayout.tabSize)"),
+            "Root chrome must keep a constant vertical footprint while Listen changes width"
         )
         XCTAssertTrue(
             listeningRoot.contains("static let miniPlayerWidth: CGFloat = 216"),
@@ -159,9 +176,15 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(
             listeningRoot.contains("ListeningLegacyDetachedBottomChrome")
                 || listeningRoot.contains("if #available(iOS 26.0, *)")
-                || listeningRoot.contains("@available(iOS 26.0, *)")
-                || listeningRoot.contains(".ultraThinMaterial"),
-            "iOS 26-only Bottom Chrome must not retain the legacy material compatibility path"
+                || listeningRoot.contains("@available(iOS 26.0, *)"),
+            "iOS 26-only Bottom Chrome must stay free of the legacy compatibility path"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains(".background(")
+                || listeningRoot.contains("Material")
+                || listeningRoot.contains("LinearGradient(")
+                || listeningRoot.contains(".blur("),
+            "Bottom Chrome must stay backgroundless without a Material panel, black gradient, or custom backdrop blur"
         )
         XCTAssertFalse(
             listeningRoot.contains("tabViewBottomAccessory")
@@ -176,6 +199,63 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(
             listeningRoot.contains("Image(systemName: \"eject.fill\")"),
             "Global playback chrome must not expose the CD mechanism control"
+        )
+    }
+
+    func testCurrentShowAmbientBackgroundCarriesCoverHueIntoLowerSafeArea() throws {
+        let stage = try listeningSource("UI/DesignSystem/BSStagePresentation.swift")
+        let ambientStart = try XCTUnwrap(stage.range(of: "struct CurrentShowAmbientBackground: View {"))
+        let ambientEnd = try XCTUnwrap(stage.range(of: "\nstruct BSSurfacePanel", range: ambientStart.upperBound..<stage.endIndex))
+        let ambient = String(stage[ambientStart.lowerBound..<ambientEnd.lowerBound])
+
+        XCTAssertGreaterThanOrEqual(
+            ambient.components(separatedBy: "ambientColor.opacity(").count - 1,
+            4,
+            "Current Show must keep separate cover-derived ambient contributions for upper and lower atmosphere"
+        )
+        XCTAssertGreaterThanOrEqual(
+            ambient.components(separatedBy: "Ellipse()").count - 1,
+            2,
+            "Current Show must retain a distinct lower ambient glow rather than only the upper cover bloom"
+        )
+        XCTAssertTrue(ambient.contains(".ignoresSafeArea()"))
+
+        let positionRegex = try NSRegularExpression(
+            pattern: #"\.position\(x: geometry\.size\.width \* [0-9.]+, y: geometry\.size\.height \* ([0-9.]+)\)"#
+        )
+        let ambientNSString = ambient as NSString
+        let positions = positionRegex.matches(
+            in: ambient,
+            range: NSRange(location: 0, length: ambientNSString.length)
+        ).compactMap { match -> Double? in
+            guard match.numberOfRanges > 1 else { return nil }
+            return Double(ambientNSString.substring(with: match.range(at: 1)))
+        }
+        XCTAssertTrue(
+            positions.contains(where: { $0 > 0.5 }),
+            "At least one cover-derived ambient glow must live in the lower half so hue reaches the lower safe area"
+        )
+
+        let darkStopRegex = try NSRegularExpression(
+            pattern: #"Color\.black\.opacity\(([0-9.]+)\), location: ([0-9.]+)"#
+        )
+        let darkStops = darkStopRegex.matches(
+            in: ambient,
+            range: NSRange(location: 0, length: ambientNSString.length)
+        ).compactMap { match -> (opacity: Double, location: Double)? in
+            guard match.numberOfRanges > 2 else { return nil }
+            return (
+                Double(ambientNSString.substring(with: match.range(at: 1))) ?? 0,
+                Double(ambientNSString.substring(with: match.range(at: 2))) ?? 0
+            )
+        }
+        let topDarkStop = try XCTUnwrap(darkStops.min(by: { $0.location < $1.location }))
+        let bottomDarkStop = try XCTUnwrap(darkStops.max(by: { $0.location < $1.location }))
+        XCTAssertGreaterThan(bottomDarkStop.location, 0.75)
+        XCTAssertGreaterThan(
+            bottomDarkStop.opacity,
+            topDarkStop.opacity,
+            "The vertical contrast scrim must become darker toward the bottom while leaving cover hue visible"
         )
     }
 
