@@ -73,6 +73,68 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNotNil(record.actualListeningAt)
     }
 
+    func testEvidencePersistenceFailureKeepsTransportPublishedAndRetries() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let service = PlaybackServiceStub()
+        var shouldFail = true
+        var evidenceFailureCount = 0
+        var evidenceChangeCount = 0
+        var projectedStates: [ListeningPlaybackState] = []
+        let evidence = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                if shouldFail {
+                    shouldFail = false
+                    throw ControllerEvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: evidence,
+            stateDidChange: { projectedStates.append($0) },
+            evidenceDidChange: { evidenceChangeCount += 1 },
+            evidenceDidFail: { evidenceFailureCount += 1 }
+        )
+        let item = ListeningPlaybackItem(songID: "retry-song", duration: 4, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await service.play()
+        _ = try controller.refresh(now: time(0))
+        service.currentTime = 1.4
+        _ = try controller.refresh(now: time(1))
+        service.currentTime = 2.1
+        _ = try controller.refresh(now: time(2))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "retry-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
+        )
+        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertEqual(evidenceFailureCount, 1)
+        XCTAssertEqual(evidenceChangeCount, 0)
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        _ = try controller.refresh(now: time(3))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "retry-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
+        )
+        XCTAssertEqual(evidenceFailureCount, 1)
+        XCTAssertEqual(evidenceChangeCount, 1)
+        let record = try XCTUnwrap(
+            context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .first { $0.songID == "retry-song" }
+        )
+        XCTAssertNotNil(record.actualListeningAt)
+    }
+
     func testPreparePreservesWholeQueueAndStartingTrack() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -295,4 +357,8 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         item = nil
         isPlaying = false
     }
+}
+
+private enum ControllerEvidencePersistenceTestError: Error {
+    case expectedFailure
 }
