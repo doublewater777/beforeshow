@@ -1061,6 +1061,10 @@ private let listeningCatalogFetchConcurrency = 4
     private func refreshPlaybackEvidenceProjection() {
         do {
             try refreshEvidence()
+            if let show {
+                openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                    .filter { $0.showID == show.id }
+            }
         } catch {
             errorText = BSLocalization.text("熟悉度保存失败，请重试")
         }
