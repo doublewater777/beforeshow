@@ -105,6 +105,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let artistSearchService: any ArtistSearchServicing
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
     @ObservationIgnored private let playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
+    @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
     @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
@@ -127,9 +128,13 @@ private let listeningCatalogFetchConcurrency = 4
          artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
          playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
              $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
+         },
+         evidenceCoordinatorFactory: @escaping @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator = {
+             try ListeningPlaybackEvidenceCoordinator(modelContext: $0)
          }) {
         self.context = context; self.catalogService = catalogService; self.playbackFactory = playbackFactory
         self.artistSearchService = artistSearchService
+        self.evidenceCoordinatorFactory = evidenceCoordinatorFactory
         catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
         mechanism.onOpen = { [weak self] in
             #if DEBUG
@@ -925,7 +930,7 @@ private let listeningCatalogFetchConcurrency = 4
         if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
-            let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
+            let evidence = try evidenceCoordinatorFactory(context)
             let stateGeneration = generation
             let next = ListeningPlaybackController(
                 service: service,
