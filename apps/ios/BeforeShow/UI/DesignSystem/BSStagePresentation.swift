@@ -192,25 +192,44 @@ struct CurrentShowAmbientBackground: View {
                 endPoint: .bottom
             )
 
-            // ② 封面主色环境光（Apple Music 式）：放大模糊垫在顶部与卡片背后
+            // ② 封面主色环境光：上方保持主光，底部保留更弱的同色漫光，
+            // 让 Home Indicator 周围仍属于当前封面，但不抬高暗部对比。
             GeometryReader { geometry in
                 if let ambientColor {
-                    Ellipse()
-                        .fill(RadialGradient(
-                            colors: [
-                                ambientColor.opacity(0.85),
-                                ambientColor.opacity(0.38),
-                                .clear
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: geometry.size.width * 0.68
-                        ))
-                        .frame(width: geometry.size.width * 1.35, height: geometry.size.height * 0.62)
-                        .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.10)
-                        .blur(radius: 50)
-                        .blendMode(.screen)
-                        .transition(.opacity)
+                    ZStack {
+                        Ellipse()
+                            .fill(RadialGradient(
+                                colors: [
+                                    ambientColor.opacity(0.85),
+                                    ambientColor.opacity(0.38),
+                                    .clear
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geometry.size.width * 0.68
+                            ))
+                            .frame(width: geometry.size.width * 1.35, height: geometry.size.height * 0.62)
+                            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.10)
+                            .blur(radius: 50)
+                            .blendMode(.screen)
+
+                        Ellipse()
+                            .fill(RadialGradient(
+                                colors: [
+                                    ambientColor.opacity(0.20),
+                                    ambientColor.opacity(0.08),
+                                    .clear
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: geometry.size.width * 0.76
+                            ))
+                            .frame(width: geometry.size.width * 1.55, height: geometry.size.height * 0.52)
+                            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.88)
+                            .blur(radius: 76)
+                            .blendMode(.screen)
+                    }
+                    .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.7), value: ambientColor)
