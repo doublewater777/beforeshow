@@ -78,6 +78,95 @@ final class ListeningCompatibilityTests: XCTestCase {
 
 @MainActor
 final class ListeningMiniPlayerChromeTests: XCTestCase {
+    func testNoDiscKeepsPlainTabsAcrossRootTabs() {
+        for tab in BeforeShowTab.allCases {
+            XCTAssertEqual(
+                ListeningBottomChromeMode.resolve(selectedTab: tab, hasLoadedDisc: false),
+                .tabsOnly
+            )
+        }
+    }
+
+    func testListenShowsFullPlayerWhenDiscIsLoaded() {
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(selectedTab: .listen, hasLoadedDisc: true),
+            .fullPlayer
+        )
+    }
+
+    func testOtherTabsMorphListenTabIntoCompactPlayer() {
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(selectedTab: .current, hasLoadedDisc: true),
+            .compactPlayer
+        )
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(selectedTab: .footprints, hasLoadedDisc: true),
+            .compactPlayer
+        )
+    }
+
+    func testRemovedDiscHidesChromeUntilDiscIsReseated() {
+        let mechanism = CDMechanism()
+        let song = CatalogSong(
+            appleMusicSongID: "song",
+            title: "Song",
+            artistName: "Artist",
+            duration: 180,
+            previewURL: "https://example.invalid/song.m4a"
+        )
+        let disc = ListeningDisc(
+            id: "disc",
+            title: "Disc",
+            artworkURL: nil,
+            tracks: [ListeningDiscTrack(song)]
+        )
+
+        mechanism.restoreSeated(disc)
+        XCTAssertTrue(mechanism.hasDisc)
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(
+                selectedTab: .listen,
+                hasLoadedDisc: mechanism.hasDisc
+            ),
+            .fullPlayer
+        )
+
+        // Opening the lid does not remove the disc; chrome remains available.
+        mechanism.motion.lid.value = 1
+        XCTAssertTrue(mechanism.isOpen)
+        XCTAssertTrue(mechanism.hasDisc)
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(
+                selectedTab: .current,
+                hasLoadedDisc: mechanism.hasDisc
+            ),
+            .compactPlayer
+        )
+
+        mechanism.removeDisc()
+        XCTAssertEqual(mechanism.position, .removed)
+        XCTAssertNotNil(mechanism.disc, "Removed keeps the physical disc object while it is in hand")
+        XCTAssertFalse(mechanism.hasDisc)
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(
+                selectedTab: .listen,
+                hasLoadedDisc: mechanism.hasDisc
+            ),
+            .tabsOnly
+        )
+
+        mechanism.restoreSeated(disc)
+        XCTAssertTrue(mechanism.hasDisc)
+        XCTAssertEqual(
+            ListeningBottomChromeMode.resolve(
+                selectedTab: .footprints,
+                hasLoadedDisc: mechanism.hasDisc
+            ),
+            .compactPlayer
+        )
+        mechanism.motion.stop()
+    }
+
     func testColdStartHydratesCachedCoordinatorBeforeCompactPlaybackAndListenAdoptsIt() async throws {
         resetChromeGlobals()
         defer { resetChromeGlobals() }
