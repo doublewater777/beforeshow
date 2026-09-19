@@ -168,10 +168,6 @@ private struct ListeningExpandedAccessoryView: View {
     let isListenSelected: Bool
     let onSelectListen: () -> Void
 
-    private var lidIsOpen: Bool {
-        (room.mechanism.motion.lid.target ?? room.mechanism.motion.lid.value) > 0.5
-    }
-
     private var progress: Double? {
         guard let duration = track.duration, duration.isFinite, duration > 0 else { return nil }
         return min(max(room.elapsed / duration, 0), 1)
@@ -197,34 +193,34 @@ private struct ListeningExpandedAccessoryView: View {
             }
 
             Button {
-                room.perform(.open)
-            } label: {
-                ListeningAccessoryLidGlyph(isOpen: lidIsOpen)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
-            }
-            .buttonStyle(BSListeningPressStyle(scale: 0.90))
-            .disabled(room.busy)
-            .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
-            .accessibilityIdentifier("listening.miniPlayer.open")
-
-            Button {
                 room.perform(.playPause)
             } label: {
                 Image(systemName: showsPlayingState ? "pause.fill" : "play.fill")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(BSColor.textPrimary)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 44, height: 44)
-                    .background(Color.white.opacity(0.055), in: Circle())
-                    .overlay(Circle().stroke(BSColor.Accent.info.opacity(0.22), lineWidth: 0.8))
-                    .contentShape(Circle())
+                    .contentShape(Rectangle())
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.88))
             .tint(BSColor.textPrimary)
             .disabled(room.busy)
             .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
             .accessibilityIdentifier("listening.miniPlayer.playPause")
+
+            Button {
+                room.perform(.open)
+            } label: {
+                Image(systemName: "eject.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.90))
+            .disabled(room.busy)
+            .accessibilityLabel(BSLocalization.text("打开或关闭上盖"))
+            .accessibilityIdentifier("listening.miniPlayer.open")
         }
         .padding(.leading, 8)
         .padding(.trailing, 10)
@@ -336,34 +332,6 @@ private struct ListeningInlineAccessoryView: View {
         .frame(minHeight: 44)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.inline")
-    }
-}
-
-private struct ListeningAccessoryLidGlyph: View {
-    let isOpen: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                .stroke(Color.white.opacity(0.56), lineWidth: 1.4)
-                .frame(width: 18, height: 10)
-                .offset(y: 4)
-
-            Circle()
-                .stroke(BSColor.Accent.info.opacity(0.68), lineWidth: 1.1)
-                .frame(width: 6, height: 6)
-                .offset(y: 4)
-
-            Capsule()
-                .fill(Color.white.opacity(0.76))
-                .frame(width: 18, height: 1.5)
-                .rotationEffect(.degrees(isOpen ? -22 : 0), anchor: .leading)
-                .offset(x: isOpen ? 1 : 0, y: isOpen ? -4 : -2)
-        }
-        .background(Color.white.opacity(0.045), in: Circle())
-        .overlay(Circle().stroke(Color.white.opacity(0.10), lineWidth: 0.8))
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: isOpen)
     }
 }
 
