@@ -109,6 +109,9 @@ final class ListeningReviewerRegressionTests: XCTestCase {
 
     func testAlwaysCompactGlassChromeContractsAreLockedInSource() throws {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        let whitespaceInsensitiveListeningRoot = listeningRoot
+            .components(separatedBy: .whitespacesAndNewlines)
+            .joined()
 
         XCTAssertTrue(
             listeningRoot.contains("GlassEffectContainer(spacing: ListeningBottomBarLayout.gap)"),
@@ -144,7 +147,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Phase 2 must remove delayed duplicate tab presentation and fixed-duration morph choreography"
         )
         XCTAssertTrue(
-            listeningRoot.contains(".animation(reduceMotion ? nil : .spring("),
+            whitespaceInsensitiveListeningRoot.contains(".animation(reduceMotion?nil:.spring("),
             "Normal Liquid Glass morphing must use a native spring instead of a fixed-duration animation"
         )
         XCTAssertEqual(
