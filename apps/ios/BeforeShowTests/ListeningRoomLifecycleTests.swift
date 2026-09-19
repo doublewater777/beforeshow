@@ -26,6 +26,63 @@ import SwiftData
         room.stop(); room.mechanism.motion.stop()
     }
 
+    func testOpeningLidDrainsAllPendingEvidenceBeforeControllerIsDestroyed() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
+        let firstSongID = disc.tracks[0].id
+        let secondSongID = disc.tracks[1].id
+        room.restoreDisc(disc, songID: firstSongID)
+        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+
+        try await ListeningRemoteCommandBridge.shared.nextForTesting()
+        XCTAssertEqual(room.track?.id, secondSongID)
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting()
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        room.mechanism.setLid(open: true)
+
+        XCTAssertTrue(playback.didStop)
+        let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+        XCTAssertEqual(
+            Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            [firstSongID, secondSongID]
+        )
+    }
+
     func testLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
@@ -526,6 +583,81 @@ private final class CatalogRaceArtistSearch: @unchecked Sendable, ArtistSearchSe
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         lock.withLock { searches += 1 }
         return []
+    }
+}
+
+private enum LifecycleEvidencePersistenceTestError: Error {
+    case expectedFailure
+}
+
+@MainActor
+private final class LifecyclePendingPlaybackService: ListeningPlaybackServicing {
+    private var items: [ListeningPlaybackItem] = []
+    private var index = 0
+    private var source: ListeningPlaybackSource = .fullCatalog
+    private var playing = false
+    var currentTime: TimeInterval = 0
+    private(set) var didStop = false
+
+    func prepare(
+        items: [ListeningPlaybackItem],
+        source: ListeningPlaybackSource,
+        startingAtSongID: String?
+    ) async throws {
+        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
+        self.items = items
+        self.source = source
+        index = startingAtSongID.flatMap { id in
+            items.firstIndex(where: { $0.songID == id })
+        } ?? 0
+        currentTime = 0
+        playing = false
+        didStop = false
+    }
+
+    func play() async throws {
+        playing = true
+    }
+
+    func pause() {
+        playing = false
+    }
+
+    func skipToNext() async throws {
+        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
+        index += 1
+        currentTime = 0
+    }
+
+    func skipToPrevious() async throws {
+        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
+        index -= 1
+        currentTime = 0
+    }
+
+    func seek(to time: TimeInterval) {
+        currentTime = time
+    }
+
+    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
+        guard items.indices.contains(index) else { return nil }
+        let item = items[index]
+        return ListeningPlaybackSample(
+            songID: item.songID,
+            source: source,
+            currentTime: currentTime,
+            duration: item.duration,
+            isPlaying: playing,
+            observedAt: observedAt
+        )
+    }
+
+    func stop() {
+        didStop = true
+        playing = false
+        items = []
+        index = 0
+        currentTime = 0
     }
 }
 
