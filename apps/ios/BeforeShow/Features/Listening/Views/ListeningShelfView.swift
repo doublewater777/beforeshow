@@ -10,14 +10,11 @@ struct ListeningShelfView<Content: View>: View {
     @ViewBuilder let content: Content
 
     @ScaledMetric(relativeTo: .caption) private var labelHeight = BSListeningTokens.shelfLabelHeight
-    @ScaledMetric(relativeTo: .caption) private var compactHeaderHeight: CGFloat = 32
     @ScaledMetric(relativeTo: .caption) private var actionHeaderHeight = BSLayout.minTouchTarget
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var headerHeight: CGFloat {
-        showsAllDiscs || dynamicTypeSize.isAccessibilitySize
-            ? actionHeaderHeight
-            : compactHeaderHeight
+        actionHeaderHeight
     }
     private var contentHeight: CGFloat {
         BSListeningTokens.shelfContentHeight + labelHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1) - BSListeningTokens.shelfLabelHeight
