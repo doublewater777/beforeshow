@@ -99,8 +99,7 @@ final class ListeningPlaybackController {
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
         // A transport/resource failure is a user-visible playback state, not a
         // reason to tear down the physical disc or reset the selected track.
-        // The coordinator can therefore keep the disc in place and project a
-        // retry action next to the player.
+        // Pending evidence is owned separately and can still be flushed later.
         if service.failure != nil {
             stateMachine.handle(.failed)
             publishState()
@@ -112,14 +111,16 @@ final class ListeningPlaybackController {
         stateMachine.handle(.sample(sample))
         publishState()
         ListeningRemoteCommandBridge.shared.update(sample: sample)
-        do {
-            if try evidenceCoordinator.ingest(sample, at: now) {
-                evidenceDidChange()
-            }
-        } catch {
-            evidenceDidFail()
-        }
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.ingest(sample, at: now)
+        )
         return state
+    }
+
+    func flushPendingEvidence() throws {
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.flushPending()
+        )
     }
 
     func stop(now: Date = Date()) throws {
@@ -132,7 +133,24 @@ final class ListeningPlaybackController {
             publishState()
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
-        _ = try refresh(now: now)
+
+        if service.failure == nil,
+           service.snapshot(observedAt: now) != nil {
+            _ = try refresh(now: now)
+        } else {
+            try flushPendingEvidence()
+        }
+    }
+
+    private func handleEvidenceDrainResult(
+        _ result: ListeningPlaybackEvidenceDrainResult
+    ) {
+        if result.committedAny {
+            evidenceDidChange()
+        }
+        if result.hasFailure {
+            evidenceDidFail()
+        }
     }
 
     private func publishState() {
