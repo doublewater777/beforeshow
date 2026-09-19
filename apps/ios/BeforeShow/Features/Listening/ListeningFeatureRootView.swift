@@ -119,7 +119,7 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbar(
+            .toolbarVisibility(
                 ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: selectedTab) ? .hidden : .visible,
                 for: .tabBar
             )
