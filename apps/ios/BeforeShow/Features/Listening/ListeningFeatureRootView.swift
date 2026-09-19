@@ -139,15 +139,15 @@ struct ListeningRootChromeModifier: ViewModifier {
                     }
             }
         }
-        .task {
-            ListeningPlayerWarmup.prepareIfNeeded()
-        }
-        .task(id: currentShowID) {
-            _ = await ListeningChromeBootstrapper.prepare(
-                show: currentShow,
-                context: modelContext
-            )
-        }
+            .task {
+                ListeningPlayerWarmup.prepareIfNeeded()
+            }
+            .task(id: currentShowID) {
+                _ = await ListeningChromeBootstrapper.prepare(
+                    show: currentShow,
+                    context: modelContext
+                )
+            }
     }
 }
 
