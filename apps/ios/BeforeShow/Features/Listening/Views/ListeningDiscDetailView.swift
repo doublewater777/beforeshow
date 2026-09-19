@@ -100,7 +100,9 @@ struct ListeningDiscDetailView: View {
                 BSChromeToolbarCloseButton { dismiss() }
             }
         }
-        .tint(BSColor.Stage.accent)
+        // Navigation chrome stays neutral; playback/selection accents inside
+        // the sheet are styled explicitly at their point of use.
+        .tint(BSColor.Stage.foreground)
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .onChange(of: room.sleevePlaybackSongID) { _, songID in
