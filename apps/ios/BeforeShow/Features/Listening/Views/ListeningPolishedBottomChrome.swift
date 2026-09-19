@@ -51,7 +51,7 @@ enum ListeningBottomBarPresentation {
 enum ListeningBottomBarLayout {
     static let tabSize: CGFloat = 58
     static let gap: CGFloat = 10
-    static let miniPlayerWidth: CGFloat = 112
+    static let miniPlayerWidth: CGFloat = 216
     static let iconGroupWidth = tabSize * 3 + gap * 2
     static let playerGroupWidth = tabSize * 2 + miniPlayerWidth + gap * 2
     static let transitionDuration = 0.30
@@ -344,18 +344,31 @@ private struct ListeningCompactPlaybackControl: View {
                 paused: reduceMotion || !showsPlayingState
             )
         ) { timeline in
-            HStack(spacing: 2) {
+            HStack(spacing: 6) {
                 Button(action: onSelectListen) {
-                    ListeningArtworkDisc(
-                        artwork: displayedArtwork,
-                        angle: discAngle(at: timeline.date),
-                        size: 34,
-                        isPlaying: showsPlayingState
-                    )
-                    .frame(
-                        width: ListeningBottomBarLayout.tabSize,
-                        height: ListeningBottomBarLayout.tabSize
-                    )
+                    HStack(spacing: 9) {
+                        ListeningArtworkDisc(
+                            artwork: displayedArtwork,
+                            angle: discAngle(at: timeline.date),
+                            size: 34,
+                            isPlaying: showsPlayingState
+                        )
+
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(track.title)
+                                .font(.system(size: 12.5, weight: .semibold))
+                                .foregroundStyle(BSColor.textPrimary)
+                                .lineLimit(1)
+
+                            Text(track.artistName)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(BSColor.textTertiary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.leading, 10)
+                    .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -377,6 +390,7 @@ private struct ListeningCompactPlaybackControl: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(BSListeningPressStyle(scale: 0.88))
+                .padding(.trailing, 4)
                 .disabled(room.busy)
                 .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
