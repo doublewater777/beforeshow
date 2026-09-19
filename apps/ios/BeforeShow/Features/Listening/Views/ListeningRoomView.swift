@@ -88,7 +88,11 @@ struct ListenRootView: View {
                 room?.setActive(false)
             }
         }
-        .onDisappear { room?.setActive(false) }
+        .onDisappear {
+            // Normal tab switches are handled by the deferred activity task above.
+            // Only tear down synchronously if the active Listen root itself leaves.
+            if isActive { room?.setActive(false) }
+        }
     }
 
     @MainActor
