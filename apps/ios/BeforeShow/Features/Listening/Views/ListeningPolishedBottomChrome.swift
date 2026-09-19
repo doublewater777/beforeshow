@@ -308,8 +308,7 @@ private struct ListeningInlineAccessoryView: View {
                     .foregroundStyle(BSColor.textPrimary)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 44, height: 44)
-                    .background(Color.white.opacity(0.045), in: Circle())
-                    .contentShape(Circle())
+                    .contentShape(Rectangle())
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.88))
             .tint(BSColor.textPrimary)
