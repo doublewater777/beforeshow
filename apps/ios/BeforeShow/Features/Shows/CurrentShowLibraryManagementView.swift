@@ -76,7 +76,9 @@ struct CurrentShowLibraryManagementView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button(action: toggleLayout) {
                     Image(systemName: layout == .list ? "square.grid.2x2" : "list.bullet")
+                        .foregroundStyle(BSColor.Stage.foreground)
                 }
+                .tint(BSColor.Stage.foreground)
                 .accessibilityLabel(
                     BSLocalization.text(layout == .list ? "切换为封面展示" : "切换为列表展示")
                 )
@@ -85,7 +87,9 @@ struct CurrentShowLibraryManagementView: View {
                     isShowingAdd = true
                 } label: {
                     Image(systemName: "plus")
+                        .foregroundStyle(BSColor.Stage.foreground)
                 }
+                .tint(BSColor.Stage.foreground)
                 .accessibilityLabel(BSLocalization.text("添加现场"))
             }
         }
