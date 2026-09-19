@@ -119,10 +119,6 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .toolbarVisibility(
-                ListeningRootChromeVisibilityPolicy.usesCompactChrome(for: selectedTab) ? .hidden : .visible,
-                for: .tabBar
-            )
             .tabViewBottomAccessory(isEnabled: hasLoadedDisc && selectedTab == .listen) {
                 ListeningBottomAccessory(
                     isListenSelected: true,
