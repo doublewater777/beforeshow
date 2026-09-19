@@ -3,15 +3,30 @@ import XCTest
 @testable import BeforeShow
 
 final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
-    func testListenKeepsTabBarExpandedWhileOtherTabsMayMinimize() {
+    func testMiniPlayerReplacesListenTabOnlyOffListenWithLoadedDisc() {
         XCTAssertFalse(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .listen)
+            ListeningBottomBarPresentation.showsMiniPlayer(
+                selectedTab: .current,
+                hasLoadedDisc: false
+            )
         )
         XCTAssertTrue(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .current)
+            ListeningBottomBarPresentation.showsMiniPlayer(
+                selectedTab: .current,
+                hasLoadedDisc: true
+            )
+        )
+        XCTAssertFalse(
+            ListeningBottomBarPresentation.showsMiniPlayer(
+                selectedTab: .listen,
+                hasLoadedDisc: true
+            )
         )
         XCTAssertTrue(
-            ListeningBottomChromeInteractionPolicy.minimizesTabBar(for: .footprints)
+            ListeningBottomBarPresentation.showsMiniPlayer(
+                selectedTab: .footprints,
+                hasLoadedDisc: true
+            )
         )
     }
 
