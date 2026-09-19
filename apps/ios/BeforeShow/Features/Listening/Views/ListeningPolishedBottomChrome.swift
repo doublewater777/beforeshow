@@ -638,8 +638,8 @@ struct ListeningCompactRootChrome: View {
                 paused: reduceMotion || !showsPlayingState
             )
         ) { timeline in
-            GlassEffectContainer(spacing: 8) {
-                HStack(spacing: 8) {
+            GlassEffectContainer(spacing: 6) {
+                HStack(spacing: 6) {
                     compactTabButton(.current)
 
                     Group {
@@ -672,13 +672,20 @@ struct ListeningCompactRootChrome: View {
                         }
                     }
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .glassEffect(.regular, in: Capsule())
+                    .frame(height: 50)
+                    .glassEffect(
+                        .regular.tint(Color.black.opacity(0.16)),
+                        in: Capsule()
+                    )
+                    .overlay {
+                        Capsule()
+                            .stroke(Color.white.opacity(0.07), lineWidth: 0.6)
+                    }
 
                     compactTabButton(.footprints)
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.top, 4)
             .padding(.bottom, 8)
         }
@@ -721,13 +728,21 @@ struct ListeningCompactRootChrome: View {
             select(tab)
         } label: {
             Image(systemName: tab.iconName)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(selected ? BSColor.Stage.accent : Color.white.opacity(0.78))
-                .frame(width: 52, height: 52)
+                .frame(width: 48, height: 48)
                 .contentShape(Circle())
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
+        .tint(Color.black.opacity(0.18))
+        .overlay {
+            Circle()
+                .stroke(
+                    selected ? BSColor.Stage.accent.opacity(0.28) : Color.white.opacity(0.07),
+                    lineWidth: 0.7
+                )
+        }
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("root.tab.\(tab.id)")
