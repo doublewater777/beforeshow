@@ -75,12 +75,20 @@ struct ListenRootView: View {
         }
         .task(id: loadKey) {
             guard isActive else { return }
+            await Task.yield()
+            guard !Task.isCancelled, isActive else { return }
             await activateRoomIfNeeded()
         }
         .onChange(of: isActive) { _, active in
-            room?.setActive(active)
-            guard active else { return }
-            Task { await activateRoomIfNeeded() }
+            guard active else {
+                room?.setActive(false)
+                return
+            }
+            Task { @MainActor in
+                await Task.yield()
+                guard !Task.isCancelled, isActive else { return }
+                await activateRoomIfNeeded()
+            }
         }
         .onDisappear { room?.setActive(false) }
     }
@@ -88,7 +96,6 @@ struct ListenRootView: View {
     @MainActor
     private func activateRoomIfNeeded() async {
         guard isActive else { return }
-        ListeningPlayerWarmup.prepareIfNeeded()
         guard let show else {
             room?.stop()
             room?.mechanism.motion.stop()
