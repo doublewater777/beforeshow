@@ -97,6 +97,7 @@ struct ListeningRootChromeModifier: ViewModifier {
     @Environment(\.modelContext) private var modelContext
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
+
     private var currentShow: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
         return shows.first { $0.id == id }
@@ -104,12 +105,11 @@ struct ListeningRootChromeModifier: ViewModifier {
 
     private var currentShowID: UUID? { currentShow?.id }
 
-
     func body(content: Content) -> some View {
         content
             .toolbar(.hidden, for: .tabBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                ListeningPolishedBottomChrome(selectedTab: $selectedTab)
+                ListeningBottomChrome(selectedTab: $selectedTab)
             }
             .task(id: currentShowID) {
                 _ = await ListeningChromeBootstrapper.prepare(
