@@ -106,6 +106,8 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
     @ObservationIgnored private let playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
     @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
+    @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
+    @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
     @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
@@ -930,7 +932,8 @@ private let listeningCatalogFetchConcurrency = 4
         if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
-            let evidence = try evidenceCoordinatorFactory(context)
+            let evidence = try playbackEvidenceCoordinatorForUse()
+            applyPlaybackEvidenceDrainResult(try evidence.flushPending())
             let stateGeneration = generation
             let next = ListeningPlaybackController(
                 service: service,
@@ -945,7 +948,7 @@ private let listeningCatalogFetchConcurrency = 4
                 },
                 evidenceDidFail: { [weak self] in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
+                    self.handlePlaybackEvidenceFailure()
                 }
             )
             controller = next
@@ -997,9 +1000,14 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func stop() {
         recordedPlayingSongID = nil
-        playbackGeneration = UUID()
-        do { try controller?.stop() } catch { errorText = BSLocalization.text("熟悉度保存失败，请重试") }
+        do {
+            try controller?.stop()
+        } catch {
+            handlePlaybackEvidenceFailure()
+        }
         controller = nil
+        playbackGeneration = UUID()
+        retryPendingPlaybackEvidence()
         trackIndex = 0
         preparedSongID = nil
         preparedSource = nil
@@ -1052,6 +1060,69 @@ private let listeningCatalogFetchConcurrency = 4
             try refreshEvidence()
         } catch {
             errorText = BSLocalization.text("熟悉度保存失败，请重试")
+        }
+    }
+
+    private func playbackEvidenceCoordinatorForUse() throws -> ListeningPlaybackEvidenceCoordinator {
+        if let playbackEvidenceCoordinator {
+            return playbackEvidenceCoordinator
+        }
+        let created = try evidenceCoordinatorFactory(context)
+        playbackEvidenceCoordinator = created
+        return created
+    }
+
+    private func applyPlaybackEvidenceDrainResult(
+        _ result: ListeningPlaybackEvidenceDrainResult
+    ) {
+        if result.committedAny {
+            refreshPlaybackEvidenceProjection()
+        }
+        if result.hasFailure {
+            handlePlaybackEvidenceFailure()
+        }
+    }
+
+    private func handlePlaybackEvidenceFailure() {
+        errorText = BSLocalization.text("熟悉度保存失败，请重试")
+        schedulePlaybackEvidenceRetry()
+    }
+
+    func retryPendingPlaybackEvidence() {
+        guard let playbackEvidenceCoordinator else { return }
+        do {
+            applyPlaybackEvidenceDrainResult(
+                try playbackEvidenceCoordinator.flushPending()
+            )
+        } catch {
+            handlePlaybackEvidenceFailure()
+        }
+    }
+
+    private func schedulePlaybackEvidenceRetry() {
+        guard evidenceRetryTask == nil else { return }
+        evidenceRetryTask = Task { @MainActor [weak self] in
+            defer { self?.evidenceRetryTask = nil }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                guard let self, let evidence = self.playbackEvidenceCoordinator else { return }
+                do {
+                    let result = try evidence.flushPending()
+                    if result.committedAny {
+                        self.refreshPlaybackEvidenceProjection()
+                    }
+                    if !result.hasFailure {
+                        return
+                    }
+                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
+                } catch {
+                    self.errorText = BSLocalization.text("熟悉度保存失败，请重试")
+                }
+            }
         }
     }
 
