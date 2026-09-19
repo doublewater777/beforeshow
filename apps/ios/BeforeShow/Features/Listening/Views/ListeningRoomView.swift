@@ -178,7 +178,6 @@ struct ListeningRoomView: View {
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
                     .padding(.top, BSSpacing.sm)
-                    .padding(.bottom, 0)
                 }
             }
         }
