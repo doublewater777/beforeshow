@@ -227,6 +227,185 @@ import SwiftData
         XCTAssertTrue(room.familiarSongIDs.contains(secondSongID))
     }
 
+    func testBackgroundEvidenceRetryDoesNotRepresentDismissedFailureAlert() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        var persistenceAttempts = 0
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        persistenceAttempts += 1
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        room.restoreDisc(disc)
+        try await ListenTestData.settle(room) { room.track != nil && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        XCTAssertEqual(
+            room.errorText,
+            BSLocalization.text("熟悉度保存失败，请重试")
+        )
+        room.errorText = nil
+        let attemptsAfterDismiss = persistenceAttempts
+
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertGreaterThan(
+            persistenceAttempts,
+            attemptsAfterDismiss,
+            "background retry must have run while persistence remained unavailable"
+        )
+        XCTAssertNil(
+            room.errorText,
+            "background retry failures must not re-present a dismissed familiarity alert"
+        )
+
+        persistenceAvailable = true
+        room.retryPendingPlaybackEvidence()
+        room.stop()
+    }
+
+    func testBackgroundEvidenceRetryRecoveryClearsOwnedFailureAlert() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        XCTAssertEqual(
+            room.errorText,
+            BSLocalization.text("熟悉度保存失败，请重试")
+        )
+
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertNil(
+            room.errorText,
+            "successful background persistence retry must clear its own stale alert"
+        )
+        room.stop()
+    }
+
+    func testBackgroundEvidenceRetryRecoveryDoesNotClearUnrelatedError() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        XCTAssertNotNil(room.errorText)
+
+        let unrelatedError = BSLocalization.text("保存失败，请重试")
+        room.errorText = unrelatedError
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence recovery must not clear another coordinator error"
+        )
+        room.errorText = nil
+        room.stop()
+    }
+
     func testLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
