@@ -107,38 +107,64 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(firstRoom.mechanism.hasDisc)
     }
 
-    func testNativeAndLegacyBottomChromeContractsAreLockedInSource() throws {
+    func testAlwaysCompactGlassChromeContractsAreLockedInSource() throws {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains("@available(iOS 26.1, *)\nstruct ListeningBottomAccessory"),
-            "iOS 26-only accessory APIs must be availability-gated"
+            listeningRoot.contains("@available(iOS 26.0, *)\nprivate struct ListeningLiquidGlassBottomChrome"),
+            "Liquid Glass must be availability-gated while the app still targets iOS 18"
         )
         XCTAssertTrue(
-            listeningRoot.contains("@Environment(\\.tabViewBottomAccessoryPlacement)"),
-            "iOS 26 must let the system own expanded vs inline accessory placement"
+            listeningRoot.contains("GlassEffectContainer(spacing: ListeningBottomBarLayout.gap)"),
+            "Nearby root controls must share one system glass sampling container"
         )
         XCTAssertTrue(
-            listeningRoot.contains("struct ListeningLegacyBottomAccessory"),
-            "iOS 18–25 must retain a stable fallback mini player"
+            listeningRoot.contains(".glassEffect(.regular.interactive(), in: Circle())"),
+            "Icon-only root controls must use the system interactive circular glass effect"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffect(.regular.interactive(), in: Capsule())"),
+            "The compact playback control must use the system capsule glass effect"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffectID(\"listen\", in: glassNamespace)"),
+            "Collapsed Listen and compact playback surfaces must share one system glass identity"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains(".glassEffectTransition(.matchedGeometry)"),
+            "Listen morphing must use GlassEffectTransition instead of hand-built geometry"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("struct ListeningLegacyDetachedBottomChrome"),
+            "iOS 18–25 must keep the same detached icon-only geometry with a material fallback"
+        )
+        XCTAssertTrue(
+            listeningRoot.contains("static let miniPlayerWidth: CGFloat = 112"),
+            "Compact playback must stay small instead of becoming a wide text player"
         )
         XCTAssertTrue(
             listeningRoot.contains("paused: reduceMotion || !showsPlayingState"),
             "Disc spin must pause when Reduce Motion is enabled"
         )
-        XCTAssertTrue(
-            listeningRoot.contains("minHeight: BSLayout.minTouchTarget"),
-            "Legacy return-to-Listen interaction must keep a full touch target"
-        )
         XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
-        XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.legacyPlayPause\""))
         XCTAssertFalse(
-            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
-            "Global playback chrome must not expose the CD mechanism control"
+            listeningRoot.contains("Text(track.title)")
+                || listeningRoot.contains("Text(track.artistName)"),
+            "Root chrome must remain icon-only with no song or tab labels"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("tabViewBottomAccessory")
+                || listeningRoot.contains("tabViewBottomAccessoryPlacement")
+                || listeningRoot.contains("tabBarMinimizeBehavior"),
+            "The root must not fall back to the system expanded/text Tab Bar model"
         )
         XCTAssertFalse(
             listeningRoot.contains("matchedGeometryEffect"),
-            "Native placement must own the morph instead of a hand-built geometry transition"
+            "Ordinary matchedGeometryEffect must not drive the glass morph"
+        )
+        XCTAssertFalse(
+            listeningRoot.contains("Image(systemName: \"eject.fill\")"),
+            "Global playback chrome must not expose the CD mechanism control"
         )
     }
 
@@ -176,28 +202,26 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testRootUsesNativeAccessoryOn26AndSafeFallbackOn18() throws {
+    func testRootUsesDetachedAlwaysCompactChromeOnEverySupportedVersion() throws {
         let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
         let rootView = try listeningSource("RootView.swift")
 
         XCTAssertTrue(rootView.contains("ListeningRootChromeModifier(selectedTab: $selectedTab)"))
-        XCTAssertTrue(rootChrome.contains("if #available(iOS 26.1, *)"))
-        XCTAssertTrue(rootChrome.contains(".tabViewBottomAccessory("))
-        XCTAssertTrue(rootChrome.contains(".tabBarMinimizeBehavior("))
-        XCTAssertTrue(rootChrome.contains("isEnabled: hasLoadedDisc && selectedTab != .listen"))
         XCTAssertTrue(rootChrome.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
-        XCTAssertTrue(rootChrome.contains("ListeningLegacyBottomAccessory("))
+        XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertFalse(rootChrome.contains(".tabViewBottomAccessory"))
+        XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
     }
 
-    func testRootDestinationsKeepTheNativeSystemTabBarVisible() throws {
+    func testRootDestinationsHideTheNativeSystemTabBar() throws {
         for path in [
             "Features/CurrentShow/CurrentShowSession.swift",
             "Features/Listening/ListeningFeatureRootView.swift",
             "Features/Footprints/FootprintsView.swift"
         ] {
-            XCTAssertFalse(
+            XCTAssertTrue(
                 try listeningSource(path).contains(".toolbar(.hidden, for: .tabBar)"),
-                "\(path) must leave system TabView navigation visible"
+                "\(path) must hide the labeled system bar behind detached icon-only root controls"
             )
         }
     }
@@ -232,7 +256,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         }
     }
 
-    func testProjectDeploymentTargetIsIOS18WithIOS26EnhancementGated() throws {
+    func testProjectDeploymentTargetIsIOS18WithIOS26GlassEnhancementGated() throws {
         let iosRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -249,6 +273,10 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(projectYAML.contains("iOS: \"26.1\""))
         XCTAssertTrue(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 18.0;"))
         XCTAssertFalse(project.contains("IPHONEOS_DEPLOYMENT_TARGET = 26.1;"))
+
+        let chrome = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
+        XCTAssertTrue(chrome.contains("if #available(iOS 26.0, *)"))
+        XCTAssertTrue(chrome.contains("@available(iOS 26.0, *)"))
     }
 
     func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
