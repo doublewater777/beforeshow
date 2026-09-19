@@ -211,7 +211,8 @@ struct ListeningCurrentSong: View {
         room.mechanism.position != .seated || room.track == nil
     }
     private var recovery: ListeningRecoveryAction? {
-        player.recoveryAction ?? room.display.recoveryAction
+        guard player.recoveryAction == .retryPlayback else { return nil }
+        return .retryPlayback
     }
 
     var body: some View {
