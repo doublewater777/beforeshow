@@ -11,6 +11,54 @@ final class ListeningPlaybackEvidenceTests: XCTestCase {
         XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 51)), .becameFamiliar(songID: "song-a"))
     }
 
+    func testThresholdRemainsPendingUntilPersistenceCommit() {
+        var tracker = ListeningPlaybackEvidenceTracker()
+
+        XCTAssertEqual(tracker.ingest(full(time: 0, observedAt: 0)), .none)
+        XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 51)), .becameFamiliar(songID: "song-a"))
+        XCTAssertEqual(
+            tracker.ingest(full(time: 51, observedAt: 52, isPlaying: false)),
+            .becameFamiliar(songID: "song-a")
+        )
+
+        tracker.commitFamiliarity(songID: "song-a")
+
+        XCTAssertEqual(tracker.ingest(full(time: 51, observedAt: 53, isPlaying: false)), .none)
+    }
+
+    func testPendingPersistenceDoesNotBlockNextSongEvidenceAccumulation() {
+        var tracker = ListeningPlaybackEvidenceTracker()
+
+        XCTAssertEqual(tracker.ingest(full(songID: "song-a", time: 0, observedAt: 0)), .none)
+        XCTAssertEqual(
+            tracker.ingest(full(songID: "song-a", time: 51, observedAt: 51)),
+            .becameFamiliar(songID: "song-a")
+        )
+
+        // Persistence for A is still pending. B must nevertheless accumulate its
+        // own continuous playback evidence and become pending without replay.
+        XCTAssertEqual(
+            tracker.ingest(full(songID: "song-b", time: 0, observedAt: 52)),
+            .becameFamiliar(songID: "song-a")
+        )
+        XCTAssertEqual(
+            tracker.ingest(full(songID: "song-b", time: 51, observedAt: 103)),
+            .becameFamiliar(songID: "song-a")
+        )
+
+        tracker.commitFamiliarity(songID: "song-a")
+        XCTAssertEqual(
+            tracker.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false)),
+            .becameFamiliar(songID: "song-b")
+        )
+
+        tracker.commitFamiliarity(songID: "song-b")
+        XCTAssertEqual(
+            tracker.ingest(full(songID: "song-b", time: 51, observedAt: 105, isPlaying: false)),
+            .none
+        )
+    }
+
     func testForwardSeekDoesNotCountSkippedTime() {
         var tracker = ListeningPlaybackEvidenceTracker()
 

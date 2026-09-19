@@ -190,12 +190,19 @@ enum ListeningPlaybackEvidenceUpdate: Equatable {
     case becameFamiliar(songID: String)
 }
 
+struct ListeningPlaybackPendingFamiliarity: Equatable {
+    let songID: String
+    let familiarityReachedAt: Date
+}
+
 struct ListeningPlaybackEvidenceTracker {
     private let observationTolerance: TimeInterval
     private var currentSongID: String?
     private var lastSample: ListeningPlaybackSample?
     private var listenedDuration: TimeInterval = 0
     private var recordedSongIDs: Set<String>
+    private var pendingFamiliarities: [ListeningPlaybackPendingFamiliarity] = []
+    private var pendingSongIDSet: Set<String> = []
 
     init(
         alreadyRecordedSongIDs: Set<String> = [],
@@ -209,7 +216,10 @@ struct ListeningPlaybackEvidenceTracker {
         lastSample = nil
     }
 
-    mutating func ingest(_ sample: ListeningPlaybackSample) -> ListeningPlaybackEvidenceUpdate {
+    mutating func ingest(
+        _ sample: ListeningPlaybackSample,
+        familiarityReachedAt: Date? = nil
+    ) -> ListeningPlaybackEvidenceUpdate {
         if sample.songID != currentSongID {
             currentSongID = sample.songID
             lastSample = nil
@@ -224,7 +234,7 @@ struct ListeningPlaybackEvidenceTracker {
               previous.songID == sample.songID,
               previous.source == .fullCatalog,
               previous.isPlaying else {
-            return .none
+            return pendingUpdate
         }
 
         let playbackDelta = sample.currentTime - previous.currentTime
@@ -232,15 +242,38 @@ struct ListeningPlaybackEvidenceTracker {
         guard playbackDelta > 0,
               observationDelta >= 0,
               playbackDelta <= observationDelta + observationTolerance else {
-            return .none
+            return pendingUpdate
         }
 
         listenedDuration += playbackDelta
-        guard listenedDuration > duration / 2,
-              recordedSongIDs.insert(sample.songID).inserted else {
-            return .none
+        if listenedDuration > duration / 2,
+           !recordedSongIDs.contains(sample.songID),
+           pendingSongIDSet.insert(sample.songID).inserted {
+            pendingFamiliarities.append(
+                ListeningPlaybackPendingFamiliarity(
+                    songID: sample.songID,
+                    familiarityReachedAt: familiarityReachedAt ?? sample.observedAt
+                )
+            )
         }
-        return .becameFamiliar(songID: sample.songID)
+        return pendingUpdate
+    }
+
+    var nextPendingFamiliarity: ListeningPlaybackPendingFamiliarity? {
+        pendingFamiliarities.first
+    }
+
+    mutating func commitFamiliarity(songID: String) {
+        recordedSongIDs.insert(songID)
+        pendingSongIDSet.remove(songID)
+        if let index = pendingFamiliarities.firstIndex(where: { $0.songID == songID }) {
+            pendingFamiliarities.remove(at: index)
+        }
+    }
+
+    private var pendingUpdate: ListeningPlaybackEvidenceUpdate {
+        guard let pending = nextPendingFamiliarity else { return .none }
+        return .becameFamiliar(songID: pending.songID)
     }
 }
 

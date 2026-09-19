@@ -105,6 +105,12 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private let artistSearchService: any ArtistSearchServicing
     @ObservationIgnored private let catalogStore: ListeningCatalogStore
     @ObservationIgnored private let playbackFactory: @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing
+    @ObservationIgnored private let evidenceCoordinatorFactory: @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator
+    @ObservationIgnored private var playbackEvidenceCoordinator: ListeningPlaybackEvidenceCoordinator?
+    @ObservationIgnored private var evidenceRetryTask: Task<Void, Never>?
+    @ObservationIgnored private var evidenceRetryPending = false
+    @ObservationIgnored private var evidenceFailureAlertShown = false
+    @ObservationIgnored private var evidenceFailureOwnsErrorText = false
     @ObservationIgnored private var controller: ListeningPlaybackController?
     @ObservationIgnored private var operation: Task<Void, Never>?
     @ObservationIgnored private var catalogGeneration = UUID()
@@ -127,9 +133,13 @@ private let listeningCatalogFetchConcurrency = 4
          artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
          playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
              $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
+         },
+         evidenceCoordinatorFactory: @escaping @MainActor (ModelContext) throws -> ListeningPlaybackEvidenceCoordinator = {
+             try ListeningPlaybackEvidenceCoordinator(modelContext: $0)
          }) {
         self.context = context; self.catalogService = catalogService; self.playbackFactory = playbackFactory
         self.artistSearchService = artistSearchService
+        self.evidenceCoordinatorFactory = evidenceCoordinatorFactory
         catalogStore = ListeningCatalogStore(modelContext: context, service: catalogService)
         mechanism.onOpen = { [weak self] in
             #if DEBUG
@@ -910,7 +920,7 @@ private let listeningCatalogFetchConcurrency = 4
             return
         }
         run { [self] in
-            if isPlaying { visibility.userPause(); try controller?.pause(); playbackState = controller?.state ?? .idle }
+            if isPlaying { visibility.userPause(); try controller?.pause() }
             else { visibility.userPlay(); try await playCurrentTrack() }
         }
     }
@@ -925,8 +935,25 @@ private let listeningCatalogFetchConcurrency = 4
         if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
-            let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
-            let next = ListeningPlaybackController(service: service, evidenceCoordinator: evidence)
+            let evidence = try playbackEvidenceCoordinatorForUse()
+            applyPlaybackEvidenceDrainResult(try evidence.flushPending())
+            let stateGeneration = generation
+            let next = ListeningPlaybackController(
+                service: service,
+                evidenceCoordinator: evidence,
+                stateDidChange: { [weak self] state in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyPlaybackState(state)
+                },
+                evidenceDidChange: { [weak self] in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.refreshPlaybackEvidenceProjection()
+                },
+                evidenceDidFail: { [weak self] in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.handlePlaybackEvidenceFailure()
+                }
+            )
             controller = next
             // Reading the disc: spin-up whir and laser seek only when a new disc
             // is seated. Switching tracks on the same disc or resuming playback stays silent.
@@ -956,9 +983,7 @@ private let listeningCatalogFetchConcurrency = 4
             try controller?.stop()
             return
         }
-        playbackState = controller?.state ?? .idle; finishedSongID = nil
-        completeSleevePlaybackIfNeeded()
-        recordPlayingIfNeeded()
+        finishedSongID = nil
     }
     private func completeSleevePlaybackIfNeeded() {
         guard isPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
@@ -978,36 +1003,163 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func stop() {
         recordedPlayingSongID = nil
+        do {
+            try controller?.stop()
+        } catch {
+            handlePlaybackEvidenceFailure()
+        }
+        controller = nil
         playbackGeneration = UUID()
+        retryPendingPlaybackEvidence()
         trackIndex = 0
-        do { try controller?.stop() } catch { errorText = BSLocalization.text("熟悉度保存失败，请重试") }
-        controller = nil; preparedSongID = nil; preparedSource = nil; playbackState = .idle; finishedSongID = nil; visibility = ListeningVisibilityPolicy(); isPlaying = false; updateTimeText()
+        preparedSongID = nil
+        preparedSource = nil
+        playbackState = .idle
+        finishedSongID = nil
+        visibility = ListeningVisibilityPolicy()
+        isPlaying = false
+        updateTimeText()
     }
-    func tick() {
+
+    func tickMechanism() {
         mechanism.refresh()
+    }
+
+    /// Explicit transport refresh retained for tests and recovery paths. Production
+    /// UI synchronization is pushed from ListeningPlaybackController instead.
+    func tick() {
+        tickMechanism()
         guard !busy, let controller else { return }
         do {
-            playbackState = try controller.refresh()
-            syncTrackIndexWithPlaybackState()
-            if case .failed = playbackState {
-                pendingSleeveSongID = nil
-                playbackError = BSLocalization.text("暂时无法播放")
-                return
-            }
-            completeSleevePlaybackIfNeeded()
-            recordPlayingIfNeeded()
-            try refreshEvidence()
-            if case let .finished(songID, _, _) = playbackState {
-                finishedSongID = songID
-            } else {
-                finishedSongID = nil
-            }
+            _ = try controller.refresh()
         } catch {
             pendingSleeveSongID = nil
             stop()
             playbackError = BSLocalization.text("暂时无法播放")
         }
     }
+
+    private func applyPlaybackState(_ state: ListeningPlaybackState) {
+        playbackState = state
+        syncTrackIndexWithPlaybackState()
+
+        if case .failed = state {
+            pendingSleeveSongID = nil
+            playbackError = BSLocalization.text("暂时无法播放")
+            return
+        }
+
+        completeSleevePlaybackIfNeeded()
+        recordPlayingIfNeeded()
+
+        if case let .finished(songID, _, _) = state {
+            finishedSongID = songID
+        } else {
+            finishedSongID = nil
+        }
+    }
+    private func refreshPlaybackEvidenceProjection() {
+        do {
+            try refreshEvidence()
+            if let show {
+                openingTiers = try context.fetch(FetchDescriptor<ShowOpeningArtistTier>())
+                    .filter { $0.showID == show.id }
+            }
+        } catch {
+            errorText = BSLocalization.text("熟悉度保存失败，请重试")
+        }
+    }
+
+    private func playbackEvidenceCoordinatorForUse() throws -> ListeningPlaybackEvidenceCoordinator {
+        if let playbackEvidenceCoordinator {
+            return playbackEvidenceCoordinator
+        }
+        let created = try evidenceCoordinatorFactory(context)
+        playbackEvidenceCoordinator = created
+        return created
+    }
+
+    private func applyPlaybackEvidenceDrainResult(
+        _ result: ListeningPlaybackEvidenceDrainResult
+    ) {
+        if result.committedAny {
+            refreshPlaybackEvidenceProjection()
+        }
+        if result.hasFailure {
+            handlePlaybackEvidenceFailure()
+        } else {
+            handlePlaybackEvidenceRecovery()
+        }
+    }
+
+    private var playbackEvidenceFailureMessage: String {
+        BSLocalization.text("熟悉度保存失败，请重试")
+    }
+
+    private func handlePlaybackEvidenceFailure() {
+        evidenceRetryPending = true
+        if !evidenceFailureAlertShown, errorText == nil {
+            evidenceFailureAlertShown = true
+            errorText = playbackEvidenceFailureMessage
+            evidenceFailureOwnsErrorText = true
+        }
+        schedulePlaybackEvidenceRetry()
+    }
+
+    private func handlePlaybackEvidenceRecovery() {
+        guard evidenceRetryPending
+                || evidenceFailureAlertShown
+                || evidenceFailureOwnsErrorText else {
+            return
+        }
+        evidenceRetryPending = false
+        evidenceFailureAlertShown = false
+        if evidenceFailureOwnsErrorText,
+           errorText == playbackEvidenceFailureMessage {
+            errorText = nil
+        }
+        evidenceFailureOwnsErrorText = false
+    }
+
+    func retryPendingPlaybackEvidence() {
+        guard let playbackEvidenceCoordinator else { return }
+        do {
+            applyPlaybackEvidenceDrainResult(
+                try playbackEvidenceCoordinator.flushPending()
+            )
+        } catch {
+            handlePlaybackEvidenceFailure()
+        }
+    }
+
+    private func schedulePlaybackEvidenceRetry() {
+        guard evidenceRetryTask == nil else { return }
+        evidenceRetryTask = Task { @MainActor [weak self] in
+            defer { self?.evidenceRetryTask = nil }
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: .seconds(1))
+                } catch {
+                    return
+                }
+                guard let self, let evidence = self.playbackEvidenceCoordinator else { return }
+                do {
+                    let result = try evidence.flushPending()
+                    if result.committedAny {
+                        self.refreshPlaybackEvidenceProjection()
+                    }
+                    if result.hasFailure {
+                        continue
+                    }
+                    self.handlePlaybackEvidenceRecovery()
+                    return
+                } catch {
+                    continue
+                }
+            }
+        }
+    }
+
     private func syncTrackIndexWithPlaybackState() {
         let songID: String?
         switch playbackState {
@@ -1027,7 +1179,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func seek(_ time: TimeInterval) {
         guard time.isFinite, time >= 0 else { return }
-        do { try controller?.seek(to: time); playbackState = controller?.state ?? .idle }
+        do { try controller?.seek(to: time) }
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
     func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
@@ -1046,7 +1198,7 @@ private let listeningCatalogFetchConcurrency = 4
         let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
         if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {
             visibility.interrupt(wasPlaying: isPlaying)
-            do { try controller?.pause(); playbackState = controller?.state ?? .idle }
+            do { try controller?.pause() }
             catch { playbackError = BSLocalization.text("暂时无法播放") }
         } else if visibility.resumeIfAllowed() {
             run { [self] in try await playCurrentTrack() }

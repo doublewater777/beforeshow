@@ -11,6 +11,7 @@ final class ShowOpeningArtistTier {
     var tierRawValue: String
     var baselineCapturedAt: Date
     var catalogSnapshotFetchedAt: Date
+    var catalogSongIDsAtResolution: [String] = []
     var resolvedAt: Date
 
     init(
@@ -20,6 +21,7 @@ final class ShowOpeningArtistTier {
         tierRawValue: String,
         baselineCapturedAt: Date,
         catalogSnapshotFetchedAt: Date,
+        catalogSongIDsAtResolution: [String] = [],
         resolvedAt: Date = Date()
     ) {
         self.uniqueKey = Self.makeUniqueKey(showID: showID, artistID: artistID)
@@ -29,6 +31,7 @@ final class ShowOpeningArtistTier {
         self.tierRawValue = tierRawValue
         self.baselineCapturedAt = baselineCapturedAt
         self.catalogSnapshotFetchedAt = catalogSnapshotFetchedAt
+        self.catalogSongIDsAtResolution = catalogSongIDsAtResolution
         self.resolvedAt = resolvedAt
     }
 

@@ -181,13 +181,25 @@ struct ListeningRepository {
     func confirmActualFamiliarity(songID: String, at date: Date = Date()) throws -> SongFamiliarityRecord {
         try OpeningFamiliarityCoordinator.captureDueBaselines(in: modelContext, now: date)
         let records = try modelContext.fetch(FetchDescriptor<SongFamiliarityRecord>())
+        let record: SongFamiliarityRecord
         if let existing = records.first(where: { $0.songID == songID }) {
             existing.confirmActualListening(at: date)
-            return existing
+            record = existing
+        } else {
+            let created = SongFamiliarityRecord(songID: songID, actualListeningAt: date, updatedAt: date)
+            modelContext.insert(created)
+            record = created
         }
-        let created = SongFamiliarityRecord(songID: songID, actualListeningAt: date, updatedAt: date)
-        modelContext.insert(created)
-        return created
+
+        if let actualListeningAt = record.actualListeningAt {
+            _ = try OpeningFamiliarityCoordinator.reconcilePersistedActualFamiliarity(
+                songID: songID,
+                familiarityReachedAt: actualListeningAt,
+                in: modelContext,
+                saveChanges: false
+            )
+        }
+        return record
     }
 
     func undoManualFamiliarity(songID: String, at date: Date = Date()) throws {
@@ -297,6 +309,7 @@ struct ListeningRepository {
         tierRawValue: String,
         baselineCapturedAt: Date,
         catalogSnapshotFetchedAt: Date,
+        catalogSongIDsAtResolution: [String] = [],
         resolvedAt: Date
     ) throws -> ShowOpeningArtistTier {
         let key = ShowOpeningArtistTier.makeUniqueKey(showID: showID, artistID: artistID)
@@ -311,6 +324,7 @@ struct ListeningRepository {
             tierRawValue: tierRawValue,
             baselineCapturedAt: baselineCapturedAt,
             catalogSnapshotFetchedAt: catalogSnapshotFetchedAt,
+            catalogSongIDsAtResolution: catalogSongIDsAtResolution,
             resolvedAt: resolvedAt
         )
         modelContext.insert(created)

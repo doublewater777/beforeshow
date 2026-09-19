@@ -5,6 +5,9 @@ import MediaPlayer
 final class ListeningPlaybackController {
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
+    private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
+    private let evidenceDidChange: @MainActor () -> Void
+    private let evidenceDidFail: @MainActor () -> Void
     private var stateMachine = ListeningPlaybackStateMachine()
     private var observationTask: Task<Void, Never>?
 
@@ -12,10 +15,16 @@ final class ListeningPlaybackController {
 
     init(
         service: ListeningPlaybackServicing,
-        evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
+        evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
+        stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
+        evidenceDidChange: @escaping @MainActor () -> Void = {},
+        evidenceDidFail: @escaping @MainActor () -> Void = {}
     ) {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
+        self.stateDidChange = stateDidChange
+        self.evidenceDidChange = evidenceDidChange
+        self.evidenceDidFail = evidenceDidFail
     }
 
     func prepare(
@@ -27,6 +36,7 @@ final class ListeningPlaybackController {
         observationTask?.cancel()
         observationTask = nil
         stateMachine.handle(.prepareStarted(source: source))
+        publishState()
         do {
             try await service.prepare(
                 items: items,
@@ -40,6 +50,7 @@ final class ListeningPlaybackController {
             _ = try refresh(now: now)
         } catch {
             stateMachine.handle(.failed)
+            publishState()
             throw error
         }
     }
@@ -51,6 +62,7 @@ final class ListeningPlaybackController {
             startObservation()
         } catch {
             stateMachine.handle(.failed)
+            publishState()
             throw error
         }
     }
@@ -80,25 +92,35 @@ final class ListeningPlaybackController {
         _ = try refresh(now: now)
         service.seek(to: time)
         evidenceCoordinator.breakContinuity()
+        _ = try refresh(now: now)
     }
 
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
         // A transport/resource failure is a user-visible playback state, not a
         // reason to tear down the physical disc or reset the selected track.
-        // The coordinator can therefore keep the disc in place and project a
-        // retry action next to the player.
+        // Pending evidence is owned separately and can still be flushed later.
         if service.failure != nil {
             stateMachine.handle(.failed)
+            publishState()
             return state
         }
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
         stateMachine.handle(.sample(sample))
-        _ = try evidenceCoordinator.ingest(sample, at: now)
+        publishState()
         ListeningRemoteCommandBridge.shared.update(sample: sample)
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.ingest(sample, at: now)
+        )
         return state
+    }
+
+    func flushPendingEvidence() throws {
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.flushPending()
+        )
     }
 
     func stop(now: Date = Date()) throws {
@@ -108,9 +130,31 @@ final class ListeningPlaybackController {
             service.stop()
             evidenceCoordinator.breakContinuity()
             stateMachine.handle(.reset)
+            publishState()
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
-        _ = try refresh(now: now)
+
+        if service.failure == nil,
+           service.snapshot(observedAt: now) != nil {
+            _ = try refresh(now: now)
+        } else {
+            try flushPendingEvidence()
+        }
+    }
+
+    private func handleEvidenceDrainResult(
+        _ result: ListeningPlaybackEvidenceDrainResult
+    ) {
+        if result.committedAny {
+            evidenceDidChange()
+        }
+        if result.hasFailure {
+            evidenceDidFail()
+        }
+    }
+
+    private func publishState() {
+        stateDidChange(state)
     }
 
     private func startObservation() {
@@ -233,5 +277,18 @@ final class ListeningRemoteCommandBridge {
         default:
             try await controller.play()
         }
+    }
+
+    func pauseForTesting() throws {
+        try controller?.pause()
+    }
+
+    func nextForTesting() async throws {
+        try await controller?.skipToNext()
+    }
+
+    @discardableResult
+    func refreshForTesting(now: Date = Date()) throws -> ListeningPlaybackState? {
+        try controller?.refresh(now: now)
     }
 }

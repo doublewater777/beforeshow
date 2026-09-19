@@ -26,6 +26,450 @@ import SwiftData
         room.stop(); room.mechanism.motion.stop()
     }
 
+    func testOpeningLidDrainsAllPendingEvidenceBeforeControllerIsDestroyed() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
+        let firstSongID = disc.tracks[0].id
+        let secondSongID = disc.tracks[1].id
+        room.restoreDisc(disc, songID: firstSongID)
+        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        try await ListeningRemoteCommandBridge.shared.nextForTesting()
+        XCTAssertEqual(room.track?.id, secondSongID)
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        room.mechanism.setLid(open: true)
+
+        XCTAssertTrue(playback.didStop)
+        let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+        XCTAssertEqual(
+            Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            [firstSongID, secondSongID]
+        )
+    }
+
+    func testPartialEvidenceBatchCommitImmediatelyRefreshesRoomProjectionAndReportsFailure() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        var failSongID: String?
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable, failSongID != songID else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
+        let firstSongID = disc.tracks[0].id
+        let secondSongID = disc.tracks[1].id
+        room.restoreDisc(disc, songID: firstSongID)
+        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        try await ListeningRemoteCommandBridge.shared.nextForTesting()
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        persistenceAvailable = true
+        failSongID = secondSongID
+        room.errorText = nil
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(52)
+        )
+
+        XCTAssertTrue(room.actualSongIDs.contains(firstSongID))
+        XCTAssertTrue(room.familiarSongIDs.contains(firstSongID))
+        XCTAssertFalse(room.actualSongIDs.contains(secondSongID))
+        XCTAssertFalse(room.familiarSongIDs.contains(secondSongID))
+        XCTAssertNotNil(room.errorText)
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            [firstSongID]
+        )
+    }
+
+    func testOpeningLidWithPersistenceFailureRetainsPendingEvidenceForLaterRoomRetry() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.count >= 2 })
+        let firstSongID = disc.tracks[0].id
+        let secondSongID = disc.tracks[1].id
+        room.restoreDisc(disc, songID: firstSongID)
+        try await ListenTestData.settle(room) { room.track?.id == firstSongID && !room.busy }
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        try await ListeningRemoteCommandBridge.shared.nextForTesting()
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        room.mechanism.setLid(open: true)
+
+        XCTAssertTrue(playback.didStop)
+        XCTAssertNil(
+            try ListeningRemoteCommandBridge.shared.refreshForTesting(
+                now: Date().addingTimeInterval(52)
+            ),
+            "lid-open teardown must detach the destroyed playback controller"
+        )
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+        room.retryPendingPlaybackEvidence()
+
+        XCTAssertEqual(
+            Set(try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .compactMap { $0.actualListeningAt == nil ? nil : $0.songID }),
+            [firstSongID, secondSongID]
+        )
+        XCTAssertTrue(room.actualSongIDs.contains(firstSongID))
+        XCTAssertTrue(room.actualSongIDs.contains(secondSongID))
+        XCTAssertTrue(room.familiarSongIDs.contains(firstSongID))
+        XCTAssertTrue(room.familiarSongIDs.contains(secondSongID))
+    }
+
+    func testBackgroundEvidenceRetryDoesNotRepresentDismissedFailureAlert() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        var persistenceAttempts = 0
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        persistenceAttempts += 1
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        room.restoreDisc(disc)
+        try await ListenTestData.settle(room) { room.track != nil && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        XCTAssertEqual(
+            room.errorText,
+            BSLocalization.text("熟悉度保存失败，请重试")
+        )
+        room.errorText = nil
+        let attemptsAfterDismiss = persistenceAttempts
+
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertGreaterThan(
+            persistenceAttempts,
+            attemptsAfterDismiss,
+            "background retry must have run while persistence remained unavailable"
+        )
+        XCTAssertNil(
+            room.errorText,
+            "background retry failures must not re-present a dismissed familiarity alert"
+        )
+
+        persistenceAvailable = true
+        room.retryPendingPlaybackEvidence()
+        room.stop()
+    }
+
+    func testBackgroundEvidenceRetryRecoveryClearsOwnedFailureAlert() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        XCTAssertEqual(
+            room.errorText,
+            BSLocalization.text("熟悉度保存失败，请重试")
+        )
+
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertNil(
+            room.errorText,
+            "successful background persistence retry must clear its own stale alert"
+        )
+        room.stop()
+    }
+
+    func testBackgroundEvidenceRetryRecoveryDoesNotClearUnrelatedError() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+        XCTAssertNotNil(room.errorText)
+
+        let unrelatedError = BSLocalization.text("保存失败，请重试")
+        room.errorText = unrelatedError
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence recovery must not clear another coordinator error"
+        )
+        room.errorText = nil
+        room.stop()
+    }
+
+    func testEvidenceFailureDoesNotOverrideExistingUnrelatedErrorOrClearItOnRecovery() async throws {
+        let (container, show) = try ListenTestData.make()
+        let context = container.mainContext
+        let playback = LifecyclePendingPlaybackService()
+        var persistenceAvailable = false
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback },
+            evidenceCoordinatorFactory: { modelContext in
+                try ListeningPlaybackEvidenceCoordinator(
+                    modelContext: modelContext,
+                    persistActualFamiliarity: { songID, date in
+                        _ = try ListeningRepository(modelContext: modelContext)
+                            .confirmActualFamiliarity(songID: songID, at: date)
+                        guard persistenceAvailable else {
+                            throw LifecycleEvidencePersistenceTestError.expectedFailure
+                        }
+                        try modelContext.save()
+                    }
+                )
+            }
+        )
+        defer { room.mechanism.motion.stop() }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        let songID = try XCTUnwrap(disc.tracks.first?.id)
+        room.restoreDisc(disc, songID: songID)
+        try await ListenTestData.settle(room) { room.track?.id == songID && !room.busy }
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        let unrelatedError = BSLocalization.text("保存失败，请重试")
+        room.errorText = unrelatedError
+
+        playback.currentTime = 51
+        _ = try ListeningRemoteCommandBridge.shared.refreshForTesting(
+            now: Date().addingTimeInterval(51)
+        )
+
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence failure must not take alert ownership from an existing unrelated error"
+        )
+
+        persistenceAvailable = true
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+                .contains { $0.songID == songID && $0.actualListeningAt != nil }
+        )
+        XCTAssertEqual(
+            room.errorText,
+            unrelatedError,
+            "evidence recovery must preserve the unrelated error that existed before the outage"
+        )
+        room.errorText = nil
+        room.stop()
+    }
+
     func testLoadedDiscRestoresAcrossCoordinatorRecreationWithoutAutoplay() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListenTestData.room(container.mainContext)
@@ -526,6 +970,81 @@ private final class CatalogRaceArtistSearch: @unchecked Sendable, ArtistSearchSe
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         lock.withLock { searches += 1 }
         return []
+    }
+}
+
+private enum LifecycleEvidencePersistenceTestError: Error {
+    case expectedFailure
+}
+
+@MainActor
+private final class LifecyclePendingPlaybackService: ListeningPlaybackServicing {
+    private var items: [ListeningPlaybackItem] = []
+    private var index = 0
+    private var source: ListeningPlaybackSource = .fullCatalog
+    private var playing = false
+    var currentTime: TimeInterval = 0
+    private(set) var didStop = false
+
+    func prepare(
+        items: [ListeningPlaybackItem],
+        source: ListeningPlaybackSource,
+        startingAtSongID: String?
+    ) async throws {
+        guard !items.isEmpty else { throw ListeningPlaybackError.emptyQueue }
+        self.items = items
+        self.source = source
+        index = startingAtSongID.flatMap { id in
+            items.firstIndex(where: { $0.songID == id })
+        } ?? 0
+        currentTime = 0
+        playing = false
+        didStop = false
+    }
+
+    func play() async throws {
+        playing = true
+    }
+
+    func pause() {
+        playing = false
+    }
+
+    func skipToNext() async throws {
+        guard index + 1 < items.count else { throw ListeningPlaybackError.queueBoundary }
+        index += 1
+        currentTime = 0
+    }
+
+    func skipToPrevious() async throws {
+        guard index > 0 else { throw ListeningPlaybackError.queueBoundary }
+        index -= 1
+        currentTime = 0
+    }
+
+    func seek(to time: TimeInterval) {
+        currentTime = time
+    }
+
+    func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
+        guard items.indices.contains(index) else { return nil }
+        let item = items[index]
+        return ListeningPlaybackSample(
+            songID: item.songID,
+            source: source,
+            currentTime: currentTime,
+            duration: item.duration,
+            isPlaying: playing,
+            observedAt: observedAt
+        )
+    }
+
+    func stop() {
+        didStop = true
+        playing = false
+        items = []
+        index = 0
+        currentTime = 0
     }
 }
 

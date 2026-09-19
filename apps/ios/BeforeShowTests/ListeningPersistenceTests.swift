@@ -80,11 +80,13 @@ final class ListeningPersistenceTests: XCTestCase {
         )
         _ = try repository.insertOpeningTierIfAbsent(
             showID: showID, artistID: "1", artistName: "A", tierRawValue: "newListener",
-            baselineCapturedAt: firstDate, catalogSnapshotFetchedAt: firstDate, resolvedAt: firstDate
+            baselineCapturedAt: firstDate, catalogSnapshotFetchedAt: firstDate,
+            catalogSongIDsAtResolution: ["10"], resolvedAt: firstDate
         )
         _ = try repository.insertOpeningTierIfAbsent(
             showID: showID, artistID: "1", artistName: "A", tierRawValue: "deepListener",
-            baselineCapturedAt: secondDate, catalogSnapshotFetchedAt: secondDate, resolvedAt: secondDate
+            baselineCapturedAt: secondDate, catalogSnapshotFetchedAt: secondDate,
+            catalogSongIDsAtResolution: ["11", "10"], resolvedAt: secondDate
         )
         _ = try repository.confirmManualFamiliarity(songID: "10", at: firstDate)
         _ = try repository.confirmActualFamiliarity(songID: "10", at: secondDate)
@@ -109,6 +111,11 @@ final class ListeningPersistenceTests: XCTestCase {
         XCTAssertEqual(baseline.familiarSongIDsAtCapture, ["10"], "opening baseline is immutable once captured")
         let tier = try XCTUnwrap(context.fetch(FetchDescriptor<ShowOpeningArtistTier>()).first)
         XCTAssertEqual(tier.tierRawValue, "newListener", "opening tier is immutable once resolved")
+        XCTAssertEqual(
+            tier.catalogSongIDsAtResolution,
+            ["10"],
+            "opening tier must retain the catalog membership used by its original resolution"
+        )
         let familiarity = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first)
         XCTAssertEqual(familiarity.manualConfirmedAt, firstDate)
         XCTAssertEqual(familiarity.actualListeningAt, secondDate)
