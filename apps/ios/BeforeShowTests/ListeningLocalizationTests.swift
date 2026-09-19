@@ -111,16 +111,20 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let listeningRoot = try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift")
 
         XCTAssertTrue(
-            listeningRoot.contains(".frame(width: 58, height: 52)"),
-            "Root navigation icons must retain a generous touch surface inside the unified dock"
+            listeningRoot.contains("static let tabSize: CGFloat = 58"),
+            "Detached root buttons must keep a generous touch target"
         )
         XCTAssertTrue(
-            listeningRoot.contains(".frame(maxWidth: 360)"),
-            "The three root destinations must remain grouped in one compact dock"
+            listeningRoot.contains("static let gap: CGFloat = 10"),
+            "Detached root controls must stay visually grouped instead of drifting to the screen edges"
         )
         XCTAssertTrue(
+            listeningRoot.contains("static let playerGroupMaxWidth: CGFloat = 352"),
+            "Compact-player mode must remain centered as a tight three-piece group"
+        )
+        XCTAssertFalse(
             listeningRoot.contains("RoundedRectangle(cornerRadius: 30"),
-            "The root navigation must render as one shared glass container"
+            "Root navigation must not reintroduce a full-width shared dock background"
         )
         XCTAssertTrue(
             listeningRoot.contains("minHeight: BSLayout.minTouchTarget"),
