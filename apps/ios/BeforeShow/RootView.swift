@@ -278,7 +278,10 @@ struct RootView: View {
             .accessibilityIdentifier("root.tab.footprints")
         }
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
-        .tint(BSColor.Stage.accent)
+        // Keep system navigation chrome neutral. Root Bottom Chrome owns its own
+        // selected-state accent explicitly, so the brand tint must not leak into
+        // push/sheet back, close, share, and menu controls.
+        .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {
