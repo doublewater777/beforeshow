@@ -910,7 +910,7 @@ private let listeningCatalogFetchConcurrency = 4
             return
         }
         run { [self] in
-            if isPlaying { visibility.userPause(); try controller?.pause(); playbackState = controller?.state ?? .idle }
+            if isPlaying { visibility.userPause(); try controller?.pause() }
             else { visibility.userPlay(); try await playCurrentTrack() }
         }
     }
@@ -926,7 +926,15 @@ private let listeningCatalogFetchConcurrency = 4
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
-            let next = ListeningPlaybackController(service: service, evidenceCoordinator: evidence)
+            let stateGeneration = generation
+            let next = ListeningPlaybackController(
+                service: service,
+                evidenceCoordinator: evidence,
+                stateDidChange: { [weak self] state in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyPlaybackState(state)
+                }
+            )
             controller = next
             // Reading the disc: spin-up whir and laser seek only when a new disc
             // is seated. Switching tracks on the same disc or resuming playback stays silent.
@@ -956,9 +964,7 @@ private let listeningCatalogFetchConcurrency = 4
             try controller?.stop()
             return
         }
-        playbackState = controller?.state ?? .idle; finishedSongID = nil
-        completeSleevePlaybackIfNeeded()
-        recordPlayingIfNeeded()
+        finishedSongID = nil
     }
     private func completeSleevePlaybackIfNeeded() {
         guard isPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
@@ -979,33 +985,54 @@ private let listeningCatalogFetchConcurrency = 4
     func stop() {
         recordedPlayingSongID = nil
         playbackGeneration = UUID()
-        trackIndex = 0
         do { try controller?.stop() } catch { errorText = BSLocalization.text("熟悉度保存失败，请重试") }
-        controller = nil; preparedSongID = nil; preparedSource = nil; playbackState = .idle; finishedSongID = nil; visibility = ListeningVisibilityPolicy(); isPlaying = false; updateTimeText()
+        controller = nil
+        trackIndex = 0
+        preparedSongID = nil
+        preparedSource = nil
+        playbackState = .idle
+        finishedSongID = nil
+        visibility = ListeningVisibilityPolicy()
+        isPlaying = false
+        updateTimeText()
     }
-    func tick() {
+
+    func tickMechanism() {
         mechanism.refresh()
+    }
+
+    /// Explicit transport refresh retained for tests and recovery paths. Production
+    /// UI synchronization is pushed from ListeningPlaybackController instead.
+    func tick() {
+        tickMechanism()
         guard !busy, let controller else { return }
         do {
-            playbackState = try controller.refresh()
-            syncTrackIndexWithPlaybackState()
-            if case .failed = playbackState {
-                pendingSleeveSongID = nil
-                playbackError = BSLocalization.text("暂时无法播放")
-                return
-            }
-            completeSleevePlaybackIfNeeded()
-            recordPlayingIfNeeded()
-            try refreshEvidence()
-            if case let .finished(songID, _, _) = playbackState {
-                finishedSongID = songID
-            } else {
-                finishedSongID = nil
-            }
+            _ = try controller.refresh()
         } catch {
             pendingSleeveSongID = nil
             stop()
             playbackError = BSLocalization.text("暂时无法播放")
+        }
+    }
+
+    private func applyPlaybackState(_ state: ListeningPlaybackState) {
+        playbackState = state
+        syncTrackIndexWithPlaybackState()
+
+        if case .failed = state {
+            pendingSleeveSongID = nil
+            playbackError = BSLocalization.text("暂时无法播放")
+            return
+        }
+
+        completeSleevePlaybackIfNeeded()
+        recordPlayingIfNeeded()
+        try? refreshEvidence()
+
+        if case let .finished(songID, _, _) = state {
+            finishedSongID = songID
+        } else {
+            finishedSongID = nil
         }
     }
     private func syncTrackIndexWithPlaybackState() {
@@ -1027,7 +1054,7 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func seek(_ time: TimeInterval) {
         guard time.isFinite, time >= 0 else { return }
-        do { try controller?.seek(to: time); playbackState = controller?.state ?? .idle }
+        do { try controller?.seek(to: time) }
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
     func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
@@ -1046,7 +1073,7 @@ private let listeningCatalogFetchConcurrency = 4
         let source = preparedSource ?? ListeningPlaybackSourceResolver.resolve(capability: capability(for: track))
         if ListeningVisibilityPolicy.mustPause(tabVisible: active, foreground: foreground, source: source) {
             visibility.interrupt(wasPlaying: isPlaying)
-            do { try controller?.pause(); playbackState = controller?.state ?? .idle }
+            do { try controller?.pause() }
             catch { playbackError = BSLocalization.text("暂时无法播放") }
         } else if visibility.resumeIfAllowed() {
             run { [self] in try await playCurrentTrack() }
