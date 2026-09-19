@@ -5,6 +5,17 @@ struct ListeningCabinetSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDisc: ListeningDisc?
 
+    private var gridColumnCount: Int {
+        room.browsingArtist == nil ? 2 : 3
+    }
+
+    private var gridColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.flexible(), spacing: BSSpacing.sm),
+            count: gridColumnCount
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -55,7 +66,7 @@ struct ListeningCabinetSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, BSSpacing.xl * 2)
                     } else {
-                   LazyVGrid(columns: [GridItem(.flexible(), spacing: BSSpacing.md), GridItem(.flexible(), spacing: BSSpacing.md)], spacing: BSSpacing.lg) {
+                   LazyVGrid(columns: gridColumns, spacing: BSSpacing.lg) {
                        ForEach(room.libraryDiscs) { disc in
                            Button { selectedDisc = disc } label: {
                                VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
