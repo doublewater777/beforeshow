@@ -246,6 +246,10 @@ struct ListeningPlaybackEvidenceTracker {
         return pendingUpdate
     }
 
+    var nextPendingFamiliaritySongID: String? {
+        pendingSongIDs.first
+    }
+
     mutating func commitFamiliarity(songID: String) {
         recordedSongIDs.insert(songID)
         pendingSongIDSet.remove(songID)
@@ -255,7 +259,7 @@ struct ListeningPlaybackEvidenceTracker {
     }
 
     private var pendingUpdate: ListeningPlaybackEvidenceUpdate {
-        guard let songID = pendingSongIDs.first else { return .none }
+        guard let songID = nextPendingFamiliaritySongID else { return .none }
         return .becameFamiliar(songID: songID)
     }
 }
