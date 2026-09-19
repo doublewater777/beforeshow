@@ -5,6 +5,7 @@ import MediaPlayer
 final class ListeningPlaybackController {
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
+    private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
     private var stateMachine = ListeningPlaybackStateMachine()
     private var observationTask: Task<Void, Never>?
 
@@ -12,10 +13,12 @@ final class ListeningPlaybackController {
 
     init(
         service: ListeningPlaybackServicing,
-        evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
+        evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
+        stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in }
     ) {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
+        self.stateDidChange = stateDidChange
     }
 
     func prepare(
@@ -27,6 +30,7 @@ final class ListeningPlaybackController {
         observationTask?.cancel()
         observationTask = nil
         stateMachine.handle(.prepareStarted(source: source))
+        publishState()
         do {
             try await service.prepare(
                 items: items,
@@ -40,6 +44,7 @@ final class ListeningPlaybackController {
             _ = try refresh(now: now)
         } catch {
             stateMachine.handle(.failed)
+            publishState()
             throw error
         }
     }
@@ -51,6 +56,7 @@ final class ListeningPlaybackController {
             startObservation()
         } catch {
             stateMachine.handle(.failed)
+            publishState()
             throw error
         }
     }
@@ -80,6 +86,7 @@ final class ListeningPlaybackController {
         _ = try refresh(now: now)
         service.seek(to: time)
         evidenceCoordinator.breakContinuity()
+        _ = try refresh(now: now)
     }
 
     @discardableResult
@@ -90,12 +97,14 @@ final class ListeningPlaybackController {
         // retry action next to the player.
         if service.failure != nil {
             stateMachine.handle(.failed)
+            publishState()
             return state
         }
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
         stateMachine.handle(.sample(sample))
+        publishState()
         _ = try evidenceCoordinator.ingest(sample, at: now)
         ListeningRemoteCommandBridge.shared.update(sample: sample)
         return state
@@ -108,9 +117,14 @@ final class ListeningPlaybackController {
             service.stop()
             evidenceCoordinator.breakContinuity()
             stateMachine.handle(.reset)
+            publishState()
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
         _ = try refresh(now: now)
+    }
+
+    private func publishState() {
+        stateDidChange(state)
     }
 
     private func startObservation() {
@@ -233,5 +247,9 @@ final class ListeningRemoteCommandBridge {
         default:
             try await controller.play()
         }
+    }
+
+    func nextForTesting() async throws {
+        try await controller?.skipToNext()
     }
 }
