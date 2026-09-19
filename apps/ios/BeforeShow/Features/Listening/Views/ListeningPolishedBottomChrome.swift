@@ -53,6 +53,8 @@ enum ListeningBottomBarLayout {
     static let tabSize: CGFloat = 58
     static let gap: CGFloat = 10
     static let playerGroupMaxWidth: CGFloat = 352
+    static let transitionDelay = Duration.milliseconds(45)
+    static let transitionDuration = 0.28
 }
 
 /// Root navigation chrome. The middle Listen destination owns playback chrome:
@@ -60,6 +62,7 @@ enum ListeningBottomBarLayout {
 /// into the compact player on Current / Footprints when a disc is loaded.
 struct ListeningPolishedBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var presentedTab: BeforeShowTab
     @State private var store = ListeningPlaybackChromeStore.shared
 
@@ -93,8 +96,10 @@ struct ListeningPolishedBottomChrome: View {
                             track: track,
                             onSelectListen: { selectedTab = .listen }
                         )
+                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     } else {
                         tabButton(.listen)
+                            .transition(.opacity.combined(with: .scale(scale: 0.96)))
                     }
                 }
                 .frame(width: showsMiniPlayer ? nil : ListeningBottomBarLayout.tabSize)
@@ -110,11 +115,22 @@ struct ListeningPolishedBottomChrome: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("root.bottomBar")
         .task(id: selectedTab) {
-            // Let TabView commit the destination first. Chrome follows on the next
-            // main-actor turn without a competing layout/matched-geometry animation.
+            // TabView owns the selection frame. After that frame has committed,
+            // animate only the chrome's width/content change so navigation stays
+            // responsive while Listen still visibly contracts/expands.
             await Task.yield()
             guard !Task.isCancelled else { return }
-            presentedTab = selectedTab
+
+            if reduceMotion {
+                presentedTab = selectedTab
+                return
+            }
+
+            try? await Task.sleep(for: ListeningBottomBarLayout.transitionDelay)
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeInOut(duration: ListeningBottomBarLayout.transitionDuration)) {
+                presentedTab = selectedTab
+            }
         }
     }
 
