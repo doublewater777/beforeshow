@@ -58,6 +58,48 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertEqual(record.actualListeningAt, retryAttempt)
     }
 
+    func testFailedPersistenceDoesNotBlockNextSongAndBothRetryWithoutReplay() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        var persistenceAvailable = false
+        let coordinator = try ListeningPlaybackEvidenceCoordinator(
+            modelContext: context,
+            persistActualFamiliarity: { songID, date in
+                _ = try ListeningRepository(modelContext: context)
+                    .confirmActualFamiliarity(songID: songID, at: date)
+                guard persistenceAvailable else {
+                    throw EvidencePersistenceTestError.expectedFailure
+                }
+                try context.save()
+            }
+        )
+
+        XCTAssertFalse(try coordinator.ingest(full(songID: "song-a", time: 0, observedAt: 0)))
+        XCTAssertThrowsError(
+            try coordinator.ingest(full(songID: "song-a", time: 51, observedAt: 51))
+        )
+        XCTAssertThrowsError(
+            try coordinator.ingest(full(songID: "song-b", time: 0, observedAt: 52))
+        )
+        XCTAssertThrowsError(
+            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 103))
+        )
+        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
+
+        persistenceAvailable = true
+
+        XCTAssertTrue(
+            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 104, isPlaying: false))
+        )
+        XCTAssertTrue(
+            try coordinator.ingest(full(songID: "song-b", time: 51, observedAt: 105, isPlaying: false))
+        )
+
+        let records = try context.fetch(FetchDescriptor<SongFamiliarityRecord>())
+        XCTAssertEqual(Set(records.compactMap { $0.actualListeningAt == nil ? nil : $0.songID }), ["song-a", "song-b"])
+    }
+
     func testManualFamiliarityDoesNotSuppressLaterActualEvidence() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -76,13 +118,18 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertEqual(record.actualListeningAt, actualAt)
     }
 
-    private func full(time: TimeInterval, observedAt: TimeInterval) -> ListeningPlaybackSample {
+    private func full(
+        songID: String = "song-a",
+        time: TimeInterval,
+        observedAt: TimeInterval,
+        isPlaying: Bool = true
+    ) -> ListeningPlaybackSample {
         ListeningPlaybackSample(
-            songID: "song-a",
+            songID: songID,
             source: .fullCatalog,
             currentTime: time,
             duration: 100,
-            isPlaying: true,
+            isPlaying: isPlaying,
             observedAt: Date(timeIntervalSince1970: observedAt)
         )
     }
