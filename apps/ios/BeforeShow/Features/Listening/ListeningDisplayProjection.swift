@@ -140,18 +140,14 @@ struct ListeningDisplayProjection: Equatable {
     let shelfDiscs: [ListeningDisc]
     let showsAllDiscs: Bool
     let player: ListeningPlayerPresentation
-    fileprivate let discStates: [String: ListeningDiscPresentation]
-    fileprivate let trackStates: [String: ListeningTrackPresentation]
+    let access: ListeningMusicAccess
 
     func discPresentation(for disc: ListeningDisc) -> ListeningDiscPresentation {
-        discStates[disc.id] ?? ListeningDisplayProjector.discPresentation(for: disc, access: .init(
-            authorizationStatus: .notDetermined,
-            canPlayCatalogContent: false
-        ))
+        ListeningDisplayProjector.discPresentation(for: disc, access: access)
     }
 
     func trackPresentation(for track: ListeningDiscTrack) -> ListeningTrackPresentation {
-        trackStates[track.id] ?? ListeningTrackPresentation(capability: .metadataOnly)
+        ListeningDisplayProjector.trackPresentation(for: track, access: access)
     }
 }
 
@@ -173,19 +169,11 @@ enum ListeningDisplayProjector {
         playbackState: ListeningPlaybackState,
         playbackError: String?
     ) -> ListeningDisplayProjection {
-        let allTracks = allDiscs.flatMap(\.tracks)
-        let trackStates = Dictionary(
-            allTracks.map { ($0.id, trackPresentation(for: $0, access: access)) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let discStates = Dictionary(
-            allDiscs.map { ($0.id, discPresentation(for: $0, access: access)) },
-            uniquingKeysWith: { first, _ in first }
-        )
+        let hasAnyTracks = allDiscs.contains(where: { !$0.tracks.isEmpty })
         let mode = roomMode(
             access: access,
-            isAuthorizing: isAuthorizing || (allTracks.isEmpty && (page == .loading || page == .loadingCatalog)),
-            tracks: allTracks
+            isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
+            allDiscs: allDiscs
         )
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
         let currentTrackState = currentTrack.map { trackPresentation(for: $0, access: access) }
@@ -209,8 +197,7 @@ enum ListeningDisplayProjector {
             shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
             showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
             player: player,
-            discStates: discStates,
-            trackStates: trackStates
+            access: access
         )
     }
 
@@ -271,14 +258,17 @@ enum ListeningDisplayProjector {
     private static func roomMode(
         access: ListeningMusicAccess,
         isAuthorizing: Bool,
-        tracks: [ListeningDiscTrack]
+        allDiscs: [ListeningDisc]
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
-        let capabilities = tracks.map { trackPresentation(for: $0, access: access).capability }
-        if capabilities.contains(.fullPlayback) { return .fullPlayback }
-        if capabilities.contains(.previewOnly) { return .preview }
-        if capabilities.contains(.metadataOnly) { return .metadataOnly }
-        return .unavailable
+        guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
+        if access.authorizationStatus == .authorized, access.canPlayCatalogContent {
+            return .fullPlayback
+        }
+        if allDiscs.contains(where: { $0.tracks.contains(where: { $0.previewURL != nil }) }) {
+            return .preview
+        }
+        return .metadataOnly
     }
 
     private static func recoveryAction(

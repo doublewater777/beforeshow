@@ -287,7 +287,7 @@ import SwiftData
         room.stop()
     }
 
-    func testCompilationUsesTwoSongsPerArtistPerDiscInRoundRobinOrder() {
+    func testCompilationUsesTwoSongsPerArtistPerDiscGroupedByArtist() {
         func track(_ id: String, _ duration: TimeInterval? = nil) -> ListeningDiscTrack {
             .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist", duration: duration))
         }
@@ -298,14 +298,31 @@ import SwiftData
         ])
 
         XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
-            ["a1", "b1", "a2"],
-            ["a3", "b3", "a4", "b4"],
-            ["a5", "b5", "a6", "b6"],
+            ["a1", "a2", "b1"],
+            ["a3", "a4", "b3", "b4"],
+            ["a5", "a6", "b5", "b6"],
             ["a7", "b7"]
         ])
         XCTAssertEqual(ListeningCompilationAssembler.tracksPerArtistPerDisc, 2)
         XCTAssertEqual(result.count, 4)
         XCTAssertLessThanOrEqual(result.count, ListeningCompilationAssembler.maxDiscCount)
+    }
+
+    func testCompilationGroupsMultipleArtistsConsecutivelyWithinDisc() {
+        func track(_ id: String) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
+        }
+
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [
+            [track("a1"), track("a2"), track("a3"), track("a4")],
+            [track("b1"), track("b2"), track("b3"), track("b4")],
+            [track("c1"), track("c2"), track("c3"), track("c4")]
+        ])
+
+        XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
+            ["a1", "a2", "b1", "b2", "c1", "c2"],
+            ["a3", "a4", "b3", "b4", "c3", "c4"]
+        ])
     }
 
     func testCompilationGroupingIgnoresTrackDuration() {

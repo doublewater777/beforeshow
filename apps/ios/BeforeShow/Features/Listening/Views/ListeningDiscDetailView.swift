@@ -1,5 +1,11 @@
 import SwiftUI
 
+private struct IndexedTrack: Identifiable {
+    let index: Int
+    let track: ListeningDiscTrack
+    var id: String { track.id }
+}
+
 struct ListeningDiscDetailView: View {
     @Bindable var room: ListeningRoomCoordinator
     let disc: ListeningDisc
@@ -11,11 +17,13 @@ struct ListeningDiscDetailView: View {
     private let isMultiArtist: Bool
     private let metadataSummary: String
     private let artistsSummary: String
+    private let indexedTracks: [IndexedTrack]
 
     init(room: ListeningRoomCoordinator, disc: ListeningDisc, onLoad: @escaping () -> Void = {}) {
         self.room = room
         self.disc = disc
         self.onLoad = onLoad
+        self.indexedTracks = disc.tracks.enumerated().map { IndexedTrack(index: $0.offset, track: $0.element) }
 
         let multi: Bool
         if case .compilation = disc.origin {
@@ -128,7 +136,7 @@ struct ListeningDiscDetailView: View {
 
                 ListeningDiscCover(disc: disc, show: room.show)
                     .frame(width: 144, height: 144)
-                    .shadow(color: Color.black.opacity(0.75), radius: 18, x: 2, y: 10)
+                    .shadow(color: Color.black.opacity(0.5), radius: 8, x: 1, y: 5)
                     .overlay {
                         LinearGradient(
                             stops: [
@@ -143,6 +151,7 @@ struct ListeningDiscDetailView: View {
                         .allowsHitTesting(false)
                     }
             }
+            .compositingGroup()
             .frame(width: 190, height: 144, alignment: .leading)
             .padding(.top, BSSpacing.xs)
 
@@ -301,7 +310,13 @@ struct ListeningDiscDetailView: View {
     }
 
     private var trackListSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let player = room.display.player
+        let currentTrackID = room.track?.id
+        let isLoadedDisc = isLoaded
+        let isBusy = room.busy
+        let isAuto = room.mechanism.isAutomatic
+
+        return VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text(BSLocalization.text("TRACKLIST"))
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -317,11 +332,19 @@ struct ListeningDiscDetailView: View {
             .padding(.vertical, 10)
             .background(Color.white.opacity(0.03))
 
-            LazyVStack(spacing: 0) {
-                ForEach(Array(disc.tracks.enumerated()), id: \.element.id) { index, track in
-                    trackRow(index: index, track: track)
+            VStack(spacing: 0) {
+                ForEach(indexedTracks) { item in
+                    trackRow(
+                        index: item.index,
+                        track: item.track,
+                        player: player,
+                        currentTrackID: currentTrackID,
+                        isLoadedDisc: isLoadedDisc,
+                        isBusy: isBusy,
+                        isAuto: isAuto
+                    )
 
-                    if index < disc.tracks.count - 1 {
+                    if item.index < indexedTracks.count - 1 {
                         Divider()
                             .overlay(BSColor.Stage.border)
                             .accessibilityHidden(true)
@@ -331,7 +354,6 @@ struct ListeningDiscDetailView: View {
         }
         .background(BSColor.Stage.surfaceRaised.opacity(0.55), in: RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous).stroke(Color.white.opacity(0.07), lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: BSRadius.md, style: .continuous))
     }
 
     private var trackListStatusText: String {
@@ -342,13 +364,27 @@ struct ListeningDiscDetailView: View {
     }
 
     @ViewBuilder
-    private func trackRow(index: Int, track: ListeningDiscTrack) -> some View {
-        let trackPresentation = room.display.trackPresentation(for: track)
-        let state = trackRowState(for: track, isPlayable: trackPresentation.isPlayable)
+    private func trackRow(
+        index: Int,
+        track: ListeningDiscTrack,
+        player: ListeningPlayerPresentation,
+        currentTrackID: String?,
+        isLoadedDisc: Bool,
+        isBusy: Bool,
+        isAuto: Bool
+    ) -> some View {
+        let trackPresentation = room.trackPresentation(for: track)
+        let isCurrent = isLoadedDisc && currentTrackID == track.id
+        let state = trackRowState(
+            for: track,
+            isPlayable: trackPresentation.isPlayable,
+            isCurrent: isCurrent,
+            playerPhase: player.phase
+        )
         let action = ListeningDiscDetailTrackAction.resolve(
-            isLoaded: isLoaded,
-            isCurrentTrack: room.track?.id == track.id,
-            player: room.display.player
+            isLoaded: isLoadedDisc,
+            isCurrentTrack: isCurrent,
+            player: player
         )
         let row = ListeningDiscTrackRow(
             index: index,
@@ -370,7 +406,7 @@ struct ListeningDiscDetailView: View {
                 row
             }
             .buttonStyle(BSListeningPressStyle(scale: 0.985))
-            .disabled(room.busy || room.mechanism.isAutomatic)
+            .disabled(isBusy || isAuto)
             .accessibilityValue(accessibilityValue(for: state, presentation: trackPresentation))
             .accessibilityIdentifier("listening.track.\(track.id)")
         } else {
@@ -380,12 +416,17 @@ struct ListeningDiscDetailView: View {
         }
     }
 
-    private func trackRowState(for track: ListeningDiscTrack, isPlayable: Bool) -> ListeningDiscTrackRowState {
+    private func trackRowState(
+        for track: ListeningDiscTrack,
+        isPlayable: Bool,
+        isCurrent: Bool,
+        playerPhase: ListeningPlayerPhase
+    ) -> ListeningDiscTrackRowState {
         guard isPlayable else { return .unavailable }
         if requestedTrackID == track.id { return .preparing }
-        guard isLoaded, room.track?.id == track.id else { return .normal }
+        guard isCurrent else { return .normal }
 
-        switch room.display.player.phase {
+        switch playerPhase {
         case .preparing:
             return .preparing
         case .playing:
@@ -418,7 +459,7 @@ struct ListeningDiscDetailView: View {
     }
 
     private func selectTrack(_ track: ListeningDiscTrack) {
-        let trackPresentation = room.display.trackPresentation(for: track)
+        let trackPresentation = room.trackPresentation(for: track)
         guard trackPresentation.isPlayable,
               !room.busy,
               !room.mechanism.isAutomatic else { return }
