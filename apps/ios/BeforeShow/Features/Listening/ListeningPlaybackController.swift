@@ -102,14 +102,14 @@ final class ListeningPlaybackController {
         // Queue-entry changes normally arrive through transportEvents(). Keep an
         // explicit read as command-boundary recovery for adapters/tests that do
         // not expose a live event stream.
-        _ = try refresh(now: now)
+        _ = try resynchronizeTransport(now: now)
     }
 
     func skipToPrevious(now: Date = Date()) async throws {
         try captureProgressBoundary(now: now)
         try await service.skipToPrevious()
         evidenceCoordinator.breakContinuity()
-        _ = try refresh(now: now)
+        _ = try resynchronizeTransport(now: now)
     }
 
     func seek(to time: TimeInterval, now: Date = Date()) throws {
@@ -119,6 +119,23 @@ final class ListeningPlaybackController {
         if let sample = service.snapshot(observedAt: now) {
             try applyProgress(sample: sample, now: now, evidence: .deferred)
         }
+    }
+
+    /// Synchronous truth resynchronization for lifecycle and command boundaries.
+    /// It updates the UI immediately but keeps evidence persistence deferred.
+    @discardableResult
+    func resynchronizeTransport(now: Date = Date()) throws -> ListeningPlaybackState {
+        if service.failure != nil {
+            clearPendingIntent()
+            stateMachine.handle(.failed)
+            publishState()
+            return state
+        }
+        guard let sample = service.snapshot(observedAt: now) else {
+            return state
+        }
+        try applyTransport(sample: sample, now: now, evidence: .deferred)
+        return state
     }
 
     /// Explicit recovery hook retained for lifecycle/tests. Normal playback status
