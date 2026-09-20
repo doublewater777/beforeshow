@@ -21,6 +21,7 @@ final class ListeningPlaybackController {
     private var transportObservationTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
     private var intentTimeoutTask: Task<Void, Never>?
+    private var evidenceFlushTask: Task<Void, Never>?
 
     /// Product/UI projection. The underlying transport fact remains in
     /// `stateMachine.state` even while a command is awaiting acknowledgement.
@@ -67,7 +68,7 @@ final class ListeningPlaybackController {
             }
 
             ListeningRemoteCommandBridge.shared.attach(controller: self, items: items)
-            try applyTransport(sample: initial, now: now)
+            try applyTransport(sample: initial, now: now, evidence: .immediate)
             startTransportObservation()
             startProgressClock()
         } catch {
@@ -116,7 +117,7 @@ final class ListeningPlaybackController {
         service.seek(to: time)
         evidenceCoordinator.breakContinuity()
         if let sample = service.snapshot(observedAt: now) {
-            try applyProgress(sample: sample, now: now)
+            try applyProgress(sample: sample, now: now, evidence: .deferred)
         }
     }
 
@@ -133,7 +134,7 @@ final class ListeningPlaybackController {
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
-        try applyTransport(sample: sample, now: now)
+        try applyTransport(sample: sample, now: now, evidence: .immediate)
         return state
     }
 
@@ -156,12 +157,12 @@ final class ListeningPlaybackController {
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
 
+        evidenceFlushTask?.cancel()
+        evidenceFlushTask = nil
         if service.failure == nil,
            let sample = service.snapshot(observedAt: now) {
             ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
-            handleEvidenceDrainResult(
-                try evidenceCoordinator.ingest(sample, at: now)
-            )
+            _ = evidenceCoordinator.record(sample, at: now)
         }
         try flushPendingEvidence()
     }
@@ -191,6 +192,8 @@ final class ListeningPlaybackController {
         pendingTransportIntent = nil
         intentTimeoutTask?.cancel()
         intentTimeoutTask = nil
+        evidenceFlushTask?.cancel()
+        evidenceFlushTask = nil
     }
 
     private func reconcilePendingIntent(with sample: ListeningPlaybackSample) {
@@ -207,29 +210,64 @@ final class ListeningPlaybackController {
         }
     }
 
+    private enum EvidenceHandling {
+        case immediate
+        case deferred
+    }
+
     private func applyTransport(
         sample: ListeningPlaybackSample,
-        now: Date
+        now: Date,
+        evidence: EvidenceHandling
     ) throws {
         stateMachine.handle(.sample(sample))
         reconcilePendingIntent(with: sample)
         publishState()
         ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
-        handleEvidenceDrainResult(
-            try evidenceCoordinator.ingest(sample, at: now)
-        )
+        try recordEvidence(sample, now: now, handling: evidence)
     }
 
     private func applyProgress(
         sample: ListeningPlaybackSample,
-        now: Date
+        now: Date,
+        evidence: EvidenceHandling
     ) throws {
         stateMachine.handle(.progress(sample))
         publishState()
         ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
-        handleEvidenceDrainResult(
-            try evidenceCoordinator.ingest(sample, at: now)
-        )
+        try recordEvidence(sample, now: now, handling: evidence)
+    }
+
+    private func recordEvidence(
+        _ sample: ListeningPlaybackSample,
+        now: Date,
+        handling: EvidenceHandling
+    ) throws {
+        switch handling {
+        case .immediate:
+            handleEvidenceDrainResult(
+                try evidenceCoordinator.ingest(sample, at: now)
+            )
+        case .deferred:
+            _ = evidenceCoordinator.record(sample, at: now)
+            scheduleEvidenceFlush()
+        }
+    }
+
+    private func scheduleEvidenceFlush() {
+        guard evidenceFlushTask == nil else { return }
+        evidenceFlushTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard let self else { return }
+            self.evidenceFlushTask = nil
+            do {
+                self.handleEvidenceDrainResult(
+                    try self.evidenceCoordinator.flushPending()
+                )
+            } catch {
+                self.evidenceDidFail()
+            }
+        }
     }
 
     private func captureProgressBoundary(now: Date) throws {
@@ -269,7 +307,7 @@ final class ListeningPlaybackController {
                     continue
                 }
                 do {
-                    try self.applyTransport(sample: sample, now: sample.observedAt)
+                    try self.applyTransport(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
                     self.evidenceDidFail()
                 }
@@ -296,7 +334,7 @@ final class ListeningPlaybackController {
                     continue
                 }
                 do {
-                    try self.applyProgress(sample: sample, now: sample.observedAt)
+                    try self.applyProgress(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
                     self.evidenceDidFail()
                 }
