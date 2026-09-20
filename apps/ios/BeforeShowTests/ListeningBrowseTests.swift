@@ -240,8 +240,10 @@ import SwiftData
         let album = try XCTUnwrap(room.browseArtists.first?.albums.first)
         room.loadDisc(album, songID: "a1")
         try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
-        room.playPause()
-        try await ListenTestData.settle(room) { !room.isPlaying && !room.busy }
+        room.perform(.playPause)
+        XCTAssertFalse(room.isPlaying, "Pause should be visible before the control action returns")
+        XCTAssertEqual(room.display.player.phase, .paused)
+        XCTAssertFalse(room.busy, "Synchronous pause must not enter the generic async busy state")
         room.seek(23)
         let state = room.playbackState
         room.loadDisc(album)
