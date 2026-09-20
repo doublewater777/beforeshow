@@ -5,7 +5,6 @@ struct FootprintListeningMemorySection: View {
     let show: Show
     @Environment(\.modelContext) private var context
     @State private var coordinator: FootprintListeningCoordinator?
-    @State private var recalling = false
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.md) {
             if let coordinator {
@@ -34,14 +33,8 @@ struct FootprintListeningMemorySection: View {
                         }.accessibilityElement(children: .combine)
                     }
                 }
-                if coordinator.canRecall {
-                    Button(BSLocalization.text("回记现场歌曲")) { recalling = true }.frame(minHeight: 44)
-                }
             }
         }.frame(maxWidth: .infinity, alignment: .leading)
             .task { let owner = FootprintListeningCoordinator(context: context, show: show); owner.reload(); coordinator = owner }
-            .sheet(isPresented: $recalling, onDismiss: { coordinator?.reload() }) {
-                if let coordinator { FootprintSetlistRecallSheet(coordinator: coordinator) }
-            }
     }
 }
