@@ -246,7 +246,7 @@ final class ListeningPlaybackControllerTests: XCTestCase {
             evidenceCoordinator: evidence,
             stateDidChange: { projectedStates.append($0) },
             evidenceDidChange: { evidenceChangeCount += 1 },
-            evidenceDidFail: { evidenceFailureCount += 1 }
+            evidenceDidFail: { _ in evidenceFailureCount += 1 }
         )
         let item = ListeningPlaybackItem(songID: "retry-song", duration: 4, previewURL: nil)
 
@@ -305,7 +305,7 @@ final class ListeningPlaybackControllerTests: XCTestCase {
             service: service,
             evidenceCoordinator: evidence,
             evidenceDidChange: { evidenceChangeCount += 1 },
-            evidenceDidFail: { evidenceFailureCount += 1 }
+            evidenceDidFail: { _ in evidenceFailureCount += 1 }
         )
         let items = [
             ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
@@ -377,7 +377,7 @@ final class ListeningPlaybackControllerTests: XCTestCase {
             service: service,
             evidenceCoordinator: evidence,
             evidenceDidChange: { evidenceChangeCount += 1 },
-            evidenceDidFail: { evidenceFailureCount += 1 }
+            evidenceDidFail: { _ in evidenceFailureCount += 1 }
         )
         let items = [
             ListeningPlaybackItem(songID: "song-a", duration: 100, previewURL: nil),
