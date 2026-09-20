@@ -168,7 +168,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 }
 
-private struct MusicKitTransportObservation: Equatable {
+private struct MusicKitTransportObservation: Equatable, Sendable {
     let status: MusicPlayer.PlaybackStatus
     let songID: String?
 }
