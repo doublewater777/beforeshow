@@ -137,6 +137,55 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         try controller.stop(now: time(1))
     }
 
+    func testPausedControllerObservesExternalTransportResume() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let item = ListeningPlaybackItem(songID: "external-resume", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog)
+        try await controller.play()
+        try controller.pause()
+        XCTAssertFalse(controller.state.isPlaying)
+
+        service.setPlayingExternally(true)
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "external-resume", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        try controller.stop()
+    }
+
+    func testPausedObservationDoesNotRepublishUnchangedStateEverySecond() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        var projectedStates: [ListeningPlaybackState] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            stateDidChange: { projectedStates.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "quiet-pause", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog)
+        try await controller.play()
+        try controller.pause()
+        let countAfterPause = projectedStates.count
+
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertEqual(projectedStates.count, countAfterPause)
+        XCTAssertFalse(controller.state.isPlaying)
+        try controller.stop()
+    }
+
     func testEvidencePersistenceFailureKeepsTransportPublishedAndRetries() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -649,6 +698,10 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         if !pauseSnapshotLags {
             isPlaying = false
         }
+    }
+
+    func setPlayingExternally(_ value: Bool) {
+        isPlaying = value
     }
 
     func selectSongForTesting(_ songID: String) throws {
