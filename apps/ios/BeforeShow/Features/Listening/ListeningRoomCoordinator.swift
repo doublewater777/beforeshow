@@ -55,16 +55,11 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var isCatalogEnriching = false
     private(set) var playbackState: ListeningPlaybackState = .idle {
         didSet {
-            let nowPlaying: Bool
-            if case .playing = playbackState { nowPlaying = true } else { nowPlaying = false }
-            if isPlaying != nowPlaying {
-                isPlaying = nowPlaying
-                mechanism.motion.spinning = nowPlaying
-            }
+            mechanism.motion.spinning = isPlaying
             updateTimeText()
         }
     }
-    private(set) var isPlaying: Bool = false
+    var isPlaying: Bool { playbackState.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var wantedSongIDs: Set<String> = []
@@ -1017,7 +1012,6 @@ private let listeningCatalogFetchConcurrency = 4
         playbackState = .idle
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
-        isPlaying = false
         updateTimeText()
     }
 
