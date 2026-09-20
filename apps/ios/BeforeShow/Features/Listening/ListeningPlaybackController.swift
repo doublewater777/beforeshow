@@ -271,7 +271,7 @@ final class ListeningPlaybackController {
     private func captureProgressBoundary(now: Date) throws {
         guard service.failure == nil,
               let sample = service.snapshot(observedAt: now) else { return }
-        try applyProgress(sample: sample, now: now, evidence: .immediate)
+        try applyProgress(sample: sample, now: now, evidence: .deferred)
     }
 
     private func handleEvidenceDrainResult(
