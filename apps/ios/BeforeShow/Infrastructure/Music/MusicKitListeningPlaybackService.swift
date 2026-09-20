@@ -152,17 +152,17 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     ) -> ListeningPlaybackTransportPhase {
         switch status {
         case .playing:
-            .playing
+            return .playing
         case .paused:
-            .paused
+            return .paused
         case .stopped:
-            .stopped
+            return .stopped
         case .interrupted:
-            .interrupted
+            return .interrupted
         case .seekingForward, .seekingBackward:
-            .seeking
+            return .seeking
         @unknown default:
-            .stopped
+            return .stopped
         }
     }
 
