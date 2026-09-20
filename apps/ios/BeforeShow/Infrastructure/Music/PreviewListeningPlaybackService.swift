@@ -155,14 +155,14 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
     private var transportPhase: ListeningPlaybackTransportPhase {
         guard player.currentItem != nil else { return .stopped }
         switch player.timeControlStatus {
-        case .playing:
-            return .playing
-        case .waitingToPlayAtSpecifiedRate:
-            return .waiting
-        case .paused:
-            return .paused
+        case AVPlayer.TimeControlStatus.playing:
+            return ListeningPlaybackTransportPhase.playing
+        case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+            return ListeningPlaybackTransportPhase.waiting
+        case AVPlayer.TimeControlStatus.paused:
+            return ListeningPlaybackTransportPhase.paused
         @unknown default:
-            return .paused
+            return ListeningPlaybackTransportPhase.paused
         }
     }
 
