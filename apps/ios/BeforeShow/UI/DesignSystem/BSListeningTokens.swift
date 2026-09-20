@@ -5,13 +5,13 @@ enum BSListeningTokens {
     static let avatar: CGFloat = 24
     static let artwork: CGFloat = 82
     static let detailArtwork: CGFloat = 160
-    static let playerWidthFraction: CGFloat = 0.78
-    static let shelfArtwork: CGFloat = 84
-    static let shelfItemWidth: CGFloat = 104
-    static let shelfLabelHeight: CGFloat = 18
+    static let playerWidthFraction: CGFloat = 0.90
+    static let shelfArtwork: CGFloat = 78
+    static let shelfItemWidth: CGFloat = 98
+    static let shelfLabelHeight: CGFloat = 16
     static let shelfItemSpacing: CGFloat = 6
     static let shelfContentHeight: CGFloat = shelfArtwork + shelfItemSpacing + shelfLabelHeight + BSSpacing.sm
-    static let selectionRestingOpacity = 0.68
+    static let selectionRestingOpacity = 0.62
     static let shelfShadowHeight: CGFloat = 12
     static let shelfShadowBlur: CGFloat = 7
     static let sleeveLabel = Font.caption.weight(.medium)
@@ -19,7 +19,7 @@ enum BSListeningTokens {
     static let discTitle = Font.system(size: 24, weight: .bold)
     static let songSpacing: CGFloat = 6
     static let songHeight: CGFloat = 70
-    static let stageTopOffset: CGFloat = 24
+    static let stageTopOffset: CGFloat = 46
     static let statusIcon: CGFloat = 16
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption
@@ -40,8 +40,8 @@ enum BSListeningTokens {
     static let selectionAnimation = Animation.easeOut(duration: 0.22)
     static let flipDuration = 0.4
     static let lightDuration = 1.2
-    static let lightBlur: CGFloat = 45
-    static let playingLightOpacity = 0.7
+    static let lightBlur: CGFloat = 58
+    static let playingLightOpacity = 0.82
 }
 
 /// Subtle press feedback shared by the listening controls.
