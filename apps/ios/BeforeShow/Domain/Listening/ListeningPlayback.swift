@@ -143,6 +143,9 @@ enum ListeningPlaybackEvent: Equatable, Sendable {
 }
 
 struct ListeningPlaybackStateMachine {
+    /// The controller observes transport at 1 Hz while a command is awaiting
+    /// acknowledgement. Allow one full observation cycle plus scheduling jitter;
+    /// after this window, raw transport truth wins over the requested intent.
     static let transportAcknowledgementWindow: TimeInterval = 1.5
 
     private(set) var state: ListeningPlaybackState = .idle
