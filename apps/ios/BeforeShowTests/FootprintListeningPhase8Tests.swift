@@ -18,6 +18,20 @@ import SwiftData
         XCTAssertEqual(owner.tiers.first { $0.artistID == "a" }?.tierRawValue, "firstEncounter")
         XCTAssertNil(ListeningFamiliarityTier(rawValue: "missing"))
     }
+
+    func testFootprintDetailShowsExistingSetlistWithoutRecallEntryPoint() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow/Features/Footprints/FootprintListeningMemorySection.swift")
+        let source = try String(contentsOf: root, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("ForEach(coordinator.memories)"))
+        XCTAssertTrue(source.contains(#"BSLocalization.text("现场听到了")"#))
+        XCTAssertFalse(source.contains(#"BSLocalization.text("回记现场歌曲")"#))
+        XCTAssertFalse(source.contains("FootprintSetlistRecallSheet"))
+        XCTAssertFalse(source.contains("$recalling"))
+    }
 }
 @MainActor final class ShowSetlistMemoryTests: XCTestCase {
     func testCatalogRecallIsEvidenceAndManualRecallIsNot() throws {
