@@ -156,13 +156,13 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         guard player.currentItem != nil else { return .stopped }
         switch player.timeControlStatus {
         case .playing:
-            .playing
+            return .playing
         case .waitingToPlayAtSpecifiedRate:
-            .waiting
+            return .waiting
         case .paused:
-            .paused
+            return .paused
         @unknown default:
-            .paused
+            return .paused
         }
     }
 
