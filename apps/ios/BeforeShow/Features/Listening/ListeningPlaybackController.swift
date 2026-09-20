@@ -192,8 +192,6 @@ final class ListeningPlaybackController {
         pendingTransportIntent = nil
         intentTimeoutTask?.cancel()
         intentTimeoutTask = nil
-        evidenceFlushTask?.cancel()
-        evidenceFlushTask = nil
     }
 
     private func reconcilePendingIntent(with sample: ListeningPlaybackSample) {
@@ -273,7 +271,7 @@ final class ListeningPlaybackController {
     private func captureProgressBoundary(now: Date) throws {
         guard service.failure == nil,
               let sample = service.snapshot(observedAt: now) else { return }
-        try applyProgress(sample: sample, now: now)
+        try applyProgress(sample: sample, now: now, evidence: .immediate)
     }
 
     private func handleEvidenceDrainResult(
@@ -349,6 +347,8 @@ final class ListeningPlaybackController {
         progressTask = nil
         intentTimeoutTask?.cancel()
         intentTimeoutTask = nil
+        evidenceFlushTask?.cancel()
+        evidenceFlushTask = nil
     }
 }
 
