@@ -93,6 +93,30 @@ struct ListeningPolishedBottomChrome: View {
     }
 }
 
+private enum ListeningBottomBarGeometry {
+    static func selectionOffset(
+        for tab: BeforeShowTab,
+        showsMiniPlayer: Bool
+    ) -> CGFloat {
+        let middleWidth = showsMiniPlayer
+            ? ListeningBottomBarLayout.miniPlayerWidth
+            : ListeningBottomBarLayout.tabSize
+        let sideDistance =
+            middleWidth / 2
+            + ListeningBottomBarLayout.gap
+            + ListeningBottomBarLayout.tabSize / 2
+
+        switch tab {
+        case .current:
+            return -sideDistance
+        case .listen:
+            return 0
+        case .footprints:
+            return sideDistance
+        }
+    }
+}
+
 private struct ListeningLiquidGlassBottomChrome: View {
     @Binding var selectedTab: BeforeShowTab
     let showsMiniPlayer: Bool
@@ -104,50 +128,97 @@ private struct ListeningLiquidGlassBottomChrome: View {
 
     var body: some View {
         GlassEffectContainer(spacing: ListeningBottomBarLayout.gap) {
-            HStack(spacing: ListeningBottomBarLayout.gap) {
-                glassTabButton(.current)
+            ZStack {
+                selectionLens
 
-                if showsMiniPlayer, let room, let track {
-                    ListeningCompactPlaybackControl(
-                        room: room,
-                        track: track,
-                        onSelectListen: { selectedTab = .listen }
+                glassTabButton(.current)
+                    .offset(
+                        x: ListeningBottomBarGeometry.selectionOffset(
+                            for: .current,
+                            showsMiniPlayer: showsMiniPlayer
+                        )
                     )
-                    .frame(
-                        width: ListeningBottomBarLayout.miniPlayerWidth,
-                        height: ListeningBottomBarLayout.tabSize
-                    )
-                    .glassEffect(.regular.interactive(), in: Capsule())
-                    .glassEffectID("listen", in: glassNamespace)
-                    .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
-                    .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
-                } else {
-                    glassListenButton
-                        .glassEffectID("listen", in: glassNamespace)
-                        .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
-                        .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
-                }
+                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+
+                centerControl
 
                 glassTabButton(.footprints)
+                    .offset(
+                        x: ListeningBottomBarGeometry.selectionOffset(
+                            for: .footprints,
+                            showsMiniPlayer: showsMiniPlayer
+                        )
+                    )
+                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             }
             .frame(
-                width: showsMiniPlayer
-                    ? ListeningBottomBarLayout.playerGroupWidth
-                    : ListeningBottomBarLayout.iconGroupWidth
+                width: ListeningBottomBarLayout.playerGroupWidth,
+                height: ListeningBottomBarLayout.tabSize
             )
         }
         .frame(height: ListeningBottomBarLayout.tabSize)
-        .animation(
-            reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86),
-            value: showsMiniPlayer
-        )
     }
 
-    @ViewBuilder
+    private var centerControl: some View {
+        ZStack {
+            if showsMiniPlayer, let room, let track {
+                ListeningCompactPlaybackControl(
+                    room: room,
+                    track: track,
+                    onSelectListen: { selectTab(.listen) }
+                )
+                .transition(.opacity)
+            } else {
+                glassListenButton
+                    .transition(.opacity)
+            }
+        }
+        .animation(centerContentAnimation, value: showsMiniPlayer)
+        .frame(
+            width: showsMiniPlayer
+                ? ListeningBottomBarLayout.miniPlayerWidth
+                : ListeningBottomBarLayout.tabSize,
+            height: ListeningBottomBarLayout.tabSize
+        )
+        .clipShape(Capsule())
+        .contentShape(Capsule())
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .glassEffectID("listen", in: glassNamespace)
+        .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+    }
+
+    private var selectionLens: some View {
+        Circle()
+            .fill(BSColor.Stage.accent.opacity(0.16))
+            .frame(
+                width: ListeningBottomBarLayout.tabSize - 12,
+                height: ListeningBottomBarLayout.tabSize - 12
+            )
+            .offset(
+                x: ListeningBottomBarGeometry.selectionOffset(
+                    for: selectedTab,
+                    showsMiniPlayer: showsMiniPlayer
+                )
+            )
+            .animation(miniPlayerMorphAnimation, value: selectedTab)
+            .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var miniPlayerMorphAnimation: Animation? {
+        guard !reduceMotion else { return nil }
+        return .spring(response: 0.28, dampingFraction: 0.90)
+    }
+
+    private var centerContentAnimation: Animation {
+        .easeOut(duration: reduceMotion ? 0.16 : 0.10)
+    }
+
     private func glassTabButton(_ tab: BeforeShowTab) -> some View {
         let isSelected = selectedTab == tab
-        let button = Button {
-            selectedTab = tab
+        return Button {
+            selectTab(tab)
         } label: {
             Image(systemName: tab.iconName)
                 .font(.system(size: 21, weight: .semibold))
@@ -163,18 +234,13 @@ private struct ListeningLiquidGlassBottomChrome: View {
         .glassEffectID(glassID(for: tab), in: glassNamespace)
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
-
-        if isSelected {
-            button.accessibilityAddTraits(.isSelected)
-        } else {
-            button
-        }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var glassListenButton: some View {
         let isSelected = selectedTab == .listen
-        let button = Button {
-            selectedTab = .listen
+        return Button {
+            selectTab(.listen)
         } label: {
             Image(systemName: "opticaldisc")
                 .font(.system(size: 22, weight: .medium))
@@ -186,14 +252,14 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
         .accessibilityLabel(BeforeShowTab.listen.localizedTitle)
         .accessibilityIdentifier("root.tab.listen")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
 
-        if isSelected {
-            return AnyView(button.accessibilityAddTraits(.isSelected))
-        }
-        return AnyView(button)
+    private func selectTab(_ tab: BeforeShowTab) {
+        guard selectedTab != tab else { return }
+        selectedTab = tab
     }
 
     private func glassID(for tab: BeforeShowTab) -> String {
