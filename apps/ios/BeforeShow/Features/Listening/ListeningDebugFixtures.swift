@@ -189,7 +189,12 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
     var start: Date?
     var elapsed: TimeInterval = 0
     func prepare(items: [ListeningPlaybackItem], source: ListeningPlaybackSource, startingAtSongID: String?) async throws {
-        self.source = source; item = items.first; elapsed = 0; start = nil
+        self.source = source
+        item = startingAtSongID.flatMap { id in
+            items.first(where: { $0.songID == id })
+        } ?? items.first
+        elapsed = 0
+        start = nil
     }
     func play() async throws { start = Date() }
     func pause() { if let start { elapsed += Date().timeIntervalSince(start) }; start = nil }
