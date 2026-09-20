@@ -10,6 +10,7 @@ final class ListeningPlaybackController {
     private let evidenceDidFail: @MainActor () -> Void
     private var stateMachine = ListeningPlaybackStateMachine()
     private var observationTask: Task<Void, Never>?
+    private var lastPublishedState: ListeningPlaybackState?
 
     var state: ListeningPlaybackState { stateMachine.state }
 
@@ -48,6 +49,7 @@ final class ListeningPlaybackController {
             }
             ListeningRemoteCommandBridge.shared.attach(controller: self, items: items)
             _ = try refresh(now: now)
+            startObservation()
         } catch {
             stateMachine.handle(.failed)
             publishState()
@@ -59,7 +61,6 @@ final class ListeningPlaybackController {
         do {
             try await service.play()
             try reconcileTransportIntent(target: .playing, now: now)
-            startObservation()
         } catch {
             stateMachine.handle(.failed)
             publishState()
@@ -69,7 +70,6 @@ final class ListeningPlaybackController {
 
     func pause(now: Date = Date()) throws {
         service.pause()
-        defer { startObservation() }
         try reconcileTransportIntent(target: .paused, now: now)
     }
 
@@ -159,6 +159,7 @@ final class ListeningPlaybackController {
             evidenceCoordinator.breakContinuity()
             stateMachine.handle(.reset)
             publishState()
+            lastPublishedState = nil
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
 
@@ -182,16 +183,14 @@ final class ListeningPlaybackController {
     }
 
     private func publishState() {
+        guard lastPublishedState != state else { return }
+        lastPublishedState = state
         stateDidChange(state)
         ListeningRemoteCommandBridge.shared.update(controller: self, state: state)
     }
 
     private func startObservation() {
-        observationTask?.cancel()
-        guard stateMachine.needsTransportObservation else {
-            observationTask = nil
-            return
-        }
+        guard observationTask == nil else { return }
         observationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 do {
@@ -201,7 +200,6 @@ final class ListeningPlaybackController {
                 }
                 guard let self else { return }
                 _ = try? self.refresh(now: Date())
-                guard self.stateMachine.needsTransportObservation else { return }
             }
         }
     }
