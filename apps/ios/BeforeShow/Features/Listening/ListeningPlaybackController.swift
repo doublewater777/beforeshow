@@ -96,18 +96,22 @@ final class ListeningPlaybackController {
     }
 
     func pause(now: Date = Date()) throws {
-        beginIntent(.paused, now: now)
+        beginIntent(.paused, now: now, publishImmediately: false)
         service.pause()
-        try sampleCommandAcknowledgement(now: now)
+        if try !sampleCommandAcknowledgement(now: now) {
+            publishState()
+        }
     }
 
     /// Fast acknowledgement for transports that update synchronously. A stale
     /// snapshot cannot undo the pending presentation intent; Observable transport
     /// events remain the authoritative ongoing synchronization mechanism.
-    private func sampleCommandAcknowledgement(now: Date) throws {
+    @discardableResult
+    private func sampleCommandAcknowledgement(now: Date) throws -> Bool {
         guard service.failure == nil,
-              let sample = service.snapshot(observedAt: now) else { return }
+              let sample = service.snapshot(observedAt: now) else { return false }
         try applyTransport(sample: sample, now: now, evidence: .deferred)
+        return true
     }
 
     func skipToNext(now: Date = Date()) async throws {
@@ -204,11 +208,14 @@ final class ListeningPlaybackController {
 
     private func beginIntent(
         _ target: ListeningPlaybackTransportTarget,
-        now: Date
+        now: Date,
+        publishImmediately: Bool = true
     ) {
         let intent = ListeningPlaybackTransportIntent(target: target, issuedAt: now)
         pendingTransportIntent = intent
-        publishState()
+        if publishImmediately {
+            publishState()
+        }
 
         intentTimeoutTask?.cancel()
         intentTimeoutTask = Task { @MainActor [weak self] in
