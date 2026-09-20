@@ -124,15 +124,60 @@ private struct CDPlayerLidView: View {
     private var lidAngle: Double {
         geometry.tiltDegrees + motion.lid.value * geometry.maximumOpening
     }
+    private var isShowingBackFace: Bool {
+        cos(lidAngle * .pi / 180) < 0
+    }
+    private var usesTransparentBackFace: Bool {
+        isShowingBackFace && player.hasDisc
+    }
 
     var body: some View {
         ZStack {
             Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(cos(lidAngle * .pi / 180) >= 0 ? 1 : 0)
+                .opacity(isShowingBackFace ? 0 : 1)
+
+            // With no disc loaded, the raised underside stays fully opaque.
+            // Once a disc is seated, it becomes clear acrylic so the disc
+            // remains visible through the lid.
             Image(player.configuration.assets.lidInner).resizable()
-                .opacity(cos(lidAngle * .pi / 180) < 0 ? 1 : 0)
-            LinearGradient(colors: [.white.opacity(0.07 * motion.lid.value), .clear, .black.opacity(0.10 * motion.lid.value)], startPoint: .top, endPoint: .bottom)
-                .mask(Image(player.configuration.assets.lidOuter).resizable())
+                .opacity(isShowingBackFace ? (usesTransparentBackFace ? 0.16 : 1) : 0)
+
+            if usesTransparentBackFace {
+                LinearGradient(
+                    colors: [
+                        .white.opacity(0.10),
+                        .white.opacity(0.025),
+                        .clear,
+                        .black.opacity(0.035)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .mask(Image(player.configuration.assets.lidInner).resizable())
+
+                // Keep the physical edge legible even though the center is
+                // transparent, so the lid still reads as a rigid object.
+                Ellipse()
+                    .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
+                    .padding(2)
+                Ellipse()
+                    .strokeBorder(.black.opacity(0.16), lineWidth: 1)
+                    .padding(5)
+            }
+
+            LinearGradient(
+                colors: [
+                    .white.opacity((usesTransparentBackFace ? 0.025 : 0.07) * motion.lid.value),
+                    .clear,
+                    .black.opacity((usesTransparentBackFace ? 0.035 : 0.10) * motion.lid.value)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .mask(
+                Image(isShowingBackFace ? player.configuration.assets.lidInner : player.configuration.assets.lidOuter)
+                    .resizable()
+            )
         }
         .frame(width: geometry.lid.width, height: geometry.lid.height)
         .contentShape(Ellipse())
