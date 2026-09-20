@@ -7,6 +7,8 @@ import UIKit
 // 只取顶部 ~25%，再轻提饱和、压亮度，让环境光从海报顶边向外蔓延。
 
 enum CoverAmbientColor {
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
     static func uiColor(from image: UIImage) -> UIColor? {
         guard let cgImage = image.cgImage else { return nil }
         let ciImage = CIImage(cgImage: cgImage)
@@ -23,7 +25,7 @@ enum CoverAmbientColor {
         ]), let output = filter.outputImage else { return nil }
 
         var bitmap = [UInt8](repeating: 0, count: 4)
-        CIContext().render(
+        ciContext.render(
             output,
             toBitmap: &bitmap,
             rowBytes: 4,
@@ -108,6 +110,7 @@ struct CoverAmbientBloom: View {
                         )
                         .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.10)
                         .blur(radius: min(28, geometry.size.width * 0.16))
+                        .compositingGroup()
                         .blendMode(.screen)
                 }
 

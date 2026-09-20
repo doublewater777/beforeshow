@@ -408,8 +408,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
 
     func testListenShelfUsesCompactHeaderWhenThereIsNoShowAllAction() throws {
         let shelf = try listeningSource("Features/Listening/Views/ListeningShelfView.swift")
-        XCTAssertTrue(shelf.contains("compactHeaderHeight: CGFloat = 32"))
-        XCTAssertTrue(shelf.contains("showsAllDiscs || dynamicTypeSize.isAccessibilitySize"))
+        XCTAssertTrue(shelf.contains("actionHeaderHeight = BSLayout.minTouchTarget"))
+        XCTAssertTrue(shelf.contains("headerHeight: CGFloat {\n        actionHeaderHeight\n    }"))
     }
 
     func testCurrentShowScrollContentClearsRootBottomChrome() throws {

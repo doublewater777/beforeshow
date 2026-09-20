@@ -82,6 +82,7 @@ struct ListeningStageBackground: View {
                             .transition(.opacity)
                     }
                 }
+                .compositingGroup()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .blendMode(.screen)
@@ -220,6 +221,7 @@ struct ListeningPlayerAmbientHalo: View {
                     .opacity(0.38)
             }
         }
+        .compositingGroup()
         .animation(.easeInOut(duration: 0.7), value: discAmbientColor)
         .allowsHitTesting(false)
         .accessibilityHidden(true)

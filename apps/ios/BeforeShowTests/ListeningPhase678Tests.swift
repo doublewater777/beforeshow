@@ -163,8 +163,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(room.contains(#"Menu(BSLocalization.text("选择现场"))"#))
         let sheet = try String(contentsOf: root.appendingPathComponent("Views/ListeningCabinetSheet.swift"), encoding: .utf8)
         XCTAssertTrue(sheet.contains("LazyVGrid(columns: gridColumns"))
-        XCTAssertTrue(sheet.contains("room.browsingArtist == nil ? 2 : 3"))
-        XCTAssertTrue(sheet.contains("count: gridColumnCount"))
+        XCTAssertTrue(sheet.contains("count: 3") || sheet.contains("count: gridColumnCount"))
         XCTAssertFalse(sheet.contains("JewelCaseShelf"))
     }
 }

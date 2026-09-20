@@ -19,23 +19,20 @@ struct RootView: View {
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
 
+    init() {
+        let isReturning = OnboardingCompletionStore.hasCompleted()
+        _hasFinishedSplash = State(initialValue: isReturning)
+        _hasResolvedOnboardingRoute = State(initialValue: isReturning)
+    }
+
     private var companionResultMessage: String? {
-        if let companionDuplicateErrorMessage {
-            return companionDuplicateErrorMessage
-        }
-        if let companionAcceptanceMessage {
-            return companionAcceptanceMessage
-        }
-        if let accepted = companionCoordinator.pendingAcceptMessage {
-            return accepted
-        }
+        if let companionDuplicateErrorMessage { return companionDuplicateErrorMessage }
+        if let companionAcceptanceMessage { return companionAcceptanceMessage }
+        if let accepted = companionCoordinator.pendingAcceptMessage { return accepted }
         if let result = companionCoordinator.pendingAcceptResult {
             return CompanionSharingPresentation.acceptedMessage(ownerDisplayName: nil, importResult: result)
         }
-        if companionCoordinator.lastErrorKind == .statusSyncPending {
-            return companionCoordinator.lastErrorMessage
-        }
-        return nil
+        return companionCoordinator.lastErrorKind == .statusSyncPending ? companionCoordinator.lastErrorMessage : nil
     }
     var body: some View {
         ZStack {
@@ -163,9 +160,7 @@ struct RootView: View {
         companionAcceptanceMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
         _ = companionCoordinator.consumePendingAcceptResult()
-        if companionCoordinator.lastErrorKind == .statusSyncPending {
-            _ = companionCoordinator.consumeLastErrorMessage()
-        }
+        if companionCoordinator.lastErrorKind == .statusSyncPending { _ = companionCoordinator.consumeLastErrorMessage() }
     }
     private func refreshCompanionDuplicateResolution() {
         guard companionDuplicateResolution == nil else { return }

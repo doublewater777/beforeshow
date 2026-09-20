@@ -189,18 +189,20 @@ private struct ListeningLiquidGlassBottomChrome: View {
     }
 
     private var selectionLens: some View {
-        let targetOffset = ListeningBottomBarGeometry.selectionOffset(
-            for: selectedTab,
-            showsMiniPlayer: showsMiniPlayer
-        )
-        return Circle()
+        Circle()
             .fill(BSColor.Stage.accent.opacity(0.16))
             .frame(
                 width: ListeningBottomBarLayout.tabSize - 12,
                 height: ListeningBottomBarLayout.tabSize - 12
             )
-            .offset(x: targetOffset)
-            .animation(miniPlayerMorphAnimation, value: targetOffset)
+            .offset(
+                x: ListeningBottomBarGeometry.selectionOffset(
+                    for: selectedTab,
+                    showsMiniPlayer: showsMiniPlayer
+                )
+            )
+            .animation(miniPlayerMorphAnimation, value: selectedTab)
+            .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }

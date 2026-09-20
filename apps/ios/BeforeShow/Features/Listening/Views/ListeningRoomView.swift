@@ -28,6 +28,21 @@ struct ListenRootView: View {
     @State private var isShowingAddShow = false
     @State private var isShowingShowLibrary = false
 
+    init(
+        isActive: Bool,
+        catalogService: any ListeningMusicCatalogServicing = MusicKitListeningCatalogService(),
+        artistSearchService: any ArtistSearchServicing = AppleMusicArtistSearchService(),
+        playbackFactory: @escaping @MainActor (ListeningPlaybackSource) -> any ListeningPlaybackServicing = {
+            $0 == .fullCatalog ? MusicKitListeningPlaybackService() : PreviewListeningPlaybackService()
+        }
+    ) {
+        self.isActive = isActive
+        self.catalogService = catalogService
+        self.artistSearchService = artistSearchService
+        self.playbackFactory = playbackFactory
+        _room = State(initialValue: ListeningRoomCache.shared)
+    }
+
     private var show: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
         return shows.first { $0.id == id }
@@ -78,11 +93,13 @@ struct ListenRootView: View {
             .presentationDragIndicator(.visible)
         }
         .task(id: activityKey) {
-            // Tab selection owns the first main-actor turn. Listen lifecycle work,
-            // including visibility updates and task cancellation, follows afterward.
-            await Task.yield()
             guard !Task.isCancelled else { return }
             if isActive {
+                if room != nil {
+                    // Let tab selection complete its frame before updating active state
+                    await Task.yield()
+                    guard !Task.isCancelled else { return }
+                }
                 await activateRoomIfNeeded()
             } else {
                 room?.setActive(false)

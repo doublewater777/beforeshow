@@ -107,11 +107,14 @@ struct BeforeShowApp: App {
                 }
                 .task {
                     guard !Self.isRunningHostedUnitTests else { return }
-                    isLocalMediaMaintenanceRunning = true
                     // Ensure delegate wiring even if onAppear ordering is delayed.
                     appDelegate.companionCoordinator = companionCoordinator
                     appDelegate.modelContainer = modelContainer
                     appDelegate.noteDependenciesReady()
+
+                    await Task.yield()
+
+                    isLocalMediaMaintenanceRunning = true
                     await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                     await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
                     await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)

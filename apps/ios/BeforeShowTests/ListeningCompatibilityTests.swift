@@ -663,6 +663,8 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
 
     var transportIsPlaying: Bool { playing }
 
+    private var pendingSamples: [ListeningPlaybackSample] = []
+
     func advanceTransportToNext() {
         guard index + 1 < items.count else { return }
         index += 1
@@ -708,12 +710,20 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
         AsyncStream { continuation in
             transportContinuation = continuation
+            for sample in pendingSamples {
+                continuation.yield(sample)
+            }
+            pendingSamples.removeAll()
         }
     }
 
     private func emitTransport(observedAt: Date = Date()) {
         guard let sample = snapshot(observedAt: observedAt) else { return }
-        transportContinuation?.yield(sample)
+        if let transportContinuation {
+            transportContinuation.yield(sample)
+        } else {
+            pendingSamples.append(sample)
+        }
     }
 
     func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
