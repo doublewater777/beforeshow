@@ -73,6 +73,64 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNotNil(record.actualListeningAt)
     }
 
+    func testPausePublishesPausedIntentWhenTransportSnapshotLags() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        service.pauseSnapshotLags = true
+        var projectedStates: [ListeningPlaybackState] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            stateDidChange: { projectedStates.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "laggy-pause", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await controller.play(now: time(0))
+        service.currentTime = 12
+        _ = try controller.refresh(now: time(12))
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
+        )
+
+        try controller.pause(now: time(13))
+
+        XCTAssertEqual(
+            controller.state,
+            .paused(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
+        )
+        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertTrue(service.snapshot(observedAt: time(13))?.isPlaying == true)
+        try controller.stop(now: time(13))
+    }
+
+    func testPlayPublishesPlayingIntentWhenTransportSnapshotLags() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        service.playSnapshotLags = true
+        var projectedStates: [ListeningPlaybackState] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            stateDidChange: { projectedStates.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "laggy-play", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await controller.play(now: time(1))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertTrue(service.snapshot(observedAt: time(1))?.isPlaying == false)
+        try controller.stop(now: time(1))
+    }
+
     func testEvidencePersistenceFailureKeepsTransportPublishedAndRetries() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
@@ -555,6 +613,8 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     private(set) var preparedItems: [ListeningPlaybackItem] = []
     private(set) var preparedStartingSongID: String?
     var currentTime: TimeInterval = 0
+    var playSnapshotLags = false
+    var pauseSnapshotLags = false
     private var isPlaying = false
 
     func prepare(
@@ -573,8 +633,17 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         isPlaying = false
     }
 
-    func play() async throws { isPlaying = true }
-    func pause() { isPlaying = false }
+    func play() async throws {
+        if !playSnapshotLags {
+            isPlaying = true
+        }
+    }
+
+    func pause() {
+        if !pauseSnapshotLags {
+            isPlaying = false
+        }
+    }
 
     func selectSongForTesting(_ songID: String) throws {
         guard let selected = preparedItems.first(where: { $0.songID == songID }) else {

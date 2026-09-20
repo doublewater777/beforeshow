@@ -58,6 +58,12 @@ final class ListeningPlaybackController {
     func play(now: Date = Date()) async throws {
         do {
             try await service.play()
+            stateMachine.handle(
+                .transportRequested(
+                    ListeningPlaybackTransportIntent(target: .playing, issuedAt: now)
+                )
+            )
+            publishState()
             _ = try refresh(now: now)
             startObservation()
         } catch {
@@ -69,9 +75,14 @@ final class ListeningPlaybackController {
 
     func pause(now: Date = Date()) throws {
         service.pause()
+        stateMachine.handle(
+            .transportRequested(
+                ListeningPlaybackTransportIntent(target: .paused, issuedAt: now)
+            )
+        )
+        publishState()
+        defer { startObservation() }
         _ = try refresh(now: now)
-        observationTask?.cancel()
-        observationTask = nil
     }
 
     func skipToNext(now: Date = Date()) async throws {
@@ -108,9 +119,17 @@ final class ListeningPlaybackController {
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
+        return try apply(sample: sample, now: now)
+    }
+
+    @discardableResult
+    private func apply(
+        sample: ListeningPlaybackSample,
+        now: Date
+    ) throws -> ListeningPlaybackState {
         stateMachine.handle(.sample(sample))
         publishState()
-        ListeningRemoteCommandBridge.shared.update(sample: sample)
+        ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
         handleEvidenceDrainResult(
             try evidenceCoordinator.ingest(sample, at: now)
         )
@@ -155,15 +174,16 @@ final class ListeningPlaybackController {
 
     private func publishState() {
         stateDidChange(state)
+        ListeningRemoteCommandBridge.shared.update(controller: self, state: state)
     }
 
     private func startObservation() {
         observationTask?.cancel()
         observationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                if let self {
-                    _ = try? self.refresh(now: Date())
-                }
+                guard let self else { return }
+                _ = try? self.refresh(now: Date())
+                guard self.stateMachine.needsTransportObservation else { return }
                 do {
                     try await Task.sleep(for: .seconds(1))
                 } catch {
@@ -223,16 +243,30 @@ final class ListeningRemoteCommandBridge {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
-    func update(sample: ListeningPlaybackSample) {
-        guard let item = itemsBySongID[sample.songID] else { return }
+    func update(
+        controller: ListeningPlaybackController,
+        sample: ListeningPlaybackSample
+    ) {
+        guard self.controller === controller,
+              let item = itemsBySongID[sample.songID] else { return }
         var info: [String: Any] = [
             MPNowPlayingInfoPropertyExternalContentIdentifier: sample.songID,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: sample.currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: sample.isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: controller.state.isPlaying ? 1.0 : 0.0
         ]
         if let title = item.title { info[MPMediaItemPropertyTitle] = title }
         if let artistName = item.artistName { info[MPMediaItemPropertyArtist] = artistName }
         if let duration = sample.duration ?? item.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    func update(
+        controller: ListeningPlaybackController,
+        state: ListeningPlaybackState
+    ) {
+        guard self.controller === controller,
+              var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
+        info[MPNowPlayingInfoPropertyPlaybackRate] = state.isPlaying ? 1.0 : 0.0
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
