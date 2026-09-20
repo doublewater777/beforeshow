@@ -127,22 +127,23 @@ private struct CDPlayerLidView: View {
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
-    private var usesTransparentBackFace: Bool {
-        isShowingBackFace && player.hasDisc
+    private var usesTransparentOuterLid: Bool {
+        !isShowingBackFace && player.hasDisc
     }
 
     var body: some View {
         ZStack {
+            // The visible top cover itself becomes clear acrylic only while a
+            // disc is seated underneath it. With an empty tray, retain the
+            // original opaque photographed lid.
             Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(isShowingBackFace ? 0 : 1)
+                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? 0.16 : 1))
 
-            // With no disc loaded, the raised underside stays fully opaque.
-            // Once a disc is seated, it becomes clear acrylic so the disc
-            // remains visible through the lid.
+            // The inside face is not part of the transparent treatment.
             Image(player.configuration.assets.lidInner).resizable()
-                .opacity(isShowingBackFace ? (usesTransparentBackFace ? 0.16 : 1) : 0)
+                .opacity(isShowingBackFace ? 1 : 0)
 
-            if usesTransparentBackFace {
+            if usesTransparentOuterLid {
                 LinearGradient(
                     colors: [
                         .white.opacity(0.10),
@@ -153,10 +154,10 @@ private struct CDPlayerLidView: View {
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )
-                .mask(Image(player.configuration.assets.lidInner).resizable())
+                .mask(Image(player.configuration.assets.lidOuter).resizable())
 
-                // Keep the physical edge legible even though the center is
-                // transparent, so the lid still reads as a rigid object.
+                // Keep the acrylic rim readable even though the disc is visible
+                // through the center of the closed top cover.
                 Ellipse()
                     .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
                     .padding(2)
@@ -167,9 +168,9 @@ private struct CDPlayerLidView: View {
 
             LinearGradient(
                 colors: [
-                    .white.opacity((usesTransparentBackFace ? 0.025 : 0.07) * motion.lid.value),
+                    .white.opacity((usesTransparentOuterLid ? 0.025 : 0.07) * motion.lid.value),
                     .clear,
-                    .black.opacity((usesTransparentBackFace ? 0.035 : 0.10) * motion.lid.value)
+                    .black.opacity((usesTransparentOuterLid ? 0.035 : 0.10) * motion.lid.value)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
