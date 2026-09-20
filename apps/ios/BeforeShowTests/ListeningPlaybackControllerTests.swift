@@ -103,6 +103,32 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
         XCTAssertEqual(projectedStates.last, controller.state)
         XCTAssertTrue(service.snapshot(observedAt: time(13))?.isPlaying == true)
+        try controller.stop(now: time(13))
+    }
+
+    func testPlayPublishesPlayingIntentWhenTransportSnapshotLags() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        service.playSnapshotLags = true
+        var projectedStates: [ListeningPlaybackState] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            stateDidChange: { projectedStates.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "laggy-play", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await controller.play(now: time(1))
+
+        XCTAssertEqual(
+            controller.state,
+            .playing(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertTrue(service.snapshot(observedAt: time(1))?.isPlaying == false)
+        try controller.stop(now: time(1))
     }
 
     func testEvidencePersistenceFailureKeepsTransportPublishedAndRetries() async throws {
@@ -587,6 +613,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     private(set) var preparedItems: [ListeningPlaybackItem] = []
     private(set) var preparedStartingSongID: String?
     var currentTime: TimeInterval = 0
+    var playSnapshotLags = false
     var pauseSnapshotLags = false
     private var isPlaying = false
 
@@ -606,7 +633,12 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         isPlaying = false
     }
 
-    func play() async throws { isPlaying = true }
+    func play() async throws {
+        if !playSnapshotLags {
+            isPlaying = true
+        }
+    }
+
     func pause() {
         if !pauseSnapshotLags {
             isPlaying = false
