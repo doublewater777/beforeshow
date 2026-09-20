@@ -11,7 +11,6 @@ private enum FootprintShareComposerTokens {
     static let outputWidth = 1080
     static let outputHeight = 1350
 
-    static let navigationFill = Color.white.opacity(0.055)
     static let previewBorder = Color.white.opacity(0.12)
     static let previewShadow = Color.black.opacity(0.48)
     static let materialScrim = Color.black.opacity(0.76)
@@ -59,11 +58,10 @@ struct FootprintShareComposerView: View {
     }
 
     var body: some View {
-        ZStack {
-            BSColor.Stage.background.ignoresSafeArea()
-            VStack(spacing: 0) {
-                navigationBar
-                    .padding(.horizontal, BSSpacing.roomy)
+        NavigationStack {
+            ZStack {
+                BSColor.Stage.background.ignoresSafeArea()
+
                 ScrollView(.vertical, showsIndicators: false) {
                     VStack(alignment: .leading, spacing: BSSpacing.roomy) {
                         cardPreview
@@ -74,7 +72,30 @@ struct FootprintShareComposerView: View {
                         shareAction
                     }
                     .padding(.horizontal, BSSpacing.roomy)
+                    .padding(.top, BSSpacing.sm)
                     .padding(.bottom, BSSpacing.xl)
+                }
+                .bsNavigationScrollEdge()
+            }
+            .navigationTitle(BSLocalization.text("分享编辑器"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .navigationBar)
+            .toolbar {
+                BSChromeToolbarCloseButton(accessibilityLabel: BSLocalization.text("取消分享")) {
+                    onClose()
+                }
+
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text(BSLocalization.text("分享编辑器"))
+                            .font(BSFont.headline)
+                            .foregroundStyle(BSColor.Stage.foreground)
+
+                        Text(BSLocalization.text("选择 1–3 个画面"))
+                            .font(BSFont.V3.caption)
+                            .foregroundStyle(BSColor.Stage.dim)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
         }
@@ -102,33 +123,6 @@ struct FootprintShareComposerView: View {
             hasLoadedImages = true
         }
         .preferredColorScheme(.dark)
-    }
-
-    private var navigationBar: some View {
-        HStack {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(BSFont.caption.weight(.semibold))
-                    .foregroundColor(BSColor.Stage.foreground)
-                    .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-                    .background(FootprintShareComposerTokens.navigationFill, in: Circle())
-                    .overlay(Circle().stroke(BSColor.Stage.border))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(BSLocalization.text("取消分享"))
-            Spacer()
-            VStack(spacing: 2) {
-                Text(BSLocalization.text("分享编辑器"))
-                    .font(BSFont.headline)
-                    .foregroundColor(BSColor.Stage.foreground)
-                Text(BSLocalization.text("选择 1–3 个画面"))
-                    .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.dim)
-            }
-            Spacer()
-            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
-        }
-        .padding(.top, BSSpacing.xs)
     }
 
     private var cardPreview: some View {
