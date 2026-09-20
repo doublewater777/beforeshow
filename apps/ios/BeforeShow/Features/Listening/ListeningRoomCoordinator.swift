@@ -46,6 +46,7 @@ private let listeningCatalogFetchConcurrency = 4
         trackIndex = 0
         preparedSongID = nil
         playbackState = .idle
+        transportPlaybackState = .idle
         trackBelongsToShow = true
     }
     #endif
@@ -53,13 +54,14 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
     private(set) var isCatalogEnriching = false
+    /// Presentation state may optimistically reflect a pending user command.
+    /// Domain side effects must use `transportPlaybackState` instead.
     private(set) var playbackState: ListeningPlaybackState = .idle {
-        didSet {
-            mechanism.motion.spinning = isPlaying
-            updateTimeText()
-        }
+        didSet { updateTimeText() }
     }
+    @ObservationIgnored private var transportPlaybackState: ListeningPlaybackState = .idle
     var isPlaying: Bool { playbackState.isPlaying }
+    private var transportIsPlaying: Bool { transportPlaybackState.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var wantedSongIDs: Set<String> = []
@@ -211,6 +213,7 @@ private let listeningCatalogFetchConcurrency = 4
             trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             preparedSongID = nil
             playbackState = .idle
+            transportPlaybackState = .idle
             trackBelongsToShow = true
         } catch {}
     }
@@ -699,7 +702,7 @@ private let listeningCatalogFetchConcurrency = 4
         return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
-        guard isPlaying, let show, let track, let disc = mechanism.disc,
+        guard transportIsPlaying, let show, let track, let disc = mechanism.disc,
               recordedPlayingSongID != track.id else { return }
         do {
             let record = recentListening ?? ShowRecentListening(showID: show.id, discID: disc.id, songID: track.id)
@@ -843,6 +846,7 @@ private let listeningCatalogFetchConcurrency = 4
         preparedDiscID = nil
         preparedSongID = nil
         playbackState = .idle
+        transportPlaybackState = .idle
         trackBelongsToShow = true
         persistLoadedDisc()
     }
@@ -856,7 +860,7 @@ private let listeningCatalogFetchConcurrency = 4
             stop()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            preparedSongID = nil; playbackState = .idle; trackBelongsToShow = true
+            preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
@@ -942,7 +946,7 @@ private let listeningCatalogFetchConcurrency = 4
         }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
+        if preparedSongID != track.id || preparedSource != source || controller == nil || transportPlaybackState == .failed || transportPlaybackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try playbackEvidenceCoordinatorForUse()
@@ -954,6 +958,10 @@ private let listeningCatalogFetchConcurrency = 4
                 stateDidChange: { [weak self] state in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.applyPlaybackState(state)
+                },
+                transportStateDidChange: { [weak self] state in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyTransportPlaybackState(state)
                 },
                 evidenceDidChange: { [weak self] in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
@@ -996,7 +1004,7 @@ private let listeningCatalogFetchConcurrency = 4
         finishedSongID = nil
     }
     private func completeSleevePlaybackIfNeeded() {
-        guard isPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
+        guard transportIsPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
         sleevePlaybackSongID = pendingSleeveSongID
         self.pendingSleeveSongID = nil
     }
@@ -1025,6 +1033,8 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         preparedSource = nil
         playbackState = .idle
+        transportPlaybackState = .idle
+        mechanism.motion.spinning = false
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
@@ -1050,7 +1060,12 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyPlaybackState(_ state: ListeningPlaybackState) {
         playbackState = state
-        syncTrackIndexWithPlaybackState()
+    }
+
+    private func applyTransportPlaybackState(_ state: ListeningPlaybackState) {
+        transportPlaybackState = state
+        mechanism.motion.spinning = state.isPlaying
+        syncTrackIndex(with: state)
 
         if case .failed = state {
             pendingSleeveSongID = nil
@@ -1169,9 +1184,9 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
-    private func syncTrackIndexWithPlaybackState() {
+    private func syncTrackIndex(with state: ListeningPlaybackState) {
         let songID: String?
-        switch playbackState {
+        switch state {
         case let .ready(id, _, _, _), let .playing(id, _, _, _), let .paused(id, _, _, _), let .finished(id, _, _):
             songID = id
         case .idle, .preparing, .failed:
