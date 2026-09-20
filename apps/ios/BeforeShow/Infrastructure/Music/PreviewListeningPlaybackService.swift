@@ -138,7 +138,7 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
             hasEnded: reachedQueueEnd || ListeningPlaybackCompletionPolicy.hasEnded(
                 currentTime: currentTime,
                 duration: duration,
-                isPlaying: phase.isPlaying
+                phase: phase
             )
         )
     }
