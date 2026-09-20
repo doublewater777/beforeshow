@@ -47,6 +47,7 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         playbackState = .idle
         transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
         trackBelongsToShow = true
     }
     #endif
@@ -60,8 +61,9 @@ private let listeningCatalogFetchConcurrency = 4
         didSet { updateTimeText() }
     }
     @ObservationIgnored private var transportPlaybackState: ListeningPlaybackState = .idle
+    @ObservationIgnored private var transportPlaybackPhase: ListeningPlaybackTransportPhase = .stopped
     var isPlaying: Bool { playbackState.isPlaying }
-    private var transportIsPlaying: Bool { transportPlaybackState.isPlaying }
+    private var transportIsPlaying: Bool { transportPlaybackPhase.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var wantedSongIDs: Set<String> = []
@@ -847,6 +849,7 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         playbackState = .idle
         transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
         trackBelongsToShow = true
         persistLoadedDisc()
     }
@@ -860,7 +863,7 @@ private let listeningCatalogFetchConcurrency = 4
             stop()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; trackBelongsToShow = true
+            preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; transportPlaybackPhase = .stopped; trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
@@ -963,6 +966,10 @@ private let listeningCatalogFetchConcurrency = 4
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.applyTransportPlaybackState(state)
                 },
+                transportSampleDidChange: { [weak self] sample in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyTransportSample(sample)
+                },
                 evidenceDidChange: { [weak self] in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.refreshPlaybackEvidenceProjection()
@@ -1034,6 +1041,7 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSource = nil
         playbackState = .idle
         transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
         mechanism.motion.spinning = false
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
@@ -1064,8 +1072,15 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyTransportPlaybackState(_ state: ListeningPlaybackState) {
         transportPlaybackState = state
-        mechanism.motion.spinning = state.isPlaying
         syncTrackIndex(with: state)
+
+        switch state {
+        case .idle, .preparing, .failed, .finished:
+            transportPlaybackPhase = .stopped
+            mechanism.motion.spinning = false
+        case .ready, .playing, .paused:
+            break
+        }
 
         if case .failed = state {
             pendingSleeveSongID = nil
@@ -1073,14 +1088,18 @@ private let listeningCatalogFetchConcurrency = 4
             return
         }
 
-        completeSleevePlaybackIfNeeded()
-        recordPlayingIfNeeded()
-
         if case let .finished(songID, _, _) = state {
             finishedSongID = songID
         } else {
             finishedSongID = nil
         }
+    }
+
+    private func applyTransportSample(_ sample: ListeningPlaybackSample) {
+        transportPlaybackPhase = sample.phase
+        mechanism.motion.spinning = sample.phase.isPlaying
+        completeSleevePlaybackIfNeeded()
+        recordPlayingIfNeeded()
     }
     private func refreshPlaybackEvidenceProjection() {
         do {
