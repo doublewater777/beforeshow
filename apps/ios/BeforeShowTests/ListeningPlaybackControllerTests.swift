@@ -65,14 +65,15 @@ final class ListeningPlaybackControllerTests: XCTestCase {
 
         XCTAssertEqual(
             controller.state,
-            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 1.4, duration: 4)
+            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
         )
         XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
-        XCTAssertFalse(evidenceCallbackSawPersistedRecord)
+        XCTAssertFalse(
+            evidenceCallbackSawPersistedRecord,
+            "transport acknowledgement may update UI immediately, but persistence is deferred"
+        )
 
-        // Production adapters acknowledge pause through transportEvents(). This
-        // explicit refresh models the recovery/test path and captures the final
-        // playback-time boundary for evidence.
+        // Explicit recovery flushes the already-recorded boundary synchronously.
         _ = try controller.refresh(now: time(2))
 
         XCTAssertEqual(
@@ -83,6 +84,38 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>())
             .first { $0.songID == "threshold-song" })
         XCTAssertNotNil(record.actualListeningAt)
+    }
+
+    func testPendingPauseChangesPresentationWithoutPublishingFalseTransportTruth() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        service.pauseSnapshotLags = true
+        var presentationStates: [ListeningPlaybackState] = []
+        var transportStates: [ListeningPlaybackState] = []
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext),
+            stateDidChange: { presentationStates.append($0) },
+            transportStateDidChange: { transportStates.append($0) }
+        )
+        let item = ListeningPlaybackItem(songID: "truth-separation", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        try await controller.play(now: time(0))
+        _ = try controller.refresh(now: time(1))
+        let transportCountBeforePause = transportStates.count
+
+        try controller.pause(now: time(2))
+
+        XCTAssertEqual(
+            controller.state,
+            .paused(songID: "truth-separation", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        XCTAssertTrue(controller.transportState.isPlaying)
+        XCTAssertEqual(transportStates.count, transportCountBeforePause)
+        XCTAssertEqual(presentationStates.last, controller.state)
+        try controller.stop(now: time(2))
     }
 
     func testPausePublishesPausedIntentWhenTransportSnapshotLags() async throws {
