@@ -58,13 +58,7 @@ final class ListeningPlaybackController {
     func play(now: Date = Date()) async throws {
         do {
             try await service.play()
-            stateMachine.handle(
-                .transportRequested(
-                    ListeningPlaybackTransportIntent(target: .playing, issuedAt: now)
-                )
-            )
-            publishState()
-            _ = try refresh(now: now)
+            try reconcileTransportIntent(target: .playing, now: now)
             startObservation()
         } catch {
             stateMachine.handle(.failed)
@@ -75,14 +69,29 @@ final class ListeningPlaybackController {
 
     func pause(now: Date = Date()) throws {
         service.pause()
+        defer { startObservation() }
+        try reconcileTransportIntent(target: .paused, now: now)
+    }
+
+    private func reconcileTransportIntent(
+        target: ListeningPlaybackTransportTarget,
+        now: Date
+    ) throws {
         stateMachine.handle(
             .transportRequested(
-                ListeningPlaybackTransportIntent(target: .paused, issuedAt: now)
+                ListeningPlaybackTransportIntent(target: target, issuedAt: now)
             )
         )
-        publishState()
-        defer { startObservation() }
-        _ = try refresh(now: now)
+
+        if service.failure != nil {
+            _ = try refresh(now: now)
+            return
+        }
+        guard let sample = service.snapshot(observedAt: now) else {
+            publishState()
+            return
+        }
+        _ = try apply(sample: sample, now: now)
     }
 
     func skipToNext(now: Date = Date()) async throws {
