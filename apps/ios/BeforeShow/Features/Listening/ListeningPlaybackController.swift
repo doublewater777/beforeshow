@@ -357,7 +357,6 @@ final class ListeningRemoteCommandBridge {
         guard self.controller === controller else { return }
         self.controller = nil
         itemsBySongID = [:]
-        MPNowPlayingInfoCenter.default().playbackState = .stopped
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -375,9 +374,7 @@ final class ListeningRemoteCommandBridge {
         if let title = item.title { info[MPMediaItemPropertyTitle] = title }
         if let artistName = item.artistName { info[MPMediaItemPropertyArtist] = artistName }
         if let duration = sample.duration ?? item.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
-        let center = MPNowPlayingInfoCenter.default()
-        center.playbackState = sample.phase.nowPlayingPlaybackState
-        center.nowPlayingInfo = info
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
     }
 
     private func play() {
@@ -437,17 +434,3 @@ final class ListeningRemoteCommandBridge {
     }
 }
 
-private extension ListeningPlaybackTransportPhase {
-    var nowPlayingPlaybackState: MPNowPlayingPlaybackState {
-        switch self {
-        case .playing, .waiting, .seeking:
-            .playing
-        case .paused:
-            .paused
-        case .interrupted:
-            .interrupted
-        case .stopped:
-            .stopped
-        }
-    }
-}
