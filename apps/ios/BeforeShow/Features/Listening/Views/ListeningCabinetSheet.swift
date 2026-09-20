@@ -1,20 +1,39 @@
 import SwiftUI
 
+private struct ListeningCabinetGridCell: View {
+    let disc: ListeningDisc
+    let show: Show?
+    let isPlaying: Bool
+    let artistName: String
+    let onSelect: () -> Void
+
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
+                ListeningDiscCover(disc: disc, show: show)
+                Text(disc.title)
+                    .font(BSListeningTokens.captionMedium)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundStyle(isPlaying ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .buttonStyle(BSListeningPressStyle(scale: 0.96))
+        .accessibilityLabel("\(disc.title), \(artistName)")
+        .accessibilityValue(isPlaying ? BSLocalization.text("正在播放") : "")
+    }
+}
+
 struct ListeningCabinetSheet: View {
     @Bindable var room: ListeningRoomCoordinator
     @Environment(\.dismiss) private var dismiss
     @State private var selectedDisc: ListeningDisc?
 
-    private var gridColumnCount: Int {
-        room.browsingArtist == nil ? 2 : 3
-    }
-
-    private var gridColumns: [GridItem] {
-        Array(
-            repeating: GridItem(.flexible(), spacing: BSSpacing.sm),
-            count: gridColumnCount
-        )
-    }
+    private let gridColumns = Array(
+        repeating: GridItem(.flexible(), spacing: BSSpacing.sm),
+        count: 3
+    )
 
     var body: some View {
         NavigationStack {
@@ -22,7 +41,7 @@ struct ListeningCabinetSheet: View {
                 VStack(alignment: .leading, spacing: BSSpacing.lg) {
                     HStack(spacing: BSSpacing.md) {
                         if let artist = room.browsingArtist {
-                            ListeningArtistArtwork(url: artist.artworkURL, name: artist.name)
+                            ListeningArtistArtwork(url: artist.artworkURL, name: artist.name, size: 48)
                                 .frame(width: 48, height: 48)
                                 .clipShape(Circle())
                                 .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
@@ -66,23 +85,21 @@ struct ListeningCabinetSheet: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, BSSpacing.xl * 2)
                     } else {
-                   LazyVGrid(columns: gridColumns, spacing: BSSpacing.lg) {
-                       ForEach(room.libraryDiscs) { disc in
-                           Button { selectedDisc = disc } label: {
-                               VStack(alignment: .leading, spacing: BSListeningTokens.shelfItemSpacing) {
-                                   ListeningDiscCover(disc: disc, show: room.show)
-                                   Text(disc.title)
-                                       .font(BSListeningTokens.captionMedium)
-                                       .lineLimit(2)
-                                       .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
-                                       .frame(maxWidth: .infinity, alignment: .leading)
-                               }
-                           }
-                           .buttonStyle(BSListeningPressStyle(scale: 0.96))
-                           .accessibilityLabel("\(disc.title), \(room.browsingArtist?.name ?? "BeforeShow")")
-                           .accessibilityValue(ListeningSleeveMarks.accessibilityText(room: room, disc: disc))
-                       }
-                   }
+                        let currentPlayingDiscID = room.isPlaying ? room.mechanism.disc?.id : nil
+                        let browsingArtistName = room.browsingArtist?.name ?? BSLocalization.text("BeforeShow 热门合辑")
+                        let currentShow = room.show
+
+                        LazyVGrid(columns: gridColumns, spacing: BSSpacing.lg) {
+                            ForEach(room.libraryDiscs) { disc in
+                                ListeningCabinetGridCell(
+                                    disc: disc,
+                                    show: currentShow,
+                                    isPlaying: disc.id == currentPlayingDiscID,
+                                    artistName: browsingArtistName,
+                                    onSelect: { selectedDisc = disc }
+                                )
+                            }
+                        }
                     }
                }
                .padding(BSSpacing.roomy)

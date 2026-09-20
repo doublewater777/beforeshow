@@ -5,26 +5,35 @@ import SwiftUI
 struct ArtistAvatarThumb: View {
     let url: URL?
     var size: CGFloat = 28
+    @State private var image: UIImage?
+
+    init(url: URL?, size: CGFloat = 28) {
+        self.url = url
+        self.size = size
+        _image = State(initialValue: url.flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) })
+    }
 
     var body: some View {
-        if let url {
-            AsyncImage(url: url) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .scaledToFill()
-                default:
-                    placeholder
-                }
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                placeholder
             }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
-        } else {
-            placeholder
-                .frame(width: size, height: size)
-                .clipShape(Circle())
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color.black.opacity(0.6), lineWidth: 1))
+        .task(id: url) {
+            guard let url else { image = nil; return }
+            if image == nil {
+                image = ShowCoverImageCache.shared.memoryImage(for: url)
+            }
+            if image == nil {
+                image = await ShowCoverImageCache.shared.image(from: url)
+            }
         }
     }
 
@@ -49,7 +58,7 @@ struct ArtistLineupStrip: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: BSSpacing.md) {
+            LazyHStack(spacing: BSSpacing.md) {
                 ForEach(Array(artists.enumerated()), id: \.offset) { _, artist in
                     item(artist)
                 }

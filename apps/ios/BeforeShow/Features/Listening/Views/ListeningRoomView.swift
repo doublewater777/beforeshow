@@ -303,16 +303,23 @@ struct ListeningRoomView: View {
                 newCabinetScale = frame.width / stageScale / geometry.discDiameter
             }
         }
-        room.mechanism.cabinetSlots = newSlots
-        room.mechanism.cabinetScale = newCabinetScale
+        if room.mechanism.cabinetSlots != newSlots {
+            room.mechanism.cabinetSlots = newSlots
+        }
+        if abs(room.mechanism.cabinetScale - newCabinetScale) > 0.001 {
+            room.mechanism.cabinetScale = newCabinetScale
+        }
         if let frame = frames["cabinet"] {
             let origin = convert(frame.origin)
-            room.mechanism.cabinetDropZone = CGRect(
+            let newDropZone = CGRect(
                 x: origin.x,
                 y: origin.y,
                 width: frame.width / stageScale,
                 height: frame.height / stageScale / cosine
             )
+            if room.mechanism.cabinetDropZone != newDropZone {
+                room.mechanism.cabinetDropZone = newDropZone
+            }
         }
     }
 }

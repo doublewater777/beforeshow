@@ -192,18 +192,19 @@ struct ListeningArtwork: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size.width
-            Group {
-                if let image {
-                    Image(uiImage: image).resizable().scaledToFill()
-                } else {
-                    placeholder(size: size)
+        Group {
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                GeometryReader { proxy in
+                    placeholder(size: proxy.size.width)
+                        .frame(width: proxy.size.width, height: proxy.size.height)
                 }
             }
-            .frame(width: proxy.size.width, height: proxy.size.height)
-            .clipped()
         }
+        .clipped()
         .task(id: url) {
             guard let url else { image = nil; return }
             if image == nil {
@@ -270,11 +271,13 @@ extension ListeningRoomCoordinator {
 struct ListeningArtistArtwork: View {
     let url: URL?
     let name: String
+    var size: CGFloat? = nil
     @State private var image: UIImage?
 
-    init(url: URL?, name: String) {
+    init(url: URL?, name: String, size: CGFloat? = nil) {
         self.url = url
         self.name = name
+        self.size = size
         _image = State(initialValue: url.flatMap { ShowCoverImageCache.shared.memoryImage(for: $0) })
     }
 
@@ -283,15 +286,13 @@ struct ListeningArtistArtwork: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                GeometryReader { proxy in
-                    ZStack {
-                        BSColor.Stage.surfaceRaised
-                        Text(String(name.prefix(1)))
-                            .font(.system(size: proxy.size.width * 0.5, weight: .semibold))
-                            .foregroundStyle(BSColor.Stage.muted)
-                    }
-                    .frame(width: proxy.size.width, height: proxy.size.height)
+                ZStack {
+                    BSColor.Stage.surfaceRaised
+                    Text(String(name.prefix(1)))
+                        .font(.system(size: (size ?? BSListeningTokens.avatar) * 0.48, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.muted)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .clipped()

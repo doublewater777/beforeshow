@@ -54,6 +54,5 @@ struct BSListeningPressStyle: ButtonStyle {
             .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1.0)
             .opacity(configuration.isPressed ? 0.86 : 1.0)
             .animation(.easeOut(duration: configuration.isPressed ? BSListeningTokens.pressDuration : BSListeningTokens.releaseDuration), value: configuration.isPressed)
-            .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.3), trigger: configuration.isPressed)
     }
 }

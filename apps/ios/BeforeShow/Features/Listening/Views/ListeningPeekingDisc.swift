@@ -65,7 +65,8 @@ struct ListeningPeekingDisc: View {
             }
         }
         .frame(width: size, height: size)
-        .shadow(color: Color.black.opacity(0.65), radius: 5, x: -2, y: 3)
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.45), radius: 4, x: -2, y: 2)
         .accessibilityHidden(true)
         .task(id: disc.artworkURL) {
             guard let url = disc.artworkURL else { centerImage = nil; return }

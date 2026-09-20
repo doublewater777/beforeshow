@@ -30,7 +30,8 @@ struct ListeningDiscCover: View {
             RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: BSListeningTokens.hairline)
         )
-        .shadow(color: Color.black.opacity(0.45), radius: 5, y: 3)
+        .compositingGroup()
+        .shadow(color: Color.black.opacity(0.35), radius: 4, y: 2)
         .accessibilityHidden(true)
     }
 }
@@ -56,7 +57,7 @@ private struct ListeningCompilationJacket: View {
                     Text(identity.title)
                         .font(.system(size: proxy.size.width * BSListeningTokens.sleeveTitleFraction,
                                       weight: .semibold))
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(inset)
@@ -80,12 +81,14 @@ struct ListeningSleeveImage: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
+        Group {
             if let image {
-                Image(uiImage: image).resizable().scaledToFill()
-                    .frame(width: proxy.size.width, height: proxy.size.height).clipped()
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
             }
         }
+        .clipped()
         .task(id: url) {
             guard let url else { image = nil; return }
             if image == nil {

@@ -25,7 +25,6 @@ struct ListeningSleeveCard: View {
             ListeningDiscCover(disc: disc, show: show)
                 .frame(width: jacketSize, height: jacketSize)
                 .rotationEffect(.degrees(ListeningSleeveIdentity(disc: disc).angle))
-                .shadow(color: Color.black.opacity(0.55), radius: 6, x: 1, y: 3)
                 .overlay {
                     // Satin sheen over sleeve
                     LinearGradient(
@@ -40,6 +39,8 @@ struct ListeningSleeveCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
                     .allowsHitTesting(false)
                 }
+                .compositingGroup()
+                .shadow(color: Color.black.opacity(0.4), radius: 4, x: 1, y: 2)
         }
         .frame(width: jacketSize + peekOffset, height: jacketSize, alignment: .leading)
     }
