@@ -1142,7 +1142,7 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func handlePlaybackEvidenceFailure() {
         evidenceRetryPending = true
-        if !evidenceFailureAlertShown, errorText == nil {
+        if errorText == nil {
             evidenceFailureAlertShown = true
             errorText = playbackEvidenceFailureMessage
             evidenceFailureOwnsErrorText = true
