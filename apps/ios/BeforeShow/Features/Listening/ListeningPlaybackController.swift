@@ -86,6 +86,7 @@ final class ListeningPlaybackController {
         beginIntent(.playing, now: now)
         do {
             try await service.play()
+            try sampleCommandAcknowledgement(now: now)
         } catch {
             clearPendingIntent()
             stateMachine.handle(.failed)
@@ -97,6 +98,16 @@ final class ListeningPlaybackController {
     func pause(now: Date = Date()) throws {
         beginIntent(.paused, now: now)
         service.pause()
+        try sampleCommandAcknowledgement(now: now)
+    }
+
+    /// Fast acknowledgement for transports that update synchronously. A stale
+    /// snapshot cannot undo the pending presentation intent; Observable transport
+    /// events remain the authoritative ongoing synchronization mechanism.
+    private func sampleCommandAcknowledgement(now: Date) throws {
+        guard service.failure == nil,
+              let sample = service.snapshot(observedAt: now) else { return }
+        try applyTransport(sample: sample, now: now, evidence: .deferred)
     }
 
     func skipToNext(now: Date = Date()) async throws {
@@ -129,6 +140,7 @@ final class ListeningPlaybackController {
     /// It updates the UI immediately but keeps evidence persistence deferred.
     @discardableResult
     func resynchronizeTransport(now: Date = Date()) throws -> ListeningPlaybackState {
+        clearPendingIntent()
         if service.failure != nil {
             clearPendingIntent()
             stateMachine.handle(.failed)
@@ -146,6 +158,7 @@ final class ListeningPlaybackController {
     /// synchronization is driven by `transportEvents()`, not by this method.
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
+        clearPendingIntent()
         if service.failure != nil {
             clearPendingIntent()
             stateMachine.handle(.failed)
