@@ -201,7 +201,7 @@ private extension Double {
     }
 }
 
-private struct PreviewTransportObservation: Equatable {
+private struct PreviewTransportObservation: Equatable, Sendable {
     let status: AVPlayer.TimeControlStatus
     let currentItemID: ObjectIdentifier?
     let currentItemStatus: AVPlayerItem.Status?
