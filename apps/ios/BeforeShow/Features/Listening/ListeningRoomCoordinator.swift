@@ -46,6 +46,8 @@ private let listeningCatalogFetchConcurrency = 4
         trackIndex = 0
         preparedSongID = nil
         playbackState = .idle
+        transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
         trackBelongsToShow = true
     }
     #endif
@@ -53,13 +55,15 @@ private let listeningCatalogFetchConcurrency = 4
     private(set) var access = ListeningMusicAccess(authorizationStatus: .notDetermined, canPlayCatalogContent: false)
     private(set) var isAuthorizing = false
     private(set) var isCatalogEnriching = false
+    /// Presentation state may optimistically reflect a pending user command.
+    /// Domain side effects must use `transportPlaybackState` instead.
     private(set) var playbackState: ListeningPlaybackState = .idle {
-        didSet {
-            mechanism.motion.spinning = isPlaying
-            updateTimeText()
-        }
+        didSet { updateTimeText() }
     }
+    @ObservationIgnored private var transportPlaybackState: ListeningPlaybackState = .idle
+    @ObservationIgnored private var transportPlaybackPhase: ListeningPlaybackTransportPhase = .stopped
     var isPlaying: Bool { playbackState.isPlaying }
+    private var transportIsPlaying: Bool { transportPlaybackPhase.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var wantedSongIDs: Set<String> = []
@@ -211,6 +215,8 @@ private let listeningCatalogFetchConcurrency = 4
             trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
             preparedSongID = nil
             playbackState = .idle
+            transportPlaybackState = .idle
+            transportPlaybackPhase = .stopped
             trackBelongsToShow = true
         } catch {}
     }
@@ -699,7 +705,7 @@ private let listeningCatalogFetchConcurrency = 4
         return disc.tracks.contains { $0.id == recentListening.songID }
     }
     private func recordPlayingIfNeeded() {
-        guard isPlaying, let show, let track, let disc = mechanism.disc,
+        guard transportIsPlaying, let show, let track, let disc = mechanism.disc,
               recordedPlayingSongID != track.id else { return }
         do {
             let record = recentListening ?? ShowRecentListening(showID: show.id, discID: disc.id, songID: track.id)
@@ -843,6 +849,8 @@ private let listeningCatalogFetchConcurrency = 4
         preparedDiscID = nil
         preparedSongID = nil
         playbackState = .idle
+        transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
         trackBelongsToShow = true
         persistLoadedDisc()
     }
@@ -856,7 +864,7 @@ private let listeningCatalogFetchConcurrency = 4
             stop()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            preparedSongID = nil; playbackState = .idle; trackBelongsToShow = true
+            preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; transportPlaybackPhase = .stopped; trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
         }
@@ -942,7 +950,7 @@ private let listeningCatalogFetchConcurrency = 4
         }
         playbackError = nil
         let generation = playbackGeneration
-        if preparedSongID != track.id || preparedSource != source || controller == nil || playbackState == .failed || playbackState.isFinished {
+        if preparedSongID != track.id || preparedSource != source || controller == nil || transportPlaybackState == .failed || transportPlaybackState.isFinished {
             try controller?.stop()
             let service = playbackFactory(source)
             let evidence = try playbackEvidenceCoordinatorForUse()
@@ -955,13 +963,23 @@ private let listeningCatalogFetchConcurrency = 4
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.applyPlaybackState(state)
                 },
+                transportStateDidChange: { [weak self] state in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyTransportPlaybackState(state)
+                },
+                transportSampleDidChange: { [weak self] sample in
+                    guard let self, self.playbackGeneration == stateGeneration else { return }
+                    self.applyTransportSample(sample)
+                },
                 evidenceDidChange: { [weak self] in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.refreshPlaybackEvidenceProjection()
                 },
-                evidenceDidFail: { [weak self] in
+                evidenceDidFail: { [weak self] origin in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.handlePlaybackEvidenceFailure()
+                    self.handlePlaybackEvidenceFailure(
+                        representDismissedAlert: origin == .immediate
+                    )
                 }
             )
             controller = next
@@ -996,7 +1014,7 @@ private let listeningCatalogFetchConcurrency = 4
         finishedSongID = nil
     }
     private func completeSleevePlaybackIfNeeded() {
-        guard isPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
+        guard transportIsPlaying, let pendingSleeveSongID, track?.id == pendingSleeveSongID else { return }
         sleevePlaybackSongID = pendingSleeveSongID
         self.pendingSleeveSongID = nil
     }
@@ -1025,6 +1043,9 @@ private let listeningCatalogFetchConcurrency = 4
         preparedSongID = nil
         preparedSource = nil
         playbackState = .idle
+        transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
+        mechanism.motion.spinning = false
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
@@ -1050,7 +1071,19 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyPlaybackState(_ state: ListeningPlaybackState) {
         playbackState = state
-        syncTrackIndexWithPlaybackState()
+    }
+
+    private func applyTransportPlaybackState(_ state: ListeningPlaybackState) {
+        transportPlaybackState = state
+        syncTrackIndex(with: state)
+
+        switch state {
+        case .idle, .preparing, .failed, .finished:
+            transportPlaybackPhase = .stopped
+            mechanism.motion.spinning = false
+        case .ready, .playing, .paused:
+            break
+        }
 
         if case .failed = state {
             pendingSleeveSongID = nil
@@ -1058,14 +1091,18 @@ private let listeningCatalogFetchConcurrency = 4
             return
         }
 
-        completeSleevePlaybackIfNeeded()
-        recordPlayingIfNeeded()
-
         if case let .finished(songID, _, _) = state {
             finishedSongID = songID
         } else {
             finishedSongID = nil
         }
+    }
+
+    private func applyTransportSample(_ sample: ListeningPlaybackSample) {
+        transportPlaybackPhase = sample.phase
+        mechanism.motion.spinning = sample.phase.isPlaying
+        completeSleevePlaybackIfNeeded()
+        recordPlayingIfNeeded()
     }
     private func refreshPlaybackEvidenceProjection() {
         do {
@@ -1105,9 +1142,12 @@ private let listeningCatalogFetchConcurrency = 4
         BSLocalization.text("熟悉度保存失败，请重试")
     }
 
-    private func handlePlaybackEvidenceFailure() {
+    private func handlePlaybackEvidenceFailure(
+        representDismissedAlert: Bool = true
+    ) {
         evidenceRetryPending = true
-        if !evidenceFailureAlertShown, errorText == nil {
+        if errorText == nil,
+           representDismissedAlert || !evidenceFailureAlertShown {
             evidenceFailureAlertShown = true
             errorText = playbackEvidenceFailureMessage
             evidenceFailureOwnsErrorText = true
@@ -1169,9 +1209,9 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
-    private func syncTrackIndexWithPlaybackState() {
+    private func syncTrackIndex(with state: ListeningPlaybackState) {
         let songID: String?
-        switch playbackState {
+        switch state {
         case let .ready(id, _, _, _), let .playing(id, _, _, _), let .paused(id, _, _, _), let .finished(id, _, _):
             songID = id
         case .idle, .preparing, .failed:
@@ -1191,7 +1231,24 @@ private let listeningCatalogFetchConcurrency = 4
         do { try controller?.seek(to: time) }
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
-    func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
+    func setForeground(_ value: Bool) {
+        let wasForeground = foreground
+        foreground = value
+
+        // Transport events are the normal synchronization path. Returning from
+        // suspension is also an explicit resynchronization boundary so any event
+        // that occurred while the process could not consume observations cannot
+        // leave the UI stale.
+        if value, !wasForeground, let controller {
+            do {
+                _ = try controller.resynchronizeTransport()
+            } catch {
+                playbackError = BSLocalization.text("暂时无法播放")
+            }
+        }
+
+        updateVisibility()
+    }
     func setActive(_ value: Bool) {
         active = value
         if value {

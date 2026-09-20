@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import Observation
 
 @MainActor
 final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
@@ -84,6 +85,37 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         return .songUnavailable(queue[index].songID)
     }
 
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
+        AsyncStream { continuation in
+            let task = Task { @MainActor [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+
+                let observations = Observations {
+                    PreviewTransportObservation(
+                        status: self.player.timeControlStatus,
+                        currentItemID: self.player.currentItem.map(ObjectIdentifier.init),
+                        currentItemStatus: self.player.currentItem?.status
+                    )
+                }
+
+                for await _ in observations {
+                    if Task.isCancelled { break }
+                    if let sample = self.snapshot(observedAt: Date()) {
+                        continuation.yield(sample)
+                    }
+                }
+                continuation.finish()
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
+        }
+    }
+
     func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
         guard !queue.isEmpty else { return nil }
         let index = activeIndex()
@@ -95,18 +127,18 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         let duration = playerDuration ?? item.duration
         let reachedQueueEnd = currentItem == nil && index == queue.count - 1
         let currentTime = max(0, playerTime ?? (reachedQueueEnd ? duration ?? 0 : 0))
-        let isPlaying = player.timeControlStatus != .paused
+        let phase = transportPhase
         return ListeningPlaybackSample(
             songID: item.songID,
             source: .preview,
             currentTime: currentTime,
             duration: duration,
-            isPlaying: isPlaying,
+            phase: phase,
             observedAt: observedAt,
             hasEnded: reachedQueueEnd || ListeningPlaybackCompletionPolicy.hasEnded(
                 currentTime: currentTime,
                 duration: duration,
-                isPlaying: isPlaying
+                phase: phase
             )
         )
     }
@@ -118,6 +150,20 @@ final class PreviewListeningPlaybackService: ListeningPlaybackServicing {
         currentIndex = 0
         itemIndexes = [:]
         AppAudioSession.releaseMusicPlayback()
+    }
+
+    private var transportPhase: ListeningPlaybackTransportPhase {
+        guard player.currentItem != nil else { return .stopped }
+        switch player.timeControlStatus {
+        case AVPlayer.TimeControlStatus.playing:
+            return ListeningPlaybackTransportPhase.playing
+        case AVPlayer.TimeControlStatus.waitingToPlayAtSpecifiedRate:
+            return ListeningPlaybackTransportPhase.waiting
+        case AVPlayer.TimeControlStatus.paused:
+            return ListeningPlaybackTransportPhase.paused
+        @unknown default:
+            return ListeningPlaybackTransportPhase.paused
+        }
     }
 
     private func activeIndex() -> Int {
@@ -153,4 +199,10 @@ private extension Double {
     var positiveFiniteValue: Double? {
         isFinite && self > 0 ? self : nil
     }
+}
+
+private struct PreviewTransportObservation: Equatable, Sendable {
+    let status: AVPlayer.TimeControlStatus
+    let currentItemID: ObjectIdentifier?
+    let currentItemStatus: AVPlayerItem.Status?
 }

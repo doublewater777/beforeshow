@@ -26,6 +26,40 @@ import SwiftData
         room.stop(); room.mechanism.motion.stop()
     }
 
+    func testForegroundBoundaryRepairsTransportChangeMissedWhileSuspended() async throws {
+        let (container, show) = try ListenTestData.make()
+        let playback = LifecyclePendingPlaybackService()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: ListeningFixtureCatalog(scenario: .singleFull),
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in playback }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first)
+        room.restoreDisc(disc)
+        try await ListenTestData.settle(room) { room.track != nil && !room.busy }
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        room.playPause()
+        XCTAssertFalse(room.isPlaying)
+
+        room.setForeground(false)
+        playback.setPlayingExternally(true)
+        XCTAssertFalse(room.isPlaying)
+
+        room.setForeground(true)
+
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .playing)
+    }
+
     func testOpeningLidDrainsAllPendingEvidenceBeforeControllerIsDestroyed() async throws {
         let (container, show) = try ListenTestData.make()
         let context = container.mainContext
@@ -1008,6 +1042,10 @@ private final class LifecyclePendingPlaybackService: ListeningPlaybackServicing 
 
     func pause() {
         playing = false
+    }
+
+    func setPlayingExternally(_ value: Bool) {
+        playing = value
     }
 
     func skipToNext() async throws {

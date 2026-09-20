@@ -1,10 +1,12 @@
 import Foundation
+import Observation
 @preconcurrency import MusicKit
 
 @MainActor
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private let player: ApplicationMusicPlayer
     private var durationBySongID: [String: TimeInterval] = [:]
+    private var lastObservedSongID: String?
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
@@ -39,6 +41,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         durationBySongID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
             item.duration.map { (item.songID, $0) }
         })
+        lastObservedSongID = startingAtSongID ?? items.first?.songID
         player.state.repeatMode = MusicPlayer.RepeatMode.none
         player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs, startingAt: startingSong)
@@ -66,24 +69,68 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         player.playbackTime = max(0, time)
     }
 
-    func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
-        guard case let .song(song) = player.queue.currentEntry?.item else {
-            return nil
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
+        AsyncStream { continuation in
+            let task = Task { @MainActor [weak self] in
+                guard let self else {
+                    continuation.finish()
+                    return
+                }
+
+                let observations = Observations {
+                    MusicKitTransportObservation(
+                        status: self.player.state.playbackStatus,
+                        songID: self.currentSongID
+                    )
+                }
+
+                for await _ in observations {
+                    if Task.isCancelled { break }
+                    if let sample = self.snapshot(observedAt: Date()) {
+                        continuation.yield(sample)
+                    }
+                }
+                continuation.finish()
+            }
+
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
+            }
         }
+    }
+
+    func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
+        let phase = transportPhase(for: player.state.playbackStatus)
+        guard case let .song(song) = player.queue.currentEntry?.item else {
+            guard let songID = lastObservedSongID else { return nil }
+            let duration = durationBySongID[songID]
+            let currentTime = max(0, player.playbackTime)
+            let hasEnded = phase == .stopped
+                && duration.map { currentTime >= $0 - 0.25 || currentTime == 0 } == true
+            return ListeningPlaybackSample(
+                songID: songID,
+                source: .fullCatalog,
+                currentTime: hasEnded ? (duration ?? currentTime) : currentTime,
+                duration: duration,
+                phase: phase,
+                observedAt: observedAt,
+                hasEnded: hasEnded
+            )
+        }
+        lastObservedSongID = song.id.rawValue
         let currentTime = max(0, player.playbackTime)
         let duration = song.duration ?? durationBySongID[song.id.rawValue]
-        let isPlaying = player.state.playbackStatus == .playing
         return ListeningPlaybackSample(
             songID: song.id.rawValue,
             source: .fullCatalog,
             currentTime: currentTime,
             duration: duration,
-            isPlaying: isPlaying,
+            phase: phase,
             observedAt: observedAt,
             hasEnded: ListeningPlaybackCompletionPolicy.hasEnded(
                 currentTime: currentTime,
                 duration: duration,
-                isPlaying: isPlaying
+                phase: phase
             )
         )
     }
@@ -91,7 +138,32 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     func stop() {
         player.stop()
         durationBySongID = [:]
+        lastObservedSongID = nil
         AppAudioSession.releaseMusicPlayback()
+    }
+
+    private var currentSongID: String? {
+        guard case let .song(song) = player.queue.currentEntry?.item else { return nil }
+        return song.id.rawValue
+    }
+
+    private func transportPhase(
+        for status: MusicPlayer.PlaybackStatus
+    ) -> ListeningPlaybackTransportPhase {
+        switch status {
+        case .playing:
+            return .playing
+        case .paused:
+            return .paused
+        case .stopped:
+            return .stopped
+        case .interrupted:
+            return .interrupted
+        case .seekingForward, .seekingBackward:
+            return .seeking
+        @unknown default:
+            return .stopped
+        }
     }
 
     private func fetchSongs(ids: [String]) async throws -> [Song] {
@@ -111,4 +183,9 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
             (order[$0.id.rawValue] ?? Int.max) < (order[$1.id.rawValue] ?? Int.max)
         }
     }
+}
+
+private struct MusicKitTransportObservation: Equatable, Sendable {
+    let status: MusicPlayer.PlaybackStatus
+    let songID: String?
 }

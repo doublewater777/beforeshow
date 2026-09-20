@@ -53,88 +53,61 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
         )
     }
 
-    func testPauseIntentMasksStalePlayingObservationUntilTransportAcknowledges() {
+    func testTransportTruthIsNotMutatedByPresentationIntent() {
         var machine = ListeningPlaybackStateMachine()
         _ = machine.handle(.prepareStarted(source: .fullCatalog))
         _ = machine.handle(.sample(sample(time: 10, isPlaying: true)))
 
-        XCTAssertEqual(
-            machine.handle(
-                .transportRequested(
-                    ListeningPlaybackTransportIntent(
-                        target: .paused,
-                        issuedAt: Date(timeIntervalSince1970: 10)
-                    )
-                )
-            ),
-            .paused(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
-        )
+        let truth = machine.state
+        let projected = truth.projecting(.paused)
 
         XCTAssertEqual(
-            machine.handle(.sample(sample(time: 10.5, isPlaying: true))),
-            .paused(songID: "song-a", source: .fullCatalog, currentTime: 10.5, duration: 100)
-        )
-        XCTAssertNotNil(machine.pendingTransportIntent)
-
-        XCTAssertEqual(
-            machine.handle(.sample(sample(time: 11, isPlaying: false))),
-            .paused(songID: "song-a", source: .fullCatalog, currentTime: 11, duration: 100)
-        )
-        XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertFalse(machine.needsTransportObservation)
-    }
-
-    func testPlayIntentMasksStalePausedObservationUntilTransportAcknowledges() {
-        var machine = ListeningPlaybackStateMachine()
-        _ = machine.handle(.prepareStarted(source: .fullCatalog))
-        _ = machine.handle(.sample(sample(time: 10, isPlaying: true)))
-        _ = machine.handle(.sample(sample(time: 10, isPlaying: false)))
-
-        XCTAssertEqual(
-            machine.handle(
-                .transportRequested(
-                    ListeningPlaybackTransportIntent(
-                        target: .playing,
-                        issuedAt: Date(timeIntervalSince1970: 10)
-                    )
-                )
-            ),
+            truth,
             .playing(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
         )
-
         XCTAssertEqual(
-            machine.handle(.sample(sample(time: 10.5, isPlaying: false))),
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 10.5, duration: 100)
+            projected,
+            .paused(songID: "song-a", source: .fullCatalog, currentTime: 10, duration: 100)
         )
-        XCTAssertNotNil(machine.pendingTransportIntent)
-
-        XCTAssertEqual(
-            machine.handle(.sample(sample(time: 11, isPlaying: true))),
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 11, duration: 100)
-        )
-        XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertTrue(machine.needsTransportObservation)
+        XCTAssertEqual(machine.state, truth)
     }
 
-    func testUnacknowledgedTransportIntentExpiresBackToObservedTruth() {
+    func testWaitingTransportRemainsPlaybackActiveInProductProjection() {
         var machine = ListeningPlaybackStateMachine()
-        _ = machine.handle(.prepareStarted(source: .fullCatalog))
-        _ = machine.handle(.sample(sample(time: 10, isPlaying: true)))
-        _ = machine.handle(
-            .transportRequested(
-                ListeningPlaybackTransportIntent(
-                    target: .paused,
-                    issuedAt: Date(timeIntervalSince1970: 10)
-                )
-            )
+        _ = machine.handle(.prepareStarted(source: .preview))
+        let waiting = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .preview,
+            currentTime: 4,
+            duration: 30,
+            phase: .waiting,
+            observedAt: Date(timeIntervalSince1970: 4)
         )
 
         XCTAssertEqual(
-            machine.handle(.sample(sample(time: 12, isPlaying: true))),
-            .playing(songID: "song-a", source: .fullCatalog, currentTime: 12, duration: 100)
+            machine.handle(.sample(waiting)),
+            .playing(songID: "song-a", source: .preview, currentTime: 4, duration: 30)
         )
-        XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertTrue(machine.needsTransportObservation)
+    }
+
+    func testProgressSamplingUpdatesTimeWithoutChangingTransportPhase() {
+        var machine = ListeningPlaybackStateMachine()
+        _ = machine.handle(.prepareStarted(source: .fullCatalog))
+        _ = machine.handle(.sample(sample(time: 10, isPlaying: false)))
+
+        let progress = ListeningPlaybackSample(
+            songID: "song-a",
+            source: .fullCatalog,
+            currentTime: 12,
+            duration: 100,
+            phase: .playing,
+            observedAt: Date(timeIntervalSince1970: 12)
+        )
+
+        XCTAssertEqual(
+            machine.handle(.progress(progress)),
+            .ready(songID: "song-a", source: .fullCatalog, currentTime: 12, duration: 100)
+        )
     }
 
     func testNewSongSampleReplacesFinishedState() {

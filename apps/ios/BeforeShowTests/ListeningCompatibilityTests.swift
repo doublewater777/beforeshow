@@ -500,13 +500,15 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
 
         XCTAssertFalse(room.isPlaying)
         XCTAssertEqual(room.display.player.phase, .paused)
+        try await waitUntil {
+            room.actualSongIDs.contains(song.appleMusicSongID)
+                && room.familiarSongIDs.contains(song.appleMusicSongID)
+        }
         let record = try XCTUnwrap(
             context.fetch(FetchDescriptor<SongFamiliarityRecord>())
                 .first { $0.songID == song.appleMusicSongID }
         )
         XCTAssertNotNil(record.actualListeningAt)
-        XCTAssertTrue(room.actualSongIDs.contains(song.appleMusicSongID))
-        XCTAssertTrue(room.familiarSongIDs.contains(song.appleMusicSongID))
     }
 
     private func resetChromeGlobals() {
@@ -656,6 +658,7 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     private var items: [ListeningPlaybackItem] = []
     private var index = 0
     private var playing = false
+    private var transportContinuation: AsyncStream<ListeningPlaybackSample>.Continuation?
     var currentTime: TimeInterval = 0
 
     var transportIsPlaying: Bool { playing }
@@ -663,6 +666,7 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
     func advanceTransportToNext() {
         guard index + 1 < items.count else { return }
         index += 1
+        emitTransport()
     }
 
     func prepare(
@@ -701,6 +705,17 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
 
     func seek(to time: TimeInterval) {}
 
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
+        AsyncStream { continuation in
+            transportContinuation = continuation
+        }
+    }
+
+    private func emitTransport(observedAt: Date = Date()) {
+        guard let sample = snapshot(observedAt: observedAt) else { return }
+        transportContinuation?.yield(sample)
+    }
+
     func snapshot(observedAt: Date) -> ListeningPlaybackSample? {
         guard items.indices.contains(index), let preparedSource else { return nil }
         let item = items[index]
@@ -720,6 +735,8 @@ private final class ListeningChromePlaybackSpy: ListeningPlaybackServicing {
         items = []
         index = 0
         currentTime = 0
+        transportContinuation?.finish()
+        transportContinuation = nil
     }
 }
 
