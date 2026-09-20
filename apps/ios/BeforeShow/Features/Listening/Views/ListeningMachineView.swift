@@ -127,20 +127,22 @@ private struct CDPlayerLidView: View {
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
+    private var usesTransparentBackFace: Bool {
+        isShowingBackFace && player.hasDisc
+    }
 
     var body: some View {
         ZStack {
             Image(player.configuration.assets.lidOuter).resizable()
                 .opacity(isShowingBackFace ? 0 : 1)
 
-            // The underside is clear acrylic: retain a faint trace of the
-            // photographed ribs/hinges, but let the seated disc remain visible
-            // through the raised lid instead of replacing it with an opaque
-            // inner-face photograph.
+            // With no disc loaded, the raised underside stays fully opaque.
+            // Once a disc is seated, it becomes clear acrylic so the disc
+            // remains visible through the lid.
             Image(player.configuration.assets.lidInner).resizable()
-                .opacity(isShowingBackFace ? 0.16 : 0)
+                .opacity(isShowingBackFace ? (usesTransparentBackFace ? 0.16 : 1) : 0)
 
-            if isShowingBackFace {
+            if usesTransparentBackFace {
                 LinearGradient(
                     colors: [
                         .white.opacity(0.10),
@@ -165,9 +167,9 @@ private struct CDPlayerLidView: View {
 
             LinearGradient(
                 colors: [
-                    .white.opacity((isShowingBackFace ? 0.025 : 0.07) * motion.lid.value),
+                    .white.opacity((usesTransparentBackFace ? 0.025 : 0.07) * motion.lid.value),
                     .clear,
-                    .black.opacity((isShowingBackFace ? 0.035 : 0.10) * motion.lid.value)
+                    .black.opacity((usesTransparentBackFace ? 0.035 : 0.10) * motion.lid.value)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
