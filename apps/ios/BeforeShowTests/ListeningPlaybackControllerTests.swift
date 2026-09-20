@@ -65,10 +65,20 @@ final class ListeningPlaybackControllerTests: XCTestCase {
 
         XCTAssertEqual(
             controller.state,
-            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
+            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 1.4, duration: 4)
         )
         XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
-        XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertFalse(evidenceCallbackSawPersistedRecord)
+
+        // Production adapters acknowledge pause through transportEvents(). This
+        // explicit refresh models the recovery/test path and captures the final
+        // playback-time boundary for evidence.
+        _ = try controller.refresh(now: time(2))
+
+        XCTAssertEqual(
+            controller.transportState,
+            .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
+        )
         XCTAssertTrue(evidenceCallbackSawPersistedRecord)
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>())
             .first { $0.songID == "threshold-song" })
@@ -106,6 +116,10 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
         XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
         XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertEqual(
+            controller.transportState,
+            .playing(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
+        )
         XCTAssertTrue(service.snapshot(observedAt: time(13))?.isPlaying == true)
         try controller.stop(now: time(13))
     }
@@ -133,8 +147,44 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         )
         XCTAssertEqual(projectedStates.count, stateCountBeforePlay + 1)
         XCTAssertEqual(projectedStates.last, controller.state)
+        XCTAssertEqual(
+            controller.transportState,
+            .ready(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
         XCTAssertTrue(service.snapshot(observedAt: time(1))?.isPlaying == false)
         try controller.stop(now: time(1))
+    }
+
+    func testObservableTransportResumeOverridesPausedAppProjection() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let service = PlaybackServiceStub()
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        let item = ListeningPlaybackItem(songID: "external-resume", duration: 100, previewURL: nil)
+
+        try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        await Task.yield()
+
+        try await controller.play(now: time(1))
+        _ = try controller.refresh(now: time(1))
+        try controller.pause(now: time(2))
+        _ = try controller.refresh(now: time(2))
+        XCTAssertFalse(controller.state.isPlaying)
+        XCTAssertFalse(controller.transportState.isPlaying)
+
+        service.setPlayingExternally(true)
+        service.emitCurrentTransport(observedAt: time(3))
+        await Task.yield()
+
+        XCTAssertEqual(
+            controller.transportState,
+            .playing(songID: "external-resume", source: .fullCatalog, currentTime: 0, duration: 100)
+        )
+        XCTAssertEqual(controller.state, controller.transportState)
+        try controller.stop(now: time(3))
     }
 
     func testEvidencePersistenceFailureKeepsTransportPublishedAndRetries() async throws {
@@ -622,6 +672,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     var playSnapshotLags = false
     var pauseSnapshotLags = false
     private var isPlaying = false
+    private var transportContinuation: AsyncStream<ListeningPlaybackSample>.Continuation?
 
     func prepare(
         items: [ListeningPlaybackItem],
@@ -649,6 +700,21 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         if !pauseSnapshotLags {
             isPlaying = false
         }
+    }
+
+    func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
+        AsyncStream { continuation in
+            transportContinuation = continuation
+        }
+    }
+
+    func setPlayingExternally(_ value: Bool) {
+        isPlaying = value
+    }
+
+    func emitCurrentTransport(observedAt: Date) {
+        guard let sample = snapshot(observedAt: observedAt) else { return }
+        transportContinuation?.yield(sample)
     }
 
     func selectSongForTesting(_ songID: String) throws {
@@ -679,6 +745,8 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         didStop = true
         item = nil
         isPlaying = false
+        transportContinuation?.finish()
+        transportContinuation = nil
     }
 }
 
