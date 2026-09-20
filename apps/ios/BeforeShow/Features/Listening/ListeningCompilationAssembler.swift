@@ -13,9 +13,10 @@ enum ListeningCompilationAssembler {
             var batch: [ListeningDiscTrack] = []
             let firstTrackIndex = discIndex * tracksPerArtistPerDisc
 
-            for offset in 0..<tracksPerArtistPerDisc {
-                let trackIndex = firstTrackIndex + offset
-                for tracks in artistTracks where tracks.indices.contains(trackIndex) {
+            for tracks in artistTracks {
+                for offset in 0..<tracksPerArtistPerDisc {
+                    let trackIndex = firstTrackIndex + offset
+                    guard tracks.indices.contains(trackIndex) else { continue }
                     let track = tracks[trackIndex]
                     if seen.insert(track.id).inserted {
                         batch.append(track)
