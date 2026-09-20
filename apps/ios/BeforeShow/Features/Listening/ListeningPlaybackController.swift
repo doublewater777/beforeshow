@@ -12,6 +12,7 @@ final class ListeningPlaybackController {
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
     private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
     private let transportStateDidChange: @MainActor (ListeningPlaybackState) -> Void
+    private let transportSampleDidChange: @MainActor (ListeningPlaybackSample) -> Void
     private let evidenceDidChange: @MainActor () -> Void
     private let evidenceDidFail: @MainActor () -> Void
 
@@ -39,6 +40,7 @@ final class ListeningPlaybackController {
         evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
         stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
         transportStateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
+        transportSampleDidChange: @escaping @MainActor (ListeningPlaybackSample) -> Void = { _ in },
         evidenceDidChange: @escaping @MainActor () -> Void = {},
         evidenceDidFail: @escaping @MainActor () -> Void = {}
     ) {
@@ -46,6 +48,7 @@ final class ListeningPlaybackController {
         self.evidenceCoordinator = evidenceCoordinator
         self.stateDidChange = stateDidChange
         self.transportStateDidChange = transportStateDidChange
+        self.transportSampleDidChange = transportSampleDidChange
         self.evidenceDidChange = evidenceDidChange
         self.evidenceDidFail = evidenceDidFail
     }
@@ -263,6 +266,7 @@ final class ListeningPlaybackController {
         stateMachine.handle(.sample(sample))
         reconcilePendingIntent(with: sample)
         publishState()
+        transportSampleDidChange(sample)
         ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
         try recordEvidence(sample, now: now, handling: evidence)
     }
