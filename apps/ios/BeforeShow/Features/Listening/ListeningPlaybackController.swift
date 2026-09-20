@@ -179,16 +179,20 @@ final class ListeningPlaybackController {
 
     private func startObservation() {
         observationTask?.cancel()
+        guard stateMachine.needsTransportObservation else {
+            observationTask = nil
+            return
+        }
         observationTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                guard let self else { return }
-                _ = try? self.refresh(now: Date())
-                guard self.stateMachine.needsTransportObservation else { return }
                 do {
                     try await Task.sleep(for: .seconds(1))
                 } catch {
                     return
                 }
+                guard let self else { return }
+                _ = try? self.refresh(now: Date())
+                guard self.stateMachine.needsTransportObservation else { return }
             }
         }
     }
