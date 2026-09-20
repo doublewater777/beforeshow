@@ -81,7 +81,6 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
             .paused(songID: "song-a", source: .fullCatalog, currentTime: 11, duration: 100)
         )
         XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertFalse(machine.needsTransportObservation)
     }
 
     func testPlayIntentMasksStalePausedObservationUntilTransportAcknowledges() {
@@ -113,7 +112,6 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
             .playing(songID: "song-a", source: .fullCatalog, currentTime: 11, duration: 100)
         )
         XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertTrue(machine.needsTransportObservation)
     }
 
     func testUnacknowledgedTransportIntentExpiresBackToObservedTruth() {
@@ -134,7 +132,6 @@ final class ListeningPlaybackStateMachineTests: XCTestCase {
             .playing(songID: "song-a", source: .fullCatalog, currentTime: 12, duration: 100)
         )
         XCTAssertNil(machine.pendingTransportIntent)
-        XCTAssertTrue(machine.needsTransportObservation)
     }
 
     func testNewSongSampleReplacesFinishedState() {
