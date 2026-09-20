@@ -3,15 +3,33 @@ import MediaPlayer
 
 @MainActor
 final class ListeningPlaybackController {
+    /// Intent grace is presentation-only. Transport truth is never overwritten by
+    /// the command; the pending intent merely gives the UI immediate feedback until
+    /// the observable transport acknowledges it or the grace period expires.
+    private static let transportAcknowledgementWindow: Duration = .milliseconds(1_500)
+
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
     private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
     private let evidenceDidChange: @MainActor () -> Void
     private let evidenceDidFail: @MainActor () -> Void
-    private var stateMachine = ListeningPlaybackStateMachine()
-    private var observationTask: Task<Void, Never>?
 
-    var state: ListeningPlaybackState { stateMachine.state }
+    private var stateMachine = ListeningPlaybackStateMachine()
+    private var pendingTransportIntent: ListeningPlaybackTransportIntent?
+    private var lastPublishedState: ListeningPlaybackState?
+
+    private var transportObservationTask: Task<Void, Never>?
+    private var progressTask: Task<Void, Never>?
+    private var intentTimeoutTask: Task<Void, Never>?
+
+    /// Product/UI projection. The underlying transport fact remains in
+    /// `stateMachine.state` even while a command is awaiting acknowledgement.
+    var state: ListeningPlaybackState {
+        guard let pendingTransportIntent else { return stateMachine.state }
+        return stateMachine.state.projecting(pendingTransportIntent.target)
+    }
+
+    var transportState: ListeningPlaybackState { stateMachine.state }
 
     init(
         service: ListeningPlaybackServicing,
@@ -33,21 +51,25 @@ final class ListeningPlaybackController {
         startingAtSongID: String? = nil,
         now: Date = Date()
     ) async throws {
-        observationTask?.cancel()
-        observationTask = nil
+        cancelRuntimeObservation()
+        clearPendingIntent()
         stateMachine.handle(.prepareStarted(source: source))
         publishState()
+
         do {
             try await service.prepare(
                 items: items,
                 source: source,
                 startingAtSongID: startingAtSongID
             )
-            guard service.snapshot(observedAt: now) != nil else {
+            guard let initial = service.snapshot(observedAt: now) else {
                 throw ListeningPlaybackError.songUnavailable(startingAtSongID ?? items.first?.songID ?? "")
             }
+
             ListeningRemoteCommandBridge.shared.attach(controller: self, items: items)
-            _ = try refresh(now: now)
+            try applyTransport(sample: initial, now: now)
+            startTransportObservation()
+            startProgressClock()
         } catch {
             stateMachine.handle(.failed)
             publishState()
@@ -56,11 +78,11 @@ final class ListeningPlaybackController {
     }
 
     func play(now: Date = Date()) async throws {
+        beginIntent(.playing, now: now)
         do {
             try await service.play()
-            try reconcileTransportIntent(target: .playing, now: now)
-            startObservation()
         } catch {
+            clearPendingIntent()
             stateMachine.handle(.failed)
             publishState()
             throw error
@@ -68,59 +90,42 @@ final class ListeningPlaybackController {
     }
 
     func pause(now: Date = Date()) throws {
+        beginIntent(.paused, now: now)
         service.pause()
-        defer { startObservation() }
-        try reconcileTransportIntent(target: .paused, now: now)
-    }
-
-    private func reconcileTransportIntent(
-        target: ListeningPlaybackTransportTarget,
-        now: Date
-    ) throws {
-        stateMachine.handle(
-            .transportRequested(
-                ListeningPlaybackTransportIntent(target: target, issuedAt: now)
-            )
-        )
-
-        if service.failure != nil {
-            _ = try refresh(now: now)
-            return
-        }
-        guard let sample = service.snapshot(observedAt: now) else {
-            publishState()
-            return
-        }
-        _ = try apply(sample: sample, now: now)
     }
 
     func skipToNext(now: Date = Date()) async throws {
-        _ = try refresh(now: now)
+        try captureProgressBoundary(now: now)
         try await service.skipToNext()
         evidenceCoordinator.breakContinuity()
+        // Queue-entry changes normally arrive through transportEvents(). Keep an
+        // explicit read as command-boundary recovery for adapters/tests that do
+        // not expose a live event stream.
         _ = try refresh(now: now)
     }
 
     func skipToPrevious(now: Date = Date()) async throws {
-        _ = try refresh(now: now)
+        try captureProgressBoundary(now: now)
         try await service.skipToPrevious()
         evidenceCoordinator.breakContinuity()
         _ = try refresh(now: now)
     }
 
     func seek(to time: TimeInterval, now: Date = Date()) throws {
-        _ = try refresh(now: now)
+        try captureProgressBoundary(now: now)
         service.seek(to: time)
         evidenceCoordinator.breakContinuity()
-        _ = try refresh(now: now)
+        if let sample = service.snapshot(observedAt: now) {
+            try applyProgress(sample: sample, now: now)
+        }
     }
 
+    /// Explicit recovery hook retained for lifecycle/tests. Normal playback status
+    /// synchronization is driven by `transportEvents()`, not by this method.
     @discardableResult
     func refresh(now: Date = Date()) throws -> ListeningPlaybackState {
-        // A transport/resource failure is a user-visible playback state, not a
-        // reason to tear down the physical disc or reset the selected track.
-        // Pending evidence is owned separately and can still be flushed later.
         if service.failure != nil {
+            clearPendingIntent()
             stateMachine.handle(.failed)
             publishState()
             return state
@@ -128,20 +133,7 @@ final class ListeningPlaybackController {
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
-        return try apply(sample: sample, now: now)
-    }
-
-    @discardableResult
-    private func apply(
-        sample: ListeningPlaybackSample,
-        now: Date
-    ) throws -> ListeningPlaybackState {
-        stateMachine.handle(.sample(sample))
-        publishState()
-        ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
-        handleEvidenceDrainResult(
-            try evidenceCoordinator.ingest(sample, at: now)
-        )
+        try applyTransport(sample: sample, now: now)
         return state
     }
 
@@ -152,22 +144,95 @@ final class ListeningPlaybackController {
     }
 
     func stop(now: Date = Date()) throws {
-        observationTask?.cancel()
-        observationTask = nil
+        cancelRuntimeObservation()
+        clearPendingIntent()
+
         defer {
             service.stop()
             evidenceCoordinator.breakContinuity()
             stateMachine.handle(.reset)
             publishState()
+            lastPublishedState = nil
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
 
         if service.failure == nil,
-           service.snapshot(observedAt: now) != nil {
-            _ = try refresh(now: now)
-        } else {
-            try flushPendingEvidence()
+           let sample = service.snapshot(observedAt: now) {
+            try applyProgress(sample: sample, now: now)
         }
+        try flushPendingEvidence()
+    }
+
+    private func beginIntent(
+        _ target: ListeningPlaybackTransportTarget,
+        now: Date
+    ) {
+        let intent = ListeningPlaybackTransportIntent(target: target, issuedAt: now)
+        pendingTransportIntent = intent
+        publishState()
+
+        intentTimeoutTask?.cancel()
+        intentTimeoutTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: Self.transportAcknowledgementWindow)
+            } catch {
+                return
+            }
+            guard let self, self.pendingTransportIntent == intent else { return }
+            self.pendingTransportIntent = nil
+            self.publishState()
+        }
+    }
+
+    private func clearPendingIntent() {
+        pendingTransportIntent = nil
+        intentTimeoutTask?.cancel()
+        intentTimeoutTask = nil
+    }
+
+    private func reconcilePendingIntent(with sample: ListeningPlaybackSample) {
+        guard let intent = pendingTransportIntent else { return }
+
+        if intent.target.matches(sample) {
+            clearPendingIntent()
+            return
+        }
+
+        let age = sample.observedAt.timeIntervalSince(intent.issuedAt)
+        if age < 0 || age > 1.5 {
+            clearPendingIntent()
+        }
+    }
+
+    private func applyTransport(
+        sample: ListeningPlaybackSample,
+        now: Date
+    ) throws {
+        stateMachine.handle(.sample(sample))
+        reconcilePendingIntent(with: sample)
+        publishState()
+        ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.ingest(sample, at: now)
+        )
+    }
+
+    private func applyProgress(
+        sample: ListeningPlaybackSample,
+        now: Date
+    ) throws {
+        stateMachine.handle(.progress(sample))
+        publishState()
+        ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
+        handleEvidenceDrainResult(
+            try evidenceCoordinator.ingest(sample, at: now)
+        )
+    }
+
+    private func captureProgressBoundary(now: Date) throws {
+        guard service.failure == nil,
+              let sample = service.snapshot(observedAt: now) else { return }
+        try applyProgress(sample: sample, now: now)
     }
 
     private func handleEvidenceDrainResult(
@@ -182,17 +247,39 @@ final class ListeningPlaybackController {
     }
 
     private func publishState() {
-        stateDidChange(state)
-        ListeningRemoteCommandBridge.shared.update(controller: self, state: state)
+        let projected = state
+        guard lastPublishedState != projected else { return }
+        lastPublishedState = projected
+        stateDidChange(projected)
     }
 
-    private func startObservation() {
-        observationTask?.cancel()
-        guard stateMachine.needsTransportObservation else {
-            observationTask = nil
-            return
+    private func startTransportObservation() {
+        transportObservationTask?.cancel()
+        transportObservationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for await sample in self.service.transportEvents() {
+                if Task.isCancelled { return }
+                if self.service.failure != nil {
+                    self.clearPendingIntent()
+                    self.stateMachine.handle(.failed)
+                    self.publishState()
+                    continue
+                }
+                do {
+                    try self.applyTransport(sample: sample, now: sample.observedAt)
+                } catch {
+                    self.evidenceDidFail()
+                }
+            }
         }
-        observationTask = Task { @MainActor [weak self] in
+    }
+
+    /// Discrete phase/queue changes are event-driven. The only periodic sampling
+    /// left in the session is playback time, which AVFoundation explicitly treats
+    /// as continuous state rather than ordinary observable state.
+    private func startProgressClock() {
+        progressTask?.cancel()
+        progressTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
                 do {
                     try await Task.sleep(for: .seconds(1))
@@ -200,10 +287,27 @@ final class ListeningPlaybackController {
                     return
                 }
                 guard let self else { return }
-                _ = try? self.refresh(now: Date())
-                guard self.stateMachine.needsTransportObservation else { return }
+                guard self.stateMachine.state.isPlaying,
+                      self.service.failure == nil,
+                      let sample = self.service.snapshot(observedAt: Date()) else {
+                    continue
+                }
+                do {
+                    try self.applyProgress(sample: sample, now: sample.observedAt)
+                } catch {
+                    self.evidenceDidFail()
+                }
             }
         }
+    }
+
+    private func cancelRuntimeObservation() {
+        transportObservationTask?.cancel()
+        transportObservationTask = nil
+        progressTask?.cancel()
+        progressTask = nil
+        intentTimeoutTask?.cancel()
+        intentTimeoutTask = nil
     }
 }
 
@@ -253,6 +357,7 @@ final class ListeningRemoteCommandBridge {
         guard self.controller === controller else { return }
         self.controller = nil
         itemsBySongID = [:]
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
     }
 
@@ -265,22 +370,14 @@ final class ListeningRemoteCommandBridge {
         var info: [String: Any] = [
             MPNowPlayingInfoPropertyExternalContentIdentifier: sample.songID,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: sample.currentTime,
-            MPNowPlayingInfoPropertyPlaybackRate: controller.state.isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: sample.isPlaying ? 1.0 : 0.0
         ]
         if let title = item.title { info[MPMediaItemPropertyTitle] = title }
         if let artistName = item.artistName { info[MPMediaItemPropertyArtist] = artistName }
         if let duration = sample.duration ?? item.duration { info[MPMediaItemPropertyPlaybackDuration] = duration }
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
-    }
-
-    func update(
-        controller: ListeningPlaybackController,
-        state: ListeningPlaybackState
-    ) {
-        guard self.controller === controller,
-              var info = MPNowPlayingInfoCenter.default().nowPlayingInfo else { return }
-        info[MPNowPlayingInfoPropertyPlaybackRate] = state.isPlaying ? 1.0 : 0.0
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+        let center = MPNowPlayingInfoCenter.default()
+        center.playbackState = sample.phase.nowPlayingPlaybackState
+        center.nowPlayingInfo = info
     }
 
     private func play() {
@@ -337,5 +434,20 @@ final class ListeningRemoteCommandBridge {
     @discardableResult
     func refreshForTesting(now: Date = Date()) throws -> ListeningPlaybackState? {
         try controller?.refresh(now: now)
+    }
+}
+
+private extension ListeningPlaybackTransportPhase {
+    var nowPlayingPlaybackState: MPNowPlayingPlaybackState {
+        switch self {
+        case .playing, .waiting, .seeking:
+            .playing
+        case .paused:
+            .paused
+        case .interrupted:
+            .interrupted
+        case .stopped:
+            .stopped
+        }
     }
 }
