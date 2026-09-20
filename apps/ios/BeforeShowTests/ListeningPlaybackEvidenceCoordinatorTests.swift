@@ -22,6 +22,35 @@ final class ListeningPlaybackEvidenceCoordinatorTests: XCTestCase {
         XCTAssertEqual(records.first?.actualListeningAt, heardAt)
     }
 
+    func testRecordQueuesEvidenceWithoutPersistingUntilFlush() throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        defer { withExtendedLifetime(container) {} }
+        let context = container.mainContext
+        let coordinator = try ListeningPlaybackEvidenceCoordinator(modelContext: context)
+
+        XCTAssertEqual(
+            coordinator.record(full(time: 0, observedAt: 0)),
+            .none
+        )
+        XCTAssertEqual(
+            coordinator.record(full(time: 51, observedAt: 51)),
+            .becameFamiliar(songID: "song-a")
+        )
+        XCTAssertTrue(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty,
+            "record() must remain an in-memory playback side effect"
+        )
+
+        let flushed = try coordinator.flushPending()
+
+        XCTAssertEqual(flushed.committedSongIDs, ["song-a"])
+        XCTAssertFalse(flushed.hasFailure)
+        XCTAssertEqual(
+            try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).first?.songID,
+            "song-a"
+        )
+    }
+
     func testFailedPersistenceRollsBackAndRetriesPendingThreshold() throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         defer { withExtendedLifetime(container) {} }
