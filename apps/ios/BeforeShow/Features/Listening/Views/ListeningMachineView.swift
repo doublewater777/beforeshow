@@ -23,19 +23,19 @@ struct ListeningMachineView: View {
                 isPlaying: room.isPlaying
             )
             .frame(
-                width: geometry.discDiameter * 3.15,
-                height: geometry.discDiameter * 1.78
+                width: geometry.discDiameter * 3.75,
+                height: geometry.discDiameter * 2.15
             )
             .position(
                 x: geometry.discCenter.x,
-                y: geometry.projectedY(geometry.discCenter.y) + geometry.discDiameter * 0.16
+                y: geometry.projectedY(geometry.discCenter.y) + geometry.discDiameter * 0.10
             )
 
             Ellipse()
-                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.10 : 0.055))
-                .frame(width: geometry.body.width * 0.82, height: 92)
+                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.14 : 0.07))
+                .frame(width: geometry.body.width * 0.90, height: 110)
                 .position(x: geometry.body.midX, y: geometry.body.maxY - 20)
-                .blur(radius: 30)
+                .blur(radius: 38)
 
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
