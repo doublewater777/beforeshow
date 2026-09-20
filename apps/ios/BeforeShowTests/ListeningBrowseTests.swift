@@ -18,7 +18,18 @@ import SwiftData
         room.playFromSleeve(album, songID: "a1")
         try await Task.sleep(for: .milliseconds(10))
         try await ListenTestData.settle(room) { !room.busy }
-        XCTAssertFalse(room.isPlaying)
+        XCTAssertTrue(
+            room.isPlaying,
+            "presentation may optimistically reflect the pending play command"
+        )
+        XCTAssertNil(
+            room.sleevePlaybackSongID,
+            "sleeve playback must wait for factual transport .playing"
+        )
+        XCTAssertFalse(
+            room.isRecentDisc(album),
+            "pending UI intent must never create durable recent-listening history"
+        )
         service.failure = .songUnavailable("a1")
         room.tick()
         XCTAssertNotNil(room.playbackError)
