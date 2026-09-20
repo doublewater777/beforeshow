@@ -154,14 +154,19 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(
             listeningRoot.contains("ZStack {\n                selectionLens")
                 && whitespaceInsensitiveListeningRoot.contains(".offset(x:ListeningBottomBarGeometry.selectionOffset(for:selectedTab,showsMiniPlayer:showsMiniPlayer))")
-                && whitespaceInsensitiveListeningRoot.contains(".animation(selectionAnimation,value:selectedTab)"),
+                && whitespaceInsensitiveListeningRoot.contains(".animation(miniPlayerMorphAnimation,value:selectedTab)"),
             "One persistent non-layout lens must use the deterministic geometry model without participating in control layout"
         )
         XCTAssertTrue(
-            listeningRoot.contains("private var selectionAnimation: Animation?")
-                && whitespaceInsensitiveListeningRoot.contains("guard!reduceMotion,selectedTab!=.listenelse{returnnil}")
+            listeningRoot.contains("private var miniPlayerMorphAnimation: Animation?")
+                && whitespaceInsensitiveListeningRoot.contains("guard!reduceMotionelse{returnnil}")
                 && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.28,dampingFraction:0.90)"),
-            "Returning to Listen must let the mini-player collapse own the transition, while ordinary root-tab changes keep the short selection flow"
+            "Selection and mini-player geometry must share a reversible spring"
+        )
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".accessibilityAddTraits(isSelected ? .isSelected : [])").count - 1,
+            2,
+            "Tab selection must update traits in place so the moving glass buttons retain structural identity"
         )
         XCTAssertTrue(
             listeningRoot.contains(".fill(BSColor.Stage.accent.opacity(0.16))"),
@@ -204,25 +209,24 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             2,
             "Only the center content should crossfade while the glass shell itself remains persistent"
         )
-        XCTAssertTrue(
-            listeningRoot.contains("private var sideTabsAnimation: Animation?")
-                && whitespaceInsensitiveListeningRoot.contains("guard!reduceMotion,showsMiniPlayerelse{returnnil}")
-                && whitespaceInsensitiveListeningRoot.contains("returnminiPlayerMorphAnimation"),
-            "Side tabs may animate outward with the same spring, but must snap immediately to compact positions when returning to Listen"
+        XCTAssertFalse(
+            listeningRoot.contains("guard !reduceMotion, showsMiniPlayer")
+                || listeningRoot.contains("guard !reduceMotion, selectedTab != .listen"),
+            "Returning to Listen must not snap controls ahead of the shrinking player"
         )
         XCTAssertEqual(
-            listeningRoot.components(separatedBy: ".animation(sideTabsAnimation, value: showsMiniPlayer)").count - 1,
-            2,
-            "Current and Footprints must share the same symmetric side-tab timing rule"
+            listeningRoot.components(separatedBy: ".animation(miniPlayerMorphAnimation, value: showsMiniPlayer)").count - 1,
+            4,
+            "Both side tabs, selection lens and center shell must share geometry timing"
         )
         XCTAssertTrue(
             listeningRoot.contains("private var miniPlayerMorphAnimation: Animation?")
-                && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.36,dampingFraction:0.88)"),
+                && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.28,dampingFraction:0.90)"),
             "The persistent center shell must use one reversible native spring in both directions"
         )
         XCTAssertTrue(
-            listeningRoot.contains("private var centerContentAnimation: Animation?")
-                && whitespaceInsensitiveListeningRoot.contains("return.easeOut(duration:0.16)"),
+            listeningRoot.contains("private var centerContentAnimation: Animation")
+                && whitespaceInsensitiveListeningRoot.contains(".easeOut(duration:reduceMotion?0.16:0.10)"),
             "Reduce Motion must keep a short content crossfade while suppressing the width spring"
         )
         XCTAssertTrue(

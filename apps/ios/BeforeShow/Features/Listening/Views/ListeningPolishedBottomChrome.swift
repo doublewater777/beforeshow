@@ -138,7 +138,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
                             showsMiniPlayer: showsMiniPlayer
                         )
                     )
-                    .animation(sideTabsAnimation, value: showsMiniPlayer)
+                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
 
                 centerControl
 
@@ -149,7 +149,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
                             showsMiniPlayer: showsMiniPlayer
                         )
                     )
-                    .animation(sideTabsAnimation, value: showsMiniPlayer)
+                    .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             }
             .frame(
                 width: ListeningBottomBarLayout.playerGroupWidth,
@@ -200,37 +200,24 @@ private struct ListeningLiquidGlassBottomChrome: View {
                     showsMiniPlayer: showsMiniPlayer
                 )
             )
-            .animation(selectionAnimation, value: selectedTab)
+            .animation(miniPlayerMorphAnimation, value: selectedTab)
+            .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
-    private var selectionAnimation: Animation? {
-        guard !reduceMotion, selectedTab != .listen else { return nil }
+    private var miniPlayerMorphAnimation: Animation? {
+        guard !reduceMotion else { return nil }
         return .spring(response: 0.28, dampingFraction: 0.90)
     }
 
-    private var sideTabsAnimation: Animation? {
-        guard !reduceMotion, showsMiniPlayer else { return nil }
-        return miniPlayerMorphAnimation
+    private var centerContentAnimation: Animation {
+        .easeOut(duration: reduceMotion ? 0.16 : 0.10)
     }
 
-    private var miniPlayerMorphAnimation: Animation? {
-        guard !reduceMotion else { return nil }
-        return .spring(response: 0.36, dampingFraction: 0.88)
-    }
-
-    private var centerContentAnimation: Animation? {
-        if reduceMotion {
-            return .easeOut(duration: 0.16)
-        }
-        return miniPlayerMorphAnimation
-    }
-
-    @ViewBuilder
     private func glassTabButton(_ tab: BeforeShowTab) -> some View {
         let isSelected = selectedTab == tab
-        let button = Button {
+        return Button {
             selectTab(tab)
         } label: {
             Image(systemName: tab.iconName)
@@ -247,17 +234,12 @@ private struct ListeningLiquidGlassBottomChrome: View {
         .glassEffectID(glassID(for: tab), in: glassNamespace)
         .accessibilityLabel(tab.localizedTitle)
         .accessibilityIdentifier(tabAccessibilityIdentifier(tab))
-
-        if isSelected {
-            button.accessibilityAddTraits(.isSelected)
-        } else {
-            button
-        }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private var glassListenButton: some View {
         let isSelected = selectedTab == .listen
-        let button = Button {
+        return Button {
             selectTab(.listen)
         } label: {
             Image(systemName: "opticaldisc")
@@ -272,11 +254,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
         .buttonStyle(.plain)
         .accessibilityLabel(BeforeShowTab.listen.localizedTitle)
         .accessibilityIdentifier("root.tab.listen")
-
-        if isSelected {
-            return AnyView(button.accessibilityAddTraits(.isSelected))
-        }
-        return AnyView(button)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func selectTab(_ tab: BeforeShowTab) {
