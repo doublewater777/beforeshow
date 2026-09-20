@@ -1269,8 +1269,11 @@ private let listeningCatalogFetchConcurrency = 4
         } else if visibility.resumeIfAllowed() {
             run { [self] in try await playCurrentTrack() }
         }
-        if active && foreground { mechanism.motion.start() }
-        // Keep mechanical transactions settling even when their page is hidden.
+        if active && foreground {
+            mechanism.motion.wake()
+        } else {
+            mechanism.motion.pause()
+        }
     }
     func returnToWholeShow() { selectScope(.all) }
     private func run(_ action: @escaping @MainActor () async throws -> Void) {

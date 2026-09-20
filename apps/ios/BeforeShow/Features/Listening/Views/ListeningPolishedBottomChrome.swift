@@ -165,6 +165,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 ListeningCompactPlaybackControl(
                     room: room,
                     track: track,
+                    isVisible: showsMiniPlayer,
                     onSelectListen: { selectTab(.listen) }
                 )
                 .transition(.opacity)
@@ -188,20 +189,18 @@ private struct ListeningLiquidGlassBottomChrome: View {
     }
 
     private var selectionLens: some View {
-        Circle()
+        let targetOffset = ListeningBottomBarGeometry.selectionOffset(
+            for: selectedTab,
+            showsMiniPlayer: showsMiniPlayer
+        )
+        return Circle()
             .fill(BSColor.Stage.accent.opacity(0.16))
             .frame(
                 width: ListeningBottomBarLayout.tabSize - 12,
                 height: ListeningBottomBarLayout.tabSize - 12
             )
-            .offset(
-                x: ListeningBottomBarGeometry.selectionOffset(
-                    for: selectedTab,
-                    showsMiniPlayer: showsMiniPlayer
-                )
-            )
-            .animation(miniPlayerMorphAnimation, value: selectedTab)
-            .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
+            .offset(x: targetOffset)
+            .animation(miniPlayerMorphAnimation, value: targetOffset)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -274,6 +273,7 @@ private struct ListeningLiquidGlassBottomChrome: View {
 private struct ListeningCompactPlaybackControl: View {
     @Bindable var room: ListeningRoomCoordinator
     let track: ListeningDiscTrack
+    let isVisible: Bool
     let onSelectListen: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -283,9 +283,13 @@ private struct ListeningCompactPlaybackControl: View {
 
     private let spinDegreesPerSecond = 128.0
 
-    private var playerPhase: ListeningPlayerPhase { room.display.player.phase }
     private var showsPlayingState: Bool {
-        ListeningMiniPlayerPlaybackAppearance.showsPlayingState(for: playerPhase)
+        switch room.playbackState {
+        case .preparing, .playing:
+            return true
+        default:
+            return false
+        }
     }
     private var artworkURL: URL? {
         ListeningMiniPlayerArtworkSource.resolve(
@@ -301,7 +305,7 @@ private struct ListeningCompactPlaybackControl: View {
         TimelineView(
             .animation(
                 minimumInterval: 1.0 / 30.0,
-                paused: reduceMotion || !showsPlayingState
+                paused: reduceMotion || !showsPlayingState || !isVisible
             )
         ) { timeline in
             HStack(spacing: 6) {
@@ -452,6 +456,7 @@ private struct ListeningArtworkDisc: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .drawingGroup()
         .transaction { $0.animation = nil }
         .overlay(
             Circle()

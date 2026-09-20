@@ -93,6 +93,13 @@ struct CDSpringChannel {
         self.timer = timer
         #endif
     }
+    func pause() {
+        #if os(iOS)
+        link?.isPaused = true
+        #else
+        stop()
+        #endif
+    }
     func stop() {
         #if os(iOS)
         link?.invalidate(); link = nil
