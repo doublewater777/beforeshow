@@ -6,7 +6,7 @@ final class ListeningPlaybackController {
     /// Intent grace is presentation-only. Transport truth is never overwritten by
     /// the command; the pending intent merely gives the UI immediate feedback until
     /// the observable transport acknowledges it or the grace period expires.
-    private static let transportAcknowledgementWindow: Duration = .milliseconds(1_500)
+    private static let transportAcknowledgementWindow: TimeInterval = 1.5
 
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
@@ -158,7 +158,10 @@ final class ListeningPlaybackController {
 
         if service.failure == nil,
            let sample = service.snapshot(observedAt: now) {
-            try applyProgress(sample: sample, now: now)
+            ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
+            handleEvidenceDrainResult(
+                try evidenceCoordinator.ingest(sample, at: now)
+            )
         }
         try flushPendingEvidence()
     }
@@ -174,7 +177,7 @@ final class ListeningPlaybackController {
         intentTimeoutTask?.cancel()
         intentTimeoutTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: Self.transportAcknowledgementWindow)
+                try await Task.sleep(for: .milliseconds(1_500))
             } catch {
                 return
             }
@@ -199,7 +202,7 @@ final class ListeningPlaybackController {
         }
 
         let age = sample.observedAt.timeIntervalSince(intent.issuedAt)
-        if age < 0 || age > 1.5 {
+        if age < 0 || age > Self.transportAcknowledgementWindow {
             clearPendingIntent()
         }
     }
