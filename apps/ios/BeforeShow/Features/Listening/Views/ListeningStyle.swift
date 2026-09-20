@@ -253,13 +253,20 @@ extension View {
 
 extension ListeningRoomCoordinator {
     func perform(_ control: CDControl) {
-        CDSoundPlayer.shared.play("button")
         switch control {
         case .previous: skip(-1)
         case .next: skip(1)
         case .playPause: playPause()
         case .stop: stop()
         case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
+        }
+
+        // Transport state should settle in the tap's current main-actor turn.
+        // Mechanical foley is secondary feedback and must not sit in front of
+        // the playback state/UI update path.
+        Task { @MainActor in
+            await Task.yield()
+            CDSoundPlayer.shared.play("button")
         }
     }
 }
