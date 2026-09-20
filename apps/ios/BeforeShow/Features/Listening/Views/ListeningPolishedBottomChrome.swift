@@ -125,20 +125,6 @@ private struct ListeningLiquidGlassBottomChrome: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var glassNamespace
-    @State private var centerShowsMiniPlayer: Bool
-
-    init(
-        selectedTab: Binding<BeforeShowTab>,
-        showsMiniPlayer: Bool,
-        room: ListeningRoomCoordinator?,
-        track: ListeningDiscTrack?
-    ) {
-        _selectedTab = selectedTab
-        self.showsMiniPlayer = showsMiniPlayer
-        self.room = room
-        self.track = track
-        _centerShowsMiniPlayer = State(initialValue: showsMiniPlayer)
-    }
 
     var body: some View {
         GlassEffectContainer(spacing: ListeningBottomBarLayout.gap) {
@@ -166,47 +152,39 @@ private struct ListeningLiquidGlassBottomChrome: View {
                     .animation(sideTabsAnimation, value: showsMiniPlayer)
             }
             .frame(
-                width: showsMiniPlayer
-                    ? ListeningBottomBarLayout.playerGroupWidth
-                    : ListeningBottomBarLayout.iconGroupWidth,
+                width: ListeningBottomBarLayout.playerGroupWidth,
                 height: ListeningBottomBarLayout.tabSize
             )
         }
         .frame(height: ListeningBottomBarLayout.tabSize)
-        .onChange(of: showsMiniPlayer) { _, newValue in
-            guard centerShowsMiniPlayer != newValue else { return }
-            guard let animation = miniPlayerMorphAnimation(for: newValue) else {
-                centerShowsMiniPlayer = newValue
-                return
-            }
-            withAnimation(animation) {
-                centerShowsMiniPlayer = newValue
-            }
-        }
     }
 
-    @ViewBuilder
     private var centerControl: some View {
-        if centerShowsMiniPlayer, let room, let track {
-            ListeningCompactPlaybackControl(
-                room: room,
-                track: track,
-                onSelectListen: { selectTab(.listen) }
-            )
-            .frame(
-                width: ListeningBottomBarLayout.miniPlayerWidth,
-                height: ListeningBottomBarLayout.tabSize
-            )
-            .glassEffect(.regular.interactive(), in: Capsule())
-            .glassEffectID("listen", in: glassNamespace)
-            .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
-            .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
-        } else {
-            glassListenButton
-                .glassEffectID("listen", in: glassNamespace)
-                .glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)
-                .transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)
+        ZStack {
+            if showsMiniPlayer, let room, let track {
+                ListeningCompactPlaybackControl(
+                    room: room,
+                    track: track,
+                    onSelectListen: { selectTab(.listen) }
+                )
+                .transition(.opacity)
+            } else {
+                glassListenButton
+                    .transition(.opacity)
+            }
         }
+        .animation(centerContentAnimation, value: showsMiniPlayer)
+        .frame(
+            width: showsMiniPlayer
+                ? ListeningBottomBarLayout.miniPlayerWidth
+                : ListeningBottomBarLayout.tabSize,
+            height: ListeningBottomBarLayout.tabSize
+        )
+        .clipShape(Capsule())
+        .contentShape(Capsule())
+        .glassEffect(.regular.interactive(), in: Capsule())
+        .glassEffectID("listen", in: glassNamespace)
+        .animation(miniPlayerMorphAnimation, value: showsMiniPlayer)
     }
 
     private var selectionLens: some View {
@@ -234,15 +212,19 @@ private struct ListeningLiquidGlassBottomChrome: View {
 
     private var sideTabsAnimation: Animation? {
         guard !reduceMotion, showsMiniPlayer else { return nil }
-        return .spring(response: 0.42, dampingFraction: 0.86)
+        return miniPlayerMorphAnimation
     }
 
-    private func miniPlayerMorphAnimation(for showsMiniPlayer: Bool) -> Animation? {
+    private var miniPlayerMorphAnimation: Animation? {
         guard !reduceMotion else { return nil }
-        if showsMiniPlayer {
-            return .spring(response: 0.42, dampingFraction: 0.86)
+        return .spring(response: 0.36, dampingFraction: 0.88)
+    }
+
+    private var centerContentAnimation: Animation? {
+        if reduceMotion {
+            return .easeOut(duration: 0.16)
         }
-        return .spring(response: 0.30, dampingFraction: 0.90)
+        return miniPlayerMorphAnimation
     }
 
     @ViewBuilder
@@ -288,7 +270,6 @@ private struct ListeningLiquidGlassBottomChrome: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.interactive(), in: Circle())
         .accessibilityLabel(BeforeShowTab.listen.localizedTitle)
         .accessibilityIdentifier("root.tab.listen")
 

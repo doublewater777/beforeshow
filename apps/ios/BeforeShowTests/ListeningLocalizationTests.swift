@@ -119,21 +119,21 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         XCTAssertTrue(
             listeningRoot.contains(".glassEffect(.regular.interactive(), in: Circle())"),
-            "Icon-only root controls must use the system interactive circular glass effect"
+            "Side root controls must use the system interactive circular glass effect"
         )
-        XCTAssertTrue(
-            listeningRoot.contains(".glassEffect(.regular.interactive(), in: Capsule())"),
-            "The compact playback control must use the system capsule glass effect"
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".glassEffect(.regular.interactive(), in: Capsule())").count - 1,
+            1,
+            "Listen must be one persistent interactive capsule whose equal width and height naturally form the collapsed circle"
         )
         XCTAssertEqual(
             listeningRoot.components(separatedBy: ".glassEffectID(\"listen\", in: glassNamespace)").count - 1,
-            2,
-            "Both collapsed Listen and compact playback must keep the same glass identity"
+            1,
+            "Listen must keep one persistent glass identity instead of swapping two structural glass views"
         )
-        XCTAssertEqual(
-            listeningRoot.components(separatedBy: ".glassEffectTransition(reduceMotion ? .identity : .matchedGeometry)").count - 1,
-            2,
-            "Both Listen states must use matched glass geometry normally and identity under Reduce Motion"
+        XCTAssertFalse(
+            listeningRoot.contains(".glassEffectTransition("),
+            "The center shell must resize continuously rather than depending on insertion/removal glass transitions"
         )
         XCTAssertTrue(
             listeningRoot.contains("private enum ListeningBottomBarGeometry"),
@@ -177,34 +177,38 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         XCTAssertFalse(
             listeningRoot.contains("@State private var presentedTab")
+                || listeningRoot.contains("@State private var centerShowsMiniPlayer")
+                || listeningRoot.contains(".onChange(of: showsMiniPlayer)")
                 || listeningRoot.contains("await Task.yield()")
                 || listeningRoot.contains("ListeningBottomBarLayout.transitionDuration")
                 || listeningRoot.contains(".smooth(duration:"),
-            "Phase 2 must remove delayed duplicate tab presentation and fixed-duration morph choreography"
+            "Bottom Chrome motion must not depend on delayed or duplicated presentation state"
         )
         XCTAssertFalse(
             listeningRoot.contains("HStack(spacing: ListeningBottomBarLayout.gap)"),
             "Root-tab positions must not be coupled to the mini-player width through an animated HStack"
         )
         XCTAssertTrue(
-            listeningRoot.contains("@State private var centerShowsMiniPlayer: Bool")
-                && whitespaceInsensitiveListeningRoot.contains("_centerShowsMiniPlayer=State(initialValue:showsMiniPlayer)"),
-            "The center control must keep presentation-only state initialized from the real chrome state so its structural morph can own a real animation transaction"
+            whitespaceInsensitiveListeningRoot.contains(".frame(width:ListeningBottomBarLayout.playerGroupWidth,height:ListeningBottomBarLayout.tabSize)"),
+            "The GlassEffectContainer sampling footprint must stay fixed while the center control resizes"
         )
         XCTAssertTrue(
-            whitespaceInsensitiveListeningRoot.contains(".onChange(of:showsMiniPlayer){_,newValuein")
-                && whitespaceInsensitiveListeningRoot.contains("withAnimation(animation){centerShowsMiniPlayer=newValue}"),
-            "Listen/player insertion-removal must be caused by an explicit animated presentation-state mutation so glassEffectTransition can animate"
+            whitespaceInsensitiveListeningRoot.contains("ifshowsMiniPlayer,letroom,lettrack")
+                && whitespaceInsensitiveListeningRoot.contains("width:showsMiniPlayer?ListeningBottomBarLayout.miniPlayerWidth:ListeningBottomBarLayout.tabSize")
+                && whitespaceInsensitiveListeningRoot.contains(".glassEffect(.regular.interactive(),in:Capsule())")
+                && whitespaceInsensitiveListeningRoot.contains(".animation(miniPlayerMorphAnimation,value:showsMiniPlayer)"),
+            "One persistent center shell must animate its own bounds from circle-sized to mini-player-sized"
         )
-        XCTAssertTrue(
-            whitespaceInsensitiveListeningRoot.contains("ifcenterShowsMiniPlayer,letroom,lettrack"),
-            "The center control must switch its structural identity from presentation state, not directly from navigation state"
+        XCTAssertEqual(
+            listeningRoot.components(separatedBy: ".transition(.opacity)").count - 1,
+            2,
+            "Only the center content should crossfade while the glass shell itself remains persistent"
         )
         XCTAssertTrue(
             listeningRoot.contains("private var sideTabsAnimation: Animation?")
                 && whitespaceInsensitiveListeningRoot.contains("guard!reduceMotion,showsMiniPlayerelse{returnnil}")
-                && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.42,dampingFraction:0.86)"),
-            "Side tabs may animate outward when the mini-player expands, but must snap immediately to compact positions when returning to Listen"
+                && whitespaceInsensitiveListeningRoot.contains("returnminiPlayerMorphAnimation"),
+            "Side tabs may animate outward with the same spring, but must snap immediately to compact positions when returning to Listen"
         )
         XCTAssertEqual(
             listeningRoot.components(separatedBy: ".animation(sideTabsAnimation, value: showsMiniPlayer)").count - 1,
@@ -212,15 +216,14 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Current and Footprints must share the same symmetric side-tab timing rule"
         )
         XCTAssertTrue(
-            listeningRoot.contains("private func miniPlayerMorphAnimation(for showsMiniPlayer: Bool) -> Animation?")
-                && whitespaceInsensitiveListeningRoot.contains("ifshowsMiniPlayer{return.spring(response:0.42,dampingFraction:0.86)}")
-                && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.30,dampingFraction:0.90)"),
-            "Listen expansion may stay relaxed, but compact-player collapse must use an explicit directional native spring"
+            listeningRoot.contains("private var miniPlayerMorphAnimation: Animation?")
+                && whitespaceInsensitiveListeningRoot.contains("return.spring(response:0.36,dampingFraction:0.88)"),
+            "The persistent center shell must use one reversible native spring in both directions"
         )
-        XCTAssertEqual(
-            listeningRoot.components(separatedBy: ".transition(reduceMotion ? .opacity.animation(.easeOut(duration: 0.16)) : .identity)").count - 1,
-            2,
-            "Both Listen states must use the same short Reduce Motion crossfade"
+        XCTAssertTrue(
+            listeningRoot.contains("private var centerContentAnimation: Animation?")
+                && whitespaceInsensitiveListeningRoot.contains("return.easeOut(duration:0.16)"),
+            "Reduce Motion must keep a short content crossfade while suppressing the width spring"
         )
         XCTAssertTrue(
             listeningRoot.contains(".frame(height: ListeningBottomBarLayout.tabSize)"),
@@ -261,7 +264,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
         XCTAssertFalse(
             listeningRoot.contains("matchedGeometryEffect"),
-            "Ordinary matchedGeometryEffect must not drive the stable root layout or the existing Listen glass morph"
+            "Ordinary matchedGeometryEffect must not drive the stable root layout"
         )
         XCTAssertFalse(
             listeningRoot.contains(".glassEffectID(\"active-tab\", in: glassNamespace)"),
