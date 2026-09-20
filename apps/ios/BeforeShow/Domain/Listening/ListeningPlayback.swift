@@ -40,6 +40,7 @@ struct ListeningPlaybackItem: Equatable, Sendable {
     }
 }
 
+// Transport phase is the factual adapter-level playback state.
 enum ListeningPlaybackTransportPhase: Equatable, Sendable {
     case stopped
     case paused
