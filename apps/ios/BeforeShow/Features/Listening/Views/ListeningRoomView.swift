@@ -128,7 +128,10 @@ struct ListenRootView: View {
     private var listeningRootBackground: some View {
         ZStack {
             BSColor.Stage.background
-            ListeningStageBackground()
+            ListeningStageBackground(
+                artworkURL: room?.mechanism.disc?.artworkURL,
+                isPlaying: room?.isPlaying == true
+            )
         }
     }
 }
