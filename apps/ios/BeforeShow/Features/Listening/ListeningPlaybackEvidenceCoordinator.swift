@@ -33,11 +33,19 @@ final class ListeningPlaybackEvidenceCoordinator {
     }
 
     @discardableResult
+    func record(
+        _ sample: ListeningPlaybackSample,
+        at date: Date = Date()
+    ) -> ListeningPlaybackEvidenceUpdate {
+        tracker.ingest(sample, familiarityReachedAt: date)
+    }
+
+    @discardableResult
     func ingest(
         _ sample: ListeningPlaybackSample,
         at date: Date = Date()
     ) throws -> ListeningPlaybackEvidenceDrainResult {
-        _ = tracker.ingest(sample, familiarityReachedAt: date)
+        _ = record(sample, at: date)
         return drainPending()
     }
 
