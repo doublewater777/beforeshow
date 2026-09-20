@@ -216,6 +216,7 @@ private let listeningCatalogFetchConcurrency = 4
             preparedSongID = nil
             playbackState = .idle
             transportPlaybackState = .idle
+            transportPlaybackPhase = .stopped
             trackBelongsToShow = true
         } catch {}
     }
