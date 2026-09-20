@@ -975,9 +975,11 @@ private let listeningCatalogFetchConcurrency = 4
                     guard let self, self.playbackGeneration == stateGeneration else { return }
                     self.refreshPlaybackEvidenceProjection()
                 },
-                evidenceDidFail: { [weak self] in
+                evidenceDidFail: { [weak self] origin in
                     guard let self, self.playbackGeneration == stateGeneration else { return }
-                    self.handlePlaybackEvidenceFailure()
+                    self.handlePlaybackEvidenceFailure(
+                        representDismissedAlert: origin == .immediate
+                    )
                 }
             )
             controller = next
@@ -1140,9 +1142,12 @@ private let listeningCatalogFetchConcurrency = 4
         BSLocalization.text("熟悉度保存失败，请重试")
     }
 
-    private func handlePlaybackEvidenceFailure() {
+    private func handlePlaybackEvidenceFailure(
+        representDismissedAlert: Bool = true
+    ) {
         evidenceRetryPending = true
-        if errorText == nil {
+        if errorText == nil,
+           representDismissedAlert || !evidenceFailureAlertShown {
             evidenceFailureAlertShown = true
             errorText = playbackEvidenceFailureMessage
             evidenceFailureOwnsErrorText = true
