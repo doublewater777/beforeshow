@@ -6,6 +6,7 @@ import Observation
 final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     private let player: ApplicationMusicPlayer
     private var durationBySongID: [String: TimeInterval] = [:]
+    private var lastObservedSongID: String?
 
     init(player: ApplicationMusicPlayer = .shared) {
         self.player = player
@@ -40,6 +41,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
         durationBySongID = Dictionary(uniqueKeysWithValues: items.compactMap { item in
             item.duration.map { (item.songID, $0) }
         })
+        lastObservedSongID = startingAtSongID ?? items.first?.songID
         player.state.repeatMode = MusicPlayer.RepeatMode.none
         player.state.shuffleMode = .off
         player.queue = ApplicationMusicPlayer.Queue(for: orderedSongs, startingAt: startingSong)
@@ -98,12 +100,26 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     }
 
     func snapshot(observedAt: Date = Date()) -> ListeningPlaybackSample? {
+        let phase = transportPhase(for: player.state.playbackStatus)
         guard case let .song(song) = player.queue.currentEntry?.item else {
-            return nil
+            guard let songID = lastObservedSongID else { return nil }
+            let duration = durationBySongID[songID]
+            let currentTime = max(0, player.playbackTime)
+            let hasEnded = phase == .stopped
+                && duration.map { currentTime >= $0 - 0.25 || currentTime == 0 } == true
+            return ListeningPlaybackSample(
+                songID: songID,
+                source: .fullCatalog,
+                currentTime: hasEnded ? (duration ?? currentTime) : currentTime,
+                duration: duration,
+                phase: phase,
+                observedAt: observedAt,
+                hasEnded: hasEnded
+            )
         }
+        lastObservedSongID = song.id.rawValue
         let currentTime = max(0, player.playbackTime)
         let duration = song.duration ?? durationBySongID[song.id.rawValue]
-        let phase = transportPhase(for: player.state.playbackStatus)
         return ListeningPlaybackSample(
             songID: song.id.rawValue,
             source: .fullCatalog,
@@ -122,6 +138,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
     func stop() {
         player.stop()
         durationBySongID = [:]
+        lastObservedSongID = nil
         AppAudioSession.releaseMusicPlayback()
     }
 
