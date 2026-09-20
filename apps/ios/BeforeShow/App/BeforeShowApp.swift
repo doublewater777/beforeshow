@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import PostHog
 import RevenueCat
@@ -23,6 +24,13 @@ struct BeforeShowApp: App {
     }
 
     init() {
+        MainActor.assumeIsolated {
+            // iOS 26 AVFoundation Observation must be enabled before any AVPlayer
+            // instance is created. Preview playback then participates in the same
+            // event-driven transport architecture as MusicKit.
+            AVPlayer.isObservationEnabled = true
+        }
+
         let isRunningHostedUnitTests = Self.isRunningHostedUnitTests
 
         do {
