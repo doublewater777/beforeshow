@@ -914,9 +914,24 @@ private let listeningCatalogFetchConcurrency = 4
             }
             return
         }
+
+        // Pause is a synchronous transport command and should update playback
+        // presentation in the same interaction turn. Do not route it through the
+        // generic async operation queue: that would toggle `busy`, disable chrome,
+        // and defer the visible pause state behind Task scheduling.
+        if isPlaying {
+            visibility.userPause()
+            do {
+                try controller?.pause()
+            } catch {
+                playbackError = BSLocalization.text("暂时无法播放")
+            }
+            return
+        }
+
         run { [self] in
-            if isPlaying { visibility.userPause(); try controller?.pause() }
-            else { visibility.userPlay(); try await playCurrentTrack() }
+            visibility.userPlay()
+            try await playCurrentTrack()
         }
     }
     private func playCurrentTrack() async throws {

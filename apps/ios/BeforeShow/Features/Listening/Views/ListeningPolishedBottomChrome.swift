@@ -283,7 +283,7 @@ private struct ListeningCompactPlaybackControl: View {
                         )
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(BSListeningPressStyle(scale: 0.88))
+                .buttonStyle(BSListeningPressStyle(scale: 0.96))
                 .padding(.trailing, 4)
                 .disabled(room.busy)
                 .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))

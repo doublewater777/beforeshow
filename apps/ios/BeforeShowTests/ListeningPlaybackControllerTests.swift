@@ -60,12 +60,14 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertFalse(evidenceCallbackSawPersistedRecord)
 
         service.currentTime = 2.1
+        let stateCountBeforePause = projectedStates.count
         try controller.pause(now: time(2))
 
         XCTAssertEqual(
             controller.state,
             .paused(songID: "threshold-song", source: .fullCatalog, currentTime: 2.1, duration: 4)
         )
+        XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
         XCTAssertEqual(projectedStates.last, controller.state)
         XCTAssertTrue(evidenceCallbackSawPersistedRecord)
         let record = try XCTUnwrap(context.fetch(FetchDescriptor<SongFamiliarityRecord>())
@@ -95,12 +97,14 @@ final class ListeningPlaybackControllerTests: XCTestCase {
             .playing(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
         )
 
+        let stateCountBeforePause = projectedStates.count
         try controller.pause(now: time(13))
 
         XCTAssertEqual(
             controller.state,
             .paused(songID: "laggy-pause", source: .fullCatalog, currentTime: 12, duration: 100)
         )
+        XCTAssertEqual(projectedStates.count, stateCountBeforePause + 1)
         XCTAssertEqual(projectedStates.last, controller.state)
         XCTAssertTrue(service.snapshot(observedAt: time(13))?.isPlaying == true)
         try controller.stop(now: time(13))
@@ -120,12 +124,14 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         let item = ListeningPlaybackItem(songID: "laggy-play", duration: 100, previewURL: nil)
 
         try await controller.prepare(items: [item], source: .fullCatalog, now: time(0))
+        let stateCountBeforePlay = projectedStates.count
         try await controller.play(now: time(1))
 
         XCTAssertEqual(
             controller.state,
             .playing(songID: "laggy-play", source: .fullCatalog, currentTime: 0, duration: 100)
         )
+        XCTAssertEqual(projectedStates.count, stateCountBeforePlay + 1)
         XCTAssertEqual(projectedStates.last, controller.state)
         XCTAssertTrue(service.snapshot(observedAt: time(1))?.isPlaying == false)
         try controller.stop(now: time(1))
