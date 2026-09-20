@@ -4,8 +4,9 @@ import AVFoundation
 /// speaks twice: "seat" clicks the disc onto the spindle, then "read" supplies
 /// the spin-up / laser-seek texture. Track preparation may still request the
 /// legacy "read" cue, but that request is intentionally silent so changing
-/// tracks on the same disc does not replay the loading sound. "button" remains
-/// the panel-key click. Everything else — lid, insert, remove, release, store —
+/// tracks on the same disc does not replay the loading sound. Panel buttons
+/// use tactile haptics rather than audio so transport commands never interrupt
+/// music. Everything else — button, lid, insert, remove, release, store —
 /// stays silent; its files remain in Resources/Sounds as `cd-<name>.caf`.
 /// Sounds mix with music playback and never duck it; when no music plays the
 /// ambient session keeps them on the silent switch.
@@ -16,7 +17,6 @@ import AVFoundation
     private static let gains: [String: Float] = [
         "seat": 0.65,
         "read": 0.3,
-        "button": 0.3,
     ]
 
     private var players: [String: AVAudioPlayer] = [:]
@@ -29,9 +29,7 @@ import AVFoundation
         switch transition {
         case "seat":
             return ["seat", "read"]
-        case "button":
-            return ["button"]
-        case "read":
+        case "button", "read":
             return []
         default:
             return []

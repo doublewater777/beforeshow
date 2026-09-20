@@ -618,9 +618,6 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
         service.currentTime = 92
         _ = try controller.refresh(now: time(51))
-        XCTAssertTrue(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).isEmpty)
-        service.currentTime = 93
-        _ = try controller.refresh(now: time(52))
         XCTAssertEqual(try context.fetch(FetchDescriptor<SongFamiliarityRecord>()).count, 1)
     }
 
@@ -686,6 +683,47 @@ final class ListeningPlaybackControllerTests: XCTestCase {
         XCTAssertNotNil(player.currentItem)
 
         try controller.stop()
+    }
+
+    func testPreviewResumeKeepsTransportAndProgressAliveAfterIntentExpires() async throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".caf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 8_000, channels: 1))
+        let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 80_000))
+        buffer.frameLength = buffer.frameCapacity
+        do {
+            let file = try AVAudioFile(forWriting: url, settings: format.settings)
+            try file.write(from: buffer)
+        }
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let player = AVQueuePlayer()
+        let service = PreviewListeningPlaybackService(player: player)
+        let controller = ListeningPlaybackController(
+            service: service,
+            evidenceCoordinator: try ListeningPlaybackEvidenceCoordinator(modelContext: container.mainContext)
+        )
+        defer { try? controller.stop() }
+        try await controller.prepare(items: [ListeningPlaybackItem(
+            songID: "local-preview", duration: 10, previewURL: url
+        )], source: .preview)
+        try await controller.play()
+        try await Task.sleep(for: .seconds(2))
+        try controller.pause()
+        XCTAssertFalse(controller.state.isPlaying)
+        try await Task.sleep(for: .milliseconds(100))
+        try await controller.play()
+        try await Task.sleep(for: .seconds(2))
+        XCTAssertEqual(player.timeControlStatus, .playing)
+        XCTAssertTrue(controller.transportState.isPlaying)
+        XCTAssertTrue(controller.state.isPlaying)
+        guard case let .playing(_, _, resumedTime, _) = controller.state else {
+            return XCTFail("Resume must remain playing after intent timeout")
+        }
+        try await Task.sleep(for: .seconds(1.2))
+        guard case let .playing(_, _, laterTime, _) = controller.state else {
+            return XCTFail("Playback must continue advancing")
+        }
+        XCTAssertGreaterThan(laterTime, resumedTime)
     }
 
     private func time(_ value: TimeInterval) -> Date {

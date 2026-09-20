@@ -1,8 +1,6 @@
 import SwiftData
 import SwiftUI
-extension UUID: @retroactive Identifiable {
-    public var id: UUID { self }
-}
+extension UUID: @retroactive Identifiable { public var id: UUID { self } }
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -140,16 +138,11 @@ struct RootView: View {
         .task {
             DebugSampleShowSeeder.seedIfRequested(in: modelContext)
             FootprintDebugSeeder.seedIfRequested(in: modelContext)
-            if ProcessInfo.processInfo.arguments.contains("--open-listening") || ProcessInfo.processInfo.arguments.contains("--listen-fixture") { selectedTab = .listen }
-            if ProcessInfo.processInfo.arguments.contains("--open-footprints") {
-                selectedTab = .footprints
-            }
-            if ProcessInfo.processInfo.arguments.contains("--open-pro-paywall") {
-                ProOfferDeepLinkRouter.shared.routeToPro()
-            }
-            if ProcessInfo.processInfo.arguments.contains("--open-pro-winback") {
-                ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true)
-            }
+            let args = ProcessInfo.processInfo.arguments
+            if args.contains("--open-listening") || args.contains("--listen-fixture") { selectedTab = .listen }
+            if args.contains("--open-footprints") { selectedTab = .footprints }
+            if args.contains("--open-pro-paywall") { ProOfferDeepLinkRouter.shared.routeToPro() }
+            if args.contains("--open-pro-winback") { ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true) }
         }
         #endif
     }
@@ -278,9 +271,7 @@ struct RootView: View {
             .accessibilityIdentifier("root.tab.footprints")
         }
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
-        // Keep system navigation chrome neutral. Root Bottom Chrome owns its own
-        // selected-state accent explicitly, so the brand tint must not leak into
-        // push/sheet back, close, share, and menu controls.
+        // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
         .onChange(of: ceremonyPendingDetail) { _, newValue in

@@ -54,17 +54,28 @@ enum AppAudioSession {
 
     private static func apply() {
         let session = AVAudioSession.sharedInstance()
+        let category: AVAudioSession.Category
+        let mode: AVAudioSession.Mode
+        let options: AVAudioSession.CategoryOptions
         if owners.contains(.listening) {
-            try? session.setCategory(.playback, mode: .default)
-            try? session.setActive(true)
+            category = .playback
+            mode = .default
+            options = []
         } else if owners.contains(.sound) {
-            try? session.setCategory(.playback, mode: .moviePlayback)
+            category = .playback
+            mode = .moviePlayback
+            options = []
         } else {
-            try? session.setCategory(
-                .ambient,
-                mode: .default,
-                options: [.mixWithOthers]
-            )
+            category = .ambient
+            mode = .default
+            options = [.mixWithOthers]
         }
+
+        // Resuming music or releasing another owner's audio must not reconfigure
+        // an unchanged session. The players activate it when playback starts;
+        // synchronous setActive here blocks the main actor on every resume.
+        guard session.category != category || session.mode != mode
+            || session.categoryOptions != options else { return }
+        try? session.setCategory(category, mode: mode, options: options)
     }
 }

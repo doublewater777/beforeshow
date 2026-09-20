@@ -261,13 +261,9 @@ extension ListeningRoomCoordinator {
         case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
         }
 
-        // Transport state should settle in the tap's current main-actor turn.
-        // Mechanical foley is secondary feedback and must not sit in front of
-        // the playback state/UI update path.
-        Task { @MainActor in
-            await Task.yield()
-            CDSoundPlayer.shared.play("button")
-        }
+        #if os(iOS)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
     }
 }
 
