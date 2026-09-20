@@ -114,7 +114,7 @@ final class MusicKitListeningPlaybackService: ListeningPlaybackServicing {
             hasEnded: ListeningPlaybackCompletionPolicy.hasEnded(
                 currentTime: currentTime,
                 duration: duration,
-                isPlaying: phase.isPlaying
+                phase: phase
             )
         )
     }
