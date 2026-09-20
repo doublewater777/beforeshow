@@ -11,12 +11,14 @@ final class ListeningPlaybackController {
     private let service: ListeningPlaybackServicing
     private let evidenceCoordinator: ListeningPlaybackEvidenceCoordinator
     private let stateDidChange: @MainActor (ListeningPlaybackState) -> Void
+    private let transportStateDidChange: @MainActor (ListeningPlaybackState) -> Void
     private let evidenceDidChange: @MainActor () -> Void
     private let evidenceDidFail: @MainActor () -> Void
 
     private var stateMachine = ListeningPlaybackStateMachine()
     private var pendingTransportIntent: ListeningPlaybackTransportIntent?
     private var lastPublishedState: ListeningPlaybackState?
+    private var lastPublishedTransportState: ListeningPlaybackState?
 
     private var transportObservationTask: Task<Void, Never>?
     private var progressTask: Task<Void, Never>?
@@ -36,12 +38,14 @@ final class ListeningPlaybackController {
         service: ListeningPlaybackServicing,
         evidenceCoordinator: ListeningPlaybackEvidenceCoordinator,
         stateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
+        transportStateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
         evidenceDidChange: @escaping @MainActor () -> Void = {},
         evidenceDidFail: @escaping @MainActor () -> Void = {}
     ) {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
         self.stateDidChange = stateDidChange
+        self.transportStateDidChange = transportStateDidChange
         self.evidenceDidChange = evidenceDidChange
         self.evidenceDidFail = evidenceDidFail
     }
@@ -171,6 +175,7 @@ final class ListeningPlaybackController {
             stateMachine.handle(.reset)
             publishState()
             lastPublishedState = nil
+            lastPublishedTransportState = nil
             ListeningRemoteCommandBridge.shared.detach(controller: self)
         }
 
@@ -303,10 +308,17 @@ final class ListeningPlaybackController {
     }
 
     private func publishState() {
+        let truth = transportState
+        if lastPublishedTransportState != truth {
+            lastPublishedTransportState = truth
+            transportStateDidChange(truth)
+        }
+
         let projected = state
-        guard lastPublishedState != projected else { return }
-        lastPublishedState = projected
-        stateDidChange(projected)
+        if lastPublishedState != projected {
+            lastPublishedState = projected
+            stateDidChange(projected)
+        }
     }
 
     private func startTransportObservation() {
