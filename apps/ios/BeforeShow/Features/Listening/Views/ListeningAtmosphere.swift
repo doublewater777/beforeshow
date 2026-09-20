@@ -7,9 +7,13 @@ import UIKit
 /// The player has its own disc-bound halo (see `ListeningPlayerAmbientHalo`), so
 /// changing artists does not repaint the whole page.
 struct ListeningStageBackground: View {
+    let artworkURL: URL?
+    let isPlaying: Bool
+
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var showAmbientColor: Color?
+    @State private var discAmbientColor: Color?
 
     private var show: Show? {
         let id = CurrentShowSelectionStore.canonical(in: selections)?.selectedShowID
@@ -35,8 +39,8 @@ struct ListeningStageBackground: View {
                             .fill(
                                 RadialGradient(
                                     colors: [
-                                        showAmbientColor.opacity(0.54),
-                                        showAmbientColor.opacity(0.22),
+                                        showAmbientColor.opacity(0.42),
+                                        showAmbientColor.opacity(0.16),
                                         .clear
                                     ],
                                     center: .center,
@@ -49,16 +53,41 @@ struct ListeningStageBackground: View {
                                 height: geometry.size.height * 0.58
                             )
                             .position(x: geometry.size.width * 0.50, y: geometry.size.height * 0.07)
-                            .blur(radius: 52)
+                            .blur(radius: 56)
                             .transition(.opacity)
                     } else {
                         fallbackStageGlows(in: geometry)
+                    }
+
+                    if let discAmbientColor {
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [
+                                        discAmbientColor.opacity(isPlaying ? 0.50 : 0.34),
+                                        discAmbientColor.opacity(isPlaying ? 0.24 : 0.15),
+                                        .clear
+                                    ],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: geometry.size.width * 0.82
+                                )
+                            )
+                            .frame(
+                                width: geometry.size.width * 1.70,
+                                height: geometry.size.height * 0.72
+                            )
+                            .position(x: geometry.size.width * 0.50, y: geometry.size.height * 0.34)
+                            .blur(radius: isPlaying ? 68 : 58)
+                            .transition(.opacity)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .blendMode(.screen)
             .animation(.easeInOut(duration: 0.75), value: showAmbientColor)
+            .animation(.easeInOut(duration: 0.80), value: discAmbientColor)
+            .animation(.easeInOut(duration: 0.55), value: isPlaying)
 
             LinearGradient(
                 stops: [
@@ -74,6 +103,9 @@ struct ListeningStageBackground: View {
         .accessibilityHidden(true)
         .task(id: show?.coverImageURL) {
             showAmbientColor = await Self.loadAmbientColor(for: show?.coverImageURL)
+        }
+        .task(id: artworkURL) {
+            discAmbientColor = await Self.loadAmbientColor(for: artworkURL)
         }
     }
 
@@ -93,8 +125,12 @@ struct ListeningStageBackground: View {
     }
 
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
-        guard let urlString,
-              let url = URL(string: urlString),
+        guard let urlString, let url = URL(string: urlString) else { return nil }
+        return await loadAmbientColor(for: url)
+    }
+
+    private static func loadAmbientColor(for url: URL?) async -> Color? {
+        guard let url,
               let image = await ShowCoverImageCache.shared.image(from: url),
               let ambient = CoverAmbientColor.uiColor(from: image) else {
             return nil
