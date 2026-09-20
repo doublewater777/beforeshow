@@ -673,6 +673,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     var pauseSnapshotLags = false
     private var isPlaying = false
     private var transportContinuation: AsyncStream<ListeningPlaybackSample>.Continuation?
+    private var bufferedTransportSamples: [ListeningPlaybackSample] = []
 
     func prepare(
         items: [ListeningPlaybackItem],
@@ -705,6 +706,8 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
     func transportEvents() -> AsyncStream<ListeningPlaybackSample> {
         AsyncStream { continuation in
             transportContinuation = continuation
+            bufferedTransportSamples.forEach { continuation.yield($0) }
+            bufferedTransportSamples.removeAll()
         }
     }
 
@@ -714,7 +717,11 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
 
     func emitCurrentTransport(observedAt: Date) {
         guard let sample = snapshot(observedAt: observedAt) else { return }
-        transportContinuation?.yield(sample)
+        if let transportContinuation {
+            transportContinuation.yield(sample)
+        } else {
+            bufferedTransportSamples.append(sample)
+        }
     }
 
     func selectSongForTesting(_ songID: String) throws {
@@ -747,6 +754,7 @@ private final class PlaybackServiceStub: ListeningPlaybackServicing {
         isPlaying = false
         transportContinuation?.finish()
         transportContinuation = nil
+        bufferedTransportSamples.removeAll()
     }
 }
 
