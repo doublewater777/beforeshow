@@ -1201,7 +1201,7 @@ private let listeningCatalogFetchConcurrency = 4
         // leave the UI stale.
         if value, !wasForeground, let controller {
             do {
-                _ = try controller.refresh()
+                _ = try controller.resynchronizeTransport()
             } catch {
                 playbackError = BSLocalization.text("暂时无法播放")
             }
