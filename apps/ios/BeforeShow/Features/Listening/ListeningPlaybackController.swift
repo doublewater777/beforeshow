@@ -1,6 +1,11 @@
 import Foundation
 import MediaPlayer
 
+enum ListeningPlaybackEvidenceFailureOrigin: Equatable, Sendable {
+    case immediate
+    case deferred
+}
+
 @MainActor
 final class ListeningPlaybackController {
     /// Intent grace is presentation-only. Transport truth is never overwritten by
@@ -14,7 +19,7 @@ final class ListeningPlaybackController {
     private let transportStateDidChange: @MainActor (ListeningPlaybackState) -> Void
     private let transportSampleDidChange: @MainActor (ListeningPlaybackSample) -> Void
     private let evidenceDidChange: @MainActor () -> Void
-    private let evidenceDidFail: @MainActor () -> Void
+    private let evidenceDidFail: @MainActor (ListeningPlaybackEvidenceFailureOrigin) -> Void
 
     private var stateMachine = ListeningPlaybackStateMachine()
     private var pendingTransportIntent: ListeningPlaybackTransportIntent?
@@ -42,7 +47,7 @@ final class ListeningPlaybackController {
         transportStateDidChange: @escaping @MainActor (ListeningPlaybackState) -> Void = { _ in },
         transportSampleDidChange: @escaping @MainActor (ListeningPlaybackSample) -> Void = { _ in },
         evidenceDidChange: @escaping @MainActor () -> Void = {},
-        evidenceDidFail: @escaping @MainActor () -> Void = {}
+        evidenceDidFail: @escaping @MainActor (ListeningPlaybackEvidenceFailureOrigin) -> Void = { _ in }
     ) {
         self.service = service
         self.evidenceCoordinator = evidenceCoordinator
@@ -181,7 +186,8 @@ final class ListeningPlaybackController {
 
     func flushPendingEvidence() throws {
         handleEvidenceDrainResult(
-            try evidenceCoordinator.flushPending()
+            try evidenceCoordinator.flushPending(),
+            failureOrigin: .immediate
         )
     }
 
@@ -290,7 +296,8 @@ final class ListeningPlaybackController {
         switch handling {
         case .immediate:
             handleEvidenceDrainResult(
-                try evidenceCoordinator.ingest(sample, at: now)
+                try evidenceCoordinator.ingest(sample, at: now),
+                failureOrigin: .immediate
             )
         case .deferred:
             _ = evidenceCoordinator.record(sample, at: now)
@@ -306,10 +313,11 @@ final class ListeningPlaybackController {
             self.evidenceFlushTask = nil
             do {
                 self.handleEvidenceDrainResult(
-                    try self.evidenceCoordinator.flushPending()
+                    try self.evidenceCoordinator.flushPending(),
+                    failureOrigin: .deferred
                 )
             } catch {
-                self.evidenceDidFail()
+                self.evidenceDidFail(.deferred)
             }
         }
     }
@@ -321,13 +329,14 @@ final class ListeningPlaybackController {
     }
 
     private func handleEvidenceDrainResult(
-        _ result: ListeningPlaybackEvidenceDrainResult
+        _ result: ListeningPlaybackEvidenceDrainResult,
+        failureOrigin: ListeningPlaybackEvidenceFailureOrigin
     ) {
         if result.committedAny {
             evidenceDidChange()
         }
         if result.hasFailure {
-            evidenceDidFail()
+            evidenceDidFail(failureOrigin)
         }
     }
 
@@ -360,7 +369,7 @@ final class ListeningPlaybackController {
                 do {
                     try self.applyTransport(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
-                    self.evidenceDidFail()
+                    self.evidenceDidFail(.deferred)
                 }
             }
         }
@@ -387,7 +396,7 @@ final class ListeningPlaybackController {
                 do {
                     try self.applyProgress(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
-                    self.evidenceDidFail()
+                    self.evidenceDidFail(.deferred)
                 }
             }
         }
