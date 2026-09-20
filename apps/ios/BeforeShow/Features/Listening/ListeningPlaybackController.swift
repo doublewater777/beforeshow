@@ -69,9 +69,31 @@ final class ListeningPlaybackController {
 
     func pause(now: Date = Date()) throws {
         service.pause()
-        _ = try refresh(now: now)
-        observationTask?.cancel()
-        observationTask = nil
+        defer {
+            observationTask?.cancel()
+            observationTask = nil
+        }
+
+        if service.failure != nil {
+            _ = try refresh(now: now)
+            return
+        }
+        guard let sample = service.snapshot(observedAt: now) else { return }
+
+        // ApplicationMusicPlayer.pause() is synchronous, but its published
+        // playbackStatus can lag the command briefly. User pause is definitive:
+        // preserve the transport's song/time snapshot while projecting the
+        // requested paused state immediately to every playback surface.
+        let pausedSample = ListeningPlaybackSample(
+            songID: sample.songID,
+            source: sample.source,
+            currentTime: sample.currentTime,
+            duration: sample.duration,
+            isPlaying: false,
+            observedAt: sample.observedAt,
+            hasEnded: sample.hasEnded
+        )
+        _ = try apply(sample: pausedSample, now: now)
     }
 
     func skipToNext(now: Date = Date()) async throws {
@@ -108,6 +130,14 @@ final class ListeningPlaybackController {
         guard let sample = service.snapshot(observedAt: now) else {
             return state
         }
+        return try apply(sample: sample, now: now)
+    }
+
+    @discardableResult
+    private func apply(
+        sample: ListeningPlaybackSample,
+        now: Date
+    ) throws -> ListeningPlaybackState {
         stateMachine.handle(.sample(sample))
         publishState()
         ListeningRemoteCommandBridge.shared.update(sample: sample)
