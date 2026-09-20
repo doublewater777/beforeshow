@@ -1191,7 +1191,24 @@ private let listeningCatalogFetchConcurrency = 4
         do { try controller?.seek(to: time) }
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
-    func setForeground(_ value: Bool) { foreground = value; updateVisibility() }
+    func setForeground(_ value: Bool) {
+        let wasForeground = foreground
+        foreground = value
+
+        // Transport events are the normal synchronization path. Returning from
+        // suspension is also an explicit resynchronization boundary so any event
+        // that occurred while the process could not consume observations cannot
+        // leave the UI stale.
+        if value, !wasForeground, let controller {
+            do {
+                _ = try controller.refresh()
+            } catch {
+                playbackError = BSLocalization.text("暂时无法播放")
+            }
+        }
+
+        updateVisibility()
+    }
     func setActive(_ value: Bool) {
         active = value
         if value {
