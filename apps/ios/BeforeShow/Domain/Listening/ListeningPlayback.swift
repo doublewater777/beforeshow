@@ -130,6 +130,19 @@ enum ListeningPlaybackCompletionPolicy {
         guard !isPlaying, let duration, duration > 0 else { return false }
         return currentTime >= duration - 0.25
     }
+
+    static func hasEnded(
+        currentTime: TimeInterval,
+        duration: TimeInterval?,
+        phase: ListeningPlaybackTransportPhase
+    ) -> Bool {
+        guard phase == .paused || phase == .stopped else { return false }
+        return hasEnded(
+            currentTime: currentTime,
+            duration: duration,
+            isPlaying: false
+        )
+    }
 }
 
 enum ListeningPlaybackState: Equatable, Sendable {
