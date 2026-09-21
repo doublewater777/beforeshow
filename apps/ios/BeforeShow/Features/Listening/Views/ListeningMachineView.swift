@@ -654,6 +654,15 @@ private struct CDPlayerButtonFace<Content: View>: View {
     var body: some View {
         ZStack {
             Circle()
+                .fill(Color.black.opacity(0.26))
+                .scaleEffect(1.16)
+                .overlay(
+                    Circle()
+                        .stroke(.white.opacity(0.045), lineWidth: 1)
+                        .scaleEffect(1.16)
+                )
+
+            Circle()
                 .fill(
                     LinearGradient(
                         colors: fillColors,
@@ -661,6 +670,11 @@ private struct CDPlayerButtonFace<Content: View>: View {
                         endPoint: .bottomTrailing
                     )
                 )
+
+            Circle()
+                .stroke(.black.opacity(0.52), lineWidth: 1)
+                .padding(2)
+
             Circle().stroke(rimColor, lineWidth: role == .primary ? 2 : 1)
 
             if role == .primary {
@@ -673,7 +687,7 @@ private struct CDPlayerButtonFace<Content: View>: View {
             content
         }
         .frame(width: size.width, height: size.height)
-        .shadow(color: shadowColor, radius: role == .primary ? 8 : 4, y: 2)
+        .shadow(color: shadowColor, radius: role == .primary ? 7 : 3, y: 2)
         .animation(.easeInOut(duration: 0.18), value: isActive)
         .contentShape(Circle())
     }
