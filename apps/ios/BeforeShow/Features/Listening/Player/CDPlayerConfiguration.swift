@@ -5,30 +5,35 @@ import SwiftUI
 struct CDPlayerConfiguration {
     struct Geometry {
         /// Fixed display crop; motion continues in the full model coordinate space.
-        var viewportTop: CGFloat = 225
-        var canvas = CGSize(width: 460, height: 740)
-        var body = CGRect(x: 20, y: 278, width: 420, height: 466)
-        var lid = CGRect(x: 30, y: 304, width: 400, height: 353)
-        var hingeY: CGFloat = 304
-        var discCenter = CGPoint(x: 230, y: 489)
-        var discDiameter: CGFloat = 322
-        var parkedDisc = CGPoint(x: 230, y: 245)
+        var viewportTop: CGFloat = 230
+        var canvas = CGSize(width: 460, height: 800)
+
+        // "body" remains the stable sizing reference used by the room, while
+        // the visible hardware is split into an upper CD pod and a narrower
+        // lower control deck.
+        var body = CGRect(x: 32, y: 286, width: 396, height: 500)
+        var discPod = CGRect(x: 38, y: 300, width: 384, height: 330)
+        var lid = CGRect(x: 55, y: 302, width: 350, height: 310)
+        var hingeY: CGFloat = 302
+        var discCenter = CGPoint(x: 230, y: 462)
+        var discDiameter: CGFloat = 296
+        var parkedDisc = CGPoint(x: 230, y: 248)
         var tiltDegrees: Double = 18
         var maximumOpening: Double = 82
         var dragTravel: Double = 300
 
-        // The lower deck is deliberately split into a readable display module
-        // and a separate hardware transport row. Keep these in model space so
-        // they share the same physical perspective as the player body.
-        var lowerDeck = CGRect(x: 38, y: 575, width: 384, height: 169)
-        var lcd = CGRect(x: 58, y: 592, width: 344, height: 70)
+        // The display/control deck sits completely below the optical chamber.
+        // It is deliberately narrower than the CD pod so the machine reads as
+        // hardware, not as one full-height rounded card.
+        var lowerDeck = CGRect(x: 66, y: 642, width: 328, height: 150)
+        var lcd = CGRect(x: 84, y: 654, width: 292, height: 58)
         var controls: [CDControl: CGRect] = [
-            .previous: CGRect(x: 68, y: 682, width: 58, height: 58),
-            .playPause: CGRect(x: 158, y: 671, width: 78, height: 78),
-            .next: CGRect(x: 270, y: 682, width: 58, height: 58),
+            .previous: CGRect(x: 84, y: 728, width: 48, height: 48),
+            .playPause: CGRect(x: 154, y: 718, width: 68, height: 68),
+            .next: CGRect(x: 244, y: 728, width: 48, height: 48),
             // Mechanical lid control follows the transport trio, matching the
             // physical reading order: previous → play/pause → next → open/close.
-            .open: CGRect(x: 354, y: 687, width: 50, height: 50)
+            .open: CGRect(x: 320, y: 731, width: 44, height: 44)
         ]
         func projectedY(_ y: CGFloat) -> CGFloat {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
