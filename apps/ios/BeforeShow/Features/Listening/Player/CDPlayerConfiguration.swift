@@ -16,13 +16,19 @@ struct CDPlayerConfiguration {
         var tiltDegrees: Double = 18
         var maximumOpening: Double = 82
         var dragTravel: Double = 300
-        var lcd = CGRect(x: 150, y: 679, width: 122, height: 35)
+
+        // The lower deck is deliberately split into a readable display module
+        // and a separate hardware transport row. Keep these in model space so
+        // they share the same physical perspective as the player body.
+        var lowerDeck = CGRect(x: 38, y: 575, width: 384, height: 169)
+        var lcd = CGRect(x: 58, y: 592, width: 344, height: 70)
         var controls: [CDControl: CGRect] = [
-            .previous: CGRect(x: 44, y: 662, width: 43, height: 45),
-            .next: CGRect(x: 87, y: 674, width: 43, height: 44),
-            .playPause: CGRect(x: 285, y: 674, width: 43, height: 44),
-            .stop: CGRect(x: 328, y: 666, width: 43, height: 44),
-            .open: CGRect(x: 372, y: 641, width: 48, height: 50)
+            .previous: CGRect(x: 68, y: 682, width: 58, height: 58),
+            .playPause: CGRect(x: 158, y: 671, width: 78, height: 78),
+            .next: CGRect(x: 270, y: 682, width: 58, height: 58),
+            // Mechanical lid control follows the transport trio, matching the
+            // physical reading order: previous → play/pause → next → open/close.
+            .open: CGRect(x: 354, y: 687, width: 50, height: 50)
         ]
         func projectedY(_ y: CGFloat) -> CGFloat {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
