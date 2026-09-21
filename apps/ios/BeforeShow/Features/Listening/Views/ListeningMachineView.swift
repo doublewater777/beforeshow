@@ -327,7 +327,9 @@ private struct CDPlayerLCDStatusView: View {
             }
             Spacer(minLength: 0)
             Text(status.label)
+                .contentTransition(.opacity)
         }
+        .animation(.easeInOut(duration: 0.16), value: status)
         .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
         .foregroundStyle(Color(red: 0.69, green: 0.84, blue: 0.86).opacity(0.84))
         .lineLimit(1)
@@ -336,27 +338,44 @@ private struct CDPlayerLCDStatusView: View {
 
 private struct CDPlayerLCDMeterView: View {
     let status: LCDPlaybackStatus
-    private let playingHeights: [CGFloat] = [7, 13, 10, 18, 12, 20, 9]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private let baseHeights: [CGFloat] = [7, 13, 10, 18, 12, 20, 9]
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 2) {
-            ForEach(playingHeights.indices, id: \.self) { index in
-                Capsule()
-                    .fill(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(opacity))
-                    .frame(width: 2.5, height: barHeight(at: index))
+        TimelineView(
+            .animation(
+                minimumInterval: 1.0 / 12.0,
+                paused: status != .playing || reduceMotion
+            )
+        ) { context in
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(baseHeights.indices, id: \.self) { index in
+                    Capsule()
+                        .fill(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(opacity))
+                        .frame(width: 2.5, height: barHeight(at: index, date: context.date))
+                        .animation(.easeOut(duration: 0.10), value: status)
+                }
             }
         }
         .frame(width: 34, height: 22, alignment: .bottom)
         .accessibilityHidden(true)
     }
 
-    private func barHeight(at index: Int) -> CGFloat {
-        let full = playingHeights[index]
+    private func barHeight(at index: Int, date: Date) -> CGFloat {
+        let full = baseHeights[index]
+
         switch status {
-        case .playing: full
-        case .paused: max(4, full * 0.28)
-        case .ready: max(3, full * 0.18)
-        case .noDisc: 2
+        case .playing:
+            guard !reduceMotion else { return full }
+            let phase = date.timeIntervalSinceReferenceDate * 5.8 + Double(index) * 0.83
+            let wave = (sin(phase) + sin(phase * 0.53 + Double(index))) * 0.25 + 0.5
+            return max(4, full * CGFloat(0.48 + wave * 0.52))
+        case .paused:
+            return max(4, full * 0.28)
+        case .ready:
+            return max(3, full * 0.18)
+        case .noDisc:
+            return 2
         }
     }
 
@@ -415,6 +434,7 @@ private struct CDPlayerButtonFace<Content: View>: View {
         }
         .frame(width: size.width, height: size.height)
         .shadow(color: shadowColor, radius: role == .primary ? 8 : 4, y: 2)
+        .animation(.easeInOut(duration: 0.18), value: isActive)
         .contentShape(Circle())
     }
 
@@ -462,12 +482,18 @@ private struct CDPlayerButtonFace<Content: View>: View {
 private struct CDPlayerControlIcon: View {
     let control: CDControl
     let isPlaying: Bool
+    let isLidOpen: Bool
 
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size, weight: .semibold))
-            .foregroundStyle(Color.white.opacity(0.90))
-            .offset(x: control == .playPause && !isPlaying ? 1.5 : 0)
+            .foregroundStyle(Color.white.opacity(control == .open && isLidOpen ? 1 : 0.90))
+            .offset(
+                x: control == .playPause && !isPlaying ? 1.5 : 0,
+                y: control == .open && isLidOpen ? -1 : 0
+            )
+            .rotationEffect(.degrees(control == .open && isLidOpen ? -6 : 0))
+            .animation(.easeInOut(duration: 0.18), value: isLidOpen)
             .accessibilityHidden(true)
     }
 
@@ -502,10 +528,14 @@ private struct CDPlayerControlsView: View {
                 Button { room.perform(control) } label: {
                     CDPlayerButtonFace(
                         role: role(for: control),
-                        isActive: control == .playPause && room.isPlaying,
+                        isActive: isActive(control),
                         size: rect.size
                     ) {
-                        CDPlayerControlIcon(control: control, isPlaying: room.isPlaying)
+                        CDPlayerControlIcon(
+                            control: control,
+                            isPlaying: room.isPlaying,
+                            isLidOpen: room.mechanism.isOpen
+                        )
                     }
                     .frame(
                         width: max(rect.width, 44 / scale),
@@ -532,6 +562,17 @@ private struct CDPlayerControlsView: View {
         case .playPause: .primary
         case .open: .mechanical
         case .previous, .next, .stop: .secondary
+        }
+    }
+
+    private func isActive(_ control: CDControl) -> Bool {
+        switch control {
+        case .playPause:
+            room.isPlaying
+        case .open:
+            room.mechanism.isOpen
+        case .previous, .next, .stop:
+            false
         }
     }
 }
