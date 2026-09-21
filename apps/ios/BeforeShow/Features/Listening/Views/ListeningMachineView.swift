@@ -306,6 +306,7 @@ private struct CDPlayerLCDView: View {
         )
         .shadow(color: .black.opacity(0.42), radius: 7, y: 4)
         .position(x: geometry.lcd.midX, y: geometry.projectedY(geometry.lcd.midY))
+        .animation(.easeInOut(duration: 0.18), value: status)
         .accessibilityElement(children: .combine)
     }
 }
@@ -389,7 +390,7 @@ private struct CDPlayerLCDMeterView: View {
     }
 }
 
-private enum CDPlayerButtonRole {
+private enum CDPlayerButtonRole: Equatable {
     case primary, secondary, mechanical
 }
 
@@ -454,7 +455,7 @@ private struct CDPlayerButtonFace<Content: View>: View {
             ]
         case .mechanical:
             [
-                BSColor.Stage.accent.opacity(0.08),
+                BSColor.Stage.accent.opacity(isActive ? 0.14 : 0.08),
                 Color(red: 0.12, green: 0.105, blue: 0.09),
                 Color.black.opacity(0.48)
             ]
@@ -468,14 +469,19 @@ private struct CDPlayerButtonFace<Content: View>: View {
         case .secondary:
             Color.white.opacity(0.14)
         case .mechanical:
-            BSColor.Stage.accent.opacity(0.28)
+            BSColor.Stage.accent.opacity(isActive ? 0.62 : 0.28)
         }
     }
 
     private var shadowColor: Color {
-        role == .primary
-            ? BSColor.Stage.accent.opacity(isActive ? 0.20 : 0.09)
-            : .black.opacity(0.28)
+        switch role {
+        case .primary:
+            BSColor.Stage.accent.opacity(isActive ? 0.20 : 0.09)
+        case .mechanical where isActive:
+            BSColor.Stage.accent.opacity(0.12)
+        case .secondary, .mechanical:
+            .black.opacity(0.28)
+        }
     }
 }
 
