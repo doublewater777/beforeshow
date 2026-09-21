@@ -73,7 +73,7 @@ struct ListeningMachineView: View {
             Circle().fill(Color(white: 0.12)).padding(12)
             Circle().fill(Color(white: 0.62)).frame(width: 8, height: 8)
         }
-        .frame(width: 32, height: 32)
+        .frame(width: 26, height: 26)
         .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -233,57 +233,55 @@ private struct CDPlayerLowerDeckSurface: View {
     }
 }
 
+private enum LCDPlaybackStatus: Equatable {
+    case noDisc, ready, playing, paused
+
+    var label: String {
+        switch self {
+        case .noDisc: "STANDBY"
+        case .ready: "READY"
+        case .playing: "PLAY"
+        case .paused: "PAUSE"
+        }
+    }
+}
+
 private struct CDPlayerLCDView: View {
     let room: ListeningRoomCoordinator
     private var player: CDMechanism { room.mechanism }
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
+    private var status: LCDPlaybackStatus {
+        if !player.hasDisc { return .noDisc }
+        if room.isPlaying { return .playing }
+        if room.track != nil { return .paused }
+        return .ready
+    }
+
     var body: some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text(player.hasDisc ? (room.track?.title ?? player.disc?.title ?? "CD") : "NO DISC")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(Color.white.opacity(0.94))
                     .lineLimit(1)
 
-                Text(player.hasDisc
-                     ? (room.track?.artistName ?? "—")
-                     : BSLocalization.text("选择一张唱片开始播放"))
+                Text(player.hasDisc ? (room.track?.artistName ?? "—") : BSLocalization.text("选择一张唱片开始播放"))
                     .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(Color.white.opacity(0.58))
+                    .foregroundStyle(Color.white.opacity(0.56))
                     .lineLimit(1)
 
-                HStack(spacing: 8) {
-                    if player.hasDisc {
-                        Text(String(format: "%02d / %02d",
-                                    room.trackIndex + 1,
-                                    max(player.disc?.tracks.count ?? 0, 1)))
-                        Text(room.timeText)
-                    } else {
-                        Text("READY")
-                    }
-                    Spacer(minLength: 0)
-                    Text(room.isPlaying ? "PLAY" : (player.hasDisc ? "PAUSE" : "STANDBY"))
-                }
-                .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color(red: 0.69, green: 0.84, blue: 0.86).opacity(0.82))
+                CDPlayerLCDStatusView(
+                    hasDisc: player.hasDisc,
+                    trackIndex: room.trackIndex,
+                    trackCount: max(player.disc?.tracks.count ?? 0, 1),
+                    timeText: room.timeText,
+                    status: status
+                )
             }
 
-            Spacer(minLength: 0)
-
-            HStack(alignment: .bottom, spacing: 2) {
-                ForEach(0..<7, id: \.self) { index in
-                    Capsule()
-                        .fill(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(room.isPlaying ? 0.82 : 0.28))
-                        .frame(
-                            width: 2.5,
-                            height: room.isPlaying
-                                ? CGFloat([7, 13, 10, 18, 12, 20, 9][index])
-                                : 5
-                        )
-                }
-            }
-            .frame(width: 34, height: 22, alignment: .bottom)
+            Spacer(minLength: 8)
+            CDPlayerLCDMeterView(status: status)
         }
         .padding(.horizontal, 14)
         .frame(width: geometry.lcd.width, height: geometry.lcd.height)
@@ -292,26 +290,83 @@ private struct CDPlayerLCDView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.025, green: 0.055, blue: 0.065),
-                            Color(red: 0.015, green: 0.020, blue: 0.025)
+                            Color(red: 0.026, green: 0.052, blue: 0.061),
+                            Color(red: 0.012, green: 0.018, blue: 0.022)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(.white.opacity(0.14), lineWidth: 1)
-                )
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.14), lineWidth: 1))
                 .overlay(
                     RoundedRectangle(cornerRadius: 9)
-                        .stroke(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(room.isPlaying ? 0.10 : 0.05), lineWidth: 1)
+                        .stroke(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(status == .playing ? 0.11 : 0.05), lineWidth: 1)
                         .padding(3)
                 )
         )
         .shadow(color: .black.opacity(0.42), radius: 7, y: 4)
         .position(x: geometry.lcd.midX, y: geometry.projectedY(geometry.lcd.midY))
         .accessibilityElement(children: .combine)
+    }
+}
+
+private struct CDPlayerLCDStatusView: View {
+    let hasDisc: Bool
+    let trackIndex: Int
+    let trackCount: Int
+    let timeText: String
+    let status: LCDPlaybackStatus
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if hasDisc {
+                Text(String(format: "%02d / %02d", trackIndex + 1, trackCount))
+                Text(timeText)
+            } else {
+                Text("READY")
+            }
+            Spacer(minLength: 0)
+            Text(status.label)
+        }
+        .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+        .foregroundStyle(Color(red: 0.69, green: 0.84, blue: 0.86).opacity(0.84))
+        .lineLimit(1)
+    }
+}
+
+private struct CDPlayerLCDMeterView: View {
+    let status: LCDPlaybackStatus
+    private let playingHeights: [CGFloat] = [7, 13, 10, 18, 12, 20, 9]
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            ForEach(playingHeights.indices, id: \.self) { index in
+                Capsule()
+                    .fill(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(opacity))
+                    .frame(width: 2.5, height: barHeight(at: index))
+            }
+        }
+        .frame(width: 34, height: 22, alignment: .bottom)
+        .accessibilityHidden(true)
+    }
+
+    private func barHeight(at index: Int) -> CGFloat {
+        let full = playingHeights[index]
+        switch status {
+        case .playing: full
+        case .paused: max(4, full * 0.28)
+        case .ready: max(3, full * 0.18)
+        case .noDisc: 2
+        }
+    }
+
+    private var opacity: Double {
+        switch status {
+        case .playing: 0.84
+        case .paused: 0.38
+        case .ready: 0.28
+        case .noDisc: 0.14
+        }
     }
 }
 
