@@ -338,12 +338,11 @@ import SwiftData
         ]])
 
         XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
-            ["short", "very-long"],
-            ["missing", "also-long"]
+            ["short", "very-long", "missing", "also-long"]
         ])
     }
 
-    func testCompilationStopsAfterNineDiscs() {
+    func testSingleArtistCompilationPacksRichDiscsAndCapsAtThreeDiscs() {
         let tracks = (0..<80).map { index in
             ListeningDiscTrack(CatalogSong(
                 appleMusicSongID: "\(index)",
@@ -355,10 +354,54 @@ import SwiftData
 
         let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
 
-        XCTAssertEqual(ListeningCompilationAssembler.maxDiscCount, 9)
-        XCTAssertEqual(result.count, ListeningCompilationAssembler.maxDiscCount)
-        XCTAssertEqual(result.map { $0.tracks.count }, Array(repeating: 2, count: 9))
-        XCTAssertEqual(result.flatMap { $0.tracks }.map(\.id), (0..<18).map { String($0) })
+        XCTAssertEqual(ListeningCompilationAssembler.singleArtistMaxDiscCount, 3)
+        XCTAssertEqual(ListeningCompilationAssembler.singleArtistTracksPerDisc, 10)
+        XCTAssertEqual(result.count, ListeningCompilationAssembler.singleArtistMaxDiscCount)
+        XCTAssertEqual(result.map { $0.tracks.count }, [10, 10, 10])
+        XCTAssertEqual(result.flatMap { $0.tracks }.map(\.id), (0..<30).map { String($0) })
+    }
+
+    func testSingleArtistCompilationProducesSingleRichDisc() {
+        func track(_ id: String) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
+        }
+
+        let tracks = (0..<10).map { track("song-\($0)") }
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result.first?.tracks.count, 10)
+        XCTAssertEqual(result.first?.tracks.map(\.id), (0..<10).map { "song-\($0)" })
+        XCTAssertEqual(result.first?.title, BSLocalization.format("热门合辑 %02d", 1))
+    }
+
+    func testSingleArtistCompilationPartitionsIntoRichDiscs() {
+        func track(_ id: String) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
+        }
+
+        let tracks = (0..<25).map { track("song-\($0)") }
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks])
+
+        XCTAssertEqual(result.count, 3)
+        XCTAssertEqual(result.map { $0.tracks.count }, [10, 10, 5])
+        XCTAssertEqual(result.map(\.title), [
+            BSLocalization.format("热门合辑 %02d", 1),
+            BSLocalization.format("热门合辑 %02d", 2),
+            BSLocalization.format("热门合辑 %02d", 3)
+        ])
+    }
+
+    func testSingleActiveArtistWithEmptyArtistSlotsUsesSingleArtistPacking() {
+        func track(_ id: String) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
+        }
+
+        let tracks = (0..<15).map { track("s-\($0)") }
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [tracks, [], []])
+
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result.map { $0.tracks.count }, [10, 5])
     }
 
     func testConnectedArtistsAppearBeforeUnconnectedArtists() async throws {

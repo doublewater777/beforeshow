@@ -21,6 +21,12 @@ struct BeforeShowApp: App {
         let environment = ProcessInfo.processInfo.environment
         return environment["XCTestConfigurationFilePath"] != nil
             || environment["XCInjectBundleInto"] != nil
+            || environment["XCTestBundlePath"] != nil
+            || environment["XCTestSessionIdentifier"] != nil
+            || environment["XCTestBundleInjectPath"] != nil
+            || environment["DYLD_INSERT_LIBRARIES"]?.contains("libXCTestBundleInject.dylib") == true
+            || ProcessInfo.processInfo.arguments.contains { $0.contains("XCTest") }
+            || NSClassFromString("XCTestCase") != nil
     }
 
     init() {
@@ -96,69 +102,70 @@ struct BeforeShowApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(companionCoordinator)
-                .environment(\.locale, languageController.language.locale)
-                .onAppear {
-                    guard !Self.isRunningHostedUnitTests else { return }
-                    appDelegate.companionCoordinator = companionCoordinator
-                    appDelegate.modelContainer = modelContainer
-                    appDelegate.noteDependenciesReady()
-                }
-                .task {
-                    guard !Self.isRunningHostedUnitTests else { return }
-                    // Ensure delegate wiring even if onAppear ordering is delayed.
-                    appDelegate.companionCoordinator = companionCoordinator
-                    appDelegate.modelContainer = modelContainer
-                    appDelegate.noteDependenciesReady()
-
-                    await Task.yield()
-
-                    isLocalMediaMaintenanceRunning = true
-                    await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
-                    await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
-                    await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
-                    await reconcileAllShowAssets(in: modelContainer.mainContext)
-                    await reconcileAllDynamicCovers(
-                        in: modelContainer.mainContext,
-                        includesStagingCleanup: true
-                    )
-                    lastLocalMediaMaintenanceAt = Date()
-                    isLocalMediaMaintenanceRunning = false
-                    await LocalNotificationCenter.shared.reconcilePortfolio(
-                        reason: .startup,
-                        in: modelContainer.mainContext
-                    )
-                }
-                .onChange(of: scenePhase) { _, newPhase in
-                    guard !Self.isRunningHostedUnitTests else { return }
-                    guard newPhase == .active else { return }
-                    let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
-                        lastRun: lastLocalMediaMaintenanceAt,
-                        isRunning: isLocalMediaMaintenanceRunning
-                    )
-                    if shouldRunMediaMaintenance {
-                        isLocalMediaMaintenanceRunning = true
+            if Self.isRunningHostedUnitTests {
+                Color.clear
+            } else {
+                RootView()
+                    .environment(companionCoordinator)
+                    .environment(\.locale, languageController.language.locale)
+                    .onAppear {
+                        appDelegate.companionCoordinator = companionCoordinator
+                        appDelegate.modelContainer = modelContainer
+                        appDelegate.noteDependenciesReady()
                     }
-                    Task {
-                        try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
+                    .task {
+                        // Ensure delegate wiring even if onAppear ordering is delayed.
+                        appDelegate.companionCoordinator = companionCoordinator
+                        appDelegate.modelContainer = modelContainer
+                        appDelegate.noteDependenciesReady()
+
+                        await Task.yield()
+
+                        isLocalMediaMaintenanceRunning = true
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
-                        if shouldRunMediaMaintenance {
-                            await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
-                            await reconcileAllShowAssets(in: modelContainer.mainContext)
-                            await reconcileAllDynamicCovers(
-                                in: modelContainer.mainContext,
-                                includesStagingCleanup: false
-                            )
-                            lastLocalMediaMaintenanceAt = Date()
-                            isLocalMediaMaintenanceRunning = false
-                        }
+                        await retryPendingShowAssetCleanupIfNeeded(in: modelContainer.mainContext)
+                        await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: true)
+                        await reconcileAllShowAssets(in: modelContainer.mainContext)
+                        await reconcileAllDynamicCovers(
+                            in: modelContainer.mainContext,
+                            includesStagingCleanup: true
+                        )
+                        lastLocalMediaMaintenanceAt = Date()
+                        isLocalMediaMaintenanceRunning = false
                         await LocalNotificationCenter.shared.reconcilePortfolio(
-                            reason: .foreground,
+                            reason: .startup,
                             in: modelContainer.mainContext
                         )
                     }
-                }
+                    .onChange(of: scenePhase) { _, newPhase in
+                        guard newPhase == .active else { return }
+                        let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
+                            lastRun: lastLocalMediaMaintenanceAt,
+                            isRunning: isLocalMediaMaintenanceRunning
+                        )
+                        if shouldRunMediaMaintenance {
+                            isLocalMediaMaintenanceRunning = true
+                        }
+                        Task {
+                            try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
+                            await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
+                            if shouldRunMediaMaintenance {
+                                await reconcileAllMemoryMedia(in: modelContainer.mainContext, includesStagingCleanup: false)
+                                await reconcileAllShowAssets(in: modelContainer.mainContext)
+                                await reconcileAllDynamicCovers(
+                                    in: modelContainer.mainContext,
+                                    includesStagingCleanup: false
+                                )
+                                lastLocalMediaMaintenanceAt = Date()
+                                isLocalMediaMaintenanceRunning = false
+                            }
+                            await LocalNotificationCenter.shared.reconcilePortfolio(
+                                reason: .foreground,
+                                in: modelContainer.mainContext
+                            )
+                        }
+                    }
+            }
         }
         .modelContainer(modelContainer)
     }

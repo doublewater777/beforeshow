@@ -57,13 +57,14 @@ private struct ListeningCompilationJacket: View {
                     Text(identity.title)
                         .font(.system(size: proxy.size.width * BSListeningTokens.sleeveTitleFraction,
                                       weight: .semibold))
-                        .lineLimit(1)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(inset)
                         .background(BSListeningTokens.paper.opacity(BSListeningTokens.paperOpacity))
                 }
                 .foregroundStyle(BSListeningTokens.ink)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(inset)
             }
             .clipped()
@@ -85,7 +86,7 @@ struct ListeningSleeveImage: View {
             if let image {
                 Image(uiImage: image)
                     .resizable()
-                    .scaledToFill()
+                    .scaledToFit()
             }
         }
         .clipped()
@@ -102,4 +103,3 @@ struct ListeningSleeveImage: View {
         }
     }
 }
-

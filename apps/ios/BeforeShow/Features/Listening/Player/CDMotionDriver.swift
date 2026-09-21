@@ -40,7 +40,7 @@ struct CDSpringChannel {
     var reducedMotion = false {
         didSet { if reducedMotion != oldValue { wake() } }
     }
-    /// Label rotation in degrees. Advances only while the lid is visibly open.
+    /// Label rotation in degrees. Advances while playback is active.
     var discAngle: Double = 0
     /// Angular velocity in revolutions per second; tracks `spinning` with inertia.
     private(set) var discSpin: Double = 0
@@ -56,6 +56,7 @@ struct CDSpringChannel {
     @ObservationIgnored private var lastTime: Double = 0
     #if os(iOS)
     @ObservationIgnored private var link: CADisplayLink?
+    @ObservationIgnored private var usesCruiseFrameRate = false
     #else
     @ObservationIgnored private var timer: Timer?
     #endif
@@ -103,6 +104,7 @@ struct CDSpringChannel {
     func stop() {
         #if os(iOS)
         link?.invalidate(); link = nil
+        usesCruiseFrameRate = false
         #else
         timer?.invalidate(); timer = nil
         #endif
@@ -115,6 +117,7 @@ struct CDSpringChannel {
         let now = CACurrentMediaTime()
         let dt = min(now - lastTime, 1 / 15)
         lastTime = now
+        let hadActiveSprings = lid.target != nil || discX.target != nil || discY.target != nil || lift.target != nil || discScale.target != nil
         lid.step(dt, reducedMotion: reducedMotion)
         discX.step(dt, reducedMotion: reducedMotion)
         discY.step(dt, reducedMotion: reducedMotion)
@@ -126,17 +129,16 @@ struct CDSpringChannel {
         let tau = cruise > discSpin ? 0.4 : 0.9
         discSpin += (cruise - discSpin) * (1 - exp(-dt / tau))
         if reducedMotion || (cruise == 0 && abs(discSpin) < 0.002) { discSpin = 0 }
-        let lidShut = lid.value < 0.002 && lid.target != 1
-        if discSpin != 0 && !lidShut {
+        if discSpin != 0 {
             discAngle = (discAngle + discSpin * 360 * dt).truncatingRemainder(dividingBy: 360)
         }
-        onFrame()
+        if hadActiveSprings {
+            onFrame()
+        }
 
-        // Once the mechanism is visually static, pause the display link even if
-        // audio is still playing. A closed lid hides the disc, so there is no
-        // visible rotation to animate until the mechanism is woken again.
         let springsResting = lid.target == nil && discX.target == nil && discY.target == nil && lift.target == nil && discScale.target == nil
-        let visibleRotationResting = lidShut || ((reducedMotion || !spinning) && discSpin == 0)
+        updateFrameRate(springsResting: springsResting)
+        let visibleRotationResting = (reducedMotion || !spinning) && discSpin == 0
         if springsResting && visibleRotationResting {
             #if os(iOS)
             link?.isPaused = true
@@ -144,6 +146,17 @@ struct CDSpringChannel {
             stop()
             #endif
         }
+    }
+
+    private func updateFrameRate(springsResting: Bool) {
+        #if os(iOS)
+        let shouldUseCruiseFrameRate = springsResting && !reducedMotion && discSpin != 0
+        guard shouldUseCruiseFrameRate != usesCruiseFrameRate else { return }
+        usesCruiseFrameRate = shouldUseCruiseFrameRate
+        link?.preferredFrameRateRange = shouldUseCruiseFrameRate
+            ? CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)
+            : CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        #endif
     }
 }
 
@@ -157,4 +170,3 @@ struct CDSpringChannel {
     }
 }
 #endif
-
