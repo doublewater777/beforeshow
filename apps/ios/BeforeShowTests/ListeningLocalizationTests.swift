@@ -429,6 +429,10 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(machine.contains("\"READY\""))
         XCTAssertTrue(machine.contains("\"PLAY\""))
         XCTAssertTrue(machine.contains("\"PAUSE\""))
+        XCTAssertTrue(machine.contains("TimelineView("))
+        XCTAssertTrue(machine.contains("minimumInterval: 1.0 / 12.0"))
+        XCTAssertTrue(machine.contains("accessibilityReduceMotion"))
+        XCTAssertTrue(machine.contains("room.mechanism.isOpen"))
         XCTAssertTrue(machine.contains(".frame(width: 26, height: 26)"))
 
         let previous = try XCTUnwrap(config.range(of: ".previous: CGRect"))
