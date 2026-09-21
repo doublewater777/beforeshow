@@ -42,12 +42,10 @@ struct CDPlayerConfiguration {
     }
 
     struct Assets {
-        var body = "listen_01_body_shell"
-        var lidOuter = "listen_02_lid_outer"
-        var lidInner = "listen_03_lid_inner"
+        // The machine shell, tray and lid are native SwiftUI materials. Only
+        // the disc remains an image-backed texture because album artwork is
+        // composited into that surface at runtime.
         var disc = "listen_04_disc"
-        // The body already contains its tray, controls and hinges. Do not stack
-        // duplicate asset-board components over the same photographed features.
     }
     var brand: String
     var model: String
