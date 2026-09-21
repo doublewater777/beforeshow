@@ -40,13 +40,8 @@ struct ListeningMachineView: View {
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
-            Image(player.configuration.assets.body).resizable()
-                .frame(width: geometry.body.width, height: geometry.body.height)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180),
-                             anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
-                .position(x: geometry.body.midX, y: geometry.body.midY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            CDPlayerBodyShellView(player: player)
+                .zIndex(0)
             CDPlayerLowerDeckSurface(player: player)
                 .zIndex(0.5)
             CDPlayerDiscView(player: player, scale: scale)
@@ -118,83 +113,263 @@ private struct CDPlayerDiscView: View {
     }
 }
 
+private struct CDPlayerBodyShellView: View {
+    let player: CDMechanism
+    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 34)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.28, green: 0.26, blue: 0.24),
+                            Color(red: 0.13, green: 0.13, blue: 0.14),
+                            Color(red: 0.20, green: 0.18, blue: 0.17)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 34)
+                        .stroke(.white.opacity(0.11), lineWidth: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 31)
+                        .stroke(BSColor.Stage.accent.opacity(0.16), lineWidth: 1)
+                        .padding(3)
+                )
+                .frame(width: geometry.body.width, height: geometry.body.height)
+                .scaleEffect(
+                    x: 1,
+                    y: cos(geometry.tiltDegrees * .pi / 180),
+                    anchor: UnitPoint(
+                        x: 0.5,
+                        y: (geometry.hingeY - geometry.body.minY) / geometry.body.height
+                    )
+                )
+                .position(x: geometry.body.midX, y: geometry.body.midY)
+
+            tray
+            hingeBridge
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var tray: some View {
+        ZStack {
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.11, green: 0.11, blue: 0.12),
+                            Color(red: 0.045, green: 0.045, blue: 0.05)
+                        ],
+                        center: .center,
+                        startRadius: 28,
+                        endRadius: geometry.discDiameter * 0.62
+                    )
+                )
+            Ellipse()
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+                .padding(3)
+            Ellipse()
+                .stroke(BSColor.Stage.accent.opacity(0.12), lineWidth: 1.5)
+                .padding(10)
+            Ellipse()
+                .stroke(.black.opacity(0.72), lineWidth: 8)
+                .padding(17)
+        }
+        .frame(
+            width: geometry.discDiameter + 54,
+            height: (geometry.discDiameter + 54) * cos(geometry.tiltDegrees * .pi / 180)
+        )
+        .position(
+            x: geometry.discCenter.x,
+            y: geometry.projectedY(geometry.discCenter.y)
+        )
+        .shadow(color: .black.opacity(0.36), radius: 9, y: 5)
+    }
+
+    private var hingeBridge: some View {
+        Capsule()
+            .fill(
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.11),
+                        Color.black.opacity(0.55),
+                        Color.white.opacity(0.06)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
+            .frame(width: 112, height: 18)
+            .position(x: geometry.body.midX, y: geometry.projectedY(geometry.hingeY + 8))
+            .shadow(color: .black.opacity(0.34), radius: 4, y: 2)
+    }
+}
+
 private struct CDPlayerLidView: View {
     let player: CDMechanism
     let scale: CGFloat
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
     private var motion: CDMotionDriver { player.motion }
+
     private var lidAngle: Double {
         geometry.tiltDegrees + motion.lid.value * geometry.maximumOpening
     }
+
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
+
     private var usesTransparentOuterLid: Bool {
         !isShowingBackFace && player.hasDisc
     }
 
     var body: some View {
         ZStack {
-            // The visible top cover itself becomes clear acrylic only while a
-            // disc is seated underneath it. With an empty tray, retain the
-            // original opaque photographed lid.
-            Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? 0.16 : 1))
-
-            // The inside face is not part of the transparent treatment.
-            Image(player.configuration.assets.lidInner).resizable()
-                .opacity(isShowingBackFace ? 1 : 0)
-
-            if usesTransparentOuterLid {
-                LinearGradient(
-                    colors: [
-                        .white.opacity(0.10),
-                        .white.opacity(0.025),
-                        .clear,
-                        .black.opacity(0.035)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .mask(Image(player.configuration.assets.lidOuter).resizable())
-
-                // Keep the acrylic rim readable even though the disc is visible
-                // through the center of the closed top cover.
-                Ellipse()
-                    .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
-                    .padding(2)
-                Ellipse()
-                    .strokeBorder(.black.opacity(0.16), lineWidth: 1)
-                    .padding(5)
+            if isShowingBackFace {
+                innerFace
+            } else if usesTransparentOuterLid {
+                transparentOuterFace
+            } else {
+                opaqueOuterFace
             }
-
-            LinearGradient(
-                colors: [
-                    .white.opacity((usesTransparentOuterLid ? 0.025 : 0.07) * motion.lid.value),
-                    .clear,
-                    .black.opacity((usesTransparentOuterLid ? 0.035 : 0.10) * motion.lid.value)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .mask(
-                Image(isShowingBackFace ? player.configuration.assets.lidInner : player.configuration.assets.lidOuter)
-                    .resizable()
-            )
         }
         .frame(width: geometry.lid.width, height: geometry.lid.height)
         .contentShape(Ellipse())
         .modifier(HingedPlane(angle: lidAngle))
         .offset(x: geometry.lid.minX, y: geometry.hingeY)
-        .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("playerStage"))
-            .onChanged { value in player.dragLid(value.translation.height / scale) }
-            .onEnded { value in player.endLidDrag(value.translation.height / scale,
-                                                predicted: value.predictedEndTranslation.height / scale) })
+        .shadow(
+            color: .black.opacity(0.20 + 0.20 * motion.lid.value),
+            radius: 9 + 8 * motion.lid.value,
+            y: 5 + 7 * motion.lid.value
+        )
+        .gesture(
+            DragGesture(minimumDistance: 3, coordinateSpace: .named("playerStage"))
+                .onChanged { value in
+                    player.dragLid(value.translation.height / scale)
+                }
+                .onEnded { value in
+                    player.endLidDrag(
+                        value.translation.height / scale,
+                        predicted: value.predictedEndTranslation.height / scale
+                    )
+                }
+        )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(BSLocalization.text("播放器上盖"))
         .accessibilityValue(BSLocalization.text(player.isOpen ? "已打开" : "已合上"))
         .accessibilityAction(named: BSLocalization.text("打开")) { player.setLid(open: true) }
         .accessibilityAction(named: BSLocalization.text("合上")) { player.setLid(open: false) }
+    }
+
+    private var opaqueOuterFace: some View {
+        ZStack {
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.30, green: 0.28, blue: 0.26),
+                            Color(red: 0.15, green: 0.145, blue: 0.15),
+                            Color(red: 0.075, green: 0.075, blue: 0.085)
+                        ],
+                        center: .topLeading,
+                        startRadius: 18,
+                        endRadius: geometry.lid.width * 0.58
+                    )
+                )
+            Ellipse()
+                .stroke(BSColor.Stage.accent.opacity(0.24), lineWidth: 2)
+                .padding(2)
+            Ellipse()
+                .stroke(.white.opacity(0.11), lineWidth: 1)
+                .padding(7)
+            metallicSweep.opacity(0.32)
+        }
+    }
+
+    private var transparentOuterFace: some View {
+        ZStack {
+            Ellipse()
+                .fill(Color.black.opacity(0.13))
+            Ellipse()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            .white.opacity(0.10),
+                            .white.opacity(0.018),
+                            .clear,
+                            .black.opacity(0.05)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Ellipse()
+                .stroke(BSColor.Stage.accent.opacity(0.30), lineWidth: 3)
+                .padding(1)
+            Ellipse()
+                .stroke(.white.opacity(0.26), lineWidth: 1.2)
+                .padding(6)
+            Ellipse()
+                .stroke(.black.opacity(0.42), lineWidth: 7)
+                .padding(12)
+
+            Capsule()
+                .fill(.white.opacity(0.11))
+                .frame(width: geometry.lid.width * 0.30, height: 20)
+                .rotationEffect(.degrees(-28))
+                .offset(x: -geometry.lid.width * 0.18, y: -geometry.lid.height * 0.20)
+                .blur(radius: 4)
+        }
+        .compositingGroup()
+    }
+
+    private var innerFace: some View {
+        ZStack {
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            Color(red: 0.12, green: 0.12, blue: 0.13),
+                            Color(red: 0.045, green: 0.045, blue: 0.052)
+                        ],
+                        center: .center,
+                        startRadius: 30,
+                        endRadius: geometry.lid.width * 0.55
+                    )
+                )
+            Ellipse()
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+                .padding(5)
+            Ellipse()
+                .stroke(.black.opacity(0.62), lineWidth: 10)
+                .padding(14)
+            Ellipse()
+                .stroke(BSColor.Stage.accent.opacity(0.10), lineWidth: 1.5)
+                .padding(25)
+        }
+    }
+
+    private var metallicSweep: some View {
+        AngularGradient(
+            colors: [
+                .white.opacity(0.18),
+                .clear,
+                BSColor.Stage.accent.opacity(0.10),
+                .clear,
+                .white.opacity(0.08),
+                .clear
+            ],
+            center: .center
+        )
+        .mask(Ellipse())
     }
 }
 
