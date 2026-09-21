@@ -370,58 +370,155 @@ private struct CDPlayerLCDMeterView: View {
     }
 }
 
+private enum CDPlayerButtonRole {
+    case primary, secondary, mechanical
+}
+
+private struct CDPlayerButtonFace<Content: View>: View {
+    let role: CDPlayerButtonRole
+    let isActive: Bool
+    let size: CGSize
+    private let content: Content
+
+    init(
+        role: CDPlayerButtonRole,
+        isActive: Bool,
+        size: CGSize,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.role = role
+        self.isActive = isActive
+        self.size = size
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: fillColors,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Circle().stroke(rimColor, lineWidth: role == .primary ? 2 : 1)
+
+            if role == .primary {
+                Circle()
+                    .stroke(BSColor.Stage.accent.opacity(isActive ? 0.24 : 0.08), lineWidth: 5)
+                    .blur(radius: 5)
+                    .padding(2)
+            }
+
+            content
+        }
+        .frame(width: size.width, height: size.height)
+        .shadow(color: shadowColor, radius: role == .primary ? 8 : 4, y: 2)
+        .contentShape(Circle())
+    }
+
+    private var fillColors: [Color] {
+        switch role {
+        case .primary:
+            [
+                Color.white.opacity(isActive ? 0.18 : 0.13),
+                Color(red: 0.11, green: 0.10, blue: 0.095),
+                Color.black.opacity(0.48)
+            ]
+        case .secondary:
+            [
+                Color.white.opacity(0.09),
+                Color(red: 0.10, green: 0.10, blue: 0.105),
+                Color.black.opacity(0.46)
+            ]
+        case .mechanical:
+            [
+                BSColor.Stage.accent.opacity(0.08),
+                Color(red: 0.12, green: 0.105, blue: 0.09),
+                Color.black.opacity(0.48)
+            ]
+        }
+    }
+
+    private var rimColor: Color {
+        switch role {
+        case .primary:
+            BSColor.Stage.accent.opacity(isActive ? 0.90 : 0.56)
+        case .secondary:
+            Color.white.opacity(0.14)
+        case .mechanical:
+            BSColor.Stage.accent.opacity(0.28)
+        }
+    }
+
+    private var shadowColor: Color {
+        role == .primary
+            ? BSColor.Stage.accent.opacity(isActive ? 0.20 : 0.09)
+            : .black.opacity(0.28)
+    }
+}
+
+private struct CDPlayerControlIcon: View {
+    let control: CDControl
+    let isPlaying: Bool
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(Color.white.opacity(0.90))
+            .offset(x: control == .playPause && !isPlaying ? 1.5 : 0)
+            .accessibilityHidden(true)
+    }
+
+    private var symbol: String {
+        switch control {
+        case .previous: "backward.end.fill"
+        case .next: "forward.end.fill"
+        case .playPause: isPlaying ? "pause.fill" : "play.fill"
+        case .open: "eject.fill"
+        case .stop: "stop.fill"
+        }
+    }
+
+    private var size: CGFloat {
+        switch control {
+        case .playPause: 22
+        case .open: 15
+        case .previous, .next, .stop: 17
+        }
+    }
+}
+
 private struct CDPlayerControlsView: View {
     let room: ListeningRoomCoordinator
     let scale: CGFloat
     private var geometry: CDPlayerConfiguration.Geometry { room.mechanism.configuration.geometry }
-    private var player: CDMechanism { room.mechanism }
     private var playerPresentation: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {
         ForEach(CDControl.allCases) { control in
             if let rect = geometry.controls[control] {
                 Button { room.perform(control) } label: {
-                    ZStack {
-                        Circle()
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(control == .playPause ? 0.15 : 0.09),
-                                        Color.black.opacity(0.44)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        Circle()
-                            .stroke(
-                                control == .playPause
-                                    ? BSColor.Stage.accent.opacity(room.isPlaying ? 0.88 : 0.56)
-                                    : Color.white.opacity(0.14),
-                                lineWidth: control == .playPause ? 2 : 1
-                            )
-                        Image(systemName: symbol(for: control))
-                            .font(.system(
-                                size: control == .playPause ? 22 : (control == .open ? 15 : 17),
-                                weight: .semibold
-                            ))
-                            .foregroundStyle(Color.white.opacity(0.90))
-                            .offset(x: control == .playPause && !room.isPlaying ? 1.5 : 0)
+                    CDPlayerButtonFace(
+                        role: role(for: control),
+                        isActive: control == .playPause && room.isPlaying,
+                        size: rect.size
+                    ) {
+                        CDPlayerControlIcon(control: control, isPlaying: room.isPlaying)
                     }
-                    .frame(width: rect.width, height: rect.height)
-                    .shadow(
-                        color: control == .playPause
-                            ? BSColor.Stage.accent.opacity(room.isPlaying ? 0.20 : 0.10)
-                            : .black.opacity(0.25),
-                        radius: control == .playPause ? 8 : 4,
-                        y: 2
+                    .frame(
+                        width: max(rect.width, 44 / scale),
+                        height: max(rect.height, 44 / scale)
                     )
-                    .contentShape(Circle())
-                    .frame(width: max(rect.width, 44 / scale), height: max(rect.height, 44 / scale))
                 }
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
-                .accessibilityLabel(BSLocalization.text(control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label))
+                .accessibilityLabel(
+                    BSLocalization.text(
+                        control == .playPause ? (room.isPlaying ? "暂停" : "播放") : control.label
+                    )
+                )
                 .accessibilityValue(control == .playPause ? playerPresentation.statusText : "")
                 .accessibilityHint(control == .playPause ? (playerPresentation.blockingReason ?? "") : "")
                 .accessibilityIdentifier(control.rawValue)
@@ -430,18 +527,11 @@ private struct CDPlayerControlsView: View {
         }
     }
 
-    private func symbol(for control: CDControl) -> String {
+    private func role(for control: CDControl) -> CDPlayerButtonRole {
         switch control {
-        case .previous:
-            "backward.end.fill"
-        case .next:
-            "forward.end.fill"
-        case .playPause:
-            room.isPlaying ? "pause.fill" : "play.fill"
-        case .open:
-            "eject.fill"
-        case .stop:
-            "stop.fill"
+        case .playPause: .primary
+        case .open: .mechanical
+        case .previous, .next, .stop: .secondary
         }
     }
 }
@@ -449,8 +539,8 @@ private struct CDPlayerControlsView: View {
 struct CDHardwareButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.965 : 1)
-            .offset(y: configuration.isPressed ? 1 : 0)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .offset(y: configuration.isPressed ? 1.5 : 0)
             .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
             .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: configuration.isPressed)
     }
