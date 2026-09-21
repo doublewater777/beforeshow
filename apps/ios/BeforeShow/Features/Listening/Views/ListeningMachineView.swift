@@ -47,6 +47,8 @@ struct ListeningMachineView: View {
                 .position(x: geometry.body.midX, y: geometry.body.midY)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            CDPlayerLowerDeckSurface(player: player)
+                .zIndex(0.5)
             CDPlayerDiscView(player: player, scale: scale)
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
@@ -71,7 +73,7 @@ struct ListeningMachineView: View {
             Circle().fill(Color(white: 0.12)).padding(12)
             Circle().fill(Color(white: 0.62)).frame(width: 8, height: 8)
         }
-        .frame(width: 42, height: 42)
+        .frame(width: 32, height: 32)
         .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -196,32 +198,118 @@ private struct CDPlayerLidView: View {
     }
 }
 
+private struct CDPlayerLowerDeckSurface: View {
+    let player: CDMechanism
+    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+
+    var body: some View {
+        let rect = geometry.lowerDeck
+        let projectedHeight = rect.height * cos(geometry.tiltDegrees * .pi / 180)
+
+        ZStack {
+            RoundedRectangle(cornerRadius: 24)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.19, green: 0.18, blue: 0.17),
+                            Color(red: 0.10, green: 0.10, blue: 0.11),
+                            Color(red: 0.16, green: 0.14, blue: 0.13)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(.white.opacity(0.10), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 21)
+                .stroke(BSColor.Stage.accent.opacity(0.14), lineWidth: 1)
+                .padding(3)
+        }
+        .frame(width: rect.width, height: projectedHeight)
+        .position(x: rect.midX, y: geometry.projectedY(rect.midY))
+        .shadow(color: .black.opacity(0.38), radius: 10, y: 5)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct CDPlayerLCDView: View {
     let room: ListeningRoomCoordinator
     private var player: CDMechanism { room.mechanism }
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(!player.hasDisc ? "NO DISC" : room.track?.title ?? "")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced)).lineLimit(1)
-            Text(player.hasDisc ? room.track?.artistName ?? "—" : "—")
-                .font(.system(size: 7, weight: .medium, design: .monospaced)).lineLimit(1)
-            HStack(spacing: 3) {
-                Text(player.hasDisc ? String(format: "TR %02d", room.trackIndex + 1) : "TR --")
-                Spacer(minLength: 0)
-                if player.hasDisc {
-                    Text(room.isPlaying ? "▶ \(room.timeText)" : "⏸ \(room.timeText)")
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(player.hasDisc ? (room.track?.title ?? player.disc?.title ?? "CD") : "NO DISC")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.94))
+                    .lineLimit(1)
+
+                Text(player.hasDisc
+                     ? (room.track?.artistName ?? "—")
+                     : BSLocalization.text("选择一张唱片开始播放"))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.58))
+                    .lineLimit(1)
+
+                HStack(spacing: 8) {
+                    if player.hasDisc {
+                        Text(String(format: "%02d / %02d",
+                                    room.trackIndex + 1,
+                                    max(player.disc?.tracks.count ?? 0, 1)))
+                        Text(room.timeText)
+                    } else {
+                        Text("READY")
+                    }
+                    Spacer(minLength: 0)
+                    Text(room.isPlaying ? "PLAY" : (player.hasDisc ? "PAUSE" : "STANDBY"))
+                }
+                .font(.system(size: 7.5, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color(red: 0.69, green: 0.84, blue: 0.86).opacity(0.82))
+            }
+
+            Spacer(minLength: 0)
+
+            HStack(alignment: .bottom, spacing: 2) {
+                ForEach(0..<7, id: \.self) { index in
+                    Capsule()
+                        .fill(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(room.isPlaying ? 0.82 : 0.28))
+                        .frame(
+                            width: 2.5,
+                            height: room.isPlaying
+                                ? CGFloat([7, 13, 10, 18, 12, 20, 9][index])
+                                : 5
+                        )
                 }
             }
-            .font(.system(size: 7, weight: .medium, design: .monospaced))
-            .lineLimit(1)
+            .frame(width: 34, height: 22, alignment: .bottom)
         }
-        .foregroundStyle(ListeningStyle.lcdInk).padding(.horizontal, 5)
+        .padding(.horizontal, 14)
         .frame(width: geometry.lcd.width, height: geometry.lcd.height)
-        .background(LinearGradient(colors: [ListeningStyle.lcdTop, ListeningStyle.lcdBottom], startPoint: .top, endPoint: .bottom))
-        .clipShape(RoundedRectangle(cornerRadius: 2))
-        .overlay(RoundedRectangle(cornerRadius: 2).stroke(.black.opacity(0.35), lineWidth: 1))
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.025, green: 0.055, blue: 0.065),
+                            Color(red: 0.015, green: 0.020, blue: 0.025)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(.white.opacity(0.14), lineWidth: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(Color(red: 0.66, green: 0.88, blue: 0.91).opacity(room.isPlaying ? 0.10 : 0.05), lineWidth: 1)
+                        .padding(3)
+                )
+        )
+        .shadow(color: .black.opacity(0.42), radius: 7, y: 4)
         .position(x: geometry.lcd.midX, y: geometry.projectedY(geometry.lcd.midY))
         .accessibilityElement(children: .combine)
     }
@@ -231,14 +319,50 @@ private struct CDPlayerControlsView: View {
     let room: ListeningRoomCoordinator
     let scale: CGFloat
     private var geometry: CDPlayerConfiguration.Geometry { room.mechanism.configuration.geometry }
+    private var player: CDMechanism { room.mechanism }
     private var playerPresentation: ListeningPlayerPresentation { room.display.player }
 
     var body: some View {
         ForEach(CDControl.allCases) { control in
             if let rect = geometry.controls[control] {
                 Button { room.perform(control) } label: {
-                    RoundedRectangle(cornerRadius: 10).fill(.white.opacity(0.001))
-                        .frame(width: max(rect.width, 44 / scale), height: max(rect.height, 44 / scale))
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(control == .playPause ? 0.15 : 0.09),
+                                        Color.black.opacity(0.44)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                        Circle()
+                            .stroke(
+                                control == .playPause
+                                    ? BSColor.Stage.accent.opacity(room.isPlaying ? 0.88 : 0.56)
+                                    : Color.white.opacity(0.14),
+                                lineWidth: control == .playPause ? 2 : 1
+                            )
+                        Image(systemName: symbol(for: control))
+                            .font(.system(
+                                size: control == .playPause ? 22 : (control == .open ? 15 : 17),
+                                weight: .semibold
+                            ))
+                            .foregroundStyle(Color.white.opacity(0.90))
+                            .offset(x: control == .playPause && !room.isPlaying ? 1.5 : 0)
+                    }
+                    .frame(width: rect.width, height: rect.height)
+                    .shadow(
+                        color: control == .playPause
+                            ? BSColor.Stage.accent.opacity(room.isPlaying ? 0.20 : 0.10)
+                            : .black.opacity(0.25),
+                        radius: control == .playPause ? 8 : 4,
+                        y: 2
+                    )
+                    .contentShape(Circle())
+                    .frame(width: max(rect.width, 44 / scale), height: max(rect.height, 44 / scale))
                 }
                 .disabled(control == .playPause && !playerPresentation.canPlayPause)
                 .buttonStyle(CDHardwareButtonStyle())
@@ -250,12 +374,29 @@ private struct CDPlayerControlsView: View {
             }
         }
     }
+
+    private func symbol(for control: CDControl) -> String {
+        switch control {
+        case .previous:
+            "backward.end.fill"
+        case .next:
+            "forward.end.fill"
+        case .playPause:
+            room.isPlaying ? "pause.fill" : "play.fill"
+        case .open:
+            "eject.fill"
+        case .stop:
+            "stop.fill"
+        }
+    }
 }
 
 struct CDHardwareButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
+            .scaleEffect(configuration.isPressed ? 0.965 : 1)
             .offset(y: configuration.isPressed ? 1 : 0)
+            .animation(.easeOut(duration: 0.10), value: configuration.isPressed)
             .sensoryFeedback(.impact(weight: .light, intensity: 0.7), trigger: configuration.isPressed)
     }
 }
