@@ -32,14 +32,22 @@ struct ListeningMachineView: View {
             )
 
             Ellipse()
-                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.14 : 0.07))
-                .frame(width: geometry.body.width * 0.90, height: 110)
-                .position(x: geometry.body.midX, y: geometry.body.maxY - 20)
-                .blur(radius: 38)
+                .fill(BSColor.Stage.accent.opacity(room.isPlaying ? 0.12 : 0.055))
+                .frame(width: geometry.discPod.width * 0.88, height: 92)
+                .position(
+                    x: geometry.discPod.midX,
+                    y: geometry.projectedY(geometry.discPod.maxY) + 18
+                )
+                .blur(radius: 34)
 
             Ellipse()
-                .fill(.black.opacity(0.45)).blur(radius: 22)
-                .frame(width: 370, height: 130).position(x: 232, y: 679)
+                .fill(.black.opacity(0.40))
+                .blur(radius: 20)
+                .frame(width: geometry.lowerDeck.width * 0.92, height: 86)
+                .position(
+                    x: geometry.lowerDeck.midX,
+                    y: geometry.projectedY(geometry.lowerDeck.maxY) + 10
+                )
             CDPlayerBodyShellView(player: player)
                 .zIndex(0)
             CDPlayerLowerDeckSurface(player: player)
@@ -119,43 +127,55 @@ private struct CDPlayerBodyShellView: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 34)
+            upperPod
+            tray
+            lowerBridge
+            hingeBridge
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private var upperPod: some View {
+        let rect = geometry.discPod
+        let projectedHeight = rect.height * cos(geometry.tiltDegrees * .pi / 180)
+
+        return ZStack {
+            RoundedRectangle(cornerRadius: 92, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.28, green: 0.26, blue: 0.24),
-                            Color(red: 0.13, green: 0.13, blue: 0.14),
-                            Color(red: 0.20, green: 0.18, blue: 0.17)
+                            Color(red: 0.235, green: 0.225, blue: 0.215),
+                            Color(red: 0.115, green: 0.115, blue: 0.125),
+                            Color(red: 0.075, green: 0.075, blue: 0.085)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 34)
-                        .stroke(.white.opacity(0.11), lineWidth: 1)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 31)
-                        .stroke(BSColor.Stage.accent.opacity(0.16), lineWidth: 1)
-                        .padding(3)
-                )
-                .frame(width: geometry.body.width, height: geometry.body.height)
-                .scaleEffect(
-                    x: 1,
-                    y: cos(geometry.tiltDegrees * .pi / 180),
-                    anchor: UnitPoint(
-                        x: 0.5,
-                        y: (geometry.hingeY - geometry.body.minY) / geometry.body.height
-                    )
-                )
-                .position(x: geometry.body.midX, y: geometry.body.midY)
 
-            tray
-            hingeBridge
+            RoundedRectangle(cornerRadius: 92, style: .continuous)
+                .stroke(.white.opacity(0.10), lineWidth: 1)
+
+            RoundedRectangle(cornerRadius: 87, style: .continuous)
+                .stroke(BSColor.Stage.accent.opacity(0.18), lineWidth: 1.2)
+                .padding(5)
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.07),
+                    .clear,
+                    BSColor.Stage.accent.opacity(0.035),
+                    .clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 92, style: .continuous))
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
+        .frame(width: rect.width, height: projectedHeight)
+        .position(x: rect.midX, y: geometry.projectedY(rect.midY))
+        .shadow(color: .black.opacity(0.42), radius: 15, y: 8)
     }
 
     private var tray: some View {
@@ -164,52 +184,87 @@ private struct CDPlayerBodyShellView: View {
                 .fill(
                     RadialGradient(
                         colors: [
-                            Color(red: 0.11, green: 0.11, blue: 0.12),
-                            Color(red: 0.045, green: 0.045, blue: 0.05)
+                            Color(red: 0.105, green: 0.105, blue: 0.115),
+                            Color(red: 0.035, green: 0.035, blue: 0.042)
                         ],
                         center: .center,
-                        startRadius: 28,
+                        startRadius: 24,
                         endRadius: geometry.discDiameter * 0.62
                     )
                 )
+
+            Ellipse()
+                .stroke(.black.opacity(0.82), lineWidth: 11)
+                .padding(4)
+
             Ellipse()
                 .stroke(.white.opacity(0.07), lineWidth: 1)
-                .padding(3)
+                .padding(11)
+
             Ellipse()
-                .stroke(BSColor.Stage.accent.opacity(0.12), lineWidth: 1.5)
-                .padding(10)
-            Ellipse()
-                .stroke(.black.opacity(0.72), lineWidth: 8)
+                .stroke(BSColor.Stage.accent.opacity(0.14), lineWidth: 1.2)
                 .padding(17)
         }
         .frame(
-            width: geometry.discDiameter + 54,
-            height: (geometry.discDiameter + 54) * cos(geometry.tiltDegrees * .pi / 180)
+            width: geometry.discDiameter + 38,
+            height: (geometry.discDiameter + 38) * cos(geometry.tiltDegrees * .pi / 180)
         )
         .position(
             x: geometry.discCenter.x,
             y: geometry.projectedY(geometry.discCenter.y)
         )
-        .shadow(color: .black.opacity(0.36), radius: 9, y: 5)
+        .shadow(color: .black.opacity(0.36), radius: 8, y: 4)
+    }
+
+    private var lowerBridge: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.08),
+                            Color(red: 0.095, green: 0.09, blue: 0.09),
+                            Color.black.opacity(0.52)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+        }
+        .frame(width: 116, height: 50)
+        .position(
+            x: geometry.discPod.midX,
+            y: geometry.projectedY(geometry.discPod.maxY) + 19
+        )
+        .shadow(color: .black.opacity(0.28), radius: 6, y: 3)
     }
 
     private var hingeBridge: some View {
-        Capsule()
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.11),
-                        Color.black.opacity(0.55),
-                        Color.white.opacity(0.06)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
+        ZStack {
+            Capsule()
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.13),
+                            Color.black.opacity(0.58),
+                            Color.white.opacity(0.05)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
                 )
-            )
-            .overlay(Capsule().stroke(.white.opacity(0.08), lineWidth: 1))
-            .frame(width: 112, height: 18)
-            .position(x: geometry.body.midX, y: geometry.projectedY(geometry.hingeY + 8))
-            .shadow(color: .black.opacity(0.34), radius: 4, y: 2)
+            Capsule().stroke(.white.opacity(0.09), lineWidth: 1)
+
+            HStack(spacing: 54) {
+                Circle().fill(.black.opacity(0.55)).frame(width: 8, height: 8)
+                Circle().fill(.black.opacity(0.55)).frame(width: 8, height: 8)
+            }
+        }
+        .frame(width: 118, height: 19)
+        .position(x: geometry.discPod.midX, y: geometry.projectedY(geometry.hingeY + 7))
+        .shadow(color: .black.opacity(0.34), radius: 4, y: 2)
     }
 }
 
@@ -382,27 +437,36 @@ private struct CDPlayerLowerDeckSurface: View {
         let projectedHeight = rect.height * cos(geometry.tiltDegrees * .pi / 180)
 
         ZStack {
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.19, green: 0.18, blue: 0.17),
-                            Color(red: 0.10, green: 0.10, blue: 0.11),
-                            Color(red: 0.16, green: 0.14, blue: 0.13)
+                            Color(red: 0.205, green: 0.19, blue: 0.175),
+                            Color(red: 0.095, green: 0.095, blue: 0.105),
+                            Color(red: 0.065, green: 0.065, blue: 0.074)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
-            RoundedRectangle(cornerRadius: 24)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(.white.opacity(0.10), lineWidth: 1)
-            RoundedRectangle(cornerRadius: 21)
-                .stroke(BSColor.Stage.accent.opacity(0.14), lineWidth: 1)
-                .padding(3)
+
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(BSColor.Stage.accent.opacity(0.17), lineWidth: 1)
+                .padding(4)
+
+            LinearGradient(
+                colors: [.white.opacity(0.045), .clear, .black.opacity(0.07)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
         .frame(width: rect.width, height: projectedHeight)
         .position(x: rect.midX, y: geometry.projectedY(rect.midY))
-        .shadow(color: .black.opacity(0.38), radius: 10, y: 5)
+        .shadow(color: .black.opacity(0.46), radius: 13, y: 7)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
