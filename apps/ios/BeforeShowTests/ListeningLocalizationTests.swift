@@ -415,6 +415,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
     func testListeningMachineUsesLargeLCDAndDedicatedFourControlDeck() throws {
         let config = try listeningSource("Features/Listening/Player/CDPlayerConfiguration.swift")
         let machine = try listeningSource("Features/Listening/Views/ListeningMachineView.swift")
+        let warmup = try listeningSource("Features/Listening/Player/ListeningPlayerWarmup.swift")
+        let preparing = try listeningSource("Features/Listening/Views/ListeningPreparingView.swift")
 
         XCTAssertTrue(config.contains("var lowerDeck = CGRect"))
         XCTAssertTrue(config.contains("width: 344, height: 70"))
@@ -443,7 +445,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(config.contains("listen_01_body_shell"))
         XCTAssertFalse(config.contains("listen_02_lid_outer"))
         XCTAssertFalse(config.contains("listen_03_lid_inner"))
+        XCTAssertFalse(warmup.contains("assets.body"))
+        XCTAssertFalse(warmup.contains("assets.lidOuter"))
+        XCTAssertFalse(warmup.contains("assets.lidInner"))
+        XCTAssertTrue(warmup.contains("assets.disc"))
+        XCTAssertFalse(preparing.contains("assets.body"))
+        XCTAssertFalse(preparing.contains("assets.lidOuter"))
+        XCTAssertTrue(preparing.contains("var lowerDeck") == false)
+        XCTAssertTrue(preparing.contains("ForEach(CDControl.allCases)"))
         XCTAssertTrue(machine.contains(".frame(width: 26, height: 26)"))
+        XCTAssertTrue(preparing.contains(".frame(width: 26, height: 26)"))
 
         let previous = try XCTUnwrap(config.range(of: ".previous: CGRect"))
         let playPause = try XCTUnwrap(config.range(of: ".playPause: CGRect"))
