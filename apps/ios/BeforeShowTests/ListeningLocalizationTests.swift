@@ -412,6 +412,25 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(shelf.contains("headerHeight: CGFloat {\n        actionHeaderHeight\n    }"))
     }
 
+    func testListeningMachineUsesLargeLCDAndDedicatedFourControlDeck() throws {
+        let config = try listeningSource("Features/Listening/Player/CDPlayerConfiguration.swift")
+        let machine = try listeningSource("Features/Listening/Views/ListeningMachineView.swift")
+
+        XCTAssertTrue(config.contains("var lowerDeck = CGRect"))
+        XCTAssertTrue(config.contains("width: 344, height: 70"))
+        XCTAssertFalse(config.contains(".stop: CGRect"))
+        XCTAssertTrue(machine.contains("CDPlayerLowerDeckSurface"))
+        XCTAssertTrue(machine.contains("\"eject.fill\""))
+
+        let previous = try XCTUnwrap(config.range(of: ".previous: CGRect"))
+        let playPause = try XCTUnwrap(config.range(of: ".playPause: CGRect"))
+        let next = try XCTUnwrap(config.range(of: ".next: CGRect"))
+        let open = try XCTUnwrap(config.range(of: ".open: CGRect"))
+        XCTAssertLessThan(previous.lowerBound, playPause.lowerBound)
+        XCTAssertLessThan(playPause.lowerBound, next.lowerBound)
+        XCTAssertLessThan(next.lowerBound, open.lowerBound)
+    }
+
     func testCurrentShowScrollContentClearsRootBottomChrome() throws {
         let currentShow = try listeningSource("Features/CurrentShow/CurrentShowManagementView.swift")
         XCTAssertTrue(
