@@ -1585,3 +1585,18 @@ First show: %@";
 "暂无已结束的现场" = "No past shows";
 "演出结束后会自动归档到这里" = "Shows will be archived here once ended.";
 "尝试更换筛选分类" = "Try switching the filter category.";
+
+"无唱片" = "No Disc";
+
+"打开上盖" = "Open lid";
+
+"合上上盖" = "Close lid";
+
+"打开上盖，选择唱片" = "Open the lid to choose a disc";
+
+"已放入" = "Loaded";
+
+"换碟" = "Change Disc";
+"已就绪" = "READY";
+"上一首" = "Previous Track";
+"下一首" = "Next Track";

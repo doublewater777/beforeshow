@@ -41,8 +41,6 @@ private let listeningCatalogFetchConcurrency = 4
     func seedDisc(_ disc: ListeningDisc) {
         if !discs.contains(disc) { discs.append(disc) }
         mechanism.restoreSeated(disc)
-        mechanism.setLid(open: true)
-        opensWithoutStopping = true
         trackIndex = 0
         preparedSongID = nil
         playbackState = .idle
@@ -64,6 +62,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var transportPlaybackPhase: ListeningPlaybackTransportPhase = .stopped
     var isPlaying: Bool { playbackState.isPlaying }
     private var transportIsPlaying: Bool { transportPlaybackPhase.isPlaying }
+    var isPlaybackVisible: Bool { active && foreground }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
     private(set) var wantedSongIDs: Set<String> = []
@@ -77,6 +76,7 @@ private let listeningCatalogFetchConcurrency = 4
         return id
     }
     var browser = ListeningBrowseState()
+    var cabinet = ListeningCabinetPresentation()
     private(set) var browseArtists: [ListeningBrowseArtist] = []
     private(set) var compilationDiscs: [ListeningDisc] = []
     private(set) var busy = false
@@ -246,6 +246,7 @@ private let listeningCatalogFetchConcurrency = 4
         } catch {}
     }
     func discardLoadedDiscState() {
+        cabinet.cancel()
         operation?.cancel()
         operation = nil
         stop()
@@ -869,6 +870,32 @@ private let listeningCatalogFetchConcurrency = 4
             if autoplay { try await playCurrentTrack() }
         }
     }
+    func selectCabinetDisc(_ disc: ListeningDisc) {
+        guard !busy, !mechanism.isAutomatic,
+              discs.contains(where: { $0.id == disc.id }),
+              discPresentation(for: disc).canLoad else { return }
+        cabinet.select(disc)
+    }
+
+    func openCabinet() {
+        guard !busy, !mechanism.isAutomatic else { return }
+        cabinet.present()
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    /// Selection is committed only after dismissal, through the existing loader.
+    func completeCabinetSelection() {
+        guard let disc = cabinet.completeDismissal(), active, foreground, !busy,
+              discPresentation(for: disc).canLoad else { return }
+        if mechanism.disc?.id == disc.id, mechanism.hasDisc { return }
+        loadPlayableDisc(disc)
+    }
+
+    func toggleLid() {
+        guard !busy, !mechanism.isAutomatic else { return }
+        let opening = (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5
+        mechanism.setLid(open: opening)
+    }
     func playFromSleeve(_ disc: ListeningDisc, songID: String) {
         guard !busy, !mechanism.isAutomatic, pendingSleeveSongID == nil else { return }
         sleevePlaybackSongID = nil
@@ -1232,6 +1259,7 @@ private let listeningCatalogFetchConcurrency = 4
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
     func setForeground(_ value: Bool) {
+        if !value { cabinet.cancel() }
         let wasForeground = foreground
         foreground = value
 
@@ -1250,6 +1278,7 @@ private let listeningCatalogFetchConcurrency = 4
         updateVisibility()
     }
     func setActive(_ value: Bool) {
+        if !value { cabinet.cancel() }
         active = value
         if value {
             if case let .artist(artistID) = browser.scope {

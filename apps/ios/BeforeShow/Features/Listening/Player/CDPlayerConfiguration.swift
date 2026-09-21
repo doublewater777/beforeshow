@@ -1,39 +1,30 @@
 import SwiftUI
 
-/// All dimensions are measured in one immutable 460 × 740 model space.
+/// The calibrated machine uses a 360 × 580 stage and one fixed hinge.
 /// Assets are UV textures, never independent layout-sized photographs.
 struct CDPlayerConfiguration {
     struct Geometry {
-        /// Fixed display crop; motion continues in the full model coordinate space.
-        var viewportTop: CGFloat = 230
-        var canvas = CGSize(width: 460, height: 800)
-
-        // "body" remains the stable sizing reference used by the room, while
-        // the visible hardware is split into an upper CD pod and a narrower
-        // lower control deck.
-        var body = CGRect(x: 32, y: 286, width: 396, height: 500)
-        var discPod = CGRect(x: 38, y: 300, width: 384, height: 330)
-        var lid = CGRect(x: 55, y: 302, width: 350, height: 310)
-        var hingeY: CGFloat = 302
-        var discCenter = CGPoint(x: 230, y: 462)
-        var discDiameter: CGFloat = 296
-        var parkedDisc = CGPoint(x: 230, y: 248)
-        var tiltDegrees: Double = 18
-        var maximumOpening: Double = 82
+        var viewportTop: CGFloat = 0
+        var canvas = CGSize(width: 360, height: 580)
+        // Fixed texture/display bounds. Moving discs and the lid use the camera
+        // projection below so the closed and open poses share one hinge.
+        var body = CGRect(x: 8, y: 102, width: 344, height: 469)
+        var discPod = CGRect(x: 34, y: 110, width: 294, height: 294)
+        var lid = CGRect(x: 34, y: 110, width: 294, height: 294)
+        var hingeY: CGFloat = 110
+        var discCenter = CGPoint(x: 180, y: 259)
+        var discDiameter: CGFloat = 254
+        var parkedDisc = CGPoint(x: 180, y: 0)
+        var tiltDegrees: Double = 30
+        var maximumOpening: Double = 78
         var dragTravel: Double = 300
-
-        // The display/control deck sits completely below the optical chamber.
-        // It is deliberately narrower than the CD pod so the machine reads as
-        // hardware, not as one full-height rounded card.
-        var lowerDeck = CGRect(x: 66, y: 642, width: 328, height: 150)
-        var lcd = CGRect(x: 84, y: 654, width: 292, height: 58)
+        var lowerDeck = CGRect(x: 35, y: 369, width: 292, height: 184)
+        var lcd = CGRect(x: 42.5, y: 374, width: 275, height: 65)
         var controls: [CDControl: CGRect] = [
-            .previous: CGRect(x: 84, y: 728, width: 48, height: 48),
-            .playPause: CGRect(x: 154, y: 718, width: 68, height: 68),
-            .next: CGRect(x: 244, y: 728, width: 48, height: 48),
-            // Mechanical lid control follows the transport trio, matching the
-            // physical reading order: previous → play/pause → next → open/close.
-            .open: CGRect(x: 320, y: 731, width: 44, height: 44)
+            .previous: CGRect(x: 54.5, y: 471.5, width: 43, height: 43),
+            .playPause: CGRect(x: 119.5, y: 462.5, width: 61, height: 61),
+            .next: CGRect(x: 203.5, y: 471.5, width: 43, height: 43),
+            .open: CGRect(x: 267.75, y: 473.75, width: 38.5, height: 38.5)
         ]
         func projectedY(_ y: CGFloat) -> CGFloat {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
@@ -47,9 +38,10 @@ struct CDPlayerConfiguration {
     }
 
     struct Assets {
-        // The machine shell, tray and lid are native SwiftUI materials. Only
-        // the disc remains an image-backed texture because album artwork is
-        // composited into that surface at runtime.
+        var body = "cd_machine"
+        var lidInner = "cd_lid_inside"
+        var lidGlass = "cd_glass"
+        var spindle = "cd_spindle"
         var disc = "listen_04_disc"
     }
     var brand: String

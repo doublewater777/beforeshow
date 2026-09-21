@@ -1,0 +1,13 @@
+{
+  "images": [
+    {
+      "filename": "button_secondary_base.png",
+      "idiom": "universal",
+      "scale": "1x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}

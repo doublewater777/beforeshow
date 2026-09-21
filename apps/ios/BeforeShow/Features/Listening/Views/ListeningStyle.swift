@@ -28,7 +28,6 @@ enum ListeningStyle {
 
 struct ListeningDiscArtwork: View {
     var disc: ListeningDisc?
-    var image = "listen_04_disc"
     @State private var artwork: UIImage?
 
     /// Compilation discs have no single cover; tile the first four track
@@ -36,92 +35,23 @@ struct ListeningDiscArtwork: View {
     private static var mosaicCache: [String: UIImage] = [:]
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size.width
-            ZStack {
-                // Base CD texture asset
-                Image(image)
+        ZStack {
+            Circle().fill(BSColor.Stage.surfaceRaised)
+            if let artwork {
+                Image(uiImage: artwork)
                     .resizable()
-
-                // Radial metallic holographic sheen / rainbow diffraction
-                AngularGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        Color.cyan.opacity(0.18),
-                        Color.pink.opacity(0.16),
-                        Color.yellow.opacity(0.15),
-                        Color.clear,
-                        Color.purple.opacity(0.18),
-                        Color.cyan.opacity(0.16),
-                        Color.clear
-                    ]),
-                    center: .center,
-                    angle: .degrees(45)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // Album artwork printed on the label area, between hub and rim.
-                if let artwork {
-                    ZStack {
-                        Image(uiImage: artwork)
-                            .resizable()
-                            .scaledToFill()
-                        // Clear center mimics the unprinted hub ring of a real CD.
-                        RadialGradient(
-                            colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surfaceRaised.opacity(0.0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: size * 0.10
-                        )
-                        Circle().stroke(Color.white.opacity(0.25), lineWidth: 1)
-                            .frame(width: size * 0.19, height: size * 0.19)
-                    }
-                    .frame(width: size * 0.94, height: size * 0.94)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
-                }
-
-                // High-contrast specular wedge highlights
-                AngularGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.white.opacity(0.35), location: 0.12),
-                        .init(color: .clear, location: 0.25),
-                        .init(color: .clear, location: 0.50),
-                        .init(color: Color.white.opacity(0.30), location: 0.62),
-                        .init(color: .clear, location: 0.75),
-                        .init(color: .clear, location: 1.0)
-                    ]),
-                    center: .center,
-                    angle: .degrees(30)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // Concentric data-track rings
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: size * 0.18)
-                    .padding(size * 0.15)
-
-                // Spindle hub ring
-                Circle()
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1.2)
-                    .frame(width: size * 0.26, height: size * 0.26)
-
-                // CD label title, only when no artwork covers the label
-                if artwork == nil {
-                    Text(disc?.title ?? "CD")
-                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
-                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(width: size * 0.62)
-                        .offset(y: -size * 0.24)
-                }
+                    .scaledToFill()
+            }
+            if disc != nil {
+                Image(decorative: "disc_gloss_overlay")
+                    .resizable()
+                    .scaledToFit()
+                    .opacity(ListeningStageTokens.glossOpacity)
             }
         }
-        .task(id: disc?.artworkURL) {
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: BSListeningTokens.hairline))
+        .task(id: disc) {
             artwork = nil
             if let url = disc?.artworkURL {
                 artwork = ShowCoverImageCache.shared.memoryImage(for: url)
@@ -259,7 +189,7 @@ extension ListeningRoomCoordinator {
         case .next: skip(1)
         case .playPause: playPause()
         case .stop: stop()
-        case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
+        case .open: toggleLid()
         }
 
         #if os(iOS)

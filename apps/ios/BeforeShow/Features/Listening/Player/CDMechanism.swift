@@ -12,6 +12,7 @@ import SwiftUI
     private(set) var occupiedAttemptCount = 0
     var notice: String?
     @ObservationIgnored var onOpen: () -> Void = {}
+    @ObservationIgnored var onLidReady: () -> Void = {}
     @ObservationIgnored var onTransition: (String) -> Void = { _ in }
     @ObservationIgnored var cabinetSlots: [String: CGPoint] = [:]
     @ObservationIgnored var cabinetDropZone = CGRect.zero
@@ -21,6 +22,7 @@ import SwiftUI
     @ObservationIgnored private var pendingClose = false
     @ObservationIgnored private var pendingSeat = false
     @ObservationIgnored private var waitingForOpenToSeat = false
+    @ObservationIgnored private var pendingOpen = false
 
     private enum AutomaticRhythm {
         static let afterOpen = Duration.milliseconds(140)
@@ -34,7 +36,7 @@ import SwiftUI
         motion.onFrame = { [weak self] in self?.refresh() }
     }
 
-    var isOpen: Bool { motion.lid.value > 0.82 }
+    var isOpen: Bool { motion.lid.value >= 0.85 }
     var isClosed: Bool { motion.lid.value < 0.002 && motion.lid.target != 1 }
     var hasDisc: Bool { position == .seated }
 
@@ -46,6 +48,7 @@ import SwiftUI
 
     func setLid(open: Bool) {
         guard open || !isCompletingInsertion else { return }
+        pendingOpen = open
         if open { onOpen(); pendingClose = false } else if !isClosed { pendingClose = true }
         motion.lid.move(to: open ? 1 : 0)
         motion.wake()
@@ -114,6 +117,10 @@ import SwiftUI
     }
 
     func refresh() {
+        if pendingOpen && isOpen {
+            pendingOpen = false
+            onLidReady()
+        }
         if pendingClose && motion.lid.target == nil && motion.lid.value < 0.002 {
             pendingClose = false; onTransition("close")
         }
@@ -177,6 +184,7 @@ import SwiftUI
         pendingSeat = false
         waitingForOpenToSeat = false
         motion.lid.value = 0
+        pendingOpen = false
         motion.lid.target = nil
         motion.discX.value = configuration.geometry.discCenter.x
         motion.discX.target = nil
@@ -201,6 +209,7 @@ import SwiftUI
         pendingSeat = false
         waitingForOpenToSeat = false
         lidOrigin = nil
+        pendingOpen = false
         discOrigin = nil
         notice = nil
         motion.lid.value = 0
@@ -275,7 +284,7 @@ import SwiftUI
     /// Automatic loading invokes the same mechanical state changes as gestures,
     /// with short beats between physical legs so a swap reads as a machine action
     /// instead of one continuous UI transition.
-    func load(_ disc: ListeningDisc) async throws {
+    func load(_ disc: ListeningDisc, closeLid: Bool = true) async throws {
         guard !isAutomatic else { return }
         isAutomatic = true
         defer { isAutomatic = false }
@@ -291,8 +300,10 @@ import SwiftUI
         try await settle()
         try await automaticBeat(AutomaticRhythm.afterSeat)
 
-        setLid(open: false)
-        try await settle()
+        if closeLid {
+            setLid(open: false)
+            try await settle()
+        }
     }
 
     func unload() async throws {
