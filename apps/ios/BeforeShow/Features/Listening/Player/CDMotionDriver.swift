@@ -38,22 +38,31 @@ struct CDSpringChannel {
     var lift = CDSpringChannel(value: 0)
     var discScale = CDSpringChannel(value: 1)
     var reducedMotion = false {
-        didSet { if reducedMotion != oldValue { wake() } }
-    }
-    /// Label rotation in degrees. Advances while playback is active.
-    var discAngle: Double = 0
-    /// Angular velocity in revolutions per second; tracks `spinning` with inertia.
-    private(set) var discSpin: Double = 0
-    /// Set from playback state: the disc spins while music plays.
-    var spinning = false {
         didSet {
-            if spinning != oldValue {
-                wake()
-            }
+            guard reducedMotion != oldValue else { return }
+            let now = Date()
+            discAngle = projectedDiscAngle(at: now, advancing: spinning && !oldValue)
+            rotationAnchorAngle = discAngle
+            rotationAnchorDate = now
+            discSpin = spinning && !reducedMotion ? Self.playbackRevolutionsPerSecond : 0
+            wake()
         }
     }
+    /// Label rotation in degrees. The visual clock is anchored to playback time,
+    /// so hiding the view can pause frame delivery without pausing the disc's timeline.
+    var discAngle: Double = 0
+    /// Current visual angular velocity in revolutions per second.
+    private(set) var discSpin: Double = 0
+    /// Transport truth. Frame delivery may pause while this remains true.
+    private(set) var spinning = false
     @ObservationIgnored var onFrame: () -> Void = {}
     @ObservationIgnored private var lastTime: Double = 0
+    @ObservationIgnored private var rotationAnchorAngle: Double = 0
+    @ObservationIgnored private var rotationAnchorDate = Date()
+
+    /// Deliberately slower than a literal 33⅓ rpm deck: calm enough for album art
+    /// to remain readable while still making playback state obvious.
+    private static let playbackRevolutionsPerSecond = 0.30
     #if os(iOS)
     @ObservationIgnored private var link: CADisplayLink?
     @ObservationIgnored private var usesCruiseFrameRate = false
@@ -109,9 +118,38 @@ struct CDSpringChannel {
         timer?.invalidate(); timer = nil
         #endif
     }
+    func synchronizePlayback(isPlaying: Bool, observedAt: Date = Date()) {
+        let now = Date()
+        let timestamp = observedAt > now ? now : observedAt
+        discAngle = projectedDiscAngle(at: timestamp)
+        rotationAnchorAngle = discAngle
+        rotationAnchorDate = timestamp
+        spinning = isPlaying
+        discSpin = isPlaying && !reducedMotion ? Self.playbackRevolutionsPerSecond : 0
+        wake()
+    }
+
+    /// Predict the angle from the playback clock rather than from delivered frames.
+    /// This is intentionally internal so deterministic motion tests can cover a
+    /// period where CADisplayLink is paused but audio continues.
+    func projectedDiscAngle(at date: Date) -> Double {
+        projectedDiscAngle(at: date, advancing: spinning && !reducedMotion)
+    }
+
+    private func projectedDiscAngle(at date: Date, advancing: Bool) -> Double {
+        guard advancing else { return rotationAnchorAngle }
+        let elapsed = max(0, date.timeIntervalSince(rotationAnchorDate))
+        let angle = rotationAnchorAngle + elapsed * Self.playbackRevolutionsPerSecond * 360
+        let normalized = angle.truncatingRemainder(dividingBy: 360)
+        return normalized >= 0 ? normalized : normalized + 360
+    }
+
     func resetDiscRotation() {
         discAngle = 0
         discSpin = 0
+        spinning = false
+        rotationAnchorAngle = 0
+        rotationAnchorDate = Date()
     }
     fileprivate func frame() {
         let now = CACurrentMediaTime()
@@ -123,14 +161,12 @@ struct CDSpringChannel {
         discY.step(dt, reducedMotion: reducedMotion)
         lift.step(dt, reducedMotion: reducedMotion)
         discScale.step(dt, reducedMotion: reducedMotion)
-        // Stylized ~33rpm cruise; spin-up is quicker than the inertial spin-down
-        // so opening the lid mid-playback shows the disc coasting to a stop.
-        let cruise = spinning && !reducedMotion ? 0.55 : 0.0
-        let tau = cruise > discSpin ? 0.4 : 0.9
-        discSpin += (cruise - discSpin) * (1 - exp(-dt / tau))
-        if reducedMotion || (cruise == 0 && abs(discSpin) < 0.002) { discSpin = 0 }
+        // Rotation follows an independent playback clock. CADisplayLink can be
+        // suspended while the view is hidden; the next delivered frame catches up
+        // immediately instead of resuming from the stale visual angle.
+        discSpin = spinning && !reducedMotion ? Self.playbackRevolutionsPerSecond : 0
         if discSpin != 0 {
-            discAngle = (discAngle + discSpin * 360 * dt).truncatingRemainder(dividingBy: 360)
+            discAngle = projectedDiscAngle(at: Date())
         }
         if hadActiveSprings {
             onFrame()
