@@ -1,1 +1,12 @@
-{"images":[{"filename":"03_lid_inner_crystal.svg","idiom":"universal"}],"info":{"author":"xcode","version":1},"properties":{"preserves-vector-representation":true}}
+{
+  "images" : [
+    {
+      "filename" : "listen_03_lid_inner.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
