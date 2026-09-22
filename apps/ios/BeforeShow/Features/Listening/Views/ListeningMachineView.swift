@@ -40,13 +40,7 @@ struct ListeningMachineView: View {
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
-            Image(player.configuration.assets.body).resizable()
-                .frame(width: geometry.body.width, height: geometry.body.height)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180),
-                             anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
-                .position(x: geometry.body.midX, y: geometry.body.midY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            crystalBodySurface
             CDPlayerDiscView(player: player, scale: scale)
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
@@ -64,12 +58,78 @@ struct ListeningMachineView: View {
         .frame(width: geometry.canvas.width * scale, height: geometry.canvas.height * scale, alignment: .topLeading)
     }
 
+    private var crystalBodySurface: some View {
+        ZStack {
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.58)
+                .mask(Image(player.configuration.assets.body).resizable())
+
+            Image(player.configuration.assets.body)
+                .resizable()
+                .opacity(0.16)
+                .blendMode(.screen)
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.32),
+                    Color(red: 0.72, green: 0.92, blue: 1).opacity(0.11),
+                    .clear,
+                    .white.opacity(0.07)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .mask(Image(player.configuration.assets.body).resizable())
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.18),
+                    .clear,
+                    .black.opacity(0.08)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .mask(Image(player.configuration.assets.body).resizable())
+        }
+        .compositingGroup()
+        .frame(width: geometry.body.width, height: geometry.body.height)
+        .scaleEffect(
+            x: 1,
+            y: cos(geometry.tiltDegrees * .pi / 180),
+            anchor: UnitPoint(
+                x: 0.5,
+                y: (geometry.hingeY - geometry.body.minY) / geometry.body.height
+            )
+        )
+        .position(x: geometry.body.midX, y: geometry.body.midY)
+        .shadow(color: .white.opacity(0.10), radius: 12, y: -2)
+        .shadow(color: .black.opacity(0.22), radius: 18, y: 12)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     private var spindle: some View {
         ZStack {
-            Circle().fill(LinearGradient(colors: [Color(white: 0.30), .black, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Circle().stroke(Color(white: 0.48), lineWidth: 1).padding(4)
-            Circle().fill(Color(white: 0.12)).padding(12)
-            Circle().fill(Color(white: 0.62)).frame(width: 8, height: 8)
+            Circle()
+                .fill(.ultraThinMaterial)
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [
+                            .white.opacity(0.48),
+                            Color(red: 0.72, green: 0.92, blue: 1).opacity(0.16),
+                            .clear
+                        ],
+                        center: .topLeading,
+                        startRadius: 1,
+                        endRadius: 28
+                    )
+                )
+            Circle().stroke(.white.opacity(0.52), lineWidth: 1).padding(3)
+            Circle().stroke(.black.opacity(0.16), lineWidth: 1).padding(7)
+            Circle().fill(.white.opacity(0.56)).frame(width: 8, height: 8)
         }
         .frame(width: 42, height: 42)
         .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
@@ -127,59 +187,64 @@ private struct CDPlayerLidView: View {
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
-    private var usesTransparentOuterLid: Bool {
-        !isShowingBackFace && player.hasDisc
+    private var visibleLidAsset: String {
+        isShowingBackFace ? player.configuration.assets.lidInner : player.configuration.assets.lidOuter
     }
 
     var body: some View {
         ZStack {
-            // The visible top cover itself becomes clear acrylic only while a
-            // disc is seated underneath it. With an empty tray, retain the
-            // original opaque photographed lid.
-            Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? 0.16 : 1))
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(isShowingBackFace ? 0.46 : 0.62)
+                .mask(Image(visibleLidAsset).resizable())
 
-            // The inside face is not part of the transparent treatment.
-            Image(player.configuration.assets.lidInner).resizable()
-                .opacity(isShowingBackFace ? 1 : 0)
-
-            if usesTransparentOuterLid {
-                LinearGradient(
-                    colors: [
-                        .white.opacity(0.10),
-                        .white.opacity(0.025),
-                        .clear,
-                        .black.opacity(0.035)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .mask(Image(player.configuration.assets.lidOuter).resizable())
-
-                // Keep the acrylic rim readable even though the disc is visible
-                // through the center of the closed top cover.
-                Ellipse()
-                    .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
-                    .padding(2)
-                Ellipse()
-                    .strokeBorder(.black.opacity(0.16), lineWidth: 1)
-                    .padding(5)
-            }
+            Image(visibleLidAsset)
+                .resizable()
+                .opacity(isShowingBackFace ? 0.18 : 0.10)
+                .blendMode(.screen)
 
             LinearGradient(
                 colors: [
-                    .white.opacity((usesTransparentOuterLid ? 0.025 : 0.07) * motion.lid.value),
+                    .white.opacity(isShowingBackFace ? 0.18 : 0.30),
+                    Color(red: 0.72, green: 0.92, blue: 1).opacity(0.10),
                     .clear,
-                    .black.opacity((usesTransparentOuterLid ? 0.035 : 0.10) * motion.lid.value)
+                    .white.opacity(0.06)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .mask(Image(visibleLidAsset).resizable())
+
+            RadialGradient(
+                colors: [
+                    .white.opacity(0.13),
+                    .clear
+                ],
+                center: .topLeading,
+                startRadius: 10,
+                endRadius: 250
+            )
+            .mask(Image(visibleLidAsset).resizable())
+
+            Ellipse()
+                .strokeBorder(.white.opacity(isShowingBackFace ? 0.30 : 0.48), lineWidth: 2.0)
+                .padding(2)
+            Ellipse()
+                .strokeBorder(.black.opacity(0.13), lineWidth: 1)
+                .padding(6)
+
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.06 * motion.lid.value),
+                    .clear,
+                    .black.opacity(0.05 * motion.lid.value)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .mask(
-                Image(isShowingBackFace ? player.configuration.assets.lidInner : player.configuration.assets.lidOuter)
-                    .resizable()
-            )
+            .mask(Image(visibleLidAsset).resizable())
         }
+        .compositingGroup()
         .frame(width: geometry.lid.width, height: geometry.lid.height)
         .contentShape(Ellipse())
         .modifier(HingedPlane(angle: lidAngle))
