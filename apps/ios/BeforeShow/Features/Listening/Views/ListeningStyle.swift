@@ -2,9 +2,9 @@ import SwiftUI
 
 /// Physical material colors are feature-scoped; page chrome uses BS tokens.
 enum ListeningStyle {
-    static let lcdInk = Color(red: 0.19, green: 0.23, blue: 0.15)
-    static let lcdTop = Color(red: 0.54, green: 0.60, blue: 0.46)
-    static let lcdBottom = Color(red: 0.71, green: 0.75, blue: 0.59)
+    static let lcdInk = Color(red: 0.92, green: 0.95, blue: 0.92)
+    static let lcdTop = Color(white: 0.07)
+    static let lcdBottom = Color(white: 0.03)
     static let woodEdge = Color(red: 0.42, green: 0.28, blue: 0.18)
     static let woodFace = Color(red: 0.28, green: 0.18, blue: 0.12)
     static let woodShadow = Color(red: 0.09, green: 0.06, blue: 0.04)

@@ -226,11 +226,31 @@ private struct CDPlayerLCDView: View {
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(!player.hasDisc ? "NO DISC" : room.track?.title ?? "")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced)).lineLimit(1)
-            Text(player.hasDisc ? room.track?.artistName ?? "—" : "—")
-                .font(.system(size: 7, weight: .medium, design: .monospaced)).lineLimit(1)
+        VStack(alignment: .leading, spacing: 1.5) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(!player.hasDisc ? "NO DISC" : room.track?.title ?? "")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.94, green: 0.96, blue: 0.94))
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                if player.hasDisc {
+                    Text("HI-RES")
+                        .font(.system(size: 7, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.55))
+                }
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(player.hasDisc ? room.track?.artistName ?? "—" : "—")
+                    .font(.system(size: 8, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.65))
+                    .lineLimit(1)
+                Spacer(minLength: 2)
+                if player.hasDisc {
+                    Text("24b/96k")
+                        .font(.system(size: 6.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.40))
+                }
+            }
             HStack(spacing: 3) {
                 Text(player.hasDisc ? String(format: "TR %02d", room.trackIndex + 1) : "TR --")
                 Spacer(minLength: 0)
@@ -238,14 +258,13 @@ private struct CDPlayerLCDView: View {
                     Text(room.isPlaying ? "▶ \(room.timeText)" : "⏸ \(room.timeText)")
                 }
             }
-            .font(.system(size: 7, weight: .medium, design: .monospaced))
+            .font(.system(size: 8, weight: .medium, design: .monospaced))
+            .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.85))
             .lineLimit(1)
         }
-        .foregroundStyle(ListeningStyle.lcdInk).padding(.horizontal, 5)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 2.5)
         .frame(width: geometry.lcd.width, height: geometry.lcd.height)
-        .background(LinearGradient(colors: [ListeningStyle.lcdTop, ListeningStyle.lcdBottom], startPoint: .top, endPoint: .bottom))
-        .clipShape(RoundedRectangle(cornerRadius: 2))
-        .overlay(RoundedRectangle(cornerRadius: 2).stroke(.black.opacity(0.35), lineWidth: 1))
         .position(x: geometry.lcd.midX, y: geometry.projectedY(geometry.lcd.midY))
         .accessibilityElement(children: .combine)
     }
