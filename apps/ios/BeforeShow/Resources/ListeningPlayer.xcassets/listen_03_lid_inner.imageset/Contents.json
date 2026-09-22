@@ -1,1 +1,12 @@
-{"images": [{"filename": "03_lid_inner.png", "idiom": "universal"}], "info": {"author": "xcode", "version": 1}}
+{
+  "images" : [
+    {
+      "filename" : "listen_03_lid_inner.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

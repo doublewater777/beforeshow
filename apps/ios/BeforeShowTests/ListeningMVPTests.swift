@@ -74,6 +74,30 @@ import XCTest
         }
     }
 
+    func testDiscRotationClockCatchesUpAfterVisualFramesPause() {
+        let motion = CDMotionDriver()
+        defer { motion.stop() }
+
+        let startedAt = Date(timeIntervalSinceReferenceDate: 1_000)
+        motion.synchronizePlayback(isPlaying: true, observedAt: startedAt)
+        motion.pause()
+
+        let afterTwoSeconds = motion.projectedDiscAngle(
+            at: startedAt.addingTimeInterval(2)
+        )
+        XCTAssertEqual(afterTwoSeconds, 216, accuracy: 0.001)
+
+        motion.synchronizePlayback(
+            isPlaying: false,
+            observedAt: startedAt.addingTimeInterval(2)
+        )
+        XCTAssertEqual(
+            motion.projectedDiscAngle(at: startedAt.addingTimeInterval(12)),
+            216,
+            accuracy: 0.001
+        )
+    }
+
     func testSpringReversalRetainsCurrentPositionAndVelocity() {
         var lid = CDSpringChannel(value: 0)
         lid.move(to: 1)
