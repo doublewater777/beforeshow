@@ -226,44 +226,44 @@ private struct CDPlayerLCDView: View {
     private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 1.5) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(!player.hasDisc ? "NO DISC" : room.track?.title ?? "")
-                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .foregroundStyle(Color(red: 0.94, green: 0.96, blue: 0.94))
                     .lineLimit(1)
                 Spacer(minLength: 2)
                 if player.hasDisc {
                     Text("HI-RES")
-                        .font(.system(size: 7, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.55))
+                        .font(.system(size: 7.5, weight: .bold, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.60))
                 }
             }
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(player.hasDisc ? room.track?.artistName ?? "—" : "—")
-                    .font(.system(size: 8, weight: .medium, design: .monospaced))
-                    .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.65))
+                    .font(.system(size: 9, weight: .medium, design: .monospaced))
+                    .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.70))
                     .lineLimit(1)
                 Spacer(minLength: 2)
                 if player.hasDisc {
                     Text("24b/96k")
-                        .font(.system(size: 6.5, weight: .medium, design: .monospaced))
-                        .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.40))
+                        .font(.system(size: 7.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(Color(red: 0.82, green: 0.85, blue: 0.82).opacity(0.45))
                 }
             }
-            HStack(spacing: 3) {
+            HStack(spacing: 4) {
                 Text(player.hasDisc ? String(format: "TR %02d", room.trackIndex + 1) : "TR --")
                 Spacer(minLength: 0)
                 if player.hasDisc {
                     Text(room.isPlaying ? "▶ \(room.timeText)" : "⏸ \(room.timeText)")
                 }
             }
-            .font(.system(size: 8, weight: .medium, design: .monospaced))
-            .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.85))
+            .font(.system(size: 9, weight: .medium, design: .monospaced))
+            .foregroundStyle(Color(red: 0.88, green: 0.92, blue: 0.88).opacity(0.90))
             .lineLimit(1)
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 2.5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 4)
         .frame(width: geometry.lcd.width, height: geometry.lcd.height)
         .position(x: geometry.lcd.midX, y: geometry.projectedY(geometry.lcd.midY))
         .accessibilityElement(children: .combine)
