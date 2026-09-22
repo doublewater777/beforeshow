@@ -1,28 +1,30 @@
 import SwiftUI
 
-/// All dimensions are measured in one immutable 460 × 740 model space.
+/// The calibrated machine uses a 360 × 580 stage and one fixed hinge.
 /// Assets are UV textures, never independent layout-sized photographs.
 struct CDPlayerConfiguration {
     struct Geometry {
-        /// Fixed display crop; motion continues in the full model coordinate space.
-        var viewportTop: CGFloat = 225
-        var canvas = CGSize(width: 460, height: 740)
-        var body = CGRect(x: 20, y: 278, width: 420, height: 466)
-        var lid = CGRect(x: 30, y: 304, width: 400, height: 353)
-        var hingeY: CGFloat = 304
-        var discCenter = CGPoint(x: 230, y: 489)
-        var discDiameter: CGFloat = 322
-        var parkedDisc = CGPoint(x: 230, y: 245)
-        var tiltDegrees: Double = 18
-        var maximumOpening: Double = 82
+        var viewportTop: CGFloat = 0
+        var canvas = CGSize(width: 360, height: 580)
+        // Fixed texture/display bounds. Moving discs and the lid use the camera
+        // projection below so the closed and open poses share one hinge.
+        var body = CGRect(x: 8, y: 102, width: 344, height: 469)
+        var discPod = CGRect(x: 34, y: 110, width: 294, height: 294)
+        var lid = CGRect(x: 34, y: 110, width: 294, height: 294)
+        var hingeY: CGFloat = 110
+        var discCenter = CGPoint(x: 180, y: 259)
+        var discDiameter: CGFloat = 254
+        var parkedDisc = CGPoint(x: 180, y: 0)
+        var tiltDegrees: Double = 30
+        var maximumOpening: Double = 78
         var dragTravel: Double = 300
-        var lcd = CGRect(x: 150, y: 679, width: 122, height: 35)
+        var lowerDeck = CGRect(x: 35, y: 369, width: 292, height: 184)
+        var lcd = CGRect(x: 42.5, y: 374, width: 275, height: 65)
         var controls: [CDControl: CGRect] = [
-            .previous: CGRect(x: 44, y: 662, width: 43, height: 45),
-            .next: CGRect(x: 87, y: 674, width: 43, height: 44),
-            .playPause: CGRect(x: 285, y: 674, width: 43, height: 44),
-            .stop: CGRect(x: 328, y: 666, width: 43, height: 44),
-            .open: CGRect(x: 372, y: 641, width: 48, height: 50)
+            .previous: CGRect(x: 54.5, y: 471.5, width: 43, height: 43),
+            .playPause: CGRect(x: 119.5, y: 462.5, width: 61, height: 61),
+            .next: CGRect(x: 203.5, y: 471.5, width: 43, height: 43),
+            .open: CGRect(x: 267.75, y: 473.75, width: 38.5, height: 38.5)
         ]
         func projectedY(_ y: CGFloat) -> CGFloat {
             hingeY + (y - hingeY) * cos(tiltDegrees * .pi / 180)
@@ -36,12 +38,11 @@ struct CDPlayerConfiguration {
     }
 
     struct Assets {
-        var body = "listen_01_body_shell"
-        var lidOuter = "listen_02_lid_outer"
-        var lidInner = "listen_03_lid_inner"
+        var body = "cd_machine"
+        var lidInner = "cd_lid_inside"
+        var lidGlass = "cd_glass"
+        var spindle = "cd_spindle"
         var disc = "listen_04_disc"
-        // The body already contains its tray, controls and hinges. Do not stack
-        // duplicate asset-board components over the same photographed features.
     }
     var brand: String
     var model: String

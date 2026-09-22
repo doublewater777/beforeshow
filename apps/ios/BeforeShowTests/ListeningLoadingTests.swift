@@ -111,13 +111,13 @@ final class ListeningLoadingTests: XCTestCase {
             defer { window.isHidden = true; room.mechanism.motion.stop() }
             try await wait { host.view.layoutIfNeeded(); return probe.frames["stage"] != nil }
             let coldStage = try XCTUnwrap(probe.frames["stage"])
-            let coldCabinet = try XCTUnwrap(probe.frames["cabinet"])
+            XCTAssertNil(probe.frames["cabinet"], "The cabinet belongs in its sheet")
 
             await room.load(show: show)
             XCTAssertEqual(room.presentation, .needsAuthorization)
             host.rootView = content(ListeningRoomView(room: room, show: show))
             try await settleLayout(host.view)
-            assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
+            assertFrames(probe.frames, stage: coldStage)
 
             let authorization = Task { await room.authorize() }
             defer { authorization.cancel() }
@@ -125,13 +125,13 @@ final class ListeningLoadingTests: XCTestCase {
             try await settleLayout(host.view)
             XCTAssertEqual(room.display.roomMode, .connecting)
             XCTAssertNil(room.display.recoveryAction)
-            assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
+            assertFrames(probe.frames, stage: coldStage)
 
             await authorization.value
             XCTAssertFalse(room.libraryDiscs.isEmpty)
             XCTAssertEqual(room.display.roomMode, .fullPlayback)
             try await settleLayout(host.view)
-            assertFrames(probe.frames, stage: coldStage, cabinet: coldCabinet)
+            assertFrames(probe.frames, stage: coldStage)
         }
     }
 
@@ -207,7 +207,7 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertNil(touchView.window)
     }
 
-    func testSelectingAndPlayingDiscsKeepsThePlayerAndShelfInPlace() async throws {
+    func testSelectingAndPlayingDiscsKeepsTheFullDiscInPlace() async throws {
         for scenario in [ListeningFixtureScenario.singleFull, .manyDiscs] {
             let fixture = try ListeningDebugFixtures(scenario: scenario)
             let context = fixture.container.mainContext
@@ -230,7 +230,7 @@ final class ListeningLoadingTests: XCTestCase {
             defer { window.isHidden = true; room.stop(); room.mechanism.motion.stop() }
             try await settleLayout(host.view)
             let stage = try XCTUnwrap(probe.frames["stage"])
-            let cabinet = try XCTUnwrap(probe.frames["cabinet"])
+            XCTAssertNil(probe.frames["cabinet"])
             let disc = try XCTUnwrap(room.shelfDiscs.last)
 
             room.loadPlayableDisc(disc)
@@ -240,13 +240,13 @@ final class ListeningLoadingTests: XCTestCase {
             }
             XCTAssertTrue(room.isPlaying)
             try await settleLayout(host.view)
-            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
+            assertFrames(probe.frames, stage: stage)
 
             room.perform(.playPause)
             try await wait { !room.isPlaying }
             try await settleLayout(host.view)
             XCTAssertEqual(room.display.player.phase, .paused)
-            assertFrames(probe.frames, stage: stage, cabinet: cabinet)
+            assertFrames(probe.frames, stage: stage)
         }
     }
 
@@ -257,9 +257,13 @@ final class ListeningLoadingTests: XCTestCase {
         return view.subviews.lazy.compactMap { self.cabinetLongPress(in: $0) }.first
     }
 
-    private func assertFrames(_ frames: [String: CGRect], stage: CGRect, cabinet: CGRect, file: StaticString = #filePath, line: UInt = #line) {
+    private func assertFrames(_ frames: [String: CGRect], stage: CGRect, file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertEqual(frames["stage"]?.minY ?? -1, stage.minY, accuracy: 1, file: file, line: line)
-        XCTAssertEqual(frames["cabinet"]?.height ?? -1, cabinet.height, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(frames["stage"]?.width ?? -1, stage.width, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(frames["stage"]?.height ?? -1, stage.width, accuracy: 1, file: file, line: line)
+        XCTAssertGreaterThan(stage.minX, 0, file: file, line: line)
+        XCTAssertLessThan(stage.maxX, 402, file: file, line: line)
+        XCTAssertNil(frames["cabinet"], file: file, line: line)
     }
 
     private func settleLayout(_ view: UIView) async throws {

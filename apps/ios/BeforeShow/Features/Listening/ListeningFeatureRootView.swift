@@ -116,6 +116,11 @@ struct ListeningRootChromeModifier: ViewModifier {
                 ListeningPlayerWarmup.prepareIfNeeded()
             }
             .task(id: currentShowID) {
+                #if DEBUG
+                // The fixture owns an isolated catalog and transport. Do not
+                // publish a coordinator from the persisted production container.
+                guard ListeningFixtureScenario.requested == nil else { return }
+                #endif
                 _ = await ListeningChromeBootstrapper.prepare(
                     show: currentShow,
                     context: modelContext

@@ -412,6 +412,28 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(shelf.contains("headerHeight: CGFloat {\n        actionHeaderHeight\n    }"))
     }
 
+    func testListeningMachineKeepsDisplayAndControlsOutsideTheDiscChamber() throws {
+        let geometry = CDPlayerConfiguration.standard.geometry
+        let discBottom = geometry.projectedY(geometry.discCenter.y + geometry.discDiameter / 2)
+        XCTAssertGreaterThan(geometry.lcd.minY, discBottom)
+        XCTAssertEqual(geometry.controls.count, 4)
+        XCTAssertNil(geometry.controls[.stop])
+        let previous = try XCTUnwrap(geometry.controls[.previous])
+        let play = try XCTUnwrap(geometry.controls[.playPause])
+        let next = try XCTUnwrap(geometry.controls[.next])
+        let open = try XCTUnwrap(geometry.controls[.open])
+        XCTAssertLessThan(previous.maxX, play.minX)
+        XCTAssertLessThan(play.maxX, next.minX)
+        XCTAssertLessThan(next.maxX, open.minX)
+        XCTAssertGreaterThan(play.width, previous.width)
+        XCTAssertEqual(previous.width, next.width)
+        XCTAssertTrue((0.88...0.92).contains(open.width / previous.width))
+        for control in geometry.controls.values {
+            XCTAssertGreaterThan(control.minY, geometry.lcd.maxY)
+            XCTAssertTrue(geometry.body.contains(control))
+        }
+    }
+
     func testCurrentShowScrollContentClearsRootBottomChrome() throws {
         let currentShow = try listeningSource("Features/CurrentShow/CurrentShowManagementView.swift")
         XCTAssertTrue(

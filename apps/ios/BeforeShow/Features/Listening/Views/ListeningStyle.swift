@@ -28,100 +28,30 @@ enum ListeningStyle {
 
 struct ListeningDiscArtwork: View {
     var disc: ListeningDisc?
-    var image = "listen_04_disc"
     @State private var artwork: UIImage?
 
-    /// Compilation discs have no single cover; tile the first four track
-    /// covers into one label image. Cached by track-artwork fingerprint.
+    /// Compilation covers overlap and crossfade into a single printed disc label.
+    /// Single-album artwork bypasses this composition.
     private static var mosaicCache: [String: UIImage] = [:]
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size.width
-            ZStack {
-                // Base CD texture asset
-                Image(image)
+        ZStack {
+            Circle().fill(BSColor.Stage.surfaceRaised)
+            if let artwork {
+                Image(uiImage: artwork)
                     .resizable()
-
-                // Radial metallic holographic sheen / rainbow diffraction
-                AngularGradient(
-                    gradient: Gradient(colors: [
-                        Color.clear,
-                        Color.cyan.opacity(0.18),
-                        Color.pink.opacity(0.16),
-                        Color.yellow.opacity(0.15),
-                        Color.clear,
-                        Color.purple.opacity(0.18),
-                        Color.cyan.opacity(0.16),
-                        Color.clear
-                    ]),
-                    center: .center,
-                    angle: .degrees(45)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // Album artwork printed on the label area, between hub and rim.
-                if let artwork {
-                    ZStack {
-                        Image(uiImage: artwork)
-                            .resizable()
-                            .scaledToFill()
-                        // Clear center mimics the unprinted hub ring of a real CD.
-                        RadialGradient(
-                            colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surfaceRaised.opacity(0.0)],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: size * 0.10
-                        )
-                        Circle().stroke(Color.white.opacity(0.25), lineWidth: 1)
-                            .frame(width: size * 0.19, height: size * 0.19)
-                    }
-                    .frame(width: size * 0.94, height: size * 0.94)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
-                }
-
-                // High-contrast specular wedge highlights
-                AngularGradient(
-                    gradient: Gradient(stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.white.opacity(0.35), location: 0.12),
-                        .init(color: .clear, location: 0.25),
-                        .init(color: .clear, location: 0.50),
-                        .init(color: Color.white.opacity(0.30), location: 0.62),
-                        .init(color: .clear, location: 0.75),
-                        .init(color: .clear, location: 1.0)
-                    ]),
-                    center: .center,
-                    angle: .degrees(30)
-                )
-                .clipShape(Circle())
-                .blendMode(.screen)
-
-                // Concentric data-track rings
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: size * 0.18)
-                    .padding(size * 0.15)
-
-                // Spindle hub ring
-                Circle()
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1.2)
-                    .frame(width: size * 0.26, height: size * 0.26)
-
-                // CD label title, only when no artwork covers the label
-                if artwork == nil {
-                    Text(disc?.title ?? "CD")
-                        .font(.system(size: max(8, size * 0.045), weight: .semibold, design: .monospaced))
-                        .foregroundStyle(ListeningStyle.lcdInk.opacity(0.9))
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                        .frame(width: size * 0.62)
-                        .offset(y: -size * 0.24)
-                }
+                    .scaledToFill()
+            }
+            if disc != nil {
+                Image(decorative: "disc_gloss_overlay")
+                    .resizable()
+                    .scaledToFit()
+                    .opacity(ListeningStageTokens.glossOpacity)
             }
         }
-        .task(id: disc?.artworkURL) {
+        .clipShape(Circle())
+        .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: BSListeningTokens.hairline))
+        .task(id: disc) {
             artwork = nil
             if let url = disc?.artworkURL {
                 artwork = ShowCoverImageCache.shared.memoryImage(for: url)
@@ -148,17 +78,20 @@ struct ListeningDiscArtwork: View {
             if let image { images.append(image) }
         }
         guard !images.isEmpty else { return nil }
-        let grid: Int = images.count > 1 ? 2 : 1
-        let tile: CGFloat = 300
-        let canvas = tile * CGFloat(grid)
+        let tile = ListeningStageTokens.compilationTile
+        let canvas = tile * 2
+        let blend = canvas * ListeningStageTokens.compilationBlend
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let mosaic = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format).image { context in
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format)
+        let mosaic = renderer.image { context in
             UIColor.black.setFill()
             context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
-            for (index, image) in images.prefix(grid * grid).enumerated() {
-                let origin = CGPoint(x: CGFloat(index % grid) * tile, y: CGFloat(index / grid) * tile)
-                let side = min(image.size.width, image.size.height)
+            for index in 0..<4 {
+                let image = images[index % images.count]
+                let right = index % 2 == 1
+                let bottom = index / 2 == 1
+                let side = min(image.size.width, image.size.height) * ListeningStageTokens.compilationCrop
                 let crop = CGRect(
                     x: (image.size.width - side) / 2 * image.scale,
                     y: (image.size.height - side) / 2 * image.scale,
@@ -166,7 +99,27 @@ struct ListeningDiscArtwork: View {
                     height: side * image.scale
                 )
                 guard let cg = image.cgImage?.cropping(to: crop) else { continue }
-                UIImage(cgImage: cg).draw(in: CGRect(origin: origin, size: CGSize(width: tile, height: tile)))
+                let layer = renderer.image { layer in
+                    UIImage(cgImage: cg).draw(in: CGRect(
+                        x: right ? tile - blend : 0,
+                        y: bottom ? tile - blend : 0,
+                        width: tile + blend, height: tile + blend
+                    ))
+                    layer.cgContext.setBlendMode(.destinationIn)
+                    for (reverse, vertical) in [(right, false), (bottom, true)] {
+                        let colors = reverse ? [UIColor.clear.cgColor, UIColor.white.cgColor]
+                                             : [UIColor.white.cgColor, UIColor.clear.cgColor]
+                        guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                                        colors: colors as CFArray, locations: [0, 1]) else { continue }
+                        layer.cgContext.drawLinearGradient(
+                            gradient,
+                            start: CGPoint(x: vertical ? 0 : tile - blend, y: vertical ? tile - blend : 0),
+                            end: CGPoint(x: vertical ? 0 : tile + blend, y: vertical ? tile + blend : 0),
+                            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                        )
+                    }
+                }
+                layer.draw(at: .zero, blendMode: .plusLighter, alpha: 1)
             }
         }
         mosaicCache[key] = mosaic
@@ -259,7 +212,7 @@ extension ListeningRoomCoordinator {
         case .next: skip(1)
         case .playPause: playPause()
         case .stop: stop()
-        case .open: mechanism.setLid(open: (mechanism.motion.lid.target ?? mechanism.motion.lid.value) < 0.5)
+        case .open: toggleLid()
         }
 
         #if os(iOS)

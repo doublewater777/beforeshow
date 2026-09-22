@@ -55,8 +55,6 @@ struct ListeningStageBackground: View {
                             .position(x: geometry.size.width * 0.50, y: geometry.size.height * 0.07)
                             .blur(radius: 56)
                             .transition(.opacity)
-                    } else {
-                        fallbackStageGlows(in: geometry)
                     }
 
                     if let discAmbientColor {
@@ -110,21 +108,6 @@ struct ListeningStageBackground: View {
         }
     }
 
-    @ViewBuilder
-    private func fallbackStageGlows(in geometry: GeometryProxy) -> some View {
-        listeningGlow(color: Color(red: 0.69, green: 0.36, blue: 1.0).opacity(0.13))
-            .frame(width: geometry.size.width * 0.88, height: geometry.size.height * 0.48)
-            .position(x: geometry.size.width * 0.54, y: geometry.size.height * 0.94)
-
-        listeningGlow(color: Color(red: 0.11, green: 0.73, blue: 0.33).opacity(0.08))
-            .frame(width: geometry.size.width * 0.52, height: geometry.size.height * 0.34)
-            .position(x: geometry.size.width * 0.16, y: geometry.size.height * 0.89)
-
-        listeningGlow(color: Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.06))
-            .frame(width: geometry.size.width * 0.44, height: geometry.size.height * 0.30)
-            .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.90)
-    }
-
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
         guard let urlString, let url = URL(string: urlString) else { return nil }
         return await loadAmbientColor(for: url)
@@ -152,34 +135,6 @@ struct ListeningPlayerAmbientHalo: View {
 
     var body: some View {
         ZStack {
-            Ellipse()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            BSColor.Stage.accent.opacity(isPlaying ? 0.20 : 0.12),
-                            BSColor.Stage.accent.opacity(isPlaying ? 0.08 : 0.045),
-                            .clear
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 220
-                    )
-                )
-                .blur(radius: 34)
-                .scaleEffect(isBreathing ? 1.035 : 1)
-
-            Ellipse()
-                .fill(BSColor.Accent.info.opacity(isPlaying ? 0.085 : 0.045))
-                .frame(width: 190, height: 120)
-                .offset(x: -105, y: 24)
-                .blur(radius: 42)
-
-            Ellipse()
-                .fill(BSColor.Accent.violet.opacity(isPlaying ? 0.07 : 0.035))
-                .frame(width: 175, height: 110)
-                .offset(x: 112, y: 12)
-                .blur(radius: 42)
-
             if let discAmbientColor {
                 Ellipse()
                     .fill(
@@ -200,26 +155,6 @@ struct ListeningPlayerAmbientHalo: View {
                     .transition(.opacity)
             }
 
-            if artworkURL != nil {
-                Ellipse()
-                    .stroke(
-                        AngularGradient(
-                            colors: [
-                                Color.cyan.opacity(0.16),
-                                Color.purple.opacity(0.13),
-                                Color.pink.opacity(0.10),
-                                Color.green.opacity(0.09),
-                                Color.cyan.opacity(0.16)
-                            ],
-                            center: .center
-                        ),
-                        lineWidth: 28
-                    )
-                    .padding(28)
-                    .blur(radius: 30)
-                    .scaleEffect(isBreathing ? 1.025 : 0.99)
-                    .opacity(0.38)
-            }
         }
         .compositingGroup()
         .animation(.easeInOut(duration: 0.7), value: discAmbientColor)
@@ -253,19 +188,6 @@ struct ListeningPlayerAmbientHalo: View {
         }
         return Color(ambient)
     }
-}
-
-private func listeningGlow(color: Color) -> some View {
-    Ellipse()
-        .fill(
-            RadialGradient(
-                colors: [color, color.opacity(0.55), .clear],
-                center: .center,
-                startRadius: 0,
-                endRadius: 230
-            )
-        )
-        .blur(radius: 22)
 }
 
 struct ListeningCurrentSong: View {
