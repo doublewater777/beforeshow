@@ -60,36 +60,25 @@ struct ListeningMachineView: View {
 
     private var crystalBodySurface: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(0.58)
-                .mask(Image(player.configuration.assets.body).resizable())
-
+            // The asset now carries the acrylic thickness, bevels and colored
+            // refraction. SwiftUI only adds a faint live-material response so the
+            // hardware remains integrated with the current room background.
             Image(player.configuration.assets.body)
                 .resizable()
-                .opacity(0.16)
-                .blendMode(.screen)
+
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.13)
+                .mask(Image(player.configuration.assets.body).resizable())
 
             LinearGradient(
                 colors: [
-                    .white.opacity(0.32),
-                    Color(red: 0.72, green: 0.92, blue: 1).opacity(0.11),
+                    .white.opacity(0.08),
                     .clear,
-                    .white.opacity(0.07)
+                    BSColor.Stage.accent.opacity(room.isPlaying ? 0.055 : 0.025)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
-            )
-            .mask(Image(player.configuration.assets.body).resizable())
-
-            LinearGradient(
-                colors: [
-                    .white.opacity(0.18),
-                    .clear,
-                    .black.opacity(0.08)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
             )
             .mask(Image(player.configuration.assets.body).resizable())
         }
@@ -193,51 +182,21 @@ private struct CDPlayerLidView: View {
 
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .opacity(isShowingBackFace ? 0.46 : 0.62)
-                .mask(Image(visibleLidAsset).resizable())
-
             Image(visibleLidAsset)
                 .resizable()
-                .opacity(isShowingBackFace ? 0.18 : 0.10)
-                .blendMode(.screen)
 
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(isShowingBackFace ? 0.10 : 0.07)
+                .mask(Image(visibleLidAsset).resizable())
+
+            // Opening changes only the live reflection; the vector asset owns the
+            // actual crystal rim so the lid does not turn milky over the album art.
             LinearGradient(
                 colors: [
-                    .white.opacity(isShowingBackFace ? 0.18 : 0.30),
-                    Color(red: 0.72, green: 0.92, blue: 1).opacity(0.10),
+                    .white.opacity(0.055 * motion.lid.value),
                     .clear,
-                    .white.opacity(0.06)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .mask(Image(visibleLidAsset).resizable())
-
-            RadialGradient(
-                colors: [
-                    .white.opacity(0.13),
-                    .clear
-                ],
-                center: .topLeading,
-                startRadius: 10,
-                endRadius: 250
-            )
-            .mask(Image(visibleLidAsset).resizable())
-
-            Ellipse()
-                .strokeBorder(.white.opacity(isShowingBackFace ? 0.30 : 0.48), lineWidth: 2.0)
-                .padding(2)
-            Ellipse()
-                .strokeBorder(.black.opacity(0.13), lineWidth: 1)
-                .padding(6)
-
-            LinearGradient(
-                colors: [
-                    .white.opacity(0.06 * motion.lid.value),
-                    .clear,
-                    .black.opacity(0.05 * motion.lid.value)
+                    .black.opacity(0.025 * motion.lid.value)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
