@@ -1045,7 +1045,7 @@ private let listeningCatalogFetchConcurrency = 4
         playbackState = .idle
         transportPlaybackState = .idle
         transportPlaybackPhase = .stopped
-        mechanism.motion.spinning = false
+        mechanism.motion.synchronizePlayback(isPlaying: false)
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
@@ -1080,7 +1080,7 @@ private let listeningCatalogFetchConcurrency = 4
         switch state {
         case .idle, .preparing, .failed, .finished:
             transportPlaybackPhase = .stopped
-            mechanism.motion.spinning = false
+            mechanism.motion.synchronizePlayback(isPlaying: false)
         case .ready, .playing, .paused:
             break
         }
@@ -1100,7 +1100,10 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyTransportSample(_ sample: ListeningPlaybackSample) {
         transportPlaybackPhase = sample.phase
-        mechanism.motion.spinning = sample.phase.isPlaying
+        mechanism.motion.synchronizePlayback(
+            isPlaying: sample.phase.isPlaying,
+            observedAt: sample.observedAt
+        )
         completeSleevePlaybackIfNeeded()
         recordPlayingIfNeeded()
     }
