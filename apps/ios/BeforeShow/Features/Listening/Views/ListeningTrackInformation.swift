@@ -17,8 +17,8 @@ struct ListeningTrackInformation: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.sm) {
-            HStack(alignment: .top, spacing: BSSpacing.md) {
+        VStack(alignment: .leading, spacing: BSSpacing.md) {
+            HStack(alignment: .center, spacing: BSSpacing.md) {
                 VStack(alignment: .leading, spacing: BSSpacing.xs) {
                     Text(room.track?.title ?? BSLocalization.text("无唱片"))
                         .font(BSFont.title)
@@ -35,7 +35,7 @@ struct ListeningTrackInformation: View {
                             .foregroundStyle(BSColor.Stage.muted)
                     }
                 }
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 VStack(alignment: .trailing, spacing: BSSpacing.sm) {
                     Text(room.deviceStatus.label)
                         .font(BSListeningTokens.captionMedium)

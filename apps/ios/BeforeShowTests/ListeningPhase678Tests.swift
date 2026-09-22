@@ -156,7 +156,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(room.contains("paintpalette"))
         XCTAssertTrue(header.contains(".accessibilityAddTraits(.isHeader)"))
         let stage = try String(contentsOf: root.appendingPathComponent("Views/ListeningStageView.swift"), encoding: .utf8)
-        XCTAssertTrue(stage.contains(".padding(.horizontal, BSSpacing.roomy)"))
+        XCTAssertTrue(stage.contains(".padding(.horizontal, ListeningStageTokens.informationInset)"))
         XCTAssertTrue(header.contains(".padding(.top, BSLayout.pageHeaderTopPadding)"))
         XCTAssertFalse(room.contains(".padding(BSSpacing.lg)"))
         XCTAssertFalse(room.contains(".select(showID:"))

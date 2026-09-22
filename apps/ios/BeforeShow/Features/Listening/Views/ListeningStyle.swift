@@ -30,8 +30,8 @@ struct ListeningDiscArtwork: View {
     var disc: ListeningDisc?
     @State private var artwork: UIImage?
 
-    /// Compilation discs have no single cover; tile the first four track
-    /// covers into one label image. Cached by track-artwork fingerprint.
+    /// Compilation covers overlap and crossfade into a single printed disc label.
+    /// Single-album artwork bypasses this composition.
     private static var mosaicCache: [String: UIImage] = [:]
 
     var body: some View {
@@ -78,17 +78,20 @@ struct ListeningDiscArtwork: View {
             if let image { images.append(image) }
         }
         guard !images.isEmpty else { return nil }
-        let grid: Int = images.count > 1 ? 2 : 1
-        let tile: CGFloat = 300
-        let canvas = tile * CGFloat(grid)
+        let tile = ListeningStageTokens.compilationTile
+        let canvas = tile * 2
+        let blend = canvas * ListeningStageTokens.compilationBlend
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let mosaic = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format).image { context in
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: canvas, height: canvas), format: format)
+        let mosaic = renderer.image { context in
             UIColor.black.setFill()
             context.fill(CGRect(x: 0, y: 0, width: canvas, height: canvas))
-            for (index, image) in images.prefix(grid * grid).enumerated() {
-                let origin = CGPoint(x: CGFloat(index % grid) * tile, y: CGFloat(index / grid) * tile)
-                let side = min(image.size.width, image.size.height)
+            for index in 0..<4 {
+                let image = images[index % images.count]
+                let right = index % 2 == 1
+                let bottom = index / 2 == 1
+                let side = min(image.size.width, image.size.height) * ListeningStageTokens.compilationCrop
                 let crop = CGRect(
                     x: (image.size.width - side) / 2 * image.scale,
                     y: (image.size.height - side) / 2 * image.scale,
@@ -96,7 +99,27 @@ struct ListeningDiscArtwork: View {
                     height: side * image.scale
                 )
                 guard let cg = image.cgImage?.cropping(to: crop) else { continue }
-                UIImage(cgImage: cg).draw(in: CGRect(origin: origin, size: CGSize(width: tile, height: tile)))
+                let layer = renderer.image { layer in
+                    UIImage(cgImage: cg).draw(in: CGRect(
+                        x: right ? tile - blend : 0,
+                        y: bottom ? tile - blend : 0,
+                        width: tile + blend, height: tile + blend
+                    ))
+                    layer.cgContext.setBlendMode(.destinationIn)
+                    for (reverse, vertical) in [(right, false), (bottom, true)] {
+                        let colors = reverse ? [UIColor.clear.cgColor, UIColor.white.cgColor]
+                                             : [UIColor.white.cgColor, UIColor.clear.cgColor]
+                        guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                                        colors: colors as CFArray, locations: [0, 1]) else { continue }
+                        layer.cgContext.drawLinearGradient(
+                            gradient,
+                            start: CGPoint(x: vertical ? 0 : tile - blend, y: vertical ? tile - blend : 0),
+                            end: CGPoint(x: vertical ? 0 : tile + blend, y: vertical ? tile + blend : 0),
+                            options: [.drawsBeforeStartLocation, .drawsAfterEndLocation]
+                        )
+                    }
+                }
+                layer.draw(at: .zero, blendMode: .plusLighter, alpha: 1)
             }
         }
         mosaicCache[key] = mosaic

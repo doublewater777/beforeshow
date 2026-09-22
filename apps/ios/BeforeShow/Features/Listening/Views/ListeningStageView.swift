@@ -3,6 +3,11 @@ import SwiftUI
 struct ListeningStageView: View {
     let room: ListeningRoomCoordinator
     let width: CGFloat
+    @State private var surfaceLight: Color = .clear
+
+    private var lightingArtworkURL: URL? {
+        room.mechanism.disc?.artworkURL ?? room.mechanism.disc?.tracks.compactMap(\.artworkURL).first
+    }
 
     var body: some View {
         VStack(spacing: BSSpacing.roomy) {
@@ -13,18 +18,29 @@ struct ListeningStageView: View {
             )
             .background {
                 ListeningPlayerAmbientHalo(
-                    artworkURL: room.mechanism.disc?.artworkURL,
+                    artworkURL: lightingArtworkURL,
                     isPlaying: room.isPlaying
                 )
             }
             ListeningTrackInformation(room: room)
-                .padding(.horizontal, BSSpacing.roomy)
+                .padding(.horizontal, ListeningStageTokens.informationInset)
             ListeningTransportControls(room: room)
+                .padding(.top, BSSpacing.sm)
         }
         .padding(.top, BSSpacing.md)
         .padding(.bottom, BSSpacing.roomy)
         .frame(width: width)
         .background(alignment: .top) { ListeningStageSurface(width: width) }
+        .environment(\.listeningSurfaceLight, surfaceLight)
+        .task(id: lightingArtworkURL) {
+            guard let url = lightingArtworkURL,
+                  let image = await ShowCoverImageCache.shared.image(from: url),
+                  let color = CoverAmbientColor.uiColor(from: image), !Task.isCancelled else {
+                if !Task.isCancelled { surfaceLight = .clear }
+                return
+            }
+            surfaceLight = Color(color)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.stage")
     }

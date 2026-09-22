@@ -23,7 +23,7 @@ final class ListeningStageStructureTests: XCTestCase {
         let disc = try source("Views/ListeningDiscStage")
         XCTAssertTrue(disc.contains("rotationEffect(.degrees(angle))"))
         XCTAssertFalse(disc.contains("scaleEffect(y:"))
-        XCTAssertTrue((0.92...0.95).contains(ListeningStageTokens.discWidthFraction))
+        XCTAssertTrue((0.90...0.92).contains(ListeningStageTokens.discWidthFraction))
         let artwork = try source("Views/ListeningStyle").components(separatedBy: "struct ListeningArtwork")[0]
         XCTAssertFalse(artwork.contains("AngularGradient"))
         XCTAssertFalse(artwork.contains("listen_04_disc"))
