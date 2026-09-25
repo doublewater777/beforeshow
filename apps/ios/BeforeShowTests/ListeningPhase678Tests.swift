@@ -202,7 +202,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertTrue(machine.contains("CDPlayerDiscWellView"))
         XCTAssertTrue(machine.contains("CDPlayerBodyShellView"))
         XCTAssertTrue(machine.contains(".luminanceToAlpha()"))
-        XCTAssertTrue(config.contains("var discWellDiameter: CGFloat = 350"))
+        XCTAssertTrue(config.contains("var discWellDiameter: CGFloat = 356"))
         XCTAssertTrue(machine.contains("frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)"))
         XCTAssertTrue(machine.contains("geometry.projectedY(geometry.discCenter.y)"))
         XCTAssertTrue(machine.contains("geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2"))
