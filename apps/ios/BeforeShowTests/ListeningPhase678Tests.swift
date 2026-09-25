@@ -202,7 +202,8 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertTrue(machine.contains("CDPlayerDiscWellView"))
         XCTAssertTrue(machine.contains("CDPlayerBodyShellView"))
         XCTAssertTrue(machine.contains(".luminanceToAlpha()"))
-        XCTAssertTrue(machine.contains("frame(width: geometry.discDiameter, height: geometry.discDiameter)"))
+        XCTAssertTrue(config.contains("var discWellDiameter: CGFloat = 350"))
+        XCTAssertTrue(machine.contains("frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)"))
         XCTAssertTrue(machine.contains("geometry.projectedY(geometry.discCenter.y)"))
         XCTAssertTrue(machine.contains("geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2"))
         XCTAssertTrue(style.contains("size * BSListeningTokens.discHubRadiusFraction"))
@@ -210,6 +211,12 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertTrue(tokens.contains("static let discSpindleRadiusFraction: CGFloat = 0.025"))
         XCTAssertTrue(discWellContents.contains("01b_disc_well.svg"))
         XCTAssertTrue(FileManager.default.fileExists(atPath: discWell.appendingPathComponent("01b_disc_well.svg").path))
+        let trayLight = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningTrayLight.swift"),
+            encoding: .utf8
+        )
+        XCTAssertTrue(trayLight.contains(".opacity(phase == .placing ? 0.45 : 0)"))
+        XCTAssertTrue(trayLight.contains(".opacity(phase == .placing ? 0.8 : 0)"))
     }
 
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
