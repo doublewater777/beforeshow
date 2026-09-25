@@ -42,13 +42,10 @@ struct ListeningMachineView: View {
             Ellipse()
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
-            Image(player.configuration.assets.body).resizable()
-                .frame(width: geometry.body.width, height: geometry.body.height)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180),
-                             anchor: UnitPoint(x: 0.5, y: (geometry.hingeY - geometry.body.minY) / geometry.body.height))
-                .position(x: geometry.body.midX, y: geometry.body.midY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
+            CDPlayerDiscWellView(player: player)
+                .zIndex(0)
+            CDPlayerBodyShellView(player: player)
+                .zIndex(0.5)
             ListeningTrayLight(phase: ListeningAtmospherePhase(room: room))
                 .frame(width: geometry.discDiameter * BSListeningTokens.trayRingScale,
                        height: geometry.discDiameter * BSListeningTokens.trayRingScale)
@@ -72,16 +69,80 @@ struct ListeningMachineView: View {
     }
 
     private var spindle: some View {
-        ZStack {
-            Circle().fill(LinearGradient(colors: [Color(white: 0.30), .black, Color(white: 0.22)], startPoint: .topLeading, endPoint: .bottomTrailing))
-            Circle().stroke(Color(white: 0.48), lineWidth: 1).padding(4)
-            Circle().fill(Color(white: 0.12)).padding(12)
-            Circle().fill(Color(white: 0.62)).frame(width: 8, height: 8)
+        let diameter = geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2
+        return ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color(white: 0.46), Color(white: 0.12), Color(white: 0.30)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+            Circle()
+                .stroke(Color.white.opacity(0.34), lineWidth: max(0.6, diameter * 0.055))
+                .padding(diameter * 0.16)
+            Circle()
+                .fill(Color(white: 0.66))
+                .frame(width: diameter * 0.30, height: diameter * 0.30)
         }
-        .frame(width: 42, height: 42)
+        .frame(width: diameter, height: diameter)
         .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+}
+
+private struct CDPlayerDiscWellView: View {
+    let player: CDMechanism
+    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+
+    var body: some View {
+        Image(player.configuration.assets.discWell)
+            .resizable()
+            .frame(width: geometry.discDiameter, height: geometry.discDiameter)
+            .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
+            .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct CDPlayerBodyShellView: View {
+    let player: CDMechanism
+    private var geometry: CDPlayerConfiguration.Geometry { player.configuration.geometry }
+
+    var body: some View {
+        Image(player.configuration.assets.body)
+            .resizable()
+            .frame(width: geometry.body.width, height: geometry.body.height)
+            // The photographed body texture still supplies the metal shell, controls,
+            // hinges and LCD surround. Its old baked tray is removed in model space;
+            // CDPlayerDiscWellView is now the sole renderer for the disc well.
+            .mask {
+                ZStack(alignment: .topLeading) {
+                    Rectangle().fill(.white)
+                    Circle()
+                        .fill(.black)
+                        .frame(width: geometry.discDiameter, height: geometry.discDiameter)
+                        .position(
+                            x: geometry.discCenter.x - geometry.body.minX,
+                            y: geometry.discCenter.y - geometry.body.minY
+                        )
+                }
+                .luminanceToAlpha()
+            }
+            .scaleEffect(
+                x: 1,
+                y: cos(geometry.tiltDegrees * .pi / 180),
+                anchor: UnitPoint(
+                    x: 0.5,
+                    y: (geometry.hingeY - geometry.body.minY) / geometry.body.height
+                )
+            )
+            .position(x: geometry.body.midX, y: geometry.body.midY)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 

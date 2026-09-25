@@ -50,6 +50,10 @@ enum BSListeningTokens {
     static let detailArtwork: CGFloat = 184
     static let playerWidthFraction: CGFloat = 1.08
     static let discRotationRPM = 20.0
+    /// Radius as a fraction of the full CD diameter; 0.0625 = 12.5% hub diameter.
+    static let discHubRadiusFraction: CGFloat = 0.0625
+    /// Radius as a fraction of the full CD diameter; 0.025 = 5% spindle diameter.
+    static let discSpindleRadiusFraction: CGFloat = 0.025
     static let shelfArtwork: CGFloat = 64
     static let shelfItemWidth: CGFloat = 98
     static let shelfLabelHeight: CGFloat = 16

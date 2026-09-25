@@ -170,6 +170,48 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertTrue(tokens.contains("static let discRotationRPM = 20.0"))
     }
 
+    func testDiscWellAndCenterGeometryAreIndependentAndTokenized() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let machine = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMachineView.swift"),
+            encoding: .utf8
+        )
+        let style = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningStyle.swift"),
+            encoding: .utf8
+        )
+        let config = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Player/CDPlayerConfiguration.swift"),
+            encoding: .utf8
+        )
+        let tokens = try String(
+            contentsOf: sourceRoot.appendingPathComponent("UI/DesignSystem/BSListeningTokens.swift"),
+            encoding: .utf8
+        )
+        let discWell = sourceRoot
+            .appendingPathComponent("Resources/ListeningPlayer.xcassets/listen_01b_disc_well.imageset")
+        let discWellContents = try String(
+            contentsOf: discWell.appendingPathComponent("Contents.json"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(config.contains(#"var discWell = "listen_01b_disc_well""#))
+        XCTAssertTrue(machine.contains("CDPlayerDiscWellView"))
+        XCTAssertTrue(machine.contains("CDPlayerBodyShellView"))
+        XCTAssertTrue(machine.contains(".luminanceToAlpha()"))
+        XCTAssertTrue(machine.contains("frame(width: geometry.discDiameter, height: geometry.discDiameter)"))
+        XCTAssertTrue(machine.contains("geometry.projectedY(geometry.discCenter.y)"))
+        XCTAssertTrue(machine.contains("geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2"))
+        XCTAssertTrue(style.contains("size * BSListeningTokens.discHubRadiusFraction"))
+        XCTAssertTrue(tokens.contains("static let discHubRadiusFraction: CGFloat = 0.0625"))
+        XCTAssertTrue(tokens.contains("static let discSpindleRadiusFraction: CGFloat = 0.025"))
+        XCTAssertTrue(discWellContents.contains("01b_disc_well.svg"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: discWell.appendingPathComponent("01b_disc_well.svg").path))
+    }
+
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
         let source = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)

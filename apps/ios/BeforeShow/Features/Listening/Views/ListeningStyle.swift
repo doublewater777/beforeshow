@@ -72,13 +72,21 @@ struct ListeningDiscArtwork: View {
                             colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surfaceRaised.opacity(0.0)],
                             center: .center,
                             startRadius: 0,
-                            endRadius: size * 0.10
+                            endRadius: size * BSListeningTokens.discHubRadiusFraction
                         )
                     }
                     .frame(width: size * 0.94, height: size * 0.94)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
                 }
+
+                Circle()
+                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    .frame(
+                        width: size * BSListeningTokens.discHubRadiusFraction * 2,
+                        height: size * BSListeningTokens.discHubRadiusFraction * 2
+                    )
+                    .accessibilityHidden(true)
 
                 // High-contrast specular wedge highlights
                 AngularGradient(
