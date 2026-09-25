@@ -2,11 +2,54 @@ import SwiftUI
 
 /// Listening component dimensions; player model coordinates remain in CDPlayerConfiguration.
 enum BSListeningTokens {
+    // Lighting is expressed in player model coordinates, then scaled with the machine.
+    static let restingLight = Color(red: 0.63, green: 0.72, blue: 0.82)
+    static let placingLight = Color(red: 0.84, green: 0.89, blue: 0.94)
+    static let roomLightOpacity = 0.4
+    static let haloWidth: CGFloat = 2.2
+    static let haloHeight: CGFloat = 1.9
+    static let haloRadius: CGFloat = 340
+    static let haloBlur: CGFloat = 30
+    static let haloRestingOpacity = 0.22
+    static let haloPlacingOpacity = 0.40
+    static let haloPlayingOpacity = 0.56
+    static let haloRestingScale: CGFloat = 0.88
+    static let haloPlacingScale: CGFloat = 0.96
+    static let loadedLidOpacity = 0.025
+    static let trayRingScale: CGFloat = 1.025
+    static let trayRingWidth: CGFloat = 1.5
+    static let trayGlowWidth: CGFloat = 10
+    static let trayGlowBlur: CGFloat = 10
+    static let detailDiscFraction: CGFloat = 0.92
+    static let detailDiscReveal: CGFloat = 0.34
+    static let statusDot: CGFloat = 4
+    static let statusTracking: CGFloat = 1.4
+    static let actionHeight: CGFloat = 52
+    static let stateIconSize: CGFloat = 56
+    static let stateIconFont = Font.system(size: 24, weight: .light)
+    static let stateTitle = Font.system(size: 22, weight: .medium)
+    static let sectionTitle = Font.system(size: 13, weight: .semibold)
+    static let gridTitle = Font.system(size: 15, weight: .medium)
+    static let detailTitle = Font.system(size: 26, weight: .semibold)
+    static let rowNumber = Font.system(size: 12, weight: .medium, design: .monospaced)
+    static let rowAccessory: CGFloat = 24
+    static let rowDividerInset: CGFloat = 36
+    static let candidateAvatar: CGFloat = 48
+    static let cabinetAvatar: CGFloat = 56
+    static let stateVerticalPadding: CGFloat = 48
+    static let emptyArtwork: CGFloat = 168
+    static let emptyDiscFraction: CGFloat = 0.84
+    static let emptyDiscOffset: CGFloat = 0.22
+    static let sheetGlowHeight: CGFloat = 360
+    static let sheetGlowOpacity = 0.10
+    static let selectionFillOpacity = 0.13
+    static let selectionBorderOpacity = 0.35
+    static let inactiveFillOpacity = 0.65
     static let avatar: CGFloat = 24
     static let artwork: CGFloat = 82
-    static let detailArtwork: CGFloat = 160
-    static let playerWidthFraction: CGFloat = 0.90
-    static let shelfArtwork: CGFloat = 78
+    static let detailArtwork: CGFloat = 184
+    static let playerWidthFraction: CGFloat = 1.08
+    static let shelfArtwork: CGFloat = 64
     static let shelfItemWidth: CGFloat = 98
     static let shelfLabelHeight: CGFloat = 16
     static let shelfItemSpacing: CGFloat = 6
@@ -19,7 +62,7 @@ enum BSListeningTokens {
     static let discTitle = Font.system(size: 24, weight: .bold)
     static let songSpacing: CGFloat = 6
     static let songHeight: CGFloat = 70
-    static let stageTopOffset: CGFloat = 46
+    static let stageTopOffset: CGFloat = 82
     static let statusIcon: CGFloat = 16
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption

@@ -26,18 +26,26 @@ struct ListeningShelfView<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: BSSpacing.xs) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
-                        titleLabel
-                        countView
+            HStack(spacing: BSSpacing.sm) {
+                titleLabel
+                Text(count)
+                    .font(BSListeningTokens.caption)
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .redacted(reason: isLoading ? .placeholder : [])
+                    .accessibilityHidden(isLoading)
+                Spacer(minLength: 0)
+                if showsAllDiscs {
+                    Button(action: showAll) {
+                        HStack(spacing: BSSpacing.xs) {
+                            Text(BSLocalization.text("唱片柜"))
+                            Image(systemName: "chevron.right")
+                        }
+                            .font(BSListeningTokens.captionMedium)
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .frame(minHeight: BSLayout.minTouchTarget)
                     }
-                } else {
-                    HStack(alignment: .firstTextBaseline) {
-                        titleLabel
-                        countView
-                        Spacer(minLength: 0)
-                    }
+                    .buttonStyle(BSListeningPressStyle())
+                    .accessibilityIdentifier("listening.allDiscs")
                 }
             }
             .frame(height: headerHeight)
@@ -60,31 +68,4 @@ struct ListeningShelfView<Content: View>: View {
         }
     }
 
-    @ViewBuilder
-    private var countView: some View {
-        if showsAllDiscs {
-            Button(action: showAll) {
-                HStack(spacing: 3) {
-                    Text(count)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .font(BSListeningTokens.caption)
-                .foregroundStyle(BSColor.Stage.accent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .frame(minHeight: BSLayout.minTouchTarget)
-            }
-            .buttonStyle(BSListeningPressStyle(scale: 0.95))
-            .accessibilityIdentifier("listening.allDiscs")
-        } else {
-            Text(count)
-                .font(BSListeningTokens.caption)
-                .foregroundStyle(BSColor.Stage.accent)
-                .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .redacted(reason: isLoading ? .placeholder : [])
-                .accessibilityHidden(isLoading)
-        }
-    }
 }

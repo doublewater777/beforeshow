@@ -49,7 +49,7 @@ struct ListeningArtistSelector: View {
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: BSSpacing.xs) {
+            LazyHStack(spacing: BSSpacing.sm) {
                 allItem
                 ForEach(artists) { artist in
                     ListeningArtistSelectorItem(
@@ -60,8 +60,9 @@ struct ListeningArtistSelector: View {
                     )
                 }
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, BSSpacing.xs)
         }
+        .animation(BSListeningTokens.selectionAnimation, value: selection)
         .accessibilityIdentifier("listening.artistSelector")
     }
 

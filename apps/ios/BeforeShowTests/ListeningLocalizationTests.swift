@@ -33,7 +33,8 @@ final class ListeningLocalizationTests: XCTestCase {
             "载入中…", "试听中 · 剩余 %d 秒", "播放中", "试听暂停 · 剩余 %d 秒",
             "暂停", "停止", "播放结束", "暂时无法播放", "选择一张唱片开始播放",
             "当前仅提供歌曲信息", "当前暂不可播放", "请先合上播放器上盖", "热门合辑",
-            "仅提供歌曲信息", "授权后载入唱片"
+            "仅提供歌曲信息", "授权后载入唱片", "放置唱片中…",
+            "选一场现场，听听即将相遇的音乐。", "添加一场想去的现场，唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人"
         ]
 
         for locale in ["zh-Hans", "zh-Hant", "en"] {
@@ -398,10 +399,10 @@ final class ListeningReviewerRegressionTests: XCTestCase {
     }
 
     func testListenStageDoesNotPersistAuthorizationActionUnderMachine() throws {
-        let atmosphere = try listeningSource("Features/Listening/Views/ListeningAtmosphere.swift")
-        XCTAssertTrue(atmosphere.contains("player.recoveryAction == .retryPlayback"))
+        let currentSong = try listeningSource("Features/Listening/Views/ListeningCurrentSong.swift")
+        XCTAssertTrue(currentSong.contains("player.recoveryAction == .retryPlayback"))
         XCTAssertFalse(
-            atmosphere.contains("player.recoveryAction ?? room.display.recoveryAction"),
+            currentSong.contains("player.recoveryAction ?? room.display.recoveryAction"),
             "Authorization and settings recovery must not remain as persistent actions below the CD machine"
         )
     }

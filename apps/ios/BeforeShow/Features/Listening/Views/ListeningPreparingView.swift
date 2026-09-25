@@ -31,9 +31,10 @@ struct ListeningPreparingView: View {
                         let scale = (proxy.size.width - BSSpacing.roomy * 2) * BSListeningTokens.playerWidthFraction / geometry.body.width
                        ListeningPreparingMachineView(scale: scale)
                            .listeningFrame("stage")
-                           .frame(maxWidth: .infinity)
+                           .frame(width: proxy.size.width - BSSpacing.roomy * 2)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
                         Color.clear.frame(height: BSListeningTokens.songHeight)
+                            .padding(.top, -BSSpacing.lg)
                    }
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)

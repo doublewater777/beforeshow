@@ -14,6 +14,7 @@ struct ListeningDiscCover: View {
             }
         }
         .aspectRatio(1, contentMode: .fit)
+        .background(BSColor.Stage.surfaceRaised)
         .clipShape(RoundedRectangle(cornerRadius: BSRadius.sm, style: .continuous))
         .overlay {
             // Cardboard spine subtle fold catch light

@@ -20,11 +20,11 @@ struct ListeningMachineView: View {
         ZStack(alignment: .topLeading) {
             ListeningPlayerAmbientHalo(
                 artworkURL: player.disc?.artworkURL,
-                isPlaying: room.isPlaying
+                phase: ListeningAtmospherePhase(room: room)
             )
             .frame(
-                width: geometry.discDiameter * 3.75,
-                height: geometry.discDiameter * 2.15
+                width: geometry.discDiameter * BSListeningTokens.haloWidth,
+                height: geometry.discDiameter * BSListeningTokens.haloHeight
             )
             .position(
                 x: geometry.discCenter.x,
@@ -47,6 +47,11 @@ struct ListeningMachineView: View {
                 .position(x: geometry.body.midX, y: geometry.body.midY)
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
+            ListeningTrayLight(phase: ListeningAtmospherePhase(room: room))
+                .frame(width: geometry.discDiameter * BSListeningTokens.trayRingScale,
+                       height: geometry.discDiameter * BSListeningTokens.trayRingScale)
+                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
+                .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
             CDPlayerDiscView(player: player, scale: scale)
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)
@@ -137,7 +142,7 @@ private struct CDPlayerLidView: View {
             // disc is seated underneath it. With an empty tray, retain the
             // original opaque photographed lid.
             Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? 0.16 : 1))
+                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? BSListeningTokens.loadedLidOpacity : 1))
 
             // The inside face is not part of the transparent treatment.
             Image(player.configuration.assets.lidInner).resizable()

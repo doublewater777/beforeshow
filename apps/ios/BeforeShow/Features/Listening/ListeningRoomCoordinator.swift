@@ -4,12 +4,6 @@ import SwiftData
 import UIKit
 #endif
 
-private struct ListeningRuntimeCatalogFetch: Sendable {
-    let artistID: String
-    let songs: [ListeningCatalogSongPayload]
-    let failed: Bool
-}
-
 private struct ListeningFullCatalogFetch: Sendable {
     let artistID: String
     let payload: ListeningArtistCatalogPayload?
@@ -338,20 +332,19 @@ private let listeningCatalogFetchConcurrency = 4
         // present. It deliberately does not wait for artist lookup or catalog IO.
         initialLoaded = true
 
-        // Keep a known-authorized room in `.connecting` while identity fallback is
-        // still running. Imported shows normally arrive pre-matched, so this path is
-        // mostly a legacy/manual fallback; publishing full capability waits until it
-        // has finished, preserving the first-load presentation contract.
+        // Subscription lookup and artist identity lookup are independent. Publish
+        // resolved access immediately so cached records can play during matching.
         let slots = show.artists
-        let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
-        guard generation == catalogGeneration, !Task.isCancelled else { return }
-        applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
-        guard generation == catalogGeneration, !Task.isCancelled else { return }
-
+        async let matching = ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
         access = newAccess
         accessResolved = true
+
+        let matches = (try? await matching) ?? [:]
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
+        applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
+        guard generation == catalogGeneration, !Task.isCancelled else { return }
 
         if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
             completedCatalogKey = completedKey
@@ -456,17 +449,16 @@ private let listeningCatalogFetchConcurrency = 4
         let cachedIDs = Set(snapshotsByID.keys)
         let quickIDs = ids.filter { !cachedIDs.contains($0) && runtimeSongs[$0] == nil }
 
-        // Stage 1: fetch all runtime top songs and publish one prompt compilation
-        // update. These songs stay in memory and never become a complete denominator.
-        if !quickIDs.isEmpty {
-            let quickResults = await fetchRuntimeCatalog(for: quickIDs)
-            guard generation == catalogGeneration, !Task.isCancelled else { return }
-            for result in quickResults {
-                if result.failed {
-                    failedIDs.insert(result.artistID)
-                    continue
-                }
-                runtimeSongs[result.artistID] = result.songs.map {
+        // Publish the first playable songs as soon as they arrive. Subsequent
+        // results are coalesced to avoid rebuilding SwiftData projections per song.
+        var received = 0
+        await ListeningRuntimeCatalogLoader.fetch(artistIDs: quickIDs, service: catalogService) { result in
+            guard generation == self.catalogGeneration, !Task.isCancelled else { return }
+            received += 1
+            if result.failed {
+                failedIDs.insert(result.artistID)
+            } else {
+                self.runtimeSongs[result.artistID] = result.songs.map {
                     CatalogSong(
                         appleMusicSongID: $0.songID,
                         title: $0.title,
@@ -478,11 +470,14 @@ private let listeningCatalogFetchConcurrency = 4
                     )
                 }
             }
+            guard (self.discs.isEmpty && !result.songs.isEmpty)
+                    || received.isMultiple(of: listeningCatalogFetchConcurrency)
+                    || received == quickIDs.count else { return }
             do {
-                try rebuildDiscs()
-                if !discs.isEmpty { catalogState = .ready }
+                try self.rebuildDiscs()
+                if !self.discs.isEmpty { self.catalogState = .ready }
             } catch {
-                catalogState = .cacheFailed
+                self.catalogState = .cacheFailed
             }
         }
 
@@ -529,40 +524,6 @@ private let listeningCatalogFetchConcurrency = 4
         } catch {
             catalogState = .cacheFailed
         }
-    }
-
-    private func fetchRuntimeCatalog(for artistIDs: [String]) async -> [ListeningRuntimeCatalogFetch] {
-        let service = catalogService
-        var results: [ListeningRuntimeCatalogFetch] = []
-        var cursor = 0
-        while cursor < artistIDs.count, !Task.isCancelled {
-            let end = min(cursor + listeningCatalogFetchConcurrency, artistIDs.count)
-            let batch = Array(artistIDs[cursor..<end])
-            let values = await withTaskGroup(
-                of: ListeningRuntimeCatalogFetch.self,
-                returning: [ListeningRuntimeCatalogFetch].self
-            ) { group in
-                for artistID in batch {
-                    group.addTask {
-                        do {
-                            return ListeningRuntimeCatalogFetch(
-                                artistID: artistID,
-                                songs: try await service.fetchRuntimeSongs(artistID: artistID),
-                                failed: false
-                            )
-                        } catch {
-                            return ListeningRuntimeCatalogFetch(artistID: artistID, songs: [], failed: true)
-                        }
-                    }
-                }
-                var batchResults: [ListeningRuntimeCatalogFetch] = []
-                for await value in group { batchResults.append(value) }
-                return batchResults
-            }
-            results.append(contentsOf: values)
-            cursor = end
-        }
-        return results
     }
 
     private func fetchFullCatalog(for artistIDs: [String]) async -> [ListeningFullCatalogFetch] {
@@ -728,6 +689,10 @@ private let listeningCatalogFetchConcurrency = 4
     func filterArtist(_ artistID: String?) {
         selectScope(artistID.map(ListeningBrowseState.Scope.artist) ?? .all)
     }
+    func searchArtists(query: String) async throws -> [RecognizedArtist] {
+        try await artistSearchService.searchArtists(query: query)
+    }
+
     func selectScope(_ scope: ListeningBrowseState.Scope) {
         let connectedIDs = Set(browseArtists.compactMap(\.appleMusicArtistID))
         browser.select(scope, validArtistIDs: connectedIDs)

@@ -282,8 +282,12 @@ import SwiftUI
         try await unloadSteps(paced: true)
         try Task.checkCancellation()
 
-        // Let the replacement visibly leave its sleeve before travelling to the tray.
+        // Lift toward the center as the disc grows, keeping an edge sleeve's
+        // full-size disc inside the stage before lowering it into the tray.
         liftFromCabinet(disc)
+        motion.discX.move(to: configuration.geometry.parkedDisc.x)
+        motion.discY.move(to: configuration.geometry.parkedDisc.y)
+        motion.lift.move(to: 1)
         try await settle()
         try await automaticBeat(AutomaticRhythm.afterPickup)
 

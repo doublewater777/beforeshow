@@ -39,7 +39,7 @@ struct ListeningHeaderActionButton: View {
                 .background(Color.white.opacity(0.07), in: Circle())
                 .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(BSListeningPressStyle())
         .accessibilityLabel(accessibilityLabel)
     }
 }
@@ -55,7 +55,7 @@ struct ListeningRoomHeader: View {
     }
 
     private var playbackModeStatus: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: BSSpacing.xs) {
             Group {
                 if mode == .connecting {
                     ProgressView()
@@ -69,10 +69,13 @@ struct ListeningRoomHeader: View {
             .frame(width: BSListeningTokens.statusIcon, height: BSListeningTokens.statusIcon)
 
             Text(mode.title)
-                .font(.system(size: 12, weight: mode == .fullPlayback ? .semibold : .medium))
+                .font(BSListeningTokens.captionMedium)
                 .lineLimit(1)
         }
         .foregroundStyle(mode == .fullPlayback ? BSColor.Stage.accent : BSColor.Stage.muted)
+        .padding(.horizontal, BSSpacing.compact)
+        .padding(.vertical, BSSpacing.sm)
+        .background(BSColor.Stage.surface, in: Capsule())
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("listening.playbackMode")
     }
