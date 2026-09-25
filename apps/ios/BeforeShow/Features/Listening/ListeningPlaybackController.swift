@@ -367,6 +367,10 @@ final class ListeningPlaybackController {
                     continue
                 }
                 do {
+                    // Observable transport events are the authoritative ongoing truth.
+                    // A real external resume/pause must replace any still-pending
+                    // presentation intent from an earlier app command.
+                    self.clearPendingIntent()
                     try self.applyTransport(sample: sample, now: sample.observedAt, evidence: .deferred)
                 } catch {
                     self.evidenceDidFail(.deferred)
