@@ -43,9 +43,7 @@ struct ListeningMachineView: View {
                 .fill(.black.opacity(0.45)).blur(radius: 22)
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
             CDPlayerDiscWellView(player: player)
-                .zIndex(0)
             CDPlayerBodyShellView(player: player)
-                .zIndex(0.5)
             ListeningTrayLight(phase: ListeningAtmospherePhase(room: room))
                 .frame(width: geometry.discDiameter * BSListeningTokens.trayRingScale,
                        height: geometry.discDiameter * BSListeningTokens.trayRingScale)
