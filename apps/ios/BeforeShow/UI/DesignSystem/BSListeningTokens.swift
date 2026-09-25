@@ -49,6 +49,7 @@ enum BSListeningTokens {
     static let artwork: CGFloat = 82
     static let detailArtwork: CGFloat = 184
     static let playerWidthFraction: CGFloat = 1.08
+    static let discRotationRPM = 20.0
     static let shelfArtwork: CGFloat = 64
     static let shelfItemWidth: CGFloat = 98
     static let shelfLabelHeight: CGFloat = 16
