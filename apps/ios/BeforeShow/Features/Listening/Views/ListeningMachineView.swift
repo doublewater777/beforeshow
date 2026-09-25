@@ -45,8 +45,8 @@ struct ListeningMachineView: View {
             CDPlayerDiscWellView(player: player)
             CDPlayerBodyShellView(player: player)
             ListeningTrayLight(phase: ListeningAtmospherePhase(room: room))
-                .frame(width: geometry.discDiameter * BSListeningTokens.trayRingScale,
-                       height: geometry.discDiameter * BSListeningTokens.trayRingScale)
+                .frame(width: geometry.discWellDiameter,
+                       height: geometry.discWellDiameter)
                 .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
                 .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
             CDPlayerDiscView(player: player, scale: scale, isPlaying: room.isPlaying)
@@ -98,7 +98,7 @@ private struct CDPlayerDiscWellView: View {
     var body: some View {
         Image(player.configuration.assets.discWell)
             .resizable()
-            .frame(width: geometry.discDiameter, height: geometry.discDiameter)
+            .frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)
             .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
             .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
             .allowsHitTesting(false)
@@ -122,7 +122,7 @@ private struct CDPlayerBodyShellView: View {
                     Rectangle().fill(.white)
                     Circle()
                         .fill(.black)
-                        .frame(width: geometry.discDiameter, height: geometry.discDiameter)
+                        .frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)
                         .position(
                             x: geometry.discCenter.x - geometry.body.minX,
                             y: geometry.discCenter.y - geometry.body.minY
