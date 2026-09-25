@@ -40,23 +40,10 @@ struct CDSpringChannel {
     var reducedMotion = false {
         didSet { if reducedMotion != oldValue { wake() } }
     }
-    /// Label rotation in degrees. Advances while playback is active.
-    var discAngle: Double = 0
-    /// Angular velocity in revolutions per second; tracks `spinning` with inertia.
-    private(set) var discSpin: Double = 0
-    /// Set from playback state: the disc spins while music plays.
-    var spinning = false {
-        didSet {
-            if spinning != oldValue {
-                wake()
-            }
-        }
-    }
     @ObservationIgnored var onFrame: () -> Void = {}
     @ObservationIgnored private var lastTime: Double = 0
     #if os(iOS)
     @ObservationIgnored private var link: CADisplayLink?
-    @ObservationIgnored private var usesCruiseFrameRate = false
     #else
     @ObservationIgnored private var timer: Timer?
     #endif
@@ -104,14 +91,9 @@ struct CDSpringChannel {
     func stop() {
         #if os(iOS)
         link?.invalidate(); link = nil
-        usesCruiseFrameRate = false
         #else
         timer?.invalidate(); timer = nil
         #endif
-    }
-    func resetDiscRotation() {
-        discAngle = 0
-        discSpin = 0
     }
     fileprivate func frame() {
         let now = CACurrentMediaTime()
@@ -123,40 +105,19 @@ struct CDSpringChannel {
         discY.step(dt, reducedMotion: reducedMotion)
         lift.step(dt, reducedMotion: reducedMotion)
         discScale.step(dt, reducedMotion: reducedMotion)
-        // Stylized ~33rpm cruise; spin-up is quicker than the inertial spin-down
-        // so opening the lid mid-playback shows the disc coasting to a stop.
-        let cruise = spinning && !reducedMotion ? 0.55 : 0.0
-        let tau = cruise > discSpin ? 0.4 : 0.9
-        discSpin += (cruise - discSpin) * (1 - exp(-dt / tau))
-        if reducedMotion || (cruise == 0 && abs(discSpin) < 0.002) { discSpin = 0 }
-        if discSpin != 0 {
-            discAngle = (discAngle + discSpin * 360 * dt).truncatingRemainder(dividingBy: 360)
-        }
+
         if hadActiveSprings {
             onFrame()
         }
 
         let springsResting = lid.target == nil && discX.target == nil && discY.target == nil && lift.target == nil && discScale.target == nil
-        updateFrameRate(springsResting: springsResting)
-        let visibleRotationResting = (reducedMotion || !spinning) && discSpin == 0
-        if springsResting && visibleRotationResting {
+        if springsResting {
             #if os(iOS)
             link?.isPaused = true
             #else
             stop()
             #endif
         }
-    }
-
-    private func updateFrameRate(springsResting: Bool) {
-        #if os(iOS)
-        let shouldUseCruiseFrameRate = springsResting && !reducedMotion && discSpin != 0
-        guard shouldUseCruiseFrameRate != usesCruiseFrameRate else { return }
-        usesCruiseFrameRate = shouldUseCruiseFrameRate
-        link?.preferredFrameRateRange = shouldUseCruiseFrameRate
-            ? CAFrameRateRange(minimum: 30, maximum: 30, preferred: 30)
-            : CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
-        #endif
     }
 }
 
