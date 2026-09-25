@@ -12,7 +12,7 @@ struct CDPlayerConfiguration {
         var hingeY: CGFloat = 304
         var discCenter = CGPoint(x: 230, y: 489)
         var discDiameter: CGFloat = 322
-        var discWellDiameter: CGFloat = 356
+        var discWellDiameter: CGFloat = 364
         var parkedDisc = CGPoint(x: 230, y: 245)
         var tiltDegrees: Double = 18
         var maximumOpening: Double = 82
