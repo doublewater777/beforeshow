@@ -10,8 +10,13 @@ struct ListeningShelfView<Content: View>: View {
     @ViewBuilder let content: Content
 
     @ScaledMetric(relativeTo: .caption) private var labelHeight = BSListeningTokens.shelfLabelHeight
-    @ScaledMetric(relativeTo: .caption) private var headerHeight: CGFloat = 32
+    @ScaledMetric(relativeTo: .caption) private var compactHeaderHeight: CGFloat = 32
+    @ScaledMetric(relativeTo: .caption) private var actionHeaderHeight = BSLayout.minTouchTarget
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var headerHeight: CGFloat {
+        showsAllDiscs ? actionHeaderHeight : compactHeaderHeight
+    }
 
     private var contentHeight: CGFloat {
         BSListeningTokens.shelfContentHeight + labelHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1) - BSListeningTokens.shelfLabelHeight
@@ -40,9 +45,6 @@ struct ListeningShelfView<Content: View>: View {
                         .font(BSListeningTokens.captionMedium)
                         .foregroundStyle(BSColor.Stage.accent)
                         .frame(minHeight: BSLayout.minTouchTarget)
-                        // Keep the 44pt touch target without letting it determine
-                        // the visual height of the shelf header.
-                        .padding(.vertical, (headerHeight - BSLayout.minTouchTarget) / 2)
                     }
                     .buttonStyle(BSListeningPressStyle())
                     .accessibilityIdentifier("listening.allDiscs")
