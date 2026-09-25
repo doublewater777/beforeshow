@@ -142,6 +142,34 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .preview))
         XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: false, foreground: true, source: .fullCatalog))
     }
+    func testDiscRotationRunsOnCoreAnimationInsteadOfMechanicalDisplayLink() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let machine = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMachineView.swift"),
+            encoding: .utf8
+        )
+        let motion = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Player/CDMotionDriver.swift"),
+            encoding: .utf8
+        )
+        let tokens = try String(
+            contentsOf: sourceRoot.appendingPathComponent("UI/DesignSystem/BSListeningTokens.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(machine.contains(#"CABasicAnimation(keyPath: "transform.rotation.z")"#))
+        XCTAssertTrue(machine.contains("animation.repeatCount = .infinity"))
+        XCTAssertTrue(machine.contains("isRotating: isPlaying && !motion.reducedMotion"))
+        XCTAssertTrue(machine.contains("CACurrentMediaTime()"))
+        XCTAssertFalse(motion.contains("discAngle"))
+        XCTAssertFalse(motion.contains("discSpin"))
+        XCTAssertFalse(motion.contains("var spinning"))
+        XCTAssertTrue(tokens.contains("static let discRotationRPM = 20.0"))
+    }
+
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
         let source = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
