@@ -227,8 +227,7 @@ struct CurrentShowHomeView: View {
                 }
             }
             .task {
-                // 当前现场会随时间自然更替（旧现场过了停留期，下一场接上）。
-                // 只有数据变更时才排通知的话，新的当前现场会一条都收不到。
+                // 通知节点会随时间过期、容量也会释放；页面首次出现时补一次 portfolio 对账。
                 await reconcileNotificationPortfolio()
             }
             .sheet(isPresented: $isShowingSettings) {
