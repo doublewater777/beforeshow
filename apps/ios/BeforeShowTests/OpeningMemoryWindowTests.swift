@@ -124,6 +124,39 @@ final class OpeningMemoryWindowTests: XCTestCase {
         )
     }
 
+    func testPostShowRetentionQuickActionsLeadWithDispersalCardEntry() {
+        let unfinished = CurrentShowQuickAction.actions(
+            for: .ended,
+            embedsRouteInLocation: true,
+            isPostShowRetention: true,
+            hasCompletedDispersalCeremony: false
+        )
+        XCTAssertEqual(unfinished.first, .dispersal(completed: false))
+        XCTAssertFalse(unfinished.contains(.timetable))
+
+        let completed = CurrentShowQuickAction.actions(
+            for: .ended,
+            embedsRouteInLocation: true,
+            isPostShowRetention: true,
+            hasCompletedDispersalCeremony: true
+        )
+        XCTAssertEqual(completed.first, .dispersal(completed: true))
+
+        let archived = CurrentShowQuickAction.actions(
+            for: .ended,
+            embedsRouteInLocation: true,
+            isPostShowRetention: false,
+            hasCompletedDispersalCeremony: true
+        )
+        XCTAssertFalse(
+            archived.contains { action in
+                if case .dispersal = action { return true }
+                return false
+            }
+        )
+        XCTAssertTrue(archived.contains(.timetable))
+    }
+
     func testQuickActionsOmitRouteWhenLocationEmbedsIt() {
         XCTAssertFalse(
             CurrentShowQuickAction.actions(for: .pre, embedsRouteInLocation: true)
