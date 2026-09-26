@@ -44,11 +44,6 @@ struct ListeningMachineView: View {
                 .frame(width: 370, height: 130).position(x: 232, y: 679)
             CDPlayerDiscWellView(player: player)
             CDPlayerBodyShellView(player: player)
-            ListeningTrayLight(phase: ListeningAtmospherePhase(room: room))
-                .frame(width: geometry.discWellDiameter,
-                       height: geometry.discWellDiameter)
-                .scaleEffect(x: 1, y: cos(geometry.tiltDegrees * .pi / 180))
-                .position(x: geometry.discCenter.x, y: geometry.projectedY(geometry.discCenter.y))
             CDPlayerDiscView(player: player, scale: scale, isPlaying: room.isPlaying)
                 .zIndex(player.position == .seated ? 1 : 4)
             spindle.zIndex(2)

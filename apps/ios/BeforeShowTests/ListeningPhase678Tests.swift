@@ -218,12 +218,8 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertEqual(discWellSVG.components(separatedBy: "<circle ").count - 1, 1)
         XCTAssertFalse(discWellSVG.contains("r=\"18\""))
         XCTAssertFalse(discWellSVG.contains("r=\"8\""))
-        let trayLight = try String(
-            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningTrayLight.swift"),
-            encoding: .utf8
-        )
-        XCTAssertTrue(trayLight.contains(".opacity(phase == .placing ? 0.45 : 0)"))
-        XCTAssertTrue(trayLight.contains(".opacity(phase == .placing ? 0.8 : 0)"))
+        XCTAssertFalse(machine.contains("ListeningTrayLight("))
+        XCTAssertFalse(tokens.contains("trayRingWidth"))
     }
 
     func testAccessibleActionsAndReducedMotionRemainWired() throws {

@@ -16,10 +16,6 @@ enum BSListeningTokens {
     static let haloRestingScale: CGFloat = 0.88
     static let haloPlacingScale: CGFloat = 0.96
     static let loadedLidOpacity = 0.025
-    static let trayRingScale: CGFloat = 1.025
-    static let trayRingWidth: CGFloat = 1.5
-    static let trayGlowWidth: CGFloat = 10
-    static let trayGlowBlur: CGFloat = 10
     static let detailDiscFraction: CGFloat = 0.92
     static let detailDiscReveal: CGFloat = 0.34
     static let statusDot: CGFloat = 4
