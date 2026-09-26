@@ -5,7 +5,6 @@ import UIKit
 
 enum AppReviewPromptMoment: String {
     case addedShow
-    case completedCeremony
     case settings
 }
 
