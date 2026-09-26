@@ -62,9 +62,8 @@ struct CurrentShowManagementSection: View {
         hasPresentationRequest || isPresentationVisibilityLatched
     }
 
-    /// 给仪式 sheet 用的极简快照:只含 `shows`,足以让 `FootprintDetailIdentityBuilder`
-    /// 推导出「第 N 场现场」「与X第 N 次见面」。城市/艺人/年份在卡片里不显示,
-    /// 不需要完整 archive 统计。
+    /// 给仪式 sheet 用的极简身份快照：只需从 `shows` 推导「第 N 场现场」
+    /// 与同行次数；日期、城市和艺人直接来自当前 `show`，不需要完整 archive 统计。
     private func footprintIdentityForCeremony() -> FootprintDetailIdentity {
         let snapshot = FootprintArchiveSnapshot.identityOnly(shows: candidateShows)
         return FootprintDetailIdentityBuilder.make(
