@@ -837,8 +837,8 @@ struct AddShowFlowView: View {
             }
 
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
-            let gate = ProFeatureGate()
-            guard gate.canAddShow(from: shows, entitlement: entitlement) else {
+            let capacity = FreeShowCapacityCoordinator()
+            guard capacity.canAddShow(from: shows, entitlement: entitlement) else {
                 PostHogSDK.shared.capture("pro_limit_reached")
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))
