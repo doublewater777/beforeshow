@@ -137,6 +137,10 @@ struct ListenRootView: View {
             }
         }
         room?.setActive(true)
+        if catalogService.currentAuthorizationStatus() == .notDetermined {
+            await room?.authorize()
+            guard isActive, !Task.isCancelled else { return }
+        }
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
         }
@@ -165,7 +169,11 @@ struct ListeningRoomView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                ListeningRoomHeader(mode: room.display.roomMode)
+                ListeningRoomHeader(
+                    mode: room.display.roomMode,
+                    notice: room.display.headerNotice,
+                    onRecovery: room.performListeningRecovery
+                )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         if !room.browseArtists.isEmpty {
