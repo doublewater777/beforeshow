@@ -12,6 +12,10 @@ struct ProFeatureGate {
         self.userDefaults = userDefaults
     }
 
+    static func resetFreeCapacityState(in userDefaults: UserDefaults = .standard) {
+        userDefaults.removeObject(forKey: freeCapacityStateKey)
+    }
+
     func canAddShow(
         from shows: [Show],
         entitlement: ProEntitlementState,
