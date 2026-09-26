@@ -80,13 +80,12 @@ or types directly.
 
 ## Discovery
 
-Keep discovery read-only and report evidence before editing. For broad scope,
-run parallel discovery lanes when available:
+Keep discovery read-only and report evidence before editing. For broad scope, split discovery by real BeforeShow owner boundaries when available:
 
-- core and packages (`src/`, `packages/`);
-- plugins (`extensions/`);
-- UI, apps, scripts, and tooling;
-- a cross-cutting pattern sweep.
+- App/root routing and shared architecture gates;
+- feature owners such as Listening, CurrentShow, AddShow, Footprints, and Memory;
+- Infrastructure plus Shared/Widget contracts;
+- test/tooling contracts and a cross-cutting junk-pattern sweep.
 
 Outside campaign mode, prefer a few high-confidence candidates over a large
 speculative inventory. Hunt for the [junk patterns](#junk-patterns).
