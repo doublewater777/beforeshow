@@ -172,7 +172,7 @@ struct ListeningRoomView: View {
                 ListeningRoomHeader(
                     mode: room.display.roomMode,
                     notice: room.display.headerNotice,
-                    onRecovery: room.performListeningRecovery
+                    onRecovery: { room.performListeningRecovery($0) }
                 )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
