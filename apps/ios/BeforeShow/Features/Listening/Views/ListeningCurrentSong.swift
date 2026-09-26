@@ -15,33 +15,19 @@ struct ListeningCurrentSong: View {
 
     var body: some View {
         VStack(spacing: BSListeningTokens.songSpacing) {
-            if let track = room.track, room.mechanism.position == .seated {
-                HStack(spacing: BSSpacing.sm) {
-                    Circle()
-                        .fill(room.isPlaying ? BSColor.Stage.accent : BSListeningTokens.restingLight)
-                        .frame(width: BSListeningTokens.statusDot, height: BSListeningTokens.statusDot)
-                    Text(player.statusText)
-                        .font(BSListeningTokens.badge)
-                        .tracking(BSListeningTokens.statusTracking)
-                        .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
+            Group {
+                if showsInlineGuidance {
+                    statusLine
+                        .multilineTextAlignment(.center)
+                        .opacity(room.display.roomMode == .connecting ? 0 : 1)
+                        .accessibilityHidden(room.display.roomMode == .connecting)
+                        .accessibilityIdentifier("listening.playerGuidance")
+                } else {
+                    Color.clear
+                        .accessibilityHidden(true)
                 }
-                Text(track.title)
-                    .font(BSListeningTokens.songTitle)
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .lineLimit(1)
-                    .contentTransition(.opacity)
-                Text(track.artistName)
-                    .font(BSListeningTokens.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .lineLimit(1)
-            } else if showsInlineGuidance {
-                statusLine
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                    .opacity(room.display.roomMode == .connecting ? 0 : 1)
-                    .accessibilityHidden(room.display.roomMode == .connecting)
-                    .accessibilityIdentifier("listening.playerGuidance")
             }
+            .frame(maxWidth: .infinity, minHeight: BSLayout.minTouchTarget)
 
             if let recovery {
                 Button(recovery.title) {
@@ -54,7 +40,7 @@ struct ListeningCurrentSong: View {
                 .accessibilityIdentifier("listening.playerRecovery")
             }
         }
-        .frame(maxWidth: .infinity, minHeight: BSListeningTokens.songHeight)
+        .frame(maxWidth: .infinity)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
