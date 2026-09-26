@@ -33,10 +33,9 @@ struct CurrentShowHomeView: View {
     @State private var isShowingShowLibrary = false
     @State private var isShowingDynamicCoverPicker = false
     @State private var selectedDynamicCoverItem: PhotosPickerItem?
-    /// 仪式触发链:commit 成功后 → `ceremonyLightsOutShowID` 拉起 fullScreen 熄灯,
-    /// 熄灯动画结束只清空前者,由 fullScreenCover 的 onDismiss 再设置 `ceremonySheetShowID`
-    /// 拉起仪式 sheet —— dismiss 与 present 严格串行,不会两个转场互相穿插闪屏。
-    /// 两份均为 nil = 无仪式在播。
+    /// 刚刚散场确认成功后由 `ceremonyLightsOutShowID` 拉起独立 fullScreen 熄灯；
+    /// 熄灯结束后再串行切到 `ceremonySheetShowID`。补记散场时间则直接进入仪式 sheet。
+    /// 两份均为 nil = 无仪式 presentation。
     @State private var ceremonyLightsOutShowID: UUID?
     @State private var ceremonySheetShowID: UUID?
     @State private var dynamicCoverImportTask: Task<Void, Never>?
