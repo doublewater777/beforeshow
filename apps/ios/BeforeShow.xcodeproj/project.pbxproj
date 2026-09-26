@@ -231,7 +231,6 @@
 		8C05A3F509A5FA09CD79CCBD /* DynamicCoverAudioTrackProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB48D58255F7734988CAD7DC /* DynamicCoverAudioTrackProbe.swift */; };
 		8DE21A9BF55813C4CC55EDE6 /* ListeningArtistCandidateRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92B49B02AB2A0C247B39DB4B /* ListeningArtistCandidateRow.swift */; };
 		8E2204978BACA3E7BF3399BB /* CompanionAcceptedImportRegressionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 025FC560F39B6F2E16F194B9 /* CompanionAcceptedImportRegressionTests.swift */; };
-		8F0C6614B76D5AAE49E7463A /* DispersalSetlistStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49579C285447D386AF98FFB3 /* DispersalSetlistStepView.swift */; };
 		8F667339972DF8A57AAE0AEE /* AboutBeforeShowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC4653047A9A281EFF73C207 /* AboutBeforeShowView.swift */; };
 		90262D5A64C22DAE56C48F2F /* WidgetSnapshotTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85A35737334710F22FC0B3BA /* WidgetSnapshotTests.swift */; };
 		90288D6F103CAE8DBBCEFA30 /* AddShowFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82CE2B4F5C989123F67CD2FA /* AddShowFlowView.swift */; };
@@ -588,7 +587,6 @@
 		48C0C0242DE66BD6D696DD41 /* ProPaywallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallView.swift; sourceTree = "<group>"; };
 		490A952FF5FB92ACE8775243 /* CDMechanism.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDMechanism.swift; sourceTree = "<group>"; };
 		49258E2CB12447745454E11B /* FootprintArchiveEnhancementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FootprintArchiveEnhancementTests.swift; sourceTree = "<group>"; };
-		49579C285447D386AF98FFB3 /* DispersalSetlistStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalSetlistStepView.swift; sourceTree = "<group>"; };
 		49B8477BF803706C9650372D /* CurrentShowFollowUpPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowFollowUpPolicy.swift; sourceTree = "<group>"; };
 		4A051577C2F323E226F0FB3F /* BeforeShowWidgets.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeforeShowWidgets.entitlements; sourceTree = "<group>"; };
 		4A15CBC19CF6DE0602AC6628 /* ListeningCatalogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningCatalogStore.swift; sourceTree = "<group>"; };
@@ -1281,7 +1279,6 @@
 				DB033E2DE2C6A4C52A6EE9A1 /* DispersalCeremonyShareView.swift */,
 				9825ABE1C9266454E51CB660 /* DispersalCeremonySheet.swift */,
 				55DAC3BD90045DE6E594A2C1 /* DispersalLightsOutView.swift */,
-				49579C285447D386AF98FFB3 /* DispersalSetlistStepView.swift */,
 				6287BC80F1F7D37458EA5AD4 /* DynamicCover.swift */,
 				D4C8C1347A8B1DA3F65C3B55 /* DynamicCoverImportCoordinator.swift */,
 				131C5270527E206C95E35052 /* DynamicCoverManagementSection.swift */,
@@ -1901,7 +1898,6 @@
 				CEEA831692C1B7B7A9B8F37D /* DispersalCeremonyShareView.swift in Sources */,
 				A2AE3EE094A36B1E0C7E4003 /* DispersalCeremonySheet.swift in Sources */,
 				FF41122737AE84CF76592644 /* DispersalLightsOutView.swift in Sources */,
-				8F0C6614B76D5AAE49E7463A /* DispersalSetlistStepView.swift in Sources */,
 				DAB41BAD4C2E9FF5B5C4B269 /* DynamicCover.swift in Sources */,
 				8C05A3F509A5FA09CD79CCBD /* DynamicCoverAudioTrackProbe.swift in Sources */,
 				90C2A366E7D9A399AF2086E7 /* DynamicCoverImportCoordinator.swift in Sources */,
