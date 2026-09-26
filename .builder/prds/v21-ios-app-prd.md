@@ -104,9 +104,9 @@ The product stays local-first and emotionally quiet. It does not become a ticket
 88. As a user, I want to mark a现场 as取消, so that the app stops pushing entering-state features for it.
 89. As a user, I want取消现场 to remain viewable with现场碎片, so that the canceled experience can still be remembered.
 90. As a user, I want artist, time, and venue corrections to be ordinary edits, so that the app does not overcomplicate changes.
-91. As a free user, I want one useful first-show experience, so that I can understand the value before paying.
-92. As a free user, I want one saved现场, so that I can try the app without committing.
-93. As a free user, I want one candidate song generation, one去程草稿, one返程草稿, and one现场回顾 generation, so that I can experience the core loop.
+91. As a free user, I want enough saved现场 capacity to build a meaningful footprint before paying, so that I can understand the long-term value of the app.
+92. As a free user, I want a five-show base capacity and one additional capacity-growth step per local calendar month after that base, so that occasional long-term use remains possible without making Pro mandatory immediately.
+93. As a free user, I want deletion to free capacity and invitation-only companion现场 not to consume it, so that the limit reflects the现场 I chose to save myself.
 94. As a Pro member, I want unlimited saved现场, so that BeforeShow can fit my actual show-going life.
 95. As a Pro member, I want repeated AI generation, so that I can refine候选曲目,往返计划, and现场回顾 as plans change.
 96. As a Pro member, I want to restore purchases through the App Store, so that I can recover membership without a BeforeShow account.
@@ -156,10 +156,10 @@ The product stays local-first and emotionally quiet. It does not become a ticket
 -现场碎片 sorts by creation time only. No categories, tags, manual order, comments, likes, sharing, or public feed in V2.1.
 - Pro uses App Store subscriptions only. No BeforeShow account is built.
 - Initial Pro packaging: ¥12/month and ¥68/year, no free trial.
-- Free users can save one现场 and receive one device-local first-experience package: one候选曲目 generation, one去程草稿 generation, one返程草稿 generation, and one现场回顾 generation.
+- Free users have a five-show base capacity for self-added现场. After the base, free capacity can grow by one per local calendar month; unused monthly growth does not roll over, deletion frees capacity, and invitation-only companion现场 do not consume it.
 - Pro unlocks unlimited saved现场, repeated AI generation, and additional现场回顾 discovery.
 - Show fragments,现场准备,今晚先听, and manual editing remain free.
-- Pro expiration never locks existing local data. It blocks new over-limit shows and Pro-only generation.
+- Pro expiration never locks existing local data. Saved现场 remain available, and the user returns to the free monthly capacity-growth rule for new additions.
 - Backend is Tencent Cloud CloudBase functions.
 - Default model provider is Volcengine Doubao, with Alibaba Qwen as fallback.
 - Backend stores no long-term user现场 data and no raw AI prompts/outputs. It keeps only minimal technical logs.
