@@ -34,14 +34,29 @@ struct ProFeatureGate {
         let currentCount = selfAddedShowCount(from: shows)
         let month = FreeShowCapacityMonth(now: now, calendar: calendar)
 
-        if let storedState, storedState.month == month {
-            return FreeShowCapacityState(
-                month: month,
-                baselineSelfAddedShowCount: entitlement.isProActive
-                    ? storedState.baselineSelfAddedShowCount
-                    : (storedState.baselineSelfAddedShowCount ?? currentCount),
-                lastObservedSelfAddedShowCount: currentCount
-            )
+        if let storedState {
+            if storedState.month == month {
+                return FreeShowCapacityState(
+                    month: month,
+                    baselineSelfAddedShowCount: entitlement.isProActive
+                        ? storedState.baselineSelfAddedShowCount
+                        : (storedState.baselineSelfAddedShowCount ?? currentCount),
+                    lastObservedSelfAddedShowCount: currentCount
+                )
+            }
+
+            if month.isBefore(storedState.month) {
+                // Device clock / timezone rollback must not make an older calendar
+                // month eligible for another +1. Keep the latest observed month as
+                // the durable boundary while still tracking the current retained count.
+                return FreeShowCapacityState(
+                    month: storedState.month,
+                    baselineSelfAddedShowCount: entitlement.isProActive
+                        ? storedState.baselineSelfAddedShowCount
+                        : (storedState.baselineSelfAddedShowCount ?? currentCount),
+                    lastObservedSelfAddedShowCount: currentCount
+                )
+            }
         }
 
         let baseline: Int?
@@ -90,5 +105,12 @@ struct FreeShowCapacityMonth: Codable, Equatable {
         let components = calendar.dateComponents([.year, .month], from: now)
         year = components.year ?? 0
         month = components.month ?? 0
+    }
+
+    func isBefore(_ other: FreeShowCapacityMonth) -> Bool {
+        if year != other.year {
+            return year < other.year
+        }
+        return month < other.month
     }
 }
