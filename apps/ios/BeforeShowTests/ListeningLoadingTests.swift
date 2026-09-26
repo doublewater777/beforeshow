@@ -161,6 +161,22 @@ final class ListeningLoadingTests: XCTestCase {
         }
     }
 
+    func testShelfHeightDoesNotChangeWhenShowAllActionAppears() {
+        func height(showsAllDiscs: Bool) -> CGFloat {
+            let host = UIHostingController(rootView: ListeningShelfView(
+                title: nil,
+                count: "1 张唱片",
+                showsAllDiscs: showsAllDiscs,
+                showAll: {}
+            ) {
+                Color.clear
+            })
+            return host.sizeThatFits(in: CGSize(width: 362, height: 1000)).height
+        }
+
+        XCTAssertEqual(height(showsAllDiscs: false), height(showsAllDiscs: true), accuracy: 1)
+    }
+
     func testCabinetKeepsTheActiveTouchViewUntilTheLongPressDragEnds() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .singleFull)
         let context = fixture.container.mainContext
