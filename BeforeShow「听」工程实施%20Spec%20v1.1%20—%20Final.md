@@ -1452,7 +1452,7 @@ enum AppPersistenceMigrationRunner {
 1. ShowCreationOriginMigration
 2. CurrentShowOwnershipMigration
 3. AppleMusicArtistIdentityMigration
-4. legacy notification focusedShowID 清空/失效化
+4. notification staged backfill hand-off 迁移
 ```
 
 不使用复杂 `VersionedSchema`。
@@ -1583,16 +1583,14 @@ selectionStore.select(showID:)
 
 # 46. 通知：彻底取消单焦点架构
 
-当前 main：
+当前实现统一走：
 
 ```text
-LocalNotificationCenter.applyFocusChange(to: Show?)
-reconcileFocus(to: Show?)
+LocalNotificationCenter.reconcilePortfolio(...)
+reconcileAfterShowAdded(...)
 ```
 
-会取消旧记录并只为单个 show 排自然节点。
-
-v1.1 删除这个业务模型。
+自然通知始终按全部 eligible shows 组成 portfolio；新增现场入口只负责一次性 backfill hand-off。
 
 不存在：
 
@@ -1609,24 +1607,18 @@ single notification focus
 当前字段：
 
 ```text
-focusedShowID
+stagedBackfillShowID
 hasRequestedPermissionAfterFirstShow
 backfillMintedShowIDs
 ```
 
-v1.1：
-
-```text
-focusedShowID
-```
-
-仅为开发数据轻量兼容暂留。
+`stagedBackfillShowID` 只用于 Add Show 保存成功与下一次 portfolio reconcile 之间的 crash-safe hand-off，不代表通知焦点；字段通过 `@Attribute(originalName: "focusedShowID")` 兼容已有开发数据。
 
 运行时：
 
-> 永远不读取它决定通知。
+> 永远不读取它决定通知组合。
 
-migration runner 可把它清 nil。
+reconcile 成功后会清空 staged hand-off。
 
 保留：
 
@@ -3649,7 +3641,7 @@ Show delete fallback
 NotificationPortfolioPlanner
 NotificationPortfolioRecordStore
 LocalNotificationCenter portfolio reconcile
-删除 planFocusChange / reconcileFocus 生产路径
+无 planFocusChange / reconcileFocus 生产路径
 
 WidgetSnapshotSync
 LiveActivityShowResolver
@@ -4636,7 +4628,7 @@ full playback 后台不因 scene inactive 自动 pause
 
 | Red-team 项 | 数据模型落点 | 实现落点 | 验收落点 |
 |---|---|---|---|
-| **B1 多场通知** | `NotificationSchedulingState.focusedShowID` 失效；records 按 show 共存 | `NotificationPortfolioPlanner` + 全局 diff，≤56 | Phase 1：B/C 同时排期、容量、补位 |
+| **B1 多场通知** | `NotificationSchedulingState.stagedBackfillShowID` 仅作一次性 hand-off；records 按 show 共存 | `NotificationPortfolioPlanner` + 全局 diff，≤56 | Phase 1：B/C 同时排期、容量、补位 |
 | **B2 Widget / Live Activity 分离** | 无新增单焦点字段 | `WidgetSnapshotSync` + `LiveActivityShowResolver`；cover cache 保留 union | Phase 1：Widget=A、LA=B、双封面 |
 | **B3 非 Current 深链** | 不写 CurrentShowSelection | `CurrentShowFeatureRootView` + route coordinator | Phase 1：non-current / cold launch / deleted |
 | **B4 opening snapshot 不可恢复** | `ShowOpeningFamiliarityBaseline` 保存 song IDs | 所有 familiarity mutation 前 capture all due shows；catalog 后延迟 resolve | Phase 4：无 catalog 开场→后续正确恢复 |

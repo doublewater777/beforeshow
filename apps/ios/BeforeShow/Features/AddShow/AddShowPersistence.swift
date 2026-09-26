@@ -152,7 +152,7 @@ enum AddShowPersistenceCoordinator {
             }
 
             // Every newly added upcoming/live show gets its own notification nodes.
-            // `focusedShowID` is only a crash-safe hand-off to the portfolio reconciler.
+            // `stagedBackfillShowID` is only a crash-safe hand-off to the portfolio reconciler.
             let state = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
             state.stageBackfillCandidate(showID: show.id)
             try modelContext.save()

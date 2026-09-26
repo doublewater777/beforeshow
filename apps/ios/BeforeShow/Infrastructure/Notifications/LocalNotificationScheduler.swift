@@ -42,8 +42,8 @@ struct LocalNotificationScheduler {
     /// 防拥挤：与任一自然未来节点相距 <4h、或不早于开场时刻的槽位直接丢弃
     /// （残局由 showDay / openingMemory 覆盖）。
     ///
-    /// 只在 applyFocusChange 里 mint（每场现场一次，见 backfillMintedShowIDs）；
-    /// reconcile 不调用它——补发时刻依赖 mint 当时的 now，重算会得到另一组时刻。
+    /// 只在 reconcileAfterShowAdded 里 mint（每场现场一次，见 backfillMintedShowIDs）；
+    /// 普通 portfolio reconcile 不调用它——补发时刻依赖 mint 当时的 now，重算会得到另一组时刻。
     func backfillRequests(for show: Show, now: Date = Date()) -> [ScheduledShowNotification] {
         let eventCalendar = show.timingCalendar(fallback: calendar)
         let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
@@ -140,32 +140,8 @@ struct LocalNotificationScheduler {
         )
     }
 
-    func planFocusChange(
-        from existingRecords: [ShowNotificationScheduleRecord],
-        to newCurrentShow: Show?,
-        preservingAfterShowOf endedShows: [Show] = [],
-        now: Date = Date()
-    ) -> NotificationReschedulePlan {
-        var requests = newCurrentShow.map { futureRequests(for: $0, now: now) } ?? []
-
-        // afterShow 属于已结束现场自身的生命周期，不随通知焦点切换取消——
-        // 否则走「确认散场」主流程的用户永远收不到这条次日回看通知。
-        for show in endedShows where show.id != newCurrentShow?.id {
-            if let request = afterShowRequest(for: show, now: now),
-               !requests.contains(where: { $0.requestIdentifier == request.requestIdentifier }) {
-                requests.append(request)
-            }
-        }
-
-        return NotificationReschedulePlan(
-            recordsToCancel: existingRecords,
-            requestsToSchedule: requests
-        )
-    }
-
     /// 已确认散场（endedAt != nil）的现场的「次日回看」请求。
-    /// 只在未来触发时刻存在时返回；未确认散场的现场不由这里负责
-    /// （它还握着通知焦点，afterShow 已含在 futureRequests 里）。
+    /// 只在未来触发时刻存在时返回；未确认散场的现场由 futureRequests 负责。
     func afterShowRequest(for show: Show, now: Date = Date()) -> ScheduledShowNotification? {
         guard show.endedAt != nil else { return nil }
         let eventCalendar = show.timingCalendar(fallback: calendar)

@@ -223,13 +223,13 @@ struct CurrentShowHomeView: View {
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
-                    Task { await reconcileNotificationFocus() }
+                    Task { await reconcileNotificationPortfolio() }
                 }
             }
             .task {
                 // 当前现场会随时间自然更替（旧现场过了停留期，下一场接上）。
                 // 只有数据变更时才排通知的话，新的当前现场会一条都收不到。
-                await reconcileNotificationFocus()
+                await reconcileNotificationPortfolio()
             }
             .sheet(isPresented: $isShowingSettings) {
                 NavigationStack {
@@ -295,11 +295,11 @@ struct CurrentShowHomeView: View {
         isShowingDynamicCoverPicker = true
     }
 
-    /// 按此刻重算当前现场并对齐已排通知。空转很便宜：计划没变时不重写任何东西。
+    /// 按此刻重算全部 eligible 现场并对齐已排通知。空转很便宜：计划没变时不重写任何东西。
     @MainActor
-    private func reconcileNotificationFocus() async {
-        await LocalNotificationCenter.shared.reconcileFocus(
-            to: currentShow,
+    private func reconcileNotificationPortfolio() async {
+        await LocalNotificationCenter.shared.reconcilePortfolio(
+            reason: .foreground,
             in: ModelContext(modelContext.container)
         )
     }
@@ -360,7 +360,7 @@ struct CurrentShowHomeView: View {
         }
 
         _ = await center.requestAuthorization()
-        await reconcileNotificationFocus()
+        await reconcileNotificationPortfolio()
     }
 
     @MainActor

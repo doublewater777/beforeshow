@@ -916,8 +916,8 @@ struct AddShowFlowView: View {
             onSaved?(show.id)
 
             if result.notificationState != nil {
-                await LocalNotificationCenter.shared.applyFocusChange(
-                    to: show,
+                await LocalNotificationCenter.shared.reconcileAfterShowAdded(
+                    show,
                     in: modelContext
                 )
             }

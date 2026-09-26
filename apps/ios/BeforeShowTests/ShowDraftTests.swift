@@ -39,10 +39,10 @@ final class ShowDraftTests: XCTestCase {
 
         XCTAssertFalse(addShow.contains("NotificationPermissionPrimerView"))
         XCTAssertFalse(addShow.contains("requestAuthorization()"))
-        XCTAssertTrue(addShow.contains("await LocalNotificationCenter.shared.applyFocusChange("))
+        XCTAssertTrue(addShow.contains("await LocalNotificationCenter.shared.reconcileAfterShowAdded("))
         let savedCallback = try XCTUnwrap(addShow.range(of: "onSaved?(show.id)"))
         let schedulingHandoff = try XCTUnwrap(
-            addShow.range(of: "await LocalNotificationCenter.shared.applyFocusChange(")
+            addShow.range(of: "await LocalNotificationCenter.shared.reconcileAfterShowAdded(")
         )
         XCTAssertLessThan(savedCallback.lowerBound, schedulingHandoff.lowerBound)
 

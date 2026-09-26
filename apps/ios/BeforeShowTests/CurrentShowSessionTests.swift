@@ -178,12 +178,12 @@ final class CurrentShowSessionTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 20)
         )
         let state = NotificationSchedulingState(
-            focusedShowID: first.id,
+            stagedBackfillShowID: first.id,
             hasRequestedPermissionAfterFirstShow: false,
             updatedAt: Date(timeIntervalSince1970: 30)
         )
         let duplicateState = NotificationSchedulingState(
-            focusedShowID: second.id,
+            stagedBackfillShowID: second.id,
             hasRequestedPermissionAfterFirstShow: true,
             backfillMintedShowIDs: [first.id],
             updatedAt: Date(timeIntervalSince1970: 20)
@@ -208,7 +208,7 @@ final class CurrentShowSessionTests: XCTestCase {
         XCTAssertEqual(storedSelection.selectedShowID, second.id)
         XCTAssertEqual(states.count, 1)
         XCTAssertEqual(storedState.portfolioMigrationVersion, 1)
-        XCTAssertNil(storedState.focusedShowID)
+        XCTAssertNil(storedState.stagedBackfillShowID)
         XCTAssertTrue(storedState.hasRequestedPermissionAfterFirstShow)
         XCTAssertEqual(Set(storedState.backfillMintedShowIDs ?? []), Set([first.id, second.id]))
     }

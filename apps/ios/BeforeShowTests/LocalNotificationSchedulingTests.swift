@@ -189,47 +189,12 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(scheduler.futureRequests(for: postponedWithoutNewDate, now: now), [])
     }
 
-    func testChangingCurrentShowClearsOldFutureRecordsAndSchedulesNewFocus() throws {
-        let oldShowID = UUID()
-        let oldRecord = ShowNotificationScheduleRecord(
-            showID: oldShowID,
-            milestone: .oneDayBefore,
-            fireDate: makeDate(year: 2026, month: 6, day: 18, hour: 20)
-        )
-        let expiredOldRecord = ShowNotificationScheduleRecord(
-            showID: oldShowID,
-            milestone: .fourteenDaysBefore,
-            fireDate: makeDate(year: 2026, month: 6, day: 1, hour: 20)
-        )
-        let newShow = try Show(
-            name: "新的当前现场",
-            date: makeDate(year: 2026, month: 6, day: 25),
-            startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19)
-        )
-
-        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
-            from: [oldRecord, expiredOldRecord],
-            to: newShow,
-            now: now
-        )
-
-        XCTAssertEqual(Set(plan.recordsToCancel.map(\.id)), Set([oldRecord.id, expiredOldRecord.id]))
-        XCTAssertEqual(Set(plan.requestsToSchedule.map(\.showID)), [newShow.id])
-        XCTAssertEqual(
-            plan.requestsToSchedule.map(\.milestone),
-            [
-                .sevenDaysBefore, .threeDaysBefore, .oneDayBefore,
-                .showDayMorning, .showDay, .openingMemory, .afterShow
-            ]
-        )
-    }
-
     @MainActor
     func testNotificationSchedulingStateCanBeStoredLocally() throws {
         let showID = UUID()
         let state = NotificationSchedulingState()
         state.recordPermissionRequest()
-        state.focus(showID: showID)
+        state.stageBackfillCandidate(showID: showID)
         let record = ShowNotificationScheduleRecord(
             showID: showID,
             milestone: .showDay,
@@ -247,7 +212,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let states = try container.mainContext.fetch(FetchDescriptor<NotificationSchedulingState>())
         let records = try container.mainContext.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
 
-        XCTAssertEqual(states.first?.focusedShowID, showID)
+        XCTAssertEqual(states.first?.stagedBackfillShowID, showID)
         XCTAssertEqual(states.first?.hasRequestedPermissionAfterFirstShow, true)
         XCTAssertEqual(records.first?.milestone, .showDay)
     }
@@ -572,9 +537,8 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         }
     }
 
-    /// 确认散场后焦点让给下一场，但「次日回看」通知必须活下来——
-    /// 否则走「确认已结束」主流程的用户永远收不到 afterShow。
-    func testConfirmedEndedShowKeepsAfterShowWhenFocusMovesOn() throws {
+    /// 已确认散场的现场即使同时存在后续现场，也要在 portfolio 中保留次日回看。
+    func testConfirmedEndedShowKeepsAfterShowAlongsideOtherShows() throws {
         let ended = try Show(
             name: "已落幕的现场",
             date: makeDate(year: 2026, month: 6, day: 14),
@@ -586,27 +550,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             date: makeDate(year: 2026, month: 6, day: 25),
             startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19)
         )
-        // 焦点让出前，旧现场已经排过 afterShow。
         let staleRecord = ShowNotificationScheduleRecord(
             showID: ended.id,
             milestone: .afterShow,
             fireDate: makeDate(year: 2026, month: 6, day: 15, hour: 11)
         )
 
-        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
-            from: [staleRecord],
-            to: next,
-            preservingAfterShowOf: [ended],
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: [ended, next],
+            existingRecords: [staleRecord],
+            schedulingState: nil,
+            reason: .mutation,
             now: now
         )
 
-        // 全量重排照旧（旧记录按真实 endedAt 重算后重新排），
-        // 但新计划里必须仍有这场已结束现场的 afterShow。
-        XCTAssertEqual(plan.recordsToCancel.map(\.id), [staleRecord.id])
-        let afterShow = try XCTUnwrap(plan.requestsToSchedule.first { $0.showID == ended.id })
-        XCTAssertEqual(afterShow.milestone, .afterShow)
+        let afterShow = try XCTUnwrap(
+            plan.scheduledRequests.first {
+                $0.showID == ended.id && $0.milestone == .afterShow
+            }
+        )
         XCTAssertEqual(afterShow.fireDate, makeDate(year: 2026, month: 6, day: 15, hour: 11))
-        XCTAssertTrue(plan.requestsToSchedule.contains { $0.showID == next.id })
+        XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == next.id })
     }
 
     /// afterShowRequest 只管已确认散场的现场；散场时刻已过就不再排。

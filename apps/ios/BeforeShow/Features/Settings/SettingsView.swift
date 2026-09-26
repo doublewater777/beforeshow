@@ -332,8 +332,6 @@ struct SettingsRowContent: View {
 private struct NotificationSettingsRow: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Show.date) private var shows: [Show]
-    @Query private var selections: [CurrentShowSelection]
     @State private var authorizationState: NotificationAuthorizationState = .notDetermined
     @State private var isPerformingAction = false
 
@@ -373,7 +371,7 @@ private struct NotificationSettingsRow: View {
             guard phase == .active else { return }
             Task {
                 await refreshAuthorizationState()
-                await reconcileFocusAfterAuthorizationChange()
+                await reconcilePortfolioAfterAuthorizationChange()
             }
         }
     }
@@ -403,7 +401,7 @@ private struct NotificationSettingsRow: View {
                 _ = await LocalNotificationCenter.shared.requestAuthorization()
                 await refreshAuthorizationState()
                 // 之前被拒 / 未决时排期可能是空的，授权后立刻按当前现场补齐。
-                await reconcileFocusAfterAuthorizationChange()
+                await reconcilePortfolioAfterAuthorizationChange()
             case .openSystemSettings:
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     await UIApplication.shared.open(url)
@@ -418,16 +416,12 @@ private struct NotificationSettingsRow: View {
         authorizationState = await LocalNotificationCenter.shared.authorizationState()
     }
 
-    /// 用户在系统设置里打开开关后回到 app 也走这里：把排期补齐到当前现场。
+    /// 用户在系统设置里打开开关后回到 app 也走这里：把完整通知组合补齐。
     @MainActor
-    private func reconcileFocusAfterAuthorizationChange() async {
+    private func reconcilePortfolioAfterAuthorizationChange() async {
         guard authorizationState == .authorized || authorizationState == .provisional else { return }
-        let currentShow = CurrentShowSession().selectCurrentShow(
-            from: shows,
-            manualSelection: selections.first
-        )
-        await LocalNotificationCenter.shared.reconcileFocus(
-            to: currentShow,
+        await LocalNotificationCenter.shared.reconcilePortfolio(
+            reason: .foreground,
             in: ModelContext(modelContext.container)
         )
     }
