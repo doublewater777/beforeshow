@@ -167,7 +167,7 @@ struct ListeningRoomView: View {
             VStack(spacing: 0) {
                 ListeningRoomHeader(mode: room.display.roomMode)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: BSSpacing.xs) {
+                    VStack(spacing: 0) {
                         if !room.browseArtists.isEmpty {
                             ListeningArtistSelector(
                                 artists: room.browseArtists,
@@ -209,7 +209,7 @@ struct ListeningRoomView: View {
                     }
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.sm)
+                    .padding(.top, BSSpacing.xs)
                 }
             }
         }
