@@ -262,6 +262,12 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(trigger.nextTriggerDate(), fireDate)
     }
 
+    func testOnlyExplicitMemoryDestinationsRequireFeaturePresentation() {
+        XCTAssertFalse(NotificationDeepLink.Destination.home.requiresFeaturePresentation)
+        XCTAssertTrue(NotificationDeepLink.Destination.memoryCreate.requiresFeaturePresentation)
+        XCTAssertTrue(NotificationDeepLink.Destination.memoryFragments.requiresFeaturePresentation)
+    }
+
     func testDeepLinkParseRejectsInvalidUserInfo() {
         XCTAssertNil(NotificationDeepLink(userInfo: [:]))
         XCTAssertNil(NotificationDeepLink(userInfo: ["showID": "not-a-uuid", "destination": "home"]))
