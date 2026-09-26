@@ -67,6 +67,14 @@ if ! (cd "$WORKTREE/apps/ios" && xcodegen generate) > "$LOG_DIR/xcodegen.log" 2>
   EVIDENCE+=("xcodegen: FAILED (log: $LOG_DIR/xcodegen.log)")
 else
   EVIDENCE+=("xcodegen: PASS")
+  if ! git -C "$WORKTREE" diff --exit-code -- apps/ios/BeforeShow.xcodeproj/project.pbxproj > "$LOG_DIR/xcodegen-project-diff.log" 2>&1; then
+    RESULT=FAIL
+    echo "committed Xcode project is stale after xcodegen:"
+    tail -120 "$LOG_DIR/xcodegen-project-diff.log" || true
+    EVIDENCE+=("xcodegen project freshness: FAILED (log: $LOG_DIR/xcodegen-project-diff.log)")
+  else
+    EVIDENCE+=("xcodegen project freshness: PASS")
+  fi
 fi
 
 # --- Architecture guard ---
@@ -300,7 +308,7 @@ if [ "$RESULT" = PASS ]; then
 fi
 
 ENV_DESC="Xcode $(xcodebuild -version | head -1 | awk '{print $2}'), simulator \"$SIM_NAME\", DEVELOPMENT_TEAM=$TEAM"
-SCENARIO="xcodegen + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
+SCENARIO="xcodegen + committed project freshness + architecture + Phase 1/2/3/4/5 定向 signed tests + 完整 signed tests + entitlements/MusicKit config + iPhone 17 安装 + 5 秒启动存活"
 
 REPORT=$(cat <<EOF
 LOCAL_AGENT_VERIFY

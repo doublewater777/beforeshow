@@ -5,11 +5,11 @@ struct SettingsMembershipSummary: Equatable {
     init(entitlement: ProEntitlementState) {
         switch entitlement {
         case .free:
-            self.init(title: BSLocalization.text("免费版"), subtitle: BSLocalization.text("每月可添加 1 场现场"))
+            self.init(title: BSLocalization.text("免费版"), subtitle: BSLocalization.text("基础 5 场 · 每月容量 +1"))
         case .active:
             self.init(title: BSLocalization.text("Pro 已启用"), subtitle: BSLocalization.text("可以无限添加现场"))
         case .expired:
-            self.init(title: BSLocalization.text("Pro 已过期"), subtitle: BSLocalization.text("已有本地内容仍可查看和编辑"))
+            self.init(title: BSLocalization.text("Pro 已过期"), subtitle: BSLocalization.text("已有现场保留 · 每月容量 +1"))
         }
     }
 

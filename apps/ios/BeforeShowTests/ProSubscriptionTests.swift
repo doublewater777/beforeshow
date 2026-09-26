@@ -62,114 +62,390 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
-    func testProGateAllowsOneFreeShowPerMonth() {
-        let gate = ProFeatureGate()
-        let proEntitlement = ProEntitlementState.active(
-            productID: ProSubscriptionCatalog.yearlyProductID,
-            expirationDate: nil
+    func testFreeCapacityStartsWithFiveBaseAndAllowsSixthInFirstMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: [],
+            entitlement: .free,
+            now: now,
+            calendar: calendar
         )
 
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: .free))
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 100, entitlement: proEntitlement))
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
     }
 
-    func testProGateCountsOnlyShowsCreatedInCurrentCalendarMonth() {
-        let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let sameMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
-        let previousMonth = Date(timeIntervalSince1970: 1_784_000_000) // 2026-07-14 UTC
+    func testFreeCapacityDeletionReleasesSpaceWithinSameMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
 
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(
-                from: [sameMonth, sameMonth, previousMonth],
-                now: now,
-                calendar: calendar
-            ),
-            2
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
         )
+
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
     }
 
-    /// 接受 CloudKit 同行邀请「新建」的场次是对方创建的，不该消耗本人的每月免费额度。
-    func testFreeQuotaIgnoresSharesAcceptedFromCompanions() throws {
+    func testFreeCapacityDoesNotRollUnusedGrowthIntoNextMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 2, calendar: calendar)
+        let fiveShows = try quotaShows(count: 5, date: september)
+
+        capacity.synchronizeFreeCapacity(
+            from: fiveShows,
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        capacity.synchronizeFreeCapacity(
+            from: fiveShows,
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(capacity.canAddShow(
+            from: fiveShows,
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityDoesNotRemintGrowthWhenCalendarRollsBackToEarlierMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(
+            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
+        )
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+
+        // September reaches its limit of 6.
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+
+        // October legitimately grants the next growth step, reaching 7.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+
+        // Rolling the device calendar back to September must not initialize
+        // September again from the latest retained count and mint an eighth slot.
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityIgnoresSystemCalendarIdentifierChanges() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(
+            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
+        )
+
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)!
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = gregorian.timeZone
+
+        let september = quotaDate(2026, 9, 10, calendar: gregorian)
+        let october = quotaDate(2026, 10, 10, calendar: gregorian)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: gregorian
+        )
+
+        // Switching the system calendar must still refer to the same Gregorian
+        // civil month rather than persisting Buddhist year 2569 as a future boundary.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 6, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: buddhist
+        )
+
+        // After switching back, October must still receive its normal +1 step.
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: gregorian
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: gregorian
+        ))
+    }
+
+    func testExpiredProStartsMonthlyGrowthFromExpirationCount() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 15, calendar: calendar)
+        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
+        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: now)
+        let twentyFive = try quotaShows(count: 25, date: now)
+
+        capacity.synchronizeFreeCapacity(
+            from: twentyFive,
+            entitlement: active,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(capacity.canAddShow(
+            from: twentyFive,
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 26, date: now),
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testSameMonthProRoundTripDoesNotGrantAnotherMonthlyGrowthStep() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+        let freeTwenty = try quotaShows(count: 20, date: now)
+
+        capacity.synchronizeFreeCapacity(
+            from: freeTwenty,
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 25, date: now),
+            entitlement: .active(productID: "pro", expirationDate: nil),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 25, date: now),
+            entitlement: .expired(productID: "pro", expirationDate: now),
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testClearingLocalDataResetsFreeCapacityState() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+        capacity.reset()
+
+        let freshCapacity = FreeShowCapacityCoordinator(
+            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
+        )
+        XCTAssertTrue(freshCapacity.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(freshCapacity.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testExistingFreeUserMigrationUsesCurrentRetainedCountAsBaseline() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 8, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 8, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 9, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testNextMonthRebasesFromRetainedSelfAddedShows() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 2, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        // Production synchronizes immediately after a successful add. Preserve
+        // September's retained count before crossing the month boundary.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 21, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 21, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 21, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 22, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+    }
+
+    /// 仅因接受同行邀请而新建的现场不占免费容量；用户自己创建的同行现场仍然占。
+    func testFreeCapacityIgnoresInvitationOnlyShows() throws {
         let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let thisMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
+        let now = Date(timeIntervalSince1970: 1_787_000_000)
 
         let accepted = try Show(
             name: "朋友的现场",
             date: now,
             startTime: now,
             creationOrigin: .companionImport,
-            createdAt: thisMonth
+            createdAt: now
         )
         accepted.companionIsOwner = false
-        let ownShare = try Show(name: "我建的同行", date: now, startTime: now, createdAt: thisMonth)
+        let ownShare = try Show(name: "我建的同行", date: now, startTime: now, createdAt: now)
         ownShare.companionIsOwner = true
-        let manual = try Show(name: "我自己添加", date: now, startTime: now, createdAt: thisMonth)
+        let manual = try Show(name: "我自己添加", date: now, startTime: now, createdAt: now)
 
-        XCTAssertFalse(accepted.countsTowardFreeMonthlyQuota)
-        XCTAssertTrue(ownShare.countsTowardFreeMonthlyQuota)
-        XCTAssertTrue(manual.countsTowardFreeMonthlyQuota)
-
-        // 只接受了一份邀请 → 本月额度未被占用，用户仍能添加自己的第一场。
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar), 0)
-        XCTAssertTrue(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar),
-            entitlement: .free
-        ))
-
-        // 自己添加过一场后额度用尽，邀请导入的那份不叠加计数。
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [accepted, manual, ownShare], now: now, calendar: calendar),
-            2
-        )
-        XCTAssertFalse(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted, manual], now: now, calendar: calendar),
-            entitlement: .free
-        ))
+        XCTAssertFalse(accepted.countsTowardFreeShowCapacity)
+        XCTAssertTrue(ownShare.countsTowardFreeShowCapacity)
+        XCTAssertTrue(manual.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [accepted, ownShare, manual]), 2)
     }
 
-    /// 额度来源必须是不可变的创建来源，不能从 `companionIsOwner` 推导：
-    /// 接受邀请时会把邀请合并进用户已有的现场，那条路径也会把
-    /// `companionIsOwner` 置为 false，否则已占用的额度会被凭空退还。
-    func testAcceptedShareMergedIntoOwnShowDoesNotRefundQuota() throws {
+    /// 自建现场后来与同行邀请合并，创建来源不变，因此仍占免费容量。
+    func testAcceptedShareMergedIntoOwnShowStillConsumesCapacity() throws {
         let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let earlierThisMonth = Date(timeIntervalSince1970: 1_786_000_000) // 2026-08-06 UTC
+        let now = Date(timeIntervalSince1970: 1_787_000_000)
+        let mine = try Show(name: "我自己添加", date: now, startTime: now, createdAt: now)
 
-        // 用户 8/6 自己添加了一场，本月唯一的免费额度已经用掉。
-        let mine = try Show(name: "我自己添加", date: now, startTime: now, createdAt: earlierThisMonth)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
-
-        // 之后接受了同一场现场的同行邀请 → 合并进这条已有记录（participant 侧）。
         mine.companionIsOwner = false
 
-        XCTAssertTrue(mine.countsTowardFreeMonthlyQuota)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar),
-            entitlement: .free
-        ))
+        XCTAssertTrue(mine.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [mine]), 1)
 
-        // 反向：纯粹因接受邀请而新建的现场始终不占额度。
         let imported = try Show(
             name: "朋友的现场",
             date: now,
             startTime: now,
             creationOrigin: .companionImport,
-            createdAt: earlierThisMonth
+            createdAt: now
         )
         imported.companionIsOwner = false
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [imported], now: now, calendar: calendar), 0)
-        // 旧数据没有来源字段时按 .user 解释，不会退还额度。
+        XCTAssertFalse(imported.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [imported]), 0)
         XCTAssertEqual(mine.creationOrigin, .user)
         XCTAssertEqual(imported.creationOrigin, .companionImport)
     }
@@ -232,16 +508,13 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(legacyImport.hasUnresolvedCreationOrigin)
 
         let gate = ProFeatureGate()
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [legacyImport, legacyManual, legacyOwner], now: now, calendar: calendar),
-            3
-        )
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyImport, legacyManual, legacyOwner]), 3)
 
         // 迁移之后再被邀请合并（companionIsOwner 翻成 false）不会退还额度。
         legacyManual.companionIsOwner = false
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
         XCTAssertEqual(legacyManual.creationOrigin, .user)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyManual]), 1)
     }
 
     /// 升级前就已经发生过合并的旧数据：用户自己添加、随后接受邀请被合并，
@@ -273,14 +546,10 @@ final class ProSubscriptionTests: XCTestCase {
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
 
         XCTAssertEqual(mergedBeforeUpgrade.creationOrigin, .user)
-        XCTAssertTrue(mergedBeforeUpgrade.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(mergedBeforeUpgrade.countsTowardFreeShowCapacity)
 
         let gate = ProFeatureGate()
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [mergedBeforeUpgrade], now: now, calendar: calendar),
-            1
-        )
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+        XCTAssertEqual(gate.selfAddedShowCount(from: [mergedBeforeUpgrade]), 1)
     }
 
     /// 额度归属不能依赖启动期的执行顺序：`noteDependenciesReady()` 会立刻起 Task
@@ -318,15 +587,17 @@ final class ProSubscriptionTests: XCTestCase {
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
 
         XCTAssertEqual(legacyManual.creationOrigin, .user)
-        XCTAssertTrue(legacyManual.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(legacyManual.countsTowardFreeShowCapacity)
         let gate = ProFeatureGate()
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyManual]), 1)
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
-        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版每月可添加 1 场现场")
-        XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
+        XCTAssertEqual(ProLimitReason.saveLimit.title, "本月免费容量已用完")
+        XCTAssertEqual(
+            ProLimitReason.saveLimit.message,
+            "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。"
+        )
 
     }
 
@@ -351,14 +622,13 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(expired.isProActive)
         XCTAssertTrue(gate.canAccessExistingLocalData(entitlement: expired))
         XCTAssertTrue(gate.canEditManualContent(entitlement: expired))
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: expired))
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: expired))
+
     }
 
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .free),
-            SettingsMembershipSummary(title: "免费版", subtitle: "每月可添加 1 场现场")
+            SettingsMembershipSummary(title: "免费版", subtitle: "基础 5 场 · 每月容量 +1")
         )
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
@@ -368,7 +638,7 @@ final class ProSubscriptionTests: XCTestCase {
             SettingsMembershipSummary(
                 entitlement: .expired(productID: "pro", expirationDate: Date(timeIntervalSince1970: 0))
             ),
-            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有本地内容仍可查看和编辑")
+            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有现场保留 · 每月容量 +1")
         )
     }
 
@@ -513,7 +783,13 @@ final class ProSubscriptionTests: XCTestCase {
             "价格暂不可用",
             "推荐",
             "无限添加现场",
-            "一次买断，永久有效"
+            "一次买断，永久有效",
+            "基础 5 场 · 每月容量 +1",
+            "已有现场保留 · 每月容量 +1",
+            "本月免费容量已用完",
+            "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。",
+            "免费版基础 5 场，之后每个自然月容量 +1。Pro 不限制新增场次。",
+            "以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。"
         ]
 
         for code in ["en", "zh-Hant"] {
@@ -573,6 +849,35 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertNotNil(AppLanguage.system.bundle)
         let resolved = AppLanguage.system.bundle?.preferredLocalizations.first
         XCTAssertTrue(["zh-Hans", "zh-Hant", "en"].contains(resolved), "resolved \(resolved ?? "nil")")
+    }
+
+    private func temporaryQuotaDefaults() -> UserDefaults {
+        let suite = "ProSubscriptionTests.FreeShowCapacity.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    private func quotaCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func quotaDate(_ year: Int, _ month: Int, _ day: Int, calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
+    private func quotaShows(count: Int, date: Date) throws -> [Show] {
+        try (0..<count).map { index in
+            try Show(
+                name: "自建现场 \(index)",
+                date: date,
+                startTime: date,
+                creationOrigin: .user,
+                createdAt: date
+            )
+        }
     }
 
     func testCatalogReferenceProductsAreNotPurchasablePlaceholders() {

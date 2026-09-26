@@ -10,6 +10,7 @@ import UserNotifications
 struct BeforeShowApp: App {
     @UIApplicationDelegateAdaptor(BeforeShowAppDelegate.self) private var appDelegate
     @Environment(\.scenePhase) private var scenePhase
+    @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
     @StateObject private var languageController = AppLanguageController.shared
     @State private var companionCoordinator = CompanionSharingCoordinator()
     @State private var lastLocalMediaMaintenanceAt: Date?
@@ -51,6 +52,7 @@ struct BeforeShowApp: App {
             // Run development-store repairs exactly once before RootView can read state.
             MainActor.assumeIsolated {
                 AppPersistenceMigrationRunner.run(in: modelContainer.mainContext)
+                synchronizeFreeShowCapacity(in: modelContainer.mainContext)
                 try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
             }
 
@@ -120,6 +122,10 @@ struct BeforeShowApp: App {
                         appDelegate.noteDependenciesReady()
 
                         await Task.yield()
+                        synchronizeFreeShowCapacity(
+                            in: modelContainer.mainContext,
+                            entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+                        )
 
                         isLocalMediaMaintenanceRunning = true
                         await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
@@ -137,6 +143,12 @@ struct BeforeShowApp: App {
                             in: modelContainer.mainContext
                         )
                     }
+                    .onChange(of: entitlementRawValue) { _, rawValue in
+                        synchronizeFreeShowCapacity(
+                            in: modelContainer.mainContext,
+                            entitlement: ProEntitlementStorage.decode(rawValue)
+                        )
+                    }
                     .onChange(of: scenePhase) { _, newPhase in
                         guard newPhase == .active else { return }
                         let shouldRunMediaMaintenance = ForegroundMediaMaintenancePolicy.shouldRun(
@@ -147,6 +159,10 @@ struct BeforeShowApp: App {
                             isLocalMediaMaintenanceRunning = true
                         }
                         Task {
+                            synchronizeFreeShowCapacity(
+                                in: modelContainer.mainContext,
+                                entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+                            )
                             try? OpeningFamiliarityCoordinator.runLifecyclePass(in: modelContainer.mainContext)
                             await companionCoordinator.refreshAllLinkedShows(in: modelContainer.mainContext)
                             if shouldRunMediaMaintenance {
