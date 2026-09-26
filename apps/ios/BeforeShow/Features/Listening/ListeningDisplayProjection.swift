@@ -27,6 +27,7 @@ enum ListeningRoomPlaybackMode: Equatable {
 enum ListeningRecoveryAction: Equatable {
     case authorize
     case openSettings
+    case retryAccess
     case retryCatalog
     case retryPlayback
 
@@ -34,7 +35,7 @@ enum ListeningRecoveryAction: Equatable {
         switch self {
         case .authorize: ListeningCopy.text("立即授权")
         case .openSettings: ListeningCopy.text("打开设置")
-        case .retryCatalog, .retryPlayback: ListeningCopy.text("重试")
+        case .retryAccess, .retryCatalog, .retryPlayback: ListeningCopy.text("重试")
         }
     }
 }
@@ -133,9 +134,15 @@ struct ListeningPlayerPresentation: Equatable {
     }
 }
 
+struct ListeningHeaderNotice: Equatable {
+    let message: String
+    let recoveryAction: ListeningRecoveryAction?
+}
+
 struct ListeningDisplayProjection: Equatable {
     let page: ListeningPresentation
     let roomMode: ListeningRoomPlaybackMode
+    let headerNotice: ListeningHeaderNotice?
     let recoveryAction: ListeningRecoveryAction?
     let shelfDiscs: [ListeningDisc]
     let showsAllDiscs: Bool
@@ -175,6 +182,7 @@ enum ListeningDisplayProjector {
             isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
             allDiscs: allDiscs
         )
+        let headerNotice = headerNotice(mode: mode, access: access)
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
         let currentTrackState = currentTrack.map { trackPresentation(for: $0, access: access) }
         let player = playerPresentation(
@@ -193,6 +201,7 @@ enum ListeningDisplayProjector {
         return ListeningDisplayProjection(
             page: page,
             roomMode: mode,
+            headerNotice: headerNotice,
             recoveryAction: recovery,
             shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
             showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
@@ -269,6 +278,79 @@ enum ListeningDisplayProjector {
             return .preview
         }
         return .metadataOnly
+    }
+
+    static func headerNotice(
+        mode: ListeningRoomPlaybackMode,
+        access: ListeningMusicAccess
+    ) -> ListeningHeaderNotice? {
+        switch mode {
+        case .connecting, .fullPlayback:
+            return nil
+        case .preview:
+            return restrictedPlaybackNotice(access: access, hasPreview: true)
+        case .metadataOnly:
+            return restrictedPlaybackNotice(access: access, hasPreview: false)
+        case .unavailable:
+            return ListeningHeaderNotice(
+                message: ListeningCopy.text("当前没有可播放的歌曲。"),
+                recoveryAction: nil
+            )
+        }
+    }
+
+    private static func restrictedPlaybackNotice(
+        access: ListeningMusicAccess,
+        hasPreview: Bool
+    ) -> ListeningHeaderNotice {
+        switch access.authorizationStatus {
+        case .notDetermined:
+            return ListeningHeaderNotice(
+                message: ListeningCopy.text(
+                    hasPreview
+                        ? "允许访问 Apple Music 后，可尝试完整播放。"
+                        : "允许访问 Apple Music 后，可尝试完整播放；当前没有可用试听片段。"
+                ),
+                recoveryAction: .authorize
+            )
+        case .denied, .restricted:
+            return ListeningHeaderNotice(
+                message: ListeningCopy.text(
+                    hasPreview
+                        ? "当前未允许访问 Apple Music。"
+                        : "当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。"
+                ),
+                recoveryAction: .openSettings
+            )
+        case .authorized:
+            switch access.catalogPlaybackAccess {
+            case .available:
+                return ListeningHeaderNotice(
+                    message: ListeningCopy.text(
+                        hasPreview ? "当前使用歌曲试听片段。" : "当前仅提供歌曲信息"
+                    ),
+                    recoveryAction: nil
+                )
+            case .accountLimited:
+                return ListeningHeaderNotice(
+                    message: ListeningCopy.text(
+                        hasPreview
+                            ? "当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。"
+                            : "当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。"
+                    ),
+                    recoveryAction: nil
+                )
+            case .accessCheckFailed:
+                return ListeningHeaderNotice(
+                    message: ListeningCopy.text(
+                        hasPreview
+                            ? "暂时无法确认完整播放权限，当前使用试听片段。"
+                            : "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。"
+                    ),
+                    recoveryAction: .retryAccess
+                )
+            }
+        }
     }
 
     private static func recoveryAction(
@@ -535,6 +617,8 @@ extension ListeningRoomCoordinator {
                 UIApplication.shared.open(url)
             }
             #endif
+        case .retryAccess:
+            Task { await refreshMusicAccess() }
         case .retryCatalog:
             guard let show else { return }
             Task { await load(show: show, force: true) }
