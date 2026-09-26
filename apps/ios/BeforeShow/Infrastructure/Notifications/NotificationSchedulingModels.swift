@@ -170,16 +170,13 @@ enum NotificationReconcileReason: Equatable {
     case startup
     case foreground
     case mutation
-    /// Only a newly added show may use this reason to mint anticipation backfill once.
     case showAddedCandidate(UUID)
 }
 
 struct NotificationPortfolioPlan {
     static let maximumScheduledRequests = 56
 
-    /// Requests that should exist in UNUserNotificationCenter now.
     let scheduledRequests: [ScheduledShowNotification]
-    /// Backfills keep their minted fire date/copy even when capacity temporarily defers them.
     let retainedBackfillRequests: [ScheduledShowNotification]
     let backfillShowIDsToMarkMinted: [UUID]
 
@@ -297,15 +294,10 @@ struct NotificationPortfolioPlanner {
 @Model
 final class NotificationSchedulingState {
     var id: UUID
-    /// Crash-safe hand-off between Add Show persistence and the next portfolio reconcile.
-    /// The original persisted name is mapped so existing development stores migrate
-    /// without losing an interrupted just-added-show hand-off.
     @Attribute(originalName: "focusedShowID")
     var stagedBackfillShowID: UUID?
     var hasRequestedPermissionAfterFirstShow: Bool
     var backfillMintedShowIDs: [UUID]?
-    /// Optional keeps the development-store schema lightweight. Version 1 means
-    /// pre-portfolio shows were marked as already backfill-minted.
     var portfolioMigrationVersion: Int?
     var updatedAt: Date
 
@@ -330,7 +322,6 @@ final class NotificationSchedulingState {
         updatedAt = Date()
     }
 
-    /// Transitional hand-off used only between Add Show persistence and portfolio reconcile.
     func stageBackfillCandidate(showID: UUID) {
         stagedBackfillShowID = showID
         updatedAt = Date()
