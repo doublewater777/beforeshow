@@ -32,11 +32,6 @@ struct AddShowFlowView: View {
     @State private var showsManualFallback = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
-    /// 首次请求通知权限前的说明页。`nil` = 不展示。
-    @State private var isShowingNotificationPrimer = false
-    /// 说明页的用户选择回传。保存流程会一直等到用户在说明页上做出选择，
-    /// 再决定是否弹系统权限弹窗，之后才继续 dismiss。
-    @State private var notificationPrimerDecision: CheckedContinuation<Bool, Never>?
     @State private var showsLinkGuide = false
     /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
     /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
@@ -244,37 +239,8 @@ struct AddShowFlowView: View {
                 didOpenPlatformFromGuide = true
             })
         }
-        .sheet(isPresented: $isShowingNotificationPrimer, onDismiss: {
-            // 下划关闭等同「暂时不用」：不能让保存流程悬在 continuation 上。
-            resumeNotificationPrimer(accepted: false)
-        }) {
-            NotificationPermissionPrimerView(
-                onContinue: {
-                    isShowingNotificationPrimer = false
-                    resumeNotificationPrimer(accepted: true)
-                },
-                onSkip: {
-                    isShowingNotificationPrimer = false
-                    resumeNotificationPrimer(accepted: false)
-                }
-            )
-        }
         .bsToastOverlay(toast, bottomPadding: 28)
-        #if DEBUG
-        .task {
-            if Self.debugOpenNotificationPrimer {
-                isShowingNotificationPrimer = true
-            }
-        }
-        #endif
     }
-
-    #if DEBUG
-    /// 截图 / 验证用：直接拉起通知说明页，不必先走完保存流程。
-    private static var debugOpenNotificationPrimer: Bool {
-        ProcessInfo.processInfo.arguments.contains("--open-notification-primer")
-    }
-    #endif
 
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
@@ -925,14 +891,13 @@ struct AddShowFlowView: View {
                 in: modelContext
             )
 
-            if let notificationState = result.notificationState {
-                let notificationFocusShow = notificationState.focusedShowID.flatMap { focusedShowID in
-                    if focusedShowID == show.id {
-                        return show
-                    }
-                    return shows.first(where: { $0.id == focusedShowID })
-                }
-                await activateNotifications(for: notificationFocusShow, state: notificationState)
+            if result.notificationState != nil {
+                // Add Show owns persistence and scheduling hand-off only. Permission UI
+                // belongs to Current Show after this sheet has fully dismissed.
+                await LocalNotificationCenter.shared.applyFocusChange(
+                    to: show,
+                    in: modelContext
+                )
             }
 
             PostHogSDK.shared.capture("show_added", properties: [
@@ -1004,49 +969,6 @@ struct AddShowFlowView: View {
         } else {
             dismiss()
         }
-    }
-
-    @MainActor
-    private func activateNotifications(
-        for show: Show?,
-        state: NotificationSchedulingState
-    ) async {
-        let center = LocalNotificationCenter.shared
-        let authorizationState = await center.authorizationState()
-        let shouldRequest = NotificationPermissionPolicy().shouldRequestPermission(
-            hasAddedShow: true,
-            authorizationState: authorizationState,
-            hasRequestedPermissionAfterFirstShow: state.hasRequestedPermissionAfterFirstShow
-        )
-
-        if shouldRequest {
-            // 先解释再请求：系统弹窗只有一次机会，用户得先知道会收到什么。
-            let accepted = await presentNotificationPrimer()
-            // 无论用户是否接受，都记下已经问过，不再反复打扰。
-            state.recordPermissionRequest()
-            try? modelContext.save()
-            if accepted {
-                _ = await center.requestAuthorization()
-            }
-        }
-
-        await center.applyFocusChange(to: show, in: modelContext)
-    }
-
-    /// 展示说明页并等待用户选择。返回 `true` 表示可以继续弹系统权限弹窗。
-    @MainActor
-    private func presentNotificationPrimer() async -> Bool {
-        await withCheckedContinuation { continuation in
-            notificationPrimerDecision = continuation
-            isShowingNotificationPrimer = true
-        }
-    }
-
-    @MainActor
-    private func resumeNotificationPrimer(accepted: Bool) {
-        guard let continuation = notificationPrimerDecision else { return }
-        notificationPrimerDecision = nil
-        continuation.resume(returning: accepted)
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
