@@ -101,6 +101,12 @@ enum ShowDeletionCoordinator {
                 in: modelContext,
                 effects: effects
             )
+            ProFeatureGate().synchronizeFreeCapacity(
+                from: remainingShows,
+                entitlement: ProEntitlementStorage.decode(
+                    UserDefaults.standard.string(forKey: ProEntitlementStorage.appStorageKey) ?? ""
+                )
+            )
             await ShowAssetMediaStore.shared.releaseCommitGate()
             return cleanupPending
                 ? .mediaCleanupPending(didSync: didSync)
