@@ -45,7 +45,7 @@ Date: 2026-08-19
 
 ### Description（转化，不索引）
 
-见 `metadata/version/1.0/zh-Hans.json`。首屏：品牌句 + 不是票夹 + 免费一场/小组件。
+见 `metadata/version/1.0/zh-Hans.json`。首屏：品牌句 + 不是票夹 + 免费容量/小组件。
 
 ## zh-Hant
 
