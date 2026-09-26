@@ -10,6 +10,18 @@ final class ShowDraftTests: XCTestCase {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     }
 
+    func testAddShowReadyStateHidesStatusCopy() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow/Features/AddShow/AddShowFlowView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("if let saveBarStatus {"))
+        XCTAssertTrue(source.contains("private var saveBarStatus: SaveBarStatus?"))
+        XCTAssertFalse(source.contains("可以添加了 · 封面等可之后再补"))
+    }
+
     func testDraftSavesUserEditedValuesAfterConfirmation() throws {
         let date = makeDate(year: 2026, month: 7, day: 3)
         var draft = ShowDraft(
