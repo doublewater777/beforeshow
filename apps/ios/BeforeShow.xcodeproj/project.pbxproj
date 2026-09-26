@@ -367,6 +367,8 @@
 		DFE1C36239209793E76407EB /* DynamicCoverManagementSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 131C5270527E206C95E35052 /* DynamicCoverManagementSection.swift */; };
 		E002EB389891765684C4CB0C /* ProSubscriptionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45462727A96CDD1D2D7656B7 /* ProSubscriptionStore.swift */; };
 		E0ECB64C37EBCC150CEF5034 /* ProPaywallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48C0C0242DE66BD6D696DD41 /* ProPaywallView.swift */; };
+		E1C7A931E5F04B8C9A2D6E71 /* FreeShowCapacityCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1C7A931E5F04B8C9A2D6E71 /* FreeShowCapacityCoordinator.swift */; };
+		E2C7A931E5F04B8C9A2D6E72 /* FreeShowCapacityStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2C7A931E5F04B8C9A2D6E72 /* FreeShowCapacityStateStore.swift */; };
 		E0FDCFBC2AC888241F94E7B3 /* FootprintArchiveEnhancementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49258E2CB12447745454E11B /* FootprintArchiveEnhancementTests.swift */; };
 		E16FBCF974A560BFDDFCBBFF /* ListeningPhase678Tests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC6817CFA5176EC996CE036F /* ListeningPhase678Tests.swift */; };
 		E2EBBDC87D7791B0CE48F5EE /* ListeningPlaybackEvidenceCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C68363D9988F171747E8A1E2 /* ListeningPlaybackEvidenceCoordinatorTests.swift */; };
@@ -824,6 +826,8 @@
 		DB033E2DE2C6A4C52A6EE9A1 /* DispersalCeremonyShareView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyShareView.swift; sourceTree = "<group>"; };
 		DB64C1CA1C660E4A20FBF7D9 /* AppStoreWidgetPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStoreWidgetPreviewView.swift; sourceTree = "<group>"; };
 		DCE0721CA51C4FDB4173FF63 /* ProPaywallPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProPaywallPresentation.swift; sourceTree = "<group>"; };
+		D1C7A931E5F04B8C9A2D6E71 /* FreeShowCapacityCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeShowCapacityCoordinator.swift; sourceTree = "<group>"; };
+		D2C7A931E5F04B8C9A2D6E72 /* FreeShowCapacityStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FreeShowCapacityStateStore.swift; sourceTree = "<group>"; };
 		DCE3090F4D8B89AEDC706CA4 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/Localizable.strings; sourceTree = "<group>"; };
 		DE4F15B170B1C7EC5AD85E18 /* CurrentShowEndConfirmationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowEndConfirmationSheet.swift; sourceTree = "<group>"; };
 		DE53191AAF0B8986534DDBAB /* AddShowImportPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddShowImportPresentation.swift; sourceTree = "<group>"; };
@@ -1235,6 +1239,8 @@
 		9B81E8479A6D24E848B263A9 /* Subscription */ = {
 			isa = PBXGroup;
 			children = (
+				D1C7A931E5F04B8C9A2D6E71 /* FreeShowCapacityCoordinator.swift */,
+				D2C7A931E5F04B8C9A2D6E72 /* FreeShowCapacityStateStore.swift */,
 				5D375291CDC1451C9BEED623 /* MockProSubscriptionStore.swift */,
 				F183C29A92FD2E5A0843FD34 /* ProEntitlement.swift */,
 				C1A71E87CECAC2180F2723F0 /* ProEntitlementSyncDelegate.swift */,
@@ -2054,6 +2060,8 @@
 				D14AE36C3E04681E8F3C9236 /* OpeningMemoryWindow.swift in Sources */,
 				7F7FF7AF96C18D75CE851C99 /* PreviewListeningPlaybackService.swift in Sources */,
 				323178493CAC80221805104D /* PrivacyLocalDataView.swift in Sources */,
+				E1C7A931E5F04B8C9A2D6E71 /* FreeShowCapacityCoordinator.swift in Sources */,
+				E2C7A931E5F04B8C9A2D6E72 /* FreeShowCapacityStateStore.swift in Sources */,
 				33940C996643B57246B99B3B /* ProEntitlement.swift in Sources */,
 				828CF8608F72AE245D2FB122 /* ProEntitlementSyncDelegate.swift in Sources */,
 				A8021978AFDBA1543840F8DA /* ProFeatureGate.swift in Sources */,
