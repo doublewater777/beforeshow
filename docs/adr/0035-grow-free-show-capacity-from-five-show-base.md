@@ -15,7 +15,7 @@ The new free tier should let a new user build a meaningful footprint before seei
 Model the free tier as **saved self-added show capacity**, not historical add attempts.
 
 - Free users have a base capacity of 5 self-added shows.
-- In each local calendar month, free capacity may grow by 1 above the month's free baseline. Unused monthly growth does not roll over.
+- In each local calendar month, free capacity may grow by 1 above the month's free baseline. A quota month means a Gregorian civil year/month evaluated in the user's current local timezone; the system Calendar identifier is presentation preference and does not change quota state. Unused monthly growth does not roll over.
 - The effective free limit for a month is `max(6, monthlyBaseline + 1)`.
 - A new or below-base user can therefore fill the five-show base and still add a sixth show in the same month.
 - Deleting a self-added show immediately frees capacity. The user may refill up to the same month's limit; deletion does not consume a permanent add attempt.
