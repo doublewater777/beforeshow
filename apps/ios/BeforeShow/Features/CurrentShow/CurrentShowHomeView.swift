@@ -316,10 +316,15 @@ struct CurrentShowHomeView: View {
 
         await Task.yield()
 
-        guard canStartHomeArrival,
+        guard !isRequestingNotificationPermission,
+              canStartHomeArrival,
               currentShow?.id == show.id else {
             return
         }
+
+        // Serialize overlapping identity/visibility triggers before the first await.
+        isRequestingNotificationPermission = true
+        defer { isRequestingNotificationPermission = false }
 
         let center = LocalNotificationCenter.shared
         let authorizationState = await center.authorizationState()
@@ -343,9 +348,6 @@ struct CurrentShowHomeView: View {
         ) else {
             return
         }
-
-        isRequestingNotificationPermission = true
-        defer { isRequestingNotificationPermission = false }
 
         // 系统弹窗一旦触发就视为已经自动询问过；允许/拒绝都不再自动重复。
         schedulingState.recordPermissionRequest()
