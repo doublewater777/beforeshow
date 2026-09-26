@@ -182,7 +182,7 @@ enum ListeningDisplayProjector {
             isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
             allDiscs: allDiscs
         )
-        let headerNotice = headerNotice(mode: mode, access: access)
+        let modeNotice = headerNotice(mode: mode, access: access)
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
         let currentTrackState = currentTrack.map { trackPresentation(for: $0, access: access) }
         let player = playerPresentation(
@@ -201,7 +201,7 @@ enum ListeningDisplayProjector {
         return ListeningDisplayProjection(
             page: page,
             roomMode: mode,
-            headerNotice: headerNotice,
+            headerNotice: modeNotice,
             recoveryAction: recovery,
             shelfDiscs: Array(libraryDiscs.prefix(Shelf.visibleCount)),
             showsAllDiscs: libraryDiscs.count > Shelf.visibleCount,
