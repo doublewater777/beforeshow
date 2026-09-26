@@ -10,6 +10,48 @@ final class ShowDraftTests: XCTestCase {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
     }
 
+    func testAddShowReadyStateHidesStatusCopy() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow/Features/AddShow/AddShowFlowView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("if let saveBarStatus {"))
+        XCTAssertTrue(source.contains("private var saveBarStatus: SaveBarStatus?"))
+        XCTAssertFalse(source.contains("可以添加了 · 封面等可之后再补"))
+    }
+
+    func testNotificationPermissionNoLongerBlocksAddShowCompletion() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let addShow = try String(
+            contentsOf: root.appendingPathComponent("Features/AddShow/AddShowFlowView.swift"),
+            encoding: .utf8
+        )
+        let currentShow = try String(
+            contentsOf: root.appendingPathComponent("Features/CurrentShow/CurrentShowHomeView.swift"),
+            encoding: .utf8
+        )
+        let primer = root.appendingPathComponent("Features/Settings/NotificationPermissionPrimerView.swift")
+
+        XCTAssertFalse(addShow.contains("NotificationPermissionPrimerView"))
+        XCTAssertFalse(addShow.contains("requestAuthorization()"))
+        XCTAssertTrue(addShow.contains("await LocalNotificationCenter.shared.applyFocusChange("))
+        let savedCallback = try XCTUnwrap(addShow.range(of: "onSaved?(show.id)"))
+        let schedulingHandoff = try XCTUnwrap(
+            addShow.range(of: "await LocalNotificationCenter.shared.applyFocusChange(")
+        )
+        XCTAssertLessThan(savedCallback.lowerBound, schedulingHandoff.lowerBound)
+
+        XCTAssertTrue(currentShow.contains("requestNotificationPermissionIfEligible()"))
+        XCTAssertTrue(currentShow.contains("await Task.yield()"))
+        XCTAssertTrue(currentShow.contains("await center.requestAuthorization()"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: primer.path))
+    }
+
     func testDraftSavesUserEditedValuesAfterConfirmation() throws {
         let date = makeDate(year: 2026, month: 7, day: 3)
         var draft = ShowDraft(

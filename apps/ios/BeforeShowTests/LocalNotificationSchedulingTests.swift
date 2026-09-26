@@ -38,6 +38,59 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         ))
     }
 
+    func testPermissionRequestWaitsForVisibleCurrentShowWithFutureReminderValue() {
+        let policy = NotificationPermissionPolicy()
+
+        for kind in [CurrentShowTimeKind.before, .today, .dayEnded] {
+            XCTAssertTrue(policy.shouldRequestOnCurrentShow(
+                authorizationState: .notDetermined,
+                hasRequestedPermissionAfterFirstShow: false,
+                currentShowKind: kind,
+                isCurrentShowVisible: true
+            ))
+        }
+
+        for kind in [CurrentShowTimeKind.postShow, .ended, .canceled, .postponed] {
+            XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+                authorizationState: .notDetermined,
+                hasRequestedPermissionAfterFirstShow: false,
+                currentShowKind: kind,
+                isCurrentShowVisible: true
+            ))
+        }
+
+        XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+            authorizationState: .notDetermined,
+            hasRequestedPermissionAfterFirstShow: false,
+            currentShowKind: .before,
+            isCurrentShowVisible: false
+        ))
+        XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+            authorizationState: .denied,
+            hasRequestedPermissionAfterFirstShow: false,
+            currentShowKind: .before,
+            isCurrentShowVisible: true
+        ))
+        XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+            authorizationState: .authorized,
+            hasRequestedPermissionAfterFirstShow: false,
+            currentShowKind: .before,
+            isCurrentShowVisible: true
+        ))
+        XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+            authorizationState: .provisional,
+            hasRequestedPermissionAfterFirstShow: false,
+            currentShowKind: .before,
+            isCurrentShowVisible: true
+        ))
+        XCTAssertFalse(policy.shouldRequestOnCurrentShow(
+            authorizationState: .notDetermined,
+            hasRequestedPermissionAfterFirstShow: true,
+            currentShowKind: .before,
+            isCurrentShowVisible: true
+        ))
+    }
+
     func testMissedMilestonesAreNotBackfilledWhenShowIsAddedLate() throws {
         let show = try Show(
             name: "夏夜演唱会",

@@ -32,11 +32,6 @@ struct AddShowFlowView: View {
     @State private var showsManualFallback = false
     @State private var paywallSheet: AddShowPaywallSheet?
     @State private var toast: BSToastPayload?
-    /// 首次请求通知权限前的说明页。`nil` = 不展示。
-    @State private var isShowingNotificationPrimer = false
-    /// 说明页的用户选择回传。保存流程会一直等到用户在说明页上做出选择，
-    /// 再决定是否弹系统权限弹窗，之后才继续 dismiss。
-    @State private var notificationPrimerDecision: CheckedContinuation<Bool, Never>?
     @State private var showsLinkGuide = false
     /// 引导页里点过「打开 XX」才置真；关闭引导页时才读剪贴板内容，换平台名。
     /// 进入链接页只用 hasStrings 出 chip，避免一进来就弹系统粘贴横幅。
@@ -244,37 +239,8 @@ struct AddShowFlowView: View {
                 didOpenPlatformFromGuide = true
             })
         }
-        .sheet(isPresented: $isShowingNotificationPrimer, onDismiss: {
-            // 下划关闭等同「暂时不用」：不能让保存流程悬在 continuation 上。
-            resumeNotificationPrimer(accepted: false)
-        }) {
-            NotificationPermissionPrimerView(
-                onContinue: {
-                    isShowingNotificationPrimer = false
-                    resumeNotificationPrimer(accepted: true)
-                },
-                onSkip: {
-                    isShowingNotificationPrimer = false
-                    resumeNotificationPrimer(accepted: false)
-                }
-            )
-        }
         .bsToastOverlay(toast, bottomPadding: 28)
-        #if DEBUG
-        .task {
-            if Self.debugOpenNotificationPrimer {
-                isShowingNotificationPrimer = true
-            }
-        }
-        #endif
     }
-
-    #if DEBUG
-    /// 截图 / 验证用：直接拉起通知说明页，不必先走完保存流程。
-    private static var debugOpenNotificationPrimer: Bool {
-        ProcessInfo.processInfo.arguments.contains("--open-notification-primer")
-    }
-    #endif
 
     /// 识别后直接进可编辑表单，和手动填写同一套导航标题，不再多一层「确认」。
     private var flowNavTitle: String {
@@ -557,7 +523,7 @@ struct AddShowFlowView: View {
         sheet == .manual || didSwitchToManual || hasImportedDraft
     }
 
-    // MARK: - 吸底保存栏：始终可见，状态行说明缺什么
+    // MARK: - 吸底保存栏：按钮始终可见，仅在需要处理时显示状态行
 
     private var addSaveBar: some View {
         VStack(spacing: 10) {
@@ -569,10 +535,12 @@ struct AddShowFlowView: View {
                 saveProgressSegment(filled: draft.startTime != nil)
             }
 
-            Text(saveBarStatus.text)
-                .font(.system(size: 12))
-                .foregroundColor(saveBarStatus.tint)
-                .frame(maxWidth: .infinity)
+            if let saveBarStatus {
+                Text(saveBarStatus.text)
+                    .font(.system(size: 12))
+                    .foregroundColor(saveBarStatus.tint)
+                    .frame(maxWidth: .infinity)
+            }
 
             Button {
                 Task {
@@ -623,8 +591,8 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
-    private var saveBarStatus: SaveBarStatus {
+    /// 按优先级说明距离可保存还差什么；信息已满足保存条件时不显示状态文案。
+    private var saveBarStatus: SaveBarStatus? {
         if isImportingDraft {
             return SaveBarStatus(
                 text: isParsingLink ? "正在解析链接…" : "正在识别截图…",
@@ -652,10 +620,7 @@ struct AddShowFlowView: View {
                 tint: BSColor.Accent.danger
             )
         }
-        return SaveBarStatus(
-            text: BSLocalization.text("可以添加了 · 封面等可之后再补"),
-            tint: BSColor.Stage.dim
-        )
+        return nil
     }
 
     /// 启动解析 / OCR 任务；替换上一轮未完成的导入。
@@ -926,16 +891,6 @@ struct AddShowFlowView: View {
                 in: modelContext
             )
 
-            if let notificationState = result.notificationState {
-                let notificationFocusShow = notificationState.focusedShowID.flatMap { focusedShowID in
-                    if focusedShowID == show.id {
-                        return show
-                    }
-                    return shows.first(where: { $0.id == focusedShowID })
-                }
-                await activateNotifications(for: notificationFocusShow, state: notificationState)
-            }
-
             PostHogSDK.shared.capture("show_added", properties: [
                 "method": sheet.rawValue,
                 "lifecycle": result.outcome.rawValue
@@ -954,7 +909,18 @@ struct AddShowFlowView: View {
             }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
+
+            // Persistence success ends Add Show immediately. The normal coordinator
+            // dismisses synchronously from this callback; notification scheduling
+            // continues afterward without holding the sheet open.
             onSaved?(show.id)
+
+            if result.notificationState != nil {
+                await LocalNotificationCenter.shared.applyFocusChange(
+                    to: show,
+                    in: modelContext
+                )
+            }
         } catch AddShowPersistenceError.duplicateShow(let existingShowID) {
             modelContext.rollback()
             if let duplicate = shows.first(where: { $0.id == existingShowID }) {
@@ -1005,49 +971,6 @@ struct AddShowFlowView: View {
         } else {
             dismiss()
         }
-    }
-
-    @MainActor
-    private func activateNotifications(
-        for show: Show?,
-        state: NotificationSchedulingState
-    ) async {
-        let center = LocalNotificationCenter.shared
-        let authorizationState = await center.authorizationState()
-        let shouldRequest = NotificationPermissionPolicy().shouldRequestPermission(
-            hasAddedShow: true,
-            authorizationState: authorizationState,
-            hasRequestedPermissionAfterFirstShow: state.hasRequestedPermissionAfterFirstShow
-        )
-
-        if shouldRequest {
-            // 先解释再请求：系统弹窗只有一次机会，用户得先知道会收到什么。
-            let accepted = await presentNotificationPrimer()
-            // 无论用户是否接受，都记下已经问过，不再反复打扰。
-            state.recordPermissionRequest()
-            try? modelContext.save()
-            if accepted {
-                _ = await center.requestAuthorization()
-            }
-        }
-
-        await center.applyFocusChange(to: show, in: modelContext)
-    }
-
-    /// 展示说明页并等待用户选择。返回 `true` 表示可以继续弹系统权限弹窗。
-    @MainActor
-    private func presentNotificationPrimer() async -> Bool {
-        await withCheckedContinuation { continuation in
-            notificationPrimerDecision = continuation
-            isShowingNotificationPrimer = true
-        }
-    }
-
-    @MainActor
-    private func resumeNotificationPrimer(accepted: Bool) {
-        guard let continuation = notificationPrimerDecision else { return }
-        notificationPrimerDecision = nil
-        continuation.resume(returning: accepted)
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
