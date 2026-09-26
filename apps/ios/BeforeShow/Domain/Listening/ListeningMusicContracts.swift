@@ -14,9 +14,37 @@ enum ListeningMusicCapability: String, Equatable, Sendable {
     case unavailable
 }
 
+enum ListeningCatalogPlaybackAccess: String, Equatable, Sendable {
+    case available
+    case accountLimited
+    case accessCheckFailed
+}
+
 struct ListeningMusicAccess: Equatable, Sendable {
     let authorizationStatus: ListeningMusicAuthorizationStatus
-    let canPlayCatalogContent: Bool
+    let catalogPlaybackAccess: ListeningCatalogPlaybackAccess
+
+    var canPlayCatalogContent: Bool {
+        catalogPlaybackAccess == .available
+    }
+
+    init(
+        authorizationStatus: ListeningMusicAuthorizationStatus,
+        catalogPlaybackAccess: ListeningCatalogPlaybackAccess
+    ) {
+        self.authorizationStatus = authorizationStatus
+        self.catalogPlaybackAccess = catalogPlaybackAccess
+    }
+
+    init(
+        authorizationStatus: ListeningMusicAuthorizationStatus,
+        canPlayCatalogContent: Bool
+    ) {
+        self.init(
+            authorizationStatus: authorizationStatus,
+            catalogPlaybackAccess: canPlayCatalogContent ? .available : .accountLimited
+        )
+    }
 }
 
 enum ListeningMusicCapabilityResolver {
