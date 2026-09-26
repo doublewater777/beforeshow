@@ -16,15 +16,13 @@ struct CurrentShowManagementSection: View {
     var onOpenShowLibrary: () -> Void
     var onChooseDynamicCover: () -> Void = {}
     var isImportingDynamicCover = false
-    var onConfirmEnd: (Date) -> Void
+    var onConfirmEnd: (Date) async -> Bool
     var homeArrival: CurrentShowHomeArrival?
     var onHomeArrivalPrepared: (UUID) -> Void = { _ in }
     var onHomeArrivalFinished: () -> Void = {}
     @Binding var ceremonyLightsOutShowID: UUID?
     @Binding var ceremonySheetShowID: UUID?
     var onCeremonyCommit: (_ rating: Int?, _ note: String?) async throws -> Void
-    /// 仪式 sheet 内部按 `×` / 「进入现场回忆」时回调,父视图负责切到足迹并 push 详情。
-    var onCeremonySkipToMemory: (UUID) -> Void = { _ in }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.modelContext) private var modelContext
@@ -33,6 +31,8 @@ struct CurrentShowManagementSection: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var presentedSheet: CurrentShowPresentedSheet?
     @State private var pendingMemoryCreate: MemoryCreateSourceOption?
+    @State private var pendingConfirmedEndDate: Date?
+    @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
     @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
@@ -108,9 +108,10 @@ struct CurrentShowManagementSection: View {
                         ),
                     calendar: show.endTimingCalendar(),
                     allowsJustEnded: currentPhase == .live,
-                    onConfirm: { date in
+                    onConfirm: { date, intent in
+                        pendingConfirmedEndDate = date
+                        pendingEndIntent = intent
                         presentedSheet = nil
-                        onConfirmEnd(date)
                     }
                 )
             case .companion:
@@ -169,12 +170,7 @@ struct CurrentShowManagementSection: View {
                 DispersalCeremonySheet(
                     show: show,
                     identity: footprintIdentityForCeremony(),
-                    calendar: show.timingCalendar(),
-                    onCommit: onCeremonyCommit,
-                    onSkipToMemory: {
-                        ceremonySheetShowID = nil
-                        onCeremonySkipToMemory(show.id)
-                    }
+                    onCommit: onCeremonyCommit
                 )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
@@ -379,7 +375,9 @@ struct CurrentShowManagementSection: View {
                                 isLive: phase == .live
                             ),
                             canRecordEnd: canRecordEnd,
-                            embedsRouteInLocation: embedsRouteInLocation
+                            embedsRouteInLocation: embedsRouteInLocation,
+                            isPostShowRetention: timeState.kind == .postShow && show.endedAt != nil,
+                            hasCompletedDispersalCeremony: show.hasCompletedDispersalCeremony
                         )
                     )
                         .padding(.horizontal, contentInset)
@@ -568,12 +566,35 @@ struct CurrentShowManagementSection: View {
         case .memoryFragments:
             pendingMemoryCreate = nil
             presentedSheet = .memory
+        case .dispersal:
+            ceremonySheetShowID = show.id
         case .endShow:
             presentedSheet = .endConfirmation
         }
     }
 
     private func presentedSheetDidDismiss() {
+        if let date = pendingConfirmedEndDate,
+           let intent = pendingEndIntent {
+            pendingConfirmedEndDate = nil
+            pendingEndIntent = nil
+            isPresentationVisibilityLatched = true
+            Task { @MainActor in
+                let didConfirm = await onConfirmEnd(date)
+                guard didConfirm else {
+                    releasePresentationLatchIfPossible()
+                    return
+                }
+                switch intent {
+                case .justEnded:
+                    ceremonyLightsOutShowID = show.id
+                case .backfill:
+                    ceremonySheetShowID = show.id
+                }
+            }
+            return
+        }
+
         if presentedSheet != nil || pendingMemoryCreate != nil {
             isPresentationVisibilityLatched = true
             return
