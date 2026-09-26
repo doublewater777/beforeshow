@@ -102,7 +102,12 @@ struct FreeShowCapacityMonth: Codable, Equatable {
     let month: Int
 
     init(now: Date, calendar: Calendar) {
-        let components = calendar.dateComponents([.year, .month], from: now)
+        // Capacity months are Gregorian civil months in the user's local timezone.
+        // The system Calendar identifier is presentation preference and must not
+        // mutate durable quota state (for example Gregorian ↔ Buddhist).
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = calendar.timeZone
+        let components = gregorian.dateComponents([.year, .month], from: now)
         year = components.year ?? 0
         month = components.month ?? 0
     }
