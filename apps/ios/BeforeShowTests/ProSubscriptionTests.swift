@@ -373,6 +373,14 @@ final class ProSubscriptionTests: XCTestCase {
             now: september,
             calendar: calendar
         )
+        // Production synchronizes immediately after a successful add. Preserve
+        // September's retained count before crossing the month boundary.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 21, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
         capacity.synchronizeFreeCapacity(
             from: try quotaShows(count: 21, date: october),
             entitlement: .free,
