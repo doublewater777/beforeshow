@@ -62,6 +62,187 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertTrue(restored.isProActive)
     }
 
+    func testFreeCapacityStartsWithFiveBaseAndAllowsSixthInFirstMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        gate.synchronizeFreeCapacity(
+            from: [],
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(gate.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityDeletionReleasesSpaceWithinSameMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertTrue(gate.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testFreeCapacityDoesNotRollUnusedGrowthIntoNextMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 2, calendar: calendar)
+        let fiveShows = try quotaShows(count: 5, date: september)
+
+        gate.synchronizeFreeCapacity(
+            from: fiveShows,
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        gate.synchronizeFreeCapacity(
+            from: fiveShows,
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(gate.canAddShow(
+            from: fiveShows,
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+    }
+
+    func testExpiredProStartsMonthlyGrowthFromExpirationCount() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 15, calendar: calendar)
+        let active = ProEntitlementState.active(productID: "pro", expirationDate: nil)
+        let expired = ProEntitlementState.expired(productID: "pro", expirationDate: now)
+        let twentyFive = try quotaShows(count: 25, date: now)
+
+        gate.synchronizeFreeCapacity(
+            from: twentyFive,
+            entitlement: active,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(gate.canAddShow(
+            from: twentyFive,
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 26, date: now),
+            entitlement: expired,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testSameMonthProRoundTripDoesNotGrantAnotherMonthlyGrowthStep() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+        let freeTwenty = try quotaShows(count: 20, date: now)
+
+        gate.synchronizeFreeCapacity(
+            from: freeTwenty,
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 25, date: now),
+            entitlement: .active(productID: "pro", expirationDate: nil),
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 25, date: now),
+            entitlement: .expired(productID: "pro", expirationDate: now),
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testNextMonthRebasesFromRetainedSelfAddedShows() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 2, calendar: calendar)
+
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 21, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(gate.canAddShow(
+            from: try quotaShows(count: 21, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 22, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+    }
+
     func testProGateAllowsOneFreeShowPerMonth() {
         let gate = ProFeatureGate()
         let proEntitlement = ProEntitlementState.active(
@@ -573,6 +754,35 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertNotNil(AppLanguage.system.bundle)
         let resolved = AppLanguage.system.bundle?.preferredLocalizations.first
         XCTAssertTrue(["zh-Hans", "zh-Hant", "en"].contains(resolved), "resolved \(resolved ?? "nil")")
+    }
+
+    private func temporaryQuotaDefaults() -> UserDefaults {
+        let suite = "ProSubscriptionTests.FreeShowCapacity.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return defaults
+    }
+
+    private func quotaCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func quotaDate(_ year: Int, _ month: Int, _ day: Int, calendar: Calendar) -> Date {
+        calendar.date(from: DateComponents(year: year, month: month, day: day, hour: 12))!
+    }
+
+    private func quotaShows(count: Int, date: Date) throws -> [Show] {
+        try (0..<count).map { index in
+            try Show(
+                name: "自建现场 \(index)",
+                date: date,
+                startTime: date,
+                creationOrigin: .user,
+                createdAt: date
+            )
+        }
     }
 
     func testCatalogReferenceProductsAreNotPurchasablePlaceholders() {
