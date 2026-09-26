@@ -32,6 +32,29 @@ struct NotificationPermissionPolicy {
             && authorizationState == .notDetermined
             && !hasRequestedPermissionAfterFirstShow
     }
+
+    func shouldRequestOnCurrentShow(
+        authorizationState: NotificationAuthorizationState,
+        hasRequestedPermissionAfterFirstShow: Bool,
+        currentShowKind: CurrentShowTimeKind,
+        isCurrentShowVisible: Bool
+    ) -> Bool {
+        guard isCurrentShowVisible,
+              shouldRequestPermission(
+                hasAddedShow: true,
+                authorizationState: authorizationState,
+                hasRequestedPermissionAfterFirstShow: hasRequestedPermissionAfterFirstShow
+              ) else {
+            return false
+        }
+
+        switch currentShowKind {
+        case .before, .today, .dayEnded:
+            return true
+        case .postShow, .ended, .canceled, .postponed:
+            return false
+        }
+    }
 }
 
 enum ShowNotificationMilestone: String, CaseIterable, Codable, Equatable {
