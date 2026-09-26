@@ -60,7 +60,7 @@ struct ListeningArtistSelector: View {
                     )
                 }
             }
-            .padding(.vertical, BSSpacing.xs)
+            .padding(.top, BSSpacing.sm)
         }
         .animation(BSListeningTokens.selectionAnimation, value: selection)
         .accessibilityIdentifier("listening.artistSelector")

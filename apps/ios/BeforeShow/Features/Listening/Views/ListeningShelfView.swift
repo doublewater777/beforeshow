@@ -27,7 +27,7 @@ struct ListeningShelfView<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: hasVisibleHeaderContent ? BSSpacing.xs : 0) {
+        VStack(alignment: .leading, spacing: 0) {
             if hasVisibleHeaderContent {
                 HStack(spacing: BSSpacing.sm) {
                     titleLabel

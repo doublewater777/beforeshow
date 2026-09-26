@@ -63,7 +63,7 @@ enum BSListeningTokens {
     static let discTitle = Font.system(size: 24, weight: .bold)
     static let songSpacing: CGFloat = 6
     static let songHeight: CGFloat = 70
-    static let stageTopOffset: CGFloat = 82
+    static let stageTopOffset: CGFloat = 56
     static let statusIcon: CGFloat = 16
     static let hairline: CGFloat = 0.75
     static let caption = Font.caption
