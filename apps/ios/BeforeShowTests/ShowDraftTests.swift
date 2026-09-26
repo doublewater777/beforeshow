@@ -22,6 +22,31 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertFalse(source.contains("可以添加了 · 封面等可之后再补"))
     }
 
+    func testNotificationPermissionNoLongerBlocksAddShowCompletion() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let addShow = try String(
+            contentsOf: root.appendingPathComponent("Features/AddShow/AddShowFlowView.swift"),
+            encoding: .utf8
+        )
+        let currentShow = try String(
+            contentsOf: root.appendingPathComponent("Features/CurrentShow/CurrentShowHomeView.swift"),
+            encoding: .utf8
+        )
+        let primer = root.appendingPathComponent("Features/Settings/NotificationPermissionPrimerView.swift")
+
+        XCTAssertFalse(addShow.contains("NotificationPermissionPrimerView"))
+        XCTAssertFalse(addShow.contains("requestAuthorization()"))
+        XCTAssertTrue(addShow.contains("await LocalNotificationCenter.shared.applyFocusChange("))
+
+        XCTAssertTrue(currentShow.contains("requestNotificationPermissionIfEligible()"))
+        XCTAssertTrue(currentShow.contains("await Task.yield()"))
+        XCTAssertTrue(currentShow.contains("await center.requestAuthorization()"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: primer.path))
+    }
+
     func testDraftSavesUserEditedValuesAfterConfirmation() throws {
         let date = makeDate(year: 2026, month: 7, day: 3)
         var draft = ShowDraft(
