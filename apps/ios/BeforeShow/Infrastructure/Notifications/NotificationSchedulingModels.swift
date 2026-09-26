@@ -170,7 +170,7 @@ enum NotificationReconcileReason: Equatable {
     case startup
     case foreground
     case mutation
-    /// Compatibility hand-off from Add Show: only this reason may mint anticipation backfill.
+    /// Only a newly added show may use this reason to mint anticipation backfill once.
     case showAddedCandidate(UUID)
 }
 

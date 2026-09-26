@@ -400,7 +400,7 @@ private struct NotificationSettingsRow: View {
             case .requestPermission:
                 _ = await LocalNotificationCenter.shared.requestAuthorization()
                 await refreshAuthorizationState()
-                // 之前被拒 / 未决时排期可能是空的，授权后立刻按当前现场补齐。
+                // 之前未授权时系统 pending 可能不完整，授权后立刻对齐完整 portfolio。
                 await reconcilePortfolioAfterAuthorizationChange()
             case .openSystemSettings:
                 if let url = URL(string: UIApplication.openSettingsURLString) {

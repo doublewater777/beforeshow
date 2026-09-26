@@ -124,8 +124,7 @@ final class LocalNotificationCenter {
             let effectiveReason: NotificationReconcileReason
             if case .showAddedCandidate = reason {
                 effectiveReason = reason
-            } else if schedulingState.portfolioMigrationVersion == 1,
-                      let stagedShowID = schedulingState.stagedBackfillShowID {
+            } else if let stagedShowID = schedulingState.stagedBackfillShowID {
                 effectiveReason = .showAddedCandidate(stagedShowID)
             } else {
                 effectiveReason = reason
