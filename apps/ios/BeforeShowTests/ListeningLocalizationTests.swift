@@ -424,7 +424,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(header.contains("case .preview, .metadataOnly, .unavailable:"))
         XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(180), fitsContent: true)"))
         XCTAssertTrue(room.contains("notice: room.display.headerNotice"))
-        XCTAssertTrue(room.contains("onRecovery: room.performListeningRecovery"))
+        XCTAssertTrue(room.contains("onRecovery: { room.performListeningRecovery($0) }"))
     }
 
     func testListenFirstEntryRequestsMusicAuthorizationOnlyWhenUndetermined() throws {
