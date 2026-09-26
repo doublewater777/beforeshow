@@ -47,6 +47,7 @@ struct CurrentShowHomeView: View {
     @State private var dynamicCoverErrorMessage: String?
     @State private var isDetailVisible = false
     @State private var isManagementPresentationActive = false
+    @State private var isRequestingNotificationPermission = false
     @State private var homeArrivalLifecycle = CurrentShowHomeArrivalLifecycle()
 
     private let session = CurrentShowSession()
@@ -211,10 +212,12 @@ struct CurrentShowHomeView: View {
             }
             .onChange(of: currentShow?.id, initial: true) { _, newShowID in
                 homeArrivalLifecycle.observeCurrentShow(newShowID)
+                Task { await requestNotificationPermissionIfEligible() }
             }
             .onChange(of: canStartHomeArrival, initial: true) { _, canStart in
                 guard canStart else { return }
                 beginPreparedHomeArrivalIfPossible()
+                Task { await requestNotificationPermissionIfEligible() }
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
@@ -298,6 +301,63 @@ struct CurrentShowHomeView: View {
             to: currentShow,
             in: ModelContext(modelContext.container)
         )
+    }
+
+    /// 系统通知权限只在 Current Show 稳定可见时自动询问一次。
+    /// Add Show 结束录入后先完整 dismiss；这里用下一次 actor turn 重新确认页面仍然可见，
+    /// 不靠固定延时，也不会与其他 sheet / alert / onboarding 抢 presentation。
+    @MainActor
+    private func requestNotificationPermissionIfEligible() async {
+        guard !isRequestingNotificationPermission,
+              canStartHomeArrival,
+              let show = currentShow else {
+            return
+        }
+
+        await Task.yield()
+
+        guard canStartHomeArrival,
+              currentShow?.id == show.id else {
+            return
+        }
+
+        let center = LocalNotificationCenter.shared
+        let authorizationState = await center.authorizationState()
+
+        let schedulingState: NotificationSchedulingState
+        do {
+            schedulingState = try NotificationSchedulingStateStore.canonicalize(in: modelContext)
+        } catch {
+            return
+        }
+
+        let timeKind = CurrentShowTimeState(
+            show: show,
+            calendar: show.timingCalendar()
+        ).kind
+        guard NotificationPermissionPolicy().shouldRequestOnCurrentShow(
+            authorizationState: authorizationState,
+            hasRequestedPermissionAfterFirstShow: schedulingState.hasRequestedPermissionAfterFirstShow,
+            currentShowKind: timeKind,
+            isCurrentShowVisible: canStartHomeArrival
+        ) else {
+            return
+        }
+
+        isRequestingNotificationPermission = true
+        defer { isRequestingNotificationPermission = false }
+
+        // 系统弹窗一旦触发就视为已经自动询问过；允许/拒绝都不再自动重复。
+        schedulingState.recordPermissionRequest()
+        do {
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            return
+        }
+
+        _ = await center.requestAuthorization()
+        await reconcileNotificationFocus()
     }
 
     @MainActor
