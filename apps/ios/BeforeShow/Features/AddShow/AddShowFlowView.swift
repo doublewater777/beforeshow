@@ -569,10 +569,12 @@ struct AddShowFlowView: View {
                 saveProgressSegment(filled: draft.startTime != nil)
             }
 
-            Text(saveBarStatus.text)
-                .font(.system(size: 12))
-                .foregroundColor(saveBarStatus.tint)
-                .frame(maxWidth: .infinity)
+            if let saveBarStatus {
+                Text(saveBarStatus.text)
+                    .font(.system(size: 12))
+                    .foregroundColor(saveBarStatus.tint)
+                    .frame(maxWidth: .infinity)
+            }
 
             Button {
                 Task {
@@ -623,8 +625,8 @@ struct AddShowFlowView: View {
         let tint: Color
     }
 
-    /// 按优先级说明距离可保存还差什么（导入中 → 名称 → 日期确认 → 开场时间 → 时间范围）。
-    private var saveBarStatus: SaveBarStatus {
+    /// 按优先级说明距离可保存还差什么；信息已满足保存条件时不显示状态文案。
+    private var saveBarStatus: SaveBarStatus? {
         if isImportingDraft {
             return SaveBarStatus(
                 text: isParsingLink ? "正在解析链接…" : "正在识别截图…",
@@ -652,10 +654,7 @@ struct AddShowFlowView: View {
                 tint: BSColor.Accent.danger
             )
         }
-        return SaveBarStatus(
-            text: BSLocalization.text("可以添加了 · 封面等可之后再补"),
-            tint: BSColor.Stage.dim
-        )
+        return nil
     }
 
     /// 启动解析 / OCR 任务；替换上一轮未完成的导入。
