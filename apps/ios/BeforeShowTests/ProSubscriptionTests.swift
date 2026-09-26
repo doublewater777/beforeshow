@@ -209,6 +209,62 @@ final class ProSubscriptionTests: XCTestCase {
         ))
     }
 
+    func testClearingLocalDataResetsFreeCapacityState() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 20, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+        ProFeatureGate.resetFreeCapacityState(in: defaults)
+
+        let freshGate = ProFeatureGate(userDefaults: defaults)
+        XCTAssertTrue(freshGate.canAddShow(
+            from: try quotaShows(count: 5, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(freshGate.canAddShow(
+            from: try quotaShows(count: 6, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
+    func testExistingFreeUserMigrationUsesCurrentRetainedCountAsBaseline() throws {
+        let defaults = temporaryQuotaDefaults()
+        let gate = ProFeatureGate(userDefaults: defaults)
+        let calendar = quotaCalendar()
+        let now = quotaDate(2026, 9, 10, calendar: calendar)
+
+        gate.synchronizeFreeCapacity(
+            from: try quotaShows(count: 8, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        )
+
+        XCTAssertTrue(gate.canAddShow(
+            from: try quotaShows(count: 8, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+        XCTAssertFalse(gate.canAddShow(
+            from: try quotaShows(count: 9, date: now),
+            entitlement: .free,
+            now: now,
+            calendar: calendar
+        ))
+    }
+
     func testNextMonthRebasesFromRetainedSelfAddedShows() throws {
         let defaults = temporaryQuotaDefaults()
         let gate = ProFeatureGate(userDefaults: defaults)
@@ -434,8 +490,11 @@ final class ProSubscriptionTests: XCTestCase {
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
-        XCTAssertEqual(ProLimitReason.saveLimit.title, "免费版每月可添加 1 场现场")
-        XCTAssertEqual(ProLimitReason.saveLimit.message, "开通 Pro 后可以无限保存现场。")
+        XCTAssertEqual(ProLimitReason.saveLimit.title, "本月免费容量已用完")
+        XCTAssertEqual(
+            ProLimitReason.saveLimit.message,
+            "免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。"
+        )
 
     }
 
@@ -466,7 +525,7 @@ final class ProSubscriptionTests: XCTestCase {
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .free),
-            SettingsMembershipSummary(title: "免费版", subtitle: "每月可添加 1 场现场")
+            SettingsMembershipSummary(title: "免费版", subtitle: "基础 5 场 · 每月容量 +1")
         )
         XCTAssertEqual(
             SettingsMembershipSummary(entitlement: .active(productID: "pro", expirationDate: nil)),
@@ -476,7 +535,7 @@ final class ProSubscriptionTests: XCTestCase {
             SettingsMembershipSummary(
                 entitlement: .expired(productID: "pro", expirationDate: Date(timeIntervalSince1970: 0))
             ),
-            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有本地内容仍可查看和编辑")
+            SettingsMembershipSummary(title: "Pro 已过期", subtitle: "已有现场保留 · 每月容量 +1")
         )
     }
 
