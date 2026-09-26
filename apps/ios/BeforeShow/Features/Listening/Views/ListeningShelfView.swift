@@ -5,6 +5,7 @@ struct ListeningShelfView<Content: View>: View {
     let title: String?
     let count: String
     var isLoading = false
+    var showsCount = true
     var showsAllDiscs = false
     var showAll: () -> Void = {}
     @ViewBuilder let content: Content
@@ -21,31 +22,39 @@ struct ListeningShelfView<Content: View>: View {
         headerHeight + BSSpacing.xs + contentHeight
     }
 
+    private var hasVisibleHeaderContent: Bool {
+        title != nil || showsCount || showsAllDiscs
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: BSSpacing.xs) {
-            HStack(spacing: BSSpacing.sm) {
-                titleLabel
-                Text(count)
-                    .font(BSListeningTokens.caption)
-                    .foregroundStyle(BSColor.Stage.muted)
-                    .redacted(reason: isLoading ? .placeholder : [])
-                    .accessibilityHidden(isLoading)
-                Spacer(minLength: 0)
-                if showsAllDiscs {
-                    Button(action: showAll) {
-                        HStack(spacing: BSSpacing.xs) {
-                            Text(BSLocalization.text("唱片柜"))
-                            Image(systemName: "chevron.right")
-                        }
-                        .font(BSListeningTokens.captionMedium)
-                        .foregroundStyle(BSColor.Stage.accent)
-                        .frame(minHeight: BSLayout.minTouchTarget)
+        VStack(alignment: .leading, spacing: hasVisibleHeaderContent ? BSSpacing.xs : 0) {
+            if hasVisibleHeaderContent {
+                HStack(spacing: BSSpacing.sm) {
+                    titleLabel
+                    if showsCount {
+                        Text(count)
+                            .font(BSListeningTokens.caption)
+                            .foregroundStyle(BSColor.Stage.muted)
+                            .redacted(reason: isLoading ? .placeholder : [])
+                            .accessibilityHidden(isLoading)
                     }
-                    .buttonStyle(BSListeningPressStyle())
-                    .accessibilityIdentifier("listening.allDiscs")
+                    Spacer(minLength: 0)
+                    if showsAllDiscs {
+                        Button(action: showAll) {
+                            HStack(spacing: BSSpacing.xs) {
+                                Text(BSLocalization.text("唱片柜"))
+                                Image(systemName: "chevron.right")
+                            }
+                            .font(BSListeningTokens.captionMedium)
+                            .foregroundStyle(BSColor.Stage.accent)
+                            .frame(minHeight: BSLayout.minTouchTarget)
+                        }
+                        .buttonStyle(BSListeningPressStyle())
+                        .accessibilityIdentifier("listening.allDiscs")
+                    }
                 }
+                .frame(height: headerHeight)
             }
-            .frame(height: headerHeight)
 
             content
                 .frame(maxWidth: .infinity)

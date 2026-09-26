@@ -19,11 +19,16 @@ struct ListeningPreparingView: View {
             VStack(spacing: 0) {
                 ListeningRoomHeader(mode: .connecting)
                 ScrollView(showsIndicators: false) {
-                    VStack(spacing: BSSpacing.xs) {
+                    VStack(spacing: 0) {
                         if !artists.isEmpty {
                             ListeningArtistSelector(artists: artists, selection: .all, select: { _ in }, onConnect: { _, _ in })
                         }
-                        ListeningShelfView(title: BSLocalization.text("BeforeShow 热门合辑"), count: BSLocalization.format("%d 张唱片", 0), isLoading: true) {
+                        ListeningShelfView(
+                            title: BSLocalization.text("BeforeShow 热门合辑"),
+                            count: BSLocalization.format("%d 张唱片", 0),
+                            isLoading: true,
+                            showsCount: false
+                        ) {
                             ListeningShelfSkeleton()
                         }
                         .listeningFrame("cabinet")
@@ -33,12 +38,12 @@ struct ListeningPreparingView: View {
                            .listeningFrame("stage")
                            .frame(width: proxy.size.width - BSSpacing.roomy * 2)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
-                        Color.clear.frame(height: BSListeningTokens.songHeight)
+                        Color.clear.frame(height: BSLayout.minTouchTarget)
                             .padding(.top, -BSSpacing.lg)
                    }
                     .coordinateSpace(name: "listeningContent")
                     .padding(.horizontal, BSSpacing.roomy)
-                    .padding(.top, BSSpacing.sm)
+                    .padding(.top, BSSpacing.xs)
                 }
                 .scrollDisabled(true)
             }
