@@ -1,6 +1,4 @@
-import PostHog
 import SwiftUI
-import SwiftData
 import UIKit
 
 enum DispersalCeremonyShareExport {
@@ -12,13 +10,15 @@ enum DispersalCeremonyShareExport {
         show: Show,
         identity: FootprintDetailIdentity,
         rating: Int?,
-        note: String
+        note: String,
+        ambientColor: Color? = nil
     ) -> UIImage? {
         let card = DispersalCeremonyShareCard(
             show: show,
             identity: identity,
             rating: rating,
-            note: note
+            note: note,
+            ambientColor: ambientColor
         )
         .frame(width: renderSize.width, height: renderSize.height)
 
@@ -30,6 +30,16 @@ enum DispersalCeremonyShareExport {
         renderer.scale = renderScale
         return renderer.uiImage
     }
+
+    static func loadAmbientColor(for coverURLString: String?) async -> Color? {
+        guard let coverURLString,
+              let url = URL(string: coverURLString),
+              let image = await ShowCoverImageCache.shared.image(from: url),
+              let ambient = CoverAmbientColor.uiColor(from: image) else {
+            return nil
+        }
+        return Color(ambient)
+    }
 }
 
 struct DispersalCeremonyShareSheet: View {
@@ -38,6 +48,8 @@ struct DispersalCeremonyShareSheet: View {
     let rating: Int?
     let note: String
     let onSaved: () -> Void
+
+    @State private var ambientColor: Color?
 
     var body: some View {
         FootprintShareActionSheet(
@@ -52,7 +64,8 @@ struct DispersalCeremonyShareSheet: View {
                     show: show,
                     identity: identity,
                     rating: rating,
-                    note: note
+                    note: note,
+                    ambientColor: ambientColor
                 )
                 .aspectRatio(
                     DispersalCeremonyShareExport.renderSize.width
@@ -65,7 +78,8 @@ struct DispersalCeremonyShareSheet: View {
                     show: show,
                     identity: identity,
                     rating: rating,
-                    note: note
+                    note: note,
+                    ambientColor: ambientColor
                 )
                 .frame(
                     width: DispersalCeremonyShareExport.renderSize.width,
@@ -74,6 +88,11 @@ struct DispersalCeremonyShareSheet: View {
             },
             onSaved: onSaved
         )
+        .task(id: show.coverImageURL) {
+            ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
+                for: show.coverImageURL
+            )
+        }
     }
 }
 
@@ -82,12 +101,19 @@ struct DispersalShareStep: View {
     let identity: FootprintDetailIdentity
     let rating: Int?
     let note: String
+    let transitionNamespace: Namespace.ID?
     let onBack: () -> Void
-    let onEnterMemory: () -> Void
+    let onDone: () -> Void
+    let onBusyChange: (Bool) -> Void
 
     @State private var toast: BSToastPayload?
     @State private var isSaving = false
     @State private var isSharing = false
+    @State private var ambientColor: Color?
+
+    private var isBusy: Bool {
+        isSaving || isSharing
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -99,60 +125,63 @@ struct DispersalShareStep: View {
                 .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            VStack(spacing: 9) {
-                HStack(spacing: 9) {
-                    Button(BSLocalization.text("保存图片")) {
-                        Task { await saveToPhotos() }
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                    .disabled(isSaving || isSharing)
-
-                    Button(BSLocalization.text("分享图片")) {
-                        Task { await shareImage() }
-                    }
-                    .buttonStyle(BSSecondaryButtonStyle())
-                    .disabled(isSaving || isSharing)
+            HStack(spacing: 9) {
+                exportButton(
+                    title: BSLocalization.text("保存图片"),
+                    isLoading: isSaving
+                ) {
+                    Task { await saveToPhotos() }
                 }
 
-                Button(BSLocalization.text("进入现场回忆"), action: onEnterMemory)
-                    .buttonStyle(BSPrimaryButtonStyle())
-                    .disabled(isSaving || isSharing)
+                exportButton(
+                    title: BSLocalization.text("分享图片"),
+                    isLoading: isSharing
+                ) {
+                    Task { await shareImage() }
+                }
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .overlay {
-            if isSaving || isSharing {
-                ZStack {
-                    Color.black.opacity(0.38)
-                    VStack(spacing: 10) {
-                        ProgressView()
-                            .tint(.white)
-                        Text(BSLocalization.text("生成中…"))
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(BSColor.Stage.foreground)
-                    }
-                }
-                .ignoresSafeArea()
-            }
-        }
         .bsToastOverlay(toast, bottomPadding: 24)
         .background(BSNavigationBackSwipeRestorer(onBack: onBack))
+        .task(id: show.coverImageURL) {
+            ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
+                for: show.coverImageURL
+            )
+        }
+        .onDisappear {
+            onBusyChange(false)
+        }
     }
 
     private var header: some View {
         HStack {
             BSChromeIconButton(
                 systemName: "chevron.left",
-                accessibilityLabel: "回到评级",
+                accessibilityLabel: "回到散场记录",
                 action: onBack
             )
+
             Spacer()
-            Text("散场卡")
+
+            Text(BSLocalization.text("散场卡"))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
+
             Spacer()
-            Color.clear.frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
+
+            Button(action: onDone) {
+                Text(BSLocalization.text("完成"))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+                    .frame(
+                        minWidth: BSLayout.minTouchTarget,
+                        minHeight: BSLayout.minTouchTarget
+                    )
+            }
+            .buttonStyle(.plain)
+            .disabled(isBusy)
         }
         .padding(.horizontal, 18)
         .padding(.top, 8)
@@ -163,7 +192,9 @@ struct DispersalShareStep: View {
             show: show,
             identity: identity,
             rating: rating,
-            note: note
+            note: note,
+            ambientColor: ambientColor,
+            transitionNamespace: transitionNamespace
         )
         .aspectRatio(
             DispersalCeremonyShareExport.renderSize.width
@@ -178,55 +209,122 @@ struct DispersalShareStep: View {
         .shadow(color: .black.opacity(0.45), radius: 24, y: 10)
     }
 
+    private func exportButton(
+        title: String,
+        isLoading: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: BSSpacing.sm) {
+                if isLoading {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(BSColor.Stage.foreground)
+                }
+                Text(title)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(BSSecondaryButtonStyle())
+        .disabled(isBusy)
+    }
+
     @MainActor
     private func saveToPhotos() async {
-        guard !isSaving, !isSharing else { return }
+        guard !isBusy else { return }
         isSaving = true
-        defer { isSaving = false }
+        onBusyChange(true)
+        defer {
+            isSaving = false
+            onBusyChange(false)
+        }
+
+        let resolvedAmbient = await resolveAmbientColor()
         guard let image = DispersalCeremonyShareExport.renderImage(
             show: show,
             identity: identity,
             rating: rating,
-            note: note
+            note: note,
+            ambientColor: resolvedAmbient
         ) else {
-            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+            presentToast(
+                .failure,
+                message: BSLocalization.text("分享图片生成失败，请重试")
+            )
             return
         }
+
         do {
             try await FootprintPhotoLibrary.save(image)
-            presentToast(.success, message: BSLocalization.text("已保存到相册"))
+            presentToast(
+                .success,
+                message: BSLocalization.text("已保存到相册")
+            )
         } catch {
-            presentToast(.failure, message: BSLocalization.text("保存失败，请检查相册权限"))
+            presentToast(
+                .failure,
+                message: BSLocalization.text("保存失败，请检查相册权限")
+            )
         }
     }
 
     @MainActor
     private func shareImage() async {
-        guard !isSaving, !isSharing else { return }
+        guard !isBusy else { return }
         isSharing = true
-        defer { isSharing = false }
+        onBusyChange(true)
+        defer {
+            isSharing = false
+            onBusyChange(false)
+        }
+
+        let resolvedAmbient = await resolveAmbientColor()
         guard let image = DispersalCeremonyShareExport.renderImage(
             show: show,
             identity: identity,
             rating: rating,
-            note: note
+            note: note,
+            ambientColor: resolvedAmbient
         ),
-              let data = image.pngData() else {
-            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+        let data = image.pngData() else {
+            presentToast(
+                .failure,
+                message: BSLocalization.text("分享图片生成失败，请重试")
+            )
             return
         }
+
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("BeforeShow-dispersal-\(UUID().uuidString).png")
+
         do {
             try data.write(to: url, options: .atomic)
             guard SystemPNGSharePresenter.present(url: url) else {
                 try? FileManager.default.removeItem(at: url)
-                presentToast(.failure, message: BSLocalization.text("系统分享面板暂时无法打开"))
+                presentToast(
+                    .failure,
+                    message: BSLocalization.text("系统分享面板暂时无法打开")
+                )
                 return
             }
         } catch {
-            presentToast(.failure, message: BSLocalization.text("分享图片生成失败，请重试"))
+            presentToast(
+                .failure,
+                message: BSLocalization.text("分享图片生成失败，请重试")
+            )
         }
+    }
+
+    @MainActor
+    private func resolveAmbientColor() async -> Color? {
+        if let ambientColor {
+            return ambientColor
+        }
+        let resolved = await DispersalCeremonyShareExport.loadAmbientColor(
+            for: show.coverImageURL
+        )
+        ambientColor = resolved
+        return resolved
     }
 
     private func presentToast(_ tone: BSToastTone, message: String) {
@@ -234,11 +332,9 @@ struct DispersalShareStep: View {
         toast = payload
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if toast == payload { toast = nil }
+            if toast == payload {
+                toast = nil
+            }
         }
     }
 }
-
-// MARK: - 底部操作条
-
-/// 与 App 其他 sheet 一致的标准按钮组:次要(描边) + 主要(白底),等宽排列。
