@@ -243,114 +243,50 @@ final class ProSubscriptionTests: XCTestCase {
         ))
     }
 
-    func testProGateAllowsOneFreeShowPerMonth() {
+    /// 仅因接受同行邀请而新建的现场不占免费容量；用户自己创建的同行现场仍然占。
+    func testFreeCapacityIgnoresInvitationOnlyShows() throws {
         let gate = ProFeatureGate()
-        let proEntitlement = ProEntitlementState.active(
-            productID: ProSubscriptionCatalog.yearlyProductID,
-            expirationDate: nil
-        )
-
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: .free))
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 100, entitlement: proEntitlement))
-    }
-
-    func testProGateCountsOnlyShowsCreatedInCurrentCalendarMonth() {
-        let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let sameMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
-        let previousMonth = Date(timeIntervalSince1970: 1_784_000_000) // 2026-07-14 UTC
-
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(
-                from: [sameMonth, sameMonth, previousMonth],
-                now: now,
-                calendar: calendar
-            ),
-            2
-        )
-    }
-
-    /// 接受 CloudKit 同行邀请「新建」的场次是对方创建的，不该消耗本人的每月免费额度。
-    func testFreeQuotaIgnoresSharesAcceptedFromCompanions() throws {
-        let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let thisMonth = Date(timeIntervalSince1970: 1_786_800_000) // 2026-08-15 UTC
+        let now = Date(timeIntervalSince1970: 1_787_000_000)
 
         let accepted = try Show(
             name: "朋友的现场",
             date: now,
             startTime: now,
             creationOrigin: .companionImport,
-            createdAt: thisMonth
+            createdAt: now
         )
         accepted.companionIsOwner = false
-        let ownShare = try Show(name: "我建的同行", date: now, startTime: now, createdAt: thisMonth)
+        let ownShare = try Show(name: "我建的同行", date: now, startTime: now, createdAt: now)
         ownShare.companionIsOwner = true
-        let manual = try Show(name: "我自己添加", date: now, startTime: now, createdAt: thisMonth)
+        let manual = try Show(name: "我自己添加", date: now, startTime: now, createdAt: now)
 
-        XCTAssertFalse(accepted.countsTowardFreeMonthlyQuota)
-        XCTAssertTrue(ownShare.countsTowardFreeMonthlyQuota)
-        XCTAssertTrue(manual.countsTowardFreeMonthlyQuota)
-
-        // 只接受了一份邀请 → 本月额度未被占用，用户仍能添加自己的第一场。
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar), 0)
-        XCTAssertTrue(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted], now: now, calendar: calendar),
-            entitlement: .free
-        ))
-
-        // 自己添加过一场后额度用尽，邀请导入的那份不叠加计数。
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [accepted, manual, ownShare], now: now, calendar: calendar),
-            2
-        )
-        XCTAssertFalse(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [accepted, manual], now: now, calendar: calendar),
-            entitlement: .free
-        ))
+        XCTAssertFalse(accepted.countsTowardFreeShowCapacity)
+        XCTAssertTrue(ownShare.countsTowardFreeShowCapacity)
+        XCTAssertTrue(manual.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [accepted, ownShare, manual]), 2)
     }
 
-    /// 额度来源必须是不可变的创建来源，不能从 `companionIsOwner` 推导：
-    /// 接受邀请时会把邀请合并进用户已有的现场，那条路径也会把
-    /// `companionIsOwner` 置为 false，否则已占用的额度会被凭空退还。
-    func testAcceptedShareMergedIntoOwnShowDoesNotRefundQuota() throws {
+    /// 自建现场后来与同行邀请合并，创建来源不变，因此仍占免费容量。
+    func testAcceptedShareMergedIntoOwnShowStillConsumesCapacity() throws {
         let gate = ProFeatureGate()
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let now = Date(timeIntervalSince1970: 1_787_000_000) // 2026-08-17 UTC
-        let earlierThisMonth = Date(timeIntervalSince1970: 1_786_000_000) // 2026-08-06 UTC
+        let now = Date(timeIntervalSince1970: 1_787_000_000)
+        let mine = try Show(name: "我自己添加", date: now, startTime: now, createdAt: now)
 
-        // 用户 8/6 自己添加了一场，本月唯一的免费额度已经用掉。
-        let mine = try Show(name: "我自己添加", date: now, startTime: now, createdAt: earlierThisMonth)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
-
-        // 之后接受了同一场现场的同行邀请 → 合并进这条已有记录（participant 侧）。
         mine.companionIsOwner = false
 
-        XCTAssertTrue(mine.countsTowardFreeMonthlyQuota)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(
-            showsAddedThisMonth: gate.showsAddedThisMonth(from: [mine], now: now, calendar: calendar),
-            entitlement: .free
-        ))
+        XCTAssertTrue(mine.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [mine]), 1)
 
-        // 反向：纯粹因接受邀请而新建的现场始终不占额度。
         let imported = try Show(
             name: "朋友的现场",
             date: now,
             startTime: now,
             creationOrigin: .companionImport,
-            createdAt: earlierThisMonth
+            createdAt: now
         )
         imported.companionIsOwner = false
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [imported], now: now, calendar: calendar), 0)
-        // 旧数据没有来源字段时按 .user 解释，不会退还额度。
+        XCTAssertFalse(imported.countsTowardFreeShowCapacity)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [imported]), 0)
         XCTAssertEqual(mine.creationOrigin, .user)
         XCTAssertEqual(imported.creationOrigin, .companionImport)
     }
@@ -413,16 +349,13 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(legacyImport.hasUnresolvedCreationOrigin)
 
         let gate = ProFeatureGate()
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [legacyImport, legacyManual, legacyOwner], now: now, calendar: calendar),
-            3
-        )
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyImport, legacyManual, legacyOwner]), 3)
 
         // 迁移之后再被邀请合并（companionIsOwner 翻成 false）不会退还额度。
         legacyManual.companionIsOwner = false
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
         XCTAssertEqual(legacyManual.creationOrigin, .user)
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyManual]), 1)
     }
 
     /// 升级前就已经发生过合并的旧数据：用户自己添加、随后接受邀请被合并，
@@ -454,14 +387,10 @@ final class ProSubscriptionTests: XCTestCase {
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
 
         XCTAssertEqual(mergedBeforeUpgrade.creationOrigin, .user)
-        XCTAssertTrue(mergedBeforeUpgrade.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(mergedBeforeUpgrade.countsTowardFreeShowCapacity)
 
         let gate = ProFeatureGate()
-        XCTAssertEqual(
-            gate.showsAddedThisMonth(from: [mergedBeforeUpgrade], now: now, calendar: calendar),
-            1
-        )
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+        XCTAssertEqual(gate.selfAddedShowCount(from: [mergedBeforeUpgrade]), 1)
     }
 
     /// 额度归属不能依赖启动期的执行顺序：`noteDependenciesReady()` 会立刻起 Task
@@ -499,10 +428,9 @@ final class ProSubscriptionTests: XCTestCase {
         ShowCreationOriginMigration.migrateIfNeeded(in: context)
 
         XCTAssertEqual(legacyManual.creationOrigin, .user)
-        XCTAssertTrue(legacyManual.countsTowardFreeMonthlyQuota)
+        XCTAssertTrue(legacyManual.countsTowardFreeShowCapacity)
         let gate = ProFeatureGate()
-        XCTAssertEqual(gate.showsAddedThisMonth(from: [legacyManual], now: now, calendar: calendar), 1)
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: .free))
+        XCTAssertEqual(gate.selfAddedShowCount(from: [legacyManual]), 1)
     }
 
     func testProLimitReasonsMapToExpectedUserFacingCopy() {
@@ -532,8 +460,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(expired.isProActive)
         XCTAssertTrue(gate.canAccessExistingLocalData(entitlement: expired))
         XCTAssertTrue(gate.canEditManualContent(entitlement: expired))
-        XCTAssertTrue(gate.canAddShow(showsAddedThisMonth: 0, entitlement: expired))
-        XCTAssertFalse(gate.canAddShow(showsAddedThisMonth: 1, entitlement: expired))
+
     }
 
     func testSettingsMembershipSummaryUsesTruthfulEntitlementCopy() {
