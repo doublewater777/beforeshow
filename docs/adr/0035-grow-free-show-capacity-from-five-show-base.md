@@ -23,7 +23,7 @@ Model the free tier as **saved self-added show capacity**, not historical add at
 - A show created only by accepting a companion invitation does not count. A self-added show that is later merged with a companion invitation continues to count.
 - Pro has unlimited capacity. Existing shows remain accessible after Pro expires.
 - When a user transitions from Pro to free, the current self-added show count becomes that month's free baseline if the month has not already initialized a free baseline.
-- A local calendar month initializes its free baseline at most once. Repeated Pro/free entitlement changes in the same month cannot grant repeated monthly growth.
+- A local calendar month initializes its free baseline at most once. Repeated Pro/free entitlement changes in the same month cannot grant repeated monthly growth. The persisted month boundary is monotonic: device clock or timezone rollback to an earlier month does not initialize that older month again.
 - When this policy first ships, an existing user's current self-added show count becomes the migration month's baseline. The app does not attempt to reconstruct deleted historical shows.
 - On the next local calendar month, the baseline is recalculated from the self-added shows that remain saved at that boundary.
 
