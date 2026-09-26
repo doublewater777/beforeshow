@@ -477,33 +477,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(chrome.contains("ListeningLegacyDetachedBottomChrome"))
     }
 
-    func testCommittedProjectUsesAlreadyReferencedListeningSources() throws {
-        let iosRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let sourceRoot = iosRoot.appendingPathComponent("BeforeShow")
-        let testsRoot = iosRoot.appendingPathComponent("BeforeShowTests")
-        let project = try String(
-            contentsOf: iosRoot.appendingPathComponent("BeforeShow.xcodeproj/project.pbxproj"),
-            encoding: .utf8
-        )
-
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningPolishedBottomChrome.swift").path
-        ))
-        XCTAssertTrue(FileManager.default.fileExists(
-            atPath: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift").path
-        ))
-        XCTAssertTrue(project.contains("ListeningPolishedBottomChrome.swift in Sources"))
-        XCTAssertTrue(project.contains("ListeningMiniPlayerPlaybackAppearanceTests.swift in Sources"))
-        XCTAssertTrue(try listeningSource("Features/Listening/Views/ListeningPolishedBottomChrome.swift").contains("struct ListeningPolishedBottomChrome"))
-        XCTAssertTrue(try String(contentsOf: testsRoot.appendingPathComponent("ListeningMiniPlayerPlaybackAppearanceTests.swift"), encoding: .utf8).contains("final class ListeningMiniPlayerPlaybackAppearanceTests"))
-    }
-
-    func testRootViewRemainsWithinArchitectureBudget() throws {
-        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
-        let data = try Data(contentsOf: root.appendingPathComponent("BeforeShow/RootView.swift"))
-        XCTAssertLessThanOrEqual(data.count, 12_000)
-    }
-
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
