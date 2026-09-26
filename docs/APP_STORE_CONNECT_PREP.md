@@ -93,12 +93,15 @@ Created with these fields:
   - Lifetime win-back: `¥38`
   - Eligible customers receive a 3-day free trial, then the yearly subscription auto-renews at the displayed annual price unless canceled.
 - Free allowance:
-  - Save 1 `现场`.
+  - Base capacity: save 5 self-added `现场`.
+  - After the base, free capacity can grow by 1 per local calendar month; unused monthly growth does not roll over.
+  - A new user can therefore save up to 6 self-added `现场` in the first month.
+  - Deleting a self-added `现场` frees capacity. Invitation-only companion `现场` do not consume free capacity.
 - Pro unlocks:
   - Unlimited saved `现场`.
 - Expired Pro behavior:
   - Existing saved shows and manual edits remain accessible.
-  - The app only limits new over-free saved shows.
+  - The user returns to the free monthly capacity-growth rule; expiration does not force deletion of existing shows.
 - Copy guardrail: do not mention ads, ad removal, VIP community, account sync, or unlimited AI.
 
 ## Privacy And Data Review Notes

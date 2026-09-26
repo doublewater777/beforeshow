@@ -120,9 +120,9 @@ final class Show {
         creationOriginRawValue == nil
     }
 
-    /// 免费额度只算用户自己添加的现场。仅因接受同行邀请而新建的 participant 侧
-    /// 现场不占额度；把邀请合并进用户已有现场时，来源不变，额度也不会被退还。
-    var countsTowardFreeMonthlyQuota: Bool {
+    /// 免费现场容量只算用户自己添加且仍保留的现场。仅因接受同行邀请而新建的
+    /// participant 侧现场不占容量；把邀请合并进用户已有现场时来源不变。
+    var countsTowardFreeShowCapacity: Bool {
         creationOrigin == .user
     }
 

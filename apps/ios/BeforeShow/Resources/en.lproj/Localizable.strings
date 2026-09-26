@@ -358,7 +358,7 @@
 "已撤销结束，继续按现场时间计时" = "End undone; counting by the show time again";
 "已放入当前现场" = "Moved to the current show";
 "已暂停" = "Paused";
-"已有本地内容仍可查看和编辑" = "Existing local content stays viewable and editable";
+"免费版基础 5 场，之后每个自然月容量增加 1 场；删除现场会释放容量。开通 Pro 后不限制新增场次。" = "Free starts with 5 shows, then capacity grows by 1 each calendar month. Deleting a show frees capacity. Pro removes the show limit.";
 "已添加现场" = "Show added";
 "已落幕，散场时间已计入现场记录" = "Ended; the end time is counted in the record";
 "已记录取消" = "Cancellation recorded";
@@ -558,9 +558,9 @@
 "像发一条私密动态，但不会公开发布。" = "Like posting a private story, but it won't be published publicly.";
 "先把它放在这里" = "Keep It Here for Now";
 "免费版" = "Free Plan";
-"免费版可保存 1 场现场" = "Free plan can save 1 show";
-"免费版每月可添加 1 场现场" = "Free plan: add 1 show per month";
-"每月可添加 1 场现场" = "Add 1 show per month";
+"基础 5 场 · 每月容量 +1" = "5-show base · +1 capacity each month";
+"本月免费容量已用完" = "This month's free capacity is full";
+"已有现场保留 · 每月容量 +1" = "Existing shows stay · +1 capacity each month";
 "全部" = "All";
 "共同足迹" = "Shared Footprints";
 "关于" = "About";
@@ -581,7 +581,7 @@
 "开场提醒" = "Show Reminder";
 "开场日期" = "Start Date";
 "开场时间" = "Start Time";
-"开通 Pro 后可以无限保存现场。" = "With Pro you can save unlimited shows.";
+"免费版基础 5 场，之后每个自然月容量 +1。Pro 不限制新增场次。" = "Free starts with 5 shows, then capacity grows by 1 each calendar month. Pro removes the show limit.";
 "当前现场散场后会自动收进这里，
 场次、城市和回忆都会慢慢累积。" = "When the current show ends it's filed here automatically;\\nshows, cities, and memories will slowly accumulate.";
 "截图识别失败" = "Screenshot Recognition Failed";
@@ -894,10 +894,9 @@ First show: %@";
 "Pro 已启用。" = "Pro enabled.";
 "买断终身 Pro · %@" = "Buy Lifetime Pro · %@";
 "价格暂不可用" = "Price unavailable";
-"以特惠价升级，错过恢复原价；免费版每月仍可添加 1 场现场。" = "Upgrade at a discount before it returns to full price; the free plan still lets you add 1 show per month.";
+"以特惠价升级，错过恢复原价；免费版仍会每个自然月增加 1 场容量。" = "Upgrade at a discount before it returns to full price; free capacity still grows by 1 show each calendar month.";
 "以特惠价解锁 Pro · %@" = "Unlock Pro at a discount · %@";
 "再想一下？" = "Think again?";
-"免费版每月可以添加 1 场现场。Pro 让你的足迹继续累积，不限制新增场次。" = "The free plan lets you add 1 show per month. Pro keeps your footprint growing with unlimited shows.";
 "推荐" = "Recommended";
 "无限添加现场" = "Add unlimited shows";
 "暂时不要" = "Not Now";

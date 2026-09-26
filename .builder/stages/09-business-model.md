@@ -6,7 +6,7 @@ Buyer: the same individual music live-goer who uses BeforeShow.
 
 User: people with real upcoming concerts, Livehouse shows, or music festivals who want help entering the show mood and preparing lightly.
 
-Payment trigger: hitting the saved-show limit after experiencing value from adding one real show.
+Payment trigger: hitting the free saved-show capacity after first building a meaningful personal footprint.
 
 Pricing model: Pro membership through App Store subscriptions at an initial test price of ¥12/month or ¥68/year.
 
@@ -17,9 +17,10 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 ## Decisions
 
 - Paid value currently attaches only to unlimited saved shows, not to ticketing, social visibility, preparation generators, or public community.
-- The first-show experience should remain useful enough to prove the product before asking for payment.
-- Free users can save one show.
-- Pro unlocks unlimited saved shows.
+- The free experience should remain useful enough to prove the product before asking for payment.
+- Free users have a five-show base capacity for self-added shows. After that base, free capacity can grow by one per local calendar month; unused monthly growth does not roll over.
+- Deleting a self-added show frees capacity. Invitation-only companion shows do not consume it; self-added shows later merged with an invitation still do.
+- Pro unlocks unlimited saved shows. Pro expiration preserves existing shows and returns the user to the same monthly capacity-growth rule.
 - Pro has no free trial in V2.1.
 - Pro uses App Store subscriptions and purchase restoration without a BeforeShow account.
 - The core implementation cycle `.builder/cycles/2026-06-16-core-show-loop/` tests whether the five-feature show loop makes Pro repeat-generation limits understandable.
@@ -41,7 +42,7 @@ No payment evidence yet. Current evidence is limited to fake-door planning and l
 
 - Whether payment increases or reduces core preparation behavior.
 - Whether ¥12/month and ¥68/year are the right initial prices.
-- Whether the one-show free limit hurts first-show activation.
+- Whether the five-show base plus monthly +1 growth gives enough time to establish value while still producing a meaningful Pro conversion trigger.
 
 ## Gate
 
