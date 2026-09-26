@@ -12,7 +12,7 @@ func synchronizeFreeShowCapacity(
     let resolvedEntitlement = entitlement ?? ProEntitlementStorage.decode(
         UserDefaults.standard.string(forKey: ProEntitlementStorage.appStorageKey) ?? ""
     )
-    ProFeatureGate().synchronizeFreeCapacity(
+    FreeShowCapacityCoordinator().synchronizeFreeCapacity(
         from: shows,
         entitlement: resolvedEntitlement,
         now: now,
