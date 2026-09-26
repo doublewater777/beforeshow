@@ -460,8 +460,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertFalse(chrome.contains("ListeningLegacyDetachedBottomChrome"))
     }
 
-
-
     private func resetChromeGlobals() {
         ListeningPlaybackChromeStore.shared.room = nil
         ListeningRoomCache.shared?.mechanism.motion.stop()
