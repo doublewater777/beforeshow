@@ -1,6 +1,25 @@
 import Foundation
 import SwiftData
 
+@MainActor
+func synchronizeFreeShowCapacity(
+    in modelContext: ModelContext,
+    entitlement: ProEntitlementState? = nil,
+    now: Date = Date(),
+    calendar: Calendar = .current
+) {
+    guard let shows = try? modelContext.fetch(FetchDescriptor<Show>()) else { return }
+    let resolvedEntitlement = entitlement ?? ProEntitlementStorage.decode(
+        UserDefaults.standard.string(forKey: ProEntitlementStorage.appStorageKey) ?? ""
+    )
+    ProFeatureGate().synchronizeFreeCapacity(
+        from: shows,
+        entitlement: resolvedEntitlement,
+        now: now,
+        calendar: calendar
+    )
+}
+
 enum ForegroundMediaMaintenancePolicy {
     static let minimumInterval: TimeInterval = 10 * 60
 
