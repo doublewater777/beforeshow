@@ -101,7 +101,7 @@ enum ShowDeletionCoordinator {
                 in: modelContext,
                 effects: effects
             )
-            ProFeatureGate().synchronizeFreeCapacity(
+            FreeShowCapacityCoordinator().synchronizeFreeCapacity(
                 from: remainingShows,
                 entitlement: ProEntitlementStorage.decode(
                     UserDefaults.standard.string(forKey: ProEntitlementStorage.appStorageKey) ?? ""
