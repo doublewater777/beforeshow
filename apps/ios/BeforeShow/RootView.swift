@@ -11,7 +11,7 @@ struct RootView: View {
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var ceremonyPendingDetail: FootprintDetailDestination?
+    @State private var pendingFootprintDetail: FootprintDetailDestination?
     @State private var companionDuplicateResolution: CompanionDuplicateResolution?
     @State private var companionDuplicateErrorMessage: String?
     @State private var companionAcceptanceMessage: String?
@@ -145,7 +145,7 @@ struct RootView: View {
     }
     private func openAcceptedShow(_ result: CompanionAcceptedImportResult) {
         if result.wasHistorical, let show = rootShows.first(where: { $0.id == result.showID }) {
-            ceremonyPendingDetail = FootprintDetailDestination(show: show)
+            pendingFootprintDetail = FootprintDetailDestination(show: show)
             selectedTab = .footprints
         } else if result.becameCurrent {
             selectedTab = .current
@@ -247,8 +247,7 @@ struct RootView: View {
         TabView(selection: $selectedTab) {
             Tab(BeforeShowTab.current.localizedTitle, systemImage: BeforeShowTab.current.iconName, value: .current) {
                 CurrentShowFeatureRootView(
-                    isPlaybackActive: selectedTab == .current,
-                    ceremonyPendingDetail: $ceremonyPendingDetail
+                    isPlaybackActive: selectedTab == .current
                 )
             }
             .accessibilityIdentifier("root.tab.current")
@@ -260,7 +259,7 @@ struct RootView: View {
 
             Tab(BeforeShowTab.footprints.localizedTitle, systemImage: BeforeShowTab.footprints.iconName, value: .footprints) {
                 FootprintsView(
-                    pendingDetailTarget: ceremonyPendingDetail
+                    pendingDetailTarget: pendingFootprintDetail
                 )
             }
             .accessibilityIdentifier("root.tab.footprints")
@@ -269,7 +268,7 @@ struct RootView: View {
         // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
-        .onChange(of: ceremonyPendingDetail) { _, newValue in
+        .onChange(of: pendingFootprintDetail) { _, newValue in
             if newValue != nil, selectedTab != .footprints {
                 selectedTab = .footprints
             }
