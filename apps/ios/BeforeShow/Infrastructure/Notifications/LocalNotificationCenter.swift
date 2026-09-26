@@ -19,6 +19,9 @@ enum NotificationSchedulingStateStore {
             canonical.hasRequestedPermissionAfterFirstShow = states.contains {
                 $0.hasRequestedPermissionAfterFirstShow
             }
+            if canonical.stagedBackfillShowID == nil {
+                canonical.stagedBackfillShowID = states.compactMap(\.stagedBackfillShowID).first
+            }
             canonical.backfillMintedShowIDs = Array(
                 Set(states.flatMap { $0.backfillMintedShowIDs ?? [] })
             )
@@ -116,13 +119,12 @@ final class LocalNotificationCenter {
             let records = try context.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
             let schedulingState = try NotificationSchedulingStateStore.canonicalize(in: context)
 
-            // A non-nil legacy field after portfolio migration means Add Show saved
-            // successfully but the app exited before its backfill hand-off reconciled.
+            // A staged show means Add Show saved successfully but the app exited
+            // before its one-shot backfill hand-off reconciled.
             let effectiveReason: NotificationReconcileReason
             if case .showAddedCandidate = reason {
                 effectiveReason = reason
-            } else if schedulingState.portfolioMigrationVersion == 1,
-                      let stagedShowID = schedulingState.focusedShowID {
+            } else if let stagedShowID = schedulingState.stagedBackfillShowID {
                 effectiveReason = .showAddedCandidate(stagedShowID)
             } else {
                 effectiveReason = reason
@@ -220,29 +222,20 @@ final class LocalNotificationCenter {
         }
     }
 
-    /// Compatibility hand-off for the existing Add Show flow. `show` is not a focus;
-    /// it is only the just-added show that may mint anticipation backfill once.
+    /// Reconcile immediately after a newly added show is persisted so that only this
+    /// hand-off may mint anticipation backfill. Natural requests still come from the
+    /// full multi-show portfolio.
     @discardableResult
-    func applyFocusChange(
-        to show: Show?,
+    func reconcileAfterShowAdded(
+        _ show: Show,
         in context: ModelContext,
         now: Date = Date()
     ) async -> Bool {
         await reconcilePortfolio(
-            reason: show.map { .showAddedCandidate($0.id) } ?? .mutation,
+            reason: .showAddedCandidate(show.id),
             in: context,
             now: now
         )
-    }
-
-    /// Compatibility wrapper for existing foreground/settings call sites.
-    @discardableResult
-    func reconcileFocus(
-        to _: Show?,
-        in context: ModelContext,
-        now: Date = Date()
-    ) async -> Bool {
-        await reconcilePortfolio(reason: .foreground, in: context, now: now)
     }
 
     private static func makeRecord(

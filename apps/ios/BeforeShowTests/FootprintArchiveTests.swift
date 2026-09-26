@@ -195,7 +195,7 @@ final class FootprintArchiveTests: XCTestCase {
         let context = container.mainContext
         let current = try makeShow("未来现场", year: 2027, artist: "未来艺人", city: "上海", venue: "MAO")
         let selection = CurrentShowSelection(selectedShowID: current.id)
-        let notificationState = NotificationSchedulingState(focusedShowID: current.id)
+        let notificationState = NotificationSchedulingState(stagedBackfillShowID: current.id)
         context.insert(current)
         context.insert(selection)
         context.insert(notificationState)
@@ -214,7 +214,7 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(result.outcome, .footprint)
         XCTAssertNil(result.notificationState)
         XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(notificationState.focusedShowID, current.id)
+        XCTAssertEqual(notificationState.stagedBackfillShowID, current.id)
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
@@ -448,7 +448,7 @@ final class FootprintArchiveTests: XCTestCase {
         )
 
         XCTAssertEqual(result.outcome, .future)
-        XCTAssertEqual(result.notificationState?.focusedShowID, future.id)
+        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, future.id)
         let selections = try context.fetch(FetchDescriptor<CurrentShowSelection>())
         XCTAssertEqual(selections.first?.selectedShowID, future.id)
     }

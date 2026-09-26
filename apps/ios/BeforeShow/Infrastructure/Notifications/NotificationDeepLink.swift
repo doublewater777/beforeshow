@@ -11,11 +11,21 @@ enum NotificationUserInfoKey {
 /// show's destination without changing the user's durable Current Show.
 struct NotificationDeepLink: Equatable, Sendable {
     enum Destination: String, Codable, Equatable, CaseIterable, Sendable {
+        /// 普通等待期 / 临场通知只负责把 App 带回「当前」，不额外打开详情页。
         case home
         /// 散场后那条通知点进来直接开记忆碎片，否则回首页会落空。
         case memoryFragments
         /// 开场记忆通知点进来直接开统一记忆编辑器。
         case memoryCreate
+
+        var requiresFeaturePresentation: Bool {
+            switch self {
+            case .home:
+                return false
+            case .memoryFragments, .memoryCreate:
+                return true
+            }
+        }
     }
 
     let showID: UUID

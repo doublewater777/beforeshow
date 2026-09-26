@@ -116,7 +116,7 @@ enum NotificationPortfolioMigration {
         var minted = Set(state.backfillMintedShowIDs ?? [])
         minted.formUnion(shows.map(\.id))
         state.backfillMintedShowIDs = Array(minted)
-        state.focusedShowID = nil
+        state.stagedBackfillShowID = nil
         state.portfolioMigrationVersion = currentVersion
         state.updatedAt = Date()
         try? modelContext.save()

@@ -189,47 +189,12 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(scheduler.futureRequests(for: postponedWithoutNewDate, now: now), [])
     }
 
-    func testChangingCurrentShowClearsOldFutureRecordsAndSchedulesNewFocus() throws {
-        let oldShowID = UUID()
-        let oldRecord = ShowNotificationScheduleRecord(
-            showID: oldShowID,
-            milestone: .oneDayBefore,
-            fireDate: makeDate(year: 2026, month: 6, day: 18, hour: 20)
-        )
-        let expiredOldRecord = ShowNotificationScheduleRecord(
-            showID: oldShowID,
-            milestone: .fourteenDaysBefore,
-            fireDate: makeDate(year: 2026, month: 6, day: 1, hour: 20)
-        )
-        let newShow = try Show(
-            name: "新的当前现场",
-            date: makeDate(year: 2026, month: 6, day: 25),
-            startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19)
-        )
-
-        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
-            from: [oldRecord, expiredOldRecord],
-            to: newShow,
-            now: now
-        )
-
-        XCTAssertEqual(Set(plan.recordsToCancel.map(\.id)), Set([oldRecord.id, expiredOldRecord.id]))
-        XCTAssertEqual(Set(plan.requestsToSchedule.map(\.showID)), [newShow.id])
-        XCTAssertEqual(
-            plan.requestsToSchedule.map(\.milestone),
-            [
-                .sevenDaysBefore, .threeDaysBefore, .oneDayBefore,
-                .showDayMorning, .showDay, .openingMemory, .afterShow
-            ]
-        )
-    }
-
     @MainActor
     func testNotificationSchedulingStateCanBeStoredLocally() throws {
         let showID = UUID()
         let state = NotificationSchedulingState()
         state.recordPermissionRequest()
-        state.focus(showID: showID)
+        state.stageBackfillCandidate(showID: showID)
         let record = ShowNotificationScheduleRecord(
             showID: showID,
             milestone: .showDay,
@@ -247,7 +212,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let states = try container.mainContext.fetch(FetchDescriptor<NotificationSchedulingState>())
         let records = try container.mainContext.fetch(FetchDescriptor<ShowNotificationScheduleRecord>())
 
-        XCTAssertEqual(states.first?.focusedShowID, showID)
+        XCTAssertEqual(states.first?.stagedBackfillShowID, showID)
         XCTAssertEqual(states.first?.hasRequestedPermissionAfterFirstShow, true)
         XCTAssertEqual(records.first?.milestone, .showDay)
     }
@@ -295,6 +260,12 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         let trigger = try XCTUnwrap(request.trigger as? UNCalendarNotificationTrigger)
         XCTAssertEqual(trigger.dateComponents.timeZone, TimeZone(secondsFromGMT: 0))
         XCTAssertEqual(trigger.nextTriggerDate(), fireDate)
+    }
+
+    func testOnlyExplicitMemoryDestinationsRequireFeaturePresentation() {
+        XCTAssertFalse(NotificationDeepLink.Destination.home.requiresFeaturePresentation)
+        XCTAssertTrue(NotificationDeepLink.Destination.memoryCreate.requiresFeaturePresentation)
+        XCTAssertTrue(NotificationDeepLink.Destination.memoryFragments.requiresFeaturePresentation)
     }
 
     func testDeepLinkParseRejectsInvalidUserInfo() {
@@ -381,7 +352,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(opening.title, BSLocalization.text("留下此刻"))
         XCTAssertEqual(
             opening.body,
-            BSLocalization.format("%@ 正在现场，拍一张或写一句，留下此刻。", "夜航")
+            BSLocalization.format("%@ 开始了。想留下什么，我们就留一点下来。", "夜航")
         )
         XCTAssertEqual(
             NotificationDeepLink(userInfo: opening.userInfo),
@@ -456,6 +427,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(Set(requests.map(\.content.threadIdentifier)), [show.id.uuidString])
     }
 
+    func testNotificationBodyDoesNotRepeatItsTitle() throws {
+        let show = try Show(
+            name: "夜航",
+            date: makeDate(year: 2026, month: 8, day: 1),
+            startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19),
+            venueName: "MAO Livehouse"
+        )
+
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: now
+        )
+
+        for request in requests {
+            XCTAssertFalse(
+                request.body.localizedCaseInsensitiveContains(request.title),
+                "\(request.milestone.rawValue): \(request.title) / \(request.body)"
+            )
+        }
+    }
+
     /// 文案要用上场馆这类具体事实，而不是只插一个现场名。
     func testCopyMentionsVenueWhenAvailable() throws {
         let show = try Show(
@@ -499,29 +491,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         }
     }
 
-    /// 音乐节 / Livehouse / 演唱会在 T-3 说的不是同一件事。
-    func testThreeDayCopyAdaptsToShowFlavor() throws {
-        func body(name: String, venue: String?) throws -> String {
-            let show = try Show(
-                name: name,
-                date: makeDate(year: 2026, month: 8, day: 1),
-                startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19),
-                venueName: venue
-            )
-            let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
-                for: show,
-                now: now
-            )
-            return try XCTUnwrap(requests.first { $0.milestone == .threeDaysBefore }).body
-        }
+    func testWaitingPhaseCopyFeelsLikeListeningTogether() throws {
+        let show = try Show(
+            name: "夜航",
+            date: makeDate(year: 2026, month: 8, day: 1),
+            startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19)
+        )
 
-        let festival = try body(name: "草莓音乐节", venue: nil)
-        let livehouse = try body(name: "落日飞车", venue: "MAO Livehouse")
-        let concert = try body(name: "五月天演唱会", venue: "体育场")
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: now
+        )
 
-        XCTAssertNotEqual(festival, livehouse)
-        XCTAssertNotEqual(livehouse, concert)
-        XCTAssertNotEqual(festival, concert)
+        let fourteen = try XCTUnwrap(requests.first { $0.milestone == .fourteenDaysBefore })
+        let seven = try XCTUnwrap(requests.first { $0.milestone == .sevenDaysBefore })
+        let three = try XCTUnwrap(requests.first { $0.milestone == .threeDaysBefore })
+        let one = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
+
+        XCTAssertTrue(fourteen.body.contains("一起听"))
+        XCTAssertTrue(seven.body.contains("把歌先听起来"))
+        XCTAssertTrue(three.body.contains("再听几首"))
+        XCTAssertTrue(one.body.contains("再听一晚"))
     }
 
     func testNotificationSchedulingIsTimezoneAware() throws {
@@ -572,9 +562,8 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         }
     }
 
-    /// 确认散场后焦点让给下一场，但「次日回看」通知必须活下来——
-    /// 否则走「确认已结束」主流程的用户永远收不到 afterShow。
-    func testConfirmedEndedShowKeepsAfterShowWhenFocusMovesOn() throws {
+    /// 已确认散场的现场即使同时存在后续现场，也要在 portfolio 中保留次日回看。
+    func testConfirmedEndedShowKeepsAfterShowAlongsideOtherShows() throws {
         let ended = try Show(
             name: "已落幕的现场",
             date: makeDate(year: 2026, month: 6, day: 14),
@@ -586,27 +575,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
             date: makeDate(year: 2026, month: 6, day: 25),
             startTime: makeDate(year: 2026, month: 6, day: 25, hour: 19)
         )
-        // 焦点让出前，旧现场已经排过 afterShow。
         let staleRecord = ShowNotificationScheduleRecord(
             showID: ended.id,
             milestone: .afterShow,
             fireDate: makeDate(year: 2026, month: 6, day: 15, hour: 11)
         )
 
-        let plan = LocalNotificationScheduler(calendar: calendar).planFocusChange(
-            from: [staleRecord],
-            to: next,
-            preservingAfterShowOf: [ended],
+        let plan = NotificationPortfolioPlanner(calendar: calendar).plan(
+            shows: [ended, next],
+            existingRecords: [staleRecord],
+            schedulingState: nil,
+            reason: .mutation,
             now: now
         )
 
-        // 全量重排照旧（旧记录按真实 endedAt 重算后重新排），
-        // 但新计划里必须仍有这场已结束现场的 afterShow。
-        XCTAssertEqual(plan.recordsToCancel.map(\.id), [staleRecord.id])
-        let afterShow = try XCTUnwrap(plan.requestsToSchedule.first { $0.showID == ended.id })
-        XCTAssertEqual(afterShow.milestone, .afterShow)
+        let afterShow = try XCTUnwrap(
+            plan.scheduledRequests.first {
+                $0.showID == ended.id && $0.milestone == .afterShow
+            }
+        )
         XCTAssertEqual(afterShow.fireDate, makeDate(year: 2026, month: 6, day: 15, hour: 11))
-        XCTAssertTrue(plan.requestsToSchedule.contains { $0.showID == next.id })
+        XCTAssertTrue(plan.scheduledRequests.contains { $0.showID == next.id })
     }
 
     /// afterShowRequest 只管已确认散场的现场；散场时刻已过就不再排。

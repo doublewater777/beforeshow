@@ -218,7 +218,7 @@ ROOT_VIEW_FORBIDDEN_TOKENS = (
     "PhotosPickerItem",
     "DynamicCoverImportCoordinator",
     "WidgetDataSync.sync",
-    "LocalNotificationCenter.shared.reconcileFocus",
+    "LocalNotificationCenter.shared.reconcilePortfolio",
     "struct CurrentShowManagementSection",
     "struct CurrentShowCompanionSheet",
 )

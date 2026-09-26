@@ -347,7 +347,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(result.outcome, .future)
         XCTAssertEqual(selection.selectedShowID, current.id)
-        XCTAssertEqual(result.notificationState?.focusedShowID, added.id)
+        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, added.id)
     }
 
     @MainActor
@@ -371,7 +371,7 @@ final class ShowMutationCoordinatorTests: XCTestCase {
             context.fetch(FetchDescriptor<CurrentShowSelection>()).first
         )
         XCTAssertEqual(selection.selectedShowID, show.id)
-        XCTAssertEqual(result.notificationState?.focusedShowID, show.id)
+        XCTAssertEqual(result.notificationState?.stagedBackfillShowID, show.id)
         XCTAssertEqual(result.outcome, .future)
     }
 

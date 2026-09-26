@@ -42,8 +42,8 @@ struct LocalNotificationScheduler {
     /// 防拥挤：与任一自然未来节点相距 <4h、或不早于开场时刻的槽位直接丢弃
     /// （残局由 showDay / openingMemory 覆盖）。
     ///
-    /// 只在 applyFocusChange 里 mint（每场现场一次，见 backfillMintedShowIDs）；
-    /// reconcile 不调用它——补发时刻依赖 mint 当时的 now，重算会得到另一组时刻。
+    /// 只在 reconcileAfterShowAdded 里 mint（每场现场一次，见 backfillMintedShowIDs）；
+    /// 普通 portfolio reconcile 不调用它——补发时刻依赖 mint 当时的 now，重算会得到另一组时刻。
     func backfillRequests(for show: Show, now: Date = Date()) -> [ScheduledShowNotification] {
         let eventCalendar = show.timingCalendar(fallback: calendar)
         let timeState = CurrentShowTimeState(show: show, calendar: eventCalendar, now: now)
@@ -124,48 +124,14 @@ struct LocalNotificationScheduler {
                 notificationBody(for: .showDayMorning, context: context)
             )
         }
-        let bucket: ShowNotificationMilestone
-        if daysRemaining >= 10 {
-            bucket = .fourteenDaysBefore
-        } else if daysRemaining >= 5 {
-            bucket = .sevenDaysBefore
-        } else if daysRemaining >= 2 {
-            bucket = .threeDaysBefore
-        } else {
-            bucket = .oneDayBefore
-        }
         return (
-            notificationTitle(for: bucket, context: context),
-            BSLocalization.format("%1$@ 还有 %2$d 天，已经开始期待了", context.showName, daysRemaining)
-        )
-    }
-
-    func planFocusChange(
-        from existingRecords: [ShowNotificationScheduleRecord],
-        to newCurrentShow: Show?,
-        preservingAfterShowOf endedShows: [Show] = [],
-        now: Date = Date()
-    ) -> NotificationReschedulePlan {
-        var requests = newCurrentShow.map { futureRequests(for: $0, now: now) } ?? []
-
-        // afterShow 属于已结束现场自身的生命周期，不随通知焦点切换取消——
-        // 否则走「确认散场」主流程的用户永远收不到这条次日回看通知。
-        for show in endedShows where show.id != newCurrentShow?.id {
-            if let request = afterShowRequest(for: show, now: now),
-               !requests.contains(where: { $0.requestIdentifier == request.requestIdentifier }) {
-                requests.append(request)
-            }
-        }
-
-        return NotificationReschedulePlan(
-            recordsToCancel: existingRecords,
-            requestsToSchedule: requests
+            BSLocalization.text("离开场更近了"),
+            BSLocalization.format("%1$@ 还有 %2$d 天。先一起听几首，慢慢等。", context.showName, daysRemaining)
         )
     }
 
     /// 已确认散场（endedAt != nil）的现场的「次日回看」请求。
-    /// 只在未来触发时刻存在时返回；未确认散场的现场不由这里负责
-    /// （它还握着通知焦点，afterShow 已含在 futureRequests 里）。
+    /// 只在未来触发时刻存在时返回；未确认散场的现场由 futureRequests 负责。
     func afterShowRequest(for show: Show, now: Date = Date()) -> ScheduledShowNotification? {
         guard show.endedAt != nil else { return nil }
         let eventCalendar = show.timingCalendar(fallback: calendar)
@@ -283,54 +249,44 @@ struct LocalNotificationScheduler {
 
         switch milestone {
         case .fourteenDaysBefore:
-            return BSLocalization.format("%@ 还有两周，期待已经开始了", name)
+            return BSLocalization.format("%@，还有两周。先一起听几首，慢慢等。", name)
 
         case .sevenDaysBefore:
-            if let place = context.place {
-                return BSLocalization.format("%1$@ 还有一周，可以先查查 %2$@ 怎么去", name, place)
-            }
-            return BSLocalization.format("%@ 还有一周，可以先想想那天的样子了", name)
+            return BSLocalization.format("再过一周，我们就去见 %@ 了。这几天，把歌先听起来。", name)
 
         case .threeDaysBefore:
-            switch context.flavor {
-            case .festival:
-                return BSLocalization.format("%@ 还有三天，防晒、雨具和折叠椅可以先备好", name)
-            case .livehouse:
-                return BSLocalization.format("%@ 还有三天，站场时间不短，选一双好走的鞋", name)
-            case .concert:
-                return BSLocalization.format("%@ 还有三天，门票和身份证件先确认一遍", name)
-            }
+            return BSLocalization.format("%@ 已经很近了。再听几首，我们现场见。", name)
 
         case .oneDayBefore:
             if context.isMultiDay {
-                return BSLocalization.format("%@ 明天开始，第一天的东西今晚就收好", name)
+                return BSLocalization.format("%@ 明天开始。今晚再听一会儿，明天一起去。", name)
             }
-            return BSLocalization.format("%@ 明天见，今晚早点休息", name)
+            return BSLocalization.format("最后再听一晚。明天，我们去见 %@。", name)
 
         case .showDayMorning:
             if let place = context.place, let clock = context.startClock {
-                return BSLocalization.format("今天 %1$@ 在 %2$@ 开场，路上和取票都留够时间", clock, place)
+                return BSLocalization.format("%1$@ · %2$@ · %3$@。今天，我们现场见。", name, clock, place)
             }
             if let clock = context.startClock {
-                return BSLocalization.format("今天 %1$@ 开场，%2$@ 的路上留够时间", clock, name)
+                return BSLocalization.format("%1$@ · %2$@。今天，我们现场见。", name, clock)
             }
-            return BSLocalization.format("今天就是 %@，出门前留够时间", name)
+            return BSLocalization.format("%@。今天，我们现场见。", name)
 
         case .showDay:
             if let place = context.place {
-                return BSLocalization.format("%1$@ 快开场了，%2$@ 见", name, place)
+                return BSLocalization.format("%1$@ · %2$@。只剩几个小时了，现场见。", name, place)
             }
-            return BSLocalization.format("%@ 快开场了，门票和手机电量再确认一遍", name)
+            return BSLocalization.format("%@。只剩几个小时了，我们现场见。", name)
 
         case .afterShow:
-            return BSLocalization.format("%@ 的余温还在，想说的可以留在这里", name)
+            return BSLocalization.format("%@ 散场了。想记住的，我们慢慢留在这里。", name)
 
         case .openingMemory:
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
-                return BSLocalization.text("正在现场，拍一张或写一句，留下此刻。")
+                return BSLocalization.text("开始了。想留下什么，我们就留一点下来。")
             }
-            return BSLocalization.format("%@ 正在现场，拍一张或写一句，留下此刻。", trimmed)
+            return BSLocalization.format("%@ 开始了。想留下什么，我们就留一点下来。", trimmed)
         }
     }
 
@@ -342,17 +298,17 @@ struct LocalNotificationScheduler {
         case .fourteenDaysBefore:
             return BSLocalization.text("开场之前，先进入状态")
         case .sevenDaysBefore:
-            return BSLocalization.text("还有一周")
+            return BSLocalization.text("又近了一点")
         case .threeDaysBefore:
-            return BSLocalization.text("该想想带什么了")
+            return BSLocalization.text("这周就见")
         case .oneDayBefore:
             return BSLocalization.text("明天见")
         case .showDayMorning:
-            return BSLocalization.text("今天开场")
+            return BSLocalization.text("就是今天")
         case .showDay:
             return BSLocalization.text("快开场了")
         case .afterShow:
-            return BSLocalization.text("昨天怎么样")
+            return BSLocalization.text("昨晚怎么样")
         case .openingMemory:
             return BSLocalization.text("留下此刻")
         }

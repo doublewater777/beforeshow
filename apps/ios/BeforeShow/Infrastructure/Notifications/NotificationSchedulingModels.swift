@@ -166,16 +166,11 @@ struct ScheduledShowNotification: Equatable {
     var isBackfill: Bool = false
 }
 
-struct NotificationReschedulePlan: Equatable {
-    let recordsToCancel: [ShowNotificationScheduleRecord]
-    let requestsToSchedule: [ScheduledShowNotification]
-}
-
 enum NotificationReconcileReason: Equatable {
     case startup
     case foreground
     case mutation
-    /// Compatibility hand-off from Add Show: only this reason may mint anticipation backfill.
+    /// Only a newly added show may use this reason to mint anticipation backfill once.
     case showAddedCandidate(UUID)
 }
 
@@ -302,10 +297,11 @@ struct NotificationPortfolioPlanner {
 @Model
 final class NotificationSchedulingState {
     var id: UUID
-    /// Legacy/transient field. Runtime portfolio planning never treats this as a focus.
-    /// After the portfolio migration it is used only as an interrupted Add Show
-    /// backfill candidate hand-off and is cleared by the next successful reconcile.
-    var focusedShowID: UUID?
+    /// Crash-safe hand-off between Add Show persistence and the next portfolio reconcile.
+    /// The original persisted name is mapped so existing development stores migrate
+    /// without losing an interrupted just-added-show hand-off.
+    @Attribute(originalName: "focusedShowID")
+    var stagedBackfillShowID: UUID?
     var hasRequestedPermissionAfterFirstShow: Bool
     var backfillMintedShowIDs: [UUID]?
     /// Optional keeps the development-store schema lightweight. Version 1 means
@@ -315,14 +311,14 @@ final class NotificationSchedulingState {
 
     init(
         id: UUID = UUID(),
-        focusedShowID: UUID? = nil,
+        stagedBackfillShowID: UUID? = nil,
         hasRequestedPermissionAfterFirstShow: Bool = false,
         backfillMintedShowIDs: [UUID]? = nil,
         portfolioMigrationVersion: Int? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
-        self.focusedShowID = focusedShowID
+        self.stagedBackfillShowID = stagedBackfillShowID
         self.hasRequestedPermissionAfterFirstShow = hasRequestedPermissionAfterFirstShow
         self.backfillMintedShowIDs = backfillMintedShowIDs
         self.portfolioMigrationVersion = portfolioMigrationVersion
@@ -336,18 +332,12 @@ final class NotificationSchedulingState {
 
     /// Transitional hand-off used only between Add Show persistence and portfolio reconcile.
     func stageBackfillCandidate(showID: UUID) {
-        focusedShowID = showID
+        stagedBackfillShowID = showID
         updatedAt = Date()
     }
 
     func clearStagedBackfillCandidate() {
-        focusedShowID = nil
-        updatedAt = Date()
-    }
-
-    /// Kept for source compatibility with older tests/callers; not a scheduling focus.
-    func focus(showID: UUID?) {
-        focusedShowID = showID
+        stagedBackfillShowID = nil
         updatedAt = Date()
     }
 
