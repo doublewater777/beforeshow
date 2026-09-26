@@ -151,6 +151,54 @@ final class ProSubscriptionTests: XCTestCase {
         ))
     }
 
+    func testFreeCapacityDoesNotRemintGrowthWhenCalendarRollsBackToEarlierMonth() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(
+            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
+        )
+        let calendar = quotaCalendar()
+        let september = quotaDate(2026, 9, 10, calendar: calendar)
+        let october = quotaDate(2026, 10, 10, calendar: calendar)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        )
+
+        // September reaches its limit of 6.
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+
+        // October legitimately grants the next growth step, reaching 7.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        )
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: calendar
+        ))
+
+        // Rolling the device calendar back to September must not initialize
+        // September again from the latest retained count and mint an eighth slot.
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: calendar
+        ))
+    }
+
     func testExpiredProStartsMonthlyGrowthFromExpirationCount() throws {
         let defaults = temporaryQuotaDefaults()
         let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
