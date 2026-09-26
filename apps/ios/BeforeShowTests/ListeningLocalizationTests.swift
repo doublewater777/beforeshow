@@ -407,11 +407,28 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testListenShelfUsesCompactHeaderWhenThereIsNoShowAllAction() throws {
+    func testListenShelfKeepsOneHeaderHeightWithOrWithoutShowAllAction() throws {
         let shelf = try listeningSource("Features/Listening/Views/ListeningShelfView.swift")
-        XCTAssertTrue(shelf.contains("compactHeaderHeight: CGFloat = 32"))
-        XCTAssertTrue(shelf.contains("actionHeaderHeight = BSLayout.minTouchTarget"))
-        XCTAssertTrue(shelf.contains("showsAllDiscs ? actionHeaderHeight : compactHeaderHeight"))
+        XCTAssertTrue(shelf.contains("headerHeight = BSLayout.minTouchTarget"))
+        XCTAssertFalse(shelf.contains("compactHeaderHeight"))
+        XCTAssertFalse(shelf.contains("showsAllDiscs ? actionHeaderHeight : compactHeaderHeight"))
+    }
+
+    func testListenFooterKeepsOnlyGuidanceBelowMachine() throws {
+        let currentSong = try listeningSource("Features/Listening/Views/ListeningCurrentSong.swift")
+        XCTAssertFalse(currentSong.contains("track.title"))
+        XCTAssertFalse(currentSong.contains("track.artistName"))
+        XCTAssertFalse(currentSong.contains("statusDot"))
+        XCTAssertTrue(currentSong.contains("minHeight: BSLayout.minTouchTarget"))
+    }
+
+    func testListeningEmptyStateUsesRootTabEmptyStateMetrics() throws {
+        let empty = try listeningSource("Features/Listening/Views/ListeningEmptyView.swift")
+        XCTAssertFalse(empty.contains("ListeningEmptyArtwork()"))
+        XCTAssertTrue(empty.contains(".frame(width: 80, height: 80)"))
+        XCTAssertTrue(empty.contains(".font(BSFont.heroTitle)"))
+        XCTAssertTrue(empty.contains("BSLayout.emptyStateActionWidth"))
+        XCTAssertTrue(empty.contains("BSLayout.emptyStateActionHeight"))
     }
 
     func testCurrentShowScrollContentClearsRootBottomChrome() throws {

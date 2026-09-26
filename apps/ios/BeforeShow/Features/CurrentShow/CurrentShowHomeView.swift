@@ -157,6 +157,7 @@ struct CurrentShowHomeView: View {
                     )
                 } else {
                     CurrentShowEmptyStateView(
+                        hasShows: !shows.isEmpty,
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true }
@@ -456,6 +457,7 @@ struct CurrentShowHomeView: View {
 }
 
 private struct CurrentShowEmptyStateView: View {
+    let hasShows: Bool
     let onAddShow: () -> Void
     let onOpenSettings: () -> Void
     let onOpenShowLibrary: () -> Void
@@ -469,34 +471,33 @@ private struct CurrentShowEmptyStateView: View {
                 .font(.system(size: 34, weight: .light))
                 .foregroundColor(BSColor.Stage.accent)
                 .frame(width: 80, height: 80)
-                .background(Color.white.opacity(0.05))
-                .clipShape(Circle())
-                .overlay(
-                    Circle()
-                        .stroke(BSColor.borderProminent, lineWidth: 1)
-                )
+                .background(Color.white.opacity(0.045), in: Circle())
+                .overlay(Circle().stroke(BSColor.Stage.border))
 
-            Text(BSLocalization.text("先添加一场现场"))
+            Text(BSLocalization.text(hasShows ? "先选择一场现场" : "先添加一场现场"))
                 .font(BSFont.heroTitle)
                 .tracking(BSFont.titleTracking)
-                .foregroundColor(BSColor.textPrimary)
+                .foregroundColor(BSColor.Stage.foreground)
                 .multilineTextAlignment(.center)
 
-            Text(BSLocalization.text("把要去的音乐现场放进来，\n慢慢靠近那一场。"))
+            Text(BSLocalization.text(
+                hasShows
+                    ? "点「设为当前」或左滑可切换当前现场"
+                    : "把要去的音乐现场放进来，\n慢慢靠近那一场。"
+            ))
                 .font(BSFont.body)
-                .foregroundColor(BSColor.textSecondary)
+                .foregroundColor(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
 
-            Button(action: onAddShow) {
-                Text(BSLocalization.text("添加现场"))
-                    .font(BSFont.caption)
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 13)
+            Button(action: hasShows ? onOpenShowLibrary : onAddShow) {
+                Text(BSLocalization.text(hasShows ? "选择现场" : "添加现场"))
+                    .font(.system(size: 14.5, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.background)
                     .frame(width: BSLayout.emptyStateActionWidth, height: BSLayout.emptyStateActionHeight)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: BSRadius.md))
+                    .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
+                    .contentShape(RoundedRectangle(cornerRadius: 16))
             }
+            .buttonStyle(.plain)
             .padding(.top, BSSpacing.sm)
 
             Spacer()
@@ -507,9 +508,17 @@ private struct CurrentShowEmptyStateView: View {
             HStack {
                 Text(BSLocalization.text("当前"))
                     .font(.system(size: 32, weight: .bold))
+                    .tracking(-0.5)
                     .foregroundColor(BSColor.Stage.foreground)
                 Spacer()
                 HStack(spacing: 8) {
+                    if hasShows {
+                        emptyHeaderButton(
+                            icon: "list.bullet.rectangle",
+                            label: BSLocalization.text("全部现场"),
+                            action: onOpenShowLibrary
+                        )
+                    }
                     emptyHeaderButton(icon: "gearshape", label: BSLocalization.text("设置"), action: onOpenSettings)
                     emptyHeaderButton(icon: "plus", label: BSLocalization.text("添加现场"), action: onAddShow)
                 }
