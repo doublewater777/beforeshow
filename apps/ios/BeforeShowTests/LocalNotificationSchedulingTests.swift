@@ -346,7 +346,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(opening.title, BSLocalization.text("留下此刻"))
         XCTAssertEqual(
             opening.body,
-            BSLocalization.format("%@ 正在现场，拍一张或写一句，留下此刻。", "夜航")
+            BSLocalization.format("%@ 到开场时间了，拍一张或写一句就好。", "夜航")
         )
         XCTAssertEqual(
             NotificationDeepLink(userInfo: opening.userInfo),
@@ -419,6 +419,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
 
         XCTAssertGreaterThan(requests.count, 1)
         XCTAssertEqual(Set(requests.map(\.content.threadIdentifier)), [show.id.uuidString])
+    }
+
+    func testNotificationBodyDoesNotRepeatItsTitle() throws {
+        let show = try Show(
+            name: "夜航",
+            date: makeDate(year: 2026, month: 8, day: 1),
+            startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19),
+            venueName: "MAO Livehouse"
+        )
+
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: now
+        )
+
+        for request in requests {
+            XCTAssertFalse(
+                request.body.localizedCaseInsensitiveContains(request.title),
+                "\(request.milestone.rawValue): \(request.title) / \(request.body)"
+            )
+        }
     }
 
     /// 文案要用上场馆这类具体事实，而不是只插一个现场名。

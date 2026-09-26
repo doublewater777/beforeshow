@@ -124,19 +124,9 @@ struct LocalNotificationScheduler {
                 notificationBody(for: .showDayMorning, context: context)
             )
         }
-        let bucket: ShowNotificationMilestone
-        if daysRemaining >= 10 {
-            bucket = .fourteenDaysBefore
-        } else if daysRemaining >= 5 {
-            bucket = .sevenDaysBefore
-        } else if daysRemaining >= 2 {
-            bucket = .threeDaysBefore
-        } else {
-            bucket = .oneDayBefore
-        }
         return (
-            notificationTitle(for: bucket, context: context),
-            BSLocalization.format("%1$@ 还有 %2$d 天，已经开始期待了", context.showName, daysRemaining)
+            BSLocalization.text("离开场更近了"),
+            BSLocalization.format("%1$@ 还有 %2$d 天，要带的东西可以先确认一下。", context.showName, daysRemaining)
         )
     }
 
@@ -259,54 +249,54 @@ struct LocalNotificationScheduler {
 
         switch milestone {
         case .fourteenDaysBefore:
-            return BSLocalization.format("%@ 还有两周，期待已经开始了", name)
+            return BSLocalization.format("%@ 还有两周。", name)
 
         case .sevenDaysBefore:
             if let place = context.place {
-                return BSLocalization.format("%1$@ 还有一周，可以先查查 %2$@ 怎么去", name, place)
+                return BSLocalization.format("%1$@ · %2$@，路线可以先看一眼。", name, place)
             }
-            return BSLocalization.format("%@ 还有一周，可以先想想那天的样子了", name)
+            return BSLocalization.format("%@，那天要带的东西可以先想一想。", name)
 
         case .threeDaysBefore:
             switch context.flavor {
             case .festival:
-                return BSLocalization.format("%@ 还有三天，防晒、雨具和折叠椅可以先备好", name)
+                return BSLocalization.format("%@，随身物品和入场信息可以开始准备了。", name)
             case .livehouse:
-                return BSLocalization.format("%@ 还有三天，站场时间不短，选一双好走的鞋", name)
+                return BSLocalization.format("%@，穿双舒服的鞋，现场会轻松一点。", name)
             case .concert:
-                return BSLocalization.format("%@ 还有三天，门票和身份证件先确认一遍", name)
+                return BSLocalization.format("%@，门票和入场信息可以确认一下。", name)
             }
 
         case .oneDayBefore:
             if context.isMultiDay {
-                return BSLocalization.format("%@ 明天开始，第一天的东西今晚就收好", name)
+                return BSLocalization.format("%@，第一天要带的东西今晚收好。", name)
             }
-            return BSLocalization.format("%@ 明天见，今晚早点休息", name)
+            return BSLocalization.format("%@，要带的东西今晚收好。", name)
 
         case .showDayMorning:
             if let place = context.place, let clock = context.startClock {
-                return BSLocalization.format("今天 %1$@ 在 %2$@ 开场，路上和取票都留够时间", clock, place)
+                return BSLocalization.format("%1$@ · %2$@ · %3$@，出门前把路线和入场信息再看一眼。", name, clock, place)
             }
             if let clock = context.startClock {
-                return BSLocalization.format("今天 %1$@ 开场，%2$@ 的路上留够时间", clock, name)
+                return BSLocalization.format("%1$@ · %2$@，出门前把时间和要带的东西再确认一下。", name, clock)
             }
-            return BSLocalization.format("今天就是 %@，出门前留够时间", name)
+            return BSLocalization.format("%@，出门前把时间和要带的东西再确认一下。", name)
 
         case .showDay:
             if let place = context.place {
-                return BSLocalization.format("%1$@ 快开场了，%2$@ 见", name, place)
+                return BSLocalization.format("%1$@ · %2$@，门票和手机电量再确认一下。", name, place)
             }
-            return BSLocalization.format("%@ 快开场了，门票和手机电量再确认一遍", name)
+            return BSLocalization.format("%@，门票和手机电量再确认一下。", name)
 
         case .afterShow:
-            return BSLocalization.format("%@ 的余温还在，想说的可以留在这里", name)
+            return BSLocalization.format("%@，想记住的可以留在这里。", name)
 
         case .openingMemory:
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty {
-                return BSLocalization.text("正在现场，拍一张或写一句，留下此刻。")
+                return BSLocalization.text("到开场时间了，拍一张或写一句就好。")
             }
-            return BSLocalization.format("%@ 正在现场，拍一张或写一句，留下此刻。", trimmed)
+            return BSLocalization.format("%@ 到开场时间了，拍一张或写一句就好。", trimmed)
         }
     }
 
@@ -320,7 +310,7 @@ struct LocalNotificationScheduler {
         case .sevenDaysBefore:
             return BSLocalization.text("还有一周")
         case .threeDaysBefore:
-            return BSLocalization.text("该想想带什么了")
+            return BSLocalization.text("离开场更近了")
         case .oneDayBefore:
             return BSLocalization.text("明天见")
         case .showDayMorning:
@@ -328,7 +318,7 @@ struct LocalNotificationScheduler {
         case .showDay:
             return BSLocalization.text("快开场了")
         case .afterShow:
-            return BSLocalization.text("昨天怎么样")
+            return BSLocalization.text("这一场，留下什么")
         case .openingMemory:
             return BSLocalization.text("留下此刻")
         }
