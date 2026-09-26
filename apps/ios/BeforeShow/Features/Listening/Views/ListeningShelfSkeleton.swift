@@ -20,16 +20,14 @@ struct ListeningShelfSkeleton: View {
 private struct ListeningCabinetDiscPlaceholder: View {
     var body: some View {
         VStack(spacing: BSListeningTokens.shelfItemSpacing) {
-            ListeningSleeveCard(
-                disc: .init(id: "skeleton", title: "Album", artworkURL: nil, tracks: []),
-                isLoaded: false
-            )
-            Text("Album title")
-                .font(BSListeningTokens.captionMedium)
-                .frame(width: 94)
+            RoundedRectangle(cornerRadius: BSRadius.sm)
+                .fill(BSColor.Stage.surfaceRaised)
+                .frame(width: BSListeningTokens.shelfArtwork, height: BSListeningTokens.shelfArtwork)
+            Capsule()
+                .fill(BSColor.Stage.surfaceRaised)
+                .frame(width: BSListeningTokens.shelfArtwork, height: BSSpacing.sm)
                 .frame(height: BSListeningTokens.shelfLabelHeight)
         }
-        .redacted(reason: .placeholder)
         .accessibilityHidden(true)
     }
 }

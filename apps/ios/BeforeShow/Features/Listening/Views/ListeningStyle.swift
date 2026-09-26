@@ -67,20 +67,26 @@ struct ListeningDiscArtwork: View {
                         Image(uiImage: artwork)
                             .resizable()
                             .scaledToFill()
-                        // Clear center mimics the unprinted hub ring of a real CD.
+                        // Clear center mimics the unprinted hub of a real CD.
                         RadialGradient(
                             colors: [BSColor.Stage.surfaceRaised, BSColor.Stage.surfaceRaised.opacity(0.0)],
                             center: .center,
                             startRadius: 0,
-                            endRadius: size * 0.10
+                            endRadius: size * BSListeningTokens.discHubRadiusFraction
                         )
-                        Circle().stroke(Color.white.opacity(0.25), lineWidth: 1)
-                            .frame(width: size * 0.19, height: size * 0.19)
                     }
                     .frame(width: size * 0.94, height: size * 0.94)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white.opacity(0.20), lineWidth: 1))
                 }
+
+                Circle()
+                    .stroke(Color.white.opacity(0.24), lineWidth: 1)
+                    .frame(
+                        width: size * BSListeningTokens.discHubRadiusFraction * 2,
+                        height: size * BSListeningTokens.discHubRadiusFraction * 2
+                    )
+                    .accessibilityHidden(true)
 
                 // High-contrast specular wedge highlights
                 AngularGradient(
@@ -98,16 +104,6 @@ struct ListeningDiscArtwork: View {
                 )
                 .clipShape(Circle())
                 .blendMode(.screen)
-
-                // Concentric data-track rings
-                Circle()
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: size * 0.18)
-                    .padding(size * 0.15)
-
-                // Spindle hub ring
-                Circle()
-                    .stroke(Color.white.opacity(0.25), lineWidth: 1.2)
-                    .frame(width: size * 0.26, height: size * 0.26)
 
                 // CD label title, only when no artwork covers the label
                 if artwork == nil {

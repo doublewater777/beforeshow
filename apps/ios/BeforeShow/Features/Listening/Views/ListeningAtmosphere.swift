@@ -8,7 +8,8 @@ import UIKit
 /// changing artists does not repaint the whole page.
 struct ListeningStageBackground: View {
     let artworkURL: URL?
-    let isPlaying: Bool
+    let phase: ListeningAtmospherePhase
+    private var isPlaying: Bool { phase == .playing }
 
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -112,137 +113,15 @@ struct ListeningStageBackground: View {
 
     @ViewBuilder
     private func fallbackStageGlows(in geometry: GeometryProxy) -> some View {
-        listeningGlow(color: Color(red: 0.69, green: 0.36, blue: 1.0).opacity(0.13))
-            .frame(width: geometry.size.width * 0.88, height: geometry.size.height * 0.48)
-            .position(x: geometry.size.width * 0.54, y: geometry.size.height * 0.94)
-
-        listeningGlow(color: Color(red: 0.11, green: 0.73, blue: 0.33).opacity(0.08))
-            .frame(width: geometry.size.width * 0.52, height: geometry.size.height * 0.34)
-            .position(x: geometry.size.width * 0.16, y: geometry.size.height * 0.89)
-
-        listeningGlow(color: Color(red: 1.0, green: 0.42, blue: 0.42).opacity(0.06))
-            .frame(width: geometry.size.width * 0.44, height: geometry.size.height * 0.30)
-            .position(x: geometry.size.width * 0.84, y: geometry.size.height * 0.90)
+        listeningGlow(color: phase.color.opacity(phase.opacity * BSListeningTokens.roomLightOpacity))
+            .frame(width: geometry.size.width * 1.4, height: geometry.size.height * 0.72)
+            .position(x: geometry.size.width * 0.5, y: geometry.size.height * 0.60)
+            .animation(.easeInOut(duration: BSListeningTokens.lightDuration), value: phase)
     }
 
     private static func loadAmbientColor(for urlString: String?) async -> Color? {
         guard let urlString, let url = URL(string: urlString) else { return nil }
         return await loadAmbientColor(for: url)
-    }
-
-    private static func loadAmbientColor(for url: URL?) async -> Color? {
-        guard let url,
-              let image = await ShowCoverImageCache.shared.image(from: url),
-              let ambient = CoverAmbientColor.uiColor(from: image) else {
-            return nil
-        }
-        return Color(ambient)
-    }
-}
-
-/// Local light emitted by the disc/player area. Album artwork contributes only
-/// here, keeping the Current Show as the stable owner of the room atmosphere.
-struct ListeningPlayerAmbientHalo: View {
-    let artworkURL: URL?
-    let isPlaying: Bool
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var discAmbientColor: Color?
-    @State private var isBreathing = false
-
-    var body: some View {
-        ZStack {
-            Ellipse()
-                .fill(
-                    RadialGradient(
-                        colors: [
-                            BSColor.Stage.accent.opacity(isPlaying ? 0.20 : 0.12),
-                            BSColor.Stage.accent.opacity(isPlaying ? 0.08 : 0.045),
-                            .clear
-                        ],
-                        center: .center,
-                        startRadius: 0,
-                        endRadius: 220
-                    )
-                )
-                .blur(radius: 34)
-                .scaleEffect(isBreathing ? 1.035 : 1)
-
-            Ellipse()
-                .fill(BSColor.Accent.info.opacity(isPlaying ? 0.085 : 0.045))
-                .frame(width: 190, height: 120)
-                .offset(x: -105, y: 24)
-                .blur(radius: 42)
-
-            Ellipse()
-                .fill(BSColor.Accent.violet.opacity(isPlaying ? 0.07 : 0.035))
-                .frame(width: 175, height: 110)
-                .offset(x: 112, y: 12)
-                .blur(radius: 42)
-
-            if let discAmbientColor {
-                Ellipse()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                discAmbientColor.opacity(isPlaying ? 0.46 : 0.34),
-                                discAmbientColor.opacity(isPlaying ? 0.19 : 0.13),
-                                .clear
-                            ],
-                            center: .center,
-                            startRadius: 0,
-                            endRadius: 205
-                        )
-                    )
-                    .blur(radius: 34)
-                    .scaleEffect(isBreathing ? 1.04 : 0.985)
-                    .opacity(isBreathing ? 1 : 0.88)
-                    .transition(.opacity)
-            }
-
-            if artworkURL != nil {
-                Ellipse()
-                    .stroke(
-                        AngularGradient(
-                            colors: [
-                                Color.cyan.opacity(0.16),
-                                Color.purple.opacity(0.13),
-                                Color.pink.opacity(0.10),
-                                Color.green.opacity(0.09),
-                                Color.cyan.opacity(0.16)
-                            ],
-                            center: .center
-                        ),
-                        lineWidth: 28
-                    )
-                    .padding(28)
-                    .blur(radius: 30)
-                    .scaleEffect(isBreathing ? 1.025 : 0.99)
-                    .opacity(0.38)
-            }
-        }
-        .compositingGroup()
-        .animation(.easeInOut(duration: 0.7), value: discAmbientColor)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-        .task(id: artworkURL) {
-            discAmbientColor = await Self.loadAmbientColor(for: artworkURL)
-            updateBreathing()
-        }
-        .onAppear(perform: updateBreathing)
-        .onChange(of: isPlaying) { _, _ in updateBreathing() }
-        .onChange(of: reduceMotion) { _, _ in updateBreathing() }
-    }
-
-    private func updateBreathing() {
-        guard isPlaying, !reduceMotion, artworkURL != nil else {
-            isBreathing = false
-            return
-        }
-        isBreathing = false
-        withAnimation(.easeInOut(duration: 5.2).repeatForever(autoreverses: true)) {
-            isBreathing = true
-        }
     }
 
     private static func loadAmbientColor(for url: URL?) async -> Color? {
@@ -266,58 +145,6 @@ private func listeningGlow(color: Color) -> some View {
             )
         )
         .blur(radius: 22)
-}
-
-struct ListeningCurrentSong: View {
-    let room: ListeningRoomCoordinator
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    private var player: ListeningPlayerPresentation { room.display.player }
-    private var showsInlineGuidance: Bool {
-        room.mechanism.position != .seated || room.track == nil
-    }
-    private var recovery: ListeningRecoveryAction? {
-        guard player.recoveryAction == .retryPlayback else { return nil }
-        return .retryPlayback
-    }
-
-    var body: some View {
-        VStack(spacing: BSListeningTokens.songSpacing) {
-            if showsInlineGuidance {
-                statusLine
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                    .opacity(room.display.roomMode == .connecting ? 0 : 1)
-                    .accessibilityHidden(room.display.roomMode == .connecting)
-                    .accessibilityIdentifier("listening.playerGuidance")
-            }
-
-            if let recovery {
-                Button(recovery.title) {
-                    room.performListeningRecovery(recovery)
-                }
-                .font(BSListeningTokens.captionMedium)
-                .foregroundStyle(BSColor.Stage.accent)
-                .frame(minHeight: BSLayout.minTouchTarget)
-                .buttonStyle(BSListeningPressStyle(scale: 0.96))
-                .accessibilityIdentifier("listening.playerRecovery")
-            }
-        }
-        .frame(minHeight: showsInlineGuidance || recovery != nil ? BSListeningTokens.songHeight : 0)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.track?.id)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: room.mechanism.position)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: player.phase)
-        .onAppear {
-            ListeningPlaybackChromeStore.shared.room = room
-        }
-    }
-
-    private var statusLine: some View {
-        Text(player.statusText)
-            .font(BSListeningTokens.caption)
-            .foregroundStyle(player.phase == .failed ? BSColor.Stage.danger : BSColor.Stage.muted)
-            .fixedSize(horizontal: false, vertical: true)
-    }
 }
 
 // MARK: - Root playback chrome

@@ -142,6 +142,86 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: true, foreground: false, source: .preview))
         XCTAssertFalse(ListeningVisibilityPolicy.mustPause(tabVisible: false, foreground: true, source: .fullCatalog))
     }
+    func testDiscRotationRunsOnCoreAnimationInsteadOfMechanicalDisplayLink() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let machine = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMachineView.swift"),
+            encoding: .utf8
+        )
+        let motion = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Player/CDMotionDriver.swift"),
+            encoding: .utf8
+        )
+        let tokens = try String(
+            contentsOf: sourceRoot.appendingPathComponent("UI/DesignSystem/BSListeningTokens.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(machine.contains(#"CABasicAnimation(keyPath: "transform.rotation.z")"#))
+        XCTAssertTrue(machine.contains("animation.repeatCount = .infinity"))
+        XCTAssertTrue(machine.contains("isRotating: isPlaying && !motion.reducedMotion"))
+        XCTAssertTrue(machine.contains("CACurrentMediaTime()"))
+        XCTAssertFalse(motion.contains("discAngle"))
+        XCTAssertFalse(motion.contains("discSpin"))
+        XCTAssertFalse(motion.contains("var spinning"))
+        XCTAssertTrue(tokens.contains("static let discRotationRPM = 20.0"))
+    }
+
+    func testDiscWellAndCenterGeometryAreIndependentAndTokenized() throws {
+        let sourceRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let machine = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningMachineView.swift"),
+            encoding: .utf8
+        )
+        let style = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Views/ListeningStyle.swift"),
+            encoding: .utf8
+        )
+        let config = try String(
+            contentsOf: sourceRoot.appendingPathComponent("Features/Listening/Player/CDPlayerConfiguration.swift"),
+            encoding: .utf8
+        )
+        let tokens = try String(
+            contentsOf: sourceRoot.appendingPathComponent("UI/DesignSystem/BSListeningTokens.swift"),
+            encoding: .utf8
+        )
+        let discWell = sourceRoot
+            .appendingPathComponent("Resources/ListeningPlayer.xcassets/listen_01b_disc_well.imageset")
+        let discWellContents = try String(
+            contentsOf: discWell.appendingPathComponent("Contents.json"),
+            encoding: .utf8
+        )
+
+        XCTAssertTrue(config.contains(#"var discWell = "listen_01b_disc_well""#))
+        XCTAssertTrue(machine.contains("CDPlayerDiscWellView"))
+        XCTAssertTrue(machine.contains("CDPlayerBodyShellView"))
+        XCTAssertTrue(machine.contains(".luminanceToAlpha()"))
+        XCTAssertTrue(config.contains("var discWellDiameter: CGFloat = 364"))
+        XCTAssertTrue(machine.contains("frame(width: geometry.discWellDiameter, height: geometry.discWellDiameter)"))
+        XCTAssertTrue(machine.contains("geometry.projectedY(geometry.discCenter.y)"))
+        XCTAssertTrue(machine.contains("geometry.discDiameter * BSListeningTokens.discSpindleRadiusFraction * 2"))
+        XCTAssertTrue(style.contains("size * BSListeningTokens.discHubRadiusFraction"))
+        XCTAssertTrue(tokens.contains("static let discHubRadiusFraction: CGFloat = 0.0625"))
+        XCTAssertTrue(tokens.contains("static let discSpindleRadiusFraction: CGFloat = 0.025"))
+        XCTAssertTrue(discWellContents.contains("01b_disc_well.svg"))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: discWell.appendingPathComponent("01b_disc_well.svg").path))
+        let discWellSVG = try String(
+            contentsOf: discWell.appendingPathComponent("01b_disc_well.svg"),
+            encoding: .utf8
+        )
+        XCTAssertEqual(discWellSVG.components(separatedBy: "<circle ").count - 1, 1)
+        XCTAssertFalse(discWellSVG.contains("r=\"18\""))
+        XCTAssertFalse(discWellSVG.contains("r=\"8\""))
+        XCTAssertFalse(machine.contains("ListeningTrayLight("))
+        XCTAssertFalse(tokens.contains("trayRingWidth"))
+    }
+
     func testAccessibleActionsAndReducedMotionRemainWired() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("BeforeShow/Features/Listening")
         let source = try String(contentsOf: root.appendingPathComponent("Views/ListeningRoomView.swift"), encoding: .utf8)
@@ -163,7 +243,7 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(room.contains(#"Menu(BSLocalization.text("选择现场"))"#))
         let sheet = try String(contentsOf: root.appendingPathComponent("Views/ListeningCabinetSheet.swift"), encoding: .utf8)
         XCTAssertTrue(sheet.contains("LazyVGrid(columns: gridColumns"))
-        XCTAssertTrue(sheet.contains("count: 3") || sheet.contains("count: gridColumnCount"))
+        XCTAssertTrue(sheet.contains("count: 2"), "The record cabinet uses two columns to keep covers and titles readable")
         XCTAssertFalse(sheet.contains("JewelCaseShelf"))
     }
 }

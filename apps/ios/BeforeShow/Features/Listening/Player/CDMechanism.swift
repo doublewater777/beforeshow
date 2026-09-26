@@ -131,7 +131,6 @@ import SwiftUI
         if isReturning && discSettled {
             isReturning = false
             position = .stored
-            motion.resetDiscRotation()
             onTransition("store")
         }
     }
@@ -186,7 +185,6 @@ import SwiftUI
         motion.discScale.target = nil
         motion.lift.value = 0
         motion.lift.target = nil
-        motion.resetDiscRotation()
     }
 
     /// Destructive local-data reset. This is intentionally silent so it cannot
@@ -213,11 +211,9 @@ import SwiftUI
         motion.discScale.target = nil
         motion.lift.value = 0
         motion.lift.target = nil
-        motion.resetDiscRotation()
     }
 
     private func liftFromCabinet(_ disc: ListeningDisc) {
-        motion.resetDiscRotation()
         self.disc = disc; position = .removed
         let origin = cabinetPosition(for: disc)
         motion.discX.grab(); motion.discY.grab(); motion.discScale.grab()
@@ -282,8 +278,12 @@ import SwiftUI
         try await unloadSteps(paced: true)
         try Task.checkCancellation()
 
-        // Let the replacement visibly leave its sleeve before travelling to the tray.
+        // Lift toward the center as the disc grows, keeping an edge sleeve's
+        // full-size disc inside the stage before lowering it into the tray.
         liftFromCabinet(disc)
+        motion.discX.move(to: configuration.geometry.parkedDisc.x)
+        motion.discY.move(to: configuration.geometry.parkedDisc.y)
+        motion.lift.move(to: 1)
         try await settle()
         try await automaticBeat(AutomaticRhythm.afterPickup)
 

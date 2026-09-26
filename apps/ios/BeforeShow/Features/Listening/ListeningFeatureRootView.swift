@@ -142,7 +142,7 @@ struct ListeningFeatureRootView: View {
             ListenRootView(
                 isActive: isActive,
                 catalogService: ListeningFixtureCatalog(scenario: fixture.scenario),
-                artistSearchService: ListeningFixtureArtistSearch(),
+                artistSearchService: ListeningFixtureArtistSearch(fails: fixture.scenario == .artistSearchFailure),
                 playbackFactory: { _ in ListeningFixturePlayer() }
             )
             .modelContainer(fixture.container)

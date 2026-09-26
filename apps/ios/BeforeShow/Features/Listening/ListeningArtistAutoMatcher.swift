@@ -6,6 +6,7 @@ struct ListeningArtistAutoMatcher {
     /// Resolve identities without changing the show's names or asking users to connect each artist.
     func matches(for slots: [ArtistSlot]) async throws -> [Int: RecognizedArtist] {
         var result: [Int: RecognizedArtist] = [:]
+        var pending: [(Int, String)] = []
         for (index, slot) in slots.enumerated() where slot.appleMusicArtistID == nil {
             try Task.checkCancellation()
             if let id = AppleMusicArtistIdentity.artistID(from: slot.appleMusicURL) {
@@ -14,12 +15,28 @@ struct ListeningArtistAutoMatcher {
                                                 appleMusicURL: slot.appleMusicURL.flatMap(URL.init(string:)))
                 continue
             }
-            let candidates = try await search.searchArtists(query: slot.name)
-            try Task.checkCancellation()
-            let exact = candidates.filter { Self.normalized($0.canonicalName) == Self.normalized(slot.name) }
-            let identities = Set(exact.map(\.id))
-            // Same-name collisions remain unresolved instead of silently attaching the wrong catalog.
-            if identities.count == 1 { result[index] = exact.first }
+            pending.append((index, slot.name))
+        }
+        try await withThrowingTaskGroup(of: (Int, RecognizedArtist?).self) { group in
+            var remaining = pending.makeIterator()
+            func enqueue(_ item: (Int, String)) {
+                group.addTask {
+                    try Task.checkCancellation()
+                    let candidates = try await search.searchArtists(query: item.1)
+                    try Task.checkCancellation()
+                    let exact = candidates.filter { Self.normalized($0.canonicalName) == Self.normalized(item.1) }
+                    // Same-name collisions must never attach the wrong catalog.
+                    return (item.0, Set(exact.map(\.id)).count == 1 ? exact.first : nil)
+                }
+            }
+            for _ in 0..<4 {
+                if let item = remaining.next() { enqueue(item) }
+            }
+            while let (index, candidate) = try await group.next() {
+                try Task.checkCancellation()
+                result[index] = candidate
+                if let item = remaining.next() { enqueue(item) }
+            }
         }
         return result
     }

@@ -7,7 +7,7 @@ struct ListeningArtistChip<Artwork: View>: View {
     @ViewBuilder let artwork: Artwork
 
     var body: some View {
-        HStack(spacing: BSSpacing.xs) {
+        HStack(spacing: BSSpacing.sm) {
             artwork
                 .frame(width: BSListeningTokens.avatar, height: BSListeningTokens.avatar)
                 .accessibilityHidden(true)
@@ -19,13 +19,13 @@ struct ListeningArtistChip<Artwork: View>: View {
                     .font(BSListeningTokens.caption)
             }
         }
-        .foregroundStyle(isSelected ? BSColor.Stage.foreground : BSColor.Stage.muted)
-        .padding(.horizontal, BSSpacing.sm)
+        .foregroundStyle(isSelected ? BSColor.Stage.accent : BSColor.Stage.muted)
+        .padding(.horizontal, BSSpacing.compact)
         .frame(minHeight: BSLayout.minTouchTarget)
-        .background(isSelected ? BSColor.Stage.surfaceRaised : .clear, in: Capsule())
+        .background(isSelected ? BSColor.Stage.accent.opacity(BSListeningTokens.selectionFillOpacity) : BSColor.Stage.surface.opacity(BSListeningTokens.inactiveFillOpacity), in: Capsule())
         .overlay {
             Capsule().strokeBorder(
-                isSelected ? BSColor.Stage.accent.opacity(BSListeningTokens.selectionRestingOpacity) : .clear,
+                isSelected ? BSColor.Stage.accent.opacity(BSListeningTokens.selectionBorderOpacity) : BSColor.Stage.border,
                 lineWidth: BSListeningTokens.hairline
             )
         }

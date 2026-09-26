@@ -12,6 +12,7 @@ struct CDPlayerConfiguration {
         var hingeY: CGFloat = 304
         var discCenter = CGPoint(x: 230, y: 489)
         var discDiameter: CGFloat = 322
+        var discWellDiameter: CGFloat = 364
         var parkedDisc = CGPoint(x: 230, y: 245)
         var tiltDegrees: Double = 18
         var maximumOpening: Double = 82
@@ -37,11 +38,12 @@ struct CDPlayerConfiguration {
 
     struct Assets {
         var body = "listen_01_body_shell"
+        var discWell = "listen_01b_disc_well"
         var lidOuter = "listen_02_lid_outer"
         var lidInner = "listen_03_lid_inner"
         var disc = "listen_04_disc"
-        // The body already contains its tray, controls and hinges. Do not stack
-        // duplicate asset-board components over the same photographed features.
+        // The body texture supplies shell details only at render time. The old
+        // photographed tray is masked out; discWell owns the circular tray geometry.
     }
     var brand: String
     var model: String

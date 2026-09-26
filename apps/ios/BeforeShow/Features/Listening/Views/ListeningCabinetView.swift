@@ -16,7 +16,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
 
     private var isLoading: Bool {
         room.libraryDiscs.isEmpty && (room.isAuthorizing || !room.accessResolved
-            || room.access.authorizationStatus != .authorized || room.presentation == .loadingCatalog)
+            || room.presentation == .loadingCatalog)
     }
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }

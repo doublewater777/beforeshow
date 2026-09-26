@@ -246,12 +246,11 @@ import XCTest
         XCTAssertEqual(mechanism.disc?.id, current.id)
         XCTAssertEqual(mechanism.occupiedAttemptCount, 1)
     }
-    func testAutomaticSwapDoesNotCarryOldDiscRotationIntoReplacement() async throws {
+    func testAutomaticSwapLeavesReplacementSeatedAndClosed() async throws {
         let mechanism = CDMechanism()
         let first = ListeningDisc(id: "a", title: "A", artworkURL: nil, tracks: [])
         let second = ListeningDisc(id: "b", title: "B", artworkURL: nil, tracks: [])
         mechanism.restoreSeated(first)
-        mechanism.motion.discAngle = 137
         let clock = Task { @MainActor in
             while !Task.isCancelled {
                 mechanism.motion.lid.step(1)
@@ -265,7 +264,8 @@ import XCTest
         try await mechanism.load(second)
 
         XCTAssertEqual(mechanism.disc?.id, second.id)
-        XCTAssertEqual(mechanism.motion.discAngle, 0, accuracy: 0.001)
+        XCTAssertEqual(mechanism.position, .seated)
+        XCTAssertTrue(mechanism.isClosed)
     }
     private func settle(_ mechanism: CDMechanism) {
         for _ in 0..<20 {
@@ -410,7 +410,6 @@ import XCTest
 
         room.loadDisc(first)
         try await wait { room.mechanism.disc?.id == first.id && room.isPlaying && !room.busy }
-        room.mechanism.motion.discAngle = 137
         steps = []
 
         room.loadDisc(second)
@@ -418,7 +417,6 @@ import XCTest
 
         XCTAssertEqual(steps, ["open", "remove", "store", "insert", "seat", "close"])
         XCTAssertEqual(service.preparedIDs, ["a", "b"])
-        XCTAssertEqual(room.mechanism.motion.discAngle, 0, accuracy: 0.001)
     }
     private func wait(_ condition: () -> Bool) async throws {
         for _ in 0..<1000 {

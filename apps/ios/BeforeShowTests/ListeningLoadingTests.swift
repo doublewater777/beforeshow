@@ -5,7 +5,7 @@ import SwiftData
 
 @MainActor
 final class ListeningLoadingTests: XCTestCase {
-    func testKnownAuthorizationIsPublishedBeforeArtistLookupFinishes() async throws {
+    func testCachedRecordsBecomePlayableBeforeArtistLookupFinishes() async throws {
         let (container, show) = try ListenTestData.make()
         let room = ListeningRoomCoordinator(
             context: container.mainContext,
@@ -14,13 +14,16 @@ final class ListeningLoadingTests: XCTestCase {
             playbackFactory: { _ in ListeningFixturePlayer() }
         )
         let task = Task { await room.load(show: show) }
-        defer { task.cancel(); room.mechanism.motion.stop() }
-        try await wait { room.initialLoaded }
+        defer { task.cancel(); room.stop(); room.mechanism.motion.stop() }
+        try await wait { room.initialLoaded && room.accessResolved }
         XCTAssertEqual(room.access.authorizationStatus, .authorized)
-        XCTAssertFalse(room.accessResolved)
-        XCTAssertEqual(room.display.roomMode, .connecting)
+        XCTAssertTrue(room.accessResolved)
+        XCTAssertEqual(room.display.roomMode, .fullPlayback)
         XCTAssertNil(room.display.recoveryAction)
-        XCTAssertFalse(room.discs.isEmpty, "Cached records should remain browsable during access lookup")
+        let disc = try XCTUnwrap(room.discs.first)
+        room.loadPlayableDisc(disc)
+        try await ListenTestData.settle(room) { room.isPlaying }
+        XCTAssertTrue(room.isPlaying, "Cached music must play while an unrelated artist is still matching")
     }
 
     func testRefreshKeepsResolvedPlaybackModeAndCachedDiscs() async throws {

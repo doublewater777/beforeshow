@@ -147,7 +147,7 @@ struct ListenRootView: View {
             BSColor.Stage.background
             ListeningStageBackground(
                 artworkURL: room?.mechanism.disc?.artworkURL,
-                isPlaying: room?.isPlaying == true
+                phase: room.map { ListeningAtmospherePhase(room: $0) } ?? .resting
             )
         }
     }
@@ -187,14 +187,17 @@ struct ListeningRoomView: View {
                         ListeningCabinetView(room: room, scale: scale, showAll: { showsCabinet = true }, showDetails: { room.browser.open($0) }) {
                             catalogStatus
                         }
+                        .opacity(room.isPlaying ? BSListeningTokens.selectionRestingOpacity : 1)
+                        .animation(reduceMotion ? nil : BSListeningTokens.selectionAnimation, value: room.isPlaying)
 
                         ListeningMachineView(room: room, scale: scale)
                             .coordinateSpace(name: "playerStage")
                             .listeningFrame("stage")
-                            .frame(maxWidth: .infinity)
+                            .frame(width: proxy.size.width - BSSpacing.roomy * 2)
                             .padding(.top, -(geometry.viewportTop + BSListeningTokens.stageTopOffset) * scale)
 
                         ListeningCurrentSong(room: room)
+                            .padding(.top, -BSSpacing.lg)
 
                         if let notice = room.mechanism.notice {
                             Text(notice)
@@ -266,6 +269,7 @@ struct ListeningRoomView: View {
                 subtitle: room.access.authorizationStatus == .notDetermined
                     ? ListeningCopy.text("授权后载入唱片")
                     : BSLocalization.text("请在系统设置中允许访问 Apple Music"),
+                icon: "music.note",
                 actionTitle: room.display.recoveryAction?.title
             ) {
                 if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
@@ -291,6 +295,7 @@ struct ListeningRoomView: View {
             case .cachedWithError, .fatalUnavailable:
                 ListeningCatalogStatusView(
                     title: BSLocalization.text(room.presentation == .cachedWithError ? "暂时无法更新专场唱片" : "暂时无法载入音乐"),
+                    icon: "wifi.exclamationmark",
                     actionTitle: room.display.recoveryAction?.title
                 ) {
                     if let action = room.display.recoveryAction { room.performListeningRecovery(action) }
