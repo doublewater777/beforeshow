@@ -577,6 +577,19 @@ private let listeningCatalogFetchConcurrency = 4
         await reloadCatalog()
     }
 
+    func refreshMusicAccess() async {
+        guard !isAuthorizing else { return }
+        isAuthorizing = true
+        let newAccess = await catalogService.currentAccess()
+        access = newAccess
+        accessResolved = true
+        isAuthorizing = false
+
+        guard newAccess.authorizationStatus == .authorized else { return }
+        guard !isLoadingShow else { return }
+        await reloadCatalog()
+    }
+
     private func rebuildDiscs() throws {
         guard let show else { return }
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())

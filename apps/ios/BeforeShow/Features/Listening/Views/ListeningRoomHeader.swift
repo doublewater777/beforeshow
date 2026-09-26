@@ -46,12 +46,52 @@ struct ListeningHeaderActionButton: View {
 
 struct ListeningRoomHeader: View {
     let mode: ListeningRoomPlaybackMode
+    let notice: ListeningHeaderNotice?
+    let onRecovery: (ListeningRecoveryAction) -> Void
+    @State private var showsExplanation = false
+
+    init(
+        mode: ListeningRoomPlaybackMode,
+        notice: ListeningHeaderNotice? = nil,
+        onRecovery: @escaping (ListeningRecoveryAction) -> Void = { _ in }
+    ) {
+        self.mode = mode
+        self.notice = notice
+        self.onRecovery = onRecovery
+    }
 
     var body: some View {
         ListeningPageHeader {
-            playbackModeStatus
+            headerStatus
         }
         .zIndex(1)
+        .sheet(isPresented: $showsExplanation) {
+            if let notice {
+                ListeningPlaybackExplanationSheet(
+                    notice: notice,
+                    onRecovery: onRecovery
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var headerStatus: some View {
+        switch mode {
+        case .fullPlayback:
+            EmptyView()
+        case .connecting:
+            playbackModeStatus
+        case .preview, .metadataOnly, .unavailable:
+            Button {
+                guard notice != nil else { return }
+                showsExplanation = true
+            } label: {
+                playbackModeStatus
+            }
+            .buttonStyle(BSListeningPressStyle(scale: 0.96))
+            .disabled(notice == nil)
+        }
     }
 
     private var playbackModeStatus: some View {
@@ -72,7 +112,7 @@ struct ListeningRoomHeader: View {
                 .font(BSListeningTokens.captionMedium)
                 .lineLimit(1)
         }
-        .foregroundStyle(mode == .fullPlayback ? BSColor.Stage.accent : BSColor.Stage.muted)
+        .foregroundStyle(BSColor.Stage.muted)
         .padding(.horizontal, BSSpacing.compact)
         .padding(.vertical, BSSpacing.sm)
         .background(BSColor.Stage.surface, in: Capsule())
@@ -87,6 +127,30 @@ struct ListeningRoomHeader: View {
         case .preview: "waveform"
         case .metadataOnly: "list.bullet.rectangle"
         case .unavailable: "exclamationmark.triangle"
+        }
+    }
+}
+
+private struct ListeningPlaybackExplanationSheet: View {
+    let notice: ListeningHeaderNotice
+    let onRecovery: (ListeningRecoveryAction) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        BSDrawerSheet(detent: .height(180), fitsContent: true) {
+            Text(notice.message)
+                .font(BSListeningTokens.body)
+                .foregroundStyle(BSColor.Stage.foreground)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let action = notice.recoveryAction {
+                Button(action.title) {
+                    dismiss()
+                    onRecovery(action)
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+            }
         }
     }
 }

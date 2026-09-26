@@ -277,6 +277,88 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertEqual(makeProjection(access: access, discs: [preview]).roomMode, .preview)
     }
 
+    func testHeaderHidesFullPlaybackSuccessState() {
+        let disc = ListeningDisc(
+            id: "full-header",
+            title: "Full",
+            artworkURL: nil,
+            tracks: [track("full", preview: false)]
+        )
+        let projection = makeProjection(
+            access: .init(authorizationStatus: .authorized, canPlayCatalogContent: true),
+            discs: [disc]
+        )
+
+        XCTAssertEqual(projection.roomMode, .fullPlayback)
+        XCTAssertNil(projection.headerNotice)
+    }
+
+    func testPreviewHeaderExplainsAccountLimitWithoutRecoveryAction() {
+        let disc = ListeningDisc(
+            id: "preview-header",
+            title: "Preview",
+            artworkURL: nil,
+            tracks: [track("preview", preview: true)]
+        )
+        let projection = makeProjection(
+            access: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accountLimited
+            ),
+            discs: [disc]
+        )
+
+        XCTAssertEqual(projection.roomMode, .preview)
+        XCTAssertEqual(
+            projection.headerNotice?.message,
+            ListeningCopy.text("当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。")
+        )
+        XCTAssertNil(projection.headerNotice?.recoveryAction)
+    }
+
+    func testPreviewHeaderOffersRetryWhenPlaybackAccessCheckFails() {
+        let disc = ListeningDisc(
+            id: "retry-header",
+            title: "Preview",
+            artworkURL: nil,
+            tracks: [track("preview", preview: true)]
+        )
+        let projection = makeProjection(
+            access: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accessCheckFailed
+            ),
+            discs: [disc]
+        )
+
+        XCTAssertEqual(projection.roomMode, .preview)
+        XCTAssertEqual(projection.headerNotice?.recoveryAction, .retryAccess)
+        XCTAssertEqual(
+            projection.headerNotice?.message,
+            ListeningCopy.text("暂时无法确认完整播放权限，当前使用试听片段。")
+        )
+    }
+
+    func testPreviewHeaderRoutesAuthorizationRecoveryByPermissionState() {
+        let disc = ListeningDisc(
+            id: "permission-header",
+            title: "Preview",
+            artworkURL: nil,
+            tracks: [track("preview", preview: true)]
+        )
+        let notDetermined = makeProjection(
+            access: .init(authorizationStatus: .notDetermined, canPlayCatalogContent: false),
+            discs: [disc]
+        )
+        let denied = makeProjection(
+            access: .init(authorizationStatus: .denied, canPlayCatalogContent: false),
+            discs: [disc]
+        )
+
+        XCTAssertEqual(notDetermined.headerNotice?.recoveryAction, .authorize)
+        XCTAssertEqual(denied.headerNotice?.recoveryAction, .openSettings)
+    }
+
     private func makeProjection(
         page: ListeningPresentation = .ready,
         access: ListeningMusicAccess,

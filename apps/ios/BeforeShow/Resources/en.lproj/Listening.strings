@@ -34,3 +34,14 @@
 "清除搜索" = "Clear search";
 "装入并试听" = "Load and preview";
 "%@ 等 %d 位艺人" = "%@ · %d artists";
+
+"允许访问 Apple Music 后，可尝试完整播放。" = "Allow Apple Music access to try full playback.";
+"允许访问 Apple Music 后，可尝试完整播放；当前没有可用试听片段。" = "Allow Apple Music access to try full playback. No preview clips are available right now.";
+"当前未允许访问 Apple Music。" = "Apple Music access is currently not allowed.";
+"当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。" = "Apple Music access is not allowed, and these songs have no available preview clips.";
+"当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。" = "This Apple Music account does not support full playback, so preview clips are used.";
+"当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。" = "This Apple Music account does not support full playback, and these songs have no available preview clips.";
+"暂时无法确认完整播放权限，当前使用试听片段。" = "Full playback access could not be verified right now, so preview clips are used.";
+"暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。" = "Full playback access could not be verified right now, and these songs have no available preview clips.";
+"当前使用歌曲试听片段。" = "Preview clips are currently being used.";
+"当前没有可播放的歌曲。" = "No playable songs are available right now.";

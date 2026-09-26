@@ -34,6 +34,15 @@ final class ListeningLocalizationTests: XCTestCase {
             "暂停", "停止", "播放结束", "暂时无法播放", "选择一张唱片开始播放",
             "当前仅提供歌曲信息", "当前暂不可播放", "请先合上播放器上盖", "热门合辑",
             "仅提供歌曲信息", "授权后载入唱片", "放置唱片中…",
+            "允许访问 Apple Music 后，可尝试完整播放。",
+            "允许访问 Apple Music 后，可尝试完整播放；当前没有可用试听片段。",
+            "当前未允许访问 Apple Music。",
+            "当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。",
+            "当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。",
+            "当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。",
+            "暂时无法确认完整播放权限，当前使用试听片段。",
+            "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。",
+            "当前使用歌曲试听片段。", "当前没有可播放的歌曲。",
             "选一场现场，听听即将相遇的音乐。", "添加一场想去的现场，唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人"
         ]
 
@@ -405,6 +414,25 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             currentSong.contains("player.recoveryAction ?? room.display.recoveryAction"),
             "Authorization and settings recovery must not remain as persistent actions below the CD machine"
         )
+    }
+
+    func testListeningHeaderHidesSuccessAndExplainsRestrictedModes() throws {
+        let header = try listeningSource("Features/Listening/Views/ListeningRoomHeader.swift")
+        let room = try listeningSource("Features/Listening/Views/ListeningRoomView.swift")
+
+        XCTAssertTrue(header.contains("case .fullPlayback:\n            EmptyView()"))
+        XCTAssertTrue(header.contains("case .preview, .metadataOnly, .unavailable:"))
+        XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(180), fitsContent: true)"))
+        XCTAssertTrue(room.contains("notice: room.display.headerNotice"))
+        XCTAssertTrue(room.contains("onRecovery: { room.performListeningRecovery($0) }"))
+    }
+
+    func testListenFirstEntryRequestsMusicAuthorizationOnlyWhenUndetermined() throws {
+        let room = try listeningSource("Features/Listening/Views/ListeningRoomView.swift")
+
+        XCTAssertTrue(room.contains("guard let show else"))
+        XCTAssertTrue(room.contains("catalogService.currentAuthorizationStatus() == .notDetermined"))
+        XCTAssertTrue(room.contains("await room?.authorize()"))
     }
 
     func testListenShelfKeepsOneHeaderHeightWithOrWithoutShowAllAction() throws {
