@@ -199,6 +199,51 @@ final class ProSubscriptionTests: XCTestCase {
         ))
     }
 
+    func testFreeCapacityIgnoresSystemCalendarIdentifierChanges() throws {
+        let defaults = temporaryQuotaDefaults()
+        let capacity = FreeShowCapacityCoordinator(
+            stateStore: FreeShowCapacityStateStore(userDefaults: defaults)
+        )
+
+        var gregorian = Calendar(identifier: .gregorian)
+        gregorian.timeZone = TimeZone(secondsFromGMT: 8 * 60 * 60)!
+        var buddhist = Calendar(identifier: .buddhist)
+        buddhist.timeZone = gregorian.timeZone
+
+        let september = quotaDate(2026, 9, 10, calendar: gregorian)
+        let october = quotaDate(2026, 10, 10, calendar: gregorian)
+
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 5, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: gregorian
+        )
+
+        // Switching the system calendar must still refer to the same Gregorian
+        // civil month rather than persisting Buddhist year 2569 as a future boundary.
+        capacity.synchronizeFreeCapacity(
+            from: try quotaShows(count: 6, date: september),
+            entitlement: .free,
+            now: september,
+            calendar: buddhist
+        )
+
+        // After switching back, October must still receive its normal +1 step.
+        XCTAssertTrue(capacity.canAddShow(
+            from: try quotaShows(count: 6, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: gregorian
+        ))
+        XCTAssertFalse(capacity.canAddShow(
+            from: try quotaShows(count: 7, date: october),
+            entitlement: .free,
+            now: october,
+            calendar: gregorian
+        ))
+    }
+
     func testExpiredProStartsMonthlyGrowthFromExpirationCount() throws {
         let defaults = temporaryQuotaDefaults()
         let capacity = FreeShowCapacityCoordinator(stateStore: FreeShowCapacityStateStore(userDefaults: defaults))
