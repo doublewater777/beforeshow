@@ -891,15 +891,6 @@ struct AddShowFlowView: View {
                 in: modelContext
             )
 
-            if result.notificationState != nil {
-                // Add Show owns persistence and scheduling hand-off only. Permission UI
-                // belongs to Current Show after this sheet has fully dismissed.
-                await LocalNotificationCenter.shared.applyFocusChange(
-                    to: show,
-                    in: modelContext
-                )
-            }
-
             PostHogSDK.shared.capture("show_added", properties: [
                 "method": sheet.rawValue,
                 "lifecycle": result.outcome.rawValue
@@ -918,7 +909,18 @@ struct AddShowFlowView: View {
             }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
+
+            // Persistence success ends Add Show immediately. The normal coordinator
+            // dismisses synchronously from this callback; notification scheduling
+            // continues afterward without holding the sheet open.
             onSaved?(show.id)
+
+            if result.notificationState != nil {
+                await LocalNotificationCenter.shared.applyFocusChange(
+                    to: show,
+                    in: modelContext
+                )
+            }
         } catch AddShowPersistenceError.duplicateShow(let existingShowID) {
             modelContext.rollback()
             if let duplicate = shows.first(where: { $0.id == existingShowID }) {
