@@ -26,7 +26,14 @@ struct ListeningCabinetView<Placeholder: View>: View {
     }
 
     var body: some View {
-        ListeningShelfView(title: room.browseArtists.isEmpty ? shelfTitle : nil, count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count), isLoading: isLoading, showsAllDiscs: room.display.showsAllDiscs, showAll: showAll) {
+        ListeningShelfView(
+            title: room.browseArtists.isEmpty ? shelfTitle : nil,
+            count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count),
+            isLoading: isLoading,
+            showsCount: room.access.authorizationStatus == .authorized,
+            showsAllDiscs: room.display.showsAllDiscs,
+            showAll: showAll
+        ) {
             if shelfDiscs.isEmpty {
                 placeholder
                     .frame(maxHeight: .infinity)
