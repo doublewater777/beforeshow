@@ -346,7 +346,7 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         XCTAssertEqual(opening.title, BSLocalization.text("留下此刻"))
         XCTAssertEqual(
             opening.body,
-            BSLocalization.format("%@ 到开场时间了，拍一张或写一句就好。", "夜航")
+            BSLocalization.format("%@ 开始了。想留下什么，我们就留一点下来。", "夜航")
         )
         XCTAssertEqual(
             NotificationDeepLink(userInfo: opening.userInfo),
@@ -485,29 +485,27 @@ final class LocalNotificationSchedulingTests: XCTestCase {
         }
     }
 
-    /// 音乐节 / Livehouse / 演唱会在 T-3 说的不是同一件事。
-    func testThreeDayCopyAdaptsToShowFlavor() throws {
-        func body(name: String, venue: String?) throws -> String {
-            let show = try Show(
-                name: name,
-                date: makeDate(year: 2026, month: 8, day: 1),
-                startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19),
-                venueName: venue
-            )
-            let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
-                for: show,
-                now: now
-            )
-            return try XCTUnwrap(requests.first { $0.milestone == .threeDaysBefore }).body
-        }
+    func testWaitingPhaseCopyFeelsLikeListeningTogether() throws {
+        let show = try Show(
+            name: "夜航",
+            date: makeDate(year: 2026, month: 8, day: 1),
+            startTime: makeDate(year: 2026, month: 8, day: 1, hour: 19)
+        )
 
-        let festival = try body(name: "草莓音乐节", venue: nil)
-        let livehouse = try body(name: "落日飞车", venue: "MAO Livehouse")
-        let concert = try body(name: "五月天演唱会", venue: "体育场")
+        let requests = LocalNotificationScheduler(calendar: calendar).futureRequests(
+            for: show,
+            now: now
+        )
 
-        XCTAssertNotEqual(festival, livehouse)
-        XCTAssertNotEqual(livehouse, concert)
-        XCTAssertNotEqual(festival, concert)
+        let fourteen = try XCTUnwrap(requests.first { $0.milestone == .fourteenDaysBefore })
+        let seven = try XCTUnwrap(requests.first { $0.milestone == .sevenDaysBefore })
+        let three = try XCTUnwrap(requests.first { $0.milestone == .threeDaysBefore })
+        let one = try XCTUnwrap(requests.first { $0.milestone == .oneDayBefore })
+
+        XCTAssertTrue(fourteen.body.contains("一起听"))
+        XCTAssertTrue(seven.body.contains("把歌先听起来"))
+        XCTAssertTrue(three.body.contains("再听几首"))
+        XCTAssertTrue(one.body.contains("再听一晚"))
     }
 
     func testNotificationSchedulingIsTimezoneAware() throws {
