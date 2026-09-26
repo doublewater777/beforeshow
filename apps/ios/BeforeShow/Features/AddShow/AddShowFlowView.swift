@@ -557,7 +557,7 @@ struct AddShowFlowView: View {
         sheet == .manual || didSwitchToManual || hasImportedDraft
     }
 
-    // MARK: - 吸底保存栏：始终可见，状态行说明缺什么
+    // MARK: - 吸底保存栏：按钮始终可见，仅在需要处理时显示状态行
 
     private var addSaveBar: some View {
         VStack(spacing: 10) {
