@@ -1,39 +1,90 @@
 import Foundation
 
 struct ProFeatureGate {
-    /// 免费用户每个自然月可添加的现场数量。
-    let freeMonthlyShowLimit: Int
+    static let freeBaseShowCapacity = 5
+    static let minimumMonthlyFreeCapacity = 6
 
-    init(freeMonthlyShowLimit: Int = 1) {
-        self.freeMonthlyShowLimit = freeMonthlyShowLimit
+    private static let freeCapacityStateKey = "freeShowCapacityState.v1"
+
+    private let userDefaults: UserDefaults
+
+    init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
     }
 
-    func canAddShow(showsAddedThisMonth: Int, entitlement: ProEntitlementState) -> Bool {
-        entitlement.isProActive || showsAddedThisMonth < freeMonthlyShowLimit
-    }
-
-    /// 统计当自然月（本地时区）新增的现场数。
-    func showsAddedThisMonth(
-        from createdDates: [Date],
-        now: Date = Date(),
-        calendar: Calendar = .current
-    ) -> Int {
-        createdDates.filter { calendar.isDate($0, equalTo: now, toGranularity: .month) }.count
-    }
-
-    /// 免费额度只统计用户自己添加的现场（`creationOrigin == .user`）。
-    /// 仅因接受 CloudKit 同行邀请而新建的 participant 侧现场不占额度；
-    /// 把邀请合并进用户已有现场不会退还已经占用的额度。
-    func showsAddedThisMonth(
+    func canAddShow(
         from shows: [Show],
+        entitlement: ProEntitlementState,
         now: Date = Date(),
         calendar: Calendar = .current
-    ) -> Int {
-        showsAddedThisMonth(
-            from: shows.filter { $0.countsTowardFreeMonthlyQuota }.map(\.createdAt),
+    ) -> Bool {
+        synchronizeFreeCapacity(
+            from: shows,
+            entitlement: entitlement,
             now: now,
             calendar: calendar
         )
+
+        guard !entitlement.isProActive else { return true }
+
+        let currentCount = selfAddedShowCount(from: shows)
+        guard let state = currentState(now: now, calendar: calendar),
+              let baseline = state.baselineSelfAddedShowCount else {
+            return currentCount < Self.minimumMonthlyFreeCapacity
+        }
+
+        return currentCount < max(Self.minimumMonthlyFreeCapacity, baseline + 1)
+    }
+
+    /// Keeps one durable free-capacity baseline per local calendar month.
+    ///
+    /// While Pro is active we keep observing the retained self-added count without
+    /// creating a free baseline. If Pro later expires in the same month, that moment's
+    /// count becomes the baseline unless the month already had a free baseline.
+    func synchronizeFreeCapacity(
+        from shows: [Show],
+        entitlement: ProEntitlementState,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) {
+        let currentCount = selfAddedShowCount(from: shows)
+        let month = FreeCapacityMonth(now: now, calendar: calendar)
+        let stored = loadState()
+
+        let next: FreeCapacityState
+        if let stored, stored.month == month {
+            next = FreeCapacityState(
+                month: month,
+                baselineSelfAddedShowCount: entitlement.isProActive
+                    ? stored.baselineSelfAddedShowCount
+                    : (stored.baselineSelfAddedShowCount ?? currentCount),
+                lastObservedSelfAddedShowCount: currentCount
+            )
+        } else {
+            let baseline: Int?
+            if entitlement.isProActive {
+                baseline = nil
+            } else if let stored {
+                // If the first observed mutation after midnight is a deletion, the
+                // previous observation is the true month-boundary count.
+                baseline = stored.lastObservedSelfAddedShowCount
+            } else {
+                // Migration / first launch of this policy.
+                baseline = currentCount
+            }
+
+            next = FreeCapacityState(
+                month: month,
+                baselineSelfAddedShowCount: baseline,
+                lastObservedSelfAddedShowCount: currentCount
+            )
+        }
+
+        saveState(next)
+    }
+
+    func selfAddedShowCount(from shows: [Show]) -> Int {
+        shows.filter(\.countsTowardFreeShowCapacity).count
     }
 
     func canAccessExistingLocalData(entitlement: ProEntitlementState) -> Bool {
@@ -42,5 +93,40 @@ struct ProFeatureGate {
 
     func canEditManualContent(entitlement: ProEntitlementState) -> Bool {
         true
+    }
+
+    private func currentState(now: Date, calendar: Calendar) -> FreeCapacityState? {
+        guard let state = loadState(),
+              state.month == FreeCapacityMonth(now: now, calendar: calendar) else {
+            return nil
+        }
+        return state
+    }
+
+    private func loadState() -> FreeCapacityState? {
+        guard let data = userDefaults.data(forKey: Self.freeCapacityStateKey) else { return nil }
+        return try? JSONDecoder().decode(FreeCapacityState.self, from: data)
+    }
+
+    private func saveState(_ state: FreeCapacityState) {
+        guard let data = try? JSONEncoder().encode(state) else { return }
+        userDefaults.set(data, forKey: Self.freeCapacityStateKey)
+    }
+}
+
+private struct FreeCapacityState: Codable, Equatable {
+    let month: FreeCapacityMonth
+    let baselineSelfAddedShowCount: Int?
+    let lastObservedSelfAddedShowCount: Int
+}
+
+private struct FreeCapacityMonth: Codable, Equatable {
+    let year: Int
+    let month: Int
+
+    init(now: Date, calendar: Calendar) {
+        let components = calendar.dateComponents([.year, .month], from: now)
+        year = components.year ?? 0
+        month = components.month ?? 0
     }
 }
