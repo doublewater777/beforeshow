@@ -1,7 +1,4 @@
-import PostHog
 import SwiftUI
-import SwiftData
-import UIKit
 
 struct DispersalLightsOutOverlay: View {
     let showName: String
@@ -32,7 +29,16 @@ struct DispersalLightsOutOverlay: View {
         }
         .task {
             if reduceMotion {
-                onComplete()
+                do {
+                    try await Task.sleep(
+                        nanoseconds: UInt64(
+                            DispersalCeremonyPolicy.reduceMotionLightsOutHoldDuration * 1_000_000_000
+                        )
+                    )
+                    onComplete()
+                } catch {
+                    // 任务被取消时不推进下一段 presentation。
+                }
                 return
             }
             do {
@@ -42,6 +48,9 @@ struct DispersalLightsOutOverlay: View {
                 startedAt = Date()
                 try await Task.sleep(
                     nanoseconds: UInt64(DispersalCeremonyPolicy.lightsOutDuration * 1_000_000_000)
+                )
+                try await Task.sleep(
+                    nanoseconds: UInt64(DispersalCeremonyPolicy.lightsOutBlackHoldDuration * 1_000_000_000)
                 )
                 onComplete()
             } catch {
@@ -140,14 +149,3 @@ struct DispersalLightsOutOverlay: View {
             .blur(radius: 22)
     }
 }
-
-// MARK: - 仪式 sheet
-
-/// 「散场仪式」两步 sheet:评级 + 文字 同页 → 分享卡。
-///
-/// 整条流程与 `endedAt` 写入完全解耦:任一步骤失败或跳过,已结束的现场
-/// 都不受影响。
-/// - combined 步底部按钮:`跳过` / `生成散场卡`,前者直接跳过仪式进现场回忆(不落库),
-///   后者把 `(rating, note)` 一次性 commit 后进分享卡
-/// - 头部 `×` 按钮与「跳过」等价,触发 `onSkipToMemory`(直接跳到现场回忆,跳过 share)
-/// - share 步底部按钮:`保存图片` / `进入现场回忆`,后者触发 `onSkipToMemory`

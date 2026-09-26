@@ -76,8 +76,10 @@ final class Show {
     var wasAddedAsHistorical: Bool?
     /// 「散场仪式」五档情绪评分，nil = 未评分或主动跳过。
     var rating: Int? = nil
-    /// 散场后留下的私人感受，nil = 未填写或主动跳过。trim 后的纯空白视为未填。
+    /// 散场后留下的私人感受，nil = 未填写。trim 后的纯空白视为未填。
     var closingNote: String? = nil
+    /// 用户至少主动生成过一次散场卡。与情绪/文字独立，只增不退。
+    var hasCompletedDispersalCeremony: Bool = false
 
     private var companionStatusRawValue: String?
     private(set) var companionNames: [String] = []
@@ -319,14 +321,26 @@ final class Show {
     /// - rating: 1...5,`nil` = 清除或保持未评分
     /// - note: 经 `normalizeClosingNote` trim + 长度校验,空字符串视为 `nil`
     /// - 同值写入为幂等,不会更新 `updatedAt`
-    func setClosingRitual(rating: Int?, note: String?) throws {
+    func setClosingRitual(
+        rating: Int?,
+        note: String?,
+        markCeremonyCompleted: Bool = false
+    ) throws {
         if let rating, !(1...5).contains(rating) {
             throw ShowValidationError.ratingOutOfRange
         }
         let normalized = try Self.normalizeClosingNote(note)
-        if self.rating == rating, self.closingNote == normalized { return }
+        let completesCeremony = markCeremonyCompleted && !hasCompletedDispersalCeremony
+        if self.rating == rating,
+           self.closingNote == normalized,
+           !completesCeremony {
+            return
+        }
         self.rating = rating
         self.closingNote = normalized
+        if markCeremonyCompleted {
+            hasCompletedDispersalCeremony = true
+        }
         touch()
     }
 

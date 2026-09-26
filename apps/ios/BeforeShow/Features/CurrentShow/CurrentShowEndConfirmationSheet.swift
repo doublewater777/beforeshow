@@ -1,5 +1,10 @@
 import SwiftUI
 
+enum CurrentShowEndConfirmationIntent {
+    case justEnded
+    case backfill
+}
+
 struct CurrentShowEndConfirmationSheet: View {
     private enum Step { case choice, earlier }
 
@@ -8,11 +13,12 @@ struct CurrentShowEndConfirmationSheet: View {
     let suggestedEnd: Date
     let calendar: Calendar
     let allowsJustEnded: Bool
-    let onConfirm: (Date) -> Void
+    let onConfirm: (Date, CurrentShowEndConfirmationIntent) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var step: Step
     @State private var selectedEnd: Date
+    @State private var justEndedFeedback = 0
 
     init(
         showName: String,
@@ -20,7 +26,7 @@ struct CurrentShowEndConfirmationSheet: View {
         suggestedEnd: Date,
         calendar: Calendar,
         allowsJustEnded: Bool,
-        onConfirm: @escaping (Date) -> Void
+        onConfirm: @escaping (Date, CurrentShowEndConfirmationIntent) -> Void
     ) {
         self.showName = showName
         self.showStart = showStart
@@ -48,17 +54,20 @@ struct CurrentShowEndConfirmationSheet: View {
         VStack(spacing: BSSpacing.lg) {
             BSStageSheetHeader(
                 icon: "moon.stars",
-                title: BSLocalization.text("确认已经散场？"),
-                subtitle: BSLocalization.text("记录散场时间。"),
+                title: BSLocalization.text("散场了？"),
+                subtitle: showName,
                 tint: BSColor.Stage.liveTitle
             )
 
             HStack(spacing: 9) {
-                Button("早就结束") { step = .earlier }
+                Button("补记散场时间") { step = .earlier }
                     .buttonStyle(BSSecondaryButtonStyle())
                 if allowsJustEnded {
-                    Button { onConfirm(Date()) } label: {
-                        Text("刚刚结束")
+                    Button {
+                        justEndedFeedback += 1
+                        onConfirm(Date(), .justEnded)
+                    } label: {
+                        Text("刚刚散场")
                             .font(BSFont.caption)
                             .foregroundColor(BSColor.Stage.liveTitle)
                             .frame(maxWidth: .infinity)
@@ -74,6 +83,7 @@ struct CurrentShowEndConfirmationSheet: View {
                 }
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: justEndedFeedback)
     }
 
     private var earlierTime: some View {
@@ -118,7 +128,7 @@ struct CurrentShowEndConfirmationSheet: View {
             HStack(spacing: 9) {
                 Button("返回", action: handleEarlierBack)
                     .buttonStyle(BSSecondaryButtonStyle())
-                Button("确认这个时间") { onConfirm(selectedEnd) }
+                Button("确认这个时间") { onConfirm(selectedEnd, .backfill) }
                     .buttonStyle(BSPrimaryButtonStyle())
             }
         }

@@ -258,7 +258,11 @@ enum ShowMutationCoordinator {
             session: session,
             effects: effects
         ) {
-            try show.setClosingRitual(rating: rating, note: note)
+            try show.setClosingRitual(
+                rating: rating,
+                note: note,
+                markCeremonyCompleted: true
+            )
         }
     }
 

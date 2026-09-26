@@ -78,7 +78,6 @@ struct CurrentShowSession {
 /// Notification routing never mutates the user's durable CurrentShowSelection.
 struct CurrentShowFeatureRootView: View {
     var isPlaybackActive = true
-    @Binding var ceremonyPendingDetail: FootprintDetailDestination?
 
     @Query(sort: \Show.date) private var shows: [Show]
     @ObservedObject private var notificationRouter = NotificationDeepLinkRouter.shared
@@ -92,8 +91,7 @@ struct CurrentShowFeatureRootView: View {
     var body: some View {
         CurrentShowHomeView(
             isPlaybackActive: isPlaybackActive,
-            isFeaturePresentationActive: isNotificationPresentationActive,
-            ceremonyPendingDetail: $ceremonyPendingDetail
+            isFeaturePresentationActive: isNotificationPresentationActive
         )
         .toolbar(.hidden, for: .tabBar)
         .task {

@@ -74,6 +74,8 @@ struct DispersalCeremonyShareCard: View {
     let identity: FootprintDetailIdentity
     let rating: Int?
     let note: String
+    let ambientColor: Color? = nil
+    let transitionNamespace: Namespace.ID? = nil
 
     private var currentRating: DispersalRating? {
         guard let rating else { return nil }
@@ -126,10 +128,25 @@ struct DispersalCeremonyShareCard: View {
                 endPoint: UnitPoint(x: 0.9, y: 1)
             )
 
+            if let ambientColor {
+                LinearGradient(
+                    colors: [
+                        ambientColor.opacity(0.16),
+                        ambientColor.opacity(0.06),
+                        .clear
+                    ],
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                )
+            }
+
             GeometryReader { proxy in
                 ZStack {
                     Ellipse()
-                        .fill(DispersalCeremonyCardTokens.goldGlow)
+                        .fill(
+                            ambientColor?.opacity(0.30)
+                                ?? DispersalCeremonyCardTokens.goldGlow
+                        )
                         .frame(
                             width: proxy.size.width * 1.10,
                             height: proxy.size.height * 0.85
@@ -141,7 +158,10 @@ struct DispersalCeremonyShareCard: View {
                         .blur(radius: 36)
 
                     Ellipse()
-                        .fill(DispersalCeremonyCardTokens.blueGlow)
+                        .fill(
+                            ambientColor?.opacity(0.13)
+                                ?? DispersalCeremonyCardTokens.blueGlow
+                        )
                         .frame(
                             width: proxy.size.width * 1.05,
                             height: proxy.size.height * 0.90
@@ -203,6 +223,10 @@ struct DispersalCeremonyShareCard: View {
                     .foregroundColor(currentRating.tint)
                     .minimumScaleFactor(0.72)
                     .lineLimit(1)
+                    .dispersalMatchedGeometry(
+                        id: "dispersal.rating",
+                        namespace: transitionNamespace
+                    )
             } else {
                 Text(BSLocalization.text("已落幕"))
                     .font(DispersalCeremonyCardTokens.ratingFont(scale: scale))
@@ -220,6 +244,10 @@ struct DispersalCeremonyShareCard: View {
             .multilineTextAlignment(.leading)
             .lineLimit(lineLimit)
             .padding(.top, DispersalCeremonyCardTokens.quoteTopPadding * scale)
+            .dispersalMatchedGeometry(
+                id: "dispersal.note",
+                namespace: transitionNamespace
+            )
     }
 
     private func footerBlock(scale: CGFloat) -> some View {

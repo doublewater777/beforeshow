@@ -19,9 +19,6 @@ struct CurrentShowHomeView: View {
     var isPlaybackActive = true
     var isFeaturePresentationActive = false
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
-    /// 仪式结束→现场回忆导航:子视图在 onCeremonySkipToMemory 写它,
-    /// RootView 监听后切到 .footprints tab。FootprintsView 自己也监听同一 binding。
-    @Binding var ceremonyPendingDetail: FootprintDetailDestination?
 
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Show.date) private var shows: [Show]
@@ -36,10 +33,9 @@ struct CurrentShowHomeView: View {
     @State private var isShowingShowLibrary = false
     @State private var isShowingDynamicCoverPicker = false
     @State private var selectedDynamicCoverItem: PhotosPickerItem?
-    /// 仪式触发链:commit 成功后 → `ceremonyLightsOutShowID` 拉起 fullScreen 熄灯,
-    /// 熄灯动画结束只清空前者,由 fullScreenCover 的 onDismiss 再设置 `ceremonySheetShowID`
-    /// 拉起仪式 sheet —— dismiss 与 present 严格串行,不会两个转场互相穿插闪屏。
-    /// 两份均为 nil = 无仪式在播。
+    /// 刚刚散场确认成功后由 `ceremonyLightsOutShowID` 拉起独立 fullScreen 熄灯；
+    /// 熄灯结束后再串行切到 `ceremonySheetShowID`。补记散场时间则直接进入仪式 sheet。
+    /// 两份均为 nil = 无仪式 presentation。
     @State private var ceremonyLightsOutShowID: UUID?
     @State private var ceremonySheetShowID: UUID?
     @State private var dynamicCoverImportTask: Task<Void, Never>?
@@ -131,7 +127,7 @@ struct CurrentShowHomeView: View {
                         onChooseDynamicCover: presentDynamicCoverPicker,
                         isImportingDynamicCover: isImportingDynamicCover,
                         onConfirmEnd: { endDate in
-                            confirmEnd(show, at: endDate)
+                            await confirmEnd(show, at: endDate)
                         },
                         homeArrival: homeArrival,
                         onHomeArrivalPrepared: { showID in
@@ -148,11 +144,6 @@ struct CurrentShowHomeView: View {
                                 rating: rating,
                                 note: note
                             )
-                        },
-                        onCeremonySkipToMemory: { showID in
-                            if let show = shows.first(where: { $0.id == showID }) {
-                                ceremonyPendingDetail = FootprintDetailDestination(show: show)
-                            }
                         }
                     )
                 } else {
@@ -405,41 +396,37 @@ struct CurrentShowHomeView: View {
         )
     }
 
-    private func confirmEnd(_ show: Show, at date: Date) {
+    @MainActor
+    private func confirmEnd(_ show: Show, at date: Date) async -> Bool {
         guard CurrentShowEndPolicy.isValidConfirmedEnd(
             date,
             for: show,
             calendar: show.timingCalendar()
         ) else {
             presentToast(.failure, message: BSLocalization.text("散场时间需要在开场后、当前时间前"))
-            return
+            return false
         }
 
-        Task { @MainActor in
-            do {
-                let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
-                    shows: shows,
-                    selections: selections,
-                    notificationStates: notificationStates,
-                    in: modelContext,
-                    session: session
-                ) {
-                    show.markEnded(at: date)
-                }
-                presentToast(
-                    didSync ? .success : .neutral,
-                    message: didSync
-                        ? BSLocalization.text("已落幕，散场时间已计入现场记录")
-                        : BSLocalization.text("散场时间已保存，同步暂未更新")
-                )
-                // 仪式与结束现场解耦:即使 commit 同步未更新也已落库,
-                // 仍可升起仪式 sheet 让用户选择补写评价。
-                if show.endedAt != nil {
-                    ceremonyLightsOutShowID = show.id
-                }
-            } catch {
-                presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))
+        do {
+            let didSync = try await ShowMutationCoordinator.commitCurrentShowChange(
+                shows: shows,
+                selections: selections,
+                notificationStates: notificationStates,
+                in: modelContext,
+                session: session
+            ) {
+                show.markEnded(at: date)
             }
+            presentToast(
+                didSync ? .success : .neutral,
+                message: didSync
+                    ? BSLocalization.text("已落幕，散场时间已计入现场记录")
+                    : BSLocalization.text("散场时间已保存，同步暂未更新")
+            )
+            return show.endedAt != nil
+        } catch {
+            presentToast(.failure, message: BSLocalization.text("散场时间没有保存，请重试"))
+            return false
         }
     }
 
