@@ -838,8 +838,7 @@ struct AddShowFlowView: View {
 
             let entitlement = ProEntitlementStorage.decode(entitlementRawValue)
             let gate = ProFeatureGate()
-            let addedThisMonth = gate.showsAddedThisMonth(from: shows)
-            guard gate.canAddShow(showsAddedThisMonth: addedThisMonth, entitlement: entitlement) else {
+            guard gate.canAddShow(from: shows, entitlement: entitlement) else {
                 PostHogSDK.shared.capture("pro_limit_reached")
                 paywallSheet = .limit
                 presentToast(.neutral, message: BSLocalization.text("保存上限"))
@@ -891,6 +890,10 @@ struct AddShowFlowView: View {
                 in: modelContext
             )
 
+            synchronizeFreeShowCapacity(
+                in: modelContext,
+                entitlement: ProEntitlementStorage.decode(entitlementRawValue)
+            )
             PostHogSDK.shared.capture("show_added", properties: [
                 "method": sheet.rawValue,
                 "lifecycle": result.outcome.rawValue
