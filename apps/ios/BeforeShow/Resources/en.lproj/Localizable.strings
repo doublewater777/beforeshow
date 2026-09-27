@@ -379,15 +379,11 @@
 "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。" = "When the current show ends it's filed here automatically;\\nshows, cities, and memories will slowly accumulate.";
 "待确认" = "Pending";
 "意见反馈" = "Feedback";
+"提交反馈" = "Submit Feedback";
+"已提交" = "Submitted";
+"已收到，谢谢你的反馈" = "Received. Thanks for your feedback.";
+"提交失败，请检查网络后重试" = "Couldn’t submit. Check your connection and try again.";
 "写下你的问题或建议" = "Write your issue or suggestion";
-"打开邮件发送" = "Open Email to Send";
-"内容会自动填好，打开邮件后直接发送即可" = "We’ll fill in the content. Just send it from your email app.";
-"无法打开邮件，请复制邮箱和反馈内容后手动发送。" = "Couldn’t open email. Copy the email address and feedback, then send it manually.";
-"复制邮箱" = "Copy Email";
-"复制反馈内容" = "Copy Feedback";
-"已复制" = "Copied";
-"开场前 · 意见反馈" = "BeforeShow · Feedback";
-"App 版本：%@\n系统版本：%@" = "App Version: %@\nSystem Version: %@";
 "评价此应用" = "Rate This App";
 "打开 App Store 写下评价" = "Opens the App Store so you can write a review";
 "成品会按记忆时间排列，票根与时刻表排在最后。" = "The result is ordered by memory time, with tickets and timetables last.";
@@ -398,7 +394,6 @@
 "打印待发通知" = "Print Pending Notifications";
 "打开 Pro 会员方案" = "Open Pro Member Plans";
 "打开系统相机" = "Open System Camera";
-"打开系统邮件 app，并预填反馈内容" = "Open the system mail app with feedback prefilled";
 "按选择日期延期" = "Postpone to a Selected Date";
 "搜索足迹" = "Search Footprints";
 "撤销" = "Undo";
@@ -417,7 +412,6 @@
 "散场时间需要在开场后、当前时间前" = "End time must be after start and before now";
 "散场评价" = "End Rating";
 "散场，这是你的第 %lld 场现场" = "After the show, this is your %lldth show";
-"整理成一段最小反馈，由 app 唤起系统邮件完成发送" = "Compiles a minimal feedback message and opens the system mail app to send it";
 "整组媒体共用一段文字" = "All media in a group share one text";
 "新日期确定后，会继续倒数" = "Once the new date is set, the countdown continues";
 "无法保存图片" = "Can't Save Image";
