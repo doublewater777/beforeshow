@@ -49,8 +49,8 @@ struct ListeningCabinetView<Placeholder: View>: View {
                 placeholder
                     .frame(maxHeight: .infinity)
             } else {
-                HStack(alignment: .bottom, spacing: BSSpacing.compact) {
-                    ForEach(shelfDiscs) { disc in
+                HStack(alignment: .bottom, spacing: 0) {
+                    ForEach(Array(shelfDiscs.enumerated()), id: \.element.id) { index, disc in
                         ListeningCabinetDiscButton(
                             room: room,
                             disc: disc,
@@ -58,7 +58,9 @@ struct ListeningCabinetView<Placeholder: View>: View {
                             showsPullHint: hintedDiscID == disc.id,
                             showDetails: showDetails
                         )
-                        .frame(maxWidth: shelfDiscs.count >= ListeningDisplayProjector.Shelf.visibleCount ? .infinity : nil)
+                        if index < shelfDiscs.count - 1 {
+                            Spacer(minLength: BSSpacing.compact)
+                        }
                     }
                     if shelfDiscs.count < ListeningDisplayProjector.Shelf.visibleCount {
                         Spacer(minLength: 0)
