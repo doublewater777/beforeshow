@@ -175,7 +175,7 @@ struct CountdownWidget: Widget {
             CountdownWidgetView(entry: entry)
         }
         .configurationDisplayName("开场倒计时")
-        .description("最近一场现场,灯亮之前一点点靠近。")
+        .description("最近一场现场，离开场还有多久。")
         .supportedFamilies([
             .systemSmall,
             .systemMedium,
