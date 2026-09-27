@@ -302,3 +302,43 @@ enum ShowMutationCoordinator {
     }
 
 }
+
+extension Show {
+    /// Persist the private dispersal draft without affecting lifecycle state.
+    func setClosingRitual(
+        rating: Int?,
+        note: String?,
+        markCeremonyCompleted: Bool = false
+    ) throws {
+        if let rating, !(1...5).contains(rating) {
+            throw ShowValidationError.ratingOutOfRange
+        }
+
+        let normalized = try Self.normalizeClosingNote(note)
+        let completesCeremony = markCeremonyCompleted && !hasCompletedDispersalCeremony
+        guard self.rating != rating
+                || closingNote != normalized
+                || completesCeremony else {
+            return
+        }
+
+        self.rating = rating
+        closingNote = normalized
+        if markCeremonyCompleted {
+            hasCompletedDispersalCeremony = true
+        }
+        updatedAt = Date()
+    }
+
+    static func normalizeClosingNote(_ text: String?) throws -> String? {
+        guard let text else { return nil }
+        let normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return nil }
+        guard normalized.count <= DispersalCeremonyPolicy.maximumNoteLength else {
+            throw ShowValidationError.closingNoteTooLong
+        }
+        return normalized
+    }
+}
