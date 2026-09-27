@@ -1,17 +1,24 @@
-import SwiftData
+import Foundation
 import SwiftUI
-import UIKit
-import UserNotifications
 
 struct FeedbackView: View {
     @State private var message = ""
-    @State private var includesDiagnostics = false
-    @State private var validationMessage: String?
     @State private var sendState: FeedbackSendState = .idle
     @FocusState private var isMessageFocused: Bool
 
     private let payloadBuilder = FeedbackPayloadBuilder()
-    private let shareTextBuilder = FeedbackShareTextBuilder()
+
+    private var trimmedMessage: String {
+        message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var messageLength: Int {
+        FeedbackPayloadBuilder.messageLength(message)
+    }
+
+    private var isMessageOverLimit: Bool {
+        messageLength > FeedbackPayloadBuilder.maximumMessageLength
+    }
 
     var body: some View {
         BSStageScaffold(
@@ -20,20 +27,10 @@ struct FeedbackView: View {
             bottomPadding: BSSpacing.xl
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
-                VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    HStack(alignment: .firstTextBaseline, spacing: BSSpacing.xs) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(BSLocalization.text("被采纳的反馈会获得奖励"))
-                            .font(BSFont.caption.weight(.semibold))
-                    }
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
-
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
                     ZStack(alignment: .topLeading) {
                         if message.isEmpty {
-                            Text("例如：在哪一步遇到了什么，期待结果是什么")
+                            Text(BSLocalization.text("写下你的问题或建议"))
                                 .font(BSFont.V3.body)
                                 .foregroundColor(BSColor.Stage.dim)
                                 .padding(.horizontal, 19)
@@ -47,31 +44,29 @@ struct FeedbackView: View {
                             .frame(minHeight: 150)
                             .bsInputField()
                             .focused($isMessageFocused)
-                            .accessibilityLabel("反馈内容，必填")
-                            .accessibilityHint("请说明遇到的问题或建议")
-                            .onChange(of: message) {
-                                if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    validationMessage = nil
-                                }
+                            .onChange(of: message) { _, _ in
+                                guard sendState != .sending else { return }
+                                sendState = .idle
                             }
                     }
 
-                    if let validationMessage {
-                        Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                            .font(BSFont.V3.body)
-                            .foregroundColor(BSColor.Stage.danger)
-                            .accessibilityAddTraits(.isStaticText)
+                    HStack {
+                        if isMessageOverLimit {
+                            Text(BSLocalization.text("反馈最多 2000 字"))
+                                .font(BSFont.V3.caption)
+                                .foregroundColor(BSColor.Stage.danger)
+                        }
+
+                        Spacer()
+
+                        Text("\(messageLength) / \(FeedbackPayloadBuilder.maximumMessageLength)")
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(
+                                isMessageOverLimit
+                                    ? BSColor.Stage.danger
+                                    : BSColor.Stage.muted
+                            )
                     }
-
-                    Toggle(BSLocalization.text("附上 App 版本与系统版本"), isOn: $includesDiagnostics)
-                        .tint(BSColor.Stage.accent)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .font(BSFont.V3.body)
-
-                    Text("不会自动包含现场内容、截图、照片或视频。")
-                        .font(BSFont.V3.body)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -80,30 +75,49 @@ struct FeedbackView: View {
             }
 
             Button {
-                prepareFeedback()
+                submitFeedback()
             } label: {
-                Label(
-                    sendState == .sent ? "已唤起邮件 app" : "通过邮件发送反馈",
-                    systemImage: sendState == .sent ? "checkmark.circle.fill" : "envelope.fill"
-                )
+                if sendState == .sending {
+                    ProgressView()
+                        .tint(.black)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label(
+                        sendState == .sent
+                            ? BSLocalization.text("已提交")
+                            : BSLocalization.text("提交反馈"),
+                        systemImage: sendState == .sent ? "checkmark.circle.fill" : "paperplane.fill"
+                    )
+                }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(sendState == .sending || sendState == .sent)
-            .accessibilityHint("打开系统邮件 app，并预填反馈内容")
+            .disabled(
+                sendState == .sending ||
+                sendState == .sent ||
+                trimmedMessage.isEmpty ||
+                isMessageOverLimit
+            )
 
-            if case .failed(let reason) = sendState {
-                Label(reason, systemImage: "exclamationmark.circle.fill")
+            switch sendState {
+            case .sent:
+                Label(BSLocalization.text("已收到，谢谢你的反馈"), systemImage: "checkmark.circle.fill")
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(BSColor.Stage.success)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .failed(let error):
+                Label(failureCopy(for: error), systemImage: "exclamationmark.circle.fill")
                     .font(BSFont.V3.caption)
                     .foregroundColor(BSColor.Stage.danger)
-                    .accessibilityAddTraits(.isStaticText)
-                    .padding(.top, BSSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .idle, .sending:
+                EmptyView()
             }
         }
-       .toolbar {
-           ToolbarItemGroup(placement: .keyboard) {
-               Spacer()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
 
-                Button("完成") {
+                Button(BSLocalization.text("完成")) {
                     isMessageFocused = false
                 }
             }
@@ -112,32 +126,46 @@ struct FeedbackView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func prepareFeedback() {
+    private func submitFeedback() {
+        let payload: FeedbackPayload
         do {
-            let payload = try payloadBuilder.build(from: FeedbackDraft(
-                message: message,
-                includesDiagnostics: includesDiagnostics
-            ))
-            validationMessage = nil
-            Task { @MainActor in
-                await presentMailto(shareTextBuilder.build(from: payload))
-            }
+            payload = try payloadBuilder.build(from: FeedbackDraft(message: message))
+        } catch FeedbackValidationError.messageTooLong {
+            sendState = .failed(.messageTooLong)
+            return
         } catch {
-            validationMessage = BSLocalization.text("请先填写反馈内容")
+            return
+        }
+
+        isMessageFocused = false
+        sendState = .sending
+
+        Task { @MainActor in
+            do {
+                let service = RemoteFeedbackSubmissionService(
+                    client: BeforeShowCloudClient.production()
+                )
+                try await service.submit(payload)
+                sendState = .sent
+            } catch let error as FeedbackSubmissionError {
+                sendState = .failed(error)
+            } catch {
+                sendState = .failed(.rejected)
+            }
         }
     }
 
-    @MainActor
-    private func presentMailto(_ text: String) async {
-        sendState = .sending
-        guard let url = FeedbackDestination.mailtoURL(prefilledBody: text) else {
-            sendState = .failed(BSLocalization.text("无法生成邮件链接"))
-            return
+    private func failureCopy(for error: FeedbackSubmissionError) -> String {
+        switch error {
+        case .networkFailure:
+            return BSLocalization.text("提交失败，请检查网络后重试")
+        case .messageTooLong:
+            return BSLocalization.text("反馈最多 2000 字")
+        case .rateLimited:
+            return BSLocalization.text("提交有点频繁，请稍后再试")
+        case .rejected:
+            return BSLocalization.text("暂时没能提交，请稍后重试")
         }
-        let accepted = await FeedbackMailOpener.open(url: url)
-        // 两种 accepted=false 场景：设备没装邮件 app / 装但未配账户。`open(mailto:)`
-        // 对两者都返回 false，文案上给出唯一可执行的引导（去系统设置查看账户/添加 app）。
-        sendState = accepted ? .sent : .failed(BSLocalization.text("无法唤起邮件 app，请检查系统邮件账户或 App Store 安装"))
     }
 }
 
@@ -145,5 +173,5 @@ enum FeedbackSendState: Equatable {
     case idle
     case sending
     case sent
-    case failed(String)
+    case failed(FeedbackSubmissionError)
 }

@@ -116,7 +116,7 @@ The product stays local-first and emotionally quiet. It does not become a ticket
 100. As a user, I want Pro prompts only when I hit a Pro limit, so that the home screen remains calm.
 101. As a user, I want no ads, so that Pro is not framed as removing an annoyance.
 102. As a user, I want privacy explanations, so that I know what stays local and what is sent for AI generation.
-103. As a user, I want feedback to send only minimal diagnostics I choose to submit, so that现场 content is not uploaded unexpectedly.
+103. As a user, I want feedback to send only my message plus the App version and iOS version, so that现场 content is not uploaded unexpectedly.
 104. As an App Store reviewer, I want the app to avoid ticketing, copyrighted lyrics, and self-hosted video playback, so that its compliance boundary is clear.
 105. As an engineer, I want the domain language in the product to match the glossary, so that implementation does not reintroduce 行程, 歌单, 余韵, or other rejected concepts.
 106. As an engineer, I want the iOS app to be local-first, so that the no-account decision is preserved.

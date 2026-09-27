@@ -63,6 +63,96 @@ final class BeforeShowCloudClientTests: XCTestCase {
             XCTFail("unexpected \(error)")
         }
     }
+
+    func testFeedbackSubmissionPostsOnlyMessageAndMinimalDiagnostics() async throws {
+        let session = CapturingCloudURLSession(
+            data: #"{"ok":true,"feedbackId":"feedback-id"}"#.data(using: .utf8)!,
+            statusCode: 200
+        )
+        let client = BeforeShowCloudClient(
+            rootURL: URL(string: "https://example.com")!,
+            credentials: BeforeShowAppCredentials(
+                appInstanceId: "instance-id",
+                appSignature: "app-signature"
+            ),
+            session: session
+        )
+        let service = RemoteFeedbackSubmissionService(client: client)
+
+        try await service.submit(FeedbackPayload(
+            message: "希望这里更顺手",
+            diagnostics: FeedbackDiagnostics(appVersion: "1.0", osVersion: "iOS 26.0")
+        ))
+
+        let capturedRequest = await session.lastRequest()
+        let request = try XCTUnwrap(capturedRequest)
+        XCTAssertEqual(request.url?.absoluteString, "https://example.com/submitFeedback")
+
+        let bodyData = try XCTUnwrap(request.httpBody)
+        let body = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: bodyData) as? [String: String]
+        )
+        XCTAssertEqual(
+            Set(body.keys),
+            Set(["appInstanceId", "appSignature", "message", "appVersion", "osVersion"])
+        )
+        XCTAssertEqual(body["appInstanceId"], "instance-id")
+        XCTAssertEqual(body["appSignature"], "app-signature")
+        XCTAssertEqual(body["message"], "希望这里更顺手")
+        XCTAssertEqual(body["appVersion"], "1.0")
+        XCTAssertEqual(body["osVersion"], "iOS 26.0")
+    }
+
+    func testFeedbackSubmissionPreservesBackendValidationAndRateLimitErrors() async {
+        for (response, expectedError) in [
+            (#"{"ok":false,"error":{"code":"MESSAGE_TOO_LONG"}}"#, FeedbackSubmissionError.messageTooLong),
+            (#"{"ok":false,"error":{"code":"RATE_LIMITED"}}"#, FeedbackSubmissionError.rateLimited)
+        ] {
+            let client = BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(appInstanceId: "id", appSignature: "sig"),
+                session: CapturingCloudURLSession(
+                    data: response.data(using: .utf8)!,
+                    statusCode: 200
+                )
+            )
+
+            do {
+                try await RemoteFeedbackSubmissionService(client: client).submit(FeedbackPayload(
+                    message: "设置页卡住",
+                    diagnostics: FeedbackDiagnostics(appVersion: "1.0", osVersion: "iOS 26.0")
+                ))
+                XCTFail("expected \(expectedError)")
+            } catch let error as FeedbackSubmissionError {
+                XCTAssertEqual(error, expectedError)
+            } catch {
+                XCTFail("unexpected \(error)")
+            }
+        }
+    }
+
+    func testFeedbackSubmissionMapsUnknownBackendFailureToRejected() async {
+        let client = BeforeShowCloudClient(
+            rootURL: URL(string: "https://example.com")!,
+            credentials: BeforeShowAppCredentials(appInstanceId: "id", appSignature: "sig"),
+            session: CapturingCloudURLSession(
+                data: #"{"ok":false,"error":{"code":"STORE_FAILED"}}"#.data(using: .utf8)!,
+                statusCode: 200
+            )
+        )
+
+        do {
+            try await RemoteFeedbackSubmissionService(client: client).submit(FeedbackPayload(
+                message: "设置页卡住",
+                diagnostics: FeedbackDiagnostics(appVersion: "1.0", osVersion: "iOS 26.0")
+            ))
+            XCTFail("expected rejected")
+        } catch let error as FeedbackSubmissionError {
+            XCTAssertEqual(error, .rejected)
+        } catch {
+            XCTFail("unexpected \(error)")
+        }
+    }
 }
 
 private actor CapturingCloudURLSession: URLSessionProtocol {

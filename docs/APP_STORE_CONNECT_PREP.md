@@ -108,7 +108,7 @@ Created with these fields:
 
 - Ticket screenshots: users choose screenshots themselves; V2.1 uses on-device OCR through iOS APIs and does not upload screenshots for recognition.
 - OCR fields: extraction is limited to show-related fields such as show name, date/time, city, venue, artists/lineup, and seat/area. The app should not recognize or store order numbers, QR codes, barcodes, ID numbers, phone numbers, buyer names, or payment information.
-- Feedback: feedback sends only the message/category and optional diagnostics selected by the user. It must not automatically attach show content or screenshots.
+- Feedback: feedback is submitted inside the app to the dedicated CloudBase feedback endpoint. It sends only the user-entered message plus the App version and iOS version, and does not automatically attach show content, screenshots, photos, videos, current-screen context, current-show data, or app-instance credentials to the stored feedback record. Abuse protection verifies the app signature and keeps only an hourly rotating SHA-256 hash of the app-instance ID in a separate rate-limit collection, with per-instance and global hourly caps.
 - Local-first stance: saved shows and preferences are local app data in V2.1; there is no BeforeShow account or cloud sync.
 
 ## Content Rights And Feature Boundaries
@@ -145,7 +145,7 @@ Run this on a fresh install before submitting the first external TestFlight buil
 ## Current External Blockers
 
 - [x] Keep `parseShowLink` deployed. On 2026-06-16, the deployed `/parseShowLink` endpoint accepted the iOS-style JSON body with `appInstanceId` and `appSignature`.
-- [x] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so `parseShowLink` is staged.
+- [ ] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so `parseShowLink`, `submitFeedback`, and `listFeedback` are staged; configure `FEEDBACK_ADMIN_TOKEN` only on `listFeedback`, then deploy both feedback functions before shipping the in-app feedback flow.
 - [x] Upload App Store review screenshots for subscription IDs `6780727285` and `6780727360`; `asc validate subscriptions` now confirms both review screenshot IDs.
 - [ ] Resolve remaining first-release subscription state; current `asc validate subscriptions` warnings are missing optional promotional images, app build count `0`, and app availability comparison unavailable.
 - [ ] Run the real TestFlight/manual loop on device after the build is uploaded: free first show, Pro gate on second show, purchase/restore, and post-purchase unlock.

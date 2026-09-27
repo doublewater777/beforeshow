@@ -12,6 +12,30 @@
       "runtime": "Nodejs18.15",
       "memorySize": 256,
       "installDependency": false
+    },
+    {
+      "name": "submitFeedback",
+      "type": "HTTP",
+      "timeout": 10,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "FEISHU_APP_ID": "{{env.FEISHU_APP_ID}}",
+        "FEISHU_APP_SECRET": "{{env.FEISHU_APP_SECRET}}",
+        "FEISHU_CHAT_ID": "{{env.FEISHU_CHAT_ID}}"
+      }
+    },
+    {
+      "name": "listFeedback",
+      "type": "HTTP",
+      "timeout": 10,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": true,
+      "envVariables": {
+        "FEEDBACK_ADMIN_TOKEN": "{{env.FEEDBACK_ADMIN_TOKEN}}"
+      }
     }
   ]
 }
