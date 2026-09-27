@@ -12,6 +12,14 @@ struct FeedbackView: View {
         message.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var messageLength: Int {
+        FeedbackPayloadBuilder.messageLength(message)
+    }
+
+    private var isMessageOverLimit: Bool {
+        messageLength > FeedbackPayloadBuilder.maximumMessageLength
+    }
+
     var body: some View {
         BSStageScaffold(
             title: "",
@@ -19,26 +27,46 @@ struct FeedbackView: View {
             bottomPadding: BSSpacing.xl
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
-                ZStack(alignment: .topLeading) {
-                    if message.isEmpty {
-                        Text(BSLocalization.text("写下你的问题或建议"))
+                VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                    ZStack(alignment: .topLeading) {
+                        if message.isEmpty {
+                            Text(BSLocalization.text("写下你的问题或建议"))
+                                .font(BSFont.V3.body)
+                                .foregroundColor(BSColor.Stage.dim)
+                                .padding(.horizontal, 19)
+                                .padding(.vertical, 20)
+                                .allowsHitTesting(false)
+                        }
+
+                        TextEditor(text: $message)
                             .font(BSFont.V3.body)
-                            .foregroundColor(BSColor.Stage.dim)
-                            .padding(.horizontal, 19)
-                            .padding(.vertical, 20)
-                            .allowsHitTesting(false)
+                            .scrollContentBackground(.hidden)
+                            .frame(minHeight: 150)
+                            .bsInputField()
+                            .focused($isMessageFocused)
+                            .onChange(of: message) { _, _ in
+                                guard sendState != .sending else { return }
+                                sendState = .idle
+                            }
                     }
 
-                    TextEditor(text: $message)
-                        .font(BSFont.V3.body)
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 150)
-                        .bsInputField()
-                        .focused($isMessageFocused)
-                        .onChange(of: message) { _, _ in
-                            guard sendState != .sending else { return }
-                            sendState = .idle
+                    HStack {
+                        if isMessageOverLimit {
+                            Text(BSLocalization.text("反馈最多 2000 字"))
+                                .font(BSFont.V3.caption)
+                                .foregroundColor(BSColor.Stage.danger)
                         }
+
+                        Spacer()
+
+                        Text("\(messageLength) / \(FeedbackPayloadBuilder.maximumMessageLength)")
+                            .font(BSFont.V3.caption)
+                            .foregroundColor(
+                                isMessageOverLimit
+                                    ? BSColor.Stage.danger
+                                    : BSColor.Stage.muted
+                            )
+                    }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -63,7 +91,12 @@ struct FeedbackView: View {
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(sendState == .sending || sendState == .sent || trimmedMessage.isEmpty)
+            .disabled(
+                sendState == .sending ||
+                sendState == .sent ||
+                trimmedMessage.isEmpty ||
+                isMessageOverLimit
+            )
 
             switch sendState {
             case .sent:
@@ -71,8 +104,8 @@ struct FeedbackView: View {
                     .font(BSFont.V3.caption)
                     .foregroundColor(BSColor.Stage.success)
                     .frame(maxWidth: .infinity, alignment: .leading)
-            case .failed:
-                Label(BSLocalization.text("提交失败，请检查网络后重试"), systemImage: "exclamationmark.circle.fill")
+            case .failed(let error):
+                Label(failureCopy(for: error), systemImage: "exclamationmark.circle.fill")
                     .font(BSFont.V3.caption)
                     .foregroundColor(BSColor.Stage.danger)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -94,7 +127,13 @@ struct FeedbackView: View {
     }
 
     private func submitFeedback() {
-        guard let payload = try? payloadBuilder.build(from: FeedbackDraft(message: message)) else {
+        let payload: FeedbackPayload
+        do {
+            payload = try payloadBuilder.build(from: FeedbackDraft(message: message))
+        } catch FeedbackValidationError.messageTooLong {
+            sendState = .failed(.messageTooLong)
+            return
+        } catch {
             return
         }
 
@@ -108,9 +147,24 @@ struct FeedbackView: View {
                 )
                 try await service.submit(payload)
                 sendState = .sent
+            } catch let error as FeedbackSubmissionError {
+                sendState = .failed(error)
             } catch {
-                sendState = .failed
+                sendState = .failed(.rejected)
             }
+        }
+    }
+
+    private func failureCopy(for error: FeedbackSubmissionError) -> String {
+        switch error {
+        case .networkFailure:
+            return BSLocalization.text("提交失败，请检查网络后重试")
+        case .messageTooLong:
+            return BSLocalization.text("反馈最多 2000 字")
+        case .rateLimited:
+            return BSLocalization.text("提交有点频繁，请稍后再试")
+        case .rejected:
+            return BSLocalization.text("暂时没能提交，请稍后重试")
         }
     }
 }
@@ -119,5 +173,5 @@ enum FeedbackSendState: Equatable {
     case idle
     case sending
     case sent
-    case failed
+    case failed(FeedbackSubmissionError)
 }
