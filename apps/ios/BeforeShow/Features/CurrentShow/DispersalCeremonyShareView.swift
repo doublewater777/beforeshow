@@ -9,9 +9,12 @@ struct DispersalCeremonyShareSheet: View {
     let onSaved: () -> Void
 
     @State private var ambientColor: Color?
+    @State private var hasResolvedAmbientColor = false
 
     var body: some View {
-        FootprintShareActionSheet(
+        Group {
+            if hasResolvedAmbientColor {
+                FootprintShareActionSheet(
             title: BSLocalization.text("分享这场回忆"),
             subtitle: "",
             previewHeight: 368,
@@ -48,10 +51,19 @@ struct DispersalCeremonyShareSheet: View {
                     height: DispersalCeremonyShareExport.renderSize.height
                 )
             },
-            onSaved: onSaved
-        )
+                    onSaved: onSaved
+                )
+            } else {
+                ProgressView()
+                    .tint(BSColor.Stage.foreground)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(BSColor.Stage.background)
+            }
+        }
         .task(id: show.coverImageURL) {
+            hasResolvedAmbientColor = false
             await prepareAmbientColorForExport()
+            hasResolvedAmbientColor = true
         }
     }
 
