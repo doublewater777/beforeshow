@@ -252,7 +252,13 @@ struct ListeningRoomView: View {
             if position == .seated { room.finalizeManualDiscInsertionIfNeeded() }
         }
         .onChange(of: reduceMotion, initial: true) { _, value in room.mechanism.motion.reducedMotion = value }
-        .onChange(of: scenePhase) { _, phase in room.setForeground(phase == .active) }
+        .onChange(of: scenePhase) { _, phase in
+            let isForeground = phase == .active
+            room.setForeground(isForeground)
+            if isForeground {
+                Task { await room.refreshMusicAccessAfterForeground() }
+            }
+        }
         .task {
             while !Task.isCancelled {
                 room.tickMechanism()
