@@ -336,7 +336,7 @@ extension Show {
             .replacingOccurrences(of: "\r\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !normalized.isEmpty else { return nil }
-        guard normalized.count <= DispersalCeremonyPolicy.maximumNoteLength else {
+        guard normalized.count <= 500 else {
             throw ShowValidationError.closingNoteTooLong
         }
         return normalized
