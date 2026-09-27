@@ -274,7 +274,6 @@
 "Pro 状态测试" = "Pro Status Test";
 "iTunes 候选" = "iTunes Candidates";
 "三种方式任选，识别出的内容保存前都能改。" = "Pick any of the three methods; everything recognized can be edited before saving.";
-"不会自动包含现场内容、截图、照片或视频。邮件 app 打开后，发送仍由你确认。" = "It won't automatically include show content, screenshots, photos, or videos. When the mail app opens, sending is still confirmed by you.";
 "今天结束了" = "Today is over";
 "今晚留下什么" = "What to leave tonight";
 "从照片图库选择" = "Choose from Photo Library";
@@ -321,9 +320,6 @@
 "动态封面没有更新" = "Dynamic cover not updated";
 "去过 %lld 个场馆" = "Visited %lld venues";
 "去过 %lld 座城市、%lld 个场馆" = "Visited %lld cities and %lld venues";
-"反馈内容" = "Feedback Content";
-"反馈内容，必填" = "Feedback content, required";
-"反馈类型" = "Feedback Type";
 "取消分享" = "Cancel Sharing";
 "取消同行" = "Cancel Companion";
 "退出同行" = "Leave Companion";
@@ -350,7 +346,6 @@
 "已保存修改" = "Changes saved";
 "已切换现场，同步暂未更新" = "Switched shows; sync not yet updated";
 "已加入这场现场" = "Joined this show";
-"已唤起邮件 app" = "Mail app opened";
 "已填写的内容会保留，不用重打" = "What you entered is kept; no need to retype";
 "已恢复原定日期" = "Restored the original date";
 "已撤销删除" = "Deletion undone";
@@ -529,7 +524,6 @@
 "选择%@图片" = "Choose %@ Image";
 "选择图片" = "Choose Image";
 "选择这场演出目前的延期状态。" = "Choose the current postponement status of this show.";
-"通过邮件发送反馈" = "Send Feedback via Mail";
 "重新选择截图" = "Re-choose Screenshot";
 "重新邀请" = "Re-invite";
 "链接解析" = "Link Parsing";
@@ -546,7 +540,6 @@
 "延期 · 时间待定" = "Postponed · Date TBD";
 "今天开场 · %@站" = "Starts today · %@";
 
-"BeforeShow 反馈" = "BeforeShow Feedback";
 "Pro 解锁" = "Pro Features";
 "一个瞬间" = "A Moment";
 "不需要 Pro 也能用" = "No Pro Required";
@@ -977,7 +970,6 @@ First show: %@";
 "去过最多的城市" = "Most visited city";
 "去过的城市" = "cities visited";
 "友" = "Friend";
-"反馈：%@" = "Feedback: %@";
 "同" = "Same";
 "同行者已退出，同行关系已取消" = "Your companion left. The companion link has been cancelled.";
 "在地图中打开" = "Open in Maps";
@@ -1011,9 +1003,7 @@ First show: %@";
 "散场日期" = "End date";
 "散场评价没有保存，请重试" = "After-show rating not saved. Please try again.";
 "整理现场信息" = "Organizing show details";
-"无法唤起邮件 app，请检查系统邮件账户或 App Store 安装" = "Could not open the Mail app. Check your system mail account or the App Store.";
 "无法打开系统分享" = "Could not open the system share sheet.";
-"无法生成邮件链接" = "Could not create the mail link.";
 "明显高于预期" = "Better than expected";
 "暂无本地数据" = "No local data";
 "替换%@" = "Replace %@";
@@ -1072,7 +1062,6 @@ First show: %@";
 "艺人名称" = "Artist name";
 "艺人排行" = "Artist ranking";
 "补录历史仅支持已经结束的现场。" = "Backdating only supports shows that have already ended.";
-"请先填写反馈内容" = "Please write your feedback first.";
 "请先完成取消同步，再重新邀请" = "Finish cancelling sync before inviting again.";
 "请填写必填信息。" = "Please fill in the required fields.";
 "请填写现场名称。" = "Please fill in the show name.";
@@ -1098,7 +1087,6 @@ First show: %@";
 /* i18n gap fill 2 */
 "Pro会员" = "Pro Member";
 "使用感受" = "Product Feedback";
-"问题反馈" = "Report a Problem";
 "隐私与数据" = "Privacy & Data";
 "诊断信息\nApp 版本：%@\n系统版本：%@" = "Diagnostics\nApp version: %@\nSystem version: %@";
 "恢复正常" = "Restore";
@@ -1126,7 +1114,6 @@ First show: %@";
 "粘贴%@链接并开始解析" = "Paste %@ link and start parsing";
 "粘贴剪贴板里的链接？" = "Paste the link from the clipboard?";
 "粘贴剪贴板里的链接并开始解析" = "Paste the clipboard link and start parsing";
-"被采纳的反馈会获得奖励" = "Adopted feedback earns a reward";
 
 "「夜航」巡演 · 上海站" = "Night Voyage Tour · Shanghai";
 
