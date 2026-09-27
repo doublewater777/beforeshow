@@ -161,7 +161,7 @@ struct CountdownPresentation {
     var phaseTag: String {
         switch hero {
         case .far:
-            return BSLocalization.text("距离灯亮还有")
+            return BSLocalization.text("距离开场还有")
         case .near:
             return isStartTonight
                 ? BSLocalization.text("今晚开场")
