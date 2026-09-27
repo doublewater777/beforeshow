@@ -58,10 +58,13 @@ export async function main(event = {}, context = {}, options = {}) {
   }
 }
 
-function writeFeedbackToCloudLog(record) {
-  // Dedicated user-feedback record. Do not add show data, screen context,
-  // screenshots, media, or app-instance credentials here.
-  console.info(`USER_FEEDBACK ${JSON.stringify(record)}`);
+async function writeFeedbackToCloudLog(record) {
+  // The deployment bundle installs the server SDK and keeps this dependency
+  // external to esbuild so local unit tests can inject writeFeedback without it.
+  const { default: cloudbase } = await import("@cloudbase/node-sdk");
+  const app = cloudbase.init({});
+  const db = app.database();
+  await db.collection("userFeedback").add(record);
 }
 
 function normalizeDiagnostic(value) {
