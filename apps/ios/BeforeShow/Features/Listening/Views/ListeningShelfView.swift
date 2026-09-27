@@ -39,15 +39,13 @@ struct ListeningShelfView<Content: View>: View {
                     Spacer(minLength: 0)
                     if showsCurrentDisc {
                         Button(action: showCurrentDisc) {
-                            HStack(spacing: BSSpacing.xs) {
-                                Text(BSLocalization.text("正在播放"))
-                                Image(systemName: "chevron.right")
-                            }
-                            .font(BSListeningTokens.captionMedium)
-                            .foregroundStyle(BSColor.Stage.accent)
-                            .frame(minHeight: BSLayout.minTouchTarget)
+                            Image(systemName: "opticaldisc")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(BSColor.Stage.accent)
+                                .frame(width: BSLayout.minTouchTarget, height: BSLayout.minTouchTarget)
                         }
                         .buttonStyle(BSListeningPressStyle())
+                        .accessibilityLabel(BSLocalization.text("已在播放机中"))
                         .accessibilityIdentifier("listening.currentDisc")
                     }
                 }
