@@ -43,6 +43,9 @@ final class ListeningLocalizationTests: XCTestCase {
             "暂时无法确认完整播放权限，当前使用试听片段。",
             "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。",
             "当前使用歌曲试听片段。", "当前没有可播放的歌曲。",
+            "Apple Music 访问受到系统限制，当前使用歌曲试听片段。",
+            "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。",
+            "Apple Music 访问受到系统限制，无法在此更改。",
             "选一场现场，听听即将相遇的音乐。", "添加一场想去的现场，唱片就从这里开始。", "选择对应的 Apple Music 艺人", "连接 %@", "正在搜索艺人…", "换个名字搜索", "清除搜索", "装入并试听", "%@ 等 %d 位艺人"
         ]
 
@@ -425,6 +428,7 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(180), fitsContent: true)"))
         XCTAssertTrue(room.contains("notice: room.display.headerNotice"))
         XCTAssertTrue(room.contains("onRecovery: { room.performListeningRecovery($0) }"))
+        XCTAssertTrue(room.contains("Task { await room.refreshMusicAccessAfterForeground() }"))
     }
 
     func testListenFirstEntryRequestsMusicAuthorizationOnlyWhenUndetermined() throws {
