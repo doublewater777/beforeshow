@@ -52,10 +52,6 @@ struct CurrentShowLibraryManagementView: View {
                        ForEach(displayedSections) { section in
                            if !section.shows.isEmpty {
                                 managementSection(section)
-                                    .bsScrollReveal(
-                                        reduceMotion: reduceMotion,
-                                        delay: Double(min(displayedSections.firstIndex(where: { $0.id == section.id }) ?? 0, 6)) * 0.04
-                                    )
                             }
                         }
                     }
