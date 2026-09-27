@@ -379,6 +379,15 @@
 "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。" = "When the current show ends it's filed here automatically;\\nshows, cities, and memories will slowly accumulate.";
 "待确认" = "Pending";
 "意见反馈" = "Feedback";
+"写下你的问题或建议" = "Write your issue or suggestion";
+"打开邮件发送" = "Open Email to Send";
+"内容会自动填好，打开邮件后直接发送即可" = "We’ll fill in the content. Just send it from your email app.";
+"无法打开邮件，请复制邮箱和反馈内容后手动发送。" = "Couldn’t open email. Copy the email address and feedback, then send it manually.";
+"复制邮箱" = "Copy Email";
+"复制反馈内容" = "Copy Feedback";
+"已复制" = "Copied";
+"开场前 · 意见反馈" = "BeforeShow · Feedback";
+"App 版本：%@\n系统版本：%@" = "App Version: %@\nSystem Version: %@";
 "评价此应用" = "Rate This App";
 "打开 App Store 写下评价" = "Opens the App Store so you can write a review";
 "成品会按记忆时间排列，票根与时刻表排在最后。" = "The result is ordered by memory time, with tickets and timetables last.";
