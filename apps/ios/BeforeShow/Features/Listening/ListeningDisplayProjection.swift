@@ -180,7 +180,8 @@ enum ListeningDisplayProjector {
         let mode = roomMode(
             access: access,
             isAuthorizing: isAuthorizing || (!hasAnyTracks && (page == .loading || page == .loadingCatalog)),
-            allDiscs: allDiscs
+            allDiscs: allDiscs,
+            playbackState: playbackState
         )
         let modeNotice = headerNotice(mode: mode, access: access)
         let recovery = recoveryAction(page: page, access: access, isAuthorizing: isAuthorizing)
@@ -267,9 +268,16 @@ enum ListeningDisplayProjector {
     private static func roomMode(
         access: ListeningMusicAccess,
         isAuthorizing: Bool,
-        allDiscs: [ListeningDisc]
+        allDiscs: [ListeningDisc],
+        playbackState: ListeningPlaybackState
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
+        // Access can improve while a preview controller is already prepared or
+        // playing. Keep the room badge aligned with that transport until it is
+        // actually rebuilt or stopped instead of claiming full playback early.
+        if source(from: playbackState) == .preview {
+            return .preview
+        }
         guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
         if access.authorizationStatus == .authorized, access.canPlayCatalogContent {
             return .fullPlayback
@@ -313,7 +321,7 @@ enum ListeningDisplayProjector {
                 ),
                 recoveryAction: .authorize
             )
-        case .denied, .restricted:
+        case .denied:
             return ListeningHeaderNotice(
                 message: ListeningCopy.text(
                     hasPreview
@@ -321,6 +329,15 @@ enum ListeningDisplayProjector {
                         : "当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。"
                 ),
                 recoveryAction: .openSettings
+            )
+        case .restricted:
+            return ListeningHeaderNotice(
+                message: ListeningCopy.text(
+                    hasPreview
+                        ? "Apple Music 访问受到系统限制，当前使用歌曲试听片段。"
+                        : "Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。"
+                ),
+                recoveryAction: nil
             )
         case .authorized:
             switch access.catalogPlaybackAccess {
@@ -362,8 +379,10 @@ enum ListeningDisplayProjector {
         switch access.authorizationStatus {
         case .notDetermined:
             return .authorize
-        case .denied, .restricted:
+        case .denied:
             return .openSettings
+        case .restricted:
+            return nil
         case .authorized:
             switch page {
             case .cachedWithError, .fatalUnavailable:
