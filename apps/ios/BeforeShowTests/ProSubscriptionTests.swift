@@ -706,7 +706,7 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(SettingsEntry.allCases.map(\.rawValue).contains("默认音乐平台"))
     }
 
-    func testFeedbackPayloadTrimsMessageAndAlwaysIncludesMinimalDiagnostics() throws {
+    func testFeedbackPayloadTrimsMessageAndEnforcesBackendLengthLimit() throws {
         let builder = FeedbackPayloadBuilder {
             FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test")
         }
@@ -719,6 +719,14 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertEqual(payload.diagnostics, FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test"))
         XCTAssertThrowsError(try builder.build(from: FeedbackDraft(message: "   \n "))) { error in
             XCTAssertEqual(error as? FeedbackValidationError, .emptyMessage)
+        }
+        XCTAssertNoThrow(try builder.build(from: FeedbackDraft(
+            message: String(repeating: "a", count: FeedbackPayloadBuilder.maximumMessageLength)
+        )))
+        XCTAssertThrowsError(try builder.build(from: FeedbackDraft(
+            message: String(repeating: "a", count: FeedbackPayloadBuilder.maximumMessageLength + 1)
+        ))) { error in
+            XCTAssertEqual(error as? FeedbackValidationError, .messageTooLong)
         }
     }
 
