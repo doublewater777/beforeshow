@@ -1,47 +1,6 @@
 import SwiftUI
 import UIKit
 
-enum DispersalCeremonyShareExport {
-    static let renderSize = CGSize(width: 360, height: 450)
-    static let renderScale: CGFloat = 3
-
-    @MainActor
-    static func renderImage(
-        show: Show,
-        identity: FootprintDetailIdentity,
-        rating: Int?,
-        note: String,
-        ambientColor: Color? = nil
-    ) -> UIImage? {
-        let card = DispersalCeremonyShareCard(
-            show: show,
-            identity: identity,
-            rating: rating,
-            note: note,
-            ambientColor: ambientColor
-        )
-        .frame(width: renderSize.width, height: renderSize.height)
-
-        let renderer = ImageRenderer(content: card)
-        renderer.proposedSize = ProposedViewSize(
-            width: renderSize.width,
-            height: renderSize.height
-        )
-        renderer.scale = renderScale
-        return renderer.uiImage
-    }
-
-    static func loadAmbientColor(for coverURLString: String?) async -> Color? {
-        guard let coverURLString,
-              let url = URL(string: coverURLString),
-              let image = await ShowCoverImageCache.shared.image(from: url),
-              let ambient = CoverAmbientColor.uiColor(from: image) else {
-            return nil
-        }
-        return Color(ambient)
-    }
-}
-
 struct DispersalCeremonyShareSheet: View {
     let show: Show
     let identity: FootprintDetailIdentity
@@ -58,6 +17,9 @@ struct DispersalCeremonyShareSheet: View {
             previewHeight: 368,
             exportSize: DispersalCeremonyShareExport.renderSize,
             exportScale: DispersalCeremonyShareExport.renderScale,
+            beforeExport: {
+                await prepareAmbientColorForExport()
+            },
             flexiblePreviewHeight: true,
             preview: {
                 DispersalCeremonyShareCard(
@@ -89,10 +51,15 @@ struct DispersalCeremonyShareSheet: View {
             onSaved: onSaved
         )
         .task(id: show.coverImageURL) {
-            ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
-                for: show.coverImageURL
-            )
+            await prepareAmbientColorForExport()
         }
+    }
+
+    @MainActor
+    private func prepareAmbientColorForExport() async {
+        ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
+            for: show.coverImageURL
+        )
     }
 }
 
@@ -144,14 +111,16 @@ struct DispersalShareStep: View {
             .padding(.vertical, 12)
         }
         .bsToastOverlay(toast, bottomPadding: 24)
-        .background(BSNavigationBackSwipeRestorer(onBack: onBack))
+        .background(
+            BSNavigationBackSwipeRestorer {
+                guard !isBusy else { return }
+                onBack()
+            }
+        )
         .task(id: show.coverImageURL) {
             ambientColor = await DispersalCeremonyShareExport.loadAmbientColor(
                 for: show.coverImageURL
             )
-        }
-        .onDisappear {
-            onBusyChange(false)
         }
     }
 
@@ -159,9 +128,12 @@ struct DispersalShareStep: View {
         HStack {
             BSChromeIconButton(
                 systemName: "chevron.left",
-                accessibilityLabel: "回到散场记录",
-                action: onBack
-            )
+                accessibilityLabel: "回到散场记录"
+            ) {
+                guard !isBusy else { return }
+                onBack()
+            }
+            .disabled(isBusy)
 
             Spacer()
 
