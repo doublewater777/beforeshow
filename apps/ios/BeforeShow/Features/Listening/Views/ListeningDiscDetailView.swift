@@ -168,7 +168,20 @@ struct ListeningDiscDetailView: View {
     @ViewBuilder
     private var loadedFallbackActions: some View {
         let player = room.display.player
-        if let recovery = player.recoveryAction {
+        if player.phase == .preparing {
+            Button(action: {}) {
+                HStack(spacing: BSSpacing.sm) {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(BSListeningTokens.ink)
+                    Text(ListeningCopy.text("载入中…"))
+                }
+            }
+            .buttonStyle(BSListeningActionStyle())
+            .allowsHitTesting(false)
+            .accessibilityLabel(ListeningCopy.text("载入中…"))
+            .accessibilityIdentifier("listening.detail.preparing")
+        } else if let recovery = player.recoveryAction {
             Button(recovery.title) { room.performListeningRecovery(recovery) }
                 .buttonStyle(BSListeningActionStyle())
                 .disabled(room.busy)
