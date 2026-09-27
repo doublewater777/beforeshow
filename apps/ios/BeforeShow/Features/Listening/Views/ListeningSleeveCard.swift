@@ -5,8 +5,8 @@ struct ListeningSleeveCard: View {
     let disc: ListeningDisc
     let isLoaded: Bool
     var jacketSize: CGFloat = BSListeningTokens.shelfArtwork
-    private var discSize: CGFloat { jacketSize * BSListeningTokens.detailDiscFraction }
-    var peekOffset: CGFloat = 18
+    private var discSize: CGFloat { jacketSize * BSListeningTokens.shelfDiscFraction }
+    var peekOffset: CGFloat = BSListeningTokens.shelfDiscReveal
     var showsPullHint = false
     var show: Show?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
