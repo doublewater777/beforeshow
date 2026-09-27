@@ -137,6 +137,10 @@ struct ListenRootView: View {
             }
         }
         room?.setActive(true)
+        if catalogService.currentAuthorizationStatus() == .notDetermined {
+            await room?.authorize()
+            guard isActive, !Task.isCancelled else { return }
+        }
         if room?.shouldReloadCatalog(for: show) == true {
             await room?.load(show: show)
         }
@@ -165,7 +169,11 @@ struct ListeningRoomView: View {
     var body: some View {
         GeometryReader { proxy in
             VStack(spacing: 0) {
-                ListeningRoomHeader(mode: room.display.roomMode)
+                ListeningRoomHeader(
+                    mode: room.display.roomMode,
+                    notice: room.display.headerNotice,
+                    onRecovery: { room.performListeningRecovery($0) }
+                )
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         if !room.browseArtists.isEmpty {
@@ -244,7 +252,13 @@ struct ListeningRoomView: View {
             if position == .seated { room.finalizeManualDiscInsertionIfNeeded() }
         }
         .onChange(of: reduceMotion, initial: true) { _, value in room.mechanism.motion.reducedMotion = value }
-        .onChange(of: scenePhase) { _, phase in room.setForeground(phase == .active) }
+        .onChange(of: scenePhase) { _, phase in
+            let isForeground = phase == .active
+            room.setForeground(isForeground)
+            if isForeground {
+                Task { await room.refreshMusicAccessAfterForeground() }
+            }
+        }
         .task {
             while !Task.isCancelled {
                 room.tickMechanism()
@@ -266,9 +280,7 @@ struct ListeningRoomView: View {
         } else if room.access.authorizationStatus != .authorized {
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),
-                subtitle: room.access.authorizationStatus == .notDetermined
-                    ? ListeningCopy.text("授权后载入唱片")
-                    : BSLocalization.text("请在系统设置中允许访问 Apple Music"),
+                subtitle: musicAccessSubtitle,
                 icon: "music.note",
                 actionTitle: room.display.recoveryAction?.title
             ) {
@@ -303,6 +315,19 @@ struct ListeningRoomView: View {
             case .needsAuthorization, .noCurrentShow, .ready:
                 ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
             }
+        }
+    }
+
+    private var musicAccessSubtitle: String {
+        switch room.access.authorizationStatus {
+        case .notDetermined:
+            return ListeningCopy.text("授权后载入唱片")
+        case .denied:
+            return BSLocalization.text("请在系统设置中允许访问 Apple Music")
+        case .restricted:
+            return ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
+        case .authorized:
+            return ""
         }
     }
 

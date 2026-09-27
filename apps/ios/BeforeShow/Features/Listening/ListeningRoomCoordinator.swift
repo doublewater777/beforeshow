@@ -80,6 +80,7 @@ private let listeningCatalogFetchConcurrency = 4
     var playbackError: String?
     @ObservationIgnored private var visibility = ListeningVisibilityPolicy()
     @ObservationIgnored private var foreground = true
+    @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
     @ObservationIgnored private var preparedSource: ListeningPlaybackSource?
     @ObservationIgnored private var runtimeSongs: [String: [CatalogSong]] = [:]
@@ -336,10 +337,13 @@ private let listeningCatalogFetchConcurrency = 4
         // resolved access immediately so cached records can play during matching.
         let slots = show.artists
         async let matching = ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess
-        accessResolved = true
+        if isCurrentMusicAccessRequest(accessGeneration) {
+            access = newAccess
+            accessResolved = true
+        }
 
         let matches = (try? await matching) ?? [:]
         guard generation == catalogGeneration, !Task.isCancelled else { return }
@@ -561,11 +565,26 @@ private let listeningCatalogFetchConcurrency = 4
         return results
     }
 
+    private func beginMusicAccessRequest() -> UUID {
+        let generation = UUID()
+        musicAccessRequestGeneration = generation
+        return generation
+    }
+
+    private func isCurrentMusicAccessRequest(_ generation: UUID) -> Bool {
+        generation == musicAccessRequestGeneration
+    }
+
     func authorize() async {
         guard !isAuthorizing else { return }
         isAuthorizing = true
         _ = await catalogService.requestAuthorization()
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else {
+            isAuthorizing = false
+            return
+        }
         access = newAccess
         accessResolved = true
         isAuthorizing = false
@@ -575,6 +594,52 @@ private let listeningCatalogFetchConcurrency = 4
         // will continue into catalog loading with the newly-authorized access.
         guard !isLoadingShow else { return }
         await reloadCatalog()
+    }
+
+    func refreshMusicAccess() async {
+        guard !isAuthorizing else { return }
+        isAuthorizing = true
+        let accessGeneration = beginMusicAccessRequest()
+        let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else {
+            isAuthorizing = false
+            return
+        }
+        access = newAccess
+        accessResolved = true
+        isAuthorizing = false
+
+        guard newAccess.authorizationStatus == .authorized else { return }
+        guard !isLoadingShow else { return }
+        await reloadCatalog()
+    }
+
+    /// Returning from Settings is an authorization boundary, not just a transport
+    /// lifecycle event. Refresh silently so a permission or subscription change is
+    /// reflected without showing the transient connecting state on every foreground.
+    func refreshMusicAccessAfterForeground() async {
+        guard !isAuthorizing else { return }
+        let previousAccess = access
+        let accessGeneration = beginMusicAccessRequest()
+        let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else { return }
+
+        // Resolution belongs to the winning request, even when the resolved value
+        // matches the provisional authorized/account-limited state published by load.
+        // Otherwise a superseded initial load can leave the room connecting forever.
+        accessResolved = true
+        guard newAccess != previousAccess else { return }
+
+        access = newAccess
+
+        guard !isLoadingShow else { return }
+        let authorizationChanged = previousAccess.authorizationStatus != newAccess.authorizationStatus
+        let playbackAccessChanged = previousAccess.catalogPlaybackAccess != newAccess.catalogPlaybackAccess
+        guard authorizationChanged || playbackAccessChanged else { return }
+
+        await reloadCatalog(
+            force: authorizationChanged && newAccess.authorizationStatus == .authorized
+        )
     }
 
     private func rebuildDiscs() throws {

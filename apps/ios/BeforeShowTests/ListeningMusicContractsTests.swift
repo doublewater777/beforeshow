@@ -82,6 +82,24 @@ final class ListeningMusicContractsTests: XCTestCase {
         )
     }
 
+    func testAccessCheckFailureRemainsDistinctWhilePreviewStillWorks() {
+        let access = ListeningMusicAccess(
+            authorizationStatus: .authorized,
+            catalogPlaybackAccess: .accessCheckFailed
+        )
+
+        XCTAssertFalse(access.canPlayCatalogContent)
+        XCTAssertEqual(access.catalogPlaybackAccess, .accessCheckFailed)
+        XCTAssertEqual(
+            ListeningMusicCapabilityResolver.resolve(
+                access: access,
+                hasPreviewAsset: true,
+                hasCatalogMetadata: true
+            ),
+            .previewOnly
+        )
+    }
+
     func testCatalogRefreshPolicyUsesTwentyFourHourBoundary() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 

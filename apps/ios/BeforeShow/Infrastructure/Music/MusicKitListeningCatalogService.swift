@@ -15,14 +15,21 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
         guard authorizationStatus == .authorized else {
             return ListeningMusicAccess(
                 authorizationStatus: authorizationStatus,
-                canPlayCatalogContent: false
+                catalogPlaybackAccess: .accountLimited
             )
         }
-        let canPlayCatalogContent = (try? await MusicSubscription.current.canPlayCatalogContent) ?? false
-        return ListeningMusicAccess(
-            authorizationStatus: authorizationStatus,
-            canPlayCatalogContent: canPlayCatalogContent
-        )
+        do {
+            let canPlayCatalogContent = try await MusicSubscription.current.canPlayCatalogContent
+            return ListeningMusicAccess(
+                authorizationStatus: authorizationStatus,
+                catalogPlaybackAccess: canPlayCatalogContent ? .available : .accountLimited
+            )
+        } catch {
+            return ListeningMusicAccess(
+                authorizationStatus: authorizationStatus,
+                catalogPlaybackAccess: .accessCheckFailed
+            )
+        }
     }
 
     func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
