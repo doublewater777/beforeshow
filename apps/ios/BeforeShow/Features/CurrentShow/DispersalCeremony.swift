@@ -47,7 +47,7 @@ enum DispersalRating: Int, CaseIterable, Identifiable {
     }
 
     var accessibilityLabel: String {
-        BSLocalization.format("%@，%@，%lld 星", label, sub, rawValue)
+        BSLocalization.format("%@，%@", label, sub)
     }
 
     /// 由冷到暖,匹配「场子越热情绪越亮」的视觉直觉。
@@ -72,14 +72,13 @@ enum DispersalCeremonyPolicy {
     /// 散场文字最大长度。`Show.normalizeClosingNote` 复用同一上限。
     static let maximumNoteLength = 500
 
-    /// 舞台熄灯动画持续时间。3 道光束淡入淡出 + 标题淡入。
-    /// 4.2s 让「散场」按 25%–80% 包络至少停住 2 秒;2.8s 时只有 1.5s,会像闪一下。
-    /// reduceMotion 时直接跳到中段停驻帧(progress 0.5)。
-    static let lightsOutDuration: Double = 4.2
-
-    /// 熄灯动画开表前的停顿。等 fullScreenCover 上滑转场落定,
-    /// 否则转场会吃掉标题渐入(0–25%)的前三分之一,看起来"突然开始"。
-    static let lightsOutTransitionLeadIn: Double = 0.45
+    /// 独立熄灯章节的动态段；加上转场落定与末尾黑场约 3 秒。
+    static let lightsOutDuration: Double = 2.8
+    static let lightsOutTransitionLeadIn: Double = 0.2
+    static let lightsOutBlackHoldDuration: Double = 0.2
+    static let reduceMotionLightsOutHoldDuration: Double = 1.35
+    static let cardTransitionDuration: Double = 0.5
+    static let reduceMotionCardTransitionDuration: Double = 0.22
 
     /// 合法评分范围。
     static let ratingRange: ClosedRange<Int> = 1...5
@@ -90,13 +89,6 @@ enum DispersalCeremonyPolicy {
         return max(ratingRange.lowerBound, min(ratingRange.upperBound, rounded))
     }
 
-    /// 散场文字快捷填充。3 个意图对应"刚好够"的句式,降低散场时敲字的门槛。
-    /// 顺序敏感:UI chip 顺序 = 数组顺序,后两个比前一个更短,符合"一句话也行"的设计意图。
-    static let quickFillPresets: [(label: String, text: String)] = [
-        (BSLocalization.text("一个瞬间"), BSLocalization.text("最后一首歌结束的时候，灯亮得特别慢。")),
-        (BSLocalization.text("一句话也行"), BSLocalization.text("今晚值了。")),
-        (BSLocalization.text("最喜欢的一首歌"), BSLocalization.text("最喜欢的是最后那首歌。"))
-    ]
 }
 
 /// 评级吸附条:轨道两端落在首尾圆点中心,拉到顶时线不会在圆点外多出一截。
@@ -176,5 +168,17 @@ enum DispersalCeremonyCardCopy {
             return BSLocalization.format("与%@同行", names)
         }
         return BSLocalization.format("我的第 %lld 场现场", identity.showOrdinal)
+    }
+}
+
+
+extension View {
+    @ViewBuilder
+    func dispersalMatchedGeometry(id: String, namespace: Namespace.ID?) -> some View {
+        if let namespace {
+            matchedGeometryEffect(id: id, in: namespace)
+        } else {
+            self
+        }
     }
 }

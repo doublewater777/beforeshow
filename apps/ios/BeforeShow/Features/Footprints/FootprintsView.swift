@@ -5,9 +5,8 @@ import SwiftUI
 
 struct FootprintsView: View {
     var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
-    /// 外部 push 入口：仪式结束（散场卡生成/跳过 share）后由 RootView 写入，
-    /// FootprintsView 在 onChange 时把它转成本地 `detailTarget` 触发 push。
-    /// 双向但只读外部更安全 —— 内部源仍是本视图状态。
+    /// Root-owned external push entry, currently used by historical companion imports.
+    /// FootprintsView turns it into the local detail destination when the show exists.
     var pendingDetailTarget: FootprintDetailDestination?
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]

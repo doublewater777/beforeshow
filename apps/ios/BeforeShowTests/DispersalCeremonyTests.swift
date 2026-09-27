@@ -79,6 +79,22 @@ final class DispersalCeremonyTests: XCTestCase {
         XCTAssertNil(show.closingNote)
     }
 
+    func testCeremonyCompletionIsExplicitAndDoesNotRollBackWhenContentClears() throws {
+        let show = try Self.makeShow()
+        XCTAssertFalse(show.hasCompletedDispersalCeremony)
+
+        try show.setClosingRitual(
+            rating: nil,
+            note: nil,
+            markCeremonyCompleted: true
+        )
+        XCTAssertTrue(show.hasCompletedDispersalCeremony)
+
+        try show.setClosingRitual(rating: 5, note: "顶")
+        try show.setClosingRitual(rating: nil, note: nil)
+        XCTAssertTrue(show.hasCompletedDispersalCeremony)
+    }
+
     // MARK: - DispersalCeremonyPolicy
 
     func testPolicySnapRoundsAndClamps() {
@@ -101,18 +117,23 @@ final class DispersalCeremonyTests: XCTestCase {
         XCTAssertEqual(inset + fillAtMax, width - inset, accuracy: 0.001)
     }
 
-    func testPolicyLightsOutDurationMatchesMotionEmphasis() {
-        // 「散场」至少停住 2 秒。2.8s 总长里标题满不透明只有 1.5s,会像闪一下。
-        XCTAssertEqual(DispersalCeremonyPolicy.lightsOutDuration, 4.2, accuracy: 0.001)
+    func testLightsOutCeremonyStaysNearThreeSeconds() {
+        let total = DispersalCeremonyPolicy.lightsOutTransitionLeadIn
+            + DispersalCeremonyPolicy.lightsOutDuration
+            + DispersalCeremonyPolicy.lightsOutBlackHoldDuration
+        XCTAssertGreaterThanOrEqual(total, 2.8)
+        XCTAssertLessThanOrEqual(total, 3.3)
     }
 
-    func testLightsOutTitleHoldLastsThroughTheCeremonyBeat() {
-        let duration = DispersalCeremonyPolicy.lightsOutDuration
-        let holdStart = 0.25 * duration
-        let holdEnd = 0.80 * duration
-        XCTAssertGreaterThanOrEqual(holdEnd - holdStart, 2.0)
-        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.25), 1, accuracy: 0.0001)
-        XCTAssertEqual(DispersalLightsOutMotion.titleOpacity(progress: 0.80), 1, accuracy: 0.0001)
+    func testReducedMotionStillShowsTheLightsOutBeat() {
+        XCTAssertGreaterThanOrEqual(
+            DispersalCeremonyPolicy.reduceMotionLightsOutHoldDuration,
+            1.2
+        )
+        XCTAssertLessThanOrEqual(
+            DispersalCeremonyPolicy.reduceMotionLightsOutHoldDuration,
+            1.5
+        )
     }
 
     func testLightsOutProgressClampsToUnitInterval() {
@@ -179,9 +200,8 @@ final class DispersalCeremonyTests: XCTestCase {
 
     // MARK: - DispersalCeremonySheet navigation seam
 
-    func testSheetNextStepAdvances() {
-        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .setlist)
-        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .setlist), .share)
+    func testSheetNextStepMovesDirectlyFromEmotionToCard() {
+        XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .combined), .share)
         XCTAssertEqual(DispersalCeremonySheet.nextStep(after: .share), .share)
     }
 
@@ -192,32 +212,8 @@ final class DispersalCeremonyTests: XCTestCase {
         )
         XCTAssertEqual(
             DispersalCeremonySheet.nextStep(after: .combined, commitSucceeded: true),
-            .setlist
+            .share
         )
-    }
-
-    // MARK: - DispersalCeremonyPolicy.quickFillPresets
-
-    func testQuickFillPresetsExposeThreeDistinctOptions() {
-        let presets = DispersalCeremonyPolicy.quickFillPresets
-        XCTAssertEqual(presets.count, 3)
-        // 3 个预设文案必须各不相同,否则 chip 之间没有意义。
-        XCTAssertEqual(Set(presets.map(\.text)).count, presets.count)
-        // 每个 preset 必须有 label 文本。
-        for preset in presets {
-            XCTAssertFalse(preset.label.isEmpty, "preset label missing")
-            XCTAssertFalse(preset.text.isEmpty, "preset text missing for \(preset.label)")
-        }
-    }
-
-    func testQuickFillPresetsRespectNoteLengthLimit() {
-        for preset in DispersalCeremonyPolicy.quickFillPresets {
-            XCTAssertLessThanOrEqual(
-                preset.text.count,
-                DispersalCeremonyPolicy.maximumNoteLength,
-                "preset '\(preset.label)' overflows the 500-char limit"
-            )
-        }
     }
 
     // MARK: - DispersalCeremonyCardCopy

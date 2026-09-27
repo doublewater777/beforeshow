@@ -8,6 +8,7 @@ enum CurrentShowQuickAction: Hashable {
     case ticket
     case timetable
     case memoryFragments
+    case dispersal(completed: Bool)
     case endShow
 
     var title: String {
@@ -17,6 +18,8 @@ enum CurrentShowQuickAction: Hashable {
         case .ticket: return BSLocalization.text("票根")
         case .timetable: return BSLocalization.text("时刻表")
         case .memoryFragments: return BSLocalization.text("记忆碎片")
+        case .dispersal(let completed):
+            return BSLocalization.text(completed ? "散场卡" : "留下这一晚")
         case .endShow: return BSLocalization.text("结束现场")
         }
     }
@@ -28,6 +31,7 @@ enum CurrentShowQuickAction: Hashable {
         case .ticket: return "ticket"
         case .timetable: return "list.bullet.rectangle"
         case .memoryFragments: return "photo.on.rectangle.angled"
+        case .dispersal: return "rectangle.portrait.on.rectangle.portrait"
         case .endShow: return "flag.checkered"
         }
     }
@@ -39,7 +43,9 @@ enum CurrentShowQuickAction: Hashable {
         for phase: HomeShowPhase,
         inOpeningMemoryWindow: Bool = false,
         canRecordEnd: Bool = true,
-        embedsRouteInLocation: Bool = false
+        embedsRouteInLocation: Bool = false,
+        isPostShowRetention: Bool = false,
+        hasCompletedDispersalCeremony: Bool = false
     ) -> [Self] {
         let actions: [Self]
         switch phase {
@@ -56,7 +62,16 @@ enum CurrentShowQuickAction: Hashable {
                 actions = [.companion, .memoryFragments, .route, .ticket, .timetable]
             }
         case .ended:
-            actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
+            if isPostShowRetention {
+                actions = [
+                    .dispersal(completed: hasCompletedDispersalCeremony),
+                    .memoryFragments,
+                    .companion,
+                    .ticket
+                ]
+            } else {
+                actions = [.memoryFragments, .companion, .route, .ticket, .timetable]
+            }
         case .inactive:
             actions = [.route, .companion, .ticket, .timetable, .memoryFragments]
         }
