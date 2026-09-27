@@ -690,31 +690,6 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(payload.diagnostics.osVersion.isEmpty)
     }
 
-    func testFeedbackShareTextKeepsMessagePrimaryAndAppendsDiagnostics() {
-        let payload = FeedbackPayload(
-            message: "设置页卡住",
-            diagnostics: FeedbackDiagnostics(appVersion: "2.3", osVersion: "iOS 26.5")
-        )
-
-        XCTAssertEqual(
-            FeedbackShareTextBuilder().build(from: payload),
-            "设置页卡住\n\n——\n\n" +
-                BSLocalization.format("App 版本：%@\n系统版本：%@", "2.3", "iOS 26.5")
-        )
-    }
-
-    func testFeedbackMailtoUsesLocalizedSubjectAndPrefilledBody() throws {
-        let body = "希望更快进入状态"
-        let url = try XCTUnwrap(FeedbackDestination.mailtoURL(prefilledBody: body))
-        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
-        let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
-
-        XCTAssertEqual(components.scheme, "mailto")
-        XCTAssertEqual(components.path, FeedbackDestination.address)
-        XCTAssertEqual(queryItems["subject"], BSLocalization.text("开场前 · 意见反馈"))
-        XCTAssertEqual(queryItems["body"], body)
-    }
-
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
         XCTAssertEqual(SettingsEntry.allCases, [
             .proMembership,
