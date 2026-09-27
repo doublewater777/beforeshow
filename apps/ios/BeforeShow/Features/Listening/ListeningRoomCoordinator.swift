@@ -80,6 +80,7 @@ private let listeningCatalogFetchConcurrency = 4
     var playbackError: String?
     @ObservationIgnored private var visibility = ListeningVisibilityPolicy()
     @ObservationIgnored private var foreground = true
+    @ObservationIgnored private var musicAccessRequestGeneration = UUID()
     private(set) var accessResolved = false
     @ObservationIgnored private var preparedSource: ListeningPlaybackSource?
     @ObservationIgnored private var runtimeSongs: [String: [CatalogSong]] = [:]
@@ -336,10 +337,13 @@ private let listeningCatalogFetchConcurrency = 4
         // resolved access immediately so cached records can play during matching.
         let slots = show.artists
         async let matching = ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
-        access = newAccess
-        accessResolved = true
+        if isCurrentMusicAccessRequest(accessGeneration) {
+            access = newAccess
+            accessResolved = true
+        }
 
         let matches = (try? await matching) ?? [:]
         guard generation == catalogGeneration, !Task.isCancelled else { return }
@@ -561,11 +565,26 @@ private let listeningCatalogFetchConcurrency = 4
         return results
     }
 
+    private func beginMusicAccessRequest() -> UUID {
+        let generation = UUID()
+        musicAccessRequestGeneration = generation
+        return generation
+    }
+
+    private func isCurrentMusicAccessRequest(_ generation: UUID) -> Bool {
+        generation == musicAccessRequestGeneration
+    }
+
     func authorize() async {
         guard !isAuthorizing else { return }
         isAuthorizing = true
         _ = await catalogService.requestAuthorization()
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else {
+            isAuthorizing = false
+            return
+        }
         access = newAccess
         accessResolved = true
         isAuthorizing = false
@@ -580,7 +599,12 @@ private let listeningCatalogFetchConcurrency = 4
     func refreshMusicAccess() async {
         guard !isAuthorizing else { return }
         isAuthorizing = true
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else {
+            isAuthorizing = false
+            return
+        }
         access = newAccess
         accessResolved = true
         isAuthorizing = false
@@ -596,7 +620,9 @@ private let listeningCatalogFetchConcurrency = 4
     func refreshMusicAccessAfterForeground() async {
         guard !isAuthorizing else { return }
         let previousAccess = access
+        let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
+        guard isCurrentMusicAccessRequest(accessGeneration) else { return }
         guard newAccess != previousAccess else { return }
 
         access = newAccess
