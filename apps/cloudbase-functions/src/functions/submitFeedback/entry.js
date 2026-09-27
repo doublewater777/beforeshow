@@ -40,7 +40,7 @@ export async function main(event = {}, context = {}, options = {}) {
   };
 
   try {
-    const writeFeedback = options.writeFeedback ?? writeFeedbackToCloudLog;
+    const writeFeedback = options.writeFeedback ?? writeFeedbackToCloudDatabase;
     await writeFeedback(record);
 
     return {
@@ -58,7 +58,7 @@ export async function main(event = {}, context = {}, options = {}) {
   }
 }
 
-async function writeFeedbackToCloudLog(record) {
+async function writeFeedbackToCloudDatabase(record) {
   // The deployment bundle installs the server SDK and keeps this dependency
   // external to esbuild so local unit tests can inject writeFeedback without it.
   const { default: cloudbase } = await import("@cloudbase/node-sdk");
