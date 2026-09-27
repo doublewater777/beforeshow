@@ -82,8 +82,11 @@ enum CurrentShowQuickAction: Hashable {
 struct CurrentShowQuickActionTile: View {
     let action: CurrentShowQuickAction
     var companion: CompanionQuickActionPresentation?
+    @ObservedObject private var languageController = AppLanguageController.shared
 
     var body: some View {
+        let language = languageController.language
+
         VStack(spacing: 7) {
             if let companion, companion.showsAvatars {
                 CompanionAvatarStack(names: companion.companionNames)
@@ -117,6 +120,7 @@ struct CurrentShowQuickActionTile: View {
             }
         }
         .contentShape(RoundedRectangle(cornerRadius: 16))
+        .id(language)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(companion?.accessibilityLabel ?? action.title)
     }
