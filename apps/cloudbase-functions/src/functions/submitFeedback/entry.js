@@ -91,7 +91,7 @@ async function consumeFeedbackRateLimit({ appInstanceId, now }) {
   const windowStart = Math.floor(now.getTime() / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS;
   const expiresAt = new Date(windowStart + (2 * RATE_LIMIT_WINDOW_MS)).toISOString();
   const instanceHash = createHash("sha256")
-    .update(String(appInstanceId))
+    .update(`${windowStart}:${String(appInstanceId)}`)
     .digest("hex");
   const globalDocumentId = `global-${windowStart}`;
   const instanceDocumentId = `instance-${windowStart}-${instanceHash}`;
@@ -118,7 +118,6 @@ async function consumeFeedbackRateLimit({ appInstanceId, now }) {
     });
     await instanceRef.set({
       scope: "instance",
-      instanceHash,
       count: instanceCount + 1,
       windowStart,
       expiresAt
