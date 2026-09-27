@@ -195,6 +195,7 @@ struct CurrentShowLibraryManagementView: View {
                     .font(.system(size: 11))
                     .foregroundColor(BSColor.Stage.dim)
             }
+            .frame(height: BSSpacing.roomy)
             if layout == .covers {
                 LazyVGrid(
                     columns: Array(
