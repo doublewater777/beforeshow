@@ -170,7 +170,7 @@ private enum LiveActivityCopy {
     }
 
     /// 时间元数据合并为一行:开场前「14:49 开场 · 预计 18:49 散场」(无预计
-    /// 谢幕时仅「14:49 开场」);开场后不再展示开场时刻(正计时与「已开场」
+    /// 散场时仅「14:49 开场」);开场后不再展示开场时刻(正计时与「已开场」
     /// 阶段已表达),只保留「预计 18:49 散场」。en:「Starts 14:49 · Est. ends 18:49」。
     static func timeLine(for state: ShowLiveActivityAttributes.ContentState, isLive: Bool) -> String? {
         let end = state.endDate.map { clockText($0, calendar: state.endCalendar) }
