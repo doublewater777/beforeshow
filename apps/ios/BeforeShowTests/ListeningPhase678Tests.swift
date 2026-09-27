@@ -43,6 +43,57 @@ private struct ListenTestCatalog: ListeningMusicCatalogServicing {
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload { throw ListeningCatalogError.artistNotFound(artistID) }
 }
 
+private final class OutOfOrderMusicAccessCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
+    private let lock = NSLock()
+    private var nextRequestID = 0
+    private var continuations: [Int: CheckedContinuation<ListeningMusicAccess, Never>] = [:]
+
+    var pendingRequestIDs: [Int] {
+        lock.lock()
+        defer { lock.unlock() }
+        return continuations.keys.sorted()
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        .authorized
+    }
+
+    func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
+        .authorized
+    }
+
+    func currentAccess() async -> ListeningMusicAccess {
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            nextRequestID += 1
+            continuations[nextRequestID] = continuation
+            lock.unlock()
+        }
+    }
+
+    func resume(requestID: Int, with access: ListeningMusicAccess) {
+        lock.lock()
+        let continuation = continuations.removeValue(forKey: requestID)
+        lock.unlock()
+        continuation?.resume(returning: access)
+    }
+
+    func resumeAll(with access: ListeningMusicAccess) {
+        lock.lock()
+        let pending = Array(continuations.values)
+        continuations.removeAll()
+        lock.unlock()
+        pending.forEach { $0.resume(returning: access) }
+    }
+
+    func fetchArtistCatalog(
+        artistID: String,
+        fetchedAt: Date
+    ) async throws -> ListeningArtistCatalogPayload {
+        throw ListeningCatalogError.artistNotFound(artistID)
+    }
+}
+
 private final class AuthorizationTransitionCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
     private let lock = NSLock()
     private var status: ListeningMusicAuthorizationStatus
@@ -372,6 +423,64 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
     }
 
+    func testNewerSheetRetryWinsWhenForegroundAccessQueryCompletesLater() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let catalog = OutOfOrderMusicAccessCatalog()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.resumeAll(
+                with: .init(
+                    authorizationStatus: .authorized,
+                    catalogPlaybackAccess: .available
+                )
+            )
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        let foregroundRefresh = Task { await room.refreshMusicAccessAfterForeground() }
+        try await waitForAccessRequestCount(1, catalog: catalog)
+        let foregroundRequestID = try XCTUnwrap(catalog.pendingRequestIDs.first)
+
+        let sheetRetry = Task { await room.refreshMusicAccess() }
+        try await waitForAccessRequestCount(2, catalog: catalog)
+        let retryRequestID = try XCTUnwrap(
+            catalog.pendingRequestIDs.first(where: { $0 != foregroundRequestID })
+        )
+
+        catalog.resume(
+            requestID: retryRequestID,
+            with: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .available
+            )
+        )
+        await sheetRetry.value
+
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .available)
+        XCTAssertTrue(room.accessResolved)
+
+        catalog.resume(
+            requestID: foregroundRequestID,
+            with: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accountLimited
+            )
+        )
+        await foregroundRefresh.value
+
+        XCTAssertEqual(
+            room.access.catalogPlaybackAccess,
+            .available,
+            "an older foreground query must not overwrite the newer sheet retry result"
+        )
+    }
+
     func testSuccessfulAccessRetryKeepsPreviewModeWhilePreviewTransportIsRunning() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
         let context = fixture.container.mainContext
@@ -414,6 +523,17 @@ final class ListeningAccessibilityTests: XCTestCase {
 
         room.stop()
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
+    }
+
+    private func waitForAccessRequestCount(
+        _ count: Int,
+        catalog: OutOfOrderMusicAccessCatalog
+    ) async throws {
+        for _ in 0..<200 {
+            if catalog.pendingRequestIDs.count >= count { return }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        XCTFail("Timed out waiting for \(count) Music access requests")
     }
 
     func testImportedArtistAutoMatchRequiresOneExactIdentity() {
