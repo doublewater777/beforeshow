@@ -145,7 +145,7 @@ Run this on a fresh install before submitting the first external TestFlight buil
 ## Current External Blockers
 
 - [x] Keep `parseShowLink` deployed. On 2026-06-16, the deployed `/parseShowLink` endpoint accepted the iOS-style JSON body with `appInstanceId` and `appSignature`.
-- [x] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so `parseShowLink` is staged.
+- [ ] Before CloudBase deployment, run `npm run prepare:deploy` in `apps/cloudbase-functions` so both `parseShowLink` and `submitFeedback` are staged, then deploy `submitFeedback` before shipping the in-app feedback flow.
 - [x] Upload App Store review screenshots for subscription IDs `6780727285` and `6780727360`; `asc validate subscriptions` now confirms both review screenshot IDs.
 - [ ] Resolve remaining first-release subscription state; current `asc validate subscriptions` warnings are missing optional promotional images, app build count `0`, and app availability comparison unavailable.
 - [ ] Run the real TestFlight/manual loop on device after the build is uploaded: free first show, Pro gate on second show, purchase/restore, and post-purchase unlock.
