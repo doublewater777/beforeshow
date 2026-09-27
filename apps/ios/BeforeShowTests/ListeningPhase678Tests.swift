@@ -84,6 +84,12 @@ private final class AuthorizationTransitionCatalog: @unchecked Sendable, Listeni
         return fullFetches
     }
 
+    private func recordFullFetch() {
+        lock.lock()
+        fullFetches += 1
+        lock.unlock()
+    }
+
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
         readState().0
     }
@@ -105,9 +111,7 @@ private final class AuthorizationTransitionCatalog: @unchecked Sendable, Listeni
         artistID: String,
         fetchedAt: Date
     ) async throws -> ListeningArtistCatalogPayload {
-        lock.lock()
-        fullFetches += 1
-        lock.unlock()
+        recordFullFetch()
 
         let songIDs: [String]
         let albumIDs: [String]
