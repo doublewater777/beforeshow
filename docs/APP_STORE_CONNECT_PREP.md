@@ -108,7 +108,7 @@ Created with these fields:
 
 - Ticket screenshots: users choose screenshots themselves; V2.1 uses on-device OCR through iOS APIs and does not upload screenshots for recognition.
 - OCR fields: extraction is limited to show-related fields such as show name, date/time, city, venue, artists/lineup, and seat/area. The app should not recognize or store order numbers, QR codes, barcodes, ID numbers, phone numbers, buyer names, or payment information.
-- Feedback: feedback sends only the message/category and optional diagnostics selected by the user. It must not automatically attach show content or screenshots.
+- Feedback: feedback sends only the user-entered message plus the App version and iOS version. It must not automatically attach show content, screenshots, photos, videos, current-screen context, or current-show data.
 - Local-first stance: saved shows and preferences are local app data in V2.1; there is no BeforeShow account or cloud sync.
 
 ## Content Rights And Feature Boundaries
