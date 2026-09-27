@@ -1,0 +1,32 @@
+name: CloudBase feedback verify
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/cloudbase-functions/src/functions/submitFeedback/**"
+      - "apps/cloudbase-functions/src/auth/appAuth.js"
+      - "apps/cloudbase-functions/test/submitFeedback.entry.test.js"
+      - "apps/cloudbase-functions/package.json"
+      - ".github/workflows/cloudbase-feedback-verify.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - run: npm ci
+
+      - name: Feedback backend tests
+        run: node --test apps/cloudbase-functions/test/submitFeedback.entry.test.js
