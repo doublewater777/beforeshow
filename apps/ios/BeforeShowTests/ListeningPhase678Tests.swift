@@ -45,32 +45,59 @@ private struct ListenTestCatalog: ListeningMusicCatalogServicing {
 
 private final class AuthorizationTransitionCatalog: @unchecked Sendable, ListeningMusicCatalogServicing {
     private let lock = NSLock()
-    private var status: ListeningMusicAuthorizationStatus = .notDetermined
+    private var status: ListeningMusicAuthorizationStatus
+    private var playbackAccess: ListeningCatalogPlaybackAccess
+    private var fullFetches = 0
 
-    private func readStatus() -> ListeningMusicAuthorizationStatus {
-        lock.lock()
-        defer { lock.unlock() }
-        return status
+    init(
+        status: ListeningMusicAuthorizationStatus = .notDetermined,
+        playbackAccess: ListeningCatalogPlaybackAccess = .available
+    ) {
+        self.status = status
+        self.playbackAccess = playbackAccess
     }
 
-    private func setStatus(_ value: ListeningMusicAuthorizationStatus) {
+    private func readState() -> (
+        ListeningMusicAuthorizationStatus,
+        ListeningCatalogPlaybackAccess
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (status, playbackAccess)
+    }
+
+    func setStatusForTesting(_ value: ListeningMusicAuthorizationStatus) {
         lock.lock()
         status = value
         lock.unlock()
     }
 
-    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { readStatus() }
+    func setPlaybackAccessForTesting(_ value: ListeningCatalogPlaybackAccess) {
+        lock.lock()
+        playbackAccess = value
+        lock.unlock()
+    }
+
+    var fullFetchCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return fullFetches
+    }
+
+    func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus {
+        readState().0
+    }
 
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus {
-        setStatus(.authorized)
+        setStatusForTesting(.authorized)
         return .authorized
     }
 
     func currentAccess() async -> ListeningMusicAccess {
-        let current = readStatus()
+        let (current, currentPlaybackAccess) = readState()
         return .init(
             authorizationStatus: current,
-            canPlayCatalogContent: current == .authorized
+            catalogPlaybackAccess: current == .authorized ? currentPlaybackAccess : .accountLimited
         )
     }
 
@@ -78,7 +105,41 @@ private final class AuthorizationTransitionCatalog: @unchecked Sendable, Listeni
         artistID: String,
         fetchedAt: Date
     ) async throws -> ListeningArtistCatalogPayload {
-        throw ListeningCatalogError.artistNotFound(artistID)
+        lock.lock()
+        fullFetches += 1
+        lock.unlock()
+
+        let songIDs: [String]
+        let albumIDs: [String]
+        let artistName: String
+        switch artistID {
+        case "a":
+            songIDs = ["a1", "a2"]
+            albumIDs = ["album"]
+            artistName = "A"
+        case "c":
+            songIDs = ["c1"]
+            albumIDs = []
+            artistName = "C"
+        default:
+            songIDs = (0..<4).map { "fixture-song-0-\($0)" }
+            albumIDs = ["fixture-album-0"]
+            artistName = "Aimer"
+        }
+
+        return ListeningArtistCatalogPayload(
+            artistID: artistID,
+            artistName: artistName,
+            artworkURL: nil,
+            editorialText: nil,
+            genreNames: [],
+            orderedSongIDs: songIDs,
+            topSongIDs: Array(songIDs.prefix(2)),
+            albumIDs: albumIDs,
+            songs: [],
+            albums: [],
+            fetchedAt: fetchedAt
+        )
     }
 }
 
@@ -274,6 +335,81 @@ final class ListeningAccessibilityTests: XCTestCase {
         await room.authorize()
         XCTAssertEqual(search.searchCount, 1, "Authorization should resume catalog loading instead of restarting show preparation")
         XCTAssertFalse(room.shouldReloadCatalog(for: show))
+    }
+
+    func testForegroundReturnRefreshesDeniedMusicAccessAndReloadsCatalog() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(status: .denied)
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        XCTAssertEqual(room.access.authorizationStatus, .denied)
+        XCTAssertEqual(catalog.fullFetchCount, 0)
+
+        room.setForeground(false)
+        catalog.setStatusForTesting(.authorized)
+        room.setForeground(true)
+        await room.refreshMusicAccessAfterForeground()
+
+        XCTAssertEqual(room.access.authorizationStatus, .authorized)
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .available)
+        XCTAssertGreaterThan(catalog.fullFetchCount, 0, "granting access in Settings must trigger a catalog reload")
+        XCTAssertEqual(room.display.roomMode, .fullPlayback)
+    }
+
+    func testSuccessfulAccessRetryKeepsPreviewModeWhilePreviewTransportIsRunning() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(
+            status: .authorized,
+            playbackAccess: .accessCheckFailed
+        )
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        XCTAssertEqual(room.display.player.source, .preview)
+        XCTAssertEqual(room.display.roomMode, .preview)
+
+        catalog.setPlaybackAccessForTesting(.available)
+        await room.refreshMusicAccess()
+
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .available)
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.display.player.source, .preview)
+        XCTAssertEqual(
+            room.display.roomMode,
+            .preview,
+            "the header must describe the still-running preview transport until it is replaced"
+        )
+
+        room.stop()
+        XCTAssertEqual(room.display.roomMode, .fullPlayback)
     }
 
     func testImportedArtistAutoMatchRequiresOneExactIdentity() {
