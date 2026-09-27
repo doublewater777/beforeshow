@@ -280,9 +280,7 @@ struct ListeningRoomView: View {
         } else if room.access.authorizationStatus != .authorized {
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),
-                subtitle: room.access.authorizationStatus == .notDetermined
-                    ? ListeningCopy.text("授权后载入唱片")
-                    : BSLocalization.text("请在系统设置中允许访问 Apple Music"),
+                subtitle: musicAccessSubtitle,
                 icon: "music.note",
                 actionTitle: room.display.recoveryAction?.title
             ) {
@@ -317,6 +315,19 @@ struct ListeningRoomView: View {
             case .needsAuthorization, .noCurrentShow, .ready:
                 ListeningCatalogStatusView(title: BSLocalization.text("暂时没有找到可翻的唱片"))
             }
+        }
+    }
+
+    private var musicAccessSubtitle: String {
+        switch room.access.authorizationStatus {
+        case .notDetermined:
+            return ListeningCopy.text("授权后载入唱片")
+        case .denied:
+            return BSLocalization.text("请在系统设置中允许访问 Apple Music")
+        case .restricted:
+            return ListeningCopy.text("Apple Music 访问受到系统限制，无法在此更改。")
+        case .authorized:
+            return ""
         }
     }
 
