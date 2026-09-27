@@ -45,3 +45,7 @@
 "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。" = "Full playback access could not be verified right now, and these songs have no available preview clips.";
 "当前使用歌曲试听片段。" = "Preview clips are currently being used.";
 "当前没有可播放的歌曲。" = "No playable songs are available right now.";
+
+"Apple Music 访问受到系统限制，当前使用歌曲试听片段。" = "Apple Music access is restricted by the system, so preview clips are used.";
+"Apple Music 访问受到系统限制，且这些歌曲没有可用试听片段。" = "Apple Music access is restricted by the system, and these songs have no available preview clips.";
+"Apple Music 访问受到系统限制，无法在此更改。" = "Apple Music access is restricted by the system and cannot be changed here.";
