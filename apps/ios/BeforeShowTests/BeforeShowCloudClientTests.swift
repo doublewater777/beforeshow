@@ -63,30 +63,6 @@ final class BeforeShowCloudClientTests: XCTestCase {
             XCTFail("unexpected \(error)")
         }
     }
-}
-
-private actor CapturingCloudURLSession: URLSessionProtocol {
-    var data: Data
-    var statusCode: Int
-    private var last: URLRequest?
-
-    init(data: Data, statusCode: Int) {
-        self.data = data
-        self.statusCode = statusCode
-    }
-
-    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
-        last = request
-        let response = HTTPURLResponse(
-            url: request.url ?? URL(string: "https://example.com")!,
-            statusCode: statusCode,
-            httpVersion: nil,
-            headerFields: nil
-        )!
-        return (data, response)
-    }
-
-    func lastRequest() -> URLRequest? { last }
 
     func testFeedbackSubmissionPostsOnlyMessageAndMinimalDiagnostics() async throws {
         let session = CapturingCloudURLSession(
@@ -127,15 +103,42 @@ private actor CapturingCloudURLSession: URLSessionProtocol {
         XCTAssertEqual(body["osVersion"], "iOS 26.0")
     }
 
-    func testFeedbackSubmissionRejectsBackendFailure() async {
-        let session = CapturingCloudURLSession(
-            data: #"{"ok":false,"error":{"code":"STORE_FAILED"}}"#.data(using: .utf8)!,
-            statusCode: 200
-        )
+    func testFeedbackSubmissionPreservesBackendValidationAndRateLimitErrors() async {
+        for (response, expectedError) in [
+            (#"{"ok":false,"error":{"code":"MESSAGE_TOO_LONG"}}"#, FeedbackSubmissionError.messageTooLong),
+            (#"{"ok":false,"error":{"code":"RATE_LIMITED"}}"#, FeedbackSubmissionError.rateLimited)
+        ] {
+            let client = BeforeShowCloudClient(
+                rootURL: URL(string: "https://example.com")!,
+                credentials: BeforeShowAppCredentials(appInstanceId: "id", appSignature: "sig"),
+                session: CapturingCloudURLSession(
+                    data: response.data(using: .utf8)!,
+                    statusCode: 200
+                )
+            )
+
+            do {
+                try await RemoteFeedbackSubmissionService(client: client).submit(FeedbackPayload(
+                    message: "设置页卡住",
+                    diagnostics: FeedbackDiagnostics(appVersion: "1.0", osVersion: "iOS 26.0")
+                ))
+                XCTFail("expected \(expectedError)")
+            } catch let error as FeedbackSubmissionError {
+                XCTAssertEqual(error, expectedError)
+            } catch {
+                XCTFail("unexpected \(error)")
+            }
+        }
+    }
+
+    func testFeedbackSubmissionMapsUnknownBackendFailureToRejected() async {
         let client = BeforeShowCloudClient(
             rootURL: URL(string: "https://example.com")!,
             credentials: BeforeShowAppCredentials(appInstanceId: "id", appSignature: "sig"),
-            session: session
+            session: CapturingCloudURLSession(
+                data: #"{"ok":false,"error":{"code":"STORE_FAILED"}}"#.data(using: .utf8)!,
+                statusCode: 200
+            )
         )
 
         do {
@@ -150,5 +153,28 @@ private actor CapturingCloudURLSession: URLSessionProtocol {
             XCTFail("unexpected \(error)")
         }
     }
+}
 
+private actor CapturingCloudURLSession: URLSessionProtocol {
+    var data: Data
+    var statusCode: Int
+    private var last: URLRequest?
+
+    init(data: Data, statusCode: Int) {
+        self.data = data
+        self.statusCode = statusCode
+    }
+
+    func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        last = request
+        let response = HTTPURLResponse(
+            url: request.url ?? URL(string: "https://example.com")!,
+            statusCode: statusCode,
+            httpVersion: nil,
+            headerFields: nil
+        )!
+        return (data, response)
+    }
+
+    func lastRequest() -> URLRequest? { last }
 }
