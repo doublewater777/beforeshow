@@ -21,6 +21,11 @@ struct ListeningCabinetView<Placeholder: View>: View {
 
     private var shelfDiscs: [ListeningDisc] { room.display.shelfDiscs }
 
+    private var currentDisc: ListeningDisc? {
+        guard room.mechanism.position != .stored else { return nil }
+        return room.mechanism.disc
+    }
+
     private var hintDisc: ListeningDisc? {
         shelfDiscs.first { room.discPresentation(for: $0).canLoad }
     }
@@ -32,7 +37,13 @@ struct ListeningCabinetView<Placeholder: View>: View {
             isLoading: isLoading,
             showsCount: room.access.authorizationStatus == .authorized,
             showsAllDiscs: room.display.showsAllDiscs,
-            showAll: showAll
+            showsCurrentDisc: currentDisc != nil,
+            showAll: showAll,
+            showCurrentDisc: {
+                if let currentDisc {
+                    showDetails(currentDisc)
+                }
+            }
         ) {
             if shelfDiscs.isEmpty {
                 placeholder
@@ -263,7 +274,7 @@ private struct ListeningCabinetDiscButton: View {
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.85)
-                    .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .foregroundStyle(isLoaded ? BSColor.Stage.accent : BSColor.Stage.foreground)
                     .frame(maxWidth: .infinity)
                     .frame(height: labelHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1))
             }
