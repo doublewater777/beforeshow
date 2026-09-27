@@ -62,6 +62,13 @@ export async function main(event = {}, context = {}, options = {}) {
     const writeFeedback = options.writeFeedback ?? writeFeedbackToCloudDatabase;
     await writeFeedback(record);
 
+    try {
+      const notify = options.sendNotification ?? sendFeishuFeedbackNotification;
+      await notify({ record });
+    } catch (notifyError) {
+      console.error("Feishu notification error:", notifyError);
+    }
+
     return {
       ok: true,
       feedbackId
@@ -96,17 +103,19 @@ async function consumeFeedbackRateLimit({ appInstanceId, now }) {
   const globalDocumentId = `global-${windowStart}`;
   const instanceDocumentId = `instance-${windowStart}-${instanceHash}`;
 
+  let allowed = false;
   const result = await db.runTransaction(async transaction => {
     const globalRef = transaction.collection(RATE_LIMIT_COLLECTION).doc(globalDocumentId);
     const instanceRef = transaction.collection(RATE_LIMIT_COLLECTION).doc(instanceDocumentId);
 
-    const globalResult = await globalRef.get();
-    const instanceResult = await instanceRef.get();
+    const globalResult = await safeGetDoc(globalRef);
+    const instanceResult = await safeGetDoc(instanceRef);
     const globalCount = documentCount(globalResult);
     const instanceCount = documentCount(instanceResult);
 
     if (globalCount >= MAX_GLOBAL_PER_WINDOW ||
         instanceCount >= MAX_PER_INSTANCE_PER_WINDOW) {
+      allowed = false;
       return { allowed: false };
     }
 
@@ -123,14 +132,28 @@ async function consumeFeedbackRateLimit({ appInstanceId, now }) {
       expiresAt
     });
 
+    allowed = true;
     return { allowed: true };
   });
 
-  return result?.result?.allowed === true;
+  return allowed || result?.result?.allowed === true || result?.allowed === true;
+}
+
+async function safeGetDoc(docRef) {
+  try {
+    return await docRef.get();
+  } catch (error) {
+    if (error?.code === "DATABASE_TRANSACTION_DOC_NOT_EXIST" ||
+        error?.message?.includes("not exist") ||
+        error?.message?.includes("NOT_FOUND")) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 function documentCount(result) {
-  const data = result?.data;
+  const data = typeof result?.data === "function" ? result.data() : result?.data;
   if (Array.isArray(data)) {
     return Number(data[0]?.count ?? 0);
   }
@@ -200,3 +223,103 @@ function authEvent(event, body) {
 
   return event;
 }
+
+async function sendFeishuFeedbackNotification(options = {}) {
+  const appId = options.feishuAppId ?? process.env.FEISHU_APP_ID;
+  const appSecret = options.feishuAppSecret ?? process.env.FEISHU_APP_SECRET;
+  const chatId = options.feishuChatId ?? process.env.FEISHU_CHAT_ID;
+  const webhookUrl = options.feishuWebhookUrl ?? process.env.FEISHU_WEBHOOK_URL;
+  const record = options.record;
+  if (!record) return;
+
+  const card = {
+    header: {
+      title: {
+        tag: "plain_text",
+        content: "📝 收到新的 BeforeShow 用户反馈"
+      },
+      template: "blue"
+    },
+    elements: [
+      {
+        tag: "div",
+        text: {
+          tag: "lark_md",
+          content: `**反馈内容：**\n${record.message}`
+        }
+      },
+      {
+        tag: "hr"
+      },
+      {
+        tag: "div",
+        fields: [
+          {
+            is_short: true,
+            text: {
+              tag: "lark_md",
+              content: `**App 版本：**\n${record.appVersion || "未知"}`
+            }
+          },
+          {
+            is_short: true,
+            text: {
+              tag: "lark_md",
+              content: `**系统版本：**\n${record.osVersion || "未知"}`
+            }
+          },
+          {
+            is_short: true,
+            text: {
+              tag: "lark_md",
+              content: `**提交时间：**\n${record.submittedAt}`
+            }
+          },
+          {
+            is_short: true,
+            text: {
+              tag: "lark_md",
+              content: `**反馈 ID：**\n${record.feedbackId}`
+            }
+          }
+        ]
+      }
+    ]
+  };
+
+  if (webhookUrl) {
+    await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        msg_type: "interactive",
+        card
+      })
+    });
+    return;
+  }
+
+  if (appId && appSecret && chatId) {
+    const tokenRes = await fetch("https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ app_id: appId, app_secret: appSecret })
+    });
+    const tokenData = await tokenRes.json().catch(() => null);
+    if (!tokenData?.tenant_access_token) return;
+
+    await fetch("https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=chat_id", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${tokenData.tenant_access_token}`
+      },
+      body: JSON.stringify({
+        receive_id: chatId,
+        msg_type: "interactive",
+        content: JSON.stringify(card)
+      })
+    });
+  }
+}
+

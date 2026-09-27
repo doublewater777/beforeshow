@@ -22,7 +22,7 @@ const server = http.createServer(async (req, res) => {
       query: Object.fromEntries(url.searchParams.entries())
     }, {});
 
-    res.statusCode = statusCode(forErrorCode(result.error?.code));
+    res.statusCode = statusCode(result.error?.code);
     res.end(JSON.stringify(result));
   } catch (error) {
     res.statusCode = 500;

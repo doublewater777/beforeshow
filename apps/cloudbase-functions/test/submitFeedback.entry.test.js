@@ -140,4 +140,40 @@ describe("submitFeedback entry", () => {
     assert.equal("appSignature" in stored, false);
     assert.equal("showName" in stored, false);
   });
+
+  it("dispatches notification on successful write and does not fail submission if notification fails", async () => {
+    let notifiedRecord;
+    let notificationFailed = false;
+
+    // Test successful notification dispatch
+    const result1 = await main({
+      ...validAuth,
+      message: "测试通知"
+    }, {}, {
+      consumeRateLimit: async () => true,
+      writeFeedback: async () => {},
+      sendNotification: async ({ record }) => {
+        notifiedRecord = record;
+      }
+    });
+
+    assert.equal(result1.ok, true);
+    assert.equal(notifiedRecord?.message, "测试通知");
+
+    // Test non-blocking behavior when notification throws
+    const result2 = await main({
+      ...validAuth,
+      message: "通知异常不阻断反馈"
+    }, {}, {
+      consumeRateLimit: async () => true,
+      writeFeedback: async () => {},
+      sendNotification: async () => {
+        notificationFailed = true;
+        throw new Error("Feishu API unreachable");
+      }
+    });
+
+    assert.equal(result2.ok, true);
+    assert.equal(notificationFailed, true);
+  });
 });
