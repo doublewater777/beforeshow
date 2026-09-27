@@ -315,47 +315,6 @@ final class Show {
         touch()
     }
 
-    /// 写「散场仪式」评分与散场文字。`endedAt` 与生命期状态不受影响 ——
-    /// 仪式步骤与结束现场完全解耦,任一字段抛错都不会回滚已结束的现场。
-    ///
-    /// - rating: 1...5,`nil` = 清除或保持未评分
-    /// - note: 经 `normalizeClosingNote` trim + 长度校验,空字符串视为 `nil`
-    /// - 同值写入为幂等,不会更新 `updatedAt`
-    func setClosingRitual(
-        rating: Int?,
-        note: String?,
-        markCeremonyCompleted: Bool = false
-    ) throws {
-        if let rating, !(1...5).contains(rating) {
-            throw ShowValidationError.ratingOutOfRange
-        }
-        let normalized = try Self.normalizeClosingNote(note)
-        let completesCeremony = markCeremonyCompleted && !hasCompletedDispersalCeremony
-        if self.rating == rating,
-           self.closingNote == normalized,
-           !completesCeremony {
-            return
-        }
-        self.rating = rating
-        self.closingNote = normalized
-        if markCeremonyCompleted {
-            hasCompletedDispersalCeremony = true
-        }
-        touch()
-    }
-
-    static func normalizeClosingNote(_ text: String?) throws -> String? {
-        guard let text else { return nil }
-        let normalized = text
-            .replacingOccurrences(of: "\r\n", with: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !normalized.isEmpty else { return nil }
-        guard normalized.count <= 500 else {
-            throw ShowValidationError.closingNoteTooLong
-        }
-        return normalized
-    }
-
     /// Valid transitions: `.none` / `.canceled` → `.pending`.
     func markCompanionInvitationSent(name: String?) throws {
         let from = companionStatus
