@@ -108,7 +108,8 @@ private actor CapturingCloudURLSession: URLSessionProtocol {
             diagnostics: FeedbackDiagnostics(appVersion: "1.0", osVersion: "iOS 26.0")
         ))
 
-        let request = try XCTUnwrap(await session.lastRequest())
+        let capturedRequest = await session.lastRequest()
+        let request = try XCTUnwrap(capturedRequest)
         XCTAssertEqual(request.url?.absoluteString, "https://example.com/submitFeedback")
 
         let bodyData = try XCTUnwrap(request.httpBody)
