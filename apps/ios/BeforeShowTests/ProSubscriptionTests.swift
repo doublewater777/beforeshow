@@ -681,30 +681,38 @@ final class ProSubscriptionTests: XCTestCase {
         )
     }
 
-    func testFeedbackPayloadBuilderUsesCurrentBundleVersionByDefault() throws {
+    func testFeedbackPayloadBuilderAlwaysIncludesCurrentBundleDiagnostics() throws {
         let payload = try FeedbackPayloadBuilder().build(from: FeedbackDraft(
-            message: "通知没有出现",
-            includesDiagnostics: true
+            message: "通知没有出现"
         ))
 
-        XCTAssertEqual(payload.diagnostics?.appVersion, AppVersionInformation.current.marketingVersion)
+        XCTAssertEqual(payload.diagnostics.appVersion, AppVersionInformation.current.marketingVersion)
+        XCTAssertFalse(payload.diagnostics.osVersion.isEmpty)
     }
 
-    func testFeedbackShareTextIncludesDiagnosticsOnlyWhenUserOptedIn() {
-        let withoutDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
-            message: "希望更快进入状态",
-            diagnostics: nil
-        ))
-        XCTAssertEqual(withoutDiagnostics, "反馈：希望更快进入状态")
-
-        let withDiagnostics = FeedbackShareTextBuilder().build(from: FeedbackPayload(
+    func testFeedbackShareTextKeepsMessagePrimaryAndAppendsDiagnostics() {
+        let payload = FeedbackPayload(
             message: "设置页卡住",
             diagnostics: FeedbackDiagnostics(appVersion: "2.3", osVersion: "iOS 26.5")
-        ))
-        XCTAssertEqual(
-            withDiagnostics,
-            "反馈：设置页卡住\n\n诊断信息\nApp 版本：2.3\n系统版本：iOS 26.5"
         )
+
+        XCTAssertEqual(
+            FeedbackShareTextBuilder().build(from: payload),
+            "设置页卡住\n\n——\n\n" +
+                BSLocalization.format("App 版本：%@\n系统版本：%@", "2.3", "iOS 26.5")
+        )
+    }
+
+    func testFeedbackMailtoUsesLocalizedSubjectAndPrefilledBody() throws {
+        let body = "希望更快进入状态"
+        let url = try XCTUnwrap(FeedbackDestination.mailtoURL(prefilledBody: body))
+        let components = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        let queryItems = Dictionary(uniqueKeysWithValues: (components.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+
+        XCTAssertEqual(components.scheme, "mailto")
+        XCTAssertEqual(components.path, FeedbackDestination.address)
+        XCTAssertEqual(queryItems["subject"], BSLocalization.text("开场前 · 意见反馈"))
+        XCTAssertEqual(queryItems["body"], body)
     }
 
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
@@ -723,25 +731,20 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(SettingsEntry.allCases.map(\.rawValue).contains("默认音乐平台"))
     }
 
-    func testFeedbackPayloadOnlyIncludesUserChosenContent() throws {
+    func testFeedbackPayloadTrimsMessageAndAlwaysIncludesMinimalDiagnostics() throws {
         let builder = FeedbackPayloadBuilder {
             FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test")
         }
 
-        let minimalPayload = try builder.build(from: FeedbackDraft(
-            message: "  希望默认平台更好切换  ",
-            includesDiagnostics: false
+        let payload = try builder.build(from: FeedbackDraft(
+            message: "  希望默认平台更好切换  "
         ))
 
-        XCTAssertEqual(minimalPayload.message, "希望默认平台更好切换")
-        XCTAssertNil(minimalPayload.diagnostics)
-
-        let diagnosticPayload = try builder.build(from: FeedbackDraft(
-            message: "设置页卡住",
-            includesDiagnostics: true
-        ))
-
-        XCTAssertEqual(diagnosticPayload.diagnostics, FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test"))
+        XCTAssertEqual(payload.message, "希望默认平台更好切换")
+        XCTAssertEqual(payload.diagnostics, FeedbackDiagnostics(appVersion: "2.1", osVersion: "iOS test"))
+        XCTAssertThrowsError(try builder.build(from: FeedbackDraft(message: "   \n "))) { error in
+            XCTAssertEqual(error as? FeedbackValidationError, .emptyMessage)
+        }
     }
 
     func testPurchaseFailureThrowsCancelledErrorAndKeepsStateFree() async throws {
