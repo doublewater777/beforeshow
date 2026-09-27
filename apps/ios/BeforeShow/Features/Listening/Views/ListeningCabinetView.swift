@@ -274,7 +274,7 @@ private struct ListeningCabinetDiscButton: View {
                     .lineLimit(dynamicTypeSize.isAccessibilitySize ? 3 : 1)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.85)
-                    .foregroundStyle(room.isPlayingDisc(disc) ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                    .foregroundStyle(isLoaded ? BSColor.Stage.accent : BSColor.Stage.foreground)
                     .frame(maxWidth: .infinity)
                     .frame(height: labelHeight * (dynamicTypeSize.isAccessibilitySize ? 3 : 1))
             }
