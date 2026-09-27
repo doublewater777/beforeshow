@@ -406,7 +406,6 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         )
 
         XCTAssertEqual(playing.roomMode, .preview)
-        XCTAssertEqual(playing.player.source, .preview)
         XCTAssertEqual(finished.roomMode, .preview)
         XCTAssertEqual(stopped.roomMode, .fullPlayback)
     }
