@@ -5,13 +5,17 @@ import UserNotifications
 
 struct FeedbackView: View {
     @State private var message = ""
-    @State private var includesDiagnostics = false
-    @State private var validationMessage: String?
     @State private var sendState: FeedbackSendState = .idle
+    @State private var copiedAddress = false
+    @State private var copiedMessage = false
     @FocusState private var isMessageFocused: Bool
 
     private let payloadBuilder = FeedbackPayloadBuilder()
     private let shareTextBuilder = FeedbackShareTextBuilder()
+
+    private var trimmedMessage: String {
+        message.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         BSStageScaffold(
@@ -20,58 +24,22 @@ struct FeedbackView: View {
             bottomPadding: BSSpacing.xl
         ) {
             BSSettingsSurface(padding: BSSpacing.md) {
-                VStack(alignment: .leading, spacing: BSSpacing.md) {
-                    HStack(alignment: .firstTextBaseline, spacing: BSSpacing.xs) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text(BSLocalization.text("被采纳的反馈会获得奖励"))
-                            .font(BSFont.caption.weight(.semibold))
-                    }
-                    .foregroundColor(BSColor.Stage.accent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .accessibilityElement(children: .combine)
-
-                    ZStack(alignment: .topLeading) {
-                        if message.isEmpty {
-                            Text("例如：在哪一步遇到了什么，期待结果是什么")
-                                .font(BSFont.V3.body)
-                                .foregroundColor(BSColor.Stage.dim)
-                                .padding(.horizontal, 19)
-                                .padding(.vertical, 20)
-                                .allowsHitTesting(false)
-                        }
-
-                        TextEditor(text: $message)
+                ZStack(alignment: .topLeading) {
+                    if message.isEmpty {
+                        Text(BSLocalization.text("写下你的问题或建议"))
                             .font(BSFont.V3.body)
-                            .scrollContentBackground(.hidden)
-                            .frame(minHeight: 150)
-                            .bsInputField()
-                            .focused($isMessageFocused)
-                            .accessibilityLabel("反馈内容，必填")
-                            .accessibilityHint("请说明遇到的问题或建议")
-                            .onChange(of: message) {
-                                if !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    validationMessage = nil
-                                }
-                            }
+                            .foregroundColor(BSColor.Stage.dim)
+                            .padding(.horizontal, 19)
+                            .padding(.vertical, 20)
+                            .allowsHitTesting(false)
                     }
 
-                    if let validationMessage {
-                        Label(validationMessage, systemImage: "exclamationmark.circle.fill")
-                            .font(BSFont.V3.body)
-                            .foregroundColor(BSColor.Stage.danger)
-                            .accessibilityAddTraits(.isStaticText)
-                    }
-
-                    Toggle(BSLocalization.text("附上 App 版本与系统版本"), isOn: $includesDiagnostics)
-                        .tint(BSColor.Stage.accent)
-                        .foregroundColor(BSColor.Stage.muted)
+                    TextEditor(text: $message)
                         .font(BSFont.V3.body)
-
-                    Text("不会自动包含现场内容、截图、照片或视频。")
-                        .font(BSFont.V3.body)
-                        .foregroundColor(BSColor.Stage.muted)
-                        .fixedSize(horizontal: false, vertical: true)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 150)
+                        .bsInputField()
+                        .focused($isMessageFocused)
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -82,28 +50,43 @@ struct FeedbackView: View {
             Button {
                 prepareFeedback()
             } label: {
-                Label(
-                    sendState == .sent ? "已唤起邮件 app" : "通过邮件发送反馈",
-                    systemImage: sendState == .sent ? "checkmark.circle.fill" : "envelope.fill"
-                )
+                Label(BSLocalization.text("打开邮件发送"), systemImage: "envelope.fill")
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(sendState == .sending || sendState == .sent)
-            .accessibilityHint("打开系统邮件 app，并预填反馈内容")
+            .disabled(sendState == .sending || trimmedMessage.isEmpty)
+
+            Text(BSLocalization.text("内容会自动填好，打开邮件后直接发送即可"))
+                .font(BSFont.V3.caption)
+                .foregroundColor(BSColor.Stage.muted)
+                .frame(maxWidth: .infinity, alignment: .center)
 
             if case .failed(let reason) = sendState {
-                Label(reason, systemImage: "exclamationmark.circle.fill")
-                    .font(BSFont.V3.caption)
-                    .foregroundColor(BSColor.Stage.danger)
-                    .accessibilityAddTraits(.isStaticText)
-                    .padding(.top, BSSpacing.xs)
+                VStack(spacing: BSSpacing.sm) {
+                    Label(reason, systemImage: "exclamationmark.circle.fill")
+                        .font(BSFont.V3.caption)
+                        .foregroundColor(BSColor.Stage.danger)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: BSSpacing.sm) {
+                        Button(copiedAddress ? BSLocalization.text("已复制") : BSLocalization.text("复制邮箱")) {
+                            copyAddress()
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
+
+                        Button(copiedMessage ? BSLocalization.text("已复制") : BSLocalization.text("复制反馈内容")) {
+                            copyMessage()
+                        }
+                        .buttonStyle(BSSecondaryButtonStyle())
+                    }
+                }
+                .padding(.top, BSSpacing.xs)
             }
         }
-       .toolbar {
-           ToolbarItemGroup(placement: .keyboard) {
-               Spacer()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
 
-                Button("完成") {
+                Button(BSLocalization.text("完成")) {
                     isMessageFocused = false
                 }
             }
@@ -113,17 +96,12 @@ struct FeedbackView: View {
     }
 
     private func prepareFeedback() {
-        do {
-            let payload = try payloadBuilder.build(from: FeedbackDraft(
-                message: message,
-                includesDiagnostics: includesDiagnostics
-            ))
-            validationMessage = nil
-            Task { @MainActor in
-                await presentMailto(shareTextBuilder.build(from: payload))
-            }
-        } catch {
-            validationMessage = BSLocalization.text("请先填写反馈内容")
+        guard let payload = try? payloadBuilder.build(from: FeedbackDraft(message: message)) else {
+            return
+        }
+
+        Task { @MainActor in
+            await presentMailto(shareTextBuilder.build(from: payload))
         }
     }
 
@@ -131,19 +109,38 @@ struct FeedbackView: View {
     private func presentMailto(_ text: String) async {
         sendState = .sending
         guard let url = FeedbackDestination.mailtoURL(prefilledBody: text) else {
-            sendState = .failed(BSLocalization.text("无法生成邮件链接"))
+            sendState = .failed(BSLocalization.text("无法打开邮件，请复制邮箱和反馈内容后手动发送。"))
             return
         }
+
         let accepted = await FeedbackMailOpener.open(url: url)
-        // 两种 accepted=false 场景：设备没装邮件 app / 装但未配账户。`open(mailto:)`
-        // 对两者都返回 false，文案上给出唯一可执行的引导（去系统设置查看账户/添加 app）。
-        sendState = accepted ? .sent : .failed(BSLocalization.text("无法唤起邮件 app，请检查系统邮件账户或 App Store 安装"))
+        sendState = accepted
+            ? .idle
+            : .failed(BSLocalization.text("无法打开邮件，请复制邮箱和反馈内容后手动发送。"))
+    }
+
+    private func copyAddress() {
+        UIPasteboard.general.string = FeedbackDestination.address
+        copiedAddress = true
+        resetCopyConfirmation(\.copiedAddress)
+    }
+
+    private func copyMessage() {
+        UIPasteboard.general.string = trimmedMessage
+        copiedMessage = true
+        resetCopyConfirmation(\.copiedMessage)
+    }
+
+    private func resetCopyConfirmation(_ keyPath: WritableKeyPath<FeedbackView, Bool>) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            self[keyPath: keyPath] = false
+        }
     }
 }
 
 enum FeedbackSendState: Equatable {
     case idle
     case sending
-    case sent
     case failed(String)
 }
