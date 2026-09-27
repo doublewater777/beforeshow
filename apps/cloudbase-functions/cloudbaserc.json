@@ -12,6 +12,14 @@
       "runtime": "Nodejs18.15",
       "memorySize": 256,
       "installDependency": false
+    },
+    {
+      "name": "submitFeedback",
+      "type": "HTTP",
+      "timeout": 10,
+      "runtime": "Nodejs18.15",
+      "memorySize": 256,
+      "installDependency": false
     }
   ]
 }
