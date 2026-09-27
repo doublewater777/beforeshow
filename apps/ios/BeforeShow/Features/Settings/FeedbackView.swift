@@ -1,17 +1,12 @@
-import SwiftData
+import Foundation
 import SwiftUI
-import UIKit
-import UserNotifications
 
 struct FeedbackView: View {
     @State private var message = ""
     @State private var sendState: FeedbackSendState = .idle
-    @State private var copiedAddress = false
-    @State private var copiedMessage = false
     @FocusState private var isMessageFocused: Bool
 
     private let payloadBuilder = FeedbackPayloadBuilder()
-    private let shareTextBuilder = FeedbackShareTextBuilder()
 
     private var trimmedMessage: String {
         message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -40,6 +35,10 @@ struct FeedbackView: View {
                         .frame(minHeight: 150)
                         .bsInputField()
                         .focused($isMessageFocused)
+                        .onChange(of: message) { _, _ in
+                            guard sendState != .sending else { return }
+                            sendState = .idle
+                        }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -48,38 +47,37 @@ struct FeedbackView: View {
             }
 
             Button {
-                prepareFeedback()
+                submitFeedback()
             } label: {
-                Label(BSLocalization.text("打开邮件发送"), systemImage: "envelope.fill")
+                if sendState == .sending {
+                    ProgressView()
+                        .tint(.black)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label(
+                        sendState == .sent
+                            ? BSLocalization.text("已提交")
+                            : BSLocalization.text("提交反馈"),
+                        systemImage: sendState == .sent ? "checkmark.circle.fill" : "paperplane.fill"
+                    )
+                }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(sendState == .sending || trimmedMessage.isEmpty)
+            .disabled(sendState == .sending || sendState == .sent || trimmedMessage.isEmpty)
 
-            Text(BSLocalization.text("内容会自动填好，打开邮件后直接发送即可"))
-                .font(BSFont.V3.caption)
-                .foregroundColor(BSColor.Stage.muted)
-                .frame(maxWidth: .infinity, alignment: .center)
-
-            if case .failed(let reason) = sendState {
-                VStack(spacing: BSSpacing.sm) {
-                    Label(reason, systemImage: "exclamationmark.circle.fill")
-                        .font(BSFont.V3.caption)
-                        .foregroundColor(BSColor.Stage.danger)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    HStack(spacing: BSSpacing.sm) {
-                        Button(copiedAddress ? BSLocalization.text("已复制") : BSLocalization.text("复制邮箱")) {
-                            copyAddress()
-                        }
-                        .buttonStyle(BSSecondaryButtonStyle())
-
-                        Button(copiedMessage ? BSLocalization.text("已复制") : BSLocalization.text("复制反馈内容")) {
-                            copyMessage()
-                        }
-                        .buttonStyle(BSSecondaryButtonStyle())
-                    }
-                }
-                .padding(.top, BSSpacing.xs)
+            switch sendState {
+            case .sent:
+                Label(BSLocalization.text("已收到，谢谢你的反馈"), systemImage: "checkmark.circle.fill")
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(BSColor.Stage.success)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .failed:
+                Label(BSLocalization.text("提交失败，请检查网络后重试"), systemImage: "exclamationmark.circle.fill")
+                    .font(BSFont.V3.caption)
+                    .foregroundColor(BSColor.Stage.danger)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case .idle, .sending:
+                EmptyView()
             }
         }
         .toolbar {
@@ -95,47 +93,24 @@ struct FeedbackView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    private func prepareFeedback() {
+    private func submitFeedback() {
         guard let payload = try? payloadBuilder.build(from: FeedbackDraft(message: message)) else {
             return
         }
 
-        Task { @MainActor in
-            await presentMailto(shareTextBuilder.build(from: payload))
-        }
-    }
-
-    @MainActor
-    private func presentMailto(_ text: String) async {
+        isMessageFocused = false
         sendState = .sending
-        guard let url = FeedbackDestination.mailtoURL(prefilledBody: text) else {
-            sendState = .failed(BSLocalization.text("无法打开邮件，请复制邮箱和反馈内容后手动发送。"))
-            return
-        }
 
-        let accepted = await FeedbackMailOpener.open(url: url)
-        sendState = accepted
-            ? .idle
-            : .failed(BSLocalization.text("无法打开邮件，请复制邮箱和反馈内容后手动发送。"))
-    }
-
-    @MainActor
-    private func copyAddress() {
-        UIPasteboard.general.string = FeedbackDestination.address
-        copiedAddress = true
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            copiedAddress = false
-        }
-    }
-
-    @MainActor
-    private func copyMessage() {
-        UIPasteboard.general.string = trimmedMessage
-        copiedMessage = true
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            copiedMessage = false
+        Task { @MainActor in
+            do {
+                let service = RemoteFeedbackSubmissionService(
+                    client: BeforeShowCloudClient.production()
+                )
+                try await service.submit(payload)
+                sendState = .sent
+            } catch {
+                sendState = .failed
+            }
         }
     }
 }
@@ -143,5 +118,6 @@ struct FeedbackView: View {
 enum FeedbackSendState: Equatable {
     case idle
     case sending
-    case failed(String)
+    case sent
+    case failed
 }
