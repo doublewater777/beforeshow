@@ -354,16 +354,70 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             access: .init(authorizationStatus: .denied, canPlayCatalogContent: false),
             discs: [disc]
         )
+        let restricted = makeProjection(
+            access: .init(authorizationStatus: .restricted, canPlayCatalogContent: false),
+            discs: [disc]
+        )
 
         XCTAssertEqual(notDetermined.headerNotice?.recoveryAction, .authorize)
         XCTAssertEqual(denied.headerNotice?.recoveryAction, .openSettings)
+        XCTAssertNil(restricted.headerNotice?.recoveryAction)
+        XCTAssertEqual(
+            restricted.headerNotice?.message,
+            ListeningCopy.text("Apple Music 访问受到系统限制，当前使用歌曲试听片段。")
+        )
+        XCTAssertNil(restricted.recoveryAction)
+    }
+
+    func testSuccessfulAccessRetryKeepsPreviewModeUntilPreviewTransportIsReplaced() {
+        let disc = ListeningDisc(
+            id: "active-preview",
+            title: "Preview",
+            artworkURL: nil,
+            tracks: [track("preview", preview: true)]
+        )
+        let fullAccess = ListeningMusicAccess(
+            authorizationStatus: .authorized,
+            catalogPlaybackAccess: .available
+        )
+
+        let playing = makeProjection(
+            access: fullAccess,
+            discs: [disc],
+            playbackState: .playing(
+                songID: "preview",
+                source: .preview,
+                currentTime: 12,
+                duration: 30
+            )
+        )
+        let finished = makeProjection(
+            access: fullAccess,
+            discs: [disc],
+            playbackState: .finished(
+                songID: "preview",
+                source: .preview,
+                duration: 30
+            )
+        )
+        let stopped = makeProjection(
+            access: fullAccess,
+            discs: [disc],
+            playbackState: .idle
+        )
+
+        XCTAssertEqual(playing.roomMode, .preview)
+        XCTAssertEqual(playing.player.source, .preview)
+        XCTAssertEqual(finished.roomMode, .preview)
+        XCTAssertEqual(stopped.roomMode, .fullPlayback)
     }
 
     private func makeProjection(
         page: ListeningPresentation = .ready,
         access: ListeningMusicAccess,
         discs: [ListeningDisc],
-        libraryDiscs: [ListeningDisc]? = nil
+        libraryDiscs: [ListeningDisc]? = nil,
+        playbackState: ListeningPlaybackState = .idle
     ) -> ListeningDisplayProjection {
         ListeningDisplayProjector.make(
             page: page,
@@ -375,7 +429,7 @@ final class ListeningDisplayProjectionTests: XCTestCase {
             isDiscSeated: false,
             isLidClosed: true,
             currentTrack: nil,
-            playbackState: .idle,
+            playbackState: playbackState,
             playbackError: nil
         )
     }
