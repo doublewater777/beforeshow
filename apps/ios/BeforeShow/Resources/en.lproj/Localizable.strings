@@ -375,6 +375,9 @@
 "待确认" = "Pending";
 "意见反馈" = "Feedback";
 "提交反馈" = "Submit Feedback";
+"反馈最多 2000 字" = "Feedback is limited to 2,000 characters";
+"提交有点频繁，请稍后再试" = "You’ve submitted feedback a few times. Try again later.";
+"暂时没能提交，请稍后重试" = "Couldn’t submit right now. Try again later.";
 "已提交" = "Submitted";
 "已收到，谢谢你的反馈" = "Received. Thanks for your feedback.";
 "提交失败，请检查网络后重试" = "Couldn’t submit. Check your connection and try again.";
