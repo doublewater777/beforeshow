@@ -520,12 +520,14 @@ struct HomeCountdownLockup: View {
                 .tracking(1)
                 .foregroundColor(BSColor.Stage.foreground)
 
-            Text(isDayEnded ? BSLocalization.text("稍作休息，明天见") : BSLocalization.text("散场之后，回味还在"))
-                .font(.system(size: 12.5, weight: .regular))
-                .foregroundColor(BSColor.Stage.dim)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 10)
+            if isDayEnded {
+                Text(BSLocalization.text("稍作休息，明天见"))
+                    .font(.system(size: 12.5, weight: .regular))
+                    .foregroundColor(BSColor.Stage.dim)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
+            }
         }
     }
 

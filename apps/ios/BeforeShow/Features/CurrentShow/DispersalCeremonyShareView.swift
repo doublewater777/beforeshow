@@ -15,7 +15,7 @@ struct DispersalCeremonyShareSheet: View {
         Group {
             if hasResolvedAmbientColor {
                 FootprintShareActionSheet(
-            title: BSLocalization.text("分享这场回忆"),
+            title: BSLocalization.text("分享记录"),
             subtitle: "",
             previewHeight: 368,
             exportSize: DispersalCeremonyShareExport.renderSize,
@@ -149,7 +149,7 @@ struct DispersalShareStep: View {
 
             Spacer()
 
-            Text(BSLocalization.text("散场卡"))
+            Text(BSLocalization.text("散场记录"))
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
 

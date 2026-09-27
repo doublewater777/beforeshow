@@ -62,6 +62,7 @@ struct CountdownPresentation {
     let startDate: Date?
     let endBoundary: Date?
     let calendar: Calendar
+    let endedTitle: String
     /// 距开场的秒数(entry 时刻),给圆形进度环用
     let remainingSeconds: Int
 
@@ -75,6 +76,7 @@ struct CountdownPresentation {
             startDate = nil
             endBoundary = nil
             calendar = .current
+            endedTitle = ""
             remainingSeconds = 0
             return
         }
@@ -87,6 +89,9 @@ struct CountdownPresentation {
 
         let state = CurrentShowTimeState(timing: snapshot.timing, now: entry.date)
         calendar = snapshot.timing.eventCalendar(fallback: .current)
+        endedTitle = state.kind == .dayEnded
+            ? BSLocalization.text("今日已落幕")
+            : BSLocalization.text("已落幕")
         startDate = state.effectiveStartTime
         endBoundary = state.endBoundary
         let remaining = state.effectiveStartTime
@@ -156,7 +161,7 @@ struct CountdownPresentation {
     var phaseTag: String {
         switch hero {
         case .far:
-            return BSLocalization.text("距离灯亮还有")
+            return BSLocalization.text("距离开场还有")
         case .near:
             return isStartTonight
                 ? BSLocalization.text("今晚开场")
@@ -275,7 +280,7 @@ private struct SmallCountdownView: View {
                     .foregroundStyle(WidgetTheme.foreground)
             }
         case .ended:
-            Text("已落幕")
+            Text(presentation.endedTitle)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -384,7 +389,7 @@ private struct MediumCountdownView: View {
                 Spacer(minLength: 0)
             }
         case .ended:
-            Text("已落幕")
+            Text(presentation.endedTitle)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(WidgetTheme.muted)
                 .lineLimit(2)
@@ -455,7 +460,7 @@ private struct InlineCountdownView: View {
         case .live(let start):
             Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:
-            Text("已落幕")
+            Text(presentation.endedTitle)
         case .endUnconfirmed:
             Text("待确认")
         case .inactive(let title):
@@ -532,7 +537,7 @@ private struct CircularCountdownView: View {
                 }
             }
         case .ended:
-            Text("已落幕")
+            Text(presentation.endedTitle)
                 .font(.caption.weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.78)
@@ -592,7 +597,7 @@ private struct RectangularCountdownView: View {
         case .live(let start):
             Text("正在现场 · \(Text(start, style: .timer))")
         case .ended:
-            Text("已落幕")
+            Text(presentation.endedTitle)
         case .endUnconfirmed:
             Text("待确认")
         case .inactive(let title):
