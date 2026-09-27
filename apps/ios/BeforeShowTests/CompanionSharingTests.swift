@@ -32,6 +32,26 @@ final class CompanionSharingTests: XCTestCase {
         )
     }
 
+    func testQuickActionLocalizationKeysExistInThreeLanguages() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let keys = ["添加同行", "%lld 人同行", "同行，等待朋友加入"]
+
+        for locale in ["zh-Hans", "zh-Hant", "en"] {
+            let data = try Data(
+                contentsOf: root.appendingPathComponent("Resources/\(locale).lproj/Localizable.strings")
+            )
+            let values = try XCTUnwrap(
+                PropertyListSerialization.propertyList(from: data, format: nil) as? [String: String]
+            )
+            for key in keys {
+                XCTAssertFalse(values[key]?.isEmpty ?? true, "Missing \(locale): \(key)")
+            }
+        }
+    }
+
     func testInvitePreparingCopyReplacesActionTitleUntilShareAppears() {
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: false),
