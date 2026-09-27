@@ -623,10 +623,14 @@ private let listeningCatalogFetchConcurrency = 4
         let accessGeneration = beginMusicAccessRequest()
         let newAccess = await catalogService.currentAccess()
         guard isCurrentMusicAccessRequest(accessGeneration) else { return }
+
+        // Resolution belongs to the winning request, even when the resolved value
+        // matches the provisional authorized/account-limited state published by load.
+        // Otherwise a superseded initial load can leave the room connecting forever.
+        accessResolved = true
         guard newAccess != previousAccess else { return }
 
         access = newAccess
-        accessResolved = true
 
         guard !isLoadingShow else { return }
         let authorizationChanged = previousAccess.authorizationStatus != newAccess.authorizationStatus
