@@ -64,7 +64,25 @@ async function writeFeedbackToCloudLog(record) {
   const { default: cloudbase } = await import("@cloudbase/node-sdk");
   const app = cloudbase.init({});
   const db = app.database();
-  await db.collection("userFeedback").add(record);
+  const collectionName = "userFeedback";
+
+  try {
+    await db.collection(collectionName).add(record);
+  } catch (error) {
+    if (error?.code !== "DATABASE_COLLECTION_NOT_EXIST") {
+      throw error;
+    }
+
+    try {
+      await db.createCollection(collectionName);
+    } catch (createError) {
+      if (createError?.code !== "DATABASE_COLLECTION_ALREADY_EXIST") {
+        throw createError;
+      }
+    }
+
+    await db.collection(collectionName).add(record);
+  }
 }
 
 function normalizeDiagnostic(value) {
