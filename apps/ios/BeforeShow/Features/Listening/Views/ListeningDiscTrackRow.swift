@@ -50,9 +50,7 @@ struct ListeningDiscTrackRow: View {
     private var leadingIndicator: some View {
         switch state {
         case .preparing:
-            ProgressView()
-                .controlSize(.small)
-                .tint(BSColor.Stage.accent)
+            trackNumber(color: BSColor.Stage.accent)
         case .playing:
             Image(systemName: "waveform")
                 .font(.system(size: 12, weight: .bold))
