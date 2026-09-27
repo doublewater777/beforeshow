@@ -481,6 +481,81 @@ final class ListeningAccessibilityTests: XCTestCase {
         )
     }
 
+    func testForegroundRefreshResolvingSameProvisionalAccessUnblocksSupersededInitialLoad() async throws {
+        let (container, show) = try ListenTestData.make()
+        let catalog = OutOfOrderMusicAccessCatalog()
+        let room = ListeningRoomCoordinator(
+            context: container.mainContext,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.resumeAll(
+                with: .init(
+                    authorizationStatus: .authorized,
+                    catalogPlaybackAccess: .accountLimited
+                )
+            )
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        let initialLoad = Task { await room.load(show: show) }
+        try await waitForAccessRequestCount(1, catalog: catalog)
+        let loadRequestID = try XCTUnwrap(catalog.pendingRequestIDs.first)
+
+        XCTAssertEqual(room.access.authorizationStatus, .authorized)
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .accountLimited)
+        XCTAssertFalse(room.accessResolved)
+        XCTAssertEqual(room.display.roomMode, .connecting)
+
+        let foregroundRefresh = Task { await room.refreshMusicAccessAfterForeground() }
+        try await waitForAccessRequestCount(2, catalog: catalog)
+        let foregroundRequestID = try XCTUnwrap(
+            catalog.pendingRequestIDs.first(where: { $0 != loadRequestID })
+        )
+
+        catalog.resume(
+            requestID: foregroundRequestID,
+            with: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accountLimited
+            )
+        )
+        await foregroundRefresh.value
+
+        XCTAssertTrue(
+            room.accessResolved,
+            "the winning foreground query must resolve access even when it equals the provisional value"
+        )
+
+        catalog.resume(
+            requestID: loadRequestID,
+            with: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .available
+            )
+        )
+        await initialLoad.value
+
+        XCTAssertEqual(
+            room.access.catalogPlaybackAccess,
+            .accountLimited,
+            "the older initial-load query must remain superseded"
+        )
+        XCTAssertTrue(room.accessResolved)
+        XCTAssertNotEqual(
+            room.display.roomMode,
+            .connecting,
+            "a completed load must not remain permanently stuck in the connecting presentation"
+        )
+        XCTAssertFalse(
+            room.shouldReloadCatalog(for: show),
+            "the regression must cover the completed-key state that would otherwise preserve the stuck room"
+        )
+    }
+
     func testSuccessfulAccessRetryKeepsPreviewModeWhilePreviewTransportIsRunning() async throws {
         let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
         let context = fixture.container.mainContext
