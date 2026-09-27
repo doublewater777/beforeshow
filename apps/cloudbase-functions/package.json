@@ -4,9 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prepare:deploy": "npm run prepare:deploy:parseShowLink",
+    "prepare:deploy": "npm run prepare:deploy:parseShowLink && npm run prepare:deploy:submitFeedback",
     "prepare:deploy:parseShowLink": "node scripts/prepare-parseShowLink.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "prepare:deploy:submitFeedback": "node scripts/prepare-submitFeedback.mjs"
   },
   "engines": {
     "node": ">=20"
