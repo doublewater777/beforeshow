@@ -195,7 +195,7 @@ struct DispersalCombinedStep: View {
                             .controlSize(.small)
                             .tint(BSColor.Stage.background)
                     }
-                    Text(BSLocalization.text("看看散场卡"))
+                    Text(BSLocalization.text("保存并查看"))
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -259,10 +259,6 @@ struct DispersalCombinedStep: View {
                     namespace: transitionNamespace
                 )
 
-                Text(current.sub)
-                    .font(.system(size: 11.5))
-                    .foregroundColor(BSColor.Stage.dim)
-                    .padding(.top, 6)
             } else {
                 Text("🎭")
                     .font(.system(size: 46))
@@ -270,8 +266,6 @@ struct DispersalCombinedStep: View {
                     .frame(height: 58)
                     .accessibilityHidden(true)
 
-                Color.clear
-                    .frame(height: 20)
             }
 
             snapSlider
@@ -414,7 +408,7 @@ struct DispersalCombinedStep: View {
     private var noteBlock: some View {
         BSSurfacePanel {
             TextField(
-                BSLocalization.text("这一晚，最想留下什么？"),
+                BSLocalization.text("还想记点什么？"),
                 text: $note,
                 axis: .vertical
             )
