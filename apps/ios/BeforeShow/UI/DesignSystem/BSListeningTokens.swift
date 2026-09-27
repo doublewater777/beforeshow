@@ -51,6 +51,8 @@ enum BSListeningTokens {
     /// Radius as a fraction of the full CD diameter; 0.025 = 5% spindle diameter.
     static let discSpindleRadiusFraction: CGFloat = 0.025
     static let shelfArtwork: CGFloat = 64
+    static let shelfDiscFraction: CGFloat = 1.08
+    static let shelfDiscReveal: CGFloat = 24
     static let shelfItemWidth: CGFloat = 98
     static let shelfLabelHeight: CGFloat = 16
     static let shelfItemSpacing: CGFloat = 6
