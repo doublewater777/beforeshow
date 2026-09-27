@@ -1,0 +1,92 @@
+import { randomUUID } from "node:crypto";
+import { assertAppAuthenticated } from "../../auth/appAuth.js";
+
+const MAX_MESSAGE_LENGTH = 2000;
+const MAX_DIAGNOSTIC_LENGTH = 160;
+
+export async function main(event = {}, context = {}, options = {}) {
+  const body = parseRequestBody(event);
+  assertAppAuthenticated(authEvent(event, body), context);
+
+  const message = typeof body?.message === "string" ? body.message.trim() : "";
+  if (message.length === 0) {
+    return {
+      ok: false,
+      error: {
+        code: "MESSAGE_REQUIRED",
+        message: "Feedback message is required."
+      }
+    };
+  }
+
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return {
+      ok: false,
+      error: {
+        code: "MESSAGE_TOO_LONG",
+        message: "Feedback message is too long."
+      }
+    };
+  }
+
+  const feedbackId = (options.randomUUID ?? randomUUID)();
+  const now = options.now?.() ?? new Date();
+  const record = {
+    feedbackId,
+    message,
+    appVersion: normalizeDiagnostic(body?.appVersion),
+    osVersion: normalizeDiagnostic(body?.osVersion),
+    submittedAt: now.toISOString()
+  };
+
+  try {
+    const writeFeedback = options.writeFeedback ?? writeFeedbackToCloudLog;
+    await writeFeedback(record);
+
+    return {
+      ok: true,
+      feedbackId
+    };
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: "STORE_FAILED",
+        message: "Feedback could not be stored."
+      }
+    };
+  }
+}
+
+function writeFeedbackToCloudLog(record) {
+  // Dedicated user-feedback record. Do not add show data, screen context,
+  // screenshots, media, or app-instance credentials here.
+  console.info(`USER_FEEDBACK ${JSON.stringify(record)}`);
+}
+
+function normalizeDiagnostic(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  return value.trim().slice(0, MAX_DIAGNOSTIC_LENGTH);
+}
+
+function parseRequestBody(event) {
+  if (typeof event.body === "string") {
+    try {
+      return JSON.parse(event.body);
+    } catch {
+      return event.body;
+    }
+  }
+
+  return event.body ?? event;
+}
+
+function authEvent(event, body) {
+  if (body !== null && typeof body === "object" && !Array.isArray(body)) {
+    return { ...event, ...body };
+  }
+
+  return event;
+}
