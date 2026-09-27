@@ -590,6 +590,28 @@ private let listeningCatalogFetchConcurrency = 4
         await reloadCatalog()
     }
 
+    /// Returning from Settings is an authorization boundary, not just a transport
+    /// lifecycle event. Refresh silently so a permission or subscription change is
+    /// reflected without showing the transient connecting state on every foreground.
+    func refreshMusicAccessAfterForeground() async {
+        guard !isAuthorizing else { return }
+        let previousAccess = access
+        let newAccess = await catalogService.currentAccess()
+        guard newAccess != previousAccess else { return }
+
+        access = newAccess
+        accessResolved = true
+
+        guard !isLoadingShow else { return }
+        let authorizationChanged = previousAccess.authorizationStatus != newAccess.authorizationStatus
+        let playbackAccessChanged = previousAccess.catalogPlaybackAccess != newAccess.catalogPlaybackAccess
+        guard authorizationChanged || playbackAccessChanged else { return }
+
+        await reloadCatalog(
+            force: authorizationChanged && newAccess.authorizationStatus == .authorized
+        )
+    }
+
     private func rebuildDiscs() throws {
         guard let show else { return }
         excludedArtistIDs = Set(try context.fetch(FetchDescriptor<ShowArtistListeningPreference>())
