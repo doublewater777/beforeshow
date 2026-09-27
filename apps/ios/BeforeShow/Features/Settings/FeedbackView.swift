@@ -119,22 +119,23 @@ struct FeedbackView: View {
             : .failed(BSLocalization.text("无法打开邮件，请复制邮箱和反馈内容后手动发送。"))
     }
 
+    @MainActor
     private func copyAddress() {
         UIPasteboard.general.string = FeedbackDestination.address
         copiedAddress = true
-        resetCopyConfirmation(\.copiedAddress)
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            copiedAddress = false
+        }
     }
 
+    @MainActor
     private func copyMessage() {
         UIPasteboard.general.string = trimmedMessage
         copiedMessage = true
-        resetCopyConfirmation(\.copiedMessage)
-    }
-
-    private func resetCopyConfirmation(_ keyPath: WritableKeyPath<FeedbackView, Bool>) {
-        Task { @MainActor in
+        Task {
             try? await Task.sleep(for: .seconds(1.5))
-            self[keyPath: keyPath] = false
+            copiedMessage = false
         }
     }
 }
