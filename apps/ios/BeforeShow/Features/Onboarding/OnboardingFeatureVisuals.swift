@@ -18,7 +18,7 @@ struct OnboardingWidgetFeatureVisual: View {
     private var mediumWidget: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 0) {
-                Text(BSLocalization.text("距离灯亮还有"))
+                Text(BSLocalization.text("距离开场还有"))
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.1)
                     .foregroundColor(BSColor.Stage.muted)
