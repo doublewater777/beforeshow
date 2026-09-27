@@ -6,8 +6,13 @@ on:
       - main
     paths:
       - "apps/cloudbase-functions/src/functions/submitFeedback/**"
+      - "apps/cloudbase-functions/src/functions/listFeedback/**"
+      - "apps/cloudbase-functions/scripts/prepare-submitFeedback.mjs"
+      - "apps/cloudbase-functions/scripts/prepare-listFeedback.mjs"
+      - "apps/cloudbase-functions/scripts/list-feedback.mjs"
       - "apps/cloudbase-functions/src/auth/appAuth.js"
       - "apps/cloudbase-functions/test/submitFeedback.entry.test.js"
+      - "apps/cloudbase-functions/test/listFeedback.entry.test.js"
       - "apps/cloudbase-functions/package.json"
       - ".github/workflows/cloudbase-feedback-verify.yml"
 
@@ -29,4 +34,4 @@ jobs:
       - run: npm ci
 
       - name: Feedback backend tests
-        run: node --test apps/cloudbase-functions/test/submitFeedback.entry.test.js
+        run: node --test apps/cloudbase-functions/test/submitFeedback.entry.test.js apps/cloudbase-functions/test/listFeedback.entry.test.js
