@@ -56,6 +56,48 @@ private enum DispersalCeremonyCardTokens {
     }
 }
 
+
+enum DispersalCeremonyShareExport {
+    static let renderSize = CGSize(width: 360, height: 450)
+    static let renderScale: CGFloat = 3
+
+    @MainActor
+    static func renderImage(
+        show: Show,
+        identity: FootprintDetailIdentity,
+        rating: Int?,
+        note: String,
+        ambientColor: Color? = nil
+    ) -> UIImage? {
+        let card = DispersalCeremonyShareCard(
+            show: show,
+            identity: identity,
+            rating: rating,
+            note: note,
+            ambientColor: ambientColor
+        )
+        .frame(width: renderSize.width, height: renderSize.height)
+
+        let renderer = ImageRenderer(content: card)
+        renderer.proposedSize = ProposedViewSize(
+            width: renderSize.width,
+            height: renderSize.height
+        )
+        renderer.scale = renderScale
+        return renderer.uiImage
+    }
+
+    static func loadAmbientColor(for coverURLString: String?) async -> Color? {
+        guard let coverURLString,
+              let url = URL(string: coverURLString),
+              let image = await ShowCoverImageCache.shared.image(from: url),
+              let ambient = CoverAmbientColor.uiColor(from: image) else {
+            return nil
+        }
+        return Color(ambient)
+    }
+}
+
 // MARK: - 散场卡
 
 /// V2 editorial 构图,左对齐,评分词是主视觉,不是居中大 emoji。
@@ -74,8 +116,24 @@ struct DispersalCeremonyShareCard: View {
     let identity: FootprintDetailIdentity
     let rating: Int?
     let note: String
-    let ambientColor: Color? = nil
-    let transitionNamespace: Namespace.ID? = nil
+    let ambientColor: Color?
+    let transitionNamespace: Namespace.ID?
+
+    init(
+        show: Show,
+        identity: FootprintDetailIdentity,
+        rating: Int?,
+        note: String,
+        ambientColor: Color? = nil,
+        transitionNamespace: Namespace.ID? = nil
+    ) {
+        self.show = show
+        self.identity = identity
+        self.rating = rating
+        self.note = note
+        self.ambientColor = ambientColor
+        self.transitionNamespace = transitionNamespace
+    }
 
     private var currentRating: DispersalRating? {
         guard let rating else { return nil }
