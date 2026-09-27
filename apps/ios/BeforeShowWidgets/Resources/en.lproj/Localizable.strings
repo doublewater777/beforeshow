@@ -5,6 +5,7 @@
 "%lld 天后灯亮 · %@" = "%lld days until lights up · %@";
 "%@ 开场" = "%@ opening";
 "%@ 开场 · 预计 %@ 谢幕" = "Starts %1$@ · Est. ends %2$@";
+"%@ 开场 · 预计 %@ 散场" = "Starts %1$@ · Est. ends %2$@";
 "--" = "--";
 "COUNTDOWN" = "COUNTDOWN";
 "LIVE · 已进行 %@" = "LIVE · %@ performed";
@@ -34,6 +35,7 @@
 "距灯亮还有 %lld 天" = "%lld days until the lights come up";
 "还没有现场" = "No Shows Yet";
 "预计 %@ 谢幕" = "Estimated curtain at %@";
+"预计 %@ 散场" = "Est. ends %@";
 "%lld 天 %lld 小时" = "%lld days %lld hours";
 "%lld 小时" = "%lld hours";
 "LIVE · 开场中" = "LIVE · Show in progress";
