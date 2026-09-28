@@ -428,13 +428,14 @@ private struct NotificationSettingsRow: View {
 }
 
 struct FeedbackShakeShortcutModifier: ViewModifier {
+    @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
     @State private var isShowingFeedback = false
 
     func body(content: Content) -> some View {
         content
             .background {
                 FeedbackShakeResponder(
-                    isArmed: !isShowingFeedback,
+                    isArmed: isShakeEnabled && !isShowingFeedback,
                     onShake: handleShake
                 )
                 .frame(width: 0, height: 0)
@@ -447,6 +448,7 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
     @MainActor
     private func handleShake() {
         guard FeedbackShakePresentationPolicy.shouldPresent(
+            isShakeEnabled: isShakeEnabled,
             isFeedbackPresented: isShowingFeedback,
             hasPresentedModal: FeedbackShakePresentationState.hasPresentedModal
         ) else { return }
@@ -455,47 +457,55 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
 }
 
 private struct FeedbackShakeSheet: View {
+    @AppStorage(FeedbackShakePreferences.appStorageKey) private var isShakeEnabled = true
     @Environment(\.dismiss) private var dismiss
     @State private var isShowingForm = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isShowingForm {
-                    FeedbackView()
-                } else {
-                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                        Text(BSLocalization.text("遇到问题？"))
-                            .font(BSFont.V3.title2)
+        if isShowingForm {
+            NavigationStack {
+                FeedbackView()
+                    .toolbar {
+                        BSChromeToolbarCloseButton { dismiss() }
+                    }
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .preferredColorScheme(.dark)
+        } else {
+            BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
+                BSStageSheetHeader(
+                    icon: "exclamationmark.bubble",
+                    title: BSLocalization.text("遇到问题？"),
+                    subtitle: BSLocalization.text("有问题或建议，都可以告诉我们。")
+                )
+
+                Button {
+                    isShowingForm = true
+                } label: {
+                    Label(
+                        BSLocalization.text("提交反馈"),
+                        systemImage: "paperplane.fill"
+                    )
+                }
+                .buttonStyle(BSPrimaryButtonStyle())
+
+                Divider()
+                    .overlay(BSColor.Stage.border)
+
+                Toggle(isOn: $isShakeEnabled) {
+                    VStack(alignment: .leading, spacing: BSSpacing.xs) {
+                        Text(BSLocalization.text("晃动 iPhone 打开反馈"))
+                            .font(BSFont.V3.body.weight(.semibold))
                             .foregroundColor(BSColor.Stage.foreground)
 
-                        Text(BSLocalization.text("有问题或建议，都可以告诉我们。"))
-                            .font(BSFont.V3.body)
+                        Text(BSLocalization.text("关闭以禁用"))
+                            .font(BSFont.V3.small)
                             .foregroundColor(BSColor.Stage.muted)
-
-                        Button {
-                            isShowingForm = true
-                        } label: {
-                            Label(
-                                BSLocalization.text("提交反馈"),
-                                systemImage: "paperplane.fill"
-                            )
-                        }
-                        .buttonStyle(BSPrimaryButtonStyle())
                     }
-                    .padding(BSSpacing.xl)
-                    .frame(
-                        maxWidth: .infinity,
-                        maxHeight: .infinity,
-                        alignment: .topLeading
-                    )
-                    .background(BSColor.Stage.background)
                 }
-            }
-            .toolbar {
-                BSChromeToolbarCloseButton { dismiss() }
+                .tint(BSColor.Stage.accent)
             }
         }
-        .presentationDetents(isShowingForm ? [.large] : [.medium])
     }
 }
