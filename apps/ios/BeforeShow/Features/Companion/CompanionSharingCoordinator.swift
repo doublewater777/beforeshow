@@ -466,6 +466,10 @@ final class CompanionSharingCoordinator {
         lastErrorKind = error as? CompanionSharingError
     }
 
+    func handleIncomingInviteFailure(_ error: Error) {
+        pendingAcceptMessage = Self.userMessage(for: error)
+    }
+
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
         lastErrorMessage = Self.userMessage(for: error)
         lastErrorKind = error as? CompanionSharingError ?? fallback
