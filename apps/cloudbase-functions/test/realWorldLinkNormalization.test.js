@@ -42,6 +42,16 @@ describe("real-world domestic ticket share URLs", () => {
     assert.equal(normalized.canonicalUrl, "https://show.maoyan.com/qqw#/detail/381177");
   });
 
+  it("extracts Maoyan performance ID from the current qqw slash hash-route URL", () => {
+    const normalized = normalizeUrl(
+      "https://show.maoyan.com/qqw/?#/detail/503522?isNewPage=true&categoryId=1"
+    );
+
+    assert.equal(normalized.platform, "maoyan");
+    assert.equal(normalized.eventId, "503522");
+    assert.equal(normalized.canonicalUrl, "https://show.maoyan.com/qqw#/detail/503522");
+  });
+
   it("extracts Ticket Planet show ID from the mobile content share URL", () => {
     const normalized = normalizeUrl(
       "https://m.piaoxingqiu.com/content/6791eae92f989f000189f6c4?src=preview&source=FROM_BACKEND&showId=6791eae92f989f000189f6c4"
