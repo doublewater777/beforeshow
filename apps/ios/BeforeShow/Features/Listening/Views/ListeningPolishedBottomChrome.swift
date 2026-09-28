@@ -334,6 +334,7 @@ private struct ListeningCompactPlaybackControl: View {
     @State private var swipePreviousTrack: ListeningDiscTrack?
     @State private var swipeNextTrack: ListeningDiscTrack?
     @State private var isCompletingSwipe = false
+    @State private var swipeFeedbackCount = 0
 
     private let spinDegreesPerSecond = 128.0
 
@@ -363,33 +364,40 @@ private struct ListeningCompactPlaybackControl: View {
             )
         ) { timeline in
             HStack(spacing: 6) {
-                Button(action: onSelectListen) {
-                    ZStack {
-                        if let previousTrack = pagingPreviousTrack {
-                            trackPage(previousTrack, at: timeline.date)
-                                .offset(
-                                    x: swipeOffset - ListeningMiniPlayerSwipeIntent.pageTravel
-                                )
-                        }
-
-                        trackPage(pagingSourceTrack, at: timeline.date)
-                            .offset(x: swipeOffset)
-
-                        if let nextTrack = pagingNextTrack {
-                            trackPage(nextTrack, at: timeline.date)
-                                .offset(
-                                    x: swipeOffset + ListeningMiniPlayerSwipeIntent.pageTravel
-                                )
-                        }
+                ZStack {
+                    if let previousTrack = pagingPreviousTrack {
+                        trackPage(previousTrack, at: timeline.date)
+                            .offset(
+                                x: swipeOffset - ListeningMiniPlayerSwipeIntent.pageTravel
+                            )
                     }
-                    .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
-                    .contentShape(Rectangle())
-                    .clipped()
+
+                    trackPage(pagingSourceTrack, at: timeline.date)
+                        .offset(x: swipeOffset)
+
+                    if let nextTrack = pagingNextTrack {
+                        trackPage(nextTrack, at: timeline.date)
+                            .offset(
+                                x: swipeOffset + ListeningMiniPlayerSwipeIntent.pageTravel
+                            )
+                    }
                 }
-                .buttonStyle(.plain)
-                .simultaneousGesture(trackSwipeGesture)
+                .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
+                .contentShape(Rectangle())
+                .clipped()
+                .onTapGesture {
+                    guard !isCompletingSwipe else { return }
+                    onSelectListen()
+                }
+                .gesture(trackSwipeGesture)
+                .accessibilityElement(children: .ignore)
+                .accessibilityAddTraits(.isButton)
                 .accessibilityLabel("\(track.title)，\(track.artistName)")
                 .accessibilityHint(BSLocalization.text("返回听"))
+                .accessibilityAction {
+                    guard !isCompletingSwipe else { return }
+                    onSelectListen()
+                }
                 .accessibilityIdentifier("listening.miniPlayer.openListen")
 
                 Button {
@@ -412,6 +420,10 @@ private struct ListeningCompactPlaybackControl: View {
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
+        .sensoryFeedback(
+            .impact(weight: .light, intensity: 0.7),
+            trigger: swipeFeedbackCount
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
         .task(id: artworkURL) {
@@ -573,13 +585,21 @@ private struct ListeningCompactPlaybackControl: View {
         captureSwipeSnapshotIfNeeded()
         isCompletingSwipe = true
 
+        swipeFeedbackCount += 1
+        room.skip(action == .next ? 1 : -1)
+
         if reduceMotion {
-            room.perform(action == .next ? .next : .previous)
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                swipeOffset = action == .next
+                    ? -ListeningMiniPlayerSwipeIntent.pageTravel
+                    : ListeningMiniPlayerSwipeIntent.pageTravel
+            }
             waitForTrackChange(to: destination.id)
             return
         }
 
-        room.perform(action == .next ? .next : .previous)
         withAnimation(.snappy(duration: 0.22, extraBounce: 0.04), completionCriteria: .logicallyComplete) {
             swipeOffset = action == .next
                 ? -ListeningMiniPlayerSwipeIntent.pageTravel
