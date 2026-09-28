@@ -59,7 +59,9 @@ struct AddShowLinkGuideView: View {
         .preferredColorScheme(.dark)
         .presentationDetents([.medium, .large])
         .animation(.easeInOut(duration: 0.2), value: selectedPlatform)
-        .sheet(item: $browserPage) { page in
+        .sheet(item: $browserPage, onDismiss: {
+            dismiss()
+        }) { page in
             BSInAppBrowser(page: page)
         }
     }
