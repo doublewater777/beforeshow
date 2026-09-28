@@ -52,22 +52,14 @@ final class CompanionSharingTests: XCTestCase {
         }
     }
 
-    func testInvitePreparingCopyReplacesActionTitleUntilShareAppears() {
+    func testInviteActionTitleRemainsTheUserAction() {
         XCTAssertEqual(
-            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: false),
+            CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: false),
             BSLocalization.text("分享邀请")
         )
         XCTAssertEqual(
-            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: false, isRetry: true),
-            BSLocalization.text("重新邀请")
-        )
-        XCTAssertEqual(
-            CompanionInvitePreparingPresentation.primaryActionTitle(isPreparing: true, isRetry: false),
-            BSLocalization.text("正在准备邀请")
-        )
-        XCTAssertEqual(
-            CompanionInvitePreparingPresentation.overlayTitle,
-            BSLocalization.text("正在打开系统分享")
+            CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: true),
+            BSLocalization.text("再次分享邀请")
         )
     }
 
