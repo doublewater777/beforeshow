@@ -1,4 +1,6 @@
 import Foundation
+import SwiftUI
+import UIKit
 
 struct FeedbackDiagnostics: Equatable {
     let appVersion: String
@@ -116,5 +118,110 @@ struct RemoteFeedbackSubmissionService {
 
     private struct BackendError: Decodable {
         let code: String
+    }
+}
+
+enum FeedbackShakePresentationPolicy {
+    static func shouldPresent(
+        isAppReady: Bool,
+        isFeedbackPresented: Bool,
+        hasPresentedModal: Bool
+    ) -> Bool {
+        isAppReady && !isFeedbackPresented && !hasPresentedModal
+    }
+}
+
+@MainActor
+enum FeedbackShakePresentationState {
+    static var hasPresentedModal: Bool {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else {
+            return true
+        }
+        return root.presentedViewController != nil
+    }
+}
+
+struct FeedbackShakeResponder: UIViewRepresentable {
+    let isArmed: Bool
+    let onShake: @MainActor () -> Void
+
+    func makeUIView(context: Context) -> FeedbackShakeResponderView {
+        let view = FeedbackShakeResponderView()
+        view.onShake = onShake
+        view.setArmed(isArmed)
+        return view
+    }
+
+    func updateUIView(_ uiView: FeedbackShakeResponderView, context: Context) {
+        uiView.onShake = onShake
+        uiView.setArmed(isArmed)
+    }
+}
+
+@MainActor
+final class FeedbackShakeResponderView: UIView {
+    var onShake: @MainActor () -> Void = {}
+    private var isArmed = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        observeKeyboard()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        observeKeyboard()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override var canBecomeFirstResponder: Bool { isArmed }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        rearmIfNeeded()
+    }
+
+    override func motionEnded(_ motion: UIEvent.EventSubtype, with event: UIEvent?) {
+        super.motionEnded(motion, with: event)
+        guard isArmed, motion == .motionShake else { return }
+        onShake()
+    }
+
+    func setArmed(_ armed: Bool) {
+        guard isArmed != armed else { return }
+        isArmed = armed
+        if armed {
+            rearmIfNeeded()
+        } else if isFirstResponder {
+            resignFirstResponder()
+        }
+    }
+
+    private func observeKeyboard() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardDidHide),
+            name: UIResponder.keyboardDidHideNotification,
+            object: nil
+        )
+    }
+
+    @objc
+    private func keyboardDidHide() {
+        rearmIfNeeded()
+    }
+
+    private func rearmIfNeeded() {
+        guard isArmed, window != nil, !isFirstResponder else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isArmed, self.window != nil, !self.isFirstResponder else { return }
+            self.becomeFirstResponder()
+        }
     }
 }
