@@ -32,10 +32,7 @@ struct RootView: View {
         if let result = companionCoordinator.pendingAcceptResult {
             return CompanionSharingPresentation.acceptedMessage(ownerDisplayName: nil, importResult: result)
         }
-        let kind = companionCoordinator.lastErrorKind
-        return (kind == .statusSyncPending || kind == .acceptFailed)
-            ? companionCoordinator.lastErrorMessage
-            : nil
+        return companionCoordinator.lastErrorKind == .statusSyncPending ? companionCoordinator.lastErrorMessage : nil
     }
     var body: some View {
         ZStack {
@@ -163,10 +160,7 @@ struct RootView: View {
         companionAcceptanceMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
         _ = companionCoordinator.consumePendingAcceptResult()
-        if companionCoordinator.lastErrorKind == .statusSyncPending
-            || companionCoordinator.lastErrorKind == .acceptFailed {
-            _ = companionCoordinator.consumeLastErrorMessage()
-        }
+        if companionCoordinator.lastErrorKind == .statusSyncPending { _ = companionCoordinator.consumeLastErrorMessage() }
     }
     private func refreshCompanionDuplicateResolution() {
         guard companionDuplicateResolution == nil else { return }
