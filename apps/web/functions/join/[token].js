@@ -173,7 +173,7 @@ export function onRequestGet({ request, params }) {
       justify-content: center;
       background: var(--bg);
       color: var(--text);
-      padding: 24px 16px env(safe-area-inset-bottom, 24px);
+      padding: 18px 16px env(safe-area-inset-bottom, 18px);
       position: relative;
       overflow-x: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
@@ -203,12 +203,12 @@ export function onRequestGet({ request, params }) {
       opacity: 0.65;
     }
     main {
-      width: min(400px, 100%);
+      width: min(390px, 100%);
       position: relative;
       z-index: 1;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
     /* App Header */
@@ -224,9 +224,9 @@ export function onRequestGet({ request, params }) {
       gap: 10px;
     }
     .app-icon {
-      width: 34px;
-      height: 34px;
-      border-radius: 9px;
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
       border: 1px solid rgba(255, 255, 255, 0.15);
       box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
     }
@@ -267,26 +267,11 @@ export function onRequestGet({ request, params }) {
       -webkit-backdrop-filter: blur(24px);
       overflow: hidden;
     }
-    .ticket-cover-wrap {
-      width: 100%;
-      aspect-ratio: 3 / 4;
-      border-radius: 16px;
-      overflow: hidden;
-      position: relative;
-      background: rgba(255, 255, 255, 0.04);
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
-    }
-    .ticket-cover {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
-    }
     .ticket-head {
-      padding: 24px 22px 20px;
+      padding: 20px 20px 16px;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
     }
     .ticket-inviter {
       display: inline-flex;
@@ -297,7 +282,46 @@ export function onRequestGet({ request, params }) {
       color: var(--accent-warm);
     }
     .inviter-icon { display: flex; }
-    .show-title {
+    .ticket-body {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .ticket-cover-wrap {
+      width: 104px;
+      flex-shrink: 0;
+      aspect-ratio: 3 / 4;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    }
+    .ticket-cover {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .ticket-main-info {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .has-cover .show-title {
+      font-size: 16px;
+      font-weight: 750;
+      line-height: 1.34;
+      letter-spacing: -0.015em;
+      color: var(--text);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .no-cover .show-title {
       font-size: 22px;
       font-weight: 750;
       line-height: 1.32;
@@ -307,21 +331,29 @@ export function onRequestGet({ request, params }) {
     .ticket-meta {
       display: flex;
       flex-direction: column;
+      gap: 7px;
+      padding-top: 2px;
+    }
+    .no-cover .ticket-meta {
       gap: 10px;
       padding-top: 4px;
     }
     .meta-row {
       display: flex;
       align-items: flex-start;
-      gap: 9px;
-      font-size: 14px;
-      line-height: 1.4;
+      gap: 7px;
+      font-size: 13px;
+      line-height: 1.36;
       color: var(--text-soft);
+    }
+    .no-cover .meta-row {
+      font-size: 14px;
+      gap: 9px;
     }
     .meta-icon {
       color: var(--accent);
       flex-shrink: 0;
-      margin-top: 2px;
+      margin-top: 1.5px;
       display: flex;
     }
     .meta-text {
@@ -332,36 +364,36 @@ export function onRequestGet({ request, params }) {
     /* Rip Separator */
     .ticket-rip {
       position: relative;
-      height: 20px;
+      height: 18px;
       display: flex;
       align-items: center;
     }
     .rip-notch {
       position: absolute;
-      width: 18px;
-      height: 18px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: var(--bg);
       top: 1px;
     }
     .rip-left {
-      left: -9px;
+      left: -8px;
       box-shadow: inset -1px 0 0 var(--border);
     }
     .rip-right {
-      right: -9px;
+      right: -8px;
       box-shadow: inset 1px 0 0 var(--border);
     }
     .rip-line {
       width: 100%;
       height: 1px;
       border-top: 1px dashed var(--border);
-      margin: 0 16px;
+      margin: 0 14px;
     }
 
     /* Ticket Action */
     .ticket-action {
-      padding: 18px 20px 22px;
+      padding: 16px 20px 20px;
       display: flex;
       flex-direction: column;
       gap: 10px;
@@ -371,10 +403,10 @@ export function onRequestGet({ request, params }) {
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 14px 18px;
+      padding: 13px 18px;
       border-radius: var(--radius-btn);
       text-decoration: none;
-      font-size: 15px;
+      font-size: 14.5px;
       font-weight: 650;
       letter-spacing: -0.01em;
       transition: all 0.18s cubic-bezier(.16,1,.3,1);
@@ -489,25 +521,29 @@ export function onRequestGet({ request, params }) {
           </span>
           <span>${escapeHTML(copy.byline)}</span>
         </div>
-        ${coverURL ? `
-        <div class="ticket-cover-wrap">
-          <img class="ticket-cover" src="${escapeHTML(coverURL)}" alt="${escapeHTML(invite.n)}" loading="eager" decoding="async">
-        </div>` : ""}
-        <h1 class="show-title">${escapeHTML(invite.n)}</h1>
-        <div class="ticket-meta">
-          <div class="meta-row">
-            <span class="meta-icon">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-            </span>
-            <span class="meta-text">${escapeHTML(copy.when)}</span>
-          </div>
-          ${invite.l?.trim() ? `
-          <div class="meta-row">
-            <span class="meta-icon">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-            </span>
-            <span class="meta-text">${escapeHTML(invite.l.trim())}</span>
+        <div class="ticket-body ${coverURL ? "has-cover" : "no-cover"}">
+          ${coverURL ? `
+          <div class="ticket-cover-wrap">
+            <img class="ticket-cover" src="${escapeHTML(coverURL)}" alt="${escapeHTML(invite.n)}" loading="eager" decoding="async">
           </div>` : ""}
+          <div class="ticket-main-info">
+            <h1 class="show-title">${escapeHTML(invite.n)}</h1>
+            <div class="ticket-meta">
+              <div class="meta-row">
+                <span class="meta-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                </span>
+                <span class="meta-text">${escapeHTML(copy.when)}</span>
+              </div>
+              ${invite.l?.trim() ? `
+              <div class="meta-row">
+                <span class="meta-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                </span>
+                <span class="meta-text">${escapeHTML(invite.l.trim())}</span>
+              </div>` : ""}
+            </div>
+          </div>
         </div>
       </div>
 
