@@ -60,11 +60,6 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
-        .modifier(
-            FeedbackShakeShortcutModifier(
-                isEnabled: hasFinishedSplash && hasResolvedOnboardingRoute && !isShowingOnboarding
-            )
-        )
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
@@ -270,6 +265,7 @@ struct RootView: View {
             .accessibilityIdentifier("root.tab.footprints")
         }
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
+        .modifier(FeedbackShakeShortcutModifier())
         // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
