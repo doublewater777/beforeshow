@@ -7,7 +7,10 @@ struct CurrentShowFollowUpSummary: View {
     let formatter: ShowDisplayFormatter
     let now: Date
     var onOpenShowLibrary: () -> Void = {}
+    var onSetCurrent: (Show) -> Void = { _ in }
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
+    @State private var revealedShowID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -38,12 +41,25 @@ struct CurrentShowFollowUpSummary: View {
             }
 
             ForEach(shows.prefix(2)) { show in
-                NavigationLink {
-                    ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                } label: {
-                    followUpRow(show)
+                CurrentShowFollowUpSwipeContainer(
+                    isRevealed: revealedShowID == show.id,
+                    onReveal: { isRevealed in
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            revealedShowID = isRevealed ? show.id : nil
+                        }
+                    },
+                    onSetCurrent: {
+                        revealedShowID = nil
+                        onSetCurrent(show)
+                    }
+                ) {
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        followUpRow(show)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             if shows.count > 2 {
@@ -126,6 +142,82 @@ struct CurrentShowFollowUpSummary: View {
         if seconds >= 86_400 { return BSLocalization.format("%lld 天后", seconds / 86_400) }
         if seconds >= 3_600 { return BSLocalization.format("%lld 小时后", seconds / 3_600) }
         return BSLocalization.format("%lld 分钟后", max(1, seconds / 60))
+    }
+}
+
+private struct CurrentShowFollowUpSwipeContainer<Content: View>: View {
+    let isRevealed: Bool
+    let onReveal: (Bool) -> Void
+    let onSetCurrent: () -> Void
+    private let content: Content
+
+    @State private var dragTranslation: CGFloat = 0
+
+    private let actionWidth: CGFloat = 92
+
+    init(
+        isRevealed: Bool,
+        onReveal: @escaping (Bool) -> Void,
+        onSetCurrent: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isRevealed = isRevealed
+        self.onReveal = onReveal
+        self.onSetCurrent = onSetCurrent
+        self.content = content()
+    }
+
+    private var restingOffset: CGFloat {
+        isRevealed ? -actionWidth : 0
+    }
+
+    private var rowOffset: CGFloat {
+        min(0, max(-actionWidth, restingOffset + dragTranslation))
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                onReveal(false)
+                onSetCurrent()
+            } label: {
+                VStack(spacing: 5) {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(BSLocalization.text("设为当前"))
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
+                .foregroundColor(BSColor.Stage.accent)
+                .frame(width: actionWidth, height: 80)
+                .background(BSColor.Stage.accent.opacity(0.13))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+
+            content
+                .offset(x: rowOffset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                                return
+                            }
+                            dragTranslation = value.translation.width
+                        }
+                        .onEnded { value in
+                            defer { dragTranslation = 0 }
+                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                                return
+                            }
+                            let projectedOffset = restingOffset + value.predictedEndTranslation.width
+                            onReveal(projectedOffset < -(actionWidth * 0.45))
+                        }
+                )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityAction(named: BSLocalization.text("设为当前")) {
+            onSetCurrent()
+        }
     }
 }
 
