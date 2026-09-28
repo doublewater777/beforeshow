@@ -105,6 +105,7 @@ struct ShowCoverImageView: View {
     var alignment: Alignment = .center
     var enforcesAspectRatio = true
     var cornerRadius: CGFloat = 8
+    var restoresPersistedImageOnFirstFrame = false
 
     @State private var image: UIImage?
     @State private var loadState: LoadState = .idle
@@ -119,7 +120,8 @@ struct ShowCoverImageView: View {
         contentMode: ContentMode = .fit,
         alignment: Alignment = .center,
         enforcesAspectRatio: Bool = true,
-        cornerRadius: CGFloat = 8
+        cornerRadius: CGFloat = 8,
+        restoresPersistedImageOnFirstFrame: Bool = false
     ) {
         self.urlString = urlString
         self.aspectRatio = aspectRatio
@@ -127,7 +129,12 @@ struct ShowCoverImageView: View {
         self.alignment = alignment
         self.enforcesAspectRatio = enforcesAspectRatio
         self.cornerRadius = cornerRadius
-        _image = State(initialValue: Self.persistedImage(for: urlString))
+        self.restoresPersistedImageOnFirstFrame = restoresPersistedImageOnFirstFrame
+        _image = State(
+            initialValue: restoresPersistedImageOnFirstFrame
+                ? Self.persistedImage(for: urlString)
+                : Self.memoryImage(for: urlString)
+        )
     }
 
     var body: some View {
@@ -168,11 +175,15 @@ struct ShowCoverImageView: View {
         loadState = image == nil ? .failed : .idle
     }
 
+    private static func memoryImage(for urlString: String?) -> UIImage? {
+        guard let urlString,
+              let url = URL(string: urlString) else { return nil }
+        return ShowCoverImageCache.shared.memoryImage(for: url)
+    }
+
     private static func persistedImage(for urlString: String?) -> UIImage? {
-        // A previously loaded remote cover must survive process recreation
-        // without flashing the generic fallback while its disk cache is read.
-        // This synchronous path is intentionally limited to the already-cached
-        // file; network and widget fallback remain asynchronous in loadImage().
+        // Opt-in first-frame path for high-priority surfaces such as Current's
+        // hero. Network and widget fallback remain asynchronous in loadImage().
         guard let urlString,
               let url = URL(string: urlString) else { return nil }
         return ShowCoverImageCache.shared.persistedImage(for: url)
