@@ -341,8 +341,7 @@ private let listeningCatalogFetchConcurrency = 4
         let newAccess = await catalogService.currentAccess()
         guard generation == catalogGeneration, !Task.isCancelled else { return }
         if isCurrentMusicAccessRequest(accessGeneration) {
-            access = newAccess
-            accessResolved = true
+            applyResolvedMusicAccess(newAccess)
         }
 
         let matches = (try? await matching) ?? [:]
@@ -575,6 +574,53 @@ private let listeningCatalogFetchConcurrency = 4
         generation == musicAccessRequestGeneration
     }
 
+    private func applyResolvedMusicAccess(_ newAccess: ListeningMusicAccess) {
+        access = newAccess
+        accessResolved = true
+        if newAccess.hasConfirmedFullPlaybackLoss {
+            endFullPlaybackSessionForAccessLossIfNeeded()
+        }
+    }
+
+    private func endFullPlaybackSessionForAccessLossIfNeeded() {
+        let source = preparedSource ?? playbackSource(from: playbackState) ?? playbackSource(from: transportPlaybackState)
+        guard source == .fullCatalog else { return }
+
+        recordedPlayingSongID = nil
+        pendingSleeveSongID = nil
+        do {
+            try controller?.stop()
+        } catch {
+            handlePlaybackEvidenceFailure()
+        }
+        controller = nil
+        playbackGeneration = UUID()
+        retryPendingPlaybackEvidence()
+        preparedSongID = nil
+        preparedSource = nil
+        playbackState = .idle
+        transportPlaybackState = .idle
+        transportPlaybackPhase = .stopped
+        finishedSongID = nil
+        visibility = ListeningVisibilityPolicy()
+        persistLoadedDisc()
+        updateTimeText()
+    }
+
+    private func playbackSource(from state: ListeningPlaybackState) -> ListeningPlaybackSource? {
+        switch state {
+        case let .preparing(source):
+            source
+        case let .ready(_, source, _, _),
+             let .playing(_, source, _, _),
+             let .paused(_, source, _, _),
+             let .finished(_, source, _):
+            source
+        case .idle, .failed:
+            nil
+        }
+    }
+
     func authorize() async {
         guard !isAuthorizing else { return }
         isAuthorizing = true
@@ -585,8 +631,7 @@ private let listeningCatalogFetchConcurrency = 4
             isAuthorizing = false
             return
         }
-        access = newAccess
-        accessResolved = true
+        applyResolvedMusicAccess(newAccess)
         isAuthorizing = false
 
         guard newAccess.authorizationStatus == .authorized else { return }
@@ -605,8 +650,7 @@ private let listeningCatalogFetchConcurrency = 4
             isAuthorizing = false
             return
         }
-        access = newAccess
-        accessResolved = true
+        applyResolvedMusicAccess(newAccess)
         isAuthorizing = false
 
         guard newAccess.authorizationStatus == .authorized else { return }
@@ -630,7 +674,7 @@ private let listeningCatalogFetchConcurrency = 4
         accessResolved = true
         guard newAccess != previousAccess else { return }
 
-        access = newAccess
+        applyResolvedMusicAccess(newAccess)
 
         guard !isLoadingShow else { return }
         let authorizationChanged = previousAccess.authorizationStatus != newAccess.authorizationStatus
