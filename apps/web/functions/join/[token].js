@@ -49,13 +49,25 @@ function copyFor(request, invite) {
   const language = request.headers.get("Accept-Language") || "";
   const locale = /^zh-(TW|HK|Hant)/i.test(language) ? "zh-Hant"
     : /^en/i.test(language) ? "en" : "zh-Hans";
-  const date = new Date((invite.t + (invite.z ? 0 : (invite.s || 0))) * 1000);
+  let tz = invite.z;
+  let offset = 0;
+  if (!tz) {
+    if (invite.s != null) {
+      tz = "UTC";
+      offset = invite.s;
+    } else if (locale.startsWith("zh")) {
+      tz = "Asia/Shanghai";
+    } else {
+      tz = "UTC";
+    }
+  }
+  const date = new Date((invite.t + offset) * 1000);
   if (Number.isNaN(date.getTime())) return null;
   let when;
   try {
     when = new Intl.DateTimeFormat(locale, {
       month: "long", day: "numeric", hour: "2-digit", minute: "2-digit",
-      timeZone: invite.z || "UTC",
+      timeZone: tz,
     }).format(date);
   } catch {
     return null;
@@ -257,23 +269,18 @@ export function onRequestGet({ request, params }) {
     }
     .ticket-cover-wrap {
       width: 100%;
-      aspect-ratio: 16 / 10;
-      position: relative;
+      aspect-ratio: 3 / 4;
+      border-radius: 16px;
       overflow: hidden;
+      position: relative;
       background: rgba(255, 255, 255, 0.04);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
     }
     .ticket-cover {
       width: 100%;
       height: 100%;
       object-fit: cover;
       display: block;
-    }
-    .ticket-cover-wrap::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(180deg, transparent 65%, rgba(5, 5, 8, 0.65) 100%);
-      pointer-events: none;
     }
     .ticket-head {
       padding: 24px 22px 20px;
@@ -475,10 +482,6 @@ export function onRequestGet({ request, params }) {
     </header>
 
     <article class="ticket-card">
-      ${coverURL ? `
-      <div class="ticket-cover-wrap">
-        <img class="ticket-cover" src="${escapeHTML(coverURL)}" alt="${escapeHTML(invite.n)}" loading="eager" decoding="async">
-      </div>` : ""}
       <div class="ticket-head">
         <div class="ticket-inviter">
           <span class="inviter-icon">
@@ -486,6 +489,10 @@ export function onRequestGet({ request, params }) {
           </span>
           <span>${escapeHTML(copy.byline)}</span>
         </div>
+        ${coverURL ? `
+        <div class="ticket-cover-wrap">
+          <img class="ticket-cover" src="${escapeHTML(coverURL)}" alt="${escapeHTML(invite.n)}" loading="eager" decoding="async">
+        </div>` : ""}
         <h1 class="show-title">${escapeHTML(invite.n)}</h1>
         <div class="ticket-meta">
           <div class="meta-row">

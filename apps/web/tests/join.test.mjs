@@ -92,7 +92,15 @@ test("renders remote cover and large card social metadata when present", async (
   assert.match(html, /<meta name="twitter:card" content="summary_large_image">/);
   assert.match(html, /<meta name="twitter:image" content="https:\/\/images\.example\.com\/poster\.jpg">/);
   assert.match(html, /class="ticket-cover-wrap"/);
+  assert.match(html, /aspect-ratio:\s*3\s*\/\s*4/);
   assert.match(html, /<img class="ticket-cover" src="https:\/\/images\.example\.com\/poster\.jpg"/);
+});
+
+test("falls back to Asia/Shanghai time for Chinese locale when timezone is missing", async () => {
+  const response = invite({ t: 1790915400, z: undefined, s: undefined });
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /10月2日 12:30/);
 });
 
 test("falls back cleanly when cover is missing", async () => {
