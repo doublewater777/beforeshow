@@ -22,11 +22,10 @@ extension CloudKitCompanionSharingService {
         ownerDisplayName: String?,
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare {
-        CompanionDebugLog.write("Companion invite stage=account-check")
         try await ensureAccountAvailable()
         await debugProbeDefaultZone()
         let zone = try await ensureCompanionZone()
-        CompanionDebugLog.write("Companion invite stage=zone-ready zone=\(zone.zoneID.zoneName)")
+        CompanionDebugLog.write("Preparing companion invite in zone \(zone.zoneID.zoneName)")
 
         let sessionID = CKRecord.ID(
             recordName: "session-\(UUID().uuidString)",
@@ -63,7 +62,6 @@ extension CloudKitCompanionSharingService {
 
         let saved: [CKRecord]
         do {
-            CompanionDebugLog.write("Companion invite stage=share-save")
             saved = try await modifyRecords(in: privateDB, saving: [session, share])
         } catch {
             CompanionDebugLog.write("Companion invite stage=share-save failed: \(error)")
@@ -89,7 +87,6 @@ extension CloudKitCompanionSharingService {
                 withRootObject: distributableShare,
                 requiringSecureCoding: true
             )
-            CompanionDebugLog.write("Companion invite stage=archive-ready")
             return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
         } catch {
             let underlying = (error as? CompanionSharingError) ?? Self.mapError(error)
@@ -123,44 +120,24 @@ extension CloudKitCompanionSharingService {
     }
 
     private func shareWithInvitationURL(_ share: CKShare) async throws -> CKShare {
-        if share.url != nil {
-            CompanionDebugLog.write("Companion invite stage=share-url ready-from-save")
-            return share
-        }
-
+        if share.url != nil { return share }
         let delays = CompanionShareURLRetryPolicy.delays
         for attempt in 0...delays.count {
-            if attempt > 0 {
-                try await Task.sleep(for: delays[attempt - 1])
-            }
-
+            if attempt > 0 { try await Task.sleep(for: delays[attempt - 1]) }
             do {
-                guard let refetched = try await privateDB.record(for: share.recordID) as? CKShare else {
-                    CompanionDebugLog.write(
-                        "Companion invite stage=share-url attempt=\(attempt + 1) invalid-record"
-                    )
+                guard let candidate = try await privateDB.record(for: share.recordID) as? CKShare else {
                     throw CompanionSharingError.sharePreparationFailed
                 }
-                if refetched.url != nil {
-                    CompanionDebugLog.write(
-                        "Companion invite stage=share-url attempt=\(attempt + 1) ready"
-                    )
-                    return refetched
+                if candidate.url != nil {
+                    CompanionDebugLog.write("Companion invite stage=share-url ready attempt=\(attempt + 1)")
+                    return candidate
                 }
-                CompanionDebugLog.write(
-                    "Companion invite stage=share-url attempt=\(attempt + 1) pending"
-                )
-            } catch let error as CompanionSharingError {
-                throw error
             } catch {
                 let mapped = Self.mapError(error)
-                CompanionDebugLog.write(
-                    "Companion invite stage=share-url attempt=\(attempt + 1) failed: \(mapped)"
-                )
+                CompanionDebugLog.write("Companion invite stage=share-url failed: \(mapped)")
                 throw mapped
             }
         }
-
         CompanionDebugLog.write("Companion invite stage=share-url exhausted")
         throw CompanionSharingError.sharePreparationFailed
     }
