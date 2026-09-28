@@ -121,7 +121,11 @@ final class CompanionSharingTests: XCTestCase {
         let details = try XCTUnwrap(applinks["details"] as? [[String: Any]])
         XCTAssertTrue(
             details.contains {
-                $0["appID"] as? String == "29C8MS76CZ.com.doublewaterapps.beforeshow"
+                guard $0["appID"] as? String == "29C8MS76CZ.com.doublewaterapps.beforeshow",
+                      let paths = $0["paths"] as? [String] else {
+                    return false
+                }
+                return paths.contains(CompanionInviteWebLink.path)
             }
         )
     }
