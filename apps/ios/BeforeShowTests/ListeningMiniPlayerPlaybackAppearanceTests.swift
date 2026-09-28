@@ -156,4 +156,43 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
             )
         )
     }
+
+    func testMiniPlayerFastFlickCommitsBeforeDistanceThreshold() {
+        XCTAssertEqual(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: -32, height: 3),
+                predictedEndTranslation: CGSize(width: -104, height: 4)
+            ),
+            .next
+        )
+    }
+
+    func testMiniPlayerSlowShortDragStillSettlesBack() {
+        XCTAssertNil(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: 40, height: 3),
+                predictedEndTranslation: CGSize(width: 58, height: 4)
+            )
+        )
+    }
+
+    func testMiniPlayerUnavailableEdgeUsesRubberBandResistance() {
+        let translation = CGSize(width: 80, height: 2)
+        XCTAssertEqual(
+            ListeningMiniPlayerSwipeIntent.trackedOffset(
+                for: translation,
+                canNavigate: true
+            ),
+            80,
+            accuracy: 0.000001
+        )
+        XCTAssertEqual(
+            ListeningMiniPlayerSwipeIntent.trackedOffset(
+                for: translation,
+                canNavigate: false
+            ),
+            14.4,
+            accuracy: 0.000001
+        )
+    }
 }
