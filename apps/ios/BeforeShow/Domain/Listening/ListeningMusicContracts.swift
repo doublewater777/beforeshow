@@ -28,6 +28,17 @@ struct ListeningMusicAccess: Equatable, Sendable {
         catalogPlaybackAccess == .available
     }
 
+    var hasConfirmedFullPlaybackLoss: Bool {
+        switch authorizationStatus {
+        case .denied, .restricted:
+            true
+        case .authorized:
+            catalogPlaybackAccess == .accountLimited
+        case .notDetermined:
+            false
+        }
+    }
+
     init(
         authorizationStatus: ListeningMusicAuthorizationStatus,
         catalogPlaybackAccess: ListeningCatalogPlaybackAccess
