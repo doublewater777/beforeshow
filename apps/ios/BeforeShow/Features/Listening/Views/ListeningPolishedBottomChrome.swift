@@ -36,17 +36,44 @@ enum ListeningMiniPlayerSwipeAction: Equatable {
 }
 
 enum ListeningMiniPlayerSwipeIntent {
-    static let minimumHorizontalDistance: CGFloat = 44
-    static let horizontalDominanceRatio: CGFloat = 1.25
+    static let activationDistance: CGFloat = 8
+    static let commitDistance: CGFloat = 52
+    static let projectedCommitDistance: CGFloat = 88
+    static let horizontalDominanceRatio: CGFloat = 1.15
+    static let pageTravel: CGFloat = 164
+    static let unavailableEdgeResistance: CGFloat = 0.18
 
-    static func action(for translation: CGSize) -> ListeningMiniPlayerSwipeAction? {
+    static func isHorizontal(_ translation: CGSize) -> Bool {
         let horizontalDistance = abs(translation.width)
         let verticalDistance = abs(translation.height)
-        guard horizontalDistance >= minimumHorizontalDistance,
-              horizontalDistance > verticalDistance * horizontalDominanceRatio else {
+        return horizontalDistance >= activationDistance
+            && horizontalDistance > verticalDistance * horizontalDominanceRatio
+    }
+
+    static func action(
+        for translation: CGSize,
+        predictedEndTranslation: CGSize? = nil
+    ) -> ListeningMiniPlayerSwipeAction? {
+        guard isHorizontal(translation) else { return nil }
+
+        let predicted = predictedEndTranslation ?? translation
+        guard abs(translation.width) >= commitDistance
+                || abs(predicted.width) >= projectedCommitDistance else {
             return nil
         }
+
         return translation.width < 0 ? .next : .previous
+    }
+
+    static func trackedOffset(for translation: CGSize, canNavigate: Bool) -> CGFloat {
+        guard isHorizontal(translation) else { return 0 }
+
+        let maximumTravel = pageTravel * 1.06
+        let direct = min(max(translation.width, -maximumTravel), maximumTravel)
+        guard !canNavigate else { return direct }
+
+        let resisted = direct * unavailableEdgeResistance
+        return min(max(resisted, -18), 18)
     }
 }
 
@@ -302,6 +329,11 @@ private struct ListeningCompactPlaybackControl: View {
     @State private var artworkImage: UIImage?
     @State private var frozenDiscAngle = 0.0
     @State private var spinAnchor = Date()
+    @State private var swipeOffset: CGFloat = 0
+    @State private var swipeSourceTrack: ListeningDiscTrack?
+    @State private var swipePreviousTrack: ListeningDiscTrack?
+    @State private var swipeNextTrack: ListeningDiscTrack?
+    @State private var isCompletingSwipe = false
 
     private let spinDegreesPerSecond = 128.0
 
@@ -332,32 +364,30 @@ private struct ListeningCompactPlaybackControl: View {
         ) { timeline in
             HStack(spacing: 6) {
                 Button(action: onSelectListen) {
-                    HStack(spacing: 9) {
-                        ListeningArtworkDisc(
-                            artwork: displayedArtwork,
-                            angle: discAngle(at: timeline.date),
-                            size: 34,
-                            isPlaying: showsPlayingState
-                        )
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(track.title)
-                                .font(.system(size: 12.5, weight: .semibold))
-                                .foregroundStyle(BSColor.textPrimary)
-                                .lineLimit(1)
-
-                            Text(track.artistName)
-                                .font(.system(size: 10.5, weight: .medium))
-                                .foregroundStyle(BSColor.textTertiary)
-                                .lineLimit(1)
+                    ZStack {
+                        if let previousTrack = pagingPreviousTrack {
+                            trackPage(previousTrack, at: timeline.date)
+                                .offset(
+                                    x: swipeOffset - ListeningMiniPlayerSwipeIntent.pageTravel
+                                )
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                        trackPage(pagingSourceTrack, at: timeline.date)
+                            .offset(x: swipeOffset)
+
+                        if let nextTrack = pagingNextTrack {
+                            trackPage(nextTrack, at: timeline.date)
+                                .offset(
+                                    x: swipeOffset + ListeningMiniPlayerSwipeIntent.pageTravel
+                                )
+                        }
                     }
-                    .padding(.leading, 10)
                     .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
                     .contentShape(Rectangle())
+                    .clipped()
                 }
                 .buttonStyle(.plain)
+                .simultaneousGesture(trackSwipeGesture)
                 .accessibilityLabel("\(track.title)，\(track.artistName)")
                 .accessibilityHint(BSLocalization.text("返回听"))
                 .accessibilityIdentifier("listening.miniPlayer.openListen")
@@ -377,21 +407,11 @@ private struct ListeningCompactPlaybackControl: View {
                 }
                 .buttonStyle(BSListeningPressStyle(scale: 0.96))
                 .padding(.trailing, 4)
-                .disabled(room.busy)
+                .disabled(room.busy || isCompletingSwipe)
                 .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 12)
-                .onEnded { value in
-                    guard !room.busy,
-                          let action = ListeningMiniPlayerSwipeIntent.action(for: value.translation) else {
-                        return
-                    }
-                    room.perform(action == .next ? .next : .previous)
-                }
-        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
         .task(id: artworkURL) {
@@ -422,6 +442,196 @@ private struct ListeningCompactPlaybackControl: View {
             } else if wasReduced && !isReduced && showsPlayingState {
                 spinAnchor = now
             }
+        }
+    }
+
+    private var pagingSourceTrack: ListeningDiscTrack {
+        swipeSourceTrack ?? track
+    }
+
+    private var pagingPreviousTrack: ListeningDiscTrack? {
+        swipeSourceTrack == nil ? adjacentTrack(for: .previous) : swipePreviousTrack
+    }
+
+    private var pagingNextTrack: ListeningDiscTrack? {
+        swipeSourceTrack == nil ? adjacentTrack(for: .next) : swipeNextTrack
+    }
+
+    private var trackSwipeGesture: some Gesture {
+        DragGesture(minimumDistance: ListeningMiniPlayerSwipeIntent.activationDistance)
+            .onChanged { value in
+                guard !room.busy, !isCompletingSwipe,
+                      ListeningMiniPlayerSwipeIntent.isHorizontal(value.translation) else {
+                    return
+                }
+
+                captureSwipeSnapshotIfNeeded()
+                let action: ListeningMiniPlayerSwipeAction =
+                    value.translation.width < 0 ? .next : .previous
+                let canNavigate = destinationTrack(for: action) != nil
+
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    swipeOffset = ListeningMiniPlayerSwipeIntent.trackedOffset(
+                        for: value.translation,
+                        canNavigate: canNavigate
+                    )
+                }
+            }
+            .onEnded { value in
+                guard !isCompletingSwipe else { return }
+
+                let action = ListeningMiniPlayerSwipeIntent.action(
+                    for: value.translation,
+                    predictedEndTranslation: value.predictedEndTranslation
+                )
+                guard !room.busy,
+                      let action,
+                      let destination = destinationTrack(for: action) else {
+                    settleSwipeBack()
+                    return
+                }
+
+                completeSwipe(action, destination: destination)
+            }
+    }
+
+    @ViewBuilder
+    private func trackPage(_ pageTrack: ListeningDiscTrack, at date: Date) -> some View {
+        HStack(spacing: 9) {
+            ListeningArtworkDisc(
+                artwork: displayedArtwork(for: pageTrack),
+                angle: discAngle(at: date),
+                size: 34,
+                isPlaying: showsPlayingState
+            )
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(pageTrack.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(BSColor.textPrimary)
+                    .lineLimit(1)
+
+                Text(pageTrack.artistName)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(BSColor.textTertiary)
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.leading, 10)
+        .frame(maxWidth: .infinity, minHeight: ListeningBottomBarLayout.tabSize)
+        .allowsHitTesting(false)
+    }
+
+    private func displayedArtwork(for pageTrack: ListeningDiscTrack) -> UIImage? {
+        let pageArtworkURL = ListeningMiniPlayerArtworkSource.resolve(
+            trackArtworkURL: pageTrack.artworkURL,
+            discArtworkURL: room.mechanism.disc?.artworkURL
+        )
+        if pageArtworkURL == artworkURL {
+            return displayedArtwork
+        }
+        return ListeningMiniPlayerArtworkImage.displayed(
+            loaded: nil,
+            url: pageArtworkURL
+        )
+    }
+
+    private func adjacentTrack(for action: ListeningMiniPlayerSwipeAction) -> ListeningDiscTrack? {
+        guard room.mechanism.isClosed,
+              let disc = room.mechanism.disc else {
+            return nil
+        }
+        let delta = action == .next ? 1 : -1
+        let index = room.trackIndex + delta
+        guard disc.tracks.indices.contains(index) else { return nil }
+        return disc.tracks[index]
+    }
+
+    private func captureSwipeSnapshotIfNeeded() {
+        guard swipeSourceTrack == nil else { return }
+        swipeSourceTrack = track
+        swipePreviousTrack = adjacentTrack(for: .previous)
+        swipeNextTrack = adjacentTrack(for: .next)
+    }
+
+    private func destinationTrack(for action: ListeningMiniPlayerSwipeAction) -> ListeningDiscTrack? {
+        switch action {
+        case .previous:
+            return swipeSourceTrack == nil ? adjacentTrack(for: .previous) : swipePreviousTrack
+        case .next:
+            return swipeSourceTrack == nil ? adjacentTrack(for: .next) : swipeNextTrack
+        }
+    }
+
+    private func completeSwipe(
+        _ action: ListeningMiniPlayerSwipeAction,
+        destination: ListeningDiscTrack
+    ) {
+        captureSwipeSnapshotIfNeeded()
+        isCompletingSwipe = true
+
+        if reduceMotion {
+            room.perform(action == .next ? .next : .previous)
+            waitForTrackChange(to: destination.id)
+            return
+        }
+
+        room.perform(action == .next ? .next : .previous)
+        withAnimation(.snappy(duration: 0.22, extraBounce: 0.04), completionCriteria: .logicallyComplete) {
+            swipeOffset = action == .next
+                ? -ListeningMiniPlayerSwipeIntent.pageTravel
+                : ListeningMiniPlayerSwipeIntent.pageTravel
+        } completion: {
+            waitForTrackChange(to: destination.id)
+        }
+    }
+
+    private func settleSwipeBack() {
+        guard swipeSourceTrack != nil || swipeOffset != 0 else { return }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.10) : .spring(response: 0.28, dampingFraction: 0.86)) {
+            swipeOffset = 0
+        } completion: {
+            resetSwipePresentation()
+        }
+    }
+
+    private func waitForTrackChange(to destinationID: String) {
+        if room.track?.id == destinationID {
+            resetSwipePresentation()
+            return
+        }
+
+        Task { @MainActor in
+            for _ in 0..<30 {
+                guard isCompletingSwipe else { return }
+                if room.track?.id == destinationID {
+                    resetSwipePresentation()
+                    return
+                }
+                try? await Task.sleep(for: .milliseconds(16))
+            }
+
+            if room.track?.id == destinationID {
+                resetSwipePresentation()
+            } else {
+                settleSwipeBack()
+                isCompletingSwipe = false
+            }
+        }
+    }
+
+    private func resetSwipePresentation() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            swipeOffset = 0
+            swipeSourceTrack = nil
+            swipePreviousTrack = nil
+            swipeNextTrack = nil
+            isCompletingSwipe = false
         }
     }
 
