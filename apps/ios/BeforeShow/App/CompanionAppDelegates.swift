@@ -53,7 +53,7 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
                 let metadata = try await container.shareMetadata(for: shareURL)
                 deliverAcceptedShare(metadata)
             } catch {
-                companionCoordinator?.handleShareControllerFailure(
+                companionCoordinator?.handleIncomingInviteFailure(
                     CompanionSharingError.acceptFailed
                 )
             }
