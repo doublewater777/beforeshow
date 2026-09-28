@@ -121,12 +121,17 @@ struct RemoteFeedbackSubmissionService {
     }
 }
 
+enum FeedbackShakePreferences {
+    static let appStorageKey = "feedbackShakeEnabled"
+}
+
 enum FeedbackShakePresentationPolicy {
     static func shouldPresent(
+        isShakeEnabled: Bool,
         isFeedbackPresented: Bool,
         hasPresentedModal: Bool
     ) -> Bool {
-        !isFeedbackPresented && !hasPresentedModal
+        isShakeEnabled && !isFeedbackPresented && !hasPresentedModal
     }
 }
 

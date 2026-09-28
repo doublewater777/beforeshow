@@ -380,6 +380,8 @@
 "意见反馈" = "Feedback";
 "遇到问题？" = "Found an issue?";
 "有问题或建议，都可以告诉我们。" = "Tell us about any issue or suggestion.";
+"晃动 iPhone 打开反馈" = "Shake iPhone for Feedback";
+"关闭以禁用" = "Turn off to disable";
 "提交反馈" = "Submit Feedback";
 "反馈最多 2000 字" = "Feedback is limited to 2,000 characters";
 "提交有点频繁，请稍后再试" = "You’ve submitted feedback a few times. Try again later.";
