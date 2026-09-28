@@ -157,7 +157,8 @@ struct ShowCoverImageView: View {
     }
 
     private func loadImage() async {
-        guard let urlString,
+        guard image == nil,
+              let urlString,
               !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let url = URL(string: urlString) else { return }
         loadState = .loading
@@ -168,11 +169,13 @@ struct ShowCoverImageView: View {
     }
 
     private static func persistedImage(for urlString: String?) -> UIImage? {
-        // Sync memory-only lookup. Disk + widget cache + network are handled
-        // by `loadImage()` in the body `.task`, off the main thread.
+        // A previously loaded remote cover must survive process recreation
+        // without flashing the generic fallback while its disk cache is read.
+        // This synchronous path is intentionally limited to the already-cached
+        // file; network and widget fallback remain asynchronous in loadImage().
         guard let urlString,
               let url = URL(string: urlString) else { return nil }
-        return ShowCoverImageCache.shared.memoryImage(for: url)
+        return ShowCoverImageCache.shared.persistedImage(for: url)
     }
 }
 
@@ -184,7 +187,7 @@ actor ShowCoverImageCache {
     /// mediate memory hits. `nonisolated(unsafe)` lets Views call the sync
     /// memory lookup from `.init` without hopping the actor.
     private nonisolated(unsafe) let memory = NSCache<NSURL, UIImage>()
-    private let diskCache: ShowCoverDiskCache
+    private nonisolated let diskCache: ShowCoverDiskCache
     private let fetchData: FetchData
 
     init(
@@ -203,6 +206,20 @@ actor ShowCoverImageCache {
     /// network path off the main thread.
     nonisolated func memoryImage(for url: URL) -> UIImage? {
         memory.object(forKey: url as NSURL)
+    }
+
+    /// Synchronous cold-launch lookup for an image that this app has already
+    /// persisted. This never performs network I/O. A disk hit is promoted into
+    /// the process memory cache so subsequent view construction stays cheap.
+    nonisolated func persistedImage(for url: URL) -> UIImage? {
+        if let hit = memory.object(forKey: url as NSURL) {
+            return hit
+        }
+        guard let image = diskCache.image(from: url) else {
+            return nil
+        }
+        memory.setObject(image, forKey: url as NSURL)
+        return image
     }
 
     func image(from url: URL) async -> UIImage? {
