@@ -48,3 +48,22 @@ enum CompanionCloudSyncMarker {
         SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
     }
 }
+
+enum CompanionUserProfile {
+    static let userDefaultsKey = "companion.user-nickname.v1"
+
+    static var nickname: String? {
+        get {
+            let value = UserDefaults.standard.string(forKey: userDefaultsKey)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return (value?.isEmpty == false) ? value : nil
+        }
+        set {
+            if let trimmed = newValue?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
+                UserDefaults.standard.set(trimmed, forKey: userDefaultsKey)
+            } else {
+                UserDefaults.standard.removeObject(forKey: userDefaultsKey)
+            }
+        }
+    }
+}

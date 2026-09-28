@@ -113,6 +113,11 @@ struct CurrentShowCompanionSheet: View {
     @State private var selectedPairName: String?
     @State private var isPreparingInvite = false
     @State private var errorMessage: String?
+    @State private var currentUserName: String = BSLocalization.text("我")
+    @State private var isEditingMyNickname = false
+    @State private var editingMyNickname = ""
+    @State private var editingCompanionIndex: Int?
+    @State private var editingCompanionName = ""
 
     init(
         show: Show,
@@ -175,7 +180,51 @@ struct CurrentShowCompanionSheet: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .alert(BSLocalization.text("设置我的昵称"), isPresented: $isEditingMyNickname) {
+            TextField(BSLocalization.text("输入你的昵称"), text: $editingMyNickname)
+            Button(BSLocalization.text("取消"), role: .cancel) {}
+            Button(BSLocalization.text("保存")) {
+                let trimmed = editingMyNickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    CompanionUserProfile.nickname = trimmed
+                    currentUserName = trimmed
+                } else {
+                    CompanionUserProfile.nickname = nil
+                    currentUserName = BSLocalization.text("我")
+                }
+            }
+        } message: {
+            Text(BSLocalization.text("同行成员和邀请卡片将展示该昵称。"))
+        }
+        .alert(
+            BSLocalization.text("修改同行人备注"),
+            isPresented: Binding(
+                get: { editingCompanionIndex != nil },
+                set: { if !$0 { editingCompanionIndex = nil } }
+            )
+        ) {
+            TextField(BSLocalization.text("备注名称"), text: $editingCompanionName)
+            Button(BSLocalization.text("取消"), role: .cancel) { editingCompanionIndex = nil }
+            Button(BSLocalization.text("保存")) {
+                guard let idx = editingCompanionIndex else { return }
+                let trimmed = editingCompanionName.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    var names = show.companionNames
+                    if idx < names.count {
+                        names[idx] = trimmed
+                        show.applyCompanionState(status: show.companionStatus, names: names)
+                        try? modelContext.save()
+                    }
+                }
+                editingCompanionIndex = nil
+            }
+        } message: {
+            Text(BSLocalization.text("仅在本地修改该同行者的展示名称。"))
+        }
         .task {
+            if let name = await coordinator.fetchCurrentUserDisplayName() {
+                currentUserName = name
+            }
             guard show.companionCloudRecordName != nil else { return }
             await coordinator.refreshCompanion(for: show, in: modelContext)
             if let error = coordinator.consumeLastErrorMessage() {
@@ -188,13 +237,39 @@ struct CurrentShowCompanionSheet: View {
         VStack(spacing: BSSpacing.md) {
             BSStageSheetHeader(
                 icon: "person.2",
-                title: show.companionStatus == .pending
-                    ? BSLocalization.text("等待朋友加入")
-                    : BSLocalization.text("添加同行"),
-                subtitle: show.companionStatus == .pending
-                    ? BSLocalization.text("邀请已经发出。你可以再次分享同一份邀请。")
-                    : BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
+                title: BSLocalization.text("添加同行"),
+                subtitle: BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
             )
+
+            HStack(spacing: 8) {
+                Text(BSLocalization.text("我的称呼"))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(BSColor.Stage.muted)
+                Spacer()
+                TextField(
+                    BSLocalization.text("输入你的昵称"),
+                    text: Binding(
+                        get: { currentUserName == BSLocalization.text("我") ? "" : currentUserName },
+                        set: { newValue in
+                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty {
+                                CompanionUserProfile.nickname = trimmed
+                                currentUserName = trimmed
+                            } else {
+                                CompanionUserProfile.nickname = nil
+                                currentUserName = BSLocalization.text("我")
+                            }
+                        }
+                    )
+                )
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(BSColor.Stage.foreground)
+                .multilineTextAlignment(.trailing)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(BSColor.Stage.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
 
             Button {
                 Task { await sendInvitation(isRetry: show.companionStatus == .canceled) }
@@ -277,18 +352,47 @@ struct CurrentShowCompanionSheet: View {
     private var companionMembers: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: BSSpacing.md) {
-                person(name: BSLocalization.text("你"), initial: BSLocalization.text("我"))
-                ForEach(Array(memberNames.enumerated()), id: \.offset) { _, name in
+                Button {
+                    editingMyNickname = (currentUserName == BSLocalization.text("我")) ? "" : currentUserName
+                    isEditingMyNickname = true
+                } label: {
+                    person(name: currentUserName, initial: BSLocalization.text("我"), isMe: true)
+                }
+                .buttonStyle(.plain)
+
+                ForEach(Array(memberNames.enumerated()), id: \.offset) { index, name in
                     if isEnded {
                         Button {
                             selectedPairName = name
                         } label: {
-                            person(name: name, initial: String(name.prefix(1)))
+                            person(name: name, initial: String(name.prefix(1)), isMe: false)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                editingCompanionIndex = index
+                                editingCompanionName = name
+                            } label: {
+                                Label(BSLocalization.text("修改备注"), systemImage: "pencil")
+                            }
+                        }
                         .accessibilityHint(BSLocalization.text("查看你们的共同足迹"))
                     } else {
-                        person(name: name, initial: String(name.prefix(1)))
+                        Button {
+                            editingCompanionIndex = index
+                            editingCompanionName = name
+                        } label: {
+                            person(name: name, initial: String(name.prefix(1)), isMe: false)
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                editingCompanionIndex = index
+                                editingCompanionName = name
+                            } label: {
+                                Label(BSLocalization.text("修改备注"), systemImage: "pencil")
+                            }
+                        }
                     }
                 }
             }
@@ -296,20 +400,33 @@ struct CurrentShowCompanionSheet: View {
         }
     }
 
-    private func person(name: String, initial: String) -> some View {
+    private func person(name: String, initial: String, isMe: Bool = false) -> some View {
         VStack(spacing: 6) {
-            Text(initial)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(BSColor.Stage.background)
-                .frame(width: 48, height: 48)
-                .background(
-                    LinearGradient(
-                        colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            ZStack(alignment: .bottomTrailing) {
+                Text(initial)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(BSColor.Stage.background)
+                    .frame(width: 48, height: 48)
+                    .background(
+                        LinearGradient(
+                            colors: [BSColor.Stage.accent, BSColor.Stage.glowBlue],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
-                )
-                .clipShape(Circle())
+                    .clipShape(Circle())
+
+                if isMe {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(BSColor.Stage.background)
+                        .frame(width: 16, height: 16)
+                        .background(BSColor.Stage.accent)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(BSColor.Stage.surface, lineWidth: 1.5))
+                        .offset(x: 2, y: 2)
+                }
+            }
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundColor(BSColor.Stage.foreground)
@@ -391,9 +508,9 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private var inviteActionTitle: String {
-        CompanionInvitePreparingPresentation.actionTitle(
-            hasExistingShare: show.companionShareLocator != nil
-        )
+        isPreparingInvite
+            ? BSLocalization.text("正在准备邀请")
+            : BSLocalization.text("分享邀请")
     }
 
     @MainActor
@@ -416,7 +533,7 @@ struct CurrentShowCompanionSheet: View {
             errorMessage = BSLocalization.text("这场现场已有正在进行的同行邀请，请稍候再试")
             return
         }
-        await coordinator.refreshAllLinkedShows(in: modelContext)
+        await coordinator.refreshAllLinkedShows(in: modelContext, refreshLinks: false)
         if CompanionInviteGate.blocksNewInvite(coordinator.lastErrorKind) {
             isPreparingInvite = false
             errorMessage = coordinator.consumeLastErrorMessage()
@@ -428,13 +545,17 @@ struct CurrentShowCompanionSheet: View {
             return
         }
         do {
+            let ownerName = currentUserName == BSLocalization.text("我") ? nil : currentUserName
+            let coverImageTask = Task { await loadCoverImage(for: show.coverImageURL) }
+            defer { coverImageTask.cancel() }
             let prepared = try await coordinator.prepareInvitation(
                 for: show,
                 preferredParticipantName: nil,
-                ownerDisplayName: nil,
+                ownerDisplayName: ownerName,
                 in: modelContext
             )
-            presentPreparedShare(prepared.shareSystemFields)
+            let coverImage = await coverImageTask.value
+            presentPreparedShare(prepared.shareSystemFields, coverImage: coverImage)
         } catch {
             isPreparingInvite = false
             CompanionDebugLog.write("sendInvitation failed: \(error)")
@@ -449,8 +570,11 @@ struct CurrentShowCompanionSheet: View {
             isPreparingInvite = true
         }
         do {
+            let coverImageTask = Task { await loadCoverImage(for: show.coverImageURL) }
+            defer { coverImageTask.cancel() }
             let data = try await coordinator.shareSystemFieldsForResend(show: show)
-            presentPreparedShare(data)
+            let coverImage = await coverImageTask.value
+            presentPreparedShare(data, coverImage: coverImage)
         } catch let error as CompanionSharingError where error == .sessionNotFound {
             await sendInvitation(isRetry: true, alreadyPreparing: true)
         } catch {
@@ -460,11 +584,26 @@ struct CurrentShowCompanionSheet: View {
     }
 
     @MainActor
-    private func presentPreparedShare(_ data: Data) {
+    private func loadCoverImage(for rawURL: String?) async -> UIImage? {
+        guard let raw = rawURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: raw) else {
+            return nil
+        }
+        if url.isFileURL {
+            if let data = try? Data(contentsOf: url), let image = UIImage(data: data) {
+                return image
+            }
+        }
+        return await ShowCoverImageCache.shared.image(from: url)
+    }
+
+    @MainActor
+    private func presentPreparedShare(_ data: Data, coverImage: UIImage? = nil) {
         let presented = SystemCloudSharePresenter.present(
             shareData: data,
             show: CompanionShowSnapshot(show: show),
             containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
+            coverImage: coverImage,
             onEvent: { event, share, error in
                 Task { @MainActor in
                     switch event {

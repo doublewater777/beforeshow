@@ -95,6 +95,59 @@ final class CompanionSharingTests: XCTestCase {
             CompanionInviteWebLink.shareURL(from: try XCTUnwrap(URL(string: "beforeshow://join/\(token)"))),
             shareURL
         )
+
+        // Verify China mainland iCloud URL (www.icloud.com.cn) is supported
+        let cnShareURL = try XCTUnwrap(
+            URL(string: "https://www.icloud.com.cn/share/07eSuMIaRuOnwy6KE2DNkgH_w")
+        )
+        let cnWebURL = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: cnShareURL,
+            show: show,
+            ownerName: "Alex"
+        ))
+        XCTAssertEqual(CompanionInviteWebLink.shareURL(from: cnWebURL), cnShareURL)
+    }
+
+    func testCompanionInviteWebLinkPayloadHandlesRemoteAndLocalCovers() throws {
+        let shareURL = try XCTUnwrap(URL(string: "https://www.icloud.com/share/abc123"))
+        let remoteCover = "https://images.example.com/poster.jpg"
+        let showWithRemote = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "草东没有派对",
+            showDate: Date(timeIntervalSince1970: 1_792_275_200),
+            showStartTime: Date(timeIntervalSince1970: 1_792_275_200),
+            coverImageURL: remoteCover
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: shareURL,
+            show: showWithRemote,
+            ownerName: "Alex"
+        ))
+        let token = String(webURL.path.dropFirst(CompanionInviteWebLink.path.count))
+        var padded = token.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        padded += String(repeating: "=", count: (4 - padded.count % 4) % 4)
+        let data = try XCTUnwrap(Data(base64Encoded: padded))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["c"] as? String, remoteCover)
+
+        let showWithLocal = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "草东没有派对",
+            showDate: Date(timeIntervalSince1970: 1_792_275_200),
+            showStartTime: Date(timeIntervalSince1970: 1_792_275_200),
+            coverImageURL: "file:///private/var/mobile/cover.jpg"
+        )
+        let webURLLocal = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: shareURL,
+            show: showWithLocal,
+            ownerName: "Alex"
+        ))
+        let tokenLocal = String(webURLLocal.path.dropFirst(CompanionInviteWebLink.path.count))
+        var paddedLocal = tokenLocal.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        paddedLocal += String(repeating: "=", count: (4 - paddedLocal.count % 4) % 4)
+        let dataLocal = try XCTUnwrap(Data(base64Encoded: paddedLocal))
+        let jsonLocal = try XCTUnwrap(JSONSerialization.jsonObject(with: dataLocal) as? [String: Any])
+        XCTAssertNil(jsonLocal["c"])
     }
 
     func testCompanionInviteWebLinkRejectsForeignHostsAndInvalidPayloads() throws {

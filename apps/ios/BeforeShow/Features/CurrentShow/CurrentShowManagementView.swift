@@ -34,7 +34,6 @@ struct CurrentShowManagementSection: View {
     @State private var pendingConfirmedEndDate: Date?
     @State private var pendingEndIntent: CurrentShowEndConfirmationIntent?
     @State private var installedMapApps: [ExternalMapApp] = []
-    @State private var companionErrorMessage: String?
     @State private var isHeaderOverContent = false
     @State private var homeArrivalFlags = CurrentShowHomeArrivalFlags.arrived
     /// SwiftUI may nil an item binding before the dismissal animation has ended.
@@ -53,7 +52,6 @@ struct CurrentShowManagementSection: View {
     private var hasPresentationRequest: Bool {
         presentedSheet != nil
             || pendingMemoryCreate != nil
-            || companionErrorMessage != nil
             || ceremonyLightsOutShowID != nil
             || ceremonySheetShowID != nil
     }
@@ -206,33 +204,11 @@ struct CurrentShowManagementSection: View {
                 isPresentationVisibilityLatched = true
             }
         }
-        .onChange(of: companionErrorMessage, initial: true) { _, message in
-            if message != nil {
-                isPresentationVisibilityLatched = true
-            } else {
-                releasePresentationLatchIfPossible()
-            }
-        }
         .onChange(of: isPresentationActive, initial: true) { _, isActive in
             onPresentationVisibilityChange(isActive)
         }
-        .alert(
-            BSLocalization.text("同行"),
-            isPresented: Binding(
-                get: { companionErrorMessage != nil },
-                set: { if !$0 { companionErrorMessage = nil } }
-            )
-        ) {
-            Button(BSLocalization.text("知道了"), role: .cancel) { companionErrorMessage = nil }
-        } message: {
-            Text(companionErrorMessage ?? "")
-        }
         .task(id: show.companionCloudRecordName) {
             await companionCoordinator.refreshCompanion(for: show, in: modelContext)
-            companionErrorMessage = CompanionHomeMessagePolicy.message(
-                accepted: companionCoordinator.consumePendingAcceptMessage(),
-                backgroundError: companionCoordinator.lastErrorMessage
-            )
         }
         .task(id: homeArrival) {
             await runHomeArrivalIfNeeded()

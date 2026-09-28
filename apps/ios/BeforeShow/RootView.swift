@@ -11,10 +11,9 @@ struct RootView: View {
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var pendingFootprintDetail: FootprintDetailDestination?
     @State private var companionDuplicateResolution: CompanionDuplicateResolution?
     @State private var companionDuplicateErrorMessage: String?
-    @State private var companionAcceptanceMessage: String?
+    @State private var companionToast: BSToastPayload?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
@@ -27,11 +26,8 @@ struct RootView: View {
 
     private var companionResultMessage: String? {
         if let companionDuplicateErrorMessage { return companionDuplicateErrorMessage }
-        if let companionAcceptanceMessage { return companionAcceptanceMessage }
-        if let accepted = companionCoordinator.pendingAcceptMessage { return accepted }
-        if let result = companionCoordinator.pendingAcceptResult {
-            return CompanionSharingPresentation.acceptedMessage(ownerDisplayName: nil, importResult: result)
-        }
+        if companionCoordinator.pendingAcceptResult == nil,
+           let message = companionCoordinator.pendingAcceptMessage { return message }
         return companionCoordinator.lastErrorKind == .statusSyncPending ? companionCoordinator.lastErrorMessage : nil
     }
     var body: some View {
@@ -56,8 +52,9 @@ struct RootView: View {
                 }
             }
 
-            CompanionPendingJoinHost()
+            CompanionPendingJoinHost(onJoinSuccess: presentCompanionToast)
         }
+        .bsToastOverlay(companionToast)
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
@@ -90,14 +87,6 @@ struct RootView: View {
                 }
             )
         ) {
-            if companionDuplicateErrorMessage == nil,
-               let result = companionCoordinator.pendingAcceptResult {
-                Button(BSLocalization.text(
-                    result.wasHistorical ? "查看足迹" : (result.becameCurrent ? "进入现场" : "查看这场现场")
-                )) {
-                    openAcceptedShow(result)
-                }
-            }
             Button(BSLocalization.text("知道了"), role: .cancel) {
                 dismissCompanionResultMessage()
             }
@@ -107,11 +96,6 @@ struct RootView: View {
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
             selectedTab = .current
-        }
-        .onChange(of: companionCoordinator.pendingAcceptMessage, initial: true) { _, message in
-            if let message {
-                companionAcceptanceMessage = message
-            }
         }
         .onChange(of: rootShows.map(\.id)) { _, _ in
             if isShowingOnboarding, !rootShows.isEmpty {
@@ -143,21 +127,16 @@ struct RootView: View {
         }
         #endif
     }
-    private func openAcceptedShow(_ result: CompanionAcceptedImportResult) {
-        if result.wasHistorical, let show = rootShows.first(where: { $0.id == result.showID }) {
-            pendingFootprintDetail = FootprintDetailDestination(show: show)
-            selectedTab = .footprints
-        } else if result.becameCurrent {
-            selectedTab = .current
-        } else {
-            selectedTab = .current
-            notificationRouter.route(to: NotificationDeepLink(showID: result.showID, destination: .home))
+    private func presentCompanionToast(_ message: String) {
+        let payload = BSToastPayload(tone: .success, message: message)
+        companionToast = payload
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_200_000_000)
+            if companionToast == payload { companionToast = nil }
         }
-        dismissCompanionResultMessage()
     }
     private func dismissCompanionResultMessage() {
         companionDuplicateErrorMessage = nil
-        companionAcceptanceMessage = nil
         _ = companionCoordinator.consumePendingAcceptMessage()
         _ = companionCoordinator.consumePendingAcceptResult()
         if companionCoordinator.lastErrorKind == .statusSyncPending { _ = companionCoordinator.consumeLastErrorMessage() }
@@ -258,9 +237,7 @@ struct RootView: View {
             .accessibilityIdentifier("root.tab.listen")
 
             Tab(BeforeShowTab.footprints.localizedTitle, systemImage: BeforeShowTab.footprints.iconName, value: .footprints) {
-                FootprintsView(
-                    pendingDetailTarget: pendingFootprintDetail
-                )
+                FootprintsView()
             }
             .accessibilityIdentifier("root.tab.footprints")
         }
@@ -269,10 +246,5 @@ struct RootView: View {
         // Keep system nav chrome neutral so tint does not leak into child controls.
         .tint(BSColor.Stage.foreground)
         .sensoryFeedback(.selection, trigger: selectedTab)
-        .onChange(of: pendingFootprintDetail) { _, newValue in
-            if newValue != nil, selectedTab != .footprints {
-                selectedTab = .footprints
-            }
-        }
     }
 }

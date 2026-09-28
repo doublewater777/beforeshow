@@ -110,6 +110,15 @@ struct BeforeShowApp: App {
                 RootView()
                     .environment(companionCoordinator)
                     .environment(\.locale, languageController.language.locale)
+                    .onOpenURL { url in
+                        CompanionDebugLog.write("onOpenURL received: \(url)")
+                        if let shareURL = CompanionInviteWebLink.shareURL(from: url) {
+                            CompanionDebugLog.write("onOpenURL resolved shareURL: \(shareURL)")
+                            appDelegate.deliverCompanionInviteURL(shareURL)
+                        } else {
+                            CompanionDebugLog.write("onOpenURL failed to resolve shareURL for: \(url)")
+                        }
+                    }
                     .onAppear {
                         appDelegate.companionCoordinator = companionCoordinator
                         appDelegate.modelContainer = modelContainer
@@ -122,6 +131,7 @@ struct BeforeShowApp: App {
                         appDelegate.noteDependenciesReady()
 
                         await Task.yield()
+                        _ = await companionCoordinator.fetchCurrentUserDisplayName()
                         synchronizeFreeShowCapacity(
                             in: modelContainer.mainContext,
                             entitlement: ProEntitlementStorage.decode(entitlementRawValue)

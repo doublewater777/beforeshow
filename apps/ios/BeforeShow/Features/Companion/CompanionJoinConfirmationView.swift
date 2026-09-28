@@ -4,14 +4,47 @@ import SwiftUI
 /// Product confirmation shown after iOS hands a CloudKit invitation to the app, but
 /// before the companion relationship is committed and the Show is imported locally.
 struct CompanionPendingJoinHost: View {
+    let onJoinSuccess: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(CompanionSharingCoordinator.self) private var coordinator
     @State private var isWorking = false
+    @State private var isJoiningInBackground = false
+    @State private var hasDismissedConfirmation = true
+    @State private var queuedSuccessMessage: String?
     @State private var errorMessage: String?
-    @State private var liveSwitchShowID: UUID?
 
     var body: some View {
         ZStack {
+            if coordinator.isLoadingInvitation && !isJoiningInBackground {
+                ZStack {
+                    Color.black.opacity(0.18).ignoresSafeArea()
+                    HStack(spacing: BSSpacing.sm) {
+                        ProgressView()
+                            .tint(BSColor.Stage.accent)
+                        Text(BSLocalization.text("正在加载同行邀请"))
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(BSColor.Stage.foreground)
+                    }
+                    .padding(.horizontal, BSSpacing.lg)
+                    .padding(.vertical, BSSpacing.md)
+                    .background(BSColor.Stage.surface.opacity(0.96), in: RoundedRectangle(cornerRadius: BSRadius.md))
+                }
+                .transition(.opacity)
+            }
+        }
+        .fullScreenCover(
+            isPresented: Binding(
+                get: { coordinator.pendingJoinSession != nil && !isJoiningInBackground },
+                set: { if !$0 && !isWorking && !isJoiningInBackground { declineJoin() } }
+            ),
+            onDismiss: {
+                hasDismissedConfirmation = true
+                if let message = queuedSuccessMessage {
+                    queuedSuccessMessage = nil
+                    onJoinSuccess(message)
+                }
+            }
+        ) {
             if let session = coordinator.pendingJoinSession {
                 CompanionJoinConfirmationView(
                     session: session,
@@ -19,51 +52,50 @@ struct CompanionPendingJoinHost: View {
                     onJoin: { confirmJoin() },
                     onClose: { declineJoin() }
                 )
-                .transition(.opacity)
-                .zIndex(1000)
-                .alert(
-                    BSLocalization.text("同行邀请"),
-                    isPresented: Binding(
-                        get: { errorMessage != nil },
-                        set: { if !$0 { errorMessage = nil } }
-                    )
-                ) {
-                    Button(BSLocalization.text("知道了"), role: .cancel) {
-                        errorMessage = nil
-                    }
-                } message: {
-                    Text(errorMessage ?? "")
-                }
+                .interactiveDismissDisabled()
             }
         }
         .alert(
-            BSLocalization.text("这场正在进行"),
+            BSLocalization.text("同行邀请"),
             isPresented: Binding(
-                get: { liveSwitchShowID != nil },
-                set: { if !$0 { liveSwitchShowID = nil } }
+                get: { errorMessage != nil },
+                set: { if !$0 { errorMessage = nil } }
             )
         ) {
-            Button(BSLocalization.text("设为当前")) {
-                switchLiveShowToCurrent()
-            }
-            Button(BSLocalization.text("暂不切换"), role: .cancel) {
-                liveSwitchShowID = nil
-            }
+            Button(BSLocalization.text("知道了"), role: .cancel) { errorMessage = nil }
         } message: {
-            Text(BSLocalization.text("是否把刚加入的这场设为当前现场？"))
+            Text(errorMessage ?? "")
+        }
+        .onChange(of: coordinator.pendingAcceptMessage, initial: true) { _, message in
+            guard !isWorking, !isJoiningInBackground,
+                  let message, coordinator.pendingAcceptResult != nil else { return }
+            onJoinSuccess(message)
+            _ = coordinator.consumePendingAcceptMessage()
+            _ = coordinator.consumePendingAcceptResult()
         }
     }
 
     private func confirmJoin() {
         guard !isWorking else { return }
         isWorking = true
+        hasDismissedConfirmation = false
+        isJoiningInBackground = true
         Task { @MainActor in
             let succeeded = await coordinator.confirmPendingJoin(in: modelContext)
             if succeeded {
                 offerCurrentSwitchForLiveShowIfNeeded()
+                if let message = coordinator.consumePendingAcceptMessage() {
+                    if hasDismissedConfirmation {
+                        onJoinSuccess(message)
+                    } else {
+                        queuedSuccessMessage = message
+                    }
+                }
+                _ = coordinator.consumePendingAcceptResult()
             } else {
-                errorMessage = coordinator.lastErrorMessage ?? BSLocalization.text("现场还没添加成功，请重试")
+                errorMessage = coordinator.consumeLastErrorMessage() ?? BSLocalization.text("现场还没添加成功，请重试")
             }
+            isJoiningInBackground = false
             isWorking = false
         }
     }
@@ -95,16 +127,10 @@ struct CompanionPendingJoinHost: View {
             return
         }
 
-        liveSwitchShowID = target.id
-        // This confirmation owns the live-switch decision. Avoid also showing the
-        // generic root acceptance alert underneath it.
-        _ = coordinator.consumePendingAcceptMessage()
-        _ = coordinator.consumePendingAcceptResult()
+        switchLiveShowToCurrent(showID: target.id)
     }
 
-    private func switchLiveShowToCurrent() {
-        guard let showID = liveSwitchShowID, !isWorking else { return }
-        isWorking = true
+    private func switchLiveShowToCurrent(showID: UUID) {
         Task { @MainActor in
             do {
                 let shows = try modelContext.fetch(FetchDescriptor<Show>())
@@ -117,12 +143,9 @@ struct CompanionPendingJoinHost: View {
                     notificationStates: notificationStates,
                     in: modelContext
                 )
-                liveSwitchShowID = nil
             } catch {
                 modelContext.rollback()
-                errorMessage = BSLocalization.text("切换失败，请重试")
             }
-            isWorking = false
         }
     }
 }
@@ -132,6 +155,7 @@ private struct CompanionJoinConfirmationView: View {
     let isWorking: Bool
     let onJoin: () -> Void
     let onClose: () -> Void
+    @State private var myNickname: String = CompanionUserProfile.nickname ?? ""
 
     private var isHistorical: Bool {
         guard let show = try? CompanionAcceptedShowMapping.makeShow(from: session.show) else {
@@ -178,10 +202,11 @@ private struct CompanionJoinConfirmationView: View {
             CurrentShowStageBackground().ignoresSafeArea()
 
             ScrollView {
-                VStack(spacing: 28) {
+                VStack(spacing: 24) {
                     header
                     showCard
                     members
+                    myNameSection
                     action
                 }
                 .padding(.horizontal, 22)
@@ -259,37 +284,13 @@ private struct CompanionJoinConfirmationView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
-    @ViewBuilder
     private var cover: some View {
-        if let raw = session.show.coverImageURL,
-           let url = URL(string: raw) {
-            AsyncImage(url: url) { image in
-                image.resizable().scaledToFill()
-            } placeholder: {
-                coverPlaceholder
-            }
-            .frame(maxWidth: .infinity)
-            .aspectRatio(16.0 / 10.0, contentMode: .fit)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        } else {
-            coverPlaceholder
-                .frame(maxWidth: .infinity)
-                .aspectRatio(16.0 / 10.0, contentMode: .fit)
-        }
-    }
-
-    private var coverPlaceholder: some View {
-        ZStack {
-            LinearGradient(
-                colors: [BSColor.Stage.accent.opacity(0.55), BSColor.Stage.glowBlue.opacity(0.35)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            Image(systemName: "music.note")
-                .font(.system(size: 30, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9))
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        ShowCoverImageView(
+            urlString: session.show.coverImageURL,
+            aspectRatio: 3.0 / 4.0,
+            contentMode: .fill,
+            cornerRadius: 18
+        )
     }
 
     private var members: some View {
@@ -304,6 +305,27 @@ private struct CompanionJoinConfirmationView: View {
                     member(name)
                 }
             }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var myNameSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(BSLocalization.text("我的称呼"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.muted)
+
+            HStack(spacing: 10) {
+                Image(systemName: "person.circle.fill")
+                    .font(.system(size: 20))
+                    .foregroundStyle(BSColor.Stage.accent)
+                TextField(BSLocalization.text("输入你的昵称"), text: $myNickname)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.foreground)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -333,7 +355,13 @@ private struct CompanionJoinConfirmationView: View {
             .foregroundStyle(BSColor.Stage.muted)
             .multilineTextAlignment(.center)
 
-            Button(action: onJoin) {
+            Button {
+                let trimmed = myNickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    CompanionUserProfile.nickname = trimmed
+                }
+                onJoin()
+            } label: {
                 if isWorking {
                     ProgressView()
                         .tint(.black)

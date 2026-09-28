@@ -38,8 +38,11 @@ enum SystemPNGSharePresenter {
     static func topViewController() -> UIViewController? {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
-            .first(where: { $0.activationState == .foregroundActive }),
-              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController else {
+            .first(where: { $0.activationState == .foregroundActive }) else {
+            return nil
+        }
+        guard let root = scene.windows.first(where: { $0.isKeyWindow && $0.rootViewController != nil })?.rootViewController
+            ?? scene.windows.first(where: { $0.rootViewController != nil })?.rootViewController else {
             return nil
         }
         return topViewController(from: root)

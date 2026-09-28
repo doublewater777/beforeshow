@@ -5,9 +5,6 @@ import SwiftUI
 
 struct FootprintsView: View {
     var onArchiveVisibilityChange: (Bool) -> Void = { _ in }
-    /// Root-owned external push entry, currently used by historical companion imports.
-    /// FootprintsView turns it into the local detail destination when the show exists.
-    var pendingDetailTarget: FootprintDetailDestination?
     @Query(sort: \Show.date) private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @Query private var fragments: [MemoryFragment]
@@ -46,11 +43,6 @@ struct FootprintsView: View {
                 assets: assets
             )
             prepared = PreparedFootprint(archive: archive, covers: covers)
-        }
-        .onChange(of: pendingDetailTarget) { _, newValue in
-            if let newValue, shows.contains(where: { $0.id == newValue.id }) {
-                detailTarget = newValue
-            }
         }
     }
 

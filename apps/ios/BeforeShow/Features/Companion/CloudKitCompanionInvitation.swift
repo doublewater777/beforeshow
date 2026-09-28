@@ -2,10 +2,8 @@ import CloudKit
 import Foundation
 
 enum CompanionInviteAccessPolicy {
-    /// A companion invitation is a reusable link to a frozen Show snapshot.
-    /// Joining records CloudKit participation; participants never need write access
-    /// to the shared root record itself.
-    static let publicPermission: CKShare.ParticipantPermission = .readOnly
+    /// Reusable link for companion sessions. Participants update their display name on join.
+    static let publicPermission: CKShare.ParticipantPermission = .readWrite
 }
 
 extension CloudKitCompanionSharingService {
@@ -15,7 +13,6 @@ extension CloudKitCompanionSharingService {
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare {
         try await ensureAccountAvailable()
-        await debugProbeDefaultZone()
         let zone = try await ensureCompanionZone()
         CompanionDebugLog.write("Preparing companion invite in zone \(zone.zoneID.zoneName)")
 
@@ -109,18 +106,6 @@ extension CloudKitCompanionSharingService {
         share = try await shareWithInvitationURL(share)
 
         return try NSKeyedArchiver.archivedData(withRootObject: share, requiringSecureCoding: true)
-    }
-
-    private func debugProbeDefaultZone() async {
-        do {
-            let record = CKRecord(recordType: "CompanionDebugProbe")
-            record["ok"] = "1" as CKRecordValue
-            _ = try await privateDB.save(record)
-            CompanionDebugLog.write("Default-zone probe save succeeded")
-        } catch {
-            let ns = error as NSError
-            CompanionDebugLog.write("Default-zone probe save failed: \(error) userInfo=\(ns.userInfo)")
-        }
     }
 
     private func ensureCompanionZone() async throws -> CKRecordZone {

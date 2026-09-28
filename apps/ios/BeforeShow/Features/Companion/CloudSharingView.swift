@@ -39,6 +39,7 @@ enum CompanionInviteWebLink {
         let s: Int?
         let l: String?
         let o: String?
+        let c: String?
     }
 
     static func make(
@@ -51,6 +52,17 @@ enum CompanionInviteWebLink {
             .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: " · ")
+        let coverURL: String? = {
+            guard let raw = show.coverImageURL?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty,
+                  let url = URL(string: raw),
+                  let scheme = url.scheme?.lowercased(),
+                  scheme == "https" || scheme == "http",
+                  raw.count <= 1000 else {
+                return nil
+            }
+            return raw
+        }()
         let payload = Payload(
             v: 1,
             u: shareURL.absoluteString,
@@ -59,7 +71,8 @@ enum CompanionInviteWebLink {
             z: show.timeZoneIdentifier.flatMap { TimeZone(identifier: $0) == nil ? nil : $0 },
             s: show.timeZoneSecondsFromGMT,
             l: (location.isEmpty ? show.showLocation : location).map { String($0.prefix(240)) },
-            o: ownerName.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(100)) }
+            o: ownerName.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(100)) },
+            c: coverURL
         )
         guard let data = try? JSONEncoder().encode(payload) else { return nil }
         let token = data
@@ -112,18 +125,26 @@ enum CompanionInviteWebLink {
         guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
             return false
         }
-        return (host == "icloud.com" || host.hasSuffix(".icloud.com"))
-            && url.path.hasPrefix("/share/")
+        let isValidHost = host == "icloud.com"
+            || host.hasSuffix(".icloud.com")
+            || host == "icloud.com.cn"
+            || host.hasSuffix(".icloud.com.cn")
+            || host == "apple.com"
+            || host.hasSuffix(".apple.com")
+        let hasValidPath = url.path.hasPrefix("/share/") || host.contains("share.")
+        return isValidHost && hasValidPath
     }
 }
 
 private final class CompanionInviteActivityItemSource: NSObject, UIActivityItemSource {
     private let url: URL
     private let title: String
+    private let coverImage: UIImage?
 
-    init(url: URL, title: String) {
+    init(url: URL, title: String, coverImage: UIImage? = nil) {
         self.url = url
         self.title = title
+        self.coverImage = coverImage
     }
 
     func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
@@ -144,6 +165,25 @@ private final class CompanionInviteActivityItemSource: NSObject, UIActivityItemS
         metadata.title = title
         metadata.originalURL = url
         metadata.url = url
+
+        if let coverImage {
+            metadata.imageProvider = NSItemProvider(object: coverImage)
+        }
+
+        let appLogo = UIImage(named: "AppLogo")
+            ?? UIImage(named: "AppIcon")
+            ?? (Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any])
+                .flatMap { $0["CFBundlePrimaryIcon"] as? [String: Any] }
+                .flatMap { $0["CFBundleIconFiles"] as? [String] }
+                .flatMap { $0.last }
+                .flatMap { UIImage(named: $0) }
+
+        if let appLogo {
+            metadata.iconProvider = NSItemProvider(object: appLogo)
+        } else if let coverImage {
+            metadata.iconProvider = NSItemProvider(object: coverImage)
+        }
+
         return metadata
     }
 }
@@ -159,17 +199,20 @@ enum SystemCloudSharePresenter {
         shareData: Data,
         show: CompanionShowSnapshot,
         containerIdentifier: String,
+        coverImage: UIImage? = nil,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping () -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let share = try? CloudKitCompanionSharingService.unarchiveShare(from: shareData) else {
+            CompanionDebugLog.write("CompanionShare: unarchive share failed (bytes=\(shareData.count))")
             return false
         }
         return present(
             share: share,
             show: show,
             container: CKContainer(identifier: containerIdentifier),
+            coverImage: coverImage,
             onEvent: onEvent,
             onDismiss: onDismiss,
             onPresented: onPresented
@@ -181,30 +224,41 @@ enum SystemCloudSharePresenter {
         share: CKShare,
         show: CompanionShowSnapshot,
         container _: CKContainer,
+        coverImage: UIImage? = nil,
         onEvent _: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping () -> Void,
         onPresented: (() -> Void)? = nil
     ) -> Bool {
         guard let invitationURL = share.url,
               let presenter = SystemPNGSharePresenter.topViewController() else {
+            CompanionDebugLog.write("CompanionShare: missing invitationURL or topViewController")
             return false
         }
         if presenter is UIActivityViewController {
             return false
         }
 
-        let ownerName = share.currentUserParticipant?.userIdentity.nameComponents
-            .map { PersonNameComponentsFormatter().string(from: $0) }
+        let ownerName = CompanionUserProfile.nickname ?? share.currentUserParticipant.flatMap {
+            CloudKitCompanionSharingService.displayName(for: $0)
+        }
         guard let webURL = CompanionInviteWebLink.make(
             from: invitationURL,
             show: show,
             ownerName: ownerName
         ) else {
+            CompanionDebugLog.write("CompanionShare: CompanionInviteWebLink.make failed for url=\(invitationURL)")
             return false
         }
         let title = BSLocalization.format("一起去 %@", show.showName)
+        let resolvedCoverImage: UIImage? = coverImage ?? {
+            guard let raw = show.coverImageURL, let url = URL(string: raw) else { return nil }
+            if url.isFileURL, let data = try? Data(contentsOf: url) {
+                return UIImage(data: data)
+            }
+            return ShowCoverImageCache.shared.memoryImage(for: url)
+        }()
         let controller = UIActivityViewController(
-            activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title)],
+            activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title, coverImage: resolvedCoverImage)],
             applicationActivities: nil
         )
         controller.completionWithItemsHandler = { _, _, _, _ in

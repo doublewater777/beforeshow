@@ -334,6 +334,7 @@
 "同行" = "Companion";
 "同行者" = "Companion";
 "同行邀请" = "Companion Invitation";
+"正在加载同行邀请" = "Loading companion invitation";
 "回到评级" = "Back to Rating";
 "图片暂时不可用" = "Image temporarily unavailable";
 "图片暂时打不开" = "Image temporarily can't open";
@@ -1594,3 +1595,12 @@ First show: %@";
 "同行，等待朋友加入" = "Companion · waiting for friends to join";
 "加入这场同行" = "Join This Show Together";
 "%@ 邀请你一起去" = "%@ invited you to go together";
+
+"我的称呼" = "My Name";
+"设置我的昵称" = "Set My Nickname";
+"输入你的昵称" = "Enter your nickname";
+"同行成员和邀请卡片将展示该昵称。" = "This nickname will be displayed to companions and on invite cards.";
+"修改同行人备注" = "Edit Companion Note";
+"备注名称" = "Note name";
+"仅在本地修改该同行者的展示名称。" = "Only changes the display name for this companion locally.";
+"修改备注" = "Edit Note";

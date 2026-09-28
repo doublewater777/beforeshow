@@ -40,9 +40,13 @@ protocol CompanionSharingService: Sendable {
     func reconcileOwnerMembership(
         shareLocator: CompanionRecordLocator
     ) async throws -> CompanionMembershipState
+
+    func fetchCurrentUserDisplayName() async -> String?
 }
 
 extension CompanionSharingService {
+    func fetchCurrentUserDisplayName() async -> String? { nil }
+
     /// Non-CloudKit test doubles can retain the old single-step behavior unless a test
     /// specifically exercises the preview phase.
     func previewAcceptedShare(

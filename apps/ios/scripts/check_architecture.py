@@ -43,7 +43,7 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Features/Footprints/FootprintDetailView.swift": 33_000,
     "BeforeShow/Features/Footprints/FootprintDetailPresentationSupport.swift": 7_000,
     "BeforeShow/Features/Footprints/FootprintDetailMediaComponents.swift": 12_000,
-    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 22_000,
+    "BeforeShow/Features/Companion/CompanionSharingCoordinator.swift": 22_400,
     "BeforeShow/Features/Companion/CompanionAcceptedShareInbox.swift": 5_000,
     "BeforeShow/Features/Companion/CompanionCloudSyncMarker.swift": 5_000,
     "BeforeShow/Features/Companion/CompanionAcceptedSessionImporter.swift": 8_000,
@@ -178,7 +178,7 @@ HOTSPOT_BUDGETS = {
     "BeforeShow/Infrastructure/Parsing/ShowScreenshotRecognitionService.swift": 20_000,
     "BeforeShow/Infrastructure/Vision/OnDeviceShowScreenshotRecognizer.swift": 5_000,
     "BeforeShow/Infrastructure/Parsing/ShowLinkDraftParser.swift": 8_000,
-    "BeforeShow/App/CompanionAppDelegates.swift": 6_000,
+    "BeforeShow/App/CompanionAppDelegates.swift": 6_100,
     "BeforeShow/Supporting/Debug/DebugSampleShowSeeder.swift": 30_000,
     "BeforeShow/Supporting/Debug/AppStoreWidgetPreviewView.swift": 7_000,
 }

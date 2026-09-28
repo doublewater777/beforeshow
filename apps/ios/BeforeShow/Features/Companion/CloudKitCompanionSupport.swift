@@ -2,8 +2,6 @@ import CloudKit
 import Foundation
 
 extension CloudKitCompanionSharingService {
-    // MARK: Helpers
-
     func ensureAccountAvailable() async throws {
         let status = try await container.accountStatus()
         CompanionDebugLog.write("iCloud account status: \(status.rawValue)")
@@ -22,7 +20,6 @@ extension CloudKitCompanionSharingService {
                 recordsToSave: records.isEmpty ? nil : records,
                 recordIDsToDelete: recordIDs.isEmpty ? nil : recordIDs
             )
-            // Enforce change-tag conflicts so concurrent accept/cancel cannot last-writer-win.
             operation.savePolicy = .ifServerRecordUnchanged
             operation.qualityOfService = .userInitiated
 
@@ -80,22 +77,47 @@ extension CloudKitCompanionSharingService {
     }
 
     /// Names of accepted members other than the current iCloud user. For the owner,
-    /// this naturally yields accepted companions. For a participant, it also includes
+    /// this yields accepted companions. For a participant, it also includes
     /// the owner so later refreshes retain the complete visible companion group.
-    static func participantNames(from share: CKShare) -> [String] {
+    static func participantNames(from share: CKShare, excludingOwner: Bool = false) -> [String] {
         let currentID = share.currentUserParticipant?.participantID
+        CompanionDebugLog.write("share.participants: \(share.participants.map { "r=\($0.role.rawValue),s=\($0.acceptanceStatus.rawValue),c=\(String(describing: $0.userIdentity.nameComponents))" })")
         return CompanionNameList.normalized(share.participants.compactMap { participant in
             guard participant.acceptanceStatus == .accepted else { return nil }
+            if excludingOwner, participant.role == .owner { return nil }
             if let currentID, participant.participantID == currentID { return nil }
-            return displayName(for: participant)
+            return displayName(for: participant) ?? BSLocalization.text("朋友")
         })
     }
 
     static func displayName(for participant: CKShare.Participant) -> String? {
-        guard let components = participant.userIdentity.nameComponents else { return nil }
-        let formatted = PersonNameComponentsFormatter().string(from: components)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return formatted.isEmpty ? nil : formatted
+        displayName(for: participant.userIdentity)
+    }
+
+    static func displayName(for identity: CKUserIdentity) -> String? {
+        if let components = identity.nameComponents {
+            let formatted = PersonNameComponentsFormatter().string(from: components)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            if !formatted.isEmpty { return formatted }
+            let pieces = [components.familyName, components.givenName]
+                .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !pieces.isEmpty {
+                return pieces.joined()
+            }
+            if let nickname = components.nickname?.trimmingCharacters(in: .whitespacesAndNewlines), !nickname.isEmpty {
+                return nickname
+            }
+        }
+        if let email = identity.lookupInfo?.emailAddress {
+            let prefix = email.split(separator: "@").first.map(String.init)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let prefix, !prefix.isEmpty { return prefix }
+        }
+        if let phone = identity.lookupInfo?.phoneNumber {
+            let trimmed = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty { return trimmed }
+        }
+        return nil
     }
 
     static func snapshot(
