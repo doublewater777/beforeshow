@@ -60,6 +60,16 @@ struct RootView: View {
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
+        .modifier(
+            FeedbackShakeShortcutModifier(
+                isEnabled: hasFinishedSplash
+                    && hasResolvedOnboardingRoute
+                    && !isShowingOnboarding
+                    && !proOfferRouter.shouldPresentProSheet
+                    && companionDuplicateResolution == nil
+                    && companionResultMessage == nil
+            )
+        )
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
         }
