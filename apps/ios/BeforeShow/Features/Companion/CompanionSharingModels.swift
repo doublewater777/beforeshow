@@ -1,5 +1,6 @@
 import CloudKit
 import Foundation
+import SwiftData
 
 // MARK: - Domain
 
@@ -105,6 +106,14 @@ struct CompanionPreparedShare: Equatable, Sendable {
     var shareSystemFields: Data
 }
 
+/// The CloudKit session/share already exists, but presentation data is not ready yet.
+/// Keep this linkage locally so retrying reuses the same cloud invitation instead of
+/// creating a second session.
+struct CompanionPersistedShareError: Error, Equatable, Sendable {
+    var session: CompanionSessionSnapshot
+    var underlying: CompanionSharingError
+}
+
 enum CompanionSharingError: Error, Equatable, Sendable {
     case iCloudAccountUnavailable
     case networkFailure
@@ -116,6 +125,32 @@ enum CompanionSharingError: Error, Equatable, Sendable {
     case conflict
     /// Share was accepted but session status could not be synchronized yet.
     case statusSyncPending
+}
+
+@MainActor
+enum CompanionInvitePreparationRecovery {
+    static func resolve(
+        _ error: Error,
+        show: Show,
+        preferredName: String?,
+        previousState: (status: ShowCompanionStatus, names: [String]),
+        previousLinkage: Show.CompanionCloudLinkageSnapshot,
+        in modelContext: ModelContext
+    ) throws -> Error {
+        if let persisted = error as? CompanionPersistedShareError {
+            show.applyCompanionSession(
+                persisted.session,
+                isOwner: true,
+                preferredName: preferredName
+            )
+            try modelContext.save()
+            return persisted.underlying
+        }
+        show.restoreCompanionState(status: previousState.status, names: previousState.names)
+        show.restoreCompanionCloudLinkage(previousLinkage)
+        try? modelContext.save()
+        return error
+    }
 }
 
 enum CompanionMembershipState: Equatable, Sendable {

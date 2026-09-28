@@ -84,12 +84,16 @@ final class CompanionSharingCoordinator {
             try modelContext.save()
             return prepared
         } catch {
-            show.restoreCompanionState(status: snapshotBefore.status, names: snapshotBefore.names)
-            show.restoreCompanionCloudLinkage(cloudBefore)
-            try? modelContext.save()
-            lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError
-            throw error
+            let failure = try CompanionInvitePreparationRecovery.resolve(
+                error,
+                show: show,
+                preferredName: preferredParticipantName,
+                previousState: snapshotBefore,
+                previousLinkage: cloudBefore,
+                in: modelContext
+            )
+            recordError(failure)
+            throw failure
         }
     }
 
@@ -121,12 +125,7 @@ final class CompanionSharingCoordinator {
             lastErrorKind = nil
         } catch {
             pendingAcceptResult = nil
-            lastErrorMessage = Self.userMessage(for: error)
-            if let sharing = error as? CompanionSharingError {
-                lastErrorKind = sharing
-            } else {
-                lastErrorKind = .statusSyncPending
-            }
+            recordError(error, fallback: .statusSyncPending)
         }
     }
 
@@ -171,8 +170,7 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
-            lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError ?? .statusSyncPending
+            recordError(error, fallback: .statusSyncPending)
             resolvePendingInviteFailure(key: key, clearJoin: false, in: modelContext)
         }
     }
@@ -403,8 +401,7 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
-            lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError
+            recordError(error)
         }
     }
 
@@ -428,8 +425,7 @@ final class CompanionSharingCoordinator {
                 try? CompanionAcceptedSessionImporter.apply(session, in: modelContext)
             }
         } catch {
-            lastErrorMessage = Self.userMessage(for: error)
-            lastErrorKind = error as? CompanionSharingError
+            recordError(error)
         }
         guard let shows = try? modelContext.fetch(descriptor) else { return }
         for show in shows where show.companionCloudRecordName != nil {
@@ -468,6 +464,11 @@ final class CompanionSharingCoordinator {
         CompanionDebugLog.write("Share controller failed: \(error)")
         lastErrorMessage = Self.userMessage(for: error)
         lastErrorKind = error as? CompanionSharingError
+    }
+
+    private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
+        lastErrorMessage = Self.userMessage(for: error)
+        lastErrorKind = error as? CompanionSharingError ?? fallback
     }
 
     func consumePendingAcceptMessage() -> String? {

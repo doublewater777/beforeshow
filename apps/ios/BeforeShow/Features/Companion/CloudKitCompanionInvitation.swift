@@ -56,7 +56,7 @@ extension CloudKitCompanionSharingService {
         do {
             saved = try await modifyRecords(in: privateDB, saving: [session, share])
         } catch {
-            CompanionDebugLog.write("Saving companion share failed: \(error)")
+            CompanionDebugLog.write("Companion invite stage=share-save failed: \(error)")
             throw error
         }
         guard
@@ -64,20 +64,29 @@ extension CloudKitCompanionSharingService {
             let savedShare = saved.compactMap({ $0 as? CKShare }).first
                 ?? saved.first(where: { $0.recordID.recordName == share.recordID.recordName }) as? CKShare
         else {
-            CompanionDebugLog.write("Companion save succeeded without a CKShare payload")
+            CompanionDebugLog.write("Companion invite stage=share-save missing CKShare payload")
             throw CompanionSharingError.sharePreparationFailed
         }
-        let distributableShare = try await shareWithInvitationURL(savedShare)
 
         let snapshot = try Self.snapshot(
             from: savedSession,
-            shareLocator: CompanionRecordLocator(recordID: distributableShare.recordID)
+            shareLocator: CompanionRecordLocator(recordID: savedShare.recordID)
         )
-        let fields = try NSKeyedArchiver.archivedData(
-            withRootObject: distributableShare,
-            requiringSecureCoding: true
-        )
-        return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
+
+        do {
+            let distributableShare = try await shareWithInvitationURL(savedShare)
+            let fields = try NSKeyedArchiver.archivedData(
+                withRootObject: distributableShare,
+                requiringSecureCoding: true
+            )
+            return CompanionPreparedShare(session: snapshot, shareSystemFields: fields)
+        } catch {
+            let underlying = (error as? CompanionSharingError) ?? Self.mapError(error)
+            CompanionDebugLog.write(
+                "Companion invite stage=post-persist failed: \(underlying)"
+            )
+            throw CompanionPersistedShareError(session: snapshot, underlying: underlying)
+        }
     }
 
     func loadShareSystemFields(shareLocator: CompanionRecordLocator) async throws -> Data {
@@ -100,21 +109,6 @@ extension CloudKitCompanionSharingService {
         share = try await shareWithInvitationURL(share)
 
         return try NSKeyedArchiver.archivedData(withRootObject: share, requiringSecureCoding: true)
-    }
-
-    private func shareWithInvitationURL(_ share: CKShare) async throws -> CKShare {
-        if share.url != nil { return share }
-        do {
-            guard let refetched = try await privateDB.record(for: share.recordID) as? CKShare,
-                  refetched.url != nil else {
-                throw CompanionSharingError.sharePreparationFailed
-            }
-            return refetched
-        } catch let error as CompanionSharingError {
-            throw error
-        } catch {
-            throw Self.mapError(error)
-        }
     }
 
     private func debugProbeDefaultZone() async {

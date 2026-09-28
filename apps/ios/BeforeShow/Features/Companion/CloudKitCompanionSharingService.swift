@@ -31,6 +31,10 @@ enum CompanionDebugLog {
     }
 }
 
+enum CompanionShareURLRetryPolicy {
+    static let delays: [Duration] = [.milliseconds(200), .milliseconds(500), .seconds(1)]
+}
+
 struct CloudKitCompanionSharingService: CompanionSharingService {
 
     private let explicitContainer: CKContainer?
@@ -54,4 +58,27 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
     var privateDB: CKDatabase { container.privateCloudDatabase }
 
     var sharedDB: CKDatabase { container.sharedCloudDatabase }
+
+    func shareWithInvitationURL(_ share: CKShare) async throws -> CKShare {
+        if share.url != nil { return share }
+        let delays = CompanionShareURLRetryPolicy.delays
+        for attempt in 0...delays.count {
+            if attempt > 0 { try await Task.sleep(for: delays[attempt - 1]) }
+            do {
+                guard let candidate = try await privateDB.record(for: share.recordID) as? CKShare else {
+                    throw CompanionSharingError.sharePreparationFailed
+                }
+                if candidate.url != nil {
+                    CompanionDebugLog.write("Companion invite stage=share-url ready attempt=\(attempt + 1)")
+                    return candidate
+                }
+            } catch {
+                let mapped = Self.mapError(error)
+                CompanionDebugLog.write("Companion invite stage=share-url failed: \(mapped)")
+                throw mapped
+            }
+        }
+        CompanionDebugLog.write("Companion invite stage=share-url exhausted")
+        throw CompanionSharingError.sharePreparationFailed
+    }
 }
