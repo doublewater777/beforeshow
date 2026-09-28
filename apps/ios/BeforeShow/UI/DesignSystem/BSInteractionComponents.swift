@@ -164,3 +164,92 @@ extension View {
         .animation(.spring(response: 0.28, dampingFraction: 0.86), value: payload?.id)
     }
 }
+
+
+// MARK: - Swipe Reveal
+
+struct BSSwipeRevealActionRow<Content: View>: View {
+    let isRevealed: Bool
+    let actionTitle: String
+    let actionIcon: String
+    let tint: Color
+    let onReveal: (Bool) -> Void
+    let onAction: () -> Void
+    private let content: Content
+
+    @State private var dragTranslation: CGFloat = 0
+
+    private let actionWidth: CGFloat = 92
+    private let actionHeight: CGFloat = 80
+
+    init(
+        isRevealed: Bool,
+        actionTitle: String,
+        actionIcon: String,
+        tint: Color,
+        onReveal: @escaping (Bool) -> Void,
+        onAction: @escaping () -> Void,
+        @ViewBuilder content: () -> Content
+    ) {
+        self.isRevealed = isRevealed
+        self.actionTitle = actionTitle
+        self.actionIcon = actionIcon
+        self.tint = tint
+        self.onReveal = onReveal
+        self.onAction = onAction
+        self.content = content()
+    }
+
+    private var restingOffset: CGFloat {
+        isRevealed ? -actionWidth : 0
+    }
+
+    private var rowOffset: CGFloat {
+        min(0, max(-actionWidth, restingOffset + dragTranslation))
+    }
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Button {
+                onReveal(false)
+                onAction()
+            } label: {
+                VStack(spacing: 5) {
+                    Image(systemName: actionIcon)
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(actionTitle)
+                        .font(.system(size: 11.5, weight: .semibold))
+                }
+                .foregroundColor(tint)
+                .frame(width: actionWidth, height: actionHeight)
+                .background(tint.opacity(0.13))
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+
+            content
+                .offset(x: rowOffset)
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 10)
+                        .onChanged { value in
+                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                                return
+                            }
+                            dragTranslation = value.translation.width
+                        }
+                        .onEnded { value in
+                            defer { dragTranslation = 0 }
+                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                                return
+                            }
+                            let projectedOffset = restingOffset + value.predictedEndTranslation.width
+                            onReveal(projectedOffset < -(actionWidth * 0.45))
+                        }
+                )
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .accessibilityAction(named: actionTitle) {
+            onAction()
+        }
+    }
+}
