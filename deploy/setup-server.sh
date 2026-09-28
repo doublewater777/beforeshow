@@ -47,29 +47,29 @@ fi
 cd "$APP_DIR"
 npm ci
 
-echo "→ 构建 fake-door…"
-npm run build:fake-door
+echo "→ 构建 web…"
+npm run build:web
 
-if [[ ! -f apps/fake-door/.env ]]; then
+if [[ ! -f apps/web/.env ]]; then
   echo ""
-  echo "⚠  请在服务器创建 apps/fake-door/.env（参考 .env.example）"
+  echo "⚠  请在服务器创建 apps/web/.env（参考 .env.example）"
   echo "⚠  并确保 ~/.lark-cli/config.json 已配置（在服务器运行 lark-cli config init --new）"
   echo ""
 fi
 
 echo "→ 启动 PM2…"
-pm2 delete beforeshow-fake-door 2>/dev/null || true
-pm2 start apps/fake-door/scripts/production-server.mjs \
-  --name beforeshow-fake-door \
-  --cwd apps/fake-door \
-  --interpreter node
+pm2 delete beforeshow-web 2>/dev/null || true
+pm2 start npm \
+  --name beforeshow-web \
+  --cwd apps/web \
+  -- run start:prod
 pm2 save
 
 echo ""
 echo "✓ 部署完成"
 echo "  应用监听: http://127.0.0.1:3000"
 echo "  下一步:"
-echo "    1. 配置 apps/fake-door/.env"
+echo "    1. 配置 apps/web/.env"
 echo "    2. 配置 lark-cli 授权（lark-cli config init --new && lark-cli auth login --domain base）"
 echo "    3. 复制 deploy/nginx-beforeshow.conf 到 Nginx 并绑定域名 SSL"
-echo "    4. pm2 restart beforeshow-fake-door"
+echo "    4. pm2 restart beforeshow-web"

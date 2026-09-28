@@ -19,7 +19,7 @@ function normalizeLead(body) {
     show: String(body.show ?? "").trim(),
     session: body.session ?? "",
     submitted_at: submittedAt,
-    source: body.source ?? "fake-door",
+    source: body.source ?? "website",
   };
 }
 

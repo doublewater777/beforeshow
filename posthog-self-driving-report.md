@@ -146,7 +146,7 @@ None selected. The user chose "None of these" in the issue-tracker prompt.
 
 ## Replay Vision Scanners
 
-Both skeleton scanners were **skipped**. BeforeShow is a pure mobile iOS app with no web surface in this PostHog project. The `fake-door` landing page uses its own `localStorage` tracking and does not send events to PostHog. The URL-based and `$rageclick`-based scanner skeletons only apply to web sessions, so neither scanner would ever match a recording.
+Both skeleton scanners were **skipped**. BeforeShow is a pure mobile iOS app with no web surface in this PostHog project. The official website uses its own `localStorage` tracking and does not send events to PostHog. The URL-based and `$rageclick`-based scanner skeletons only apply to web sessions, so neither scanner would ever match a recording.
 
 Replay Vision quota is only spent when a scanner matches a recording — skipping both scanners means zero quota impact.
 

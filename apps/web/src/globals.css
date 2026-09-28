@@ -545,6 +545,12 @@ body::before {
   gap: 16px;
 }
 
+.countdown-kicker {
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .single-show-chip {
   display: inline-flex;
   align-items: center;
@@ -687,7 +693,7 @@ body::before {
 
 .how-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-top: 44px;
 }
@@ -1148,7 +1154,7 @@ body::before {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   margin-top: 16px;
-  z-index: 1;
+  z-index: 2;
 }
 
 .btn-ambient:hover {
@@ -1309,6 +1315,12 @@ body::before {
   justify-content: center;
   position: relative;
   z-index: 2;
+}
+
+.ambient-exit {
+  margin-top: 32px;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .ambient-countdown-days {

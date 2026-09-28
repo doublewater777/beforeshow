@@ -1,0 +1,23 @@
+{
+  "name": "@beforeshow/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build",
+    "deploy:pages": "npm run build && npx wrangler pages deploy out --branch main",
+    "export:leads": "node scripts/export-leads.mjs",
+    "start": "next dev --hostname 0.0.0.0",
+    "start:prod": "serve -l tcp://0.0.0.0:3000 out"
+  },
+  "dependencies": {
+    "next": "^15.5.4",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  },
+  "devDependencies": {
+    "playwright": "^1.60.0",
+    "serve": "^14.2.4"
+  }
+}

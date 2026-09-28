@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "beforeshow",
   "compatibility_date": "2026-06-09",
-  "pages_build_output_dir": "dist",
+  "pages_build_output_dir": "out",
   "kv_namespaces": [
     {
       "binding": "BEFORESHOW_LEADS",

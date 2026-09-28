@@ -112,7 +112,7 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertTrue(domains.contains("applinks:\(CompanionInviteWebLink.host)"))
 
         let associationURL = appsRoot
-            .appendingPathComponent("fake-door/public/.well-known/apple-app-site-association")
+            .appendingPathComponent("web/public/.well-known/apple-app-site-association")
         let associationData = try Data(contentsOf: associationURL)
         let association = try XCTUnwrap(
             JSONSerialization.jsonObject(with: associationData) as? [String: Any]

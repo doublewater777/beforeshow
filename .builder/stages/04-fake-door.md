@@ -2,7 +2,7 @@
 
 ## Current Summary
 
-BeforeShow is testing whether people with a real upcoming concert or music festival will move beyond polite interest and leave contact information for a prep companion. The current page is a usable local fake-door surface with a landing page, interactive feature doors, usage-flow narrative, audience fit section, a waitlist form, local event tracking, and JSON/CSV export.
+BeforeShow's original demand-validation page has graduated into the official product website. The historical experiment remains recorded here, while the maintained Next.js site now lives at `apps/web/` and preserves the product preview, legal pages, companion invitation landing page, and local interaction tracking.
 
 The riskiest demand signal is not a click. It is whether the target user has a real upcoming show and voluntarily leaves contact information after trying one of the doors.
 
@@ -29,7 +29,7 @@ Pass threshold:
 
 Artifacts:
 
-- App source: `apps/fake-door/`
+- Historical surface, now official website source: `apps/web/`
 - Original plan archive: `.builder/evidence/artifacts/2026-06-08-beforshow-fake-door-plan-revised.html`
 - Experiment record: `.builder/evidence/experiments/2026-06-08-beforeshow-fake-door-v2-1.md`
 

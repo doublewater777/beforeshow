@@ -437,3 +437,12 @@ Cycle: `.builder/cycles/2026-08-25-persistent-cover-cache/`
 Decision: implementation, regression test, and iPhone 17 cold-launch verification complete.
 
 Reason: previously loaded remote covers now survive process termination in the main App cache, while the existing Widget cover supplies an immediate preview during the first post-change launch.
+## 2026-09-28 · Web Next.js Migration
+
+Stage: fake-door
+
+Cycle: `.builder/cycles/2026-09-28-web-nextjs-migration/`
+
+Decision: the demand-validation surface has graduated into the official `apps/web` Next.js site; local static-export verification is complete.
+
+Reason: the site now owns durable product responsibilities including the public homepage, legal pages, companion invitation routing, AASA, SEO metadata, and deployment.

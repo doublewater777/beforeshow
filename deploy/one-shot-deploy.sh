@@ -18,10 +18,10 @@ fi
 cd "$APP_DIR"
 sudo bash deploy/setup-server.sh
 
-if [[ ! -f apps/fake-door/.env ]]; then
+if [[ ! -f apps/web/.env ]]; then
   echo ""
-  echo "⚠  请创建 apps/fake-door/.env（参考 .env.example）"
-  echo "    然后运行：pm2 restart beforeshow-fake-door"
+  echo "⚠  请创建 apps/web/.env（参考 .env.example）"
+  echo "    然后运行：pm2 restart beforeshow-web"
   echo ""
 fi
 

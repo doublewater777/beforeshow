@@ -27,6 +27,8 @@ secrets/
 # JavaScript / Cloud tooling
 node_modules/
 dist/
+out/
+.next/
 coverage/
 .nyc_output/
 .vite/
