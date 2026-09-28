@@ -217,15 +217,16 @@ struct AddShowFlowView: View {
             isPresented: Binding(
                 get: { pendingCurrentSwitchShowID != nil },
                 set: { if !$0 { pendingCurrentSwitchShowID = nil } }
-            )
-        ) {
+            ),
+            presenting: pendingCurrentSwitchShowID
+        ) { showID in
             Button(BSLocalization.text("设为当前")) {
-                switchPendingAddedShowToCurrent()
+                switchPendingAddedShowToCurrent(showID)
             }
             Button(BSLocalization.text("暂不切换"), role: .cancel) {
-                keepExistingCurrentAfterAdd()
+                keepExistingCurrentAfterAdd(showID)
             }
-        } message: {
+        } message: { _ in
             Text(BSLocalization.text("接下来 BeforeShow 会围绕这场显示倒计时、听和提醒。"))
         }
         .sheet(item: $paywallSheet) { sheet in
@@ -979,14 +980,13 @@ struct AddShowFlowView: View {
         }
     }
 
-    private func keepExistingCurrentAfterAdd() {
-        guard let showID = pendingCurrentSwitchShowID else { return }
+    private func keepExistingCurrentAfterAdd(_ showID: UUID) {
         pendingCurrentSwitchShowID = nil
         onSaved?(showID)
     }
 
-    private func switchPendingAddedShowToCurrent() {
-        guard let showID = pendingCurrentSwitchShowID, !isSaving else { return }
+    private func switchPendingAddedShowToCurrent(_ showID: UUID) {
+        guard !isSaving else { return }
         pendingCurrentSwitchShowID = nil
         isSaving = true
 
