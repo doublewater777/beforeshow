@@ -585,6 +585,7 @@ private let listeningCatalogFetchConcurrency = 4
             isAuthorizing = false
             return
         }
+        endFullPlaybackSessionForCapabilityLossIfNeeded(newAccess)
         access = newAccess
         accessResolved = true
         isAuthorizing = false
@@ -1077,6 +1078,8 @@ private let listeningCatalogFetchConcurrency = 4
         retryPendingPlaybackEvidence()
         if resetTrackSelection {
             trackIndex = 0
+        } else {
+            persistLoadedDisc()
         }
         preparedSongID = nil
         preparedSource = nil
