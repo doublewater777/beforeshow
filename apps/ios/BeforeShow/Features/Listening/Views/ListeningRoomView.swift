@@ -269,7 +269,7 @@ struct ListeningRoomView: View {
             }
         } else if !room.accessResolved {
             ListeningShelfSkeleton()
-        } else if room.access.authorizationStatus != .authorized && room.libraryDiscs.isEmpty {
+        } else if room.access.authorizationStatus != .authorized && room.discs.isEmpty {
             ListeningCatalogStatusView(
                 title: BSLocalization.text("连接 Apple Music"),
                 subtitle: musicAccessSubtitle,
