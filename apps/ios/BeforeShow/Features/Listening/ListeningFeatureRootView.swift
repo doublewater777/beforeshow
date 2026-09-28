@@ -95,6 +95,7 @@ enum ListeningChromeBootstrapper {
 struct ListeningRootChromeModifier: ViewModifier {
     @Binding var selectedTab: BeforeShowTab
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.scenePhase) private var scenePhase
     @Query private var shows: [Show]
     @Query private var selections: [CurrentShowSelection]
 
@@ -120,6 +121,14 @@ struct ListeningRootChromeModifier: ViewModifier {
                     show: currentShow,
                     context: modelContext
                 )
+            }
+            .onChange(of: scenePhase) { _, phase in
+                guard let room = ListeningRoomCache.shared else { return }
+                let isForeground = phase == .active
+                room.setForeground(isForeground)
+                if isForeground {
+                    Task { await room.refreshMusicAccessAfterForeground() }
+                }
             }
     }
 }
