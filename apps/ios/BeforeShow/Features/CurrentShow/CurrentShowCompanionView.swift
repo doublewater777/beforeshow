@@ -142,12 +142,6 @@ struct CurrentShowCompanionSheet: View {
                 }
             }
             .scrollIndicators(.hidden)
-            .overlay {
-                if isPreparingInvite {
-                    preparingOverlay
-                }
-            }
-            .animation(.easeOut(duration: 0.18), value: isPreparingInvite)
         }
         .sheet(isPresented: $isShowingShareSheet) {
             CompanionFootprintShareSheet(show: show, sharedHistory: sharedHistory)
@@ -209,7 +203,7 @@ struct CurrentShowCompanionSheet: View {
                     HStack(spacing: 8) {
                         ProgressView()
                             .tint(.black)
-                        Text(CompanionInvitePreparingPresentation.overlayTitle)
+                        Text(inviteActionTitle)
                     }
                     .frame(maxWidth: .infinity)
                 } else {
@@ -267,8 +261,11 @@ struct CurrentShowCompanionSheet: View {
             Task { await resendInvitation() }
         } label: {
             if isPreparingInvite {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text(BSLocalization.text("邀请更多"))
+                }
+                .frame(maxWidth: .infinity)
             } else {
                 Label(BSLocalization.text("邀请更多"), systemImage: "person.badge.plus")
             }
@@ -397,24 +394,6 @@ struct CurrentShowCompanionSheet: View {
         show.companionShareLocator == nil
             ? BSLocalization.text("分享邀请")
             : BSLocalization.text("再次分享邀请")
-    }
-
-    private var preparingOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.38)
-            VStack(spacing: BSSpacing.sm) {
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.08)
-                Text(CompanionInvitePreparingPresentation.overlayTitle)
-                    .font(BSFont.caption)
-                    .foregroundColor(BSColor.Stage.foreground)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(CompanionInvitePreparingPresentation.overlayTitle)
-        }
-        .allowsHitTesting(true)
-        .transition(.opacity)
     }
 
     @MainActor
