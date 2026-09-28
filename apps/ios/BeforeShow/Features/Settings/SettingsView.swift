@@ -5,7 +5,6 @@ import UserNotifications
 
 struct SettingsView: View {
     @AppStorage(ProEntitlementStorage.appStorageKey) private var entitlementRawValue = ""
-    @Environment(\.dismiss) private var dismiss
     @State private var isShowingProPaywall = false
 
     /// 设置以 sheet 形式呈现，自带 NavigationStack 容纳内层子页面。
@@ -465,9 +464,6 @@ private struct FeedbackShakeSheet: View {
         if isShowingForm {
             NavigationStack {
                 FeedbackView()
-                    .toolbar {
-                        BSChromeToolbarCloseButton { dismiss() }
-                    }
             }
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
