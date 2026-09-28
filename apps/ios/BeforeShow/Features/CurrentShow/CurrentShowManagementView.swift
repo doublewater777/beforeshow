@@ -14,6 +14,7 @@ struct CurrentShowManagementSection: View {
     var onAddShow: () -> Void
     var onOpenSettings: () -> Void
     var onOpenShowLibrary: () -> Void
+    var onSetCurrentShow: (Show) -> Void = { _ in }
     var onChooseDynamicCover: () -> Void = {}
     var isImportingDynamicCover = false
     var onConfirmEnd: (Date) async -> Bool
@@ -366,6 +367,7 @@ struct CurrentShowManagementSection: View {
                             formatter: formatter,
                             now: now,
                             onOpenShowLibrary: onOpenShowLibrary,
+                            onSetCurrent: onSetCurrentShow,
                             onDetailVisibilityChange: onDetailVisibilityChange
                         )
                         .padding(.horizontal, contentInset)

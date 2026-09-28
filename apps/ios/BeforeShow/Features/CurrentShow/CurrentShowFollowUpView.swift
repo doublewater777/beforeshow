@@ -1,13 +1,14 @@
 import SwiftUI
 
-// MARK: - Current Show Follow-up
-
 struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
     let now: Date
     var onOpenShowLibrary: () -> Void = {}
+    var onSetCurrent: (Show) -> Void = { _ in }
     var onDetailVisibilityChange: (Bool) -> Void = { _ in }
+
+    @State private var revealedShowID: UUID?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -38,12 +39,28 @@ struct CurrentShowFollowUpSummary: View {
             }
 
             ForEach(shows.prefix(2)) { show in
-                NavigationLink {
-                    ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
-                } label: {
-                    followUpRow(show)
+                BSSwipeRevealActionRow(
+                    isRevealed: revealedShowID == show.id,
+                    actionTitle: BSLocalization.text("设为当前"),
+                    actionIcon: "pin.fill",
+                    tint: BSColor.Stage.accent,
+                    onReveal: { isRevealed in
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                            revealedShowID = isRevealed ? show.id : nil
+                        }
+                    },
+                    onAction: {
+                        revealedShowID = nil
+                        onSetCurrent(show)
+                    }
+                ) {
+                    NavigationLink {
+                        ShowDetailView(show: show, onDetailVisibilityChange: onDetailVisibilityChange)
+                    } label: {
+                        followUpRow(show)
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
 
             if shows.count > 2 {
@@ -128,8 +145,6 @@ struct CurrentShowFollowUpSummary: View {
         return BSLocalization.format("%lld 分钟后", max(1, seconds / 60))
     }
 }
-
-// MARK: - Current Show Library Entry Tile
 
 struct CurrentShowLibraryEntryTile: View {
     let totalShowCount: Int

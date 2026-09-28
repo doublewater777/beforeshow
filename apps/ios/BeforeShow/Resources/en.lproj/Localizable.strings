@@ -178,6 +178,9 @@
 "记录这一刻" = "Capture This Moment";
 "记忆碎片" = "Memory Fragments";
 "设为当前" = "Set as Current";
+"设为当前现场？" = "Set as current show?";
+"暂不切换" = "Not Now";
+"接下来 BeforeShow 会围绕这场显示倒计时、听和提醒。" = "BeforeShow will focus the countdown, Listen, and reminders on this show.";
 "走过 %lld 座城市，留下 %lld 位艺人的现场记忆" = "Traveled through %lld cities and left behind live memories of %lld artists";
 "走过的现场和个人档案" = "Shows you have attended and your personal archive";
 "足迹" = "Footprints";
