@@ -374,6 +374,8 @@
 "当前现场散场后会自动收进这里，\n场次、城市和回忆都会慢慢累积。" = "When the current show ends it's filed here automatically;\\nshows, cities, and memories will slowly accumulate.";
 "待确认" = "Pending";
 "意见反馈" = "Feedback";
+"遇到问题？" = "Found an issue?";
+"有问题或建议，都可以告诉我们。" = "Tell us about any issue or suggestion.";
 "提交反馈" = "Submit Feedback";
 "反馈最多 2000 字" = "Feedback is limited to 2,000 characters";
 "提交有点频繁，请稍后再试" = "You’ve submitted feedback a few times. Try again later.";
