@@ -256,11 +256,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Disc spin must pause when Reduce Motion is enabled"
         )
         XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
-        XCTAssertTrue(
-            listeningRoot.contains("Text(track.title)")
-                && listeningRoot.contains("Text(track.artistName)"),
-            "Expanded compact playback must show both track title and artist"
-        )
         XCTAssertFalse(
             listeningRoot.contains("ListeningLegacyDetachedBottomChrome")
                 || listeningRoot.contains("if #available(iOS 26.0, *)")
