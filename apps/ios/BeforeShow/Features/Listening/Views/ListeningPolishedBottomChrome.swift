@@ -30,6 +30,26 @@ enum ListeningMiniPlayerArtworkSource {
     }
 }
 
+enum ListeningMiniPlayerSwipeAction: Equatable {
+    case previous
+    case next
+}
+
+enum ListeningMiniPlayerSwipeIntent {
+    static let minimumHorizontalDistance: CGFloat = 44
+    static let horizontalDominanceRatio: CGFloat = 1.25
+
+    static func action(for translation: CGSize) -> ListeningMiniPlayerSwipeAction? {
+        let horizontalDistance = abs(translation.width)
+        let verticalDistance = abs(translation.height)
+        guard horizontalDistance >= minimumHorizontalDistance,
+              horizontalDistance > verticalDistance * horizontalDominanceRatio else {
+            return nil
+        }
+        return translation.width < 0 ? .next : .previous
+    }
+}
+
 enum ListeningMiniPlayerArtworkImage {
     static func displayed(
         loaded: UIImage?,
@@ -362,6 +382,16 @@ private struct ListeningCompactPlaybackControl: View {
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }
         }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12)
+                .onEnded { value in
+                    guard !room.busy,
+                          let action = ListeningMiniPlayerSwipeIntent.action(for: value.translation) else {
+                        return
+                    }
+                    room.perform(action == .next ? .next : .previous)
+                }
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("listening.miniPlayer.compact")
         .task(id: artworkURL) {
