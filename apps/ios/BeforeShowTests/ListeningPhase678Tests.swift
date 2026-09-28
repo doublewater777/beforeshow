@@ -423,6 +423,166 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
     }
 
+    func testForegroundRevocationEndsFullPlaybackButKeepsLoadedTrackForPreviewFallback() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(
+            status: .authorized,
+            playbackAccess: .available
+        )
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+
+        let selectedTrackID = try XCTUnwrap(room.track?.id)
+        let selectedIndex = room.trackIndex
+        XCTAssertEqual(room.display.player.source, .fullCatalog)
+
+        catalog.setStatusForTesting(.denied)
+        await room.refreshMusicAccessAfterForeground()
+
+        XCTAssertEqual(room.access.authorizationStatus, .denied)
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.track?.id, selectedTrackID)
+        XCTAssertEqual(room.trackIndex, selectedIndex)
+        XCTAssertEqual(room.elapsed, 0)
+        XCTAssertEqual(room.display.roomMode, .preview)
+
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(room.track?.id, selectedTrackID)
+        XCTAssertEqual(room.display.player.source, .preview)
+    }
+
+    func testForegroundAccountLimitEndsPausedFullPlaybackWithoutResettingTrack() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(
+            status: .authorized,
+            playbackAccess: .available
+        )
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        room.playPause()
+        XCTAssertEqual(room.display.player.phase, .paused)
+
+        let selectedTrackID = try XCTUnwrap(room.track?.id)
+        let selectedIndex = room.trackIndex
+        catalog.setPlaybackAccessForTesting(.accountLimited)
+        await room.refreshMusicAccessAfterForeground()
+
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .accountLimited)
+        XCTAssertFalse(room.isPlaying)
+        XCTAssertEqual(room.display.player.phase, .stopped)
+        XCTAssertEqual(room.track?.id, selectedTrackID)
+        XCTAssertEqual(room.trackIndex, selectedIndex)
+        XCTAssertEqual(room.elapsed, 0)
+    }
+
+    func testForegroundAccessCheckFailureKeepsEstablishedFullPlaybackAndWarnsForFuturePlayback() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(
+            status: .authorized,
+            playbackAccess: .available
+        )
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { !$0.tracks.isEmpty })
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(room.display.player.source, .fullCatalog)
+
+        catalog.setPlaybackAccessForTesting(.accessCheckFailed)
+        await room.refreshMusicAccessAfterForeground()
+
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.access.catalogPlaybackAccess, .accessCheckFailed)
+        XCTAssertEqual(room.display.player.source, .fullCatalog)
+        XCTAssertEqual(room.display.roomMode, .fullPlayback)
+        XCTAssertEqual(room.display.headerNotice?.recoveryAction, .retryAccess)
+        XCTAssertEqual(
+            room.display.headerNotice?.message,
+            ListeningCopy.text("暂时无法确认之后的完整播放权限。")
+        )
+    }
+
+    func testForegroundRevocationDoesNotInterruptRunningPreview() async throws {
+        let fixture = try ListeningDebugFixtures(scenario: .previewOnly)
+        let context = fixture.container.mainContext
+        let show = try XCTUnwrap(context.fetch(FetchDescriptor<Show>()).first)
+        let catalog = AuthorizationTransitionCatalog(
+            status: .authorized,
+            playbackAccess: .accountLimited
+        )
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: ListeningFixtureArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        let disc = try XCTUnwrap(room.discs.first { $0.tracks.contains { $0.previewURL != nil } })
+        room.restoreDisc(disc)
+        room.playPause()
+        try await ListenTestData.settle(room) { room.isPlaying && !room.busy }
+        XCTAssertEqual(room.display.player.source, .preview)
+
+        catalog.setStatusForTesting(.denied)
+        await room.refreshMusicAccessAfterForeground()
+
+        XCTAssertEqual(room.access.authorizationStatus, .denied)
+        XCTAssertTrue(room.isPlaying)
+        XCTAssertEqual(room.display.player.source, .preview)
+        XCTAssertEqual(room.display.roomMode, .preview)
+    }
+
     func testNewerSheetRetryWinsWhenForegroundAccessQueryCompletesLater() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let catalog = OutOfOrderMusicAccessCatalog()
