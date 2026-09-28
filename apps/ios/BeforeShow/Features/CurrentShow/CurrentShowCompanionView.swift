@@ -391,9 +391,9 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private var inviteActionTitle: String {
-        show.companionShareLocator == nil
-            ? BSLocalization.text("分享邀请")
-            : BSLocalization.text("再次分享邀请")
+        CompanionInvitePreparingPresentation.actionTitle(
+            hasExistingShare: show.companionShareLocator != nil
+        )
     }
 
     @MainActor
