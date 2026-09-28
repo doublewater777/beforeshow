@@ -1,7 +1,5 @@
 import SwiftUI
 
-// MARK: - Current Show Follow-up
-
 struct CurrentShowFollowUpSummary: View {
     let shows: [Show]
     let formatter: ShowDisplayFormatter
