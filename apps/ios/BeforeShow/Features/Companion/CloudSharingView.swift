@@ -1,4 +1,5 @@
 import CloudKit
+import LinkPresentation
 import SwiftUI
 import UIKit
 
@@ -22,6 +23,82 @@ enum CompanionInvitePreparingPresentation {
         hasExistingShare
             ? BSLocalization.text("再次分享邀请")
             : BSLocalization.text("分享邀请")
+    }
+}
+
+enum CompanionInviteWebLink {
+    static let host = "beforeshow.doublewaterapps.com"
+    static let path = "/join/"
+
+    static func make(from shareURL: URL) -> URL? {
+        guard shareURL.scheme?.lowercased() == "https" else { return nil }
+        let token = Data(shareURL.absoluteString.utf8)
+            .base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = host
+        components.path = path
+        components.fragment = "share=\(token)"
+        return components.url
+    }
+
+    static func shareURL(from webURL: URL) -> URL? {
+        guard webURL.scheme?.lowercased() == "https",
+              webURL.host?.lowercased() == host,
+              webURL.path == path || webURL.path == "/join",
+              let fragment = URLComponents(url: webURL, resolvingAgainstBaseURL: false)?.fragment,
+              fragment.hasPrefix("share=")
+        else {
+            return nil
+        }
+
+        var token = String(fragment.dropFirst("share=".count))
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - token.count % 4) % 4
+        token += String(repeating: "=", count: padding)
+        guard let data = Data(base64Encoded: token),
+              let value = String(data: data, encoding: .utf8),
+              let shareURL = URL(string: value),
+              shareURL.scheme?.lowercased() == "https"
+        else {
+            return nil
+        }
+        return shareURL
+    }
+}
+
+private final class CompanionInviteActivityItemSource: NSObject, UIActivityItemSource {
+    private let url: URL
+    private let title: String
+
+    init(url: URL, title: String) {
+        self.url = url
+        self.title = title
+    }
+
+    func activityViewControllerPlaceholderItem(_ activityViewController: UIActivityViewController) -> Any {
+        url
+    }
+
+    func activityViewController(
+        _ activityViewController: UIActivityViewController,
+        itemForActivityType activityType: UIActivity.ActivityType?
+    ) -> Any? {
+        url
+    }
+
+    func activityViewControllerLinkMetadata(
+        _ activityViewController: UIActivityViewController
+    ) -> LPLinkMetadata? {
+        let metadata = LPLinkMetadata()
+        metadata.title = title
+        metadata.originalURL = url
+        metadata.url = url
+        return metadata
     }
 }
 
@@ -67,8 +144,13 @@ enum SystemCloudSharePresenter {
             return false
         }
 
+        guard let webURL = CompanionInviteWebLink.make(from: invitationURL) else {
+            return false
+        }
+        let title = (share[CKShare.SystemFieldKey.title] as? String)
+            ?? BSLocalization.text("同行邀请")
         let controller = UIActivityViewController(
-            activityItems: [invitationURL],
+            activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title)],
             applicationActivities: nil
         )
         controller.completionWithItemsHandler = { _, _, _, _ in
