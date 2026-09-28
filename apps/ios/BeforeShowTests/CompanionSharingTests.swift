@@ -92,6 +92,40 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertNil(CompanionInviteWebLink.shareURL(from: invalid))
     }
 
+    func testCompanionUniversalLinkConfigurationMatchesWebsiteAssociation() throws {
+        let appsRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let entitlementsURL = appsRoot
+            .appendingPathComponent("ios/BeforeShow/BeforeShow.entitlements")
+        let entitlementData = try Data(contentsOf: entitlementsURL)
+        let entitlements = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: entitlementData,
+                format: nil
+            ) as? [String: Any]
+        )
+        let domains = try XCTUnwrap(
+            entitlements["com.apple.developer.associated-domains"] as? [String]
+        )
+        XCTAssertTrue(domains.contains("applinks:\(CompanionInviteWebLink.host)"))
+
+        let associationURL = appsRoot
+            .appendingPathComponent("fake-door/public/.well-known/apple-app-site-association")
+        let associationData = try Data(contentsOf: associationURL)
+        let association = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: associationData) as? [String: Any]
+        )
+        let applinks = try XCTUnwrap(association["applinks"] as? [String: Any])
+        let details = try XCTUnwrap(applinks["details"] as? [[String: Any]])
+        XCTAssertTrue(
+            details.contains {
+                $0["appID"] as? String == "29C8MS76CZ.com.doublewaterapps.beforeshow"
+            }
+        )
+    }
+
     func testCloudStatusMapsToLocalStatus() {
         XCTAssertEqual(CompanionCloudStatus.pending.localStatus, .pending)
         XCTAssertEqual(CompanionCloudStatus.accepted.localStatus, .confirmed)
