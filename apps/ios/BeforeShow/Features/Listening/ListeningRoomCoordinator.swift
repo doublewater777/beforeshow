@@ -1088,7 +1088,6 @@ private let listeningCatalogFetchConcurrency = 4
         transportPlaybackPhase = .stopped
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
-        persistLoadedDisc()
         updateTimeText()
     }
 
