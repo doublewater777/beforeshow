@@ -113,15 +113,6 @@ struct FeedbackView: View {
                 EmptyView()
             }
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-
-                Button(BSLocalization.text("完成")) {
-                    isMessageFocused = false
-                }
-            }
-        }
         .navigationTitle(BSLocalization.text("意见反馈"))
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -174,44 +165,4 @@ enum FeedbackSendState: Equatable {
     case sending
     case sent
     case failed(FeedbackSubmissionError)
-}
-
-struct FeedbackShakeShortcutModifier: ViewModifier {
-    @State private var isShowingFeedback = false
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                FeedbackShakeResponder(
-                    isArmed: !isShowingFeedback,
-                    onShake: handleShake
-                )
-                .frame(width: 0, height: 0)
-            }
-            .sheet(isPresented: $isShowingFeedback) {
-                FeedbackShakeSheet()
-            }
-    }
-
-    @MainActor
-    private func handleShake() {
-        guard FeedbackShakePresentationPolicy.shouldPresent(
-            isFeedbackPresented: isShowingFeedback,
-            hasPresentedModal: FeedbackShakePresentationState.hasPresentedModal
-        ) else { return }
-        isShowingFeedback = true
-    }
-}
-
-private struct FeedbackShakeSheet: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            FeedbackView()
-                .toolbar {
-                    BSChromeToolbarCloseButton { dismiss() }
-                }
-        }
-    }
 }
