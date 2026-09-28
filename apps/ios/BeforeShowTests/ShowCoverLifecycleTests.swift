@@ -71,7 +71,8 @@ final class ShowCoverLifecycleTests: XCTestCase {
             directoryURL: directory,
             fetchData: { _ in sourceData }
         )
-        XCTAssertNotNil(await firstProcess.image(from: sourceURL))
+        let firstLoadedImage = await firstProcess.image(from: sourceURL)
+        XCTAssertNotNil(firstLoadedImage)
 
         let coldLaunch = ShowCoverImageCache(
             directoryURL: directory,
