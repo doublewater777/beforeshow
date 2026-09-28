@@ -105,6 +105,14 @@ struct CompanionPreparedShare: Equatable, Sendable {
     var shareSystemFields: Data
 }
 
+/// The CloudKit session/share already exists, but presentation data is not ready yet.
+/// Keep this linkage locally so retrying reuses the same cloud invitation instead of
+/// creating a second session.
+struct CompanionPersistedShareError: Error, Equatable, Sendable {
+    var session: CompanionSessionSnapshot
+    var underlying: CompanionSharingError
+}
+
 enum CompanionSharingError: Error, Equatable, Sendable {
     case iCloudAccountUnavailable
     case networkFailure
