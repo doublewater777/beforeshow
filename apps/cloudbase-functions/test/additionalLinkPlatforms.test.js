@@ -96,6 +96,46 @@ describe("additional ticket platform detection", () => {
     assert.equal(normalizeUrl(PLATFORM_CASES[6].url).eventId, "1018298");
   });
 
+  it("falls back to Maoyan's public detail page when the performance API fails", async () => {
+    const requested = [];
+    const draft = await parseShowLink(
+      "https://show.maoyan.com/qqw/?#/detail/503522?isNewPage=true&categoryId=1",
+      {
+        fetch: async (url) => {
+          requested.push(url);
+          if (url.includes("/maoyansh/myshow/ajax/v2/performance/503522")) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({ code: 1, msg: "not found", data: null })
+            };
+          }
+
+          assert.equal(url, "https://show.maoyan.com/detail/503522");
+          return {
+            ok: true,
+            status: 200,
+            text: async () => `<!doctype html>
+              <html><head><title>测试猫眼现场 - 猫眼</title></head>
+              <body>
+                <h1>测试猫眼现场</h1>
+                <div>上海体育馆(漕溪北路1111号)</div>
+                <div>2026.10.18 19:30 周日</div>
+              </body></html>`
+          };
+        }
+      }
+    );
+
+    assert.equal(draft.name, "测试猫眼现场");
+    assert.equal(draft.city, "上海");
+    assert.equal(draft.date, "2026-10-18");
+    assert.equal(draft.startTime, "19:30");
+    assert.equal(draft.venueName, "上海体育馆");
+    assert.equal(draft.source, "maoyan");
+    assert.equal(requested.length, 2);
+  });
+
   it("keeps a Ticket Planet share token while dropping unrelated tracking", () => {
     const normalized = normalizeUrl(PLATFORM_CASES[1].url);
     assert.equal(normalized.shareToken, "68d4d422ed6bb699");
