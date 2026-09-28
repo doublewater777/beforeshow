@@ -83,6 +83,25 @@ final class CompanionSharingCoordinator {
             )
             try modelContext.save()
             return prepared
+        } catch let persisted as CompanionPersistedShareError {
+            // CloudKit already owns this session/share. Keep its linkage locally so
+            // the next tap resends the same invitation instead of creating a duplicate.
+            show.applyCompanionSession(
+                persisted.session,
+                isOwner: true,
+                preferredName: preferredParticipantName
+            )
+            do {
+                try modelContext.save()
+            } catch {
+                CompanionDebugLog.write(
+                    "Companion invite stage=local-linkage-save failed after cloud persistence: \(error)"
+                )
+                throw error
+            }
+            lastErrorMessage = Self.userMessage(for: persisted.underlying)
+            lastErrorKind = persisted.underlying
+            throw persisted.underlying
         } catch {
             show.restoreCompanionState(status: snapshotBefore.status, names: snapshotBefore.names)
             show.restoreCompanionCloudLinkage(cloudBefore)
