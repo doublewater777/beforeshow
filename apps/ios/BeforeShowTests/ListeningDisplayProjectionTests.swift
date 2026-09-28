@@ -338,6 +338,46 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         )
     }
 
+    func testActiveFullCatalogPlaybackStaysFullWhenAccessCheckTemporarilyFails() {
+        let disc = ListeningDisc(
+            id: "active-full",
+            title: "Full",
+            artworkURL: nil,
+            tracks: [track("full", preview: false, duration: 180)]
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: .init(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accessCheckFailed
+            ),
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .playing(
+                songID: "full",
+                source: .fullCatalog,
+                currentTime: 42,
+                duration: 180
+            ),
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.roomMode, .fullPlayback)
+        XCTAssertEqual(projection.player.phase, .playing)
+        XCTAssertEqual(projection.player.source, .fullCatalog)
+        XCTAssertTrue(projection.player.canPlayPause)
+        XCTAssertEqual(projection.headerNotice?.recoveryAction, .retryAccess)
+        XCTAssertEqual(
+            projection.headerNotice?.message,
+            ListeningCopy.text("暂时无法确认之后的完整播放权限。")
+        )
+    }
+
     func testPreviewHeaderRoutesAuthorizationRecoveryByPermissionState() {
         let disc = ListeningDisc(
             id: "permission-header",
