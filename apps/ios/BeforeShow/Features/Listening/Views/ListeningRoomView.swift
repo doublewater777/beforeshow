@@ -160,7 +160,6 @@ struct ListenRootView: View {
 struct ListeningRoomView: View {
     @Bindable var room: ListeningRoomCoordinator
     let show: Show
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsCabinet = false
     @State private var matchingSlotIndex: Int?
@@ -252,13 +251,6 @@ struct ListeningRoomView: View {
             if position == .seated { room.finalizeManualDiscInsertionIfNeeded() }
         }
         .onChange(of: reduceMotion, initial: true) { _, value in room.mechanism.motion.reducedMotion = value }
-        .onChange(of: scenePhase) { _, phase in
-            let isForeground = phase == .active
-            room.setForeground(isForeground)
-            if isForeground {
-                Task { await room.refreshMusicAccessAfterForeground() }
-            }
-        }
         .task {
             while !Task.isCancelled {
                 room.tickMechanism()
