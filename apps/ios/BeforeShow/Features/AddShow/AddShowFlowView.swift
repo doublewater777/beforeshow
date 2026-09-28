@@ -57,6 +57,7 @@ struct AddShowFlowView: View {
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
     @State private var pendingLifecycleConfirmation: PendingAddShowLifecycleConfirmation?
+    @State private var pendingCurrentSwitchShowID: UUID?
     @State private var detailTarget: AddShowDetailDestination?
 
     init(
@@ -210,6 +211,22 @@ struct AddShowFlowView: View {
                     }
                 }
             )
+        }
+        .alert(
+            BSLocalization.text("设为当前现场？"),
+            isPresented: Binding(
+                get: { pendingCurrentSwitchShowID != nil },
+                set: { if !$0 { pendingCurrentSwitchShowID = nil } }
+            )
+        ) {
+            Button(BSLocalization.text("设为当前")) {
+                switchPendingAddedShowToCurrent()
+            }
+            Button(BSLocalization.text("暂不切换"), role: .cancel) {
+                keepExistingCurrentAfterAdd()
+            }
+        } message: {
+            Text(BSLocalization.text("接下来 BeforeShow 会围绕这场显示倒计时、听和提醒。"))
         }
         .sheet(item: $paywallSheet) { sheet in
             switch sheet {
@@ -913,10 +930,26 @@ struct AddShowFlowView: View {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
 
-            // Persistence success ends Add Show immediately. The normal coordinator
-            // dismisses synchronously from this callback; notification scheduling
-            // continues afterward without holding the sheet open.
-            onSaved?(show.id)
+            // A newly added upcoming/live show may coexist with an existing manual
+            // Current Show. Keep the add transaction open long enough to let the
+            // user explicitly decide whether this new show should take focus.
+            let persistedShows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? shows
+            let persistedSelection = try? CurrentShowSelectionStore(
+                modelContext: modelContext
+            ).canonicalSelection()
+            let isCurrent = CurrentShowSession().isCurrent(
+                show,
+                among: persistedShows,
+                manualSelection: persistedSelection
+            )
+            if AddShowCurrentPromptPolicy.shouldOfferSwitch(
+                lifecycle: lifecycle,
+                isCurrent: isCurrent
+            ) {
+                pendingCurrentSwitchShowID = show.id
+            } else {
+                onSaved?(show.id)
+            }
 
             if result.notificationState != nil {
                 await LocalNotificationCenter.shared.reconcileAfterShowAdded(
@@ -943,6 +976,51 @@ struct AddShowFlowView: View {
             message = BSLocalization.text("请填写必填信息。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
+        }
+    }
+
+    private func keepExistingCurrentAfterAdd() {
+        guard let showID = pendingCurrentSwitchShowID else { return }
+        pendingCurrentSwitchShowID = nil
+        onSaved?(showID)
+    }
+
+    private func switchPendingAddedShowToCurrent() {
+        guard let showID = pendingCurrentSwitchShowID, !isSaving else { return }
+        pendingCurrentSwitchShowID = nil
+        isSaving = true
+
+        Task { @MainActor in
+            do {
+                let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
+                let persistedSelections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
+                let persistedNotificationStates = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
+                _ = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: showID,
+                    shows: persistedShows,
+                    selections: persistedSelections,
+                    notificationStates: persistedNotificationStates,
+                    in: modelContext
+                )
+
+                if let confirmation = savedShowConfirmation,
+                   confirmation.showID == showID {
+                    savedShowConfirmation = SavedShowConfirmation(
+                        showID: confirmation.showID,
+                        name: confirmation.name,
+                        coverImageURL: confirmation.coverImageURL,
+                        kind: .saved(.current)
+                    )
+                }
+
+                isSaving = false
+                onSaved?(showID)
+            } catch {
+                modelContext.rollback()
+                isSaving = false
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
+                pendingCurrentSwitchShowID = showID
+            }
         }
     }
 
