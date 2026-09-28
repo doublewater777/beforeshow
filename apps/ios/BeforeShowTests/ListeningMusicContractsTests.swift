@@ -100,6 +100,39 @@ final class ListeningMusicContractsTests: XCTestCase {
         )
     }
 
+    func testConfirmedFullPlaybackLossExcludesTransientAccessCheckFailure() {
+        XCTAssertTrue(
+            ListeningMusicAccess(
+                authorizationStatus: .denied,
+                catalogPlaybackAccess: .accountLimited
+            ).hasConfirmedFullPlaybackLoss
+        )
+        XCTAssertTrue(
+            ListeningMusicAccess(
+                authorizationStatus: .restricted,
+                catalogPlaybackAccess: .accountLimited
+            ).hasConfirmedFullPlaybackLoss
+        )
+        XCTAssertTrue(
+            ListeningMusicAccess(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accountLimited
+            ).hasConfirmedFullPlaybackLoss
+        )
+        XCTAssertFalse(
+            ListeningMusicAccess(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .accessCheckFailed
+            ).hasConfirmedFullPlaybackLoss
+        )
+        XCTAssertFalse(
+            ListeningMusicAccess(
+                authorizationStatus: .authorized,
+                catalogPlaybackAccess: .available
+            ).hasConfirmedFullPlaybackLoss
+        )
+    }
+
     func testCatalogRefreshPolicyUsesTwentyFourHourBoundary() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
 
