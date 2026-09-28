@@ -123,11 +123,10 @@ struct RemoteFeedbackSubmissionService {
 
 enum FeedbackShakePresentationPolicy {
     static func shouldPresent(
-        isAppReady: Bool,
         isFeedbackPresented: Bool,
         hasPresentedModal: Bool
     ) -> Bool {
-        isAppReady && !isFeedbackPresented && !hasPresentedModal
+        !isFeedbackPresented && !hasPresentedModal
     }
 }
 
