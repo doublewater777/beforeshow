@@ -402,6 +402,64 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(show.companionIsOwner, true)
     }
 
+    func testShareURLRetryPolicyAllowsCloudKitPropagationTime() {
+        XCTAssertEqual(
+            CompanionShareURLRetryPolicy.delays,
+            [.milliseconds(200), .milliseconds(500), .seconds(1)]
+        )
+    }
+
+    @MainActor
+    func testCoordinatorKeepsPersistedShareLinkageWhenURLPreparationFails() async throws {
+        let service = MockCompanionSharingService()
+        let coordinator = makeCoordinator(service: service)
+        let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        let container = try ModelContainer(for: Show.self, configurations: configuration)
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "同行现场", date: now, startTime: now)
+        context.insert(show)
+        try context.save()
+
+        let persistedSession = makeSession(
+            recordName: "session-persisted",
+            shareName: "share-persisted",
+            status: .pending,
+            owner: "Alex",
+            participant: "林嘉",
+            showID: show.id.uuidString,
+            showName: show.name,
+            showDate: now
+        )
+        service.persistedPrepareError = CompanionPersistedShareError(
+            session: persistedSession,
+            underlying: .sharePreparationFailed
+        )
+
+        do {
+            _ = try await coordinator.prepareInvitation(
+                for: show,
+                preferredParticipantName: "林嘉",
+                ownerDisplayName: "Alex",
+                in: context
+            )
+            XCTFail("Expected URL preparation failure")
+        } catch {
+            XCTAssertEqual(error as? CompanionSharingError, .sharePreparationFailed)
+        }
+
+        XCTAssertEqual(service.prepareCallCount, 1)
+        XCTAssertEqual(show.companionStatus, .pending)
+        XCTAssertEqual(show.companionName, "林嘉")
+        XCTAssertEqual(show.companionCloudRecordName, "session-persisted")
+        XCTAssertEqual(show.companionShareRecordName, "share-persisted")
+        XCTAssertEqual(show.companionIsOwner, true)
+
+        let resend = try await coordinator.shareSystemFieldsForResend(show: show)
+        XCTAssertEqual(resend, Data([0x01, 0x02]))
+        XCTAssertEqual(service.prepareCallCount, 1, "Retry should reuse the persisted share")
+    }
+
     @MainActor
     func testCoordinatorRefreshUpdatesAcceptedStatus() async throws {
         let service = MockCompanionSharingService()
@@ -1112,6 +1170,7 @@ private func makeSession(
 
 private final class MockCompanionSharingService: CompanionSharingService, @unchecked Sendable {
     var prepareError: CompanionSharingError?
+    var persistedPrepareError: CompanionPersistedShareError?
     var loadShareError: CompanionSharingError?
     var cancelError: CompanionSharingError?
     var fetchError: CompanionSharingError?
@@ -1129,6 +1188,7 @@ private final class MockCompanionSharingService: CompanionSharingService, @unche
         preferredParticipantName: String?
     ) async throws -> CompanionPreparedShare {
         prepareCallCount += 1
+        if let persistedPrepareError { throw persistedPrepareError }
         if let prepareError { throw prepareError }
         counter += 1
         let recordName = "session-\(counter)"
