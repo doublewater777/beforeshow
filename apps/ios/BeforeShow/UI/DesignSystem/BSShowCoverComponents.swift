@@ -108,6 +108,7 @@ struct ShowCoverImageView: View {
     var restoresPersistedImageOnFirstFrame = false
 
     @State private var image: UIImage?
+    @State private var imageURLString: String?
     @State private var loadState: LoadState = .idle
 
     enum LoadState: Equatable {
@@ -130,11 +131,11 @@ struct ShowCoverImageView: View {
         self.enforcesAspectRatio = enforcesAspectRatio
         self.cornerRadius = cornerRadius
         self.restoresPersistedImageOnFirstFrame = restoresPersistedImageOnFirstFrame
-        _image = State(
-            initialValue: restoresPersistedImageOnFirstFrame
-                ? Self.persistedImage(for: urlString)
-                : Self.memoryImage(for: urlString)
-        )
+        let initialImage = restoresPersistedImageOnFirstFrame
+            ? Self.persistedImage(for: urlString)
+            : Self.memoryImage(for: urlString)
+        _image = State(initialValue: initialImage)
+        _imageURLString = State(initialValue: initialImage == nil ? nil : urlString)
     }
 
     var body: some View {
@@ -164,6 +165,11 @@ struct ShowCoverImageView: View {
     }
 
     private func loadImage() async {
+        if imageURLString != urlString {
+            image = nil
+            imageURLString = urlString
+            loadState = .idle
+        }
         guard image == nil,
               let urlString,
               !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
