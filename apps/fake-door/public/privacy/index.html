@@ -157,31 +157,34 @@
       <section data-lang="zh-Hans">
         <h1>隐私政策</h1>
         <p class="lede">开场前 BeforeShow（下称「BeforeShow」）尊重并保护你的个人数据。本政策说明我们收集哪些信息、如何使用、保存在哪里，以及你可以如何删除。</p>
-        <span class="updated">更新日期：2026 年 8 月</span>
+        <span class="updated">更新日期：2026 年 9 月</span>
 
         <h2>1. 我们收集的信息</h2>
-        <p><strong>本地保存的现场信息。</strong>你手动添加或通过链接、截图导入的现场名称、时间、场馆、艺人等信息，只保存在你的设备本地。</p>
+        <p><strong>本地保存的现场信息。</strong>你手动添加或通过链接、截图导入的现场名称、时间、场馆、艺人等信息保存在你的设备本地。我们不会把这些字段作为普通分析事件发送；开启 PostHog 操作回放时，界面中可见的文字仍可能被回放记录，详情见第 3 节。</p>
         <p><strong>图片与视频。</strong>记忆碎片、票根、时刻表和动态封面中的图片与视频，以副本形式保存在 App 沙盒中，不会写入系统相册原图。</p>
         <p><strong>同行分享。</strong>当你主动发起或接受同行邀请时，相关的现场信息和确认状态会通过 Apple CloudKit 在你的账号与同行者之间同步。</p>
         <p><strong>购买信息。</strong>Pro 会员通过 App Store 订阅，支付与订阅状态由 Apple 处理。BeforeShow 不收集、不保存你的支付信息。</p>
+        <p><strong>Apple Music 曲库与听歌记录。</strong>当你在「听」模块中授权访问 Apple Music 后，BeforeShow 会通过 MusicKit 查询所选现场艺人的曲库资料，并按你的操作请求官方试听片段或完整曲目。为提供曲库浏览和熟悉度进度，所选艺人、曲库快照、最近曲目及已听曲目的熟悉度记录保存在设备本地；这些记录不会同步到 BeforeShow 的服务器或 CloudKit。Apple Music 访问授权、账户播放资格和音频播放由 Apple 处理。</p>
 
         <h2>2. 我们如何使用信息</h2>
         <p>BeforeShow 使用上述信息提供核心功能：展示倒计时与现场信息、生成记忆回顾、创建分享卡片，以及在你主动使用时同步同行状态。我们不会用于广告，也不会向你之外的人出售数据。</p>
         <p><strong>本地识别。</strong>票务截图只用于设备端 OCR，不会为了识别上传到服务器。</p>
+        <p><strong>听歌熟悉度。</strong>「听」模块根据你实际播放或手动确认的曲目，在本机更新熟悉度进度，用于展示你对现场艺人曲目的预习情况。</p>
 
         <h2>3. 产品分析与操作回放</h2>
-        <p>为了发现卡点、修复问题和改进体验，BeforeShow 会使用 PostHog 收集<strong>匿名产品分析事件</strong>和<strong>操作回放</strong>。这些数据用于理解功能是否顺畅，不用于广告投放，也不用于识别你的真实身份。</p>
-        <p>分析事件通常包括应用启动、关键页面浏览，以及你主动触发的产品动作，例如添加现场、打开会员页或完成购买。操作回放记录的是界面交互过程；文本输入和图片默认会被遮罩，不会用来还原票务截图、记忆照片或支付信息。</p>
+        <p>为了了解产品使用情况和修复崩溃，BeforeShow 使用 PostHog 处理产品分析与操作回放；目前配置连接 PostHog 美国区域服务。PostHog SDK 会生成随机的假名标识，用于关联同一安装产生的事件。BeforeShow 不会调用 identify 将该标识绑定到姓名、邮箱或账号。此功能默认开启，不用于广告投放。</p>
+        <p>自动事件包括应用安装、更新、打开、进入后台和屏幕浏览。崩溃自动报告可能包含异常类型、异常或崩溃信息及调用堆栈。SDK 还会附加应用版本与构建号、设备型号、操作系统名称与版本、设备类型、语言、时区、屏幕尺寸和网络连接类型等技术信息。手动事件记录引导页浏览与完成方式、添加现场的入口与现场生命周期、重复现场时已有现场的本地 ID、会员页和订阅方案及购买结果、记忆碎片是否带媒体及媒体数量、散场记录是否有评分或备注及评分值，以及评分提示入口。手动事件不包含现场名称、备注正文、截图识别内容、照片或视频内容，也不包含听歌熟悉度记录。</p>
+        <p>开启操作回放时，PostHog 默认以线框形式记录界面结构和触摸操作，不截取完整屏幕图片；文本输入、图片和系统选取视图默认会被遮罩，但界面中可见的文字仍可能出现在回放中，因此「听」模块当时显示的艺人、专辑或曲名可能被记录。当前没有开启截图模式；由于 App 使用 SwiftUI，回放可能无法完整呈现这些界面。操作回放还会记录 URLSession 请求地址（可能包含路径或查询参数）、HTTP 方法、响应状态码、耗时和传输大小，不记录请求或响应正文；控制台日志采集未开启。</p>
         <p>你可以随时在「设置 → 隐私与本地数据 → 帮助改进产品」关闭这项功能。关闭后，BeforeShow 会停止继续发送分析与回放数据。</p>
 
         <h2>4. 联网功能</h2>
-        <p>链接解析（你主动粘贴演出详情链接）、同行分享（CloudKit）、意见反馈，以及在你未关闭时发送的产品分析 / 操作回放，是 BeforeShow 会发起网络请求的场景。App 不会在后台静默上传你的现场内容、票务截图、照片、视频或录音。</p>
+        <p>联网功能包括：你主动使用的链接解析、同行分享（CloudKit）、意见反馈、Apple Music 曲库查询与音乐播放（通过 MusicKit），以及在你未关闭时发送的产品分析 / 操作回放。MusicKit 请求由 Apple 处理；BeforeShow 不会接收或保存你的 Apple 账号凭证。BeforeShow 不会将票务截图、照片、视频或录音文件上传用于识别或备份；操作回放可能记录的界面文字与网络请求信息见第 3 节。</p>
 
         <h2>5. 数据保存与备份</h2>
         <p>App 数据保存在设备本地。iOS 系统备份是否包含 App 数据由 iOS 和你的系统设置决定，BeforeShow 无法控制。我们目前不提供跨设备同步或云端恢复保证。</p>
 
         <h2>6. 数据删除与控制</h2>
-        <p>你可以在「设置 → 隐私与本地数据 → 清除 BeforeShow 本地数据」中删除 BeforeShow 管理的本地记录和副本。该操作不会删除系统相册中的原始图片或视频。删除同行分享或停止 iCloud 同步，请按系统设置操作。</p>
+        <p>你可以在「设置 → 隐私与本地数据 → 清除 BeforeShow 本地数据」中删除 BeforeShow 管理的本地记录和副本，包括 Apple Music 曲库缓存及听歌熟悉度记录。该操作不会删除系统相册中的原始图片或视频。删除同行分享或停止 iCloud 同步，请按系统设置操作。</p>
         <p>如需停止产品分析与操作回放，请关闭「帮助改进产品」开关。</p>
 
         <h2>7. 儿童隐私</h2>
@@ -197,31 +200,34 @@
       <section data-lang="zh-Hant">
         <h1>隱私政策</h1>
         <p class="lede">開場前 BeforeShow（下稱「BeforeShow」）尊重並保護你的個人資料。本政策說明我們收集哪些資訊、如何使用、保存在哪裡，以及你可以如何刪除。</p>
-        <span class="updated">更新日期：2026 年 8 月</span>
+        <span class="updated">更新日期：2026 年 9 月</span>
 
         <h2>1. 我們收集的資訊</h2>
-        <p><strong>本機儲存的現場資訊。</strong>你手動新增或透過連結、截圖匯入的現場名稱、時間、場館、藝人等資訊，只儲存在你的裝置本機。</p>
+        <p><strong>本機儲存的現場資訊。</strong>你手動新增或透過連結、截圖匯入的現場名稱、時間、場館、藝人等資訊儲存在你的裝置本機。我們不會將這些欄位作為一般分析事件傳送；開啟 PostHog 操作回放時，介面中可見的文字仍可能被回放記錄，詳情請見第 3 節。</p>
         <p><strong>圖片與影片。</strong>記憶碎片、票根、時刻表和動態封面中的圖片與影片，以副本形式儲存在 App 沙盒中，不會寫入系統相簿原圖。</p>
         <p><strong>同行分享。</strong>當你主動發起或接受同行邀請時，相關的現場資訊和確認狀態會透過 Apple CloudKit 在你的帳號與同行者之間同步。</p>
         <p><strong>購買資訊。</strong>Pro 會員透過 App Store 訂閱，付款與訂閱狀態由 Apple 處理。BeforeShow 不收集、不儲存你的付款資訊。</p>
+        <p><strong>Apple Music 曲庫與聽歌記錄。</strong>當你在「聽」模組中授權存取 Apple Music 後，BeforeShow 會透過 MusicKit 查詢所選現場藝人的曲庫資料，並依你的操作請求官方試聽片段或完整曲目。為提供曲庫瀏覽和熟悉度進度，所選藝人、曲庫快照、最近曲目及已聽曲目的熟悉度記錄會儲存在裝置本機；這些記錄不會同步到 BeforeShow 的伺服器或 CloudKit。Apple Music 存取授權、帳號播放資格和音訊播放由 Apple 處理。</p>
 
         <h2>2. 我們如何使用資訊</h2>
         <p>BeforeShow 使用上述資訊提供核心功能：顯示倒數計時與現場資訊、產生記憶回顧、建立分享卡片，以及在你主動使用時同步同行狀態。我們不會用於廣告，也不會向你以外的人出售資料。</p>
         <p><strong>本機辨識。</strong>票務截圖只用於裝置端 OCR，不會為了辨識上傳到伺服器。</p>
+        <p><strong>聽歌熟悉度。</strong>「聽」模組會根據你實際播放或手動確認的曲目，在本機更新熟悉度進度，用於顯示你對現場藝人曲目的預習情況。</p>
 
         <h2>3. 產品分析與操作回放</h2>
-        <p>為了發現卡點、修復問題和改進體驗，BeforeShow 會使用 PostHog 收集<strong>匿名產品分析事件</strong>和<strong>操作回放</strong>。這些資料用於理解功能是否順暢，不用於廣告投放，也不用於識別你的真實身分。</p>
-        <p>分析事件通常包括應用啟動、關鍵頁面瀏覽，以及你主動觸發的產品動作，例如新增現場、打開會員頁或完成購買。操作回放記錄的是介面互動過程；文字輸入和圖片預設會被遮罩，不會用來還原票務截圖、記憶照片或支付資訊。</p>
+        <p>為了瞭解產品使用情況和修復當機，BeforeShow 使用 PostHog 處理產品分析與操作回放；目前設定連線至 PostHog 美國區域服務。PostHog SDK 會產生隨機的假名識別碼，用於關聯同一安裝所產生的事件。BeforeShow 不會呼叫 identify 將此識別碼綁定至姓名、電子郵件或帳號。此功能預設開啟，不用於廣告投放。</p>
+        <p>自動事件包括 App 安裝、更新、開啟、進入背景和畫面瀏覽。當機自動報告可能包含例外類型、例外或當機資訊及呼叫堆疊。SDK 也會附加 App 版本與建置號碼、裝置型號、作業系統名稱與版本、裝置類型、語言、時區、螢幕尺寸和網路連線類型等技術資訊。手動事件記錄引導頁瀏覽與完成方式、新增現場的入口與現場生命週期、重複現場時既有現場的本機 ID、會員頁和訂閱方案及購買結果、記憶碎片是否含媒體及媒體數量、散場記錄是否有評分或備註及評分值，以及評分提示入口。手動事件不包含現場名稱、備註正文、截圖辨識內容、照片或影片內容，也不包含聽歌熟悉度記錄。</p>
+        <p>開啟操作回放時，PostHog 預設以線框形式記錄介面結構和觸控操作，不擷取完整螢幕圖片；文字輸入、圖片和系統選取畫面預設會被遮罩，但介面中可見的文字仍可能出現在回放中，因此「聽」模組當時顯示的藝人、專輯或曲名可能被記錄。目前沒有開啟截圖模式；由於 App 使用 SwiftUI，回放可能無法完整呈現這些介面。操作回放也會記錄 URLSession 請求位址（可能包含路徑或查詢參數）、HTTP 方法、回應狀態碼、耗時和傳輸大小，不記錄請求或回應本文；未開啟主控台記錄收集。</p>
         <p>你可以隨時在「設定 → 隱私與本機資料 → 幫助改進產品」關閉這項功能。關閉後，BeforeShow 會停止繼續傳送分析與回放資料。</p>
 
         <h2>4. 聯網功能</h2>
-        <p>連結解析（你主動貼上演出詳情連結）、同行分享（CloudKit）、意見回饋，以及在你未關閉時傳送的產品分析 / 操作回放，是 BeforeShow 會發起網路請求的場景。App 不會在背景靜默上傳你的現場內容、票務截圖、照片、影片或錄音。</p>
+        <p>網路功能包括：你主動使用的連結解析、同行分享（CloudKit）、意見回饋、Apple Music 曲庫查詢與音樂播放（透過 MusicKit），以及在你未關閉時傳送的產品分析 / 操作回放。MusicKit 請求由 Apple 處理；BeforeShow 不會接收或儲存你的 Apple 帳號憑證。BeforeShow 不會將票務截圖、照片、影片或錄音檔案上傳用於辨識或備份；操作回放可能記錄的介面文字與網路請求資訊請見第 3 節。</p>
 
         <h2>5. 資料儲存與備份</h2>
         <p>App 資料儲存在裝置本機。iOS 系統備份是否包含 App 資料由 iOS 和你的系統設定決定，BeforeShow 無法控制。我們目前不提供跨裝置同步或雲端復原保證。</p>
 
         <h2>6. 資料刪除與控制</h2>
-        <p>你可以在「設定 → 隱私與本機資料 → 清除 BeforeShow 本機資料」中刪除 BeforeShow 管理的本機記錄和副本。此操作不會刪除系統相簿中的原始圖片或影片。刪除同行分享或停止 iCloud 同步，請依系統設定操作。</p>
+        <p>你可以在「設定 → 隱私與本機資料 → 清除 BeforeShow 本機資料」中刪除 BeforeShow 管理的本機記錄和副本，包括 Apple Music 曲庫快取及聽歌熟悉度記錄。此操作不會刪除系統相簿中的原始圖片或影片。刪除同行分享或停止 iCloud 同步，請依系統設定操作。</p>
         <p>如需停止產品分析與操作回放，請關閉「幫助改進產品」開關。</p>
 
         <h2>7. 兒童隱私</h2>
@@ -237,31 +243,34 @@
       <section data-lang="en">
         <h1>Privacy Policy</h1>
         <p class="lede">BeforeShow (the "App") respects and protects your personal data. This policy explains what information we collect, how it is used, where it is stored, and how you can delete it.</p>
-        <span class="updated">Last updated: August 2026</span>
+        <span class="updated">Last updated: September 2026</span>
 
         <h2>1. Information We Collect</h2>
-        <p><strong>Locally stored event data.</strong> Event names, dates, venues, artists, and other data you add manually or import via links or screenshots are stored only on your device.</p>
+        <p><strong>Locally stored show data.</strong> Show names, dates, venues, artists, and other data you add manually or import via links or screenshots are stored on your device. We do not send these fields as ordinary analytics event properties. If PostHog session replay is enabled, visible interface text may still appear in a replay as described in Section 3.</p>
         <p><strong>Photos and videos.</strong> Photos and videos in memory fragments, ticket stubs, timetables, and animated covers are stored as copies inside the App's sandbox and are not written back to your photo library.</p>
         <p><strong>Companion sharing.</strong> When you send or accept a companion invite, the related event data and confirmation status are synced through Apple CloudKit between your account and your companion.</p>
         <p><strong>Purchase information.</strong> Pro membership is a subscription purchased through the App Store; payment and subscription status are handled by Apple. BeforeShow does not collect or store your payment information.</p>
+        <p><strong>Apple Music catalog and listening records.</strong> If you authorize Apple Music access in Listening, BeforeShow uses MusicKit to look up catalog information for artists associated with your shows and, based on your actions, request official previews or full tracks. To provide catalog browsing and familiarity progress, selected artists, catalog snapshots, recent tracks, and familiarity records for tracks you have heard are stored locally on your device; these records are not synced to BeforeShow's servers or CloudKit. Apple handles Apple Music authorization, account playback eligibility, and playback.</p>
 
         <h2>2. How We Use Information</h2>
         <p>BeforeShow uses the above information to provide its core features: showing countdowns and event details, generating memory recaps, creating share cards, and syncing companion status when you use it. We do not use it for advertising, and we do not sell your data to anyone.</p>
         <p><strong>On-device recognition.</strong> Ticket screenshots are used for on-device OCR only and are never uploaded for recognition.</p>
+        <p><strong>Listening familiarity.</strong> Listening updates familiarity progress on your device based on tracks you play or manually confirm, so the App can show how familiar you are with music by an artist at an upcoming show.</p>
 
         <h2>3. Product Analytics and Session Replay</h2>
-        <p>To find friction, fix bugs, and improve the experience, BeforeShow uses PostHog to collect <strong>anonymous product analytics events</strong> and <strong>session replay</strong>. This data helps us understand whether key flows work smoothly. It is not used for advertising and is not used to identify you in the real world.</p>
-        <p>Analytics events typically include app launches, key screen views, and product actions you trigger, such as adding a show, opening the membership page, or completing a purchase. Session replay captures interface interactions; text inputs and images are masked by default and are not used to recover ticket screenshots, memory photos, or payment details.</p>
+        <p>To understand product usage and diagnose crashes, BeforeShow uses PostHog for product analytics and session replay; the current configuration connects to PostHog's US region. The PostHog SDK generates a random pseudonymous identifier to associate events from the same app installation. BeforeShow does not call identify to link this identifier to a name, email address, or account. This feature is on by default and is not used for advertising.</p>
+        <p>Automatic events include app installation, updates, opens, backgrounding, and screen views. Automatic crash reports may include exception types, exception or crash details, and stack traces. The SDK also attaches technical information such as app version and build, device model, operating system name and version, device type, language, time zone, screen dimensions, and network connection type. Manually captured events record onboarding page views and completion method, how a show was added and its lifecycle, a local ID for an existing show when a duplicate is blocked, membership page views and subscription plan or purchase outcome, whether a memory fragment has media and its media count, whether a post-show record has a rating or note and the rating value, and review prompt entry points. Manual events do not include show names, note text, screenshot recognition results, photo or video content, or listening familiarity records.</p>
+        <p>When session replay is enabled, PostHog records a wireframe representation of interface structure and touches by default, rather than full-screen images. Text inputs, images, and system picker views are masked by default, but visible interface text may still appear in a replay; artist, album, or track names shown in Listening may therefore be captured. Screenshot mode is not enabled in the current configuration. Because the App uses SwiftUI, replays may not fully represent these screens. Session replay also records URLSession request URLs (which may include paths or query parameters), HTTP methods, response status codes, duration, and transfer size; it does not record request or response bodies. Console log capture is off.</p>
         <p>You can turn this off at any time under Settings → Privacy &amp; Local Data → Help Improve the Product. After you turn it off, BeforeShow stops sending further analytics and replay data.</p>
 
         <h2>4. Network Features</h2>
-        <p>Link parsing (when you paste an event details link), companion sharing (CloudKit), feedback, and product analytics / session replay (unless you turn them off) are the scenarios where BeforeShow makes network requests. The App never silently uploads your show content, ticket screenshots, photos, videos, or recordings in the background.</p>
+        <p>Network features include link parsing when you choose to paste an event link, companion sharing (CloudKit), feedback, Apple Music catalog requests and playback (through MusicKit), and product analytics / session replay unless you turn them off. Apple handles MusicKit requests; BeforeShow does not receive or store your Apple Account credentials. BeforeShow does not upload ticket screenshots, photos, videos, or audio files for recognition or backup; interface text and network request details that may appear in session replay are described in Section 3.</p>
 
         <h2>5. Storage and Backup</h2>
         <p>App data is stored locally on your device. Whether iOS backups include App data is determined by iOS and your system settings; BeforeShow cannot control this. We currently do not provide cross-device sync or cloud restore guarantees.</p>
 
         <h2>6. Deleting and Controlling Your Data</h2>
-        <p>You can delete records and copies managed by BeforeShow under Settings → Privacy &amp; Local Data → Clear BeforeShow Local Data. This does not delete original photos or videos in your photo library. To delete a companion share or stop iCloud sync, follow your system settings.</p>
+        <p>You can delete records and copies managed by BeforeShow under Settings → Privacy &amp; Local Data → Clear BeforeShow Local Data, including Apple Music catalog caches and listening familiarity records. This does not delete original photos or videos in your photo library. To delete a companion share or stop iCloud sync, follow your system settings.</p>
         <p>To stop product analytics and session replay, turn off Help Improve the Product.</p>
 
         <h2>7. Children's Privacy</h2>
