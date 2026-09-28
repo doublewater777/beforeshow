@@ -272,11 +272,15 @@ enum ListeningDisplayProjector {
         playbackState: ListeningPlaybackState
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
-        // Access can improve while a preview controller is already prepared or
-        // playing. Keep the room badge aligned with that transport until it is
-        // actually rebuilt or stopped instead of claiming full playback early.
-        if source(from: playbackState) == .preview {
+        // The active transport is current truth. Capability checks describe what
+        // can start next, but must not relabel an already-established session.
+        switch source(from: playbackState) {
+        case .fullCatalog:
+            return .fullPlayback
+        case .preview:
             return .preview
+        case nil:
+            break
         }
         guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
         if access.authorizationStatus == .authorized, access.canPlayCatalogContent {
@@ -293,7 +297,16 @@ enum ListeningDisplayProjector {
         access: ListeningMusicAccess
     ) -> ListeningHeaderNotice? {
         switch mode {
-        case .connecting, .fullPlayback:
+        case .connecting:
+            return nil
+        case .fullPlayback:
+            if access.authorizationStatus == .authorized,
+               access.catalogPlaybackAccess == .accessCheckFailed {
+                return ListeningHeaderNotice(
+                    message: ListeningCopy.text("暂时无法确认之后的完整播放权限。"),
+                    recoveryAction: .retryAccess
+                )
+            }
             return nil
         case .preview:
             return restrictedPlaybackNotice(access: access, hasPreview: true)
@@ -419,7 +432,7 @@ enum ListeningDisplayProjector {
         }
 
         let accessRecovery = recoveryAction(page: page, access: access, isAuthorizing: false)
-        if !trackPresentation.isPlayable {
+        if source(from: playbackState) == nil, !trackPresentation.isPlayable {
             return ListeningPlayerPresentation(
                 phase: .stopped,
                 source: nil,
