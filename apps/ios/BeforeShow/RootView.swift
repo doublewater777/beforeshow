@@ -62,12 +62,7 @@ struct RootView: View {
         .statusBarHidden(!hasFinishedSplash)
         .modifier(
             FeedbackShakeShortcutModifier(
-                isEnabled: hasFinishedSplash
-                    && hasResolvedOnboardingRoute
-                    && !isShowingOnboarding
-                    && !proOfferRouter.shouldPresentProSheet
-                    && companionDuplicateResolution == nil
-                    && companionResultMessage == nil
+                isEnabled: hasFinishedSplash && hasResolvedOnboardingRoute && !isShowingOnboarding
             )
         )
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
