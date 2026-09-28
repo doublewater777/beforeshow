@@ -585,6 +585,7 @@ private let listeningCatalogFetchConcurrency = 4
             isAuthorizing = false
             return
         }
+        endFullPlaybackSessionForCapabilityLossIfNeeded(newAccess)
         access = newAccess
         accessResolved = true
         isAuthorizing = false
@@ -630,6 +631,7 @@ private let listeningCatalogFetchConcurrency = 4
         accessResolved = true
         guard newAccess != previousAccess else { return }
 
+        endFullPlaybackSessionForCapabilityLossIfNeeded(newAccess)
         access = newAccess
 
         guard !isLoadingShow else { return }
@@ -1060,7 +1062,12 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
     func stop() {
+        endPlaybackSession(resetTrackSelection: true)
+    }
+
+    private func endPlaybackSession(resetTrackSelection: Bool) {
         recordedPlayingSongID = nil
+        pendingSleeveSongID = nil
         do {
             try controller?.stop()
         } catch {
@@ -1069,7 +1076,11 @@ private let listeningCatalogFetchConcurrency = 4
         controller = nil
         playbackGeneration = UUID()
         retryPendingPlaybackEvidence()
-        trackIndex = 0
+        if resetTrackSelection {
+            trackIndex = 0
+        } else {
+            persistLoadedDisc()
+        }
         preparedSongID = nil
         preparedSource = nil
         playbackState = .idle
@@ -1078,6 +1089,23 @@ private let listeningCatalogFetchConcurrency = 4
         finishedSongID = nil
         visibility = ListeningVisibilityPolicy()
         updateTimeText()
+    }
+
+    private func hasConfirmedFullPlaybackCapabilityLoss(_ access: ListeningMusicAccess) -> Bool {
+        switch access.authorizationStatus {
+        case .denied, .restricted:
+            true
+        case .authorized:
+            access.catalogPlaybackAccess == .accountLimited
+        case .notDetermined:
+            false
+        }
+    }
+
+    private func endFullPlaybackSessionForCapabilityLossIfNeeded(_ access: ListeningMusicAccess) {
+        guard hasConfirmedFullPlaybackCapabilityLoss(access),
+              preparedSource == .fullCatalog else { return }
+        endPlaybackSession(resetTrackSelection: false)
     }
 
     func tickMechanism() {
