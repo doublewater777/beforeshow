@@ -43,6 +43,23 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         }
     }
 
+    func deliverCompanionInviteURL(_ shareURL: URL) {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let container = CKContainer(
+                    identifier: CloudKitCompanionSharingService.defaultContainerIdentifier
+                )
+                let metadata = try await container.shareMetadata(for: shareURL)
+                deliverAcceptedShare(metadata)
+            } catch {
+                companionCoordinator?.handleIncomingInviteFailure(
+                    CompanionSharingError.acceptFailed
+                )
+            }
+        }
+    }
+
     func noteDependenciesReady() {
         guard let coordinator = companionCoordinator else { return }
         coordinator.reloadPersistedAcceptedShares()
@@ -79,6 +96,12 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
         if let metadata = connectionOptions.cloudKitShareMetadata {
             deliver(metadata)
         }
+        for activity in connectionOptions.userActivities
+        where activity.activityType == NSUserActivityTypeBrowsingWeb {
+            if let url = activity.webpageURL {
+                deliver(url)
+            }
+        }
         if let shortcutItem = connectionOptions.shortcutItem,
            shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
             Task { @MainActor in
@@ -93,6 +116,14 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
    ) {
        deliver(cloudKitShareMetadata)
    }
+
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+              let url = userActivity.webpageURL else {
+            return
+        }
+        deliver(url)
+    }
 
     func windowScene(
         _ windowScene: UIWindowScene,
@@ -113,5 +144,13 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
             return
         }
         appDelegate.deliverAcceptedShare(metadata)
+    }
+
+    private func deliver(_ webpageURL: URL) {
+        guard let shareURL = CompanionInviteWebLink.shareURL(from: webpageURL),
+              let appDelegate = UIApplication.shared.delegate as? BeforeShowAppDelegate else {
+            return
+        }
+        appDelegate.deliverCompanionInviteURL(shareURL)
     }
 }

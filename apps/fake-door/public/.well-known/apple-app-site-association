@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "29C8MS76CZ.com.doublewaterapps.beforeshow",
+        "paths": [
+          "/join",
+          "/join/",
+          "/join/*"
+        ]
+      }
+    ]
+  }
+}

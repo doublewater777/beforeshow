@@ -63,6 +63,73 @@ final class CompanionSharingTests: XCTestCase {
         )
     }
 
+    func testCompanionInviteWebLinkRoundTripsCloudKitURLWithoutQueryLeakage() throws {
+        let shareURL = try XCTUnwrap(
+            URL(string: "https://www.icloud.com/share/abc123#CompanionSessions")
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(from: shareURL))
+        let components = try XCTUnwrap(
+            URLComponents(url: webURL, resolvingAgainstBaseURL: false)
+        )
+
+        XCTAssertEqual(components.scheme, "https")
+        XCTAssertEqual(components.host, CompanionInviteWebLink.host)
+        XCTAssertEqual(components.path, CompanionInviteWebLink.path)
+        XCTAssertNil(components.query)
+        XCTAssertTrue(components.fragment?.hasPrefix("share=") == true)
+        XCTAssertEqual(CompanionInviteWebLink.shareURL(from: webURL), shareURL)
+    }
+
+    func testCompanionInviteWebLinkRejectsForeignHostsAndInvalidPayloads() throws {
+        let foreign = try XCTUnwrap(
+            URL(string: "https://example.com/join/#share=abc")
+        )
+        let invalid = try XCTUnwrap(
+            URL(string: "https://beforeshow.doublewaterapps.com/join/#share=not-base64")
+        )
+
+        XCTAssertNil(CompanionInviteWebLink.shareURL(from: foreign))
+        XCTAssertNil(CompanionInviteWebLink.shareURL(from: invalid))
+    }
+
+    func testCompanionUniversalLinkConfigurationMatchesWebsiteAssociation() throws {
+        let appsRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let entitlementsURL = appsRoot
+            .appendingPathComponent("ios/BeforeShow/BeforeShow.entitlements")
+        let entitlementData = try Data(contentsOf: entitlementsURL)
+        let entitlements = try XCTUnwrap(
+            PropertyListSerialization.propertyList(
+                from: entitlementData,
+                format: nil
+            ) as? [String: Any]
+        )
+        let domains = try XCTUnwrap(
+            entitlements["com.apple.developer.associated-domains"] as? [String]
+        )
+        XCTAssertTrue(domains.contains("applinks:\(CompanionInviteWebLink.host)"))
+
+        let associationURL = appsRoot
+            .appendingPathComponent("fake-door/public/.well-known/apple-app-site-association")
+        let associationData = try Data(contentsOf: associationURL)
+        let association = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: associationData) as? [String: Any]
+        )
+        let applinks = try XCTUnwrap(association["applinks"] as? [String: Any])
+        let details = try XCTUnwrap(applinks["details"] as? [[String: Any]])
+        XCTAssertTrue(
+            details.contains {
+                guard $0["appID"] as? String == "29C8MS76CZ.com.doublewaterapps.beforeshow",
+                      let paths = $0["paths"] as? [String] else {
+                    return false
+                }
+                return paths.contains(CompanionInviteWebLink.path)
+            }
+        )
+    }
+
     func testCloudStatusMapsToLocalStatus() {
         XCTAssertEqual(CompanionCloudStatus.pending.localStatus, .pending)
         XCTAssertEqual(CompanionCloudStatus.accepted.localStatus, .confirmed)
