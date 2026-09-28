@@ -308,6 +308,21 @@ final class FootprintArchiveTests: XCTestCase {
         })
     }
 
+    func testAddShowCurrentPromptOnlyOffersForNonCurrentUpcomingOrLiveShows() {
+        XCTAssertTrue(
+            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .future, isCurrent: false)
+        )
+        XCTAssertTrue(
+            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .live, isCurrent: false)
+        )
+        XCTAssertFalse(
+            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .future, isCurrent: true)
+        )
+        XCTAssertFalse(
+            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .ended, isCurrent: false)
+        )
+    }
+
     func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
