@@ -426,3 +426,76 @@ private struct NotificationSettingsRow: View {
         )
     }
 }
+
+struct FeedbackShakeShortcutModifier: ViewModifier {
+    @State private var isShowingFeedback = false
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                FeedbackShakeResponder(
+                    isArmed: !isShowingFeedback,
+                    onShake: handleShake
+                )
+                .frame(width: 0, height: 0)
+            }
+            .sheet(isPresented: $isShowingFeedback) {
+                FeedbackShakeSheet()
+            }
+    }
+
+    @MainActor
+    private func handleShake() {
+        guard FeedbackShakePresentationPolicy.shouldPresent(
+            isFeedbackPresented: isShowingFeedback,
+            hasPresentedModal: FeedbackShakePresentationState.hasPresentedModal
+        ) else { return }
+        isShowingFeedback = true
+    }
+}
+
+private struct FeedbackShakeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var isShowingForm = false
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if isShowingForm {
+                    FeedbackView()
+                } else {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        Text(BSLocalization.text("遇到问题？"))
+                            .font(BSFont.V3.title2)
+                            .foregroundColor(BSColor.Stage.foreground)
+
+                        Text(BSLocalization.text("有问题或建议，都可以告诉我们。"))
+                            .font(BSFont.V3.body)
+                            .foregroundColor(BSColor.Stage.muted)
+
+                        Button {
+                            isShowingForm = true
+                        } label: {
+                            Label(
+                                BSLocalization.text("提交反馈"),
+                                systemImage: "paperplane.fill"
+                            )
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                    }
+                    .padding(BSSpacing.xl)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: .topLeading
+                    )
+                    .background(BSColor.Stage.background)
+                }
+            }
+            .toolbar {
+                BSChromeToolbarCloseButton { dismiss() }
+            }
+        }
+        .presentationDetents(isShowingForm ? [.large] : [.medium])
+    }
+}
