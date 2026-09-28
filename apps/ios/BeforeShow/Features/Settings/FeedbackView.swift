@@ -177,14 +177,13 @@ enum FeedbackSendState: Equatable {
 }
 
 struct FeedbackShakeShortcutModifier: ViewModifier {
-    let isEnabled: Bool
     @State private var isShowingFeedback = false
 
     func body(content: Content) -> some View {
         content
             .background {
                 FeedbackShakeResponder(
-                    isArmed: isEnabled && !isShowingFeedback,
+                    isArmed: !isShowingFeedback,
                     onShake: handleShake
                 )
                 .frame(width: 0, height: 0)
@@ -197,7 +196,6 @@ struct FeedbackShakeShortcutModifier: ViewModifier {
     @MainActor
     private func handleShake() {
         guard FeedbackShakePresentationPolicy.shouldPresent(
-            isAppReady: isEnabled,
             isFeedbackPresented: isShowingFeedback,
             hasPresentedModal: FeedbackShakePresentationState.hasPresentedModal
         ) else { return }
