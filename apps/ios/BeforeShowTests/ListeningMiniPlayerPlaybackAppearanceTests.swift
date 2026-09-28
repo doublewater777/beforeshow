@@ -125,4 +125,35 @@ final class ListeningMiniPlayerPlaybackAppearanceTests: XCTestCase {
             )
         )
     }
+
+    func testMiniPlayerSwipeLeftAdvancesToNextTrack() {
+        XCTAssertEqual(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: -60, height: 8)
+            ),
+            .next
+        )
+    }
+
+    func testMiniPlayerSwipeRightReturnsToPreviousTrack() {
+        XCTAssertEqual(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: 60, height: -8)
+            ),
+            .previous
+        )
+    }
+
+    func testMiniPlayerSwipeIgnoresShortAndVerticalDrags() {
+        XCTAssertNil(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: 30, height: 2)
+            )
+        )
+        XCTAssertNil(
+            ListeningMiniPlayerSwipeIntent.action(
+                for: CGSize(width: 60, height: 55)
+            )
+        )
+    }
 }

@@ -108,6 +108,70 @@ import XCTest
         XCTAssertEqual(mechanism.motion.lid.value, 0.42, accuracy: 0.000001)
         XCTAssertNil(mechanism.motion.lid.target)
     }
+
+    func testLoadedLidStaysOpaqueWhileOpenAndClearsNearClosed() {
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 1,
+                hasDisc: true,
+                isShowingBackFace: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 0.45,
+                hasDisc: true,
+                isShowingBackFace: false
+            ),
+            0,
+            accuracy: 0.000001
+        )
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 0.12,
+                hasDisc: true,
+                isShowingBackFace: false
+            ),
+            1,
+            accuracy: 0.000001
+        )
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 0,
+                hasDisc: true,
+                isShowingBackFace: false
+            ),
+            1
+        )
+    }
+
+    func testLoadedLidTransparencyTransitionsSmoothlyAndRequiresVisibleDiscFace() {
+        let midway = ListeningLoadedLidAppearance.transparencyProgress(
+            lidOpenFraction: 0.285,
+            hasDisc: true,
+            isShowingBackFace: false
+        )
+        XCTAssertGreaterThan(midway, 0)
+        XCTAssertLessThan(midway, 1)
+
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 0,
+                hasDisc: false,
+                isShowingBackFace: false
+            ),
+            0
+        )
+        XCTAssertEqual(
+            ListeningLoadedLidAppearance.transparencyProgress(
+                lidOpenFraction: 0,
+                hasDisc: true,
+                isShowingBackFace: true
+            ),
+            0
+        )
+    }
     func testManualCabinetDragSeatsAndReturnsTheSameDisc() {
         let mechanism = CDMechanism()
         let disc = ListeningDisc(id: "manual", title: "Manual", artworkURL: nil, tracks: [])

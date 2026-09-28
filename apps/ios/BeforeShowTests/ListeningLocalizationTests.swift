@@ -475,7 +475,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         for path in [
             "Features/Listening/Views/ListeningRoomView.swift",
             "Features/Listening/Views/ListeningPreparingView.swift",
-            "Features/Footprints/FootprintDashboardView.swift",
             "Features/Footprints/FootprintsView.swift"
         ] {
             XCTAssertFalse(

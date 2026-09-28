@@ -12,6 +12,26 @@ private struct HingedPlane: GeometryEffect {
     }
 }
 
+enum ListeningLoadedLidAppearance {
+    static let fadeBeginsAtOpenFraction = 0.45
+    static let fullyClearAtOpenFraction = 0.12
+
+    static func transparencyProgress(
+        lidOpenFraction: Double,
+        hasDisc: Bool,
+        isShowingBackFace: Bool
+    ) -> Double {
+        guard hasDisc, !isShowingBackFace else { return 0 }
+
+        let span = fadeBeginsAtOpenFraction - fullyClearAtOpenFraction
+        guard span > 0 else { return lidOpenFraction <= fullyClearAtOpenFraction ? 1 : 0 }
+
+        let linear = (fadeBeginsAtOpenFraction - lidOpenFraction) / span
+        let clamped = min(max(linear, 0), 1)
+        return clamped * clamped * (3 - 2 * clamped)
+    }
+}
+
 struct ListeningMachineView: View {
     @Bindable var room: ListeningRoomCoordinator
     private var player: CDMechanism { room.mechanism }
@@ -314,50 +334,57 @@ private struct CDPlayerLidView: View {
     private var isShowingBackFace: Bool {
         cos(lidAngle * .pi / 180) < 0
     }
-    private var usesTransparentOuterLid: Bool {
-        !isShowingBackFace && player.hasDisc
+    private var transparencyProgress: Double {
+        ListeningLoadedLidAppearance.transparencyProgress(
+            lidOpenFraction: motion.lid.value,
+            hasDisc: player.hasDisc,
+            isShowingBackFace: isShowingBackFace
+        )
+    }
+    private var outerLidOpacity: Double {
+        1 - transparencyProgress * (1 - BSListeningTokens.loadedLidOpacity)
     }
 
     var body: some View {
         ZStack {
-            // The visible top cover itself becomes clear acrylic only while a
-            // disc is seated underneath it. With an empty tray, retain the
-            // original opaque photographed lid.
+            // Keep the photographed lid solid while it is open. Once a seated
+            // disc is being covered, fade into the clear-acrylic treatment only
+            // during the final portion of the closing travel.
             Image(player.configuration.assets.lidOuter).resizable()
-                .opacity(isShowingBackFace ? 0 : (usesTransparentOuterLid ? BSListeningTokens.loadedLidOpacity : 1))
+                .opacity(isShowingBackFace ? 0 : outerLidOpacity)
 
             // The inside face is not part of the transparent treatment.
             Image(player.configuration.assets.lidInner).resizable()
                 .opacity(isShowingBackFace ? 1 : 0)
 
-            if usesTransparentOuterLid {
-                LinearGradient(
-                    colors: [
-                        .white.opacity(0.10),
-                        .white.opacity(0.025),
-                        .clear,
-                        .black.opacity(0.035)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .mask(Image(player.configuration.assets.lidOuter).resizable())
+            LinearGradient(
+                colors: [
+                    .white.opacity(0.10),
+                    .white.opacity(0.025),
+                    .clear,
+                    .black.opacity(0.035)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .mask(Image(player.configuration.assets.lidOuter).resizable())
+            .opacity(transparencyProgress)
 
-                // Keep the acrylic rim readable even though the disc is visible
-                // through the center of the closed top cover.
-                Ellipse()
-                    .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
-                    .padding(2)
-                Ellipse()
-                    .strokeBorder(.black.opacity(0.16), lineWidth: 1)
-                    .padding(5)
-            }
+            // Keep the acrylic rim readable as the cover clears over the disc.
+            Ellipse()
+                .strokeBorder(.white.opacity(0.28), lineWidth: 2.2)
+                .padding(2)
+                .opacity(transparencyProgress)
+            Ellipse()
+                .strokeBorder(.black.opacity(0.16), lineWidth: 1)
+                .padding(5)
+                .opacity(transparencyProgress)
 
             LinearGradient(
                 colors: [
-                    .white.opacity((usesTransparentOuterLid ? 0.025 : 0.07) * motion.lid.value),
+                    .white.opacity((0.07 - 0.045 * transparencyProgress) * motion.lid.value),
                     .clear,
-                    .black.opacity((usesTransparentOuterLid ? 0.035 : 0.10) * motion.lid.value)
+                    .black.opacity((0.10 - 0.065 * transparencyProgress) * motion.lid.value)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
