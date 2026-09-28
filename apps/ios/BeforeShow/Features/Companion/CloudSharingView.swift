@@ -30,9 +30,39 @@ enum CompanionInviteWebLink {
     static let host = "beforeshow.doublewaterapps.com"
     static let path = "/join/"
 
-    static func make(from shareURL: URL) -> URL? {
-        guard shareURL.scheme?.lowercased() == "https" else { return nil }
-        let token = Data(shareURL.absoluteString.utf8)
+    private struct Payload: Codable {
+        let v: Int
+        let u: String
+        let n: String
+        let t: Int64
+        let z: String?
+        let s: Int?
+        let l: String?
+        let o: String?
+    }
+
+    static func make(
+        from shareURL: URL,
+        show: CompanionShowSnapshot,
+        ownerName: String?
+    ) -> URL? {
+        guard validShareURL(shareURL) else { return nil }
+        let location = [show.venueName, show.city]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+        let payload = Payload(
+            v: 1,
+            u: shareURL.absoluteString,
+            n: String(show.showName.prefix(200)),
+            t: Int64(show.showStartTime.timeIntervalSince1970),
+            z: show.timeZoneIdentifier.flatMap { TimeZone(identifier: $0) == nil ? nil : $0 },
+            s: show.timeZoneSecondsFromGMT,
+            l: (location.isEmpty ? show.showLocation : location).map { String($0.prefix(240)) },
+            o: ownerName.map { String($0.trimmingCharacters(in: .whitespacesAndNewlines).prefix(100)) }
+        )
+        guard let data = try? JSONEncoder().encode(payload) else { return nil }
+        let token = data
             .base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")
@@ -40,34 +70,50 @@ enum CompanionInviteWebLink {
         var components = URLComponents()
         components.scheme = "https"
         components.host = host
-        components.path = path
-        components.fragment = "share=\(token)"
+        components.path = path + token
         return components.url
     }
 
     static func shareURL(from webURL: URL) -> URL? {
-        guard webURL.scheme?.lowercased() == "https",
-              webURL.host?.lowercased() == host,
-              webURL.path == path || webURL.path == "/join",
-              let fragment = URLComponents(url: webURL, resolvingAgainstBaseURL: false)?.fragment,
-              fragment.hasPrefix("share=")
-        else {
+        let isWebLink = webURL.scheme?.lowercased() == "https"
+            && webURL.host?.lowercased() == host
+        let isAppLink = webURL.scheme?.lowercased() == "beforeshow"
+            && webURL.host?.lowercased() == "join"
+        guard isWebLink || isAppLink,
+              webURL.query == nil,
+              webURL.fragment == nil else { return nil }
+        let token: String
+        if isWebLink {
+            guard webURL.path.hasPrefix(path) else { return nil }
+            token = String(webURL.path.dropFirst(path.count))
+        } else {
+            token = String(webURL.path.dropFirst())
+        }
+        guard !token.isEmpty, token.count < 8_192,
+              token.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else {
             return nil
         }
-
-        var token = String(fragment.dropFirst("share=".count))
+        var padded = token
             .replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
-        let padding = (4 - token.count % 4) % 4
-        token += String(repeating: "=", count: padding)
-        guard let data = Data(base64Encoded: token),
-              let value = String(data: data, encoding: .utf8),
-              let shareURL = URL(string: value),
-              shareURL.scheme?.lowercased() == "https"
+        padded += String(repeating: "=", count: (4 - padded.count % 4) % 4)
+        guard let data = Data(base64Encoded: padded),
+              let payload = try? JSONDecoder().decode(Payload.self, from: data),
+              payload.v == 1,
+              let shareURL = URL(string: payload.u),
+              validShareURL(shareURL)
         else {
             return nil
         }
         return shareURL
+    }
+
+    private static func validShareURL(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else {
+            return false
+        }
+        return (host == "icloud.com" || host.hasSuffix(".icloud.com"))
+            && url.path.hasPrefix("/share/")
     }
 }
 
@@ -102,7 +148,7 @@ private final class CompanionInviteActivityItemSource: NSObject, UIActivityItemS
     }
 }
 
-/// Distributes the stable `CKShare.url` through the ordinary system activity sheet.
+/// Distributes a BeforeShow invitation that carries the stable `CKShare.url`.
 /// We intentionally do not present `UICloudSharingController`: that controller also
 /// exposes participant removal, stop-sharing and leave-share controls, while the
 /// BeforeShow companion product only exposes joining and re-sharing the same invite.
@@ -111,6 +157,7 @@ enum SystemCloudSharePresenter {
     @discardableResult
     static func present(
         shareData: Data,
+        show: CompanionShowSnapshot,
         containerIdentifier: String,
         onEvent: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping () -> Void,
@@ -121,6 +168,7 @@ enum SystemCloudSharePresenter {
         }
         return present(
             share: share,
+            show: show,
             container: CKContainer(identifier: containerIdentifier),
             onEvent: onEvent,
             onDismiss: onDismiss,
@@ -131,6 +179,7 @@ enum SystemCloudSharePresenter {
     @discardableResult
     static func present(
         share: CKShare,
+        show: CompanionShowSnapshot,
         container _: CKContainer,
         onEvent _: @escaping (CloudSharingControllerEvent, CKShare?, Error?) -> Void,
         onDismiss: @escaping () -> Void,
@@ -144,11 +193,16 @@ enum SystemCloudSharePresenter {
             return false
         }
 
-        guard let webURL = CompanionInviteWebLink.make(from: invitationURL) else {
+        let ownerName = share.currentUserParticipant?.userIdentity.nameComponents
+            .map { PersonNameComponentsFormatter().string(from: $0) }
+        guard let webURL = CompanionInviteWebLink.make(
+            from: invitationURL,
+            show: show,
+            ownerName: ownerName
+        ) else {
             return false
         }
-        let title = (share[CKShare.SystemFieldKey.title] as? String)
-            ?? BSLocalization.text("同行邀请")
+        let title = BSLocalization.format("一起去 %@", show.showName)
         let controller = UIActivityViewController(
             activityItems: [CompanionInviteActivityItemSource(url: webURL, title: title)],
             applicationActivities: nil

@@ -102,6 +102,9 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
                 deliver(url)
             }
         }
+        for context in connectionOptions.urlContexts {
+            deliver(context.url)
+        }
         if let shortcutItem = connectionOptions.shortcutItem,
            shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
             Task { @MainActor in
@@ -123,6 +126,12 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
             return
         }
         deliver(url)
+    }
+
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        for context in URLContexts {
+            deliver(context.url)
+        }
     }
 
     func windowScene(

@@ -463,6 +463,7 @@ struct CurrentShowCompanionSheet: View {
     private func presentPreparedShare(_ data: Data) {
         let presented = SystemCloudSharePresenter.present(
             shareData: data,
+            show: CompanionShowSnapshot(show: show),
             containerIdentifier: CloudKitCompanionSharingService.defaultContainerIdentifier,
             onEvent: { event, share, error in
                 Task { @MainActor in

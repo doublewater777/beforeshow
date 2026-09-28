@@ -67,17 +67,34 @@ final class CompanionSharingTests: XCTestCase {
         let shareURL = try XCTUnwrap(
             URL(string: "https://www.icloud.com/share/abc123#CompanionSessions")
         )
-        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(from: shareURL))
+        let show = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "草东没有派对",
+            showDate: Date(timeIntervalSince1970: 1_792_275_200),
+            showStartTime: Date(timeIntervalSince1970: 1_792_275_200),
+            city: "上海",
+            venueName: "MAO Livehouse"
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: shareURL,
+            show: show,
+            ownerName: "Alex"
+        ))
         let components = try XCTUnwrap(
             URLComponents(url: webURL, resolvingAgainstBaseURL: false)
         )
 
         XCTAssertEqual(components.scheme, "https")
         XCTAssertEqual(components.host, CompanionInviteWebLink.host)
-        XCTAssertEqual(components.path, CompanionInviteWebLink.path)
+        XCTAssertTrue(components.path.hasPrefix(CompanionInviteWebLink.path))
         XCTAssertNil(components.query)
-        XCTAssertTrue(components.fragment?.hasPrefix("share=") == true)
+        XCTAssertNil(components.fragment)
         XCTAssertEqual(CompanionInviteWebLink.shareURL(from: webURL), shareURL)
+        let token = String(components.path.dropFirst(CompanionInviteWebLink.path.count))
+        XCTAssertEqual(
+            CompanionInviteWebLink.shareURL(from: try XCTUnwrap(URL(string: "beforeshow://join/\(token)"))),
+            shareURL
+        )
     }
 
     func testCompanionInviteWebLinkRejectsForeignHostsAndInvalidPayloads() throws {
@@ -85,7 +102,7 @@ final class CompanionSharingTests: XCTestCase {
             URL(string: "https://example.com/join/#share=abc")
         )
         let invalid = try XCTUnwrap(
-            URL(string: "https://beforeshow.doublewaterapps.com/join/#share=not-base64")
+            URL(string: "https://beforeshow.doublewaterapps.com/join/not-base64")
         )
 
         XCTAssertNil(CompanionInviteWebLink.shareURL(from: foreign))

@@ -163,6 +163,16 @@ private struct CompanionJoinConfirmationView: View {
         return names.isEmpty ? nil : names.joined(separator: " · ")
     }
 
+    private var showTimeText: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        formatter.timeZone = session.show.timeZoneIdentifier.flatMap(TimeZone.init(identifier:))
+            ?? session.show.timeZoneSecondsFromGMT.flatMap(TimeZone.init(secondsFromGMT:))
+            ?? .current
+        return formatter.string(from: session.show.showStartTime)
+    }
+
     var body: some View {
         ZStack {
             CurrentShowStageBackground().ignoresSafeArea()
@@ -198,19 +208,21 @@ private struct CompanionJoinConfirmationView: View {
 
     private var header: some View {
         VStack(spacing: 10) {
-            Text(isHistorical ? BSLocalization.text("一起去过这场吗？") : BSLocalization.text("一起去这场吧"))
+            Text(
+                isHistorical
+                    ? BSLocalization.text("一起去过这场吗？")
+                    : BSLocalization.format("%@ 邀请你一起去", ownerName)
+            )
                 .font(.system(size: 28, weight: .bold, design: .rounded))
                 .foregroundStyle(BSColor.Stage.foreground)
                 .multilineTextAlignment(.center)
 
-            Text(
-                isHistorical
-                    ? BSLocalization.format("%@ 邀请你确认这段共同足迹", ownerName)
-                    : BSLocalization.format("%@ 邀请你加入同行", ownerName)
-            )
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(BSColor.Stage.muted)
-            .multilineTextAlignment(.center)
+            if isHistorical {
+                Text(BSLocalization.format("%@ 邀请你确认这段共同足迹", ownerName))
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.muted)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
@@ -230,7 +242,7 @@ private struct CompanionJoinConfirmationView: View {
                 }
 
                 Label(
-                    session.show.showStartTime.formatted(date: .abbreviated, time: .shortened),
+                    showTimeText,
                     systemImage: "calendar"
                 )
                 .font(.system(size: 14, weight: .medium))
@@ -327,7 +339,7 @@ private struct CompanionJoinConfirmationView: View {
                         .tint(.black)
                         .frame(maxWidth: .infinity)
                 } else {
-                    Text(isHistorical ? BSLocalization.text("确认一起去过") : BSLocalization.text("加入同行"))
+                    Text(isHistorical ? BSLocalization.text("确认一起去过") : BSLocalization.text("加入这场同行"))
                         .frame(maxWidth: .infinity)
                 }
             }

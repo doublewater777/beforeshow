@@ -37,16 +37,6 @@
       img { width: 88px; height: 88px; border-radius: 22px; margin-bottom: 22px; }
       h1 { margin: 0 0 10px; font-size: 28px; line-height: 1.2; }
       p { margin: 0 0 24px; color: rgba(245,245,247,.62); font-size: 15px; line-height: 1.6; }
-      a {
-        display: none;
-        width: 100%;
-        padding: 15px 18px;
-        border-radius: 14px;
-        background: #f5f5f7;
-        color: #111;
-        font-weight: 650;
-        text-decoration: none;
-      }
       .hint { margin-top: 18px; font-size: 12px; color: rgba(245,245,247,.38); }
     </style>
   </head>
@@ -54,40 +44,8 @@
     <main>
       <img src="/app-icon.png" alt="BeforeShow" />
       <h1>一起去现场</h1>
-      <p id="message">如果已安装 BeforeShow，这个邀请会直接在 App 中打开。</p>
-      <a id="fallback" rel="noreferrer">继续打开邀请</a>
-      <div class="hint">邀请内容通过 Apple CloudKit 传递。</div>
+      <p>这份邀请链接不完整。请让朋友重新分享。</p>
+      <div class="hint">在 App 内确认后才会加入同行。</div>
     </main>
-    <script>
-      (() => {
-        const link = document.getElementById("fallback");
-        const message = document.getElementById("message");
-        const fragment = location.hash.startsWith("#share=")
-          ? location.hash.slice("#share=".length)
-          : "";
-        if (!fragment) return;
-
-        try {
-          let token = fragment.replace(/-/g, "+").replace(/_/g, "/");
-          token += "=".repeat((4 - (token.length % 4)) % 4);
-          const value = decodeURIComponent(
-            Array.from(atob(token), ch => "%" + ch.charCodeAt(0).toString(16).padStart(2, "0")).join("")
-          );
-          const url = new URL(value);
-          const host = url.hostname.toLowerCase();
-          if (
-            url.protocol === "https:" &&
-            (host === "icloud.com" || host.endsWith(".icloud.com")) &&
-            url.pathname.startsWith("/share/")
-          ) {
-            link.href = url.href;
-            link.style.display = "inline-block";
-            message.textContent = "未能直接打开 BeforeShow？可以继续使用 Apple 的邀请链接。";
-          }
-        } catch (_) {
-          message.textContent = "这个同行邀请无效或已损坏。";
-        }
-      })();
-    </script>
   </body>
 </html>
