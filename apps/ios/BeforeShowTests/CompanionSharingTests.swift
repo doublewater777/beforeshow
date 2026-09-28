@@ -63,6 +63,35 @@ final class CompanionSharingTests: XCTestCase {
         )
     }
 
+    func testCompanionInviteWebLinkRoundTripsCloudKitURLWithoutQueryLeakage() throws {
+        let shareURL = try XCTUnwrap(
+            URL(string: "https://www.icloud.com/share/abc123#CompanionSessions")
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(from: shareURL))
+        let components = try XCTUnwrap(
+            URLComponents(url: webURL, resolvingAgainstBaseURL: false)
+        )
+
+        XCTAssertEqual(components.scheme, "https")
+        XCTAssertEqual(components.host, CompanionInviteWebLink.host)
+        XCTAssertEqual(components.path, CompanionInviteWebLink.path)
+        XCTAssertNil(components.query)
+        XCTAssertTrue(components.fragment?.hasPrefix("share=") == true)
+        XCTAssertEqual(CompanionInviteWebLink.shareURL(from: webURL), shareURL)
+    }
+
+    func testCompanionInviteWebLinkRejectsForeignHostsAndInvalidPayloads() throws {
+        let foreign = try XCTUnwrap(
+            URL(string: "https://example.com/join/#share=abc")
+        )
+        let invalid = try XCTUnwrap(
+            URL(string: "https://beforeshow.doublewaterapps.com/join/#share=not-base64")
+        )
+
+        XCTAssertNil(CompanionInviteWebLink.shareURL(from: foreign))
+        XCTAssertNil(CompanionInviteWebLink.shareURL(from: invalid))
+    }
+
     func testCloudStatusMapsToLocalStatus() {
         XCTAssertEqual(CompanionCloudStatus.pending.localStatus, .pending)
         XCTAssertEqual(CompanionCloudStatus.accepted.localStatus, .confirmed)
