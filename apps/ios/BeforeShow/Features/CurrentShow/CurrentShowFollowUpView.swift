@@ -146,8 +146,6 @@ struct CurrentShowFollowUpSummary: View {
     }
 }
 
-// MARK: - Current Show Library Entry Tile
-
 struct CurrentShowLibraryEntryTile: View {
     let totalShowCount: Int
     let onOpenShowLibrary: () -> Void
