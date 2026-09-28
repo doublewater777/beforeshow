@@ -123,7 +123,7 @@ struct ListeningRootChromeModifier: ViewModifier {
                 )
             }
             .onChange(of: scenePhase) { _, phase in
-                guard let room = ListeningRoomCache.shared else { return }
+                guard let room = ListeningRoomCache.shared ?? ListeningPlaybackChromeStore.shared.room else { return }
                 let isForeground = phase == .active
                 room.setForeground(isForeground)
                 if isForeground {
