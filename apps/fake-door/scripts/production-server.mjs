@@ -34,8 +34,14 @@ function safePath(urlPath) {
 
 function sendFile(res, filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  const type = MIME[ext] || "application/octet-stream";
-  res.writeHead(200, { "Content-Type": type, "Cache-Control": ext === ".html" ? "no-cache" : "public, max-age=31536000, immutable" });
+  const isAssociationFile = path.basename(filePath) === "apple-app-site-association";
+  const type = isAssociationFile
+    ? "application/json; charset=utf-8"
+    : (MIME[ext] || "application/octet-stream");
+  const cacheControl = ext === ".html" || isAssociationFile
+    ? "no-cache"
+    : "public, max-age=31536000, immutable";
+  res.writeHead(200, { "Content-Type": type, "Cache-Control": cacheControl });
   fs.createReadStream(filePath).pipe(res);
 }
 
