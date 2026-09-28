@@ -609,12 +609,16 @@ final class ShowDraftTests: XCTestCase {
         }
         XCTAssertEqual(
             ShowLinkPlatformCatalog.supportSummary,
-            "大麦、秀动、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
+            "秀动、大麦、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
         )
         XCTAssertTrue(ShowLinkPlatformCatalog.guidePlatforms.contains { platform in
             platform.id == "neteasemusic"
                 && platform.overviewURL == "https://st.music.163.com/g/show"
         })
+        XCTAssertEqual(
+            Array(ShowLinkPlatformCatalog.guidePlatforms.prefix(2).map(\.id)),
+            ["showstart", "damai"]
+        )
         XCTAssertEqual(AddShowMethodCopy.link.subtitle, "粘贴支持平台的票务链接，需要联网解析。")
     }
 
