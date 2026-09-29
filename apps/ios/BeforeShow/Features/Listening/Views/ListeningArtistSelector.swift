@@ -48,37 +48,38 @@ struct ListeningArtistSelector: View {
     let selection: ListeningBrowseState.Scope
     let select: (ListeningBrowseState.Scope) -> Void
     let onConnect: (Int, String) -> Void
+    @State private var scrollPosition = ScrollPosition(x: 0)
+    @State private var scrollOffset: CGFloat = 0
     @State private var viewportWidth: CGFloat = 0
     @State private var allFrame: CGRect = .zero
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: BSSpacing.sm) {
-                    allItem {
-                        select(.all)
-                        revealIfNeeded("all", frame: allFrame, proxy: proxy)
-                    }
-                        .id("all")
-                    ForEach(artists) { artist in
-                        ListeningArtistSelectorItem(
-                            artist: artist,
-                            isSelected: artist.isConnected && selection == .artist(artist.id),
-                            onSelect: { frame in
-                                select(.artist(artist.id))
-                                revealIfNeeded(artist.id, frame: frame, proxy: proxy)
-                            },
-                            onConnect: { onConnect(artist.slotIndex, artist.name) }
-                        )
-                        .id(artist.id)
-                    }
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(spacing: BSSpacing.sm) {
+                allItem {
+                    select(.all)
+                    revealIfNeeded(allFrame)
+                }
+                ForEach(artists) { artist in
+                    ListeningArtistSelectorItem(
+                        artist: artist,
+                        isSelected: artist.isConnected && selection == .artist(artist.id),
+                        onSelect: { frame in
+                            select(.artist(artist.id))
+                            revealIfNeeded(frame)
+                        },
+                        onConnect: { onConnect(artist.slotIndex, artist.name) }
+                    )
                 }
             }
-            .frame(height: BSLayout.minTouchTarget)
-            .padding(.top, BSSpacing.sm)
-            .coordinateSpace(name: "artistSelectorViewport")
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
+            .padding(.horizontal, BSSpacing.sm)
         }
+        .scrollPosition($scrollPosition)
+        .frame(height: BSLayout.minTouchTarget)
+        .padding(.top, BSSpacing.sm)
+        .coordinateSpace(name: "artistSelectorViewport")
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
+        .onScrollGeometryChange(for: CGFloat.self, of: { $0.contentOffset.x }) { _, offset in scrollOffset = offset }
         .accessibilityIdentifier("listening.artistSelector")
     }
 
@@ -100,18 +101,19 @@ struct ListeningArtistSelector: View {
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
-    private func revealIfNeeded(_ id: String, frame: CGRect, proxy: ScrollViewProxy) {
+    private func revealIfNeeded(_ frame: CGRect) {
         guard viewportWidth > 0, frame.width > 0 else { return }
-        let anchor: UnitPoint
+        let inset = BSSpacing.sm
+        let delta: CGFloat
         if frame.minX < 0 {
-            anchor = .topLeading
+            delta = frame.minX - inset
         } else if frame.maxX > viewportWidth {
-            anchor = UnitPoint(x: 1, y: 0)
+            delta = frame.maxX - viewportWidth + inset
         } else {
             return
         }
         withAnimation(BSListeningTokens.selectionAnimation) {
-            proxy.scrollTo(id, anchor: anchor)
+            scrollPosition.scrollTo(x: max(0, scrollOffset + delta))
         }
     }
 }
