@@ -11,7 +11,7 @@ enum CompanionSharingPresentation {
             return BSLocalization.format("已与%@成为同行", owner)
         }
         if !importResult.inserted {
-            return BSLocalization.format("已接受%@的邀请", owner)
+            return BSLocalization.format("已与%@成为同行", owner)
         }
         if importResult.wasHistorical {
             return BSLocalization.format("已记录你和%@的共同足迹", owner)
