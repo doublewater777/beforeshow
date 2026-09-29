@@ -138,6 +138,101 @@ final class CompanionReviewerRegressionTests: XCTestCase {
         XCTAssertEqual(coordinator.lastErrorKind, .networkFailure)
     }
 
+    func testAcceptFailurePathsDoNotFallbackToPreviewImport() throws {
+        let iosRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let companionRoot = iosRoot.appendingPathComponent("BeforeShow/Features/Companion")
+        let coordinatorSource = try String(
+            contentsOf: companionRoot.appendingPathComponent("CompanionSharingCoordinator.swift"),
+            encoding: .utf8
+        )
+        let viewSource = try String(
+            contentsOf: companionRoot.appendingPathComponent("CompanionJoinConfirmationView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(
+            coordinatorSource.contains("CompanionAcceptedSessionImporter.apply(pending"),
+            "A failed CloudKit accept must never import the preview snapshot as success."
+        )
+        XCTAssertFalse(
+            viewSource.contains("CompanionAcceptedSessionImporter.apply(session"),
+            "The confirmation UI must not manufacture success after coordinator failure."
+        )
+        XCTAssertTrue(coordinatorSource.contains("recordError(error, fallback: .acceptFailed)"))
+    }
+
+    func testServerRejectedRecoveryRequiresAcceptedSharedParticipantEvidence() {
+        XCTAssertFalse(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .serverRejectedRequest,
+                sharedDatabaseConfirmsAcceptedParticipant: false
+            )
+        )
+        XCTAssertTrue(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .serverRejectedRequest,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+        XCTAssertTrue(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .alreadyShared,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+        XCTAssertFalse(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .networkFailure,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+    }
+
+    func testJoinPresentationStateReopensForSecondInviteAfterSuccessfulDismissal() {
+        var state = CompanionPendingJoinPresentationState()
+
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true))
+        state.beginSuccessfulDismissal()
+        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true))
+
+        state.didDismiss()
+
+        XCTAssertTrue(
+            state.isPresented(isLoading: true, hasSession: false),
+            "The next invite must be allowed to present in the same app process."
+        )
+        state.inviteBecameActive()
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true))
+    }
+
+    func testJoinPresentationStateCannotDismissWhileInvitationIsLoading() {
+        let state = CompanionPendingJoinPresentationState()
+
+        XCTAssertFalse(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: false,
+                isWorking: false
+            )
+        )
+        XCTAssertFalse(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: true,
+                isWorking: false
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: false,
+                hasSession: true,
+                isWorking: false
+            )
+        )
+    }
+
     private func makeSession(
         show: CompanionShowSnapshot,
         status: CompanionCloudStatus
