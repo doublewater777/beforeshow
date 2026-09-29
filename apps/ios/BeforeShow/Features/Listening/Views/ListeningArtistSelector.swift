@@ -63,14 +63,14 @@ struct ListeningArtistSelector: View {
                         .id(artist.id)
                     }
                 }
-                .padding(.top, BSSpacing.sm)
             }
-            .frame(height: BSLayout.minTouchTarget + BSSpacing.sm)
+            .frame(height: BSLayout.minTouchTarget)
+            .padding(.top, BSSpacing.sm)
             .onChange(of: selection) { _, scope in
                 withAnimation(BSListeningTokens.selectionAnimation) {
                     switch scope {
-                    case .all: proxy.scrollTo("all", anchor: .leading)
-                    case let .artist(id): proxy.scrollTo(id, anchor: .center)
+                    case .all: proxy.scrollTo("all", anchor: .topLeading)
+                    case let .artist(id): proxy.scrollTo(id, anchor: UnitPoint(x: 0.5, y: 0))
                     }
                 }
             }
