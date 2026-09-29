@@ -22,23 +22,10 @@ struct ShowCoverFullscreenPreview: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(.vertical, BSSpacing.roomy)
         }
+        .contentShape(Rectangle())
+        .onTapGesture { dismiss() }
         .toolbar(.hidden, for: .navigationBar)
         .background(BSNavigationBackSwipeRestorer(onBack: { dismiss() }))
-        .overlay(alignment: .topTrailing) {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.9))
-                    .frame(width: 34, height: 34)
-                    .background(.black.opacity(0.45), in: Circle())
-            }
-            .buttonStyle(.plain)
-            .padding(.trailing, BSSpacing.md)
-            .padding(.top, BSSpacing.md)
-            .accessibilityLabel(BSLocalization.text("关闭大图"))
-        }
         .overlay(alignment: .bottom) {
             if urlString != nil {
                 Button {
