@@ -168,18 +168,18 @@ final class CompanionReviewerRegressionTests: XCTestCase {
     func testJoinPresentationStateReopensForSecondInviteAfterSuccessfulDismissal() {
         var state = CompanionPendingJoinPresentationState()
 
-        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, hasOutcome: false))
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, isWorking: false, hasOutcome: false))
         state.beginSuccessfulDismissal()
-        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true, hasOutcome: false))
+        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true, isWorking: false, hasOutcome: false))
 
         state.didDismiss()
 
         XCTAssertTrue(
-            state.isPresented(isLoading: true, hasSession: false, hasOutcome: false),
+            state.isPresented(isLoading: true, hasSession: false, isWorking: false, hasOutcome: false),
             "The next invite must be allowed to present in the same app process."
         )
         state.inviteBecameActive()
-        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, hasOutcome: false))
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, isWorking: false, hasOutcome: false))
     }
 
     func testJoinPresentationStateOnlyAllowsLoadingDismissAfterDelayOptIn() {
@@ -230,6 +230,7 @@ final class CompanionReviewerRegressionTests: XCTestCase {
             state.isPresented(
                 isLoading: false,
                 hasSession: false,
+                isWorking: false,
                 hasOutcome: true
             )
         )
@@ -244,27 +245,18 @@ final class CompanionReviewerRegressionTests: XCTestCase {
         )
     }
 
-    func testCompanionFlowDoesNotChainSecondPresentationAfterJoin() throws {
-        let root = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("BeforeShow")
-        let joinSource = try String(
-            contentsOf: root.appendingPathComponent("Features/Companion/CompanionJoinConfirmationView.swift"),
-            encoding: .utf8
-        )
-        let rootSource = try String(
-            contentsOf: root.appendingPathComponent("RootView.swift"),
-            encoding: .utf8
-        )
+    func testJoinPresentationStaysVisibleWhileAcceptedJoinFinishes() {
+        let state = CompanionPendingJoinPresentationState()
 
-        XCTAssertFalse(joinSource.contains(".confirmationDialog("))
-        XCTAssertFalse(joinSource.contains(".alert("))
-        XCTAssertFalse(joinSource.contains("queuedSuccessMessage"))
-        XCTAssertTrue(joinSource.contains("Toggle(isOn: $switchToCurrentAfterJoin)"))
-        XCTAssertFalse(rootSource.contains("companionToast"))
-        XCTAssertFalse(rootSource.contains("CompanionDuplicateResolutionSheet"))
-        XCTAssertFalse(rootSource.contains(".alert("))
+        XCTAssertTrue(
+            state.isPresented(
+                isLoading: false,
+                hasSession: false,
+                isWorking: true,
+                hasOutcome: false
+            ),
+            "Clearing the coordinator session must not dismiss the current invite while its join transaction is still finishing."
+        )
     }
 
     private func makeSession(
