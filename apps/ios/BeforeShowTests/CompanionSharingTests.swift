@@ -51,7 +51,7 @@ final class CompanionSharingTests: XCTestCase {
             .appendingPathComponent("BeforeShow")
         let keys = [
             "添加同行",
-            "邀请和你一起去的人加入这场同行。",
+            "邀请朋友一起去这场现场。",
             "%lld 人同行",
             "同行，等待朋友加入",
             "等待同行",
