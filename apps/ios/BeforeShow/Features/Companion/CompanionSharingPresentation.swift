@@ -38,7 +38,7 @@ enum CompanionSharingPresentation {
         if let sharing = error as? CompanionSharingError {
             switch sharing {
             case .iCloudAccountUnavailable:
-                return BSLocalization.text("需要登录 iCloud 才能邀请同行")
+                return BSLocalization.text("需要登录 iCloud 才能邀请朋友")
             case .networkFailure:
                 return BSLocalization.text("网络不可用，请稍后重试")
             case .sharePreparationFailed:
@@ -69,13 +69,13 @@ enum CompanionSharingPresentation {
     private static func message(forCloudKit error: CKError) -> String {
         switch error.code {
         case .notAuthenticated, .managedAccountRestricted:
-            return BSLocalization.text("需要登录 iCloud 才能邀请同行")
+            return BSLocalization.text("需要登录 iCloud 才能邀请朋友")
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .zoneBusy, .requestRateLimited:
             return BSLocalization.text("网络不可用，请稍后重试")
         case .permissionFailure:
-            return BSLocalization.text("没有权限创建同行邀请，请确认 iCloud 云盘已打开")
+            return BSLocalization.text("暂时无法创建邀请，请确认 iCloud 云盘已打开")
         case .quotaExceeded:
-            return BSLocalization.text("iCloud 空间不足，无法创建同行邀请")
+            return BSLocalization.text("iCloud 空间不足，暂时无法创建邀请")
         case .invalidArguments, .constraintViolation:
             return BSLocalization.text("邀请创建失败，请稍后重试")
         case .serverRejectedRequest:
