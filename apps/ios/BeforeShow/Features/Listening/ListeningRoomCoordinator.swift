@@ -409,9 +409,16 @@ private let listeningCatalogFetchConcurrency = 4
     /// retry paths use this instead of restarting artist matching and room setup.
     func reloadCatalog(force: Bool = false) async {
         guard show != nil, !isLoadingShow else { return }
+        let startingScope = browser.scope
         let generation = UUID()
         catalogGeneration = generation
         catalogState = .loading
+        defer {
+            guard generation == catalogGeneration,
+                  startingScope != browser.scope,
+                  case let .artist(artistID) = browser.scope else { return }
+            scheduleSelectedArtistCatalogLoadIfNeeded(for: artistID)
+        }
         if let completedKey = await loadCatalogUntilIdentityStable(generation: generation, force: force) {
             initialLoaded = true
             completedCatalogKey = completedKey
