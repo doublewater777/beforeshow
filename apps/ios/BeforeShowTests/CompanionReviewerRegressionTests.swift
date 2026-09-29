@@ -207,28 +207,39 @@ final class CompanionReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true))
     }
 
-    func testJoinPresentationStateCannotDismissWhileInvitationIsLoading() {
+    func testJoinPresentationStateOnlyAllowsLoadingDismissAfterDelayOptIn() {
         let state = CompanionPendingJoinPresentationState()
 
         XCTAssertFalse(
             state.canUserDismiss(
                 isLoading: true,
                 hasSession: false,
-                isWorking: false
+                isWorking: false,
+                allowsLoadingDismiss: false
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: false,
+                isWorking: false,
+                allowsLoadingDismiss: true
             )
         )
         XCTAssertFalse(
             state.canUserDismiss(
                 isLoading: true,
                 hasSession: true,
-                isWorking: false
+                isWorking: false,
+                allowsLoadingDismiss: false
             )
         )
         XCTAssertTrue(
             state.canUserDismiss(
                 isLoading: false,
                 hasSession: true,
-                isWorking: false
+                isWorking: false,
+                allowsLoadingDismiss: false
             )
         )
     }
