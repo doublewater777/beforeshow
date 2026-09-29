@@ -68,7 +68,7 @@ struct CompanionQuickActionPresentation: Equatable {
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            displayTitle = BSLocalization.text("等待朋友")
+            displayTitle = BSLocalization.text("等待同行")
             accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
             showsPendingIndicator = true
             displayShowsPendingIndicator = false
@@ -197,7 +197,7 @@ struct CurrentShowCompanionSheet: View {
             }
         }
         .alert(
-            BSLocalization.text("修改朋友备注"),
+            BSLocalization.text("修改同行备注"),
             isPresented: Binding(
                 get: { editingCompanionIndex != nil },
                 set: { if !$0 { editingCompanionIndex = nil } }
@@ -219,7 +219,7 @@ struct CurrentShowCompanionSheet: View {
                 editingCompanionIndex = nil
             }
         } message: {
-            Text(BSLocalization.text("这个备注只会显示在你的设备上。"))
+            Text(BSLocalization.text("这个备注只会在你的 BeforeShow 中显示。"))
         }
         .task {
             if let name = await coordinator.fetchCurrentUserDisplayName() {
@@ -329,7 +329,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2.fill",
                 title: companionTitle,
-                subtitle: confirmedSubtitle
+                subtitle: BSLocalization.text("这场现场已添加同行。")
             )
 
             companionMembers
@@ -528,12 +528,6 @@ struct CurrentShowCompanionSheet: View {
 
     private var memberNames: [String] {
         CompanionNameList.normalized(show.companionNames)
-    }
-
-    private var confirmedSubtitle: String {
-        isEnded
-            ? BSLocalization.text("你们一起去过这场现场。")
-            : BSLocalization.text("你们会一起去这场现场。")
     }
 
     private var companionTitle: String {
