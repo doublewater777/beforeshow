@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 import Security
 
@@ -69,15 +68,3 @@ enum CompanionUserProfile {
     }
 }
 
-extension CompanionSharingCoordinator {
-    static let cloudSyncEnabledKey = CompanionCloudSyncMarker.userDefaultsKey
-
-    static func persistAcceptedShare(
-        _ metadata: CKShare.Metadata,
-        userDefaults: UserDefaults = .standard
-    ) {
-        CompanionAcceptedShareInbox.append(metadata, to: userDefaults)
-        CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
-    }
-
-}
