@@ -12,6 +12,21 @@ enum CompanionPendingInviteFailureAction: Equatable {
 /// Sequencing policy for the durable companion-invite inbox.
 /// Terminal invitation failures must not strand later invitations, while retryable
 /// infrastructure failures keep the visible invitation in place for another attempt.
+
+struct CompanionPendingInvitePresentationGate: Equatable {
+    private(set) var isAwaitingDismissal = false
+
+    mutating func resolvedCurrentPresentation() {
+        isAwaitingDismissal = true
+    }
+
+    mutating func didDismissCurrentPresentation() -> Bool {
+        guard isAwaitingDismissal else { return false }
+        isAwaitingDismissal = false
+        return true
+    }
+}
+
 enum CompanionPendingInviteDrainPolicy {
     static func action(
         for error: CompanionSharingError?,
