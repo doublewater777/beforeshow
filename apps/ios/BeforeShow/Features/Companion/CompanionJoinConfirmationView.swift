@@ -57,12 +57,19 @@ struct CompanionPendingJoinHost: View {
     @State private var allowsLoadingDismiss = false
     @State private var errorMessage: String?
 
+    private var hasOutcome: Bool {
+        completionMessage != nil
+            || errorMessage != nil
+            || coordinator.pendingAcceptMessage != nil
+            || coordinator.lastErrorMessage != nil
+    }
+
     private var isPresented: Bool {
         presentationState.isPresented(
             isLoading: coordinator.isLoadingInvitation,
             hasSession: coordinator.pendingJoinSession != nil,
             isWorking: isWorking,
-            hasOutcome: completionMessage != nil || errorMessage != nil
+            hasOutcome: hasOutcome
         )
     }
 
@@ -79,7 +86,7 @@ struct CompanionPendingJoinHost: View {
                                hasSession: coordinator.pendingJoinSession != nil,
                                isWorking: isWorking,
                                allowsLoadingDismiss: allowsLoadingDismiss,
-                               hasOutcome: completionMessage != nil || errorMessage != nil
+                               hasOutcome: hasOutcome
                            ) {
                             handleClose()
                         }
