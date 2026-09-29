@@ -169,6 +169,8 @@ struct CompanionPendingJoinHost: View {
         presentationState.userDismissed()
         if coordinator.pendingJoinSession != nil {
             declineJoin()
+        } else if coordinator.isLoadingInvitation {
+            coordinator.cancelLoadingInvitationPresentation()
         }
     }
 
