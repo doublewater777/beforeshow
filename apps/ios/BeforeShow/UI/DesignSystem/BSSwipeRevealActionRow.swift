@@ -88,6 +88,7 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                 }
             }
             .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
             .offset(x: rowOffset)
             .simultaneousGesture(dragGesture)
         }
