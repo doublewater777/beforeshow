@@ -20,7 +20,7 @@ struct CompanionPendingJoinPresentationState: Equatable {
     }
 
     mutating func userDismissed() {
-        presentationState.userDismissed()
+        isDismissedByUser = true
     }
 
     mutating func beginSuccessfulDismissal() {
@@ -102,7 +102,7 @@ struct CompanionPendingJoinHost: View {
             }
             .onChange(of: coordinator.pendingJoinSession) { _, session in
                 if session != nil {
-                    isDismissedByUser = false
+                    presentationState.inviteBecameActive()
                 }
             }
             .onChange(of: coordinator.pendingAcceptMessage, initial: true) { _, message in
@@ -121,7 +121,7 @@ struct CompanionPendingJoinHost: View {
     }
 
     private func handleClose() {
-        isDismissedByUser = true
+        presentationState.userDismissed()
         if coordinator.pendingJoinSession != nil {
             declineJoin()
         }
