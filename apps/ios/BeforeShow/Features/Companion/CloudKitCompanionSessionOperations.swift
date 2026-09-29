@@ -24,7 +24,7 @@ extension CloudKitCompanionSharingService {
         }
         if let statusRaw = record[CompanionSessionRecord.status] as? String,
            statusRaw == CompanionCloudStatus.canceled.rawValue {
-            throw CompanionSharingError.permissionDenied
+            throw CompanionSharingError.sessionNotFound
         }
 
         let shareLocator = CompanionRecordLocator(recordID: previewMetadata.share.recordID)
