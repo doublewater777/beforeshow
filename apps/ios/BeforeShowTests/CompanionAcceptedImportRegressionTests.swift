@@ -97,6 +97,43 @@ final class CompanionAcceptedImportRegressionTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
+    func testAcceptedShareCanSetCurrentInsideSameImportTransaction() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        let current = try Show(
+            name: "原来的当前现场",
+            date: now.addingTimeInterval(172_800),
+            startTime: now.addingTimeInterval(172_800)
+        )
+        context.insert(current)
+        context.insert(CurrentShowSelection(selectedShowID: current.id))
+        try context.save()
+
+        let incomingDate = now.addingTimeInterval(3_600)
+        let incoming = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "正在加入的同行现场",
+            showDate: incomingDate,
+            showStartTime: incomingDate,
+            sourceShowDate: incomingDate
+        )
+
+        let result = try CompanionAcceptedSessionImporter.apply(
+            makeSession(show: incoming),
+            in: context,
+            strategy: .automatic.settingCurrent(true),
+            now: now
+        )
+
+        XCTAssertTrue(result.becameCurrent)
+        XCTAssertEqual(
+            try CurrentShowSelectionStore(modelContext: context).canonicalSelection()?.selectedShowID,
+            result.showID
+        )
+    }
+
     func testAcceptedShareMergesIntoExistingLocalShowAndOnlyFillsMissingData() throws {
         let container = try makeContainer()
         let context = container.mainContext
