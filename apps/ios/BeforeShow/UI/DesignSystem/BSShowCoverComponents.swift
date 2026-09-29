@@ -105,8 +105,10 @@ struct ShowCoverImageView: View {
     var alignment: Alignment = .center
     var enforcesAspectRatio = true
     var cornerRadius: CGFloat = 8
+    var restoresPersistedImageOnFirstFrame = false
 
     @State private var image: UIImage?
+    @State private var imageURLString: String?
     @State private var loadState: LoadState = .idle
 
     enum LoadState: Equatable {
@@ -119,7 +121,8 @@ struct ShowCoverImageView: View {
         contentMode: ContentMode = .fit,
         alignment: Alignment = .center,
         enforcesAspectRatio: Bool = true,
-        cornerRadius: CGFloat = 8
+        cornerRadius: CGFloat = 8,
+        restoresPersistedImageOnFirstFrame: Bool = false
     ) {
         self.urlString = urlString
         self.aspectRatio = aspectRatio
@@ -127,7 +130,12 @@ struct ShowCoverImageView: View {
         self.alignment = alignment
         self.enforcesAspectRatio = enforcesAspectRatio
         self.cornerRadius = cornerRadius
-        _image = State(initialValue: Self.persistedImage(for: urlString))
+        self.restoresPersistedImageOnFirstFrame = restoresPersistedImageOnFirstFrame
+        let initialImage = restoresPersistedImageOnFirstFrame
+            ? Self.persistedImage(for: urlString)
+            : Self.memoryImage(for: urlString)
+        _image = State(initialValue: initialImage)
+        _imageURLString = State(initialValue: initialImage == nil ? nil : urlString)
     }
 
     var body: some View {
@@ -157,7 +165,13 @@ struct ShowCoverImageView: View {
     }
 
     private func loadImage() async {
-        guard let urlString,
+        if imageURLString != urlString {
+            image = nil
+            imageURLString = urlString
+            loadState = .idle
+        }
+        guard image == nil,
+              let urlString,
               !urlString.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               let url = URL(string: urlString) else { return }
         loadState = .loading
@@ -167,12 +181,18 @@ struct ShowCoverImageView: View {
         loadState = image == nil ? .failed : .idle
     }
 
-    private static func persistedImage(for urlString: String?) -> UIImage? {
-        // Sync memory-only lookup. Disk + widget cache + network are handled
-        // by `loadImage()` in the body `.task`, off the main thread.
+    private static func memoryImage(for urlString: String?) -> UIImage? {
         guard let urlString,
               let url = URL(string: urlString) else { return nil }
         return ShowCoverImageCache.shared.memoryImage(for: url)
+    }
+
+    private static func persistedImage(for urlString: String?) -> UIImage? {
+        // Opt-in first-frame path for high-priority surfaces such as Current's
+        // hero. Network and widget fallback remain asynchronous in loadImage().
+        guard let urlString,
+              let url = URL(string: urlString) else { return nil }
+        return ShowCoverImageCache.shared.persistedImage(for: url)
     }
 }
 
@@ -184,7 +204,7 @@ actor ShowCoverImageCache {
     /// mediate memory hits. `nonisolated(unsafe)` lets Views call the sync
     /// memory lookup from `.init` without hopping the actor.
     private nonisolated(unsafe) let memory = NSCache<NSURL, UIImage>()
-    private let diskCache: ShowCoverDiskCache
+    private nonisolated let diskCache: ShowCoverDiskCache
     private let fetchData: FetchData
 
     init(
@@ -203,6 +223,20 @@ actor ShowCoverImageCache {
     /// network path off the main thread.
     nonisolated func memoryImage(for url: URL) -> UIImage? {
         memory.object(forKey: url as NSURL)
+    }
+
+    /// Synchronous cold-launch lookup for an image that this app has already
+    /// persisted. This never performs network I/O. A disk hit is promoted into
+    /// the process memory cache so subsequent view construction stays cheap.
+    nonisolated func persistedImage(for url: URL) -> UIImage? {
+        if let hit = memory.object(forKey: url as NSURL) {
+            return hit
+        }
+        guard let image = diskCache.image(from: url) else {
+            return nil
+        }
+        memory.setObject(image, forKey: url as NSURL)
+        return image
     }
 
     func image(from url: URL) async -> UIImage? {

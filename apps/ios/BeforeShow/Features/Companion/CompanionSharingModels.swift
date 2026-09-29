@@ -84,6 +84,7 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
         let friend = BSLocalization.text("朋友")
         if isOwner {
             let realListed = listed.filter { $0 != friend }
+            if status == .accepted { return realListed.isEmpty ? listed : realListed }
             if !realListed.isEmpty { return realListed }
             if let participantDisplayName, !participantDisplayName.isEmpty, participantDisplayName != friend {
                 return [participantDisplayName]

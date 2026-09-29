@@ -55,6 +55,38 @@ final class ShowCoverLifecycleTests: XCTestCase {
         XCTAssertNotNil(coldLaunchImage)
     }
 
+    func testPersistedCoverIsAvailableSynchronouslyAfterColdLaunch() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ShowCoverFirstFrameTests-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let sourceURL = URL(string: "https://example.com/first-frame-cover.jpg")!
+        let sourceImage = UIGraphicsImageRenderer(size: CGSize(width: 3, height: 4)).image { context in
+            UIColor.systemPurple.setFill()
+            context.fill(CGRect(origin: .zero, size: CGSize(width: 3, height: 4)))
+        }
+        let sourceData = try XCTUnwrap(sourceImage.jpegData(compressionQuality: 0.9))
+
+        let firstProcess = ShowCoverImageCache(
+            directoryURL: directory,
+            fetchData: { _ in sourceData }
+        )
+        let firstLoadedImage = await firstProcess.image(from: sourceURL)
+        XCTAssertNotNil(firstLoadedImage)
+
+        let coldLaunch = ShowCoverImageCache(
+            directoryURL: directory,
+            fetchData: { _ in
+                XCTFail("Persisted first-frame lookup must not use the network")
+                return nil
+            }
+        )
+
+        XCTAssertNil(coldLaunch.memoryImage(for: sourceURL))
+        XCTAssertNotNil(coldLaunch.persistedImage(for: sourceURL))
+        XCTAssertNotNil(coldLaunch.memoryImage(for: sourceURL))
+    }
+
     func testRegisterRemovesPreviousTempAndTracksNew() {
         var removed: [String] = []
         var lifecycle = ShowCoverLifecycle(remove: { removed.append($0) })

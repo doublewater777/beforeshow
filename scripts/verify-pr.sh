@@ -285,7 +285,7 @@ if [ "$RESULT" = PASS ]; then
         xcrun simctl install "$UDID" "$APP"
         LAUNCH_OUT=$(xcrun simctl launch "$UDID" "$BID")
         sleep 5
-        if xcrun simctl spawn "$UDID" launchctl list | grep -Fq "UIKitApplication:$BID"; then
+        if xcrun simctl spawn "$UDID" launchctl list | grep -F "UIKitApplication:$BID" >/dev/null; then
           LAUNCH_OK=1
           if [ "$ATTEMPT" = 1 ]; then
             EVIDENCE+=("launch: $LAUNCH_OUT — 进程 5 秒后仍存活")

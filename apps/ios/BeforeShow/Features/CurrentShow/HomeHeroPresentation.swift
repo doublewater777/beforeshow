@@ -66,7 +66,8 @@ struct HomeHeroStage: View {
                 contentMode: .fill,
                 alignment: .center,
                 enforcesAspectRatio: false,
-                cornerRadius: 26
+                cornerRadius: 26,
+                restoresPersistedImageOnFirstFrame: true
             )
         }
         // CurrentShowManagementSection is structurally reused when the selected
