@@ -126,9 +126,8 @@ enum CompanionAcceptedSessionImporter {
         makeCurrent: Bool,
         now: Date
     ) throws -> Bool {
-        // Production always has CurrentShowSelection. Lightweight recovery/test containers
-        // sometimes model only Show; a selection failure must not roll back the accepted
-        // Show itself, so this side effect is deliberately best-effort.
+        // Automatic bootstrap stays best-effort for lightweight model containers.
+        // An explicit Current choice belongs to this import transaction and propagates persistence failure.
         let store = CurrentShowSelectionStore(modelContext: modelContext)
         if makeCurrent {
             _ = try store.select(showID: show.id)
