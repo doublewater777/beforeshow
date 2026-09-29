@@ -1398,6 +1398,8 @@ First show: %@";
 "不是这个艺人？" = "Not this artist?";
 "专辑" = "Albums";
 "先选择一场现场" = "Choose a show first";
+"选择当前现场" = "Choose Current Show";
+"从你的现场中选择一个，设为当前" = "Choose one of your shows and set it as current";
 "初次相遇" = "First encounter";
 "删除回记" = "Delete recall";
 "去见 TA 时" = "When you saw them";

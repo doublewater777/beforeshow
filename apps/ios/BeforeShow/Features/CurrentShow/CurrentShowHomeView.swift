@@ -495,7 +495,7 @@ private struct CurrentShowEmptyStateView: View {
                 .background(Color.white.opacity(0.045), in: Circle())
                 .overlay(Circle().stroke(BSColor.Stage.border))
 
-            Text(BSLocalization.text(hasShows ? "先选择一场现场" : "先添加一场现场"))
+            Text(BSLocalization.text(hasShows ? "选择当前现场" : "先添加一场现场"))
                 .font(BSFont.heroTitle)
                 .tracking(BSFont.titleTracking)
                 .foregroundColor(BSColor.Stage.foreground)
@@ -503,7 +503,7 @@ private struct CurrentShowEmptyStateView: View {
 
             Text(BSLocalization.text(
                 hasShows
-                    ? "点「设为当前」或左滑可切换当前现场"
+                    ? "从你的现场中选择一个，设为当前"
                     : "把要去的音乐现场放进来，\n慢慢靠近那一场。"
             ))
                 .font(BSFont.body)
