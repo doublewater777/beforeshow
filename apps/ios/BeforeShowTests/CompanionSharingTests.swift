@@ -39,7 +39,7 @@ final class CompanionSharingTests: XCTestCase {
             isEnded: false
         )
 
-        XCTAssertEqual(presentation.displayTitle, BSLocalization.text("等待同行"))
+        XCTAssertEqual(presentation.displayTitle, BSLocalization.text("等待朋友"))
         XCTAssertEqual(presentation.accessibilityLabel, BSLocalization.text("同行，等待朋友加入"))
         XCTAssertFalse(presentation.showsAvatars)
     }
@@ -54,7 +54,7 @@ final class CompanionSharingTests: XCTestCase {
             "邀请朋友一起去这场现场。",
             "%lld 人同行",
             "同行，等待朋友加入",
-            "等待同行",
+            "等待朋友",
             "等待朋友加入",
             "朋友接受邀请后，会出现在这里。",
             "再次邀请",
