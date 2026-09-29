@@ -59,12 +59,20 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
     func deliverCompanionInviteURL(_ shareURL: URL) {
         Task { @MainActor [weak self] in
             guard let self else { return }
-            companionCoordinator?.beginLoadingInvitation()
+            let presentationGeneration = companionCoordinator?.beginLoadingInvitation()
             do {
                 try await CloudKitCompanionSharingService().ensureAccountAvailable()
                 let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
+                if let presentationGeneration,
+                   companionCoordinator?.invitePresentationGeneration != presentationGeneration {
+                    return
+                }
                 deliverAcceptedShare(metadata, startsNewPresentation: false)
             } catch {
+                if let presentationGeneration,
+                   companionCoordinator?.invitePresentationGeneration != presentationGeneration {
+                    return
+                }
                 CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
                 companionCoordinator?.handleIncomingInviteFailure(error)
             }
