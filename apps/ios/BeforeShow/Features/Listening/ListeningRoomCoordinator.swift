@@ -1067,7 +1067,6 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func endPlaybackSession(resetTrackSelection: Bool) {
         recordedPlayingSongID = nil
-        pendingSleeveSongID = nil
         do {
             try controller?.stop()
         } catch {
@@ -1105,6 +1104,7 @@ private let listeningCatalogFetchConcurrency = 4
     private func endFullPlaybackSessionForCapabilityLossIfNeeded(_ access: ListeningMusicAccess) {
         guard hasConfirmedFullPlaybackCapabilityLoss(access),
               preparedSource == .fullCatalog else { return }
+        pendingSleeveSongID = nil
         endPlaybackSession(resetTrackSelection: false)
     }
 
