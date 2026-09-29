@@ -88,6 +88,18 @@ Before implementing a module:
 - UI style, spacing, font sizes, colors must follow design tokens — no hardcoded values
 - Keep components atomic and reusable; don't mix page logic with UI in one file
 
+## 5. Presentation Discipline
+
+**一次只看到一个主界面；完成一个主要动作后，最多只给一次轻反馈，不再立刻要求第二次确认。**
+
+- 一个用户事务只能有一个主要 presentation surface；不要让 sheet、fullScreenCover、alert、confirmationDialog 连续接力。
+- 主要动作完成后，最多给一次非阻塞轻反馈（例如一次 toast、按钮内成功态或页面内成功态），不要再立刻弹出第二个确认。
+- 能在当前主界面提前完成的选择，必须 inline 解决；不要等提交成功后再追问。
+- 错误优先留在当前主界面原位展示，并提供重试/关闭；除非当前界面无法承载，否则不要再叠 alert。
+- 如果某个后续动作不是完成当前事务所必需，就延后到用户下一次自然进入相关上下文时再处理。
+- 系统权限弹窗也算一次阻塞式 presentation；不要紧跟在刚完成的 sheet/fullScreenCover 后面触发。
+- Review UI 流程时按用户连续看到的界面序列检查，而不是只看各状态在代码里是否“合法”。
+
 ## 5. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
