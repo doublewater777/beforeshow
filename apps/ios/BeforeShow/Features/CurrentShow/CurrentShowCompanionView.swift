@@ -240,7 +240,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2",
                 title: BSLocalization.text("添加同行"),
-                subtitle: BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
+                subtitle: BSLocalization.text("邀请和你一起去的人加入这场同行。")
             )
 
             nicknameEditor
