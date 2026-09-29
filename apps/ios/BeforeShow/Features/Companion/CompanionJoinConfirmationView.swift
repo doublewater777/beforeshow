@@ -211,13 +211,18 @@ struct CompanionPendingJoinHost: View {
         guard let result = coordinator.pendingAcceptResult,
               let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
               let target = shows.first(where: { $0.id == result.showID }),
-              let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection(),
-              CompanionLiveCurrentPromptPolicy.shouldOffer(
-                  importResult: result,
-                  show: target,
-                  selectedShowID: selection.selectedShowID,
-                  now: now
-              ) else {
+              let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection() else {
+            return
+        }
+        let currentShowID = CurrentShowSession()
+            .selectCurrentShow(from: shows, manualSelection: selection, now: now)?
+            .id
+        guard CompanionLiveCurrentPromptPolicy.shouldOffer(
+            importResult: result,
+            show: target,
+            currentShowID: currentShowID,
+            now: now
+        ) else {
             return
         }
 
@@ -342,11 +347,12 @@ private struct CompanionJoinConfirmationView: View {
     }
 
     private var hasOtherCurrentShow: Bool {
-        guard isLiveNow,
-              let activeID = selections.first?.selectedShowID else {
-            return false
-        }
-        if case .single(let match) = localMatch, match.id == activeID {
+        guard isLiveNow else { return false }
+        let currentID = CurrentShowSession()
+            .selectCurrentShow(from: localShows, manualSelection: selections.first)?
+            .id
+        guard let currentID else { return false }
+        if case .single(let match) = localMatch, match.id == currentID {
             return false
         }
         return true
