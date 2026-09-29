@@ -19,7 +19,7 @@ private struct ListeningArtistSelectorItem: View {
                     .clipShape(Circle())
             }
         }
-        .buttonStyle(BSListeningPressStyle(scale: 0.94))
+        .buttonStyle(.plain)
         .contextMenu {
             if artist.isConnected {
                 Button {
@@ -65,6 +65,7 @@ struct ListeningArtistSelector: View {
                 }
                 .padding(.top, BSSpacing.sm)
             }
+            .frame(height: BSLayout.minTouchTarget + BSSpacing.sm)
             .onChange(of: selection) { _, scope in
                 withAnimation(BSListeningTokens.selectionAnimation) {
                     switch scope {
@@ -89,7 +90,7 @@ struct ListeningArtistSelector: View {
                     .scaledToFit()
             }
         }
-        .buttonStyle(BSListeningPressStyle(scale: 0.94))
+        .buttonStyle(.plain)
         .accessibilityLabel(ListeningCopy.text("热门合辑"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
