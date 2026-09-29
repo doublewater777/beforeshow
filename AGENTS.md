@@ -100,7 +100,7 @@ Before implementing a module:
 - 系统权限弹窗也算一次阻塞式 presentation；不要紧跟在刚完成的 sheet/fullScreenCover 后面触发。
 - Review UI 流程时按用户连续看到的界面序列检查，而不是只看各状态在代码里是否“合法”。
 
-## 5. Goal-Driven Execution
+## 6. Goal-Driven Execution
 
 **Define success criteria. Loop until verified.**
 
