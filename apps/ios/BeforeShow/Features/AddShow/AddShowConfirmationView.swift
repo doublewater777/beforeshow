@@ -1,45 +1,7 @@
 import Foundation
 import SwiftUI
 
-// MARK: - Add Show Confirmation Presentation
-
-enum AddShowConfirmationKind: Equatable {
-    case saved(AddShowSaveOutcome)
-    case duplicate(AddShowSaveOutcome)
-
-    var outcome: AddShowSaveOutcome {
-        switch self {
-        case .saved(let outcome), .duplicate(let outcome):
-            return outcome
-        }
-    }
-
-    var isDuplicate: Bool {
-        if case .duplicate = self { return true }
-        return false
-    }
-}
-
-struct SavedShowConfirmation: Equatable {
-    let showID: UUID
-    let name: String
-    let coverImageURL: String?
-    let kind: AddShowConfirmationKind
-
-    var outcome: AddShowSaveOutcome { kind.outcome }
-}
-
-enum AddShowDetailKind: Hashable {
-    case show
-    case footprint
-}
-
-struct AddShowDetailDestination: Identifiable, Hashable {
-    let showID: UUID
-    let kind: AddShowDetailKind
-
-    var id: String { "\(showID.uuidString)-\(kind)" }
-}
+// MARK: - Add Show Lifecycle Confirmation
 
 struct PendingAddShowLifecycleConfirmation: Identifiable {
     let id = UUID()
@@ -137,92 +99,5 @@ struct AddShowLifecycleConfirmationSheet: View {
                 }
             }
         }
-    }
-}
-
-struct AddShowSavedConfirmationView: View {
-    let confirmation: SavedShowConfirmation
-    let onOpen: () -> Void
-    let onDone: () -> Void
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Spacer(minLength: BSSpacing.xl)
-
-            BSSurfacePanel {
-                VStack(spacing: BSSpacing.lg) {
-                    ZStack {
-                        Circle()
-                            .fill(BSColor.Stage.accent.opacity(0.16))
-                            .frame(width: 58, height: 58)
-                        Circle()
-                            .stroke(BSColor.Stage.accent.opacity(0.46), lineWidth: 1)
-                            .frame(width: 58, height: 58)
-                        Image(systemName: confirmation.kind.isDuplicate ? "rectangle.on.rectangle" : "checkmark")
-                            .font(.system(size: 23, weight: .bold))
-                            .foregroundColor(BSColor.Stage.accent)
-                    }
-
-                    ShowCoverImageView(
-                        urlString: confirmation.coverImageURL,
-                        aspectRatio: 3.0 / 4.0,
-                        contentMode: .fill,
-                        cornerRadius: BSRadius.md
-                    )
-                    .frame(width: 96, height: 128)
-                    .clipped()
-
-                    VStack(spacing: BSSpacing.xs) {
-                        Text(AddShowSuccessCopy.title(isDuplicate: confirmation.kind.isDuplicate))
-                            .font(BSFont.heroTitle)
-                            .foregroundColor(BSColor.Stage.foreground)
-                            .multilineTextAlignment(.center)
-
-                        Text(confirmation.name)
-                            .font(BSFont.body)
-                            .foregroundColor(BSColor.Stage.muted)
-                            .lineLimit(2)
-                            .multilineTextAlignment(.center)
-
-                        if !confirmation.kind.isDuplicate {
-                            Text(AddShowSuccessCopy.status(for: confirmation.outcome))
-                                .font(BSFont.caption)
-                                .foregroundColor(BSColor.Stage.dim)
-                        }
-                    }
-
-                    VStack(spacing: 10) {
-                        Button(action: onOpen) {
-                            Text(BSLocalization.text(confirmation.kind.isDuplicate ? "查看这场现场" : "查看现场"))
-                                .font(.system(size: 14.5, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.background)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(BSColor.Stage.foreground, in: RoundedRectangle(cornerRadius: 16))
-                                .contentShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .buttonStyle(.plain)
-
-                        Button(action: onDone) {
-                            Text(BSLocalization.text("完成"))
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(BSColor.Stage.foreground)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 48)
-                                .background(Color.white.opacity(0.055), in: RoundedRectangle(cornerRadius: 16))
-                                .overlay(RoundedRectangle(cornerRadius: 16).stroke(BSColor.Stage.border))
-                                .contentShape(RoundedRectangle(cornerRadius: 16))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, BSSpacing.sm)
-            }
-            .frame(maxWidth: 330)
-
-            Spacer(minLength: BSSpacing.xl)
-        }
-        .padding(.horizontal, 20)
     }
 }

@@ -77,23 +77,6 @@ enum AddShowSaveOutcome: String, Equatable {
     case footprint
 }
 
-enum AddShowSuccessCopy {
-    static func title(isDuplicate: Bool) -> String {
-        BSLocalization.text(isDuplicate ? "这场已经在 BeforeShow 里了" : "已添加现场")
-    }
-
-    static func status(for outcome: AddShowSaveOutcome) -> String {
-        switch outcome {
-        case .future:
-            return BSLocalization.text("已加入我的现场")
-        case .current:
-            return BSLocalization.text("已设为当前现场")
-        case .footprint:
-            return BSLocalization.text("已收进足迹")
-        }
-    }
-}
-
 struct AddShowPersistenceResult {
     let outcome: AddShowSaveOutcome
     /// The state carries permission history plus a transient just-added backfill
