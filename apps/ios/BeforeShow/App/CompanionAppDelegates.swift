@@ -19,12 +19,9 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         configurationForConnecting connectingSceneSession: UISceneSession,
         options: UIScene.ConnectionOptions
     ) -> UISceneConfiguration {
-        let configuration = UISceneConfiguration(
-            name: "Default Configuration",
-            sessionRole: connectingSceneSession.role
-        )
-        configuration.delegateClass = BeforeShowSceneDelegate.self
-        return configuration
+        let config = UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+        config.delegateClass = BeforeShowSceneDelegate.self
+        return config
     }
 
     func application(
@@ -34,24 +31,15 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         deliverAcceptedShare(cloudKitShareMetadata)
     }
 
-    func deliverAcceptedShare(
-        _ metadata: CKShare.Metadata,
-        startsNewPresentation: Bool = true
-    ) {
+    func deliverAcceptedShare(_ metadata: CKShare.Metadata, startsNewPresentation: Bool = true) {
         guard let coordinator = companionCoordinator else {
-            // Persist before dependencies are available; a process termination must not
-            // discard the invitation callback.
             CompanionSharingCoordinator.persistAcceptedShare(metadata)
             return
         }
         Task { @MainActor in
-            coordinator.enqueueAcceptedShare(
-                metadata,
-                startsNewPresentation: startsNewPresentation
-            )
+            coordinator.enqueueAcceptedShare(metadata, startsNewPresentation: startsNewPresentation)
             if let container = modelContainer {
-                let context = ModelContext(container)
-                await coordinator.flushPendingAcceptedShares(in: context)
+                await coordinator.flushPendingAcceptedShares(in: ModelContext(container))
             }
         }
     }
@@ -63,16 +51,10 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
             do {
                 try await CloudKitCompanionSharingService().ensureAccountAvailable()
                 let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
-                if let presentationGeneration,
-                   companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true {
-                    return
-                }
+                if let presentationGeneration, companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true { return }
                 deliverAcceptedShare(metadata, startsNewPresentation: false)
             } catch {
-                if let presentationGeneration,
-                   companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true {
-                    return
-                }
+                if let presentationGeneration, companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true { return }
                 CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
                 companionCoordinator?.handleIncomingInviteFailure(error)
             }
@@ -84,8 +66,7 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
         coordinator.reloadPersistedAcceptedShares()
         Task { @MainActor in
             if let container = modelContainer {
-                let context = ModelContext(container)
-                await coordinator.flushPendingAcceptedShares(in: context)
+                await coordinator.flushPendingAcceptedShares(in: ModelContext(container))
             }
         }
     }
@@ -121,9 +102,7 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
                 deliver(url)
             }
         }
-        for context in connectionOptions.urlContexts {
-            deliver(context.url)
-        }
+        for context in connectionOptions.urlContexts { deliver(context.url) }
         if let shortcutItem = connectionOptions.shortcutItem,
            shortcutItem.type == "com.doublewaterapps.beforeshow.pro-discount" {
             Task { @MainActor in
@@ -148,9 +127,7 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        for context in URLContexts {
-            deliver(context.url)
-        }
+        for context in URLContexts { deliver(context.url) }
     }
 
     func windowScene(
