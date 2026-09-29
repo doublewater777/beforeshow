@@ -20,6 +20,7 @@ struct AddShowFlowView: View {
     private let onSaved: ((UUID) -> Void)?
 
     @State private var draft: ShowDraft
+    @State private var setAsCurrentShow = false
     @State private var selectedScreenshotItem: PhotosPickerItem?
     @State private var linkText = ""
     @State private var message: String?
@@ -113,6 +114,8 @@ struct AddShowFlowView: View {
                             .disabled(isImportingDraft)
                             .opacity(isImportingDraft ? 0.55 : 1)
                             .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+
+                            currentShowToggleCard
                         }
 
                         if let message {
@@ -538,6 +541,40 @@ struct AddShowFlowView: View {
         .background(.bar)
     }
 
+    private var currentShowToggleCard: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(BSColor.Stage.accent.opacity(0.13))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(BSColor.Stage.accent)
+            }
+            .frame(width: 26, height: 26)
+
+            Text(BSLocalization.text("设为当前现场"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(BSColor.textPrimary)
+
+            Spacer()
+
+            Toggle(BSLocalization.text("设为当前现场"), isOn: $setAsCurrentShow)
+                .labelsHidden()
+                .tint(BSColor.Stage.accent)
+                .disabled(isSaving || isImportingDraft)
+        }
+        .padding(16)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 20))
+        .overlay(
+            RoundedRectangle(cornerRadius: 20)
+                .stroke(BSColor.Stage.border, lineWidth: 1)
+        )
+        .disabled(isSaving || isImportingDraft)
+        .opacity(isImportingDraft ? 0.55 : 1)
+        .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+    }
+
     private func saveProgressSegment(filled: Bool) -> some View {
         let ready = draft.isReadyToSave && !needsDateConfirmation && !isImportingDraft
         let fill: Color = filled
@@ -849,6 +886,7 @@ struct AddShowFlowView: View {
             let result = try AddShowPersistenceCoordinator.persist(
                 show,
                 lifecycle: lifecycle,
+                setAsCurrent: setAsCurrentShow,
                 selections: selections,
                 notificationStates: notificationStates,
                 in: modelContext

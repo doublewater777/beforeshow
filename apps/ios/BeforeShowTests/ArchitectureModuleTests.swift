@@ -6,29 +6,6 @@ import XCTest
 /// end policy without a separate phase arg, cover lifecycle is in
 /// `ShowCoverLifecycleTests`.
 final class ArchitectureModuleTests: XCTestCase {
-    func testHomeArrivalOnlyAnimatesForTheNewCurrentShow() {
-        let addedShowID = UUID()
-
-        XCTAssertTrue(
-            CurrentShowHomeArrivalPolicy.shouldAnimate(
-                newShowID: addedShowID,
-                currentShowID: addedShowID
-            )
-        )
-        XCTAssertFalse(
-            CurrentShowHomeArrivalPolicy.shouldAnimate(
-                newShowID: addedShowID,
-                currentShowID: UUID()
-            )
-        )
-        XCTAssertFalse(
-            CurrentShowHomeArrivalPolicy.shouldAnimate(
-                newShowID: addedShowID,
-                currentShowID: nil
-            )
-        )
-    }
-
     func testDynamicCoverSoundControlOnlyAppearsForActiveVideoWithAudio() {
         XCTAssertTrue(
             DynamicCoverSoundPolicy.shouldExposeControl(

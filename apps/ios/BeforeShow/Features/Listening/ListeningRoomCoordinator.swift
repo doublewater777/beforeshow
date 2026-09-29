@@ -591,10 +591,19 @@ private let listeningCatalogFetchConcurrency = 4
         isAuthorizing = false
 
         guard newAccess.authorizationStatus == .authorized else { return }
+        await matchUnconnectedArtistsAfterAuthorization()
         // If initial show preparation is still matching identities, that operation
         // will continue into catalog loading with the newly-authorized access.
         guard !isLoadingShow else { return }
         await reloadCatalog()
+    }
+
+    private func matchUnconnectedArtistsAfterAuthorization() async {
+        guard let show else { return }
+        let slots = show.artists
+        let matches = (try? await ListeningArtistAutoMatcher(search: artistSearchService).matches(for: slots)) ?? [:]
+        guard self.show?.id == show.id else { return }
+        applyAutomaticArtistMatches(matches, originalSlots: slots, to: show)
     }
 
     func refreshMusicAccess() async {

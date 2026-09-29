@@ -184,9 +184,7 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: nil
             )
-            guard pendingShareMetadata.contains(where: {
-                CompanionAcceptedShareInbox.metadataKey($0) == key
-            }) else {
+            guard pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
                 isLoadingInvitation = false
                 resumeQueue = true
                 return
@@ -206,9 +204,7 @@ final class CompanionSharingCoordinator {
             lastErrorKind = nil
         } catch {
             isLoadingInvitation = false
-            guard pendingShareMetadata.contains(where: {
-                CompanionAcceptedShareInbox.metadataKey($0) == key
-            }) else {
+            guard pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
                 resumeQueue = true
                 return
             }
@@ -418,7 +414,7 @@ final class CompanionSharingCoordinator {
                 try? CompanionAcceptedSessionImporter.apply(session, in: modelContext)
             }
         } catch {
-            recordError(error)
+            CompanionDebugLog.write("refreshAllLinkedShows: \(error)")
         }
         guard refreshLinks else { return }
         guard let shows = try? modelContext.fetch(descriptor) else { return }

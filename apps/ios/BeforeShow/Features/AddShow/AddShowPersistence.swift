@@ -78,8 +78,9 @@ enum AddShowPersistenceCoordinator {
     static func persist(
         _ show: Show,
         lifecycle: AddShowFinalLifecycle,
-        selections _: [CurrentShowSelection],
-        notificationStates _: [NotificationSchedulingState],
+        setAsCurrent: Bool = false,
+        selections _: [CurrentShowSelection] = [],
+        notificationStates _: [NotificationSchedulingState] = [],
         in modelContext: ModelContext,
         now: Date = Date()
     ) throws -> AddShowPersistenceResult {
@@ -104,7 +105,7 @@ enum AddShowPersistenceCoordinator {
             // durable user-owned selection rather than a lifecycle filter. When
             // there is no valid Current yet, let the newly added historical show
             // bootstrap it; otherwise never steal the existing selection.
-            if existingCurrent == nil {
+            if setAsCurrent || existingCurrent == nil {
                 _ = try selectionStore.select(showID: show.id)
             }
 
@@ -129,7 +130,7 @@ enum AddShowPersistenceCoordinator {
             )
 
         case .future, .live:
-            let becameCurrent = existingCurrent == nil
+            let becameCurrent = setAsCurrent || (existingCurrent == nil)
             if becameCurrent {
                 _ = try selectionStore.select(showID: show.id)
             }
@@ -141,7 +142,7 @@ enum AddShowPersistenceCoordinator {
             try modelContext.save()
 
             return AddShowPersistenceResult(
-                outcome: lifecycle == .live && becameCurrent ? .current : .future,
+                outcome: setAsCurrent ? .current : (lifecycle == .live && becameCurrent ? .current : .future),
                 notificationState: state
             )
         }

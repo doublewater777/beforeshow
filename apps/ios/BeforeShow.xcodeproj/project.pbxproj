@@ -191,6 +191,7 @@
 		70CFCF7FC7DBD2E210743B74 /* MemoryFragmentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F73275EFB1EC83E825DA94 /* MemoryFragmentTests.swift */; };
 		70F6EEDA00AF78AFD8A3213D /* HomeShowPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13FA246F6A2CD9BBD76F12B3 /* HomeShowPhase.swift */; };
 		70FE501D9CD579689FEF3610 /* NotificationDeepLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B166F749E248A6F5A68C923 /* NotificationDeepLink.swift */; };
+		7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */; };
 		71A42A3C94F7EA2095B7D4D3 /* ShowCoverFullscreenPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D369FFD78D510DBA30AE7AF /* ShowCoverFullscreenPreview.swift */; };
 		71DD6839E9FF137C7DA41A8B /* ListeningArtistAutoMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 250A110A5390FBFD9CACB5C1 /* ListeningArtistAutoMatcherTests.swift */; };
 		7270B09F5EABA588967ABA3B /* DispersalCeremony.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B51D1A6FD02E111BD1FFEE1 /* DispersalCeremony.swift */; };
@@ -738,6 +739,7 @@
 		A489B1E13220281051AA87EB /* DispersalCeremonyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyTests.swift; sourceTree = "<group>"; };
 		A4A78B82F018B3CC4289403D /* OnboardingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTests.swift; sourceTree = "<group>"; };
 		A50F4BE8E24B01A3E0482585 /* LocalNotificationScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalNotificationScheduler.swift; sourceTree = "<group>"; };
+		A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSSwipeRevealActionRow.swift; sourceTree = "<group>"; };
 		A5CDB968E16EBEA19A1580D6 /* HomeCountdownCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCountdownCard.swift; sourceTree = "<group>"; };
 		A6D87D73BEDFED2B10860DBE /* CoverAmbientColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverAmbientColor.swift; sourceTree = "<group>"; };
 		A81A4C22100811A21DBD95FF /* BeforeShow.storekit */ = {isa = PBXFileReference; path = BeforeShow.storekit; sourceTree = "<group>"; };
@@ -1439,6 +1441,7 @@
 				34CF6D590DEF8156778F112C /* BSListeningTokens.swift */,
 				D4EA9AC3D688CEAA2F9B08EF /* BSShowCoverComponents.swift */,
 				5A9B3B197C2813907F8130A0 /* BSStagePresentation.swift */,
+				A5AFACDC56FD3BC53F88884F /* BSSwipeRevealActionRow.swift */,
 				298DD1DE5E28F44B30D2F12C /* BSTokens.swift */,
 			);
 			path = DesignSystem;
@@ -1846,6 +1849,7 @@
 				106F8A9DACB69333D9DFA401 /* BSListeningTokens.swift in Sources */,
 				D7511BE28EE5035990A361AD /* BSShowCoverComponents.swift in Sources */,
 				97411B361E7DCA9E387C379C /* BSStagePresentation.swift in Sources */,
+				7198DA2ECC22130E511EEDBA /* BSSwipeRevealActionRow.swift in Sources */,
 				924B2AB9DDE84591041CD0DA /* BSTokens.swift in Sources */,
 				4CC6961398BBD9C9A407B870 /* BeforeShowApp.swift in Sources */,
 				DB6FC4B6754C070AEABE963C /* BeforeShowCloudClient.swift in Sources */,

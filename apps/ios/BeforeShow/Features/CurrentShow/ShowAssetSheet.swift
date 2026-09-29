@@ -69,7 +69,7 @@ struct ShowAssetSheet: View {
                     }
                     .bsClearNavigationContainer()
                 }
-                .bsSystemGlassSheet()
+                .bsSystemGlassSheet(detents: [.large])
             } else {
                 BSDrawerSheet(detents: [.medium, .large], fitsContent: true) {
                     ShowAssetUploadView(

@@ -65,7 +65,12 @@ struct CompanionPendingJoinHost: View {
     }
 
     private var isPresented: Bool {
-        presentationState.isPresented(
+        guard coordinator.invitePresentationGeneration > 0
+            || coordinator.isLoadingInvitation
+            || coordinator.pendingJoinSession != nil else {
+            return false
+        }
+        return presentationState.isPresented(
             isLoading: coordinator.isLoadingInvitation,
             hasSession: coordinator.pendingJoinSession != nil,
             isWorking: isWorking,

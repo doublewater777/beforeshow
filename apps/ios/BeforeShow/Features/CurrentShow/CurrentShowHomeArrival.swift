@@ -10,12 +10,6 @@ struct CurrentShowHomeArrival: Hashable {
     var phase: Phase
 }
 
-enum CurrentShowHomeArrivalPolicy {
-    static func shouldAnimate(newShowID: UUID, currentShowID: UUID?) -> Bool {
-        newShowID == currentShowID
-    }
-}
-
 struct CurrentShowHomeArrivalFlags: Equatable {
     var hasArrivedHero: Bool
     var hasArrivedCountdown: Bool

@@ -201,6 +201,11 @@ private final class AuthorizationTransitionCatalog: @unchecked Sendable, Listeni
 private final class CountingArtistSearchService: @unchecked Sendable, ArtistSearchServicing {
     private let lock = NSLock()
     private var searches = 0
+    private let result: RecognizedArtist?
+
+    init(result: RecognizedArtist? = nil) {
+        self.result = result
+    }
 
     private func recordSearch() {
         lock.lock()
@@ -216,7 +221,7 @@ private final class CountingArtistSearchService: @unchecked Sendable, ArtistSear
 
     func searchArtists(query: String) async throws -> [RecognizedArtist] {
         recordSearch()
-        return []
+        return result.map { [$0] } ?? []
     }
 
     func requestAuthorizationIfNeeded() async -> ArtistSearchAuthorizationStatus { .authorized }
@@ -375,7 +380,12 @@ final class ListeningAccessibilityTests: XCTestCase {
         try context.save()
 
         let catalog = AuthorizationTransitionCatalog()
-        let search = CountingArtistSearchService()
+        let search = CountingArtistSearchService(result: RecognizedArtist(
+            id: "unmatched-artist-id",
+            canonicalName: "Unmatched Artist",
+            avatarURL: nil,
+            appleMusicURL: nil
+        ))
         let room = ListeningRoomCoordinator(
             context: context,
             catalogService: catalog,
@@ -388,7 +398,8 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertFalse(room.shouldReloadCatalog(for: show), "An empty but completed first load must not restart on every tab activation")
 
         await room.authorize()
-        XCTAssertEqual(search.searchCount, 1, "Authorization should resume catalog loading instead of restarting show preparation")
+        XCTAssertEqual(search.searchCount, 2, "Authorization should match the unconnected artist after initial matching")
+        XCTAssertEqual(show.artists.first?.appleMusicArtistID, "unmatched-artist-id")
         XCTAssertFalse(room.shouldReloadCatalog(for: show))
     }
 

@@ -244,6 +244,37 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(selected?.id, historical.id)
     }
 
+    func testAddEndedShowWithSetAsCurrentOverridesExistingSelection() throws {
+        let container = try ModelContainer(
+            for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
+        )
+        let context = container.mainContext
+        let now = date(2026, 8, 29, 12)
+        let current = try Show(name: "旧现场", date: date(2026, 9, 1), startTime: date(2026, 9, 1, 20))
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        try context.save()
+
+        let ended = try makeShow("过去现场", year: 2024, artist: "过去艺人", city: "北京", venue: "工体")
+        let result = try AddShowPersistenceCoordinator.persist(
+            ended,
+            lifecycle: .ended,
+            setAsCurrent: true,
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+
+        let updatedSelection = try XCTUnwrap(
+            context.fetch(FetchDescriptor<CurrentShowSelection>()).first
+        )
+        XCTAssertEqual(updatedSelection.selectedShowID, ended.id)
+        XCTAssertEqual(result.outcome, .footprint)
+    }
+
     func testUnifiedConfirmedEndedAddReplansAfterShowWithoutStealingCurrent() throws {
         let container = try ModelContainer(
             for: Show.self, CurrentShowSelection.self, NotificationSchedulingState.self,

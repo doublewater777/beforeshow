@@ -376,6 +376,68 @@ final class ShowMutationCoordinatorTests: XCTestCase {
     }
 
     @MainActor
+    func testAddShowWithSetAsCurrentOverridesExistingSelection() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let currentDate = now.addingTimeInterval(3 * 86_400)
+        let addedDate = now.addingTimeInterval(86_400)
+        let current = try Show(name: "旧现场", date: currentDate, startTime: currentDate)
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        try context.save()
+
+        let added = try Show(name: "设为当前的现场", date: addedDate, startTime: addedDate)
+        let result = try AddShowPersistenceCoordinator.persist(
+            added,
+            lifecycle: .future,
+            setAsCurrent: true,
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+
+        let updatedSelection = try XCTUnwrap(
+            context.fetch(FetchDescriptor<CurrentShowSelection>()).first
+        )
+        XCTAssertEqual(updatedSelection.selectedShowID, added.id)
+        XCTAssertEqual(result.outcome, .current)
+    }
+
+    @MainActor
+    func testAddShowWithoutSetAsCurrentPreservesExistingSelection() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date()
+        let currentDate = now.addingTimeInterval(3 * 86_400)
+        let addedDate = now.addingTimeInterval(86_400)
+        let current = try Show(name: "旧现场", date: currentDate, startTime: currentDate)
+        let selection = CurrentShowSelection(selectedShowID: current.id)
+        context.insert(current)
+        context.insert(selection)
+        try context.save()
+
+        let added = try Show(name: "默认不设为当前", date: addedDate, startTime: addedDate)
+        let result = try AddShowPersistenceCoordinator.persist(
+            added,
+            lifecycle: .future,
+            setAsCurrent: false,
+            selections: [selection],
+            notificationStates: [],
+            in: context,
+            now: now
+        )
+
+        let updatedSelection = try XCTUnwrap(
+            context.fetch(FetchDescriptor<CurrentShowSelection>()).first
+        )
+        XCTAssertEqual(updatedSelection.selectedShowID, current.id)
+        XCTAssertEqual(result.outcome, .future)
+    }
+
+    @MainActor
     func testDeletionKeepsContentDuplicateWithDistinctIDs() async throws {
         let container = try makeContainer(
             MemoryFragment.self,

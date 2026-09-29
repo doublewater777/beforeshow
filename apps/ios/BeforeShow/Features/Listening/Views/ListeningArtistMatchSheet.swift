@@ -49,8 +49,7 @@ struct ListeningArtistMatchSheet: View {
                     if confirming {
                         ProgressView().tint(BSListeningTokens.ink)
                     } else {
-                        Label(selected.map { ListeningCopy.format("连接 %@", $0.canonicalName) }
-                              ?? BSLocalization.text("连接艺人"), systemImage: "link")
+                        Label(BSLocalization.text("连接艺人"), systemImage: "link")
                             .lineLimit(1)
                     }
                 }
