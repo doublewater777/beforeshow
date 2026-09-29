@@ -1,6 +1,37 @@
 import SwiftData
 import SwiftUI
 
+struct CompanionPendingJoinPresentationState: Equatable {
+    var isJoiningInBackground = false
+    var isDismissedByUser = false
+
+    func isPresented(isLoading: Bool, hasSession: Bool) -> Bool {
+        (isLoading || hasSession)
+            && !isJoiningInBackground
+            && !isDismissedByUser
+    }
+
+    func canUserDismiss(isLoading: Bool, hasSession: Bool, isWorking: Bool) -> Bool {
+        hasSession && !isLoading && !isWorking && !isJoiningInBackground
+    }
+
+    mutating func inviteBecameActive() {
+        isDismissedByUser = false
+    }
+
+    mutating func userDismissed() {
+        presentationState.userDismissed()
+    }
+
+    mutating func beginSuccessfulDismissal() {
+        isJoiningInBackground = true
+    }
+
+    mutating func didDismiss() {
+        isJoiningInBackground = false
+    }
+}
+
 /// Product confirmation shown after iOS hands a CloudKit invitation to the app, but
 /// before the companion relationship is committed and the Show is imported locally.
 struct CompanionPendingJoinHost: View {
@@ -8,15 +39,15 @@ struct CompanionPendingJoinHost: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(CompanionSharingCoordinator.self) private var coordinator
     @State private var isWorking = false
-    @State private var isJoiningInBackground = false
-    @State private var isDismissedByUser = false
+    @State private var presentationState = CompanionPendingJoinPresentationState()
     @State private var queuedSuccessMessage: String?
     @State private var errorMessage: String?
 
     private var isPresented: Bool {
-        (coordinator.isLoadingInvitation || coordinator.pendingJoinSession != nil)
-            && !isJoiningInBackground
-            && !isDismissedByUser
+        presentationState.isPresented(
+            isLoading: coordinator.isLoadingInvitation,
+            hasSession: coordinator.pendingJoinSession != nil
+        )
     }
 
     var body: some View {
@@ -27,9 +58,11 @@ struct CompanionPendingJoinHost: View {
                     get: { isPresented },
                     set: {
                         if !$0,
-                           !isWorking,
-                           !isJoiningInBackground,
-                           coordinator.pendingJoinSession != nil {
+                           presentationState.canUserDismiss(
+                               isLoading: coordinator.isLoadingInvitation,
+                               hasSession: coordinator.pendingJoinSession != nil,
+                               isWorking: isWorking
+                           ) {
                             handleClose()
                         }
                     }
@@ -39,7 +72,7 @@ struct CompanionPendingJoinHost: View {
                         queuedSuccessMessage = nil
                         onJoinSuccess(message)
                     }
-                    isJoiningInBackground = false
+                    presentationState.didDismiss()
                 }
             ) {
                 CompanionJoinConfirmationView(
@@ -64,7 +97,7 @@ struct CompanionPendingJoinHost: View {
             }
             .onChange(of: coordinator.isLoadingInvitation) { _, isLoading in
                 if isLoading {
-                    isDismissedByUser = false
+                    presentationState.inviteBecameActive()
                 }
             }
             .onChange(of: coordinator.pendingJoinSession) { _, session in
@@ -105,7 +138,7 @@ struct CompanionPendingJoinHost: View {
                     queuedSuccessMessage = message
                 }
                 _ = coordinator.consumePendingAcceptResult()
-                isJoiningInBackground = true
+                presentationState.beginSuccessfulDismissal()
             } else {
                 errorMessage = coordinator.consumeLastErrorMessage() ?? BSLocalization.text("现场还没添加成功，请重试")
             }
