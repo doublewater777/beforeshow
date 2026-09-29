@@ -182,8 +182,8 @@ struct CurrentShowCompanionSheet: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .alert(BSLocalization.text("设置我的昵称"), isPresented: $isEditingMyNickname) {
-            TextField(BSLocalization.text("输入你的昵称"), text: $editingMyNickname)
+        .alert(BSLocalization.text("修改我的称呼"), isPresented: $isEditingMyNickname) {
+            TextField(BSLocalization.text("输入称呼"), text: $editingMyNickname)
             Button(BSLocalization.text("取消"), role: .cancel) {}
             Button(BSLocalization.text("保存")) {
                 let trimmed = editingMyNickname.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -195,17 +195,15 @@ struct CurrentShowCompanionSheet: View {
                     currentUserName = BSLocalization.text("我")
                 }
             }
-        } message: {
-            Text(BSLocalization.text("同行成员和邀请卡片将展示该昵称。"))
         }
         .alert(
-            BSLocalization.text("修改同行人备注"),
+            BSLocalization.text("修改朋友备注"),
             isPresented: Binding(
                 get: { editingCompanionIndex != nil },
                 set: { if !$0 { editingCompanionIndex = nil } }
             )
         ) {
-            TextField(BSLocalization.text("备注名称"), text: $editingCompanionName)
+            TextField(BSLocalization.text("输入备注"), text: $editingCompanionName)
             Button(BSLocalization.text("取消"), role: .cancel) { editingCompanionIndex = nil }
             Button(BSLocalization.text("保存")) {
                 guard let idx = editingCompanionIndex else { return }
@@ -221,7 +219,7 @@ struct CurrentShowCompanionSheet: View {
                 editingCompanionIndex = nil
             }
         } message: {
-            Text(BSLocalization.text("仅在本地修改该同行者的展示名称。"))
+            Text(BSLocalization.text("这个备注只会显示在你的设备上。"))
         }
         .task {
             if let name = await coordinator.fetchCurrentUserDisplayName() {
@@ -300,7 +298,7 @@ struct CurrentShowCompanionSheet: View {
                 .foregroundColor(BSColor.Stage.muted)
             Spacer()
             TextField(
-                BSLocalization.text("输入你的昵称"),
+                BSLocalization.text("输入称呼"),
                 text: Binding(
                     get: { currentUserName == BSLocalization.text("我") ? "" : currentUserName },
                     set: { newValue in
@@ -331,7 +329,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2.fill",
                 title: companionTitle,
-                subtitle: BSLocalization.text("这场现场已记录同行。")
+                subtitle: confirmedSubtitle
             )
 
             companionMembers
@@ -532,6 +530,12 @@ struct CurrentShowCompanionSheet: View {
         CompanionNameList.normalized(show.companionNames)
     }
 
+    private var confirmedSubtitle: String {
+        isEnded
+            ? BSLocalization.text("你们一起去过这场现场。")
+            : BSLocalization.text("你们会一起去这场现场。")
+    }
+
     private var companionTitle: String {
         if memberNames.count == 1, let name = memberNames.first {
             return BSLocalization.format("与%@同行", name)
@@ -559,7 +563,7 @@ struct CurrentShowCompanionSheet: View {
         }
         if isRetry, show.companionShareLocator != nil {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("正在重置上一份邀请，请稍候再试")
+            errorMessage = BSLocalization.text("正在更新邀请，请稍后再试")
             return
         }
         if show.companionShareLocator != nil {
@@ -568,7 +572,7 @@ struct CurrentShowCompanionSheet: View {
         }
         guard show.companionCloudRecordName == nil else {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("这场现场已有正在进行的同行邀请，请稍候再试")
+            errorMessage = BSLocalization.text("这场的邀请还在处理中，请稍后再试")
             return
         }
         await coordinator.refreshAllLinkedShows(in: modelContext, refreshLinks: false)
@@ -676,7 +680,7 @@ struct CurrentShowCompanionSheet: View {
         )
         if !presented {
             isPreparingInvite = false
-            errorMessage = BSLocalization.text("无法打开系统分享")
+            errorMessage = BSLocalization.text("暂时无法打开分享菜单，请稍后再试")
         }
     }
 }
