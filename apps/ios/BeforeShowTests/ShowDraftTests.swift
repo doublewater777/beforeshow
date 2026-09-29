@@ -47,7 +47,18 @@ final class ShowDraftTests: XCTestCase {
         XCTAssertLessThan(savedCallback.lowerBound, schedulingHandoff.lowerBound)
 
         XCTAssertTrue(currentShow.contains("requestNotificationPermissionIfEligible()"))
-        XCTAssertTrue(currentShow.contains("await Task.yield()"))
+        XCTAssertTrue(currentShow.contains(".onChange(of: isPlaybackActive, initial: true)"))
+        XCTAssertTrue(currentShow.contains("await requestNotificationPermissionIfEligible()"))
+        XCTAssertFalse(
+            currentShow.contains(
+                "homeArrivalLifecycle.observeCurrentShow(newShowID)\n                Task { await requestNotificationPermissionIfEligible() }"
+            )
+        )
+        XCTAssertFalse(
+            currentShow.contains(
+                "beginPreparedHomeArrivalIfPossible()\n                Task { await requestNotificationPermissionIfEligible() }"
+            )
+        )
         XCTAssertTrue(currentShow.contains("await center.requestAuthorization()"))
         XCTAssertFalse(FileManager.default.fileExists(atPath: primer.path))
     }
