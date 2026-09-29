@@ -39,7 +39,7 @@ final class CompanionSharingTests: XCTestCase {
             isEnded: false
         )
 
-        XCTAssertEqual(presentation.displayTitle, BSLocalization.text("等待朋友"))
+        XCTAssertEqual(presentation.displayTitle, BSLocalization.text("等待同行"))
         XCTAssertEqual(presentation.accessibilityLabel, BSLocalization.text("同行，等待朋友加入"))
         XCTAssertFalse(presentation.showsAvatars)
     }
@@ -54,21 +54,19 @@ final class CompanionSharingTests: XCTestCase {
             "邀请朋友一起去这场现场。",
             "%lld 人同行",
             "同行，等待朋友加入",
-            "等待朋友",
+            "等待同行",
             "等待朋友加入",
             "朋友接受邀请后，会出现在这里。",
             "再次邀请",
             "修改我的称呼",
             "输入称呼",
-            "修改朋友备注",
+            "修改同行备注",
             "输入备注",
-            "这个备注只会显示在你的设备上。",
-            "你们一起去过这场现场。",
-            "你们会一起去这场现场。",
+            "这个备注只会在你的 BeforeShow 中显示。",
+            "这场已添加同行。",
             "正在更新邀请，请稍后再试",
             "这场的邀请还在处理中，请稍后再试",
             "暂时无法打开分享菜单，请稍后再试",
-            "已有同行",
             "接受邀请",
             "这场已经在你的足迹里。确认后，会记录你和%@一起去过，不会重复添加。",
             "这场已经在「我的现场」里。接受后，你和%@会显示为同行，不会重复添加。",
@@ -78,12 +76,12 @@ final class CompanionSharingTests: XCTestCase {
             "需要登录 iCloud 才能邀请朋友",
             "暂时无法创建邀请，请确认 iCloud 云盘已打开",
             "iCloud 空间不足，暂时无法创建邀请",
-            "已接受%@的邀请",
-            "已记录你和%@一起去过",
-            "已接受%@的邀请，并设为当前现场",
-            "已接受%@的邀请，已加入「我的现场」",
-            "你已经接受过这份邀请",
-            "这场已经没有同行了",
+            "已与%@成为同行",
+            "已记录你和%@的共同足迹",
+            "已与%@成为同行，并设为当前现场",
+            "已与%@成为同行，已加入「我的现场」",
+            "你已经是这场的同行",
+            "这场的同行关系已结束",
             "同行信息暂时无法同步，请稍后重试",
         ]
 
