@@ -124,6 +124,7 @@ struct CurrentShowHomeView: View {
                         onAddShow: { isShowingAddShowCoordinator = true },
                         onOpenSettings: { isShowingSettings = true },
                         onOpenShowLibrary: { isShowingShowLibrary = true },
+                        onSetCurrentShow: selectCurrentShow,
                         onChooseDynamicCover: presentDynamicCoverPicker,
                         isImportingDynamicCover: isImportingDynamicCover,
                         onConfirmEnd: { endDate in
@@ -394,6 +395,35 @@ struct CurrentShowHomeView: View {
             in: modelContext,
             session: session
         )
+    }
+
+    private func selectCurrentShow(_ target: Show) {
+        guard session.isManuallySelectable(target) else {
+            presentToast(.neutral, message: BSLocalization.text("当前状态不能设为当前现场"))
+            return
+        }
+
+        Task { @MainActor in
+            do {
+                let didSync = try await ShowMutationCoordinator.selectCurrentShow(
+                    showID: target.id,
+                    shows: shows,
+                    selections: selections,
+                    notificationStates: notificationStates,
+                    in: modelContext,
+                    session: session
+                )
+                presentToast(
+                    didSync ? .success : .neutral,
+                    message: didSync
+                        ? BSLocalization.text("已设为当前现场")
+                        : BSLocalization.text("已切换现场，同步暂未更新")
+                )
+            } catch {
+                modelContext.rollback()
+                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
+            }
+        }
     }
 
     @MainActor

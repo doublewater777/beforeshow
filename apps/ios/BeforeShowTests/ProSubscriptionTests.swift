@@ -690,6 +690,37 @@ final class ProSubscriptionTests: XCTestCase {
         XCTAssertFalse(payload.diagnostics.osVersion.isEmpty)
     }
 
+    func testShakeFeedbackPresentationRequiresEnabledPreferenceAndClearModalStack() {
+        XCTAssertTrue(
+            FeedbackShakePresentationPolicy.shouldPresent(
+                isShakeEnabled: true,
+                isFeedbackPresented: false,
+                hasPresentedModal: false
+            )
+        )
+        XCTAssertFalse(
+            FeedbackShakePresentationPolicy.shouldPresent(
+                isShakeEnabled: false,
+                isFeedbackPresented: false,
+                hasPresentedModal: false
+            )
+        )
+        XCTAssertFalse(
+            FeedbackShakePresentationPolicy.shouldPresent(
+                isShakeEnabled: true,
+                isFeedbackPresented: true,
+                hasPresentedModal: false
+            )
+        )
+        XCTAssertFalse(
+            FeedbackShakePresentationPolicy.shouldPresent(
+                isShakeEnabled: true,
+                isFeedbackPresented: false,
+                hasPresentedModal: true
+            )
+        )
+    }
+
     func testSettingsEntriesUseExpectedOrderWithoutAccountOrSync() {
         XCTAssertEqual(SettingsEntry.allCases, [
             .proMembership,

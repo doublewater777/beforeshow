@@ -415,7 +415,7 @@ private struct ListeningCompactPlaybackControl: View {
                 }
                 .buttonStyle(BSListeningPressStyle(scale: 0.96))
                 .padding(.trailing, 4)
-                .disabled(room.busy || isCompletingSwipe)
+                .disabled(room.busy || isCompletingSwipe || !room.display.player.canPlayPause)
                 .accessibilityLabel(BSLocalization.text(showsPlayingState ? "暂停" : "播放"))
                 .accessibilityIdentifier("listening.miniPlayer.playPause")
             }

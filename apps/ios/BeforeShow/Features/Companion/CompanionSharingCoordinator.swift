@@ -14,6 +14,7 @@ final class CompanionSharingCoordinator {
     private(set) var pendingAcceptMessage: String?
     private(set) var pendingAcceptResult: CompanionAcceptedImportResult?
     private(set) var pendingJoinSession: CompanionSessionSnapshot?
+    private(set) var isLoadingInvitation = false
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -131,6 +132,7 @@ final class CompanionSharingCoordinator {
 
     func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
         enableCloudSync()
+        if pendingJoinSession == nil { isLoadingInvitation = true }
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
@@ -148,6 +150,7 @@ final class CompanionSharingCoordinator {
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
         guard !isFlushingAcceptedShares, pendingJoinSession == nil else { return }
         guard let metadata = pendingShareMetadata.first else { return }
+        isLoadingInvitation = true
         isFlushingAcceptedShares = true
         defer { isFlushingAcceptedShares = false }
 
@@ -160,16 +163,19 @@ final class CompanionSharingCoordinator {
             )
 
             if resolvePreviewedShareForExistingLocalShow(session, in: modelContext) {
+                isLoadingInvitation = false
                 removePendingShare(key: key)
                 continuePendingShareDrain(in: modelContext)
                 return
             }
 
             pendingJoinSession = session
+            isLoadingInvitation = false
             pendingJoinMetadataKey = key
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
+            isLoadingInvitation = false
             recordError(error, fallback: .statusSyncPending)
             resolvePendingInviteFailure(key: key, clearJoin: false, in: modelContext)
         }
@@ -212,7 +218,7 @@ final class CompanionSharingCoordinator {
 
         await handleAcceptedShare(
             metadata: metadata,
-            participantDisplayName: nil,
+            participantDisplayName: CompanionUserProfile.nickname,
             in: modelContext
         )
         guard lastErrorKind == nil, pendingAcceptResult != nil else {
@@ -285,8 +291,7 @@ final class CompanionSharingCoordinator {
                 }
                 show.clearCompanionCloudLinkage()
             } catch {
-                lastErrorMessage = Self.userMessage(for: error)
-                lastErrorKind = error as? CompanionSharingError
+                recordError(error)
                 throw error
             }
         } else {
@@ -347,8 +352,7 @@ final class CompanionSharingCoordinator {
                     show.companionShareOwnerName = shareLocator.ownerName
                     show.companionIsOwner = true
                     try modelContext.save()
-                    lastErrorMessage = Self.userMessage(for: error)
-                    lastErrorKind = error as? CompanionSharingError
+                    recordError(error)
                     return
                 }
             }
@@ -374,8 +378,7 @@ final class CompanionSharingCoordinator {
                     show.companionShareOwnerName = shareLocator.ownerName
                     show.companionIsOwner = false
                     try modelContext.save()
-                    lastErrorMessage = Self.userMessage(for: error)
-                    lastErrorKind = error as? CompanionSharingError
+                    recordError(error)
                     return
                 }
             }
@@ -405,7 +408,7 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    func refreshAllLinkedShows(in modelContext: ModelContext) async {
+    func refreshAllLinkedShows(in modelContext: ModelContext, refreshLinks: Bool = true) async {
         await flushPendingAcceptedShares(in: modelContext)
         if pendingJoinSession != nil { return }
 
@@ -427,6 +430,7 @@ final class CompanionSharingCoordinator {
         } catch {
             recordError(error)
         }
+        guard refreshLinks else { return }
         guard let shows = try? modelContext.fetch(descriptor) else { return }
         for show in shows where show.companionCloudRecordName != nil {
             await refreshCompanion(for: show, in: modelContext)
@@ -462,12 +466,25 @@ final class CompanionSharingCoordinator {
 
     func handleShareControllerFailure(_ error: Error) {
         CompanionDebugLog.write("Share controller failed: \(error)")
-        lastErrorMessage = Self.userMessage(for: error)
-        lastErrorKind = error as? CompanionSharingError
+        recordError(error)
+    }
+
+    private(set) var currentUserDisplayName: String?
+
+    func fetchCurrentUserDisplayName() async -> String? {
+        if let currentUserDisplayName { return currentUserDisplayName }
+        let name = await service.fetchCurrentUserDisplayName()
+        if let name { currentUserDisplayName = name }
+        return name
     }
 
     func handleIncomingInviteFailure(_ error: Error) {
+        isLoadingInvitation = false
         pendingAcceptMessage = Self.userMessage(for: error)
+    }
+
+    func beginLoadingInvitation() {
+        if pendingJoinSession == nil { isLoadingInvitation = true }
     }
 
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {

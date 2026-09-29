@@ -38,7 +38,7 @@ extension CloudKitCompanionSharingService {
         var snapshot = try Self.snapshot(
             from: record,
             shareLocator: shareLocator,
-            participantDisplayNames: Self.participantNames(from: previewMetadata.share)
+            participantDisplayNames: Self.participantNames(from: previewMetadata.share, excludingOwner: true)
         )
         if snapshot.ownerDisplayName == nil {
             snapshot.ownerDisplayName = Self.displayName(for: previewMetadata.ownerIdentity)
@@ -48,7 +48,7 @@ extension CloudKitCompanionSharingService {
 
     func acceptShare(
         metadata: CKShare.Metadata,
-        participantDisplayName _: String?
+        participantDisplayName: String?
     ) async throws -> CompanionSessionSnapshot {
         let context = try await acceptedShareContext(metadata: metadata)
 
@@ -64,6 +64,16 @@ extension CloudKitCompanionSharingService {
         if snapshot.ownerDisplayName == nil {
             snapshot.ownerDisplayName = context.ownerDisplayName
         }
+        if let participantDisplayName, !participantDisplayName.isEmpty {
+            snapshot.participantDisplayName = participantDisplayName
+            context.record[CompanionSessionRecord.participantDisplayName] = participantDisplayName as CKRecordValue
+            do {
+                _ = try await modifyRecords(in: sharedDB, saving: [context.record], deleting: [])
+                CompanionDebugLog.write("Companion accept: wrote participantDisplayName=\(participantDisplayName)")
+            } catch {
+                CompanionDebugLog.write("Companion accept: write participantDisplayName skipped: \(error)")
+            }
+        }
         return snapshot
     }
 
@@ -77,6 +87,13 @@ extension CloudKitCompanionSharingService {
             throw CompanionSharingError.invalidPayload
         }
 
+        return try await Self.fetchMetadataWithRootRecord(for: shareURL, in: container)
+    }
+
+    static func fetchMetadataWithRootRecord(
+        for shareURL: URL,
+        in container: CKContainer = CKContainer(identifier: defaultContainerIdentifier)
+    ) async throws -> CKShare.Metadata {
         return try await withCheckedThrowingContinuation { continuation in
             let operation = CKFetchShareMetadataOperation(shareURLs: [shareURL])
             operation.shouldFetchRootRecord = true
@@ -433,12 +450,5 @@ extension CloudKitCompanionSharingService {
         } catch {
             throw Self.mapError(error)
         }
-    }
-
-    private static func displayName(for identity: CKUserIdentity) -> String? {
-        guard let components = identity.nameComponents else { return nil }
-        let formatted = PersonNameComponentsFormatter().string(from: components)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return formatted.isEmpty ? nil : formatted
     }
 }

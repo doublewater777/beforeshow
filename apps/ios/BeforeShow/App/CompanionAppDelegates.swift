@@ -4,8 +4,15 @@ import SwiftData
 import UIKit
 
 final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
+    static weak var shared: BeforeShowAppDelegate?
+
     var companionCoordinator: CompanionSharingCoordinator?
     var modelContainer: ModelContainer?
+
+    override init() {
+        super.init()
+        Self.shared = self
+    }
 
     func application(
         _ application: UIApplication,
@@ -46,13 +53,12 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
     func deliverCompanionInviteURL(_ shareURL: URL) {
         Task { @MainActor [weak self] in
             guard let self else { return }
+            companionCoordinator?.beginLoadingInvitation()
             do {
-                let container = CKContainer(
-                    identifier: CloudKitCompanionSharingService.defaultContainerIdentifier
-                )
-                let metadata = try await container.shareMetadata(for: shareURL)
+                let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
                 deliverAcceptedShare(metadata)
             } catch {
+                CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
                 companionCoordinator?.handleIncomingInviteFailure(
                     CompanionSharingError.acceptFailed
                 )
@@ -149,7 +155,7 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
         }
     }
     private func deliver(_ metadata: CKShare.Metadata) {
-        guard let appDelegate = UIApplication.shared.delegate as? BeforeShowAppDelegate else {
+        guard let appDelegate = (UIApplication.shared.delegate as? BeforeShowAppDelegate) ?? BeforeShowAppDelegate.shared else {
             return
         }
         appDelegate.deliverAcceptedShare(metadata)
@@ -157,7 +163,7 @@ final class BeforeShowSceneDelegate: NSObject, UIWindowSceneDelegate {
 
     private func deliver(_ webpageURL: URL) {
         guard let shareURL = CompanionInviteWebLink.shareURL(from: webpageURL),
-              let appDelegate = UIApplication.shared.delegate as? BeforeShowAppDelegate else {
+              let appDelegate = (UIApplication.shared.delegate as? BeforeShowAppDelegate) ?? BeforeShowAppDelegate.shared else {
             return
         }
         appDelegate.deliverCompanionInviteURL(shareURL)

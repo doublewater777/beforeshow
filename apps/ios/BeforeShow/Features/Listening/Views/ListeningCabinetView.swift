@@ -35,7 +35,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
             title: room.browseArtists.isEmpty ? shelfTitle : nil,
             count: BSLocalization.format("%d 张唱片", room.libraryDiscs.count),
             isLoading: isLoading,
-            showsCount: room.access.authorizationStatus == .authorized,
+            showsCount: !room.libraryDiscs.isEmpty,
             showsAllDiscs: room.display.showsAllDiscs,
             showsCurrentDisc: currentDisc != nil,
             showAll: showAll,

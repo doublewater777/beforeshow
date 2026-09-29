@@ -45,3 +45,4 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/web
           command: pages deploy out --project-name beforeshow --branch main
+          wranglerVersion: "4.142.0"

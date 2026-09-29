@@ -272,11 +272,15 @@ enum ListeningDisplayProjector {
         playbackState: ListeningPlaybackState
     ) -> ListeningRoomPlaybackMode {
         if isAuthorizing { return .connecting }
-        // Access can improve while a preview controller is already prepared or
-        // playing. Keep the room badge aligned with that transport until it is
-        // actually rebuilt or stopped instead of claiming full playback early.
+        // An established transport is the truth for what is playing now. Access
+        // changes describe whether a future transport may be prepared; they must not
+        // relabel an already-running preview or a full-catalog session whose access
+        // check merely became temporarily inconclusive.
         if source(from: playbackState) == .preview {
             return .preview
+        }
+        if source(from: playbackState) == .fullCatalog {
+            return .fullPlayback
         }
         guard allDiscs.contains(where: { !$0.tracks.isEmpty }) else { return .unavailable }
         if access.authorizationStatus == .authorized, access.canPlayCatalogContent {
@@ -293,7 +297,16 @@ enum ListeningDisplayProjector {
         access: ListeningMusicAccess
     ) -> ListeningHeaderNotice? {
         switch mode {
-        case .connecting, .fullPlayback:
+        case .connecting:
+            return nil
+        case .fullPlayback:
+            if access.authorizationStatus == .authorized,
+               access.catalogPlaybackAccess == .accessCheckFailed {
+                return ListeningHeaderNotice(
+                    message: ListeningCopy.text("暂时无法确认之后的完整播放权限。"),
+                    recoveryAction: .retryAccess
+                )
+            }
             return nil
         case .preview:
             return restrictedPlaybackNotice(access: access, hasPreview: true)
@@ -419,7 +432,11 @@ enum ListeningDisplayProjector {
         }
 
         let accessRecovery = recoveryAction(page: page, access: access, isAuthorizing: false)
-        if !trackPresentation.isPlayable {
+        let keepsEstablishedFullCatalogSession =
+            source(from: playbackState) == .fullCatalog
+            && access.authorizationStatus == .authorized
+            && access.catalogPlaybackAccess == .accessCheckFailed
+        if !trackPresentation.isPlayable && !keepsEstablishedFullCatalogSession {
             return ListeningPlayerPresentation(
                 phase: .stopped,
                 source: nil,

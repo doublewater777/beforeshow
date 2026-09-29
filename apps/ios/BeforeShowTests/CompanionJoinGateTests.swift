@@ -5,8 +5,8 @@ import XCTest
 
 @MainActor
 final class CompanionJoinGateTests: XCTestCase {
-    func testInviteAccessUsesReusableReadOnlyLink() {
-        XCTAssertEqual(CompanionInviteAccessPolicy.publicPermission, .readOnly)
+    func testInviteAccessUsesReusableLink() {
+        XCTAssertEqual(CompanionInviteAccessPolicy.publicPermission, .readWrite)
     }
 
     func testPendingSharedSessionIsNotImportedBeforeJoinConfirmation() async throws {

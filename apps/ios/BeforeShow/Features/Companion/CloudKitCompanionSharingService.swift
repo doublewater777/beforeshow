@@ -81,4 +81,17 @@ struct CloudKitCompanionSharingService: CompanionSharingService {
         CompanionDebugLog.write("Companion invite stage=share-url exhausted")
         throw CompanionSharingError.sharePreparationFailed
     }
+
+    func fetchCurrentUserDisplayName() async -> String? {
+        if let local = CompanionUserProfile.nickname {
+            return local
+        }
+        do {
+            let userID = try await container.userRecordID()
+            let participant = try await container.shareParticipant(forUserRecordID: userID)
+            return Self.displayName(for: participant)
+        } catch {
+            return nil
+        }
+    }
 }

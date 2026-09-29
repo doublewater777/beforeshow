@@ -88,12 +88,12 @@ enum ShowLinkPlatformCatalog {
         ("livenation.app.link", "Live Nation")
     ]
 
-    static let supportSummary = "大麦、秀动、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
+    static let supportSummary = "秀动、大麦、猫眼、票星球、纷玩岛、网易云、Ticketmaster、DICE、AXS、Live Nation"
 
     /// 「如何获取链接」引导页的平台总览入口；与网页版 link-guide 保持同一份数据。
     static let guidePlatforms: [ShowLinkGuidePlatform] = [
-        ShowLinkGuidePlatform(id: "damai", displayName: "大麦", overviewURL: "https://m.damai.cn/shows/home.html", isDomestic: true),
         ShowLinkGuidePlatform(id: "showstart", displayName: "秀动", overviewURL: "https://showstart.com/", isDomestic: true),
+        ShowLinkGuidePlatform(id: "damai", displayName: "大麦", overviewURL: "https://m.damai.cn/shows/home.html", isDomestic: true),
         ShowLinkGuidePlatform(id: "maoyan", displayName: "猫眼", overviewURL: "https://show.maoyan.com/qqw/", isDomestic: true),
         ShowLinkGuidePlatform(id: "piaoxingqiu", displayName: "票星球", overviewURL: "https://e.piaoxingqiu.com/", isDomestic: true),
         ShowLinkGuidePlatform(id: "fenwandao", displayName: "纷玩岛", overviewURL: "https://www.livelab.com.cn/", isDomestic: true),

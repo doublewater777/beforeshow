@@ -81,15 +81,24 @@ struct CompanionSessionSnapshot: Equatable, Sendable {
     /// Names this device should show for the other people in the group.
     func companionDisplayNames(isOwner: Bool) -> [String] {
         let listed = CompanionNameList.normalized(participantDisplayNames)
+        let friend = BSLocalization.text("朋友")
         if isOwner {
-            if status == .accepted { return listed }
+            let realListed = listed.filter { $0 != friend }
+            if !realListed.isEmpty { return realListed }
+            if let participantDisplayName, !participantDisplayName.isEmpty, participantDisplayName != friend {
+                return [participantDisplayName]
+            }
             if !listed.isEmpty { return listed }
             return CompanionNameList.normalized([participantDisplayName].compactMap { $0 })
         }
         var names = CompanionNameList.normalized([ownerDisplayName].compactMap { $0 })
-        names.append(contentsOf: listed)
+        let realListed = listed.filter { $0 != friend }
+        names.append(contentsOf: realListed)
         if names.isEmpty {
             names = CompanionNameList.normalized([participantDisplayName].compactMap { $0 })
+        }
+        if names.isEmpty && !listed.isEmpty {
+            names = listed
         }
         return CompanionNameList.normalized(names)
     }

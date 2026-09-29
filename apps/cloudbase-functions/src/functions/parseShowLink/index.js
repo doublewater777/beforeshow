@@ -41,11 +41,17 @@ export async function parseShowLink(url, options = {}) {
     if (!normalized.eventId) {
       throw new UnsupportedPlatformError(url);
     }
-    const detail = await fetchMaoyanPerformance({
-      performanceId: normalized.eventId,
-      fetch: options.fetch
+    return apiThenPublicPage({
+      api: async () => parseMaoyanPerformance(await fetchMaoyanPerformance({
+        performanceId: normalized.eventId,
+        fetch: options.fetch
+      })),
+      page: () => fetchAndParseTicketPage({
+        url: `https://show.maoyan.com/detail/${encodeURIComponent(normalized.eventId)}`,
+        source: normalized.platform,
+        fetch: options.fetch
+      })
     });
-    return parseMaoyanPerformance(detail);
   }
 
   if (normalized.platform === "neteasemusic") {

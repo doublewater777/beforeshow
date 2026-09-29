@@ -22,11 +22,12 @@ extension Show {
 
         let cloudNames = snapshot.companionDisplayNames(isOwner: isOwner)
         let fallback = CompanionNameList.normalized([preferredName].compactMap { $0 })
+        let mergedCloudNames = Self.mergeCompanionNames(cloud: cloudNames, local: companionNames)
         let resolvedNames: [String]
         if isOwner, snapshot.status == .accepted {
-            resolvedNames = cloudNames
+            resolvedNames = mergedCloudNames
         } else if !cloudNames.isEmpty {
-            resolvedNames = cloudNames
+            resolvedNames = mergedCloudNames
         } else if !fallback.isEmpty {
             resolvedNames = fallback
         } else {
@@ -34,6 +35,14 @@ extension Show {
         }
 
         applyCompanionState(status: snapshot.status.localStatus, names: resolvedNames)
+    }
+
+    private static func mergeCompanionNames(cloud: [String], local: [String]) -> [String] {
+        guard cloud.count == local.count else { return cloud }
+        let friend = BSLocalization.text("朋友")
+        return zip(cloud, local).map { c, l in
+            (c == friend && !l.isEmpty && l != friend) ? l : c
+        }
     }
 
     func clearCompanionCloudLinkage() {
