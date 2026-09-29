@@ -4,7 +4,6 @@ import XCTest
 final class CompanionInviteDrainPolicyTests: XCTestCase {
     func testTerminalFailureWithSecondInviteDiscardsCurrentAndAdvances() {
         let terminalErrors: [CompanionSharingError] = [
-            .acceptFailed,
             .sessionNotFound,
             .invalidPayload,
             .permissionDenied,
@@ -25,6 +24,7 @@ final class CompanionInviteDrainPolicyTests: XCTestCase {
     func testRetryableFailureKeepsCurrentInviteAndDoesNotAdvance() {
         let retryableErrors: [CompanionSharingError] = [
             .networkFailure,
+            .acceptFailed,
             .statusSyncPending,
             .iCloudAccountUnavailable,
             .sharePreparationFailed,
