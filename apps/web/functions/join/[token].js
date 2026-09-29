@@ -173,7 +173,7 @@ export function onRequestGet({ request, params }) {
       justify-content: center;
       background: var(--bg);
       color: var(--text);
-      padding: 18px 16px env(safe-area-inset-bottom, 18px);
+      padding: clamp(10px, 2vh, 18px) 16px env(safe-area-inset-bottom, 12px);
       position: relative;
       overflow-x: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
@@ -208,7 +208,7 @@ export function onRequestGet({ request, params }) {
       z-index: 1;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: clamp(8px, 1.5vh, 12px);
     }
 
     /* App Header */
@@ -259,7 +259,7 @@ export function onRequestGet({ request, params }) {
 
     /* Ticket Card */
     .ticket-card {
-      background: linear-gradient(175deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
+      background: linear-gradient(175deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
       border: 1px solid var(--border);
       border-radius: var(--radius-card);
       box-shadow: var(--shadow-card);
@@ -268,34 +268,62 @@ export function onRequestGet({ request, params }) {
       overflow: hidden;
     }
     .ticket-head {
-      padding: 20px 20px 16px;
+      padding: clamp(12px, 1.8vh, 16px) 18px clamp(10px, 1.5vh, 13px);
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      align-items: center;
+      text-align: center;
+      gap: clamp(8px, 1.3vh, 11px);
+    }
+    .no-cover .ticket-head {
+      padding: 24px 22px 18px;
+      align-items: flex-start;
+      text-align: left;
+      gap: 14px;
     }
     .ticket-inviter {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      font-size: 13px;
+      gap: 6px;
+      font-size: 12.5px;
       font-weight: 600;
       color: var(--accent-warm);
     }
     .inviter-icon { display: flex; }
-    .ticket-body {
+
+    /* Poster Stage */
+    .poster-stage {
+      position: relative;
       display: flex;
-      align-items: flex-start;
-      gap: 14px;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 2px 0;
+    }
+    .poster-glow-bg {
+      position: absolute;
+      width: min(176px, 46vw);
+      height: min(235px, 62vw);
+      max-height: min(235px, 31vh);
+      background-size: cover;
+      background-position: center;
+      filter: blur(28px) saturate(1.8);
+      opacity: 0.45;
+      border-radius: 20px;
+      transform: scale(1.08);
+      pointer-events: none;
     }
     .ticket-cover-wrap {
-      width: 104px;
-      flex-shrink: 0;
-      aspect-ratio: 3 / 4;
-      border-radius: 12px;
-      overflow: hidden;
       position: relative;
+      z-index: 2;
+      width: min(180px, 48vw);
+      max-height: min(240px, 32vh);
+      aspect-ratio: 3 / 4;
+      border-radius: 14px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65), 0 2px 8px rgba(0, 0, 0, 0.4);
       background: rgba(255, 255, 255, 0.04);
-      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
     }
     .ticket-cover {
       width: 100%;
@@ -303,21 +331,26 @@ export function onRequestGet({ request, params }) {
       object-fit: cover;
       display: block;
     }
-    .ticket-main-info {
-      flex: 1;
-      min-width: 0;
+
+    .ticket-info {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+    }
+    .no-cover .ticket-info {
+      align-items: flex-start;
+      gap: 10px;
     }
     .has-cover .show-title {
-      font-size: 16px;
+      font-size: 16.5px;
       font-weight: 750;
-      line-height: 1.34;
+      line-height: 1.32;
       letter-spacing: -0.015em;
       color: var(--text);
       display: -webkit-box;
-      -webkit-line-clamp: 3;
+      -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
       overflow: hidden;
     }
@@ -331,30 +364,35 @@ export function onRequestGet({ request, params }) {
     .ticket-meta {
       display: flex;
       flex-direction: column;
-      gap: 7px;
-      padding-top: 2px;
+      align-items: center;
+      gap: 5px;
     }
     .no-cover .ticket-meta {
+      align-items: flex-start;
       gap: 10px;
-      padding-top: 4px;
+      padding-top: 2px;
     }
     .meta-row {
       display: flex;
-      align-items: flex-start;
-      gap: 7px;
-      font-size: 13px;
-      line-height: 1.36;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      line-height: 1.35;
       color: var(--text-soft);
     }
     .no-cover .meta-row {
-      font-size: 14px;
+      align-items: flex-start;
       gap: 9px;
+      font-size: 14px;
+      line-height: 1.4;
     }
     .meta-icon {
       color: var(--accent);
       flex-shrink: 0;
-      margin-top: 1.5px;
       display: flex;
+    }
+    .no-cover .meta-icon {
+      margin-top: 2px;
     }
     .meta-text {
       color: var(--text);
@@ -393,17 +431,17 @@ export function onRequestGet({ request, params }) {
 
     /* Ticket Action */
     .ticket-action {
-      padding: 16px 20px 20px;
+      padding: clamp(11px, 1.6vh, 14px) 18px clamp(12px, 1.8vh, 16px);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
     .btn {
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 13px 18px;
+      padding: 12px 16px;
       border-radius: var(--radius-btn);
       text-decoration: none;
       font-size: 14.5px;
@@ -513,7 +551,7 @@ export function onRequestGet({ request, params }) {
       </span>
     </header>
 
-    <article class="ticket-card">
+    <article class="ticket-card ${coverURL ? "has-cover" : "no-cover"}">
       <div class="ticket-head">
         <div class="ticket-inviter">
           <span class="inviter-icon">
@@ -521,28 +559,29 @@ export function onRequestGet({ request, params }) {
           </span>
           <span>${escapeHTML(copy.byline)}</span>
         </div>
-        <div class="ticket-body ${coverURL ? "has-cover" : "no-cover"}">
-          ${coverURL ? `
+        ${coverURL ? `
+        <div class="poster-stage">
+          <div class="poster-glow-bg" style="background-image: url(&quot;${escapeHTML(coverURL)}&quot;);"></div>
           <div class="ticket-cover-wrap">
             <img class="ticket-cover" src="${escapeHTML(coverURL)}" alt="${escapeHTML(invite.n)}" loading="eager" decoding="async">
-          </div>` : ""}
-          <div class="ticket-main-info">
-            <h1 class="show-title">${escapeHTML(invite.n)}</h1>
-            <div class="ticket-meta">
-              <div class="meta-row">
-                <span class="meta-icon">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-                </span>
-                <span class="meta-text">${escapeHTML(copy.when)}</span>
-              </div>
-              ${invite.l?.trim() ? `
-              <div class="meta-row">
-                <span class="meta-icon">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
-                </span>
-                <span class="meta-text">${escapeHTML(invite.l.trim())}</span>
-              </div>` : ""}
+          </div>
+        </div>` : ""}
+        <div class="ticket-info">
+          <h1 class="show-title">${escapeHTML(invite.n)}</h1>
+          <div class="ticket-meta">
+            <div class="meta-row">
+              <span class="meta-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </span>
+              <span class="meta-text">${escapeHTML(copy.when)}</span>
             </div>
+            ${invite.l?.trim() ? `
+            <div class="meta-row">
+              <span class="meta-icon">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+              </span>
+              <span class="meta-text">${escapeHTML(invite.l.trim())}</span>
+            </div>` : ""}
           </div>
         </div>
       </div>
