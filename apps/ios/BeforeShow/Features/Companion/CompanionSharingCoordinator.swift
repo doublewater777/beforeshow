@@ -147,7 +147,7 @@ final class CompanionSharingCoordinator {
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
-        if !isLoadingInvitation && pendingJoinSession == nil {
+        if !isLoadingInvitation && pendingJoinSession == nil && pendingJoinMetadataKey == nil {
             beginInvitePresentationIfNeeded(forceNew: startsNewPresentation)
         }
         pendingShareMetadata.append(metadata)
@@ -161,7 +161,7 @@ final class CompanionSharingCoordinator {
     }
 
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
-        guard !isFlushingAcceptedShares, pendingJoinSession == nil else { return }
+        guard !isFlushingAcceptedShares, pendingJoinSession == nil, pendingJoinMetadataKey == nil else { return }
         guard let metadata = pendingShareMetadata.first else { return }
         beginInvitePresentationIfNeeded()
         isFlushingAcceptedShares = true
@@ -194,8 +194,8 @@ final class CompanionSharingCoordinator {
 
             if resolvePreviewedShareForExistingLocalShow(session, in: modelContext) {
                 isLoadingInvitation = false
+                pendingJoinMetadataKey = key
                 removePendingShare(key: key)
-                continuePendingShareDrain(in: modelContext)
                 return
             }
 
@@ -269,9 +269,7 @@ final class CompanionSharingCoordinator {
         }
 
         pendingJoinSession = nil
-        pendingJoinMetadataKey = nil
         removePendingShare(key: key)
-        continuePendingShareDrain(in: modelContext)
         return true
     }
 
@@ -284,11 +282,9 @@ final class CompanionSharingCoordinator {
             return true
         }
         pendingJoinSession = nil
-        pendingJoinMetadataKey = nil
         removePendingShare(key: key)
         lastErrorMessage = nil
         lastErrorKind = nil
-        continuePendingShareDrain(in: modelContext)
         return true
     }
 
@@ -537,17 +533,18 @@ final class CompanionSharingCoordinator {
         clearJoin: Bool,
         in modelContext: ModelContext
     ) {
-        let action = CompanionPendingInviteDrainPolicy.action(
+        guard CompanionPendingInviteDrainPolicy.action(
             for: lastErrorKind,
             remainingInviteCount: pendingShareMetadata.count - 1
-        )
-        guard action.discardsCurrent else { return }
-        if clearJoin {
-            pendingJoinSession = nil
-            pendingJoinMetadataKey = nil
-        }
+        ).discardsCurrent else { return }
+        if clearJoin { pendingJoinSession = nil }
+        pendingJoinMetadataKey = key
         removePendingShare(key: key)
-        if action.continues { continuePendingShareDrain(in: modelContext) }
+    }
+    func finishPendingJoinPresentation(in modelContext: ModelContext) {
+        guard pendingJoinSession == nil, pendingJoinMetadataKey != nil else { return }
+        pendingJoinMetadataKey = nil
+        continuePendingShareDrain(in: modelContext)
     }
 
     private func continuePendingShareDrain(in modelContext: ModelContext) {
