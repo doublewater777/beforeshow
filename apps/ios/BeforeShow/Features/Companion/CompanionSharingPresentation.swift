@@ -88,3 +88,9 @@ enum CompanionSharingPresentation {
         }
     }
 }
+
+extension CompanionSharingCoordinator {
+    static func userMessage(for error: Error) -> String {
+        CompanionSharingPresentation.userMessage(for: error)
+    }
+}
