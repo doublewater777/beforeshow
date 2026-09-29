@@ -266,7 +266,7 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         XCTAssertGreaterThan(catalog.accessCount, 0)
         XCTAssertGreaterThan(search.searchCount, 0)
         XCTAssertGreaterThan(catalog.runtimeFetchCount, 0)
-        XCTAssertGreaterThan(catalog.fullFetchCount, 0)
+        XCTAssertEqual(catalog.fullFetchCount, 0, "Listen activation should stay on runtime topSongs until an artist browse scope needs full catalog")
         XCTAssertTrue(room.catalogSongs.contains { $0.appleMusicSongID == "lazy-song" })
         room.stop()
         room.mechanism.motion.stop()

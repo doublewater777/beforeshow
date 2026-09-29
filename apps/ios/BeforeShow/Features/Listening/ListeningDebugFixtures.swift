@@ -196,7 +196,28 @@ final class ListeningFixtureCatalog: ListeningMusicCatalogServicing, @unchecked 
                           albumID: nil, albumTitle: nil, artworkURL: nil, duration: 180,
                           performerArtistIDs: [artistID], performerArtistNames: [name], previewURL: nil)]
         }
-        return []
+
+        guard scenario.startsWithoutCatalog,
+              currentAuthorizationStatus() == .authorized else {
+            return []
+        }
+
+        let artistIndex = artistID.hasSuffix("1") ? 1 : 0
+        let artistName = artistIndex == 1 ? "YOASOBI" : "Aimer"
+        return (0..<2).map { number in
+            .init(
+                songID: "fixture-song-\(artistIndex)-\(number)",
+                title: ["夜色", "最后一班车"][number],
+                artistName: artistName,
+                albumID: nil,
+                albumTitle: nil,
+                artworkURL: nil,
+                duration: 180,
+                performerArtistIDs: [artistID],
+                performerArtistNames: [artistName],
+                previewURL: nil
+            )
+        }
     }
     func fetchArtistCatalog(artistID: String, fetchedAt: Date) async throws -> ListeningArtistCatalogPayload {
         if scenario.startsWithoutCatalog { try await Task.sleep(for: .seconds(3)) }

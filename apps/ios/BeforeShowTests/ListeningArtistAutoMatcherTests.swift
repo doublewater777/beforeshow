@@ -158,7 +158,7 @@ import SwiftData
         XCTAssertLessThan(geometry.maximumOpening, 90)
     }
 
-    func testNormalRoomLoadUsesFreshCacheAndForceRefreshBypassesIt() async throws {
+    func testAllArtistsForceRefreshStaysLazyUntilSelectedArtistRefresh() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
         let show = try Show(name: "Cached Show", date: .now.addingTimeInterval(10000), startTime: .now.addingTimeInterval(10000))
@@ -170,15 +170,19 @@ import SwiftData
         let catalog = CountingListenCatalog()
         let room = ListeningRoomCoordinator(context: context, catalogService: catalog, artistSearchService: AutoMatchSearchStub(candidates: []), playbackFactory: { _ in ListeningFixturePlayer() })
         defer { room.stop(); room.mechanism.motion.stop() }
+
         await room.load(show: show)
         try await ListenTestData.settle(room) { !room.busy }
         XCTAssertEqual(catalog.fetchCount, 0)
-        await room.load(show: show)
-        try await ListenTestData.settle(room) { !room.busy }
-        XCTAssertEqual(catalog.fetchCount, 0)
+
         await room.load(show: show, force: true)
         try await ListenTestData.settle(room) { !room.busy }
-        XCTAssertEqual(catalog.fetchCount, 1)
+        XCTAssertEqual(catalog.fetchCount, 0, "force refresh in all-artists scope must not pull the detailed artist catalog")
+
+        room.selectScope(.artist("artist-1"))
+        await room.reloadCatalog(force: true)
+        try await ListenTestData.settle(room) { !room.busy }
+        XCTAssertEqual(catalog.fetchCount, 1, "selected artist force refresh may fetch that artist's detailed catalog")
     }
 
     private func candidate(_ id: String, _ name: String) -> RecognizedArtist {

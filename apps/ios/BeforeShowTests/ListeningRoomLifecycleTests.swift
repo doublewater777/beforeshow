@@ -746,7 +746,7 @@ import SwiftData
         XCTAssertEqual(room.browseArtists.first { $0.slotIndex == 1 }?.id, "replacement")
     }
 
-    func testManualArtistRematchAfterInitialCatalogFetchStartsReloadsChangedIdentity() async throws {
+    func testManualArtistRematchDuringSelectedArtistCatalogFetchReloadsChangedIdentity() async throws {
         let (container, show) = try ListenTestData.make()
         let catalog = CatalogStageRaceCatalog()
         let search = CatalogRaceArtistSearch()
@@ -762,11 +762,15 @@ import SwiftData
             room.mechanism.motion.stop()
         }
 
-        let loadTask = Task { await room.load(show: show, force: true) }
+        await room.load(show: show)
+        XCTAssertFalse(catalog.didStartInitialCatalogFetch, "all-artists startup must stay on the runtime topSongs path")
+
+        room.selectScope(.artist("a"))
+        let refreshTask = Task { await room.reloadCatalog(force: true) }
         try await waitUntil { catalog.didStartInitialCatalogFetch }
         let searchCountAfterCatalogStarted = search.searchCount
 
-        let rematchFinished = expectation(description: "catalog-stage rematch still saves locally")
+        let rematchFinished = expectation(description: "selected-artist catalog rematch still saves locally")
         Task {
             await room.rematch(
                 slotIndex: 1,
@@ -782,7 +786,7 @@ import SwiftData
         XCTAssertEqual(search.searchCount, searchCountAfterCatalogStarted)
 
         catalog.releaseInitialCatalog()
-        await loadTask.value
+        await refreshTask.value
 
         XCTAssertTrue(catalog.didStartReplacementFetch)
         XCTAssertGreaterThan(catalog.replacementFetchCount, 0)

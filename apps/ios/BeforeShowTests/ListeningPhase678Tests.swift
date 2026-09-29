@@ -430,7 +430,7 @@ final class ListeningAccessibilityTests: XCTestCase {
 
         XCTAssertEqual(room.access.authorizationStatus, .authorized)
         XCTAssertEqual(room.access.catalogPlaybackAccess, .available)
-        XCTAssertGreaterThan(catalog.fullFetchCount, 0, "granting access in Settings must trigger a catalog reload")
+        XCTAssertEqual(catalog.fullFetchCount, 0, "granting access in Settings must not eagerly fetch full artist catalogs in the all-artists scope")
         XCTAssertEqual(room.display.roomMode, .fullPlayback)
     }
 
