@@ -166,7 +166,7 @@ extension CloudKitCompanionSharingService {
         if let statusRaw = record[CompanionSessionRecord.status] as? String,
            statusRaw == CompanionCloudStatus.canceled.rawValue {
             try await leaveShareOrThrowCleanupPending()
-            throw CompanionSharingError.permissionDenied
+            throw CompanionSharingError.sessionNotFound
         }
 
         do {
