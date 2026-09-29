@@ -5,8 +5,13 @@ struct CompanionPendingJoinPresentationState: Equatable {
     var isJoiningInBackground = false
     var isDismissedByUser = false
 
-    func isPresented(isLoading: Bool, hasSession: Bool, hasOutcome: Bool) -> Bool {
-        (isLoading || hasSession || hasOutcome)
+    func isPresented(
+        isLoading: Bool,
+        hasSession: Bool,
+        isWorking: Bool,
+        hasOutcome: Bool
+    ) -> Bool {
+        (isLoading || hasSession || isWorking || hasOutcome)
             && !isJoiningInBackground
             && !isDismissedByUser
     }
@@ -56,6 +61,7 @@ struct CompanionPendingJoinHost: View {
         presentationState.isPresented(
             isLoading: coordinator.isLoadingInvitation,
             hasSession: coordinator.pendingJoinSession != nil,
+            isWorking: isWorking,
             hasOutcome: completionMessage != nil || errorMessage != nil
         )
     }
@@ -81,6 +87,7 @@ struct CompanionPendingJoinHost: View {
                 ),
                 onDismiss: {
                     presentationState.didDismiss()
+                    coordinator.finishPendingJoinPresentation(in: modelContext)
                 }
             ) {
                 CompanionJoinConfirmationView(
