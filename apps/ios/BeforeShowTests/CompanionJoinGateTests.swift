@@ -74,7 +74,7 @@ final class CompanionJoinGateTests: XCTestCase {
             CompanionLiveCurrentPromptPolicy.shouldOffer(
                 importResult: result,
                 show: show,
-                selectedShowID: UUID(),
+                currentShowID: UUID(),
                 now: now
             )
         )
@@ -104,7 +104,7 @@ final class CompanionJoinGateTests: XCTestCase {
             CompanionLiveCurrentPromptPolicy.shouldOffer(
                 importResult: result,
                 show: show,
-                selectedShowID: UUID(),
+                currentShowID: UUID(),
                 now: now
             )
         )
@@ -123,7 +123,7 @@ final class CompanionJoinGateTests: XCTestCase {
             CompanionLiveCurrentPromptPolicy.shouldOffer(
                 importResult: result,
                 show: show,
-                selectedShowID: show.id,
+                currentShowID: show.id,
                 now: now
             )
         )
