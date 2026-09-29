@@ -1,6 +1,18 @@
 import CloudKit
 import Foundation
 
+enum CompanionCloudAcceptRecoveryPolicy {
+    static func canRecover(
+        after errorCode: CKError.Code?,
+        sharedDatabaseConfirmsAcceptedParticipant: Bool
+    ) -> Bool {
+        guard errorCode == .alreadyShared || errorCode == .serverRejectedRequest else {
+            return false
+        }
+        return sharedDatabaseConfirmsAcceptedParticipant
+    }
+}
+
 private struct CompanionAcceptedShareContext {
     let shareLocator: CompanionRecordLocator
     let record: CKRecord
@@ -105,15 +117,21 @@ extension CloudKitCompanionSharingService {
             do {
                 acceptedShare = try await container.accept(acceptedMetadata)
             } catch {
-                let ck = error as? CKError
-                guard ck?.code == .alreadyShared || ck?.code == .serverRejectedRequest else {
+                let errorCode = (error as? CKError)?.code
+                guard errorCode == .alreadyShared || errorCode == .serverRejectedRequest else {
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
 
                 // A failed accept call is recoverable only when the shared database
                 // independently proves that this user is already an accepted participant.
-                guard let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare,
-                      existing.currentUserParticipant?.acceptanceStatus == .accepted else {
+                let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare
+                let confirmsAcceptedParticipant =
+                    existing?.currentUserParticipant?.acceptanceStatus == .accepted
+                guard CompanionCloudAcceptRecoveryPolicy.canRecover(
+                    after: errorCode,
+                    sharedDatabaseConfirmsAcceptedParticipant: confirmsAcceptedParticipant
+                ),
+                let existing else {
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
                 acceptedShare = existing
