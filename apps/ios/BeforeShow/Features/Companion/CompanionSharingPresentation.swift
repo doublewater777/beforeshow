@@ -8,18 +8,18 @@ enum CompanionSharingPresentation {
     ) -> String {
         let owner = ownerDisplayName ?? BSLocalization.text("朋友")
         guard let importResult else {
-            return BSLocalization.format("已与%@成为同行", owner)
+            return BSLocalization.format("已与%@确认同行", owner)
         }
         if !importResult.inserted {
-            return BSLocalization.format("已与%@成为同行", owner)
+            return BSLocalization.text("这场已经在你的现场里，已添加同行关系")
         }
         if importResult.wasHistorical {
-            return BSLocalization.format("已记录你和%@的共同足迹", owner)
+            return BSLocalization.format("已加入足迹，你和%@已记录为同行", owner)
         }
         if importResult.becameCurrent {
-            return BSLocalization.format("已与%@成为同行，并设为当前现场", owner)
+            return BSLocalization.format("已加入现场并设为当前，你和%@已成为同行", owner)
         }
-        return BSLocalization.format("已与%@成为同行，已加入「我的现场」", owner)
+        return BSLocalization.format("已加入我的现场，你和%@已成为同行", owner)
     }
 
     static var alreadyJoinedMessage: String {
@@ -27,18 +27,18 @@ enum CompanionSharingPresentation {
     }
 
     static var companionLeftMessage: String {
-        BSLocalization.text("这场的同行关系已结束")
+        BSLocalization.text("同行关系已结束")
     }
 
     static var membershipSyncWarning: String {
-        BSLocalization.text("同行信息暂时无法同步，请稍后重试")
+        BSLocalization.text("同行成员状态暂时无法同步，请稍后重试")
     }
 
     static func userMessage(for error: Error) -> String {
         if let sharing = error as? CompanionSharingError {
             switch sharing {
             case .iCloudAccountUnavailable:
-                return BSLocalization.text("需要登录 iCloud 才能邀请朋友")
+                return BSLocalization.text("需要登录 iCloud 才能邀请同行")
             case .networkFailure:
                 return BSLocalization.text("网络不可用，请稍后重试")
             case .sharePreparationFailed:
@@ -69,13 +69,13 @@ enum CompanionSharingPresentation {
     private static func message(forCloudKit error: CKError) -> String {
         switch error.code {
         case .notAuthenticated, .managedAccountRestricted:
-            return BSLocalization.text("需要登录 iCloud 才能邀请朋友")
+            return BSLocalization.text("需要登录 iCloud 才能邀请同行")
         case .networkUnavailable, .networkFailure, .serviceUnavailable, .zoneBusy, .requestRateLimited:
             return BSLocalization.text("网络不可用，请稍后重试")
         case .permissionFailure:
-            return BSLocalization.text("暂时无法创建邀请，请确认 iCloud 云盘已打开")
+            return BSLocalization.text("没有权限创建同行邀请，请确认 iCloud 云盘已打开")
         case .quotaExceeded:
-            return BSLocalization.text("iCloud 空间不足，暂时无法创建邀请")
+            return BSLocalization.text("iCloud 空间不足，无法创建同行邀请")
         case .invalidArguments, .constraintViolation:
             return BSLocalization.text("邀请创建失败，请稍后重试")
         case .serverRejectedRequest:
