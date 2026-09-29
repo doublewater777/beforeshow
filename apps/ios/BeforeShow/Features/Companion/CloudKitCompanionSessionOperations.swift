@@ -106,17 +106,17 @@ extension CloudKitCompanionSharingService {
                 acceptedShare = try await container.accept(acceptedMetadata)
             } catch {
                 let ck = error as? CKError
-                if ck?.code == .alreadyShared || ck?.code == .serverRejectedRequest {
-                    if let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare {
-                        acceptedShare = existing
-                    } else if let privateShare = try? await privateDB.record(for: shareLocator.recordID) as? CKShare {
-                        acceptedShare = privateShare
-                    } else {
-                        acceptedShare = acceptedMetadata.share
-                    }
-                } else {
+                guard ck?.code == .alreadyShared || ck?.code == .serverRejectedRequest else {
                     throw Self.mapError(error, fallback: .acceptFailed)
                 }
+
+                // A failed accept call is recoverable only when the shared database
+                // independently proves that this user is already an accepted participant.
+                guard let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare,
+                      existing.currentUserParticipant?.acceptanceStatus == .accepted else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
+                acceptedShare = existing
             }
         }
 
@@ -125,15 +125,24 @@ extension CloudKitCompanionSharingService {
         }
 
         let record: CKRecord
-        do {
-            record = try await (isOwner ? privateDB : sharedDB).record(for: rootID)
-        } catch {
-            if let backup = try? await (isOwner ? sharedDB : privateDB).record(for: rootID) {
-                record = backup
-            } else if let preloaded = acceptedMetadata.rootRecord {
-                record = preloaded
-            } else {
-                throw Self.mapError(error, fallback: .acceptFailed)
+        if isOwner {
+            do {
+                record = try await privateDB.record(for: rootID)
+            } catch {
+                if let preloaded = acceptedMetadata.rootRecord {
+                    record = preloaded
+                } else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
+            }
+        } else {
+            do {
+                // For participants, the root record must be readable from the shared
+                // database. Falling back to metadata/private DB would manufacture
+                // "accepted" state without proof of share membership.
+                record = try await sharedDB.record(for: rootID)
+            } catch {
+                throw Self.mapError(error, fallback: .statusSyncPending)
             }
         }
 
