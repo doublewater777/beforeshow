@@ -212,7 +212,8 @@ private let listeningCatalogFetchConcurrency = 4
             }
             mechanism.restoreSeated(disc)
             trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
-            persistedPlaybackTime = state.currentTime.isFinite ? max(0, state.currentTime) : 0
+            let savedTime = state.currentTime ?? 0
+            persistedPlaybackTime = savedTime.isFinite ? max(0, savedTime) : 0
             pendingResumePosition = persistedPlaybackTime > 0
                 ? state.songID.map { ($0, persistedPlaybackTime) }
                 : nil
@@ -231,7 +232,7 @@ private let listeningCatalogFetchConcurrency = 4
             guard time.isFinite, time >= 0 else { return }
             let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
             if let state = states.first {
-                if !force, state.songID == songID, abs(state.currentTime - time) < 5 { return }
+                if !force, state.songID == songID, abs((state.currentTime ?? 0) - time) < 5 { return }
                 let data = try JSONEncoder().encode(disc)
                 state.discData = data
                 state.songID = songID
