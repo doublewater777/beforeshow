@@ -172,6 +172,7 @@ struct RootView: View {
             }
             .accessibilityIdentifier("root.tab.footprints")
         }
+        .toolbar(.hidden, for: .tabBar)
         .modifier(ListeningRootChromeModifier(selectedTab: $selectedTab))
         .modifier(FeedbackShakeShortcutModifier())
         // Keep system nav chrome neutral so tint does not leak into child controls.
