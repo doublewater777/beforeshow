@@ -68,7 +68,7 @@ struct CompanionQuickActionPresentation: Equatable {
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            displayTitle = BSLocalization.text("同行")
+            displayTitle = BSLocalization.text("等待同行")
             accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
             showsPendingIndicator = true
             displayShowsPendingIndicator = false
@@ -139,8 +139,10 @@ struct CurrentShowCompanionSheet: View {
             ScrollView {
                 VStack(spacing: BSSpacing.lg) {
                     switch show.companionStatus {
-                    case .none, .pending, .canceled:
+                    case .none, .canceled:
                         invitationContent
+                    case .pending:
+                        pendingInvitationContent
                     case .confirmed:
                         confirmedContent
                     }
@@ -238,38 +240,10 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2",
                 title: BSLocalization.text("添加同行"),
-                subtitle: BSLocalization.text("把这场现场分享给和你一起去的人。对方加入后，会成为这场的同行。")
+                subtitle: BSLocalization.text("邀请朋友一起去这场现场。")
             )
 
-            HStack(spacing: 8) {
-                Text(BSLocalization.text("我的称呼"))
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(BSColor.Stage.muted)
-                Spacer()
-                TextField(
-                    BSLocalization.text("输入你的昵称"),
-                    text: Binding(
-                        get: { currentUserName == BSLocalization.text("我") ? "" : currentUserName },
-                        set: { newValue in
-                            let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                            if !trimmed.isEmpty {
-                                CompanionUserProfile.nickname = trimmed
-                                currentUserName = trimmed
-                            } else {
-                                CompanionUserProfile.nickname = nil
-                                currentUserName = BSLocalization.text("我")
-                            }
-                        }
-                    )
-                )
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(BSColor.Stage.foreground)
-                .multilineTextAlignment(.trailing)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(BSColor.Stage.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            nicknameEditor
 
             Button {
                 Task { await sendInvitation(isRetry: show.companionStatus == .canceled) }
@@ -288,6 +262,67 @@ struct CurrentShowCompanionSheet: View {
             .buttonStyle(BSPrimaryButtonStyle())
             .disabled(isPreparingInvite)
         }
+    }
+
+    private var pendingInvitationContent: some View {
+        VStack(spacing: BSSpacing.md) {
+            BSStageSheetHeader(
+                icon: "person.2",
+                title: BSLocalization.text("等待朋友加入"),
+                subtitle: BSLocalization.text("朋友接受邀请后，会出现在这里。")
+            )
+
+            Button {
+                Task { await sendInvitation(isRetry: false) }
+            } label: {
+                if isPreparingInvite {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .tint(.black)
+                        Text(inviteActionTitle)
+                    }
+                    .frame(maxWidth: .infinity)
+                } else {
+                    Label(inviteActionTitle, systemImage: "square.and.arrow.up")
+                }
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+            .disabled(isPreparingInvite)
+
+            nicknameEditor
+        }
+    }
+
+    private var nicknameEditor: some View {
+        HStack(spacing: 8) {
+            Text(BSLocalization.text("我的称呼"))
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(BSColor.Stage.muted)
+            Spacer()
+            TextField(
+                BSLocalization.text("输入你的昵称"),
+                text: Binding(
+                    get: { currentUserName == BSLocalization.text("我") ? "" : currentUserName },
+                    set: { newValue in
+                        let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !trimmed.isEmpty {
+                            CompanionUserProfile.nickname = trimmed
+                            currentUserName = trimmed
+                        } else {
+                            CompanionUserProfile.nickname = nil
+                            currentUserName = BSLocalization.text("我")
+                        }
+                    }
+                )
+            )
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(BSColor.Stage.foreground)
+            .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(BSColor.Stage.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
     @ViewBuilder
@@ -508,9 +543,12 @@ struct CurrentShowCompanionSheet: View {
     }
 
     private var inviteActionTitle: String {
-        isPreparingInvite
-            ? BSLocalization.text("正在准备邀请")
-            : BSLocalization.text("分享邀请")
+        if isPreparingInvite {
+            return BSLocalization.text("正在准备邀请")
+        }
+        return CompanionInvitePreparingPresentation.actionTitle(
+            hasExistingShare: show.companionStatus == .pending
+        )
     }
 
     @MainActor
