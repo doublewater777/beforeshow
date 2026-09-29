@@ -20,14 +20,6 @@ final class FootprintArchiveTests: XCTestCase {
         XCTAssertEqual(withoutCurrentShow.actionTitle, "添加现场")
     }
 
-    func testUnifiedAddSuccessCopyExplainsEveryOutcomeAndDuplicate() {
-        XCTAssertEqual(AddShowSuccessCopy.title(isDuplicate: false), "已添加现场")
-        XCTAssertEqual(AddShowSuccessCopy.title(isDuplicate: true), "这场已经在 BeforeShow 里了")
-        XCTAssertEqual(AddShowSuccessCopy.status(for: .future), "已加入我的现场")
-        XCTAssertEqual(AddShowSuccessCopy.status(for: .current), "已设为当前现场")
-        XCTAssertEqual(AddShowSuccessCopy.status(for: .footprint), "已收进足迹")
-    }
-
     func testUnifiedAddConfigurationUsesOneTitleMethodOrderAndManualDefault() {
         let now = date(2026, 8, 29, 10)
         let draft = AddShowConfiguration.initialManualDraft(now: now, calendar: calendar)

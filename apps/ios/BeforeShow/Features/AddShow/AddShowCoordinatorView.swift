@@ -64,8 +64,7 @@ struct AddShowCoordinatorSheet: View {
                         // stay inside the flow with their existing recovery UI.
                         onShowAdded(showID)
                         dismiss()
-                    },
-                    onFinished: { dismiss() }
+                    }
                 )
             }
         }

@@ -18,7 +18,6 @@ struct AddShowFlowView: View {
     let sheet: AddShowSheet
     let linkParser: ShowLinkDraftParser
     private let onSaved: ((UUID) -> Void)?
-    private let onFinished: (() -> Void)?
 
     @State private var draft: ShowDraft
     @State private var selectedScreenshotItem: PhotosPickerItem?
@@ -40,7 +39,6 @@ struct AddShowFlowView: View {
     @State private var linkPasteSuggestion: AddShowPasteOffer?
     @State private var coverLifecycle = ShowCoverLifecycle()
     @State private var didSave = false
-    @State private var savedShowConfirmation: SavedShowConfirmation?
     @State private var didSwitchToManual = false
     @State private var ocrActiveStep = 0
     /// 每次成功导入（链接 / 截图）+1，驱动表单重建以重置内部时间影子状态。
@@ -58,19 +56,16 @@ struct AddShowFlowView: View {
     @State private var fallbackDateConfirmed = false
     @State private var pendingLifecycleConfirmation: PendingAddShowLifecycleConfirmation?
     @State private var pendingCurrentSwitchShowID: UUID?
-    @State private var detailTarget: AddShowDetailDestination?
 
     init(
         sheet: AddShowSheet,
         linkParser: ShowLinkDraftParser = AddShowFlowView.defaultLinkParser(),
         prefilledDraft: ShowDraft? = nil,
-        onSaved: ((UUID) -> Void)? = nil,
-        onFinished: (() -> Void)? = nil
+        onSaved: ((UUID) -> Void)? = nil
     ) {
         self.sheet = sheet
         self.linkParser = linkParser
         self.onSaved = onSaved
-        self.onFinished = onFinished
         if let prefilledDraft {
             _draft = State(initialValue: prefilledDraft)
             _hasImportedDraft = State(initialValue: true)
@@ -91,64 +86,54 @@ struct AddShowFlowView: View {
             CurrentShowStageBackground()
                 .ignoresSafeArea()
 
-            if let savedShowConfirmation {
-                AddShowSavedConfirmationView(
-                    confirmation: savedShowConfirmation,
-                    onOpen: { presentDetail(for: savedShowConfirmation) },
-                    onDone: finishFlow
-                )
-                    .transition(.scale(scale: 0.96).combined(with: .opacity))
-            } else {
-                VStack(spacing: 0) {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: BSSpacing.lg) {
-                            methodContent
+            VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: BSSpacing.lg) {
+                        methodContent
 
-                            if hasImportedDraft {
-                                AddShowImportedBanner(source: sheet)
-                            }
-
-                            if shouldShowDraftFields {
-                                ShowDraftFormFields(
-                                    draft: $draft,
-                                    recognizedHighlight: hasImportedDraft,
-                                    coverEmptyPlaceholder: true,
-                                    requiresDateConfirmation: needsDateConfirmation,
-                                    onConfirmFallbackDate: {
-                                        fallbackDateConfirmed = true
-                                    },
-                                    onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
-                                    artistSearch: artistSearch,
-                                    userEditedFields: $userEditedFields
-                                )
-                                // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
-                                .id(importRevision)
-                                // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
-                                .disabled(isImportingDraft)
-                                .opacity(isImportingDraft ? 0.55 : 1)
-                                .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
-                            }
-
-                            if let message {
-                                AddShowNoteCard(text: message, iconName: "info.circle")
-                            }
+                        if hasImportedDraft {
+                            AddShowImportedBanner(source: sheet)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
-                    }
-                    .scrollIndicators(.hidden)
-                    .scrollDismissesKeyboard(.interactively)
 
-                    if shouldShowDraftFields {
-                        addSaveBar
+                        if shouldShowDraftFields {
+                            ShowDraftFormFields(
+                                draft: $draft,
+                                recognizedHighlight: hasImportedDraft,
+                                coverEmptyPlaceholder: true,
+                                requiresDateConfirmation: needsDateConfirmation,
+                                onConfirmFallbackDate: {
+                                    fallbackDateConfirmed = true
+                                },
+                                onCoverImported: { coverLifecycle.register(previous: $0, new: $1) },
+                                artistSearch: artistSearch,
+                                userEditedFields: $userEditedFields
+                            )
+                            // 重新导入时重建表单，清空 startTime / hasEndTime 等内部影子状态
+                            .id(importRevision)
+                            // 重新识别期间锁定旧表单，避免编辑后被新 draft 整表覆盖
+                            .disabled(isImportingDraft)
+                            .opacity(isImportingDraft ? 0.55 : 1)
+                            .animation(.easeInOut(duration: 0.18), value: isImportingDraft)
+                        }
+
+                        if let message {
+                            AddShowNoteCard(text: message, iconName: "info.circle")
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
+                }
+                .scrollIndicators(.hidden)
+                .scrollDismissesKeyboard(.interactively)
+
+                if shouldShowDraftFields {
+                    addSaveBar
                 }
             }
         }
         .navigationTitle(flowNavTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar(savedShowConfirmation == nil ? .automatic : .hidden, for: .navigationBar)
         .interactiveDismissDisabled(isSaving)
         .preferredColorScheme(.dark)
         .environment(\.locale, AppLanguageManager.persisted.locale)
@@ -167,23 +152,6 @@ struct AddShowFlowView: View {
             abandonInFlightImport()
             guard !didSave else { return }
             coverLifecycle.cancel()
-        }
-        .navigationDestination(item: $detailTarget) { target in
-            Group {
-                if let show = shows.first(where: { $0.id == target.showID }) {
-                    switch target.kind {
-                    case .show:
-                        ShowDetailView(show: show)
-                    case .footprint:
-                        FootprintDetailView(
-                            show: show,
-                            archive: FootprintArchiveBuilder.make(shows: shows)
-                        )
-                    }
-                } else {
-                    EmptyView()
-                }
-            }
         }
         .sheet(item: $pendingLifecycleConfirmation) { pending in
             AddShowLifecycleConfirmationSheet(
@@ -223,11 +191,9 @@ struct AddShowFlowView: View {
             Button(BSLocalization.text("设为当前")) {
                 switchPendingAddedShowToCurrent(showID)
             }
-            Button(BSLocalization.text("暂不切换"), role: .cancel) {
+            Button(BSLocalization.text("保留当前"), role: .cancel) {
                 keepExistingCurrentAfterAdd(showID)
             }
-        } message: { _ in
-            Text(BSLocalization.text("接下来 BeforeShow 会围绕这场显示倒计时、听和提醒。"))
         }
         .sheet(item: $paywallSheet) { sheet in
             switch sheet {
@@ -843,12 +809,8 @@ struct AddShowFlowView: View {
                     "method": sheet.rawValue,
                     "existing_show_id": duplicate.id.uuidString
                 ])
-                savedShowConfirmation = SavedShowConfirmation(
-                    showID: duplicate.id,
-                    name: duplicate.name,
-                    coverImageURL: duplicate.coverImageURL,
-                    kind: .duplicate(detailOutcome(for: duplicate))
-                )
+                message = BSLocalization.text("这场已经在 BeforeShow 里了")
+                presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
                 UINotificationFeedbackGenerator().notificationOccurred(.warning)
                 isSaving = false
                 return
@@ -920,14 +882,6 @@ struct AddShowFlowView: View {
             didSave = true
             coverLifecycle.finalize(keeping: draft.coverImageURL)
 
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.88)) {
-                savedShowConfirmation = SavedShowConfirmation(
-                    showID: show.id,
-                    name: show.name,
-                    coverImageURL: show.coverImageURL,
-                    kind: .saved(result.outcome)
-                )
-            }
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
 
@@ -958,19 +912,10 @@ struct AddShowFlowView: View {
                     in: modelContext
                 )
             }
-        } catch AddShowPersistenceError.duplicateShow(let existingShowID) {
+        } catch AddShowPersistenceError.duplicateShow {
             modelContext.rollback()
-            if let duplicate = shows.first(where: { $0.id == existingShowID }) {
-                savedShowConfirmation = SavedShowConfirmation(
-                    showID: duplicate.id,
-                    name: duplicate.name,
-                    coverImageURL: duplicate.coverImageURL,
-                    kind: .duplicate(detailOutcome(for: duplicate))
-                )
-            } else {
-                message = BSLocalization.text("这场已经在 BeforeShow 里了")
-                presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
-            }
+            message = BSLocalization.text("这场已经在 BeforeShow 里了")
+            presentToast(.neutral, message: BSLocalization.text("这场已经在 BeforeShow 里了"))
             isSaving = false
         } catch {
             modelContext.rollback()
@@ -1003,16 +948,6 @@ struct AddShowFlowView: View {
                     in: modelContext
                 )
 
-                if let confirmation = savedShowConfirmation,
-                   confirmation.showID == showID {
-                    savedShowConfirmation = SavedShowConfirmation(
-                        showID: confirmation.showID,
-                        name: confirmation.name,
-                        coverImageURL: confirmation.coverImageURL,
-                        kind: .saved(.current)
-                    )
-                }
-
                 isSaving = false
                 onSaved?(showID)
             } catch {
@@ -1021,36 +956,6 @@ struct AddShowFlowView: View {
                 presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
                 pendingCurrentSwitchShowID = showID
             }
-        }
-    }
-
-    private func detailOutcome(for show: Show) -> AddShowSaveOutcome {
-        let state = CurrentShowTimeState(show: show)
-        if state.kind == .postShow || state.kind == .ended {
-            return .footprint
-        }
-        if CurrentShowSession().isCurrent(
-            show,
-            among: shows,
-            manualSelection: selections.first
-        ) {
-            return .current
-        }
-        return .future
-    }
-
-    private func presentDetail(for confirmation: SavedShowConfirmation) {
-        detailTarget = AddShowDetailDestination(
-            showID: confirmation.showID,
-            kind: confirmation.outcome == .footprint ? .footprint : .show
-        )
-    }
-
-    private func finishFlow() {
-        if let onFinished {
-            onFinished()
-        } else {
-            dismiss()
         }
     }
 
