@@ -25,13 +25,21 @@ struct CompanionPendingJoinHost: View {
             .fullScreenCover(
                 isPresented: Binding(
                     get: { isPresented },
-                    set: { if !$0 && !isWorking && !isJoiningInBackground { handleClose() } }
+                    set: {
+                        if !$0,
+                           !isWorking,
+                           !isJoiningInBackground,
+                           coordinator.pendingJoinSession != nil {
+                            handleClose()
+                        }
+                    }
                 ),
                 onDismiss: {
                     if let message = queuedSuccessMessage {
                         queuedSuccessMessage = nil
                         onJoinSuccess(message)
                     }
+                    isJoiningInBackground = false
                 }
             ) {
                 CompanionJoinConfirmationView(
@@ -41,7 +49,7 @@ struct CompanionPendingJoinHost: View {
                     onJoin: { confirmJoin() },
                     onClose: { handleClose() }
                 )
-                .interactiveDismissDisabled(isWorking)
+                .interactiveDismissDisabled(isWorking || coordinator.isLoadingInvitation)
             }
             .alert(
                 BSLocalization.text("同行邀请"),
@@ -99,23 +107,6 @@ struct CompanionPendingJoinHost: View {
                 _ = coordinator.consumePendingAcceptResult()
                 isJoiningInBackground = true
             } else {
-                // If user already has this show locally, link it without displaying an error alert
-                let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
-                if let session = coordinator.pendingJoinSession,
-                   case .single = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: shows) {
-                    if let result = try? CompanionAcceptedSessionImporter.apply(session, in: modelContext) {
-                        offerCurrentSwitchForLiveShowIfNeeded()
-                        queuedSuccessMessage = CompanionSharingPresentation.acceptedMessage(
-                            ownerDisplayName: session.ownerDisplayName,
-                            importResult: result
-                        )
-                        _ = coordinator.consumePendingAcceptResult()
-                        _ = coordinator.consumeLastErrorMessage()
-                        isJoiningInBackground = true
-                        isWorking = false
-                        return
-                    }
-                }
                 errorMessage = coordinator.consumeLastErrorMessage() ?? BSLocalization.text("现场还没添加成功，请重试")
             }
             isWorking = false
@@ -278,16 +269,18 @@ private struct CompanionJoinConfirmationView: View {
             .scrollIndicators(.hidden)
         }
         .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
+            if session != nil && !isLoading {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .frame(width: 38, height: 38)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .disabled(isWorking)
+                .padding(.top, 12)
+                .padding(.trailing, 16)
             }
-            .disabled(isWorking)
-            .padding(.top, 12)
-            .padding(.trailing, 16)
         }
         .preferredColorScheme(.dark)
     }
