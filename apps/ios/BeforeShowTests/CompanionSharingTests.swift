@@ -51,6 +51,7 @@ final class CompanionSharingTests: XCTestCase {
             .appendingPathComponent("BeforeShow")
         let keys = [
             "添加同行",
+            "邀请和你一起去的人加入这场同行。",
             "%lld 人同行",
             "同行，等待朋友加入",
             "等待同行",
@@ -75,7 +76,7 @@ final class CompanionSharingTests: XCTestCase {
     func testInviteActionTitleRemainsTheUserAction() {
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: false),
-            BSLocalization.text("分享邀请")
+            BSLocalization.text("邀请朋友")
         )
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: true),
