@@ -20,11 +20,12 @@ enum CompanionPendingInviteDrainPolicy {
         guard let error else { return .retainCurrentForRetry }
 
         switch error {
-        case .acceptFailed, .sessionNotFound, .invalidPayload, .permissionDenied:
+        case .sessionNotFound, .invalidPayload, .permissionDenied:
             return remainingInviteCount > 0 ? .discardCurrentAndContinue : .discardCurrent
         case .iCloudAccountUnavailable,
              .networkFailure,
              .sharePreparationFailed,
+             .acceptFailed,
              .conflict,
              .statusSyncPending:
             return .retainCurrentForRetry
