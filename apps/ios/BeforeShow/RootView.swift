@@ -11,9 +11,6 @@ struct RootView: View {
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
     @State private var selectedTab: BeforeShowTab = .current
-    @State private var companionDuplicateResolution: CompanionDuplicateResolution?
-    @State private var companionDuplicateErrorMessage: String?
-    @State private var companionToast: BSToastPayload?
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
     @ObservedObject private var languageController = AppLanguageController.shared
@@ -24,9 +21,6 @@ struct RootView: View {
         _hasResolvedOnboardingRoute = State(initialValue: isReturning)
     }
 
-    private var companionResultMessage: String? {
-        companionDuplicateErrorMessage
-    }
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -49,46 +43,12 @@ struct RootView: View {
                 }
             }
 
-            CompanionPendingJoinHost(onJoinSuccess: presentCompanionToast)
+            CompanionPendingJoinHost()
         }
-        .bsToastOverlay(companionToast)
         .preferredColorScheme(.dark)
         .statusBarHidden(!hasFinishedSplash)
         .sheet(isPresented: $proOfferRouter.shouldPresentProSheet) {
             ProPaywallSheetView(initiallyShowsWinback: proOfferRouter.shouldShowWinbackOffer)
-        }
-        .sheet(item: $companionDuplicateResolution) { resolution in
-            CompanionDuplicateResolutionSheet(
-                resolution: resolution,
-                onMerge: { target in
-                    resolveCompanionDuplicate(resolution, mergeInto: target)
-                },
-                onKeepSeparate: {
-                    keepCompanionDuplicateSeparate(resolution)
-                }
-            )
-        }
-        .alert(
-            BSLocalization.text("同行"),
-            isPresented: Binding(
-                get: {
-                    hasFinishedSplash
-                        && hasResolvedOnboardingRoute
-                        && companionDuplicateResolution == nil
-                        && companionResultMessage != nil
-                },
-                set: { isPresented in
-                    if !isPresented {
-                        dismissCompanionResultMessage()
-                    }
-                }
-            )
-        ) {
-            Button(BSLocalization.text("知道了"), role: .cancel) {
-                dismissCompanionResultMessage()
-            }
-        } message: {
-            Text(companionResultMessage ?? "")
         }
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
@@ -99,7 +59,6 @@ struct RootView: View {
                 hasCompletedOnboarding = true
                 isShowingOnboarding = false
             }
-            refreshCompanionDuplicateResolution()
         }
         .task {
             companionCoordinator.reloadPersistedAcceptedShares()
@@ -107,7 +66,6 @@ struct RootView: View {
                 await companionCoordinator.refreshAllLinkedShows(in: modelContext)
             }
             resolveOnboardingRouteIfNeeded(hasShowsOverride: persistedShowExists())
-            refreshCompanionDuplicateResolution()
             if notificationRouter.featureRootDeepLink != nil {
                 selectedTab = .current
             }
@@ -123,49 +81,6 @@ struct RootView: View {
             if args.contains("--open-pro-winback") { ProOfferDeepLinkRouter.shared.routeToPro(showWinbackOffer: true) }
         }
         #endif
-    }
-    private func presentCompanionToast(_ message: String) {
-        let payload = BSToastPayload(tone: .success, message: message)
-        companionToast = payload
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 2_200_000_000)
-            if companionToast == payload { companionToast = nil }
-        }
-    }
-    private func dismissCompanionResultMessage() {
-        companionDuplicateErrorMessage = nil
-        _ = companionCoordinator.consumePendingAcceptMessage()
-        _ = companionCoordinator.consumePendingAcceptResult()
-        if companionCoordinator.lastErrorKind == .statusSyncPending { _ = companionCoordinator.consumeLastErrorMessage() }
-    }
-    private func refreshCompanionDuplicateResolution() {
-        guard companionDuplicateResolution == nil else { return }
-        companionDuplicateResolution = CompanionDuplicateResolutionFinder.first(in: rootShows)
-    }
-    private func resolveCompanionDuplicate(
-        _ resolution: CompanionDuplicateResolution,
-        mergeInto target: Show
-    ) {
-        do {
-            try CompanionDuplicateMerger.merge(
-                imported: resolution.importedShow,
-                into: target,
-                in: modelContext
-            )
-            companionDuplicateResolution = nil
-            dismissCompanionResultMessage()
-            refreshCompanionDuplicateResolution()
-        } catch {
-            companionDuplicateErrorMessage = CompanionSharingCoordinator.userMessage(for: error)
-            companionDuplicateResolution = nil
-        }
-    }
-    private func keepCompanionDuplicateSeparate(_ resolution: CompanionDuplicateResolution) {
-        if let sessionRecordName = resolution.importedShow.companionCloudRecordName {
-            CompanionDuplicateResolutionStore.ignore(sessionRecordName: sessionRecordName)
-        }
-        companionDuplicateResolution = nil
-        refreshCompanionDuplicateResolution()
     }
     private func persistedShowExists() -> Bool {
         var descriptor = FetchDescriptor<Show>()

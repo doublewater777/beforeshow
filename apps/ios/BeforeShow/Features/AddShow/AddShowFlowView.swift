@@ -55,7 +55,6 @@ struct AddShowFlowView: View {
     /// OCR 未识别日期（回退为今天）时，用户需显式确认后才可保存。
     @State private var fallbackDateConfirmed = false
     @State private var pendingLifecycleConfirmation: PendingAddShowLifecycleConfirmation?
-    @State private var pendingCurrentSwitchShowID: UUID?
 
     init(
         sheet: AddShowSheet,
@@ -179,21 +178,6 @@ struct AddShowFlowView: View {
                     }
                 }
             )
-        }
-        .alert(
-            BSLocalization.text("设为当前现场？"),
-            isPresented: Binding(
-                get: { pendingCurrentSwitchShowID != nil },
-                set: { if !$0 { pendingCurrentSwitchShowID = nil } }
-            ),
-            presenting: pendingCurrentSwitchShowID
-        ) { showID in
-            Button(BSLocalization.text("设为当前")) {
-                switchPendingAddedShowToCurrent(showID)
-            }
-            Button(BSLocalization.text("保留当前"), role: .cancel) {
-                keepExistingCurrentAfterAdd(showID)
-            }
         }
         .sheet(item: $paywallSheet) { sheet in
             switch sheet {
@@ -885,26 +869,9 @@ struct AddShowFlowView: View {
             UINotificationFeedbackGenerator().notificationOccurred(.success)
             isSaving = false
 
-            // A newly added upcoming/live show may coexist with an existing manual
-            // Current Show. Keep the add transaction open long enough to let the
-            // user explicitly decide whether this new show should take focus.
-            let persistedShows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? shows
-            let persistedSelection = try? CurrentShowSelectionStore(
-                modelContext: modelContext
-            ).canonicalSelection()
-            let isCurrent = CurrentShowSession().isCurrent(
-                show,
-                among: persistedShows,
-                manualSelection: persistedSelection
-            )
-            if AddShowCurrentPromptPolicy.shouldOfferSwitch(
-                lifecycle: lifecycle,
-                isCurrent: isCurrent
-            ) {
-                pendingCurrentSwitchShowID = show.id
-            } else {
-                onSaved?(show.id)
-            }
+            // Saving is the end of the add transaction. If another Current Show already
+            // exists, preserve it silently; users can switch later from the Current tab.
+            onSaved?(show.id)
 
             if result.notificationState != nil {
                 await LocalNotificationCenter.shared.reconcileAfterShowAdded(
@@ -922,40 +889,6 @@ struct AddShowFlowView: View {
             message = BSLocalization.text("请填写必填信息。")
             presentToast(.failure, message: BSLocalization.text("保存失败"))
             isSaving = false
-        }
-    }
-
-    private func keepExistingCurrentAfterAdd(_ showID: UUID) {
-        pendingCurrentSwitchShowID = nil
-        onSaved?(showID)
-    }
-
-    private func switchPendingAddedShowToCurrent(_ showID: UUID) {
-        guard !isSaving else { return }
-        pendingCurrentSwitchShowID = nil
-        isSaving = true
-
-        Task { @MainActor in
-            do {
-                let persistedShows = try modelContext.fetch(FetchDescriptor<Show>())
-                let persistedSelections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
-                let persistedNotificationStates = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
-                _ = try await ShowMutationCoordinator.selectCurrentShow(
-                    showID: showID,
-                    shows: persistedShows,
-                    selections: persistedSelections,
-                    notificationStates: persistedNotificationStates,
-                    in: modelContext
-                )
-
-                isSaving = false
-                onSaved?(showID)
-            } catch {
-                modelContext.rollback()
-                isSaving = false
-                presentToast(.failure, message: BSLocalization.text("切换失败，请重试"))
-                pendingCurrentSwitchShowID = showID
-            }
         }
     }
 

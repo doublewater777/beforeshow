@@ -10,8 +10,11 @@ enum CompanionSharingPresentation {
         guard let importResult else {
             return BSLocalization.format("已与%@确认同行", owner)
         }
+        if !importResult.inserted, importResult.wasHistorical {
+            return BSLocalization.text("已确认共同足迹")
+        }
         if !importResult.inserted {
-            return BSLocalization.text("这场已经在你的现场里，已添加同行关系")
+            return BSLocalization.text("已加入同行")
         }
         if importResult.wasHistorical {
             return BSLocalization.format("已加入足迹，你和%@已记录为同行", owner)
@@ -44,11 +47,11 @@ enum CompanionSharingPresentation {
             case .sharePreparationFailed:
                 return BSLocalization.text("邀请创建失败，请稍后重试")
             case .acceptFailed:
-                return BSLocalization.text("接受邀请失败，请确认链接有效")
+                return BSLocalization.text("暂时无法接受邀请，请稍后重试")
             case .sessionNotFound:
-                return BSLocalization.text("找不到这场同行邀请")
+                return BSLocalization.text("这份邀请已失效")
             case .invalidPayload:
-                return BSLocalization.text("邀请内容无效")
+                return BSLocalization.text("这份邀请已失效")
             case .permissionDenied:
                 return BSLocalization.text("没有权限更新同行状态")
             case .conflict:
@@ -83,5 +86,11 @@ enum CompanionSharingPresentation {
         default:
             return BSLocalization.format("邀请创建失败：%@", error.localizedDescription)
         }
+    }
+}
+
+extension CompanionSharingCoordinator {
+    static func userMessage(for error: Error) -> String {
+        CompanionSharingPresentation.userMessage(for: error)
     }
 }

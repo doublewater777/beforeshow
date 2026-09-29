@@ -1619,3 +1619,18 @@ First show: %@";
 "正在进行" = "Live Now";
 "这场正在进行中，加入后将设为你的当前现场。" = "This show is currently live and will become your current show upon joining.";
 "重新尝试" = "Retry";
+
+"已添加这场" = "Already added";
+"加入同行" = "Join Companion";
+"你已经记录过这场了。确认后会添加%@为共同足迹，不会重复添加。" = "You already have this show in your history. Confirm to add %@ to the shared footprint without creating a duplicate.";
+"你已经有这场现场了。加入后会直接添加%@为同行，不会重复添加。" = "You already have this show. Joining will add %@ as a companion without creating a duplicate.";
+"看起来你已经添加过类似的现场。先选择要使用的记录，或把它作为另一场保留。" = "It looks like you already have a similar show. Choose the existing record to use, or keep this as a separate show.";
+"这场正在进行中。加入后可选择是否设为当前现场。" = "This show is live now. After joining, you can choose whether to make it your current show.";
+"对方看到的名字" = "Name shown to others";
+"可选" = "Optional";
+"选择已有现场" = "Choose an existing show";
+"这是另一场，单独保留" = "This is a different show; keep it separate";
+"暂时无法接受邀请，请稍后重试" = "Unable to accept the invitation right now. Please try again.";
+"这份邀请已失效" = "This invitation is no longer valid.";
+"已加入同行" = "Companion joined";
+"已确认共同足迹" = "Shared footprint confirmed";

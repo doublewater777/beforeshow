@@ -300,19 +300,16 @@ final class FootprintArchiveTests: XCTestCase {
         })
     }
 
-    func testAddShowCurrentPromptOnlyOffersForNonCurrentUpcomingOrLiveShows() {
-        XCTAssertTrue(
-            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .future, isCurrent: false)
-        )
-        XCTAssertTrue(
-            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .live, isCurrent: false)
-        )
-        XCTAssertFalse(
-            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .future, isCurrent: true)
-        )
-        XCTAssertFalse(
-            AddShowCurrentPromptPolicy.shouldOfferSwitch(lifecycle: .ended, isCurrent: false)
-        )
+    func testAddShowFlowDoesNotPromptToReplaceCurrentAfterSaving() throws {
+        let sourceURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow/Features/AddShow/AddShowFlowView.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertFalse(source.contains("pendingCurrentSwitchShowID"))
+        XCTAssertFalse(source.contains("switchPendingAddedShowToCurrent"))
+        XCTAssertFalse(source.contains("设为当前现场？"))
     }
 
     func testUnifiedFutureAddDoesNotStealExistingCurrentShow() throws {

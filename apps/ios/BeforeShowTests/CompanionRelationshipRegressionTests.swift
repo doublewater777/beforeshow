@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class CompanionRelationshipRegressionTests: XCTestCase {
-    func testAmbiguousAcceptedImportCanMergeIntoChosenLocalShowAndTransfersCurrentSelection() throws {
+    func testAmbiguousAcceptedImportMergesOnlyAfterExplicitChoice() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date(timeIntervalSince1970: 2_000_000_000)
@@ -30,7 +30,7 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
         context.insert(second)
         try context.save()
 
-        let snapshot = CompanionShowSnapshot(
+        let session = makeSession(show: CompanionShowSnapshot(
             showID: UUID().uuidString,
             showName: "重复现场",
             showDate: date,
@@ -38,48 +38,27 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
             sourceShowDate: date,
             city: "上海",
             venueName: "体育馆"
+        ))
+        let result = try CompanionAcceptedSessionImporter.apply(
+            session,
+            in: context,
+            strategy: .mergeInto(second.id),
+            now: now
         )
-        let session = makeSession(show: snapshot)
-        let result = try CompanionAcceptedSessionImporter.apply(session, in: context, now: now)
-
-        XCTAssertTrue(result.inserted)
-        let imported = try XCTUnwrap(
-            context.fetch(FetchDescriptor<Show>()).first(where: {
-                $0.companionCloudRecordName == session.sessionLocator.recordName
-            })
-        )
-        XCTAssertEqual(
-            try CurrentShowSelectionStore(modelContext: context).canonicalSelection()?.selectedShowID,
-            imported.id
-        )
-
-        let suiteName = "CompanionDuplicateResolutionTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let resolution = try XCTUnwrap(
-            CompanionDuplicateResolutionFinder.first(
-                in: context.fetch(FetchDescriptor<Show>()),
-                userDefaults: defaults
-            )
-        )
-        XCTAssertEqual(Set(resolution.candidates.map(\.id)), Set([first.id, second.id]))
-
-        try CompanionDuplicateMerger.merge(imported: imported, into: second, in: context)
 
         let shows = try context.fetch(FetchDescriptor<Show>())
         XCTAssertEqual(shows.count, 2)
-        XCTAssertFalse(shows.contains(where: { $0.id == imported.id }))
-        XCTAssertEqual(second.companionStatus, .confirmed)
-        XCTAssertEqual(second.companionName, "Alex")
+        XCTAssertFalse(result.inserted)
+        XCTAssertEqual(result.showID, second.id)
+        XCTAssertNil(first.companionCloudRecordName)
         XCTAssertEqual(second.companionCloudRecordName, session.sessionLocator.recordName)
-        XCTAssertEqual(first.companionStatus, .none)
         XCTAssertEqual(
             try CurrentShowSelectionStore(modelContext: context).canonicalSelection()?.selectedShowID,
             second.id
         )
     }
 
-    func testKeepingAmbiguousImportedShowSeparateSuppressesFuturePrompt() throws {
+    func testAmbiguousAutomaticImportDoesNotCreateThirdShow() throws {
         let container = try makeContainer()
         let context = container.mainContext
         let now = Date(timeIntervalSince1970: 2_000_000_000)
@@ -95,6 +74,8 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
                 creationOrigin: .user
             ))
         }
+        try context.save()
+
         let session = makeSession(show: CompanionShowSnapshot(
             showID: UUID().uuidString,
             showName: "重复现场",
@@ -104,19 +85,17 @@ final class CompanionRelationshipRegressionTests: XCTestCase {
             city: "上海",
             venueName: "体育馆"
         ))
-        _ = try CompanionAcceptedSessionImporter.apply(session, in: context, now: now)
 
-        let suiteName = "CompanionDuplicateIgnoreTests.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
+        XCTAssertThrowsError(
+            try CompanionAcceptedSessionImporter.apply(session, in: context, now: now)
+        ) { error in
+            XCTAssertEqual(error as? CompanionSharingError, .conflict)
+        }
+
         let shows = try context.fetch(FetchDescriptor<Show>())
-        XCTAssertNotNil(CompanionDuplicateResolutionFinder.first(in: shows, userDefaults: defaults))
-
-        CompanionDuplicateResolutionStore.ignore(
-            sessionRecordName: session.sessionLocator.recordName,
-            userDefaults: defaults
-        )
-        XCTAssertNil(CompanionDuplicateResolutionFinder.first(in: shows, userDefaults: defaults))
+        XCTAssertEqual(shows.count, 2)
+        XCTAssertFalse(shows.contains { $0.companionCloudRecordName != nil })
+        XCTAssertTrue(try context.fetch(FetchDescriptor<CurrentShowSelection>()).isEmpty)
     }
 
     func testPairwiseHistoryIncludesShowsFromDifferentGroupCompositions() throws {

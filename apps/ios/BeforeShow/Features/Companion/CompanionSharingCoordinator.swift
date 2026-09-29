@@ -15,6 +15,10 @@ final class CompanionSharingCoordinator {
     private(set) var pendingAcceptResult: CompanionAcceptedImportResult?
     private(set) var pendingJoinSession: CompanionSessionSnapshot?
     private(set) var isLoadingInvitation = false
+    private(set) var invitePresentationGeneration = 0
+    private var canceledPresentationGeneration: Int?
+    private var loadingShareKey: String?
+    private var loadingShareGeneration: Int?
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -23,8 +27,6 @@ final class CompanionSharingCoordinator {
     private var isFlushingAcceptedShares = false
     private let userDefaults: UserDefaults
     private let usesKeychainCloudSyncMarker: Bool
-
-    static let cloudSyncEnabledKey = CompanionCloudSyncMarker.userDefaultsKey
 
     init(
         service: any CompanionSharingService = CloudKitCompanionSharingService.live(),
@@ -108,6 +110,7 @@ final class CompanionSharingCoordinator {
     func handleAcceptedShare(
         metadata: CKShare.Metadata,
         participantDisplayName: String?,
+        importStrategy: CompanionAcceptedImportStrategy = .automatic,
         in modelContext: ModelContext
     ) async {
         enableCloudSync()
@@ -116,7 +119,11 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: participantDisplayName
             )
-            let importResult = try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+            let importResult = try CompanionAcceptedSessionImporter.apply(
+                session,
+                in: modelContext,
+                strategy: importStrategy
+            )
             pendingAcceptResult = importResult
             pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
                 ownerDisplayName: session.ownerDisplayName,
@@ -125,28 +132,23 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
-            if let pending = pendingJoinSession,
-               let importResult = try? CompanionAcceptedSessionImporter.apply(pending, in: modelContext) {
-                pendingAcceptResult = importResult
-                pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
-                    ownerDisplayName: pending.ownerDisplayName,
-                    importResult: importResult
-                )
-                lastErrorMessage = nil
-                lastErrorKind = nil
-            } else {
-                pendingAcceptResult = nil
-                recordError(error, fallback: .statusSyncPending)
-            }
+            pendingAcceptResult = nil
+            pendingAcceptMessage = nil
+            recordError(error, fallback: .acceptFailed)
         }
     }
 
-    func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
+    func enqueueAcceptedShare(
+        _ metadata: CKShare.Metadata,
+        startsNewPresentation: Bool = true
+    ) {
         enableCloudSync()
-        if pendingJoinSession == nil { isLoadingInvitation = true }
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
+        }
+        if !isLoadingInvitation && pendingJoinSession == nil && pendingJoinMetadataKey == nil {
+            beginInvitePresentationIfNeeded(forceNew: startsNewPresentation)
         }
         pendingShareMetadata.append(metadata)
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
@@ -159,24 +161,41 @@ final class CompanionSharingCoordinator {
     }
 
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
-        guard !isFlushingAcceptedShares, pendingJoinSession == nil else { return }
+        guard !isFlushingAcceptedShares, pendingJoinSession == nil, pendingJoinMetadataKey == nil else { return }
         guard let metadata = pendingShareMetadata.first else { return }
-        isLoadingInvitation = true
+        beginInvitePresentationIfNeeded()
         isFlushingAcceptedShares = true
-        defer { isFlushingAcceptedShares = false }
+        var resumeQueue = false
+        defer {
+            isFlushingAcceptedShares = false
+            loadingShareKey = nil
+            loadingShareGeneration = nil
+            if resumeQueue {
+                continuePendingShareDrain(in: modelContext)
+            }
+        }
 
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
+        loadingShareKey = key
+        loadingShareGeneration = invitePresentationGeneration
         lastErrorKind = nil
         do {
             let session = try await service.previewAcceptedShare(
                 metadata: metadata,
                 participantDisplayName: nil
             )
+            guard pendingShareMetadata.contains(where: {
+                CompanionAcceptedShareInbox.metadataKey($0) == key
+            }) else {
+                isLoadingInvitation = false
+                resumeQueue = true
+                return
+            }
 
             if resolvePreviewedShareForExistingLocalShow(session, in: modelContext) {
                 isLoadingInvitation = false
+                pendingJoinMetadataKey = key
                 removePendingShare(key: key)
-                continuePendingShareDrain(in: modelContext)
                 return
             }
 
@@ -187,6 +206,12 @@ final class CompanionSharingCoordinator {
             lastErrorKind = nil
         } catch {
             isLoadingInvitation = false
+            guard pendingShareMetadata.contains(where: {
+                CompanionAcceptedShareInbox.metadataKey($0) == key
+            }) else {
+                resumeQueue = true
+                return
+            }
             recordError(error, fallback: .statusSyncPending)
             resolvePendingInviteFailure(key: key, clearJoin: false, in: modelContext)
         }
@@ -221,7 +246,10 @@ final class CompanionSharingCoordinator {
         return true
     }
 
-    func confirmPendingJoin(in modelContext: ModelContext) async -> Bool {
+    func confirmPendingJoin(
+        in modelContext: ModelContext,
+        importStrategy: CompanionAcceptedImportStrategy = .automatic
+    ) async -> Bool {
         guard let key = pendingJoinMetadataKey,
               let metadata = pendingShareMetadata.first(where: {
                   CompanionAcceptedShareInbox.metadataKey($0) == key
@@ -232,6 +260,7 @@ final class CompanionSharingCoordinator {
         await handleAcceptedShare(
             metadata: metadata,
             participantDisplayName: CompanionUserProfile.nickname,
+            importStrategy: importStrategy,
             in: modelContext
         )
         guard lastErrorKind == nil, pendingAcceptResult != nil else {
@@ -240,9 +269,7 @@ final class CompanionSharingCoordinator {
         }
 
         pendingJoinSession = nil
-        pendingJoinMetadataKey = nil
         removePendingShare(key: key)
-        continuePendingShareDrain(in: modelContext)
         return true
     }
 
@@ -255,23 +282,13 @@ final class CompanionSharingCoordinator {
             return true
         }
         pendingJoinSession = nil
-        pendingJoinMetadataKey = nil
         removePendingShare(key: key)
         lastErrorMessage = nil
         lastErrorKind = nil
-        continuePendingShareDrain(in: modelContext)
         return true
     }
 
     var hasPendingAcceptedShares: Bool { !pendingShareMetadata.isEmpty }
-
-    static func persistAcceptedShare(
-        _ metadata: CKShare.Metadata,
-        userDefaults: UserDefaults = .standard
-    ) {
-        CompanionAcceptedShareInbox.append(metadata, to: userDefaults)
-        CompanionCloudSyncMarker.enable(in: userDefaults, usesKeychain: true)
-    }
 
     func cancelCompanion(for show: Show, in modelContext: ModelContext) async throws {
         let isOwner = show.companionIsOwner ?? true
@@ -410,22 +427,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    func handleShareControllerDidSave(
-        share: CKShare?,
-        for show: Show,
-        in modelContext: ModelContext
-    ) async {
-        guard let share else {
-            await refreshCompanion(for: show, in: modelContext)
-            return
-        }
-        show.companionShareRecordName = share.recordID.recordName
-        show.companionShareZoneName = share.recordID.zoneID.zoneName
-        show.companionShareOwnerName = share.recordID.zoneID.ownerName
-        try? modelContext.save()
-        await refreshCompanion(for: show, in: modelContext)
-    }
-
     func handleShareControllerDidStopSharing(
         for show: Show,
         in modelContext: ModelContext
@@ -462,12 +463,39 @@ final class CompanionSharingCoordinator {
         recordError(error, fallback: .acceptFailed)
     }
 
-    func beginLoadingInvitation() {
+    @discardableResult
+    func beginLoadingInvitation() -> Int {
         pendingAcceptMessage = nil
         pendingAcceptResult = nil
         lastErrorMessage = nil
         lastErrorKind = nil
+        beginInvitePresentationIfNeeded(forceNew: true)
+        return invitePresentationGeneration
+    }
+
+    private func beginInvitePresentationIfNeeded(forceNew: Bool = false) {
+        if forceNew || (!isLoadingInvitation && pendingJoinSession == nil) {
+            invitePresentationGeneration &+= 1
+            canceledPresentationGeneration = nil
+        }
         if pendingJoinSession == nil { isLoadingInvitation = true }
+    }
+
+    func cancelLoadingInvitationPresentation() {
+        guard pendingJoinSession == nil else { return }
+        canceledPresentationGeneration = invitePresentationGeneration
+        isLoadingInvitation = false
+        if loadingShareGeneration == invitePresentationGeneration,
+           let loadingShareKey {
+            removePendingShare(key: loadingShareKey)
+        }
+        lastErrorMessage = nil
+        lastErrorKind = nil
+    }
+
+    func isInvitePresentationActive(_ generation: Int) -> Bool {
+        generation == invitePresentationGeneration
+            && canceledPresentationGeneration != generation
     }
 
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
@@ -505,19 +533,18 @@ final class CompanionSharingCoordinator {
         clearJoin: Bool,
         in modelContext: ModelContext
     ) {
-        let action = CompanionPendingInviteDrainPolicy.action(
+        guard CompanionPendingInviteDrainPolicy.action(
             for: lastErrorKind,
             remainingInviteCount: pendingShareMetadata.count - 1
-        )
-        guard action.discardsCurrent else { return }
-        if clearJoin {
-            pendingJoinSession = nil
-            pendingJoinMetadataKey = nil
-        }
+        ).discardsCurrent else { return }
+        if clearJoin { pendingJoinSession = nil }
+        pendingJoinMetadataKey = key
         removePendingShare(key: key)
-        if action.continues {
-            continuePendingShareDrain(in: modelContext)
-        }
+    }
+    func finishPendingJoinPresentation(in modelContext: ModelContext) {
+        guard pendingJoinSession == nil, pendingJoinMetadataKey != nil else { return }
+        pendingJoinMetadataKey = nil
+        continuePendingShareDrain(in: modelContext)
     }
 
     private func continuePendingShareDrain(in modelContext: ModelContext) {
@@ -554,9 +581,5 @@ final class CompanionSharingCoordinator {
             }
             return .warning(CompanionSharingPresentation.membershipSyncWarning)
         }
-    }
-
-    static func userMessage(for error: Error) -> String {
-        CompanionSharingPresentation.userMessage(for: error)
     }
 }

@@ -138,6 +138,127 @@ final class CompanionReviewerRegressionTests: XCTestCase {
         XCTAssertEqual(coordinator.lastErrorKind, .networkFailure)
     }
 
+    func testServerRejectedRecoveryRequiresAcceptedSharedParticipantEvidence() {
+        XCTAssertFalse(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .serverRejectedRequest,
+                sharedDatabaseConfirmsAcceptedParticipant: false
+            )
+        )
+        XCTAssertTrue(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .serverRejectedRequest,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+        XCTAssertTrue(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .alreadyShared,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+        XCTAssertFalse(
+            CompanionCloudAcceptRecoveryPolicy.canRecover(
+                after: .networkFailure,
+                sharedDatabaseConfirmsAcceptedParticipant: true
+            )
+        )
+    }
+
+    func testJoinPresentationStateReopensForSecondInviteAfterSuccessfulDismissal() {
+        var state = CompanionPendingJoinPresentationState()
+
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, isWorking: false, hasOutcome: false))
+        state.beginSuccessfulDismissal()
+        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true, isWorking: false, hasOutcome: false))
+
+        state.didDismiss()
+
+        XCTAssertTrue(
+            state.isPresented(isLoading: true, hasSession: false, isWorking: false, hasOutcome: false),
+            "The next invite must be allowed to present in the same app process."
+        )
+        state.inviteBecameActive()
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, isWorking: false, hasOutcome: false))
+    }
+
+    func testJoinPresentationStateOnlyAllowsLoadingDismissAfterDelayOptIn() {
+        let state = CompanionPendingJoinPresentationState()
+
+        XCTAssertFalse(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: false,
+                isWorking: false,
+                allowsLoadingDismiss: false,
+                hasOutcome: false
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: false,
+                isWorking: false,
+                allowsLoadingDismiss: true,
+                hasOutcome: false
+            )
+        )
+        XCTAssertFalse(
+            state.canUserDismiss(
+                isLoading: true,
+                hasSession: true,
+                isWorking: false,
+                allowsLoadingDismiss: false,
+                hasOutcome: false
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: false,
+                hasSession: true,
+                isWorking: false,
+                allowsLoadingDismiss: false,
+                hasOutcome: false
+            )
+        )
+    }
+
+    func testJoinPresentationKeepsInlineOutcomeOnSameSurface() {
+        let state = CompanionPendingJoinPresentationState()
+
+        XCTAssertTrue(
+            state.isPresented(
+                isLoading: false,
+                hasSession: false,
+                isWorking: false,
+                hasOutcome: true
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: false,
+                hasSession: false,
+                isWorking: false,
+                allowsLoadingDismiss: false,
+                hasOutcome: true
+            )
+        )
+    }
+
+    func testJoinPresentationStaysVisibleWhileAcceptedJoinFinishes() {
+        let state = CompanionPendingJoinPresentationState()
+
+        XCTAssertTrue(
+            state.isPresented(
+                isLoading: false,
+                hasSession: false,
+                isWorking: true,
+                hasOutcome: false
+            ),
+            "Clearing the coordinator session must not dismiss the current invite while its join transaction is still finishing."
+        )
+    }
+
     private func makeSession(
         show: CompanionShowSnapshot,
         status: CompanionCloudStatus

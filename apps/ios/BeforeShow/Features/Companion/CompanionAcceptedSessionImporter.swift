@@ -8,12 +8,34 @@ struct CompanionAcceptedImportResult: Equatable {
     let wasHistorical: Bool
 }
 
+indirect enum CompanionAcceptedImportStrategy: Equatable {
+    case automatic
+    case mergeInto(UUID)
+    case keepSeparate
+    case withCurrent(CompanionAcceptedImportStrategy)
+
+    var resolution: CompanionAcceptedImportStrategy {
+        if case .withCurrent(let base) = self { return base }
+        return self
+    }
+
+    var makeCurrent: Bool {
+        if case .withCurrent = self { return true }
+        return false
+    }
+
+    func settingCurrent(_ enabled: Bool) -> CompanionAcceptedImportStrategy {
+        enabled ? .withCurrent(resolution) : resolution
+    }
+}
+
 @MainActor
 enum CompanionAcceptedSessionImporter {
     @discardableResult
     static func apply(
         _ session: CompanionSessionSnapshot,
         in modelContext: ModelContext,
+        strategy: CompanionAcceptedImportStrategy = .automatic,
         now: Date = Date()
     ) throws -> CompanionAcceptedImportResult {
         let descriptor = FetchDescriptor<Show>()
@@ -28,7 +50,7 @@ enum CompanionAcceptedSessionImporter {
         }) {
             CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: existing)
             existing.applyCompanionSession(session, isOwner: false)
-            let becameCurrent = selectAsCurrentIfNeeded(existing, among: shows, in: modelContext, now: now)
+            let becameCurrent = try selectAsCurrentIfNeeded(existing, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
             try modelContext.save()
             return result(for: existing, inserted: false, becameCurrent: becameCurrent, now: now)
         }
@@ -37,12 +59,26 @@ enum CompanionAcceptedSessionImporter {
            let byID = shows.first(where: { $0.id == sourceID }) {
             CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: byID)
             byID.applyCompanionSession(session, isOwner: false)
-            let becameCurrent = selectAsCurrentIfNeeded(byID, among: shows, in: modelContext, now: now)
+            let becameCurrent = try selectAsCurrentIfNeeded(byID, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
             try modelContext.save()
             return result(for: byID, inserted: false, becameCurrent: becameCurrent, now: now)
         }
 
         let candidate = try CompanionAcceptedShowMapping.makeShow(from: session.show)
+
+        if case .mergeInto(let targetID) = strategy.resolution {
+            guard let target = shows.first(where: { $0.id == targetID }),
+                  target.companionCloudRecordName == nil,
+                  ShowDuplicateMatcher.isDuplicate(candidate, target) else {
+                throw CompanionSharingError.conflict
+            }
+            CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: target)
+            target.applyCompanionSession(session, isOwner: false)
+            let becameCurrent = try selectAsCurrentIfNeeded(target, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
+            try modelContext.save()
+            return result(for: target, inserted: false, becameCurrent: becameCurrent, now: now)
+        }
+
         let duplicateCandidates = shows.filter { existing in
             // One local Show owns at most one companion group. Never overwrite linkage
             // from an unrelated session just because the show metadata looks similar.
@@ -50,16 +86,20 @@ enum CompanionAcceptedSessionImporter {
             return ShowDuplicateMatcher.isDuplicate(candidate, existing)
         }
 
-        if duplicateCandidates.count == 1, let match = duplicateCandidates.first {
+        if strategy.resolution == .automatic, duplicateCandidates.count > 1 {
+            throw CompanionSharingError.conflict
+        }
+
+        if strategy.resolution == .automatic,
+           duplicateCandidates.count == 1,
+           let match = duplicateCandidates.first {
             CompanionAcceptedShowMapping.mergeMissingData(from: session.show, into: match)
             match.applyCompanionSession(session, isOwner: false)
-            let becameCurrent = selectAsCurrentIfNeeded(match, among: shows, in: modelContext, now: now)
+            let becameCurrent = try selectAsCurrentIfNeeded(match, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
             try modelContext.save()
             return result(for: match, inserted: false, becameCurrent: becameCurrent, now: now)
         }
 
-        // Ambiguous local matches are intentionally not overwritten. Persist the accepted
-        // copy first, then RootView asks which existing Show (if any) should survive.
         candidate.applyCompanionSession(session, isOwner: false)
         modelContext.insert(candidate)
         shows.append(candidate)
@@ -69,8 +109,13 @@ enum CompanionAcceptedSessionImporter {
             candidate.markAddedAsHistorical()
         }
 
-        let becameCurrent = selectAsCurrentIfNeeded(candidate, among: shows, in: modelContext, now: now)
+        let becameCurrent = try selectAsCurrentIfNeeded(candidate, among: shows, in: modelContext, makeCurrent: strategy.makeCurrent, now: now)
         try modelContext.save()
+        if strategy.resolution == .keepSeparate, !duplicateCandidates.isEmpty {
+            CompanionDuplicateResolutionStore.ignore(
+                sessionRecordName: session.sessionLocator.recordName
+            )
+        }
         return result(for: candidate, inserted: true, becameCurrent: becameCurrent, now: now)
     }
 
@@ -78,12 +123,16 @@ enum CompanionAcceptedSessionImporter {
         _ show: Show,
         among shows: [Show],
         in modelContext: ModelContext,
+        makeCurrent: Bool,
         now: Date
-    ) -> Bool {
-        // Production always has CurrentShowSelection. Lightweight recovery/test containers
-        // sometimes model only Show; a selection failure must not roll back the accepted
-        // Show itself, so this side effect is deliberately best-effort.
+    ) throws -> Bool {
+        // Automatic bootstrap stays best-effort for lightweight model containers.
+        // An explicit Current choice belongs to this import transaction and propagates persistence failure.
         let store = CurrentShowSelectionStore(modelContext: modelContext)
+        if makeCurrent {
+            _ = try store.select(showID: show.id)
+            return true
+        }
         let selection: CurrentShowSelection?
         do {
             selection = try store.canonicalSelection()

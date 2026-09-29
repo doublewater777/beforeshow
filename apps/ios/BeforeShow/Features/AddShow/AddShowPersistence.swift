@@ -56,21 +56,6 @@ enum AddShowFinalLifecycle: Equatable {
     case ended
 }
 
-enum AddShowCurrentPromptPolicy {
-    static func shouldOfferSwitch(
-        lifecycle: AddShowFinalLifecycle,
-        isCurrent: Bool
-    ) -> Bool {
-        guard !isCurrent else { return false }
-        switch lifecycle {
-        case .future, .live:
-            return true
-        case .ended:
-            return false
-        }
-    }
-}
-
 enum AddShowSaveOutcome: String, Equatable {
     case future
     case current

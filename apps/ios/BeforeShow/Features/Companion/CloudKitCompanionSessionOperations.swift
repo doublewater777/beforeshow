@@ -1,13 +1,6 @@
 import CloudKit
 import Foundation
 
-private struct CompanionAcceptedShareContext {
-    let shareLocator: CompanionRecordLocator
-    let record: CKRecord
-    let participantDisplayNames: [String]
-    let ownerDisplayName: String?
-}
-
 private struct CompanionShareParticipationState {
     let participantDisplayNames: [String]
     let hasAcceptedNonOwner: Bool
@@ -31,7 +24,7 @@ extension CloudKitCompanionSharingService {
         }
         if let statusRaw = record[CompanionSessionRecord.status] as? String,
            statusRaw == CompanionCloudStatus.canceled.rawValue {
-            throw CompanionSharingError.permissionDenied
+            throw CompanionSharingError.sessionNotFound
         }
 
         let shareLocator = CompanionRecordLocator(recordID: previewMetadata.share.recordID)
@@ -75,102 +68,6 @@ extension CloudKitCompanionSharingService {
             }
         }
         return snapshot
-    }
-
-    private func metadataIncludingRootRecord(
-        _ metadata: CKShare.Metadata
-    ) async throws -> CKShare.Metadata {
-        if metadata.rootRecord != nil {
-            return metadata
-        }
-        guard let shareURL = metadata.share.url else {
-            throw CompanionSharingError.invalidPayload
-        }
-
-        return try await Self.fetchMetadataWithRootRecord(for: shareURL, in: container)
-    }
-
-    private func acceptedShareContext(
-        metadata: CKShare.Metadata
-    ) async throws -> CompanionAcceptedShareContext {
-        try await ensureAccountAvailable()
-
-        let acceptedMetadata = try await metadataIncludingRootRecord(metadata)
-        let shareLocator = CompanionRecordLocator(recordID: acceptedMetadata.share.recordID)
-        let isOwner = acceptedMetadata.share.currentUserParticipant?.role == .owner
-        let acceptedShare: CKShare
-        if isOwner {
-            acceptedShare = acceptedMetadata.share
-        } else {
-            do {
-                acceptedShare = try await container.accept(acceptedMetadata)
-            } catch {
-                let ck = error as? CKError
-                if ck?.code == .alreadyShared || ck?.code == .serverRejectedRequest {
-                    if let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare {
-                        acceptedShare = existing
-                    } else if let privateShare = try? await privateDB.record(for: shareLocator.recordID) as? CKShare {
-                        acceptedShare = privateShare
-                    } else {
-                        acceptedShare = acceptedMetadata.share
-                    }
-                } else {
-                    throw Self.mapError(error, fallback: .acceptFailed)
-                }
-            }
-        }
-
-        guard let rootID = acceptedMetadata.hierarchicalRootRecordID else {
-            throw CompanionSharingError.invalidPayload
-        }
-
-        let record: CKRecord
-        do {
-            record = try await (isOwner ? privateDB : sharedDB).record(for: rootID)
-        } catch {
-            if let backup = try? await (isOwner ? sharedDB : privateDB).record(for: rootID) {
-                record = backup
-            } else if let preloaded = acceptedMetadata.rootRecord {
-                record = preloaded
-            } else {
-                throw Self.mapError(error, fallback: .acceptFailed)
-            }
-        }
-
-        func leaveShareOrThrowCleanupPending() async throws {
-            do {
-                _ = try await modifyRecords(
-                    in: sharedDB,
-                    saving: [],
-                    deleting: [shareLocator.recordID]
-                )
-            } catch {
-                let mapped = Self.mapError(error)
-                if mapped != .sessionNotFound {
-                    throw CompanionSharingError.statusSyncPending
-                }
-            }
-        }
-
-        if let statusRaw = record[CompanionSessionRecord.status] as? String,
-           statusRaw == CompanionCloudStatus.canceled.rawValue {
-            try await leaveShareOrThrowCleanupPending()
-            throw CompanionSharingError.permissionDenied
-        }
-
-        do {
-            _ = try Self.snapshot(from: record, shareLocator: shareLocator)
-        } catch {
-            try await leaveShareOrThrowCleanupPending()
-            throw CompanionSharingError.invalidPayload
-        }
-
-        return CompanionAcceptedShareContext(
-            shareLocator: shareLocator,
-            record: record,
-            participantDisplayNames: Self.participantNames(from: acceptedShare),
-            ownerDisplayName: Self.displayName(for: acceptedMetadata.ownerIdentity)
-        )
     }
 
     func cancelSession(

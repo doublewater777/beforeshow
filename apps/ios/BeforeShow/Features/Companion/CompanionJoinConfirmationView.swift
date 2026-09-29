@@ -1,22 +1,76 @@
 import SwiftData
 import SwiftUI
 
+struct CompanionPendingJoinPresentationState: Equatable {
+    var isJoiningInBackground = false
+    var isDismissedByUser = false
+
+    func isPresented(
+        isLoading: Bool,
+        hasSession: Bool,
+        isWorking: Bool,
+        hasOutcome: Bool
+    ) -> Bool {
+        (isLoading || hasSession || isWorking || hasOutcome)
+            && !isJoiningInBackground
+            && !isDismissedByUser
+    }
+
+    func canUserDismiss(
+        isLoading: Bool,
+        hasSession: Bool,
+        isWorking: Bool,
+        allowsLoadingDismiss: Bool,
+        hasOutcome: Bool
+    ) -> Bool {
+        guard !isWorking, !isJoiningInBackground else { return false }
+        if hasSession && !isLoading { return true }
+        if hasOutcome && !isLoading { return true }
+        return isLoading && allowsLoadingDismiss
+    }
+
+    mutating func inviteBecameActive() {
+        isDismissedByUser = false
+    }
+
+    mutating func userDismissed() {
+        isDismissedByUser = true
+    }
+
+    mutating func beginSuccessfulDismissal() {
+        isJoiningInBackground = true
+    }
+
+    mutating func didDismiss() {
+        isJoiningInBackground = false
+    }
+}
+
 /// Product confirmation shown after iOS hands a CloudKit invitation to the app, but
 /// before the companion relationship is committed and the Show is imported locally.
 struct CompanionPendingJoinHost: View {
-    let onJoinSuccess: (String) -> Void
     @Environment(\.modelContext) private var modelContext
     @Environment(CompanionSharingCoordinator.self) private var coordinator
     @State private var isWorking = false
-    @State private var isJoiningInBackground = false
-    @State private var isDismissedByUser = false
-    @State private var queuedSuccessMessage: String?
+    @State private var presentationState = CompanionPendingJoinPresentationState()
+    @State private var completionMessage: String?
+    @State private var allowsLoadingDismiss = false
     @State private var errorMessage: String?
 
+    private var hasOutcome: Bool {
+        completionMessage != nil
+            || errorMessage != nil
+            || coordinator.pendingAcceptMessage != nil
+            || coordinator.lastErrorMessage != nil
+    }
+
     private var isPresented: Bool {
-        (coordinator.isLoadingInvitation || coordinator.pendingJoinSession != nil)
-            && !isJoiningInBackground
-            && !isDismissedByUser
+        presentationState.isPresented(
+            isLoading: coordinator.isLoadingInvitation,
+            hasSession: coordinator.pendingJoinSession != nil,
+            isWorking: isWorking,
+            hasOutcome: hasOutcome
+        )
     }
 
     var body: some View {
@@ -25,100 +79,115 @@ struct CompanionPendingJoinHost: View {
             .fullScreenCover(
                 isPresented: Binding(
                     get: { isPresented },
-                    set: { if !$0 && !isWorking && !isJoiningInBackground { handleClose() } }
+                    set: {
+                        if !$0,
+                           presentationState.canUserDismiss(
+                               isLoading: coordinator.isLoadingInvitation,
+                               hasSession: coordinator.pendingJoinSession != nil,
+                               isWorking: isWorking,
+                               allowsLoadingDismiss: allowsLoadingDismiss,
+                               hasOutcome: hasOutcome
+                           ) {
+                            handleClose()
+                        }
+                    }
                 ),
                 onDismiss: {
-                    if let message = queuedSuccessMessage {
-                        queuedSuccessMessage = nil
-                        onJoinSuccess(message)
-                    }
+                    presentationState.didDismiss()
+                    coordinator.finishPendingJoinPresentation(in: modelContext)
                 }
             ) {
                 CompanionJoinConfirmationView(
                     session: coordinator.pendingJoinSession,
                     isLoading: coordinator.isLoadingInvitation && coordinator.pendingJoinSession == nil,
+                    allowsLoadingDismiss: allowsLoadingDismiss,
                     isWorking: isWorking,
-                    onJoin: { confirmJoin() },
+                    completionMessage: completionMessage,
+                    errorMessage: errorMessage,
+                    onJoin: { strategy in
+                        confirmJoin(importStrategy: strategy)
+                    },
                     onClose: { handleClose() }
                 )
-                .interactiveDismissDisabled(isWorking)
+                .interactiveDismissDisabled(isWorking || coordinator.isLoadingInvitation)
             }
-            .alert(
-                BSLocalization.text("同行邀请"),
-                isPresented: Binding(
-                    get: { errorMessage != nil },
-                    set: { if !$0 { errorMessage = nil } }
-                )
-            ) {
-                Button(BSLocalization.text("知道了"), role: .cancel) { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
+            .onChange(of: coordinator.invitePresentationGeneration, initial: true) { _, _ in
+                completionMessage = nil
+                errorMessage = nil
+                presentationState.inviteBecameActive()
             }
-            .onChange(of: coordinator.isLoadingInvitation) { _, isLoading in
-                if isLoading {
-                    isDismissedByUser = false
-                }
-            }
-            .onChange(of: coordinator.pendingJoinSession) { _, session in
-                if session != nil {
-                    isDismissedByUser = false
-                }
+            .task(id: coordinator.invitePresentationGeneration) {
+                allowsLoadingDismiss = false
+                guard coordinator.isLoadingInvitation,
+                      coordinator.pendingJoinSession == nil else { return }
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard !Task.isCancelled,
+                      coordinator.isLoadingInvitation,
+                      coordinator.pendingJoinSession == nil else { return }
+                allowsLoadingDismiss = true
             }
             .onChange(of: coordinator.pendingAcceptMessage, initial: true) { _, message in
                 guard !isWorking,
                       let message, coordinator.pendingJoinSession == nil else { return }
-                onJoinSuccess(message)
+                if presentationState.isDismissedByUser {
+                    _ = coordinator.consumePendingAcceptMessage()
+                    _ = coordinator.consumePendingAcceptResult()
+                    return
+                }
+                completionMessage = message
                 _ = coordinator.consumePendingAcceptMessage()
                 _ = coordinator.consumePendingAcceptResult()
+                dismissAfterInlineSuccess(message)
             }
             .onChange(of: coordinator.lastErrorMessage) { _, message in
-                if let message, coordinator.pendingJoinSession == nil {
-                    errorMessage = message
+                guard let message, coordinator.pendingJoinSession == nil else { return }
+                if presentationState.isDismissedByUser {
                     _ = coordinator.consumeLastErrorMessage()
+                    return
                 }
+                errorMessage = message
+                _ = coordinator.consumeLastErrorMessage()
             }
     }
 
     private func handleClose() {
-        isDismissedByUser = true
         if coordinator.pendingJoinSession != nil {
             declineJoin()
+        } else if coordinator.isLoadingInvitation {
+            presentationState.userDismissed()
+            coordinator.cancelLoadingInvitationPresentation()
+        } else {
+            completionMessage = nil
+            errorMessage = nil
+            presentationState.userDismissed()
         }
     }
 
-    private func confirmJoin() {
+    private func confirmJoin(importStrategy: CompanionAcceptedImportStrategy) {
         guard !isWorking else { return }
         isWorking = true
         Task { @MainActor in
-            let succeeded = await coordinator.confirmPendingJoin(in: modelContext)
+            let succeeded = await coordinator.confirmPendingJoin(
+                in: modelContext,
+                importStrategy: importStrategy
+            )
             if succeeded {
-                offerCurrentSwitchForLiveShowIfNeeded()
-                if let message = coordinator.consumePendingAcceptMessage() {
-                    queuedSuccessMessage = message
-                }
+                let message = coordinator.consumePendingAcceptMessage()
                 _ = coordinator.consumePendingAcceptResult()
-                isJoiningInBackground = true
-            } else {
-                // If user already has this show locally, link it without displaying an error alert
-                let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
-                if let session = coordinator.pendingJoinSession,
-                   case .single = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: shows) {
-                    if let result = try? CompanionAcceptedSessionImporter.apply(session, in: modelContext) {
-                        offerCurrentSwitchForLiveShowIfNeeded()
-                        queuedSuccessMessage = CompanionSharingPresentation.acceptedMessage(
-                            ownerDisplayName: session.ownerDisplayName,
-                            importResult: result
-                        )
-                        _ = coordinator.consumePendingAcceptResult()
-                        _ = coordinator.consumeLastErrorMessage()
-                        isJoiningInBackground = true
-                        isWorking = false
-                        return
-                    }
+                errorMessage = nil
+                if let message {
+                    completionMessage = message
+                    isWorking = false
+                    dismissAfterInlineSuccess(message)
+                } else {
+                    presentationState.beginSuccessfulDismissal()
+                    isWorking = false
                 }
-                errorMessage = coordinator.consumeLastErrorMessage() ?? BSLocalization.text("现场还没添加成功，请重试")
+            } else {
+                errorMessage = coordinator.consumeLastErrorMessage()
+                    ?? BSLocalization.text("现场还没添加成功，请重试")
+                isWorking = false
             }
-            isWorking = false
         }
     }
 
@@ -127,60 +196,47 @@ struct CompanionPendingJoinHost: View {
         isWorking = true
         Task { @MainActor in
             let succeeded = await coordinator.declinePendingJoin(in: modelContext)
-            if !succeeded {
-                errorMessage = coordinator.lastErrorMessage ?? BSLocalization.text("暂时无法关闭这份邀请，请重试")
+            if succeeded {
+                errorMessage = nil
+                presentationState.userDismissed()
+            } else {
+                errorMessage = coordinator.lastErrorMessage
+                    ?? BSLocalization.text("暂时无法关闭这份邀请，请重试")
             }
             isWorking = false
         }
     }
 
-    @MainActor
-    private func offerCurrentSwitchForLiveShowIfNeeded(now: Date = Date()) {
-        guard let result = coordinator.pendingAcceptResult,
-              let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
-              let target = shows.first(where: { $0.id == result.showID }),
-              let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection(),
-              CompanionLiveCurrentPromptPolicy.shouldOffer(
-                  importResult: result,
-                  show: target,
-                  selectedShowID: selection.selectedShowID,
-                  now: now
-              ) else {
-            return
-        }
-
-        switchLiveShowToCurrent(showID: target.id)
-    }
-
-    private func switchLiveShowToCurrent(showID: UUID) {
+    private func dismissAfterInlineSuccess(_ message: String) {
         Task { @MainActor in
-            do {
-                let shows = try modelContext.fetch(FetchDescriptor<Show>())
-                let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
-                let notificationStates = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
-                _ = try await ShowMutationCoordinator.selectCurrentShow(
-                    showID: showID,
-                    shows: shows,
-                    selections: selections,
-                    notificationStates: notificationStates,
-                    in: modelContext
-                )
-            } catch {
-                modelContext.rollback()
-            }
+            try? await Task.sleep(nanoseconds: 700_000_000)
+            guard completionMessage == message else { return }
+            completionMessage = nil
+            presentationState.beginSuccessfulDismissal()
         }
     }
+}
+
+private enum CompanionDuplicateJoinChoice: Equatable {
+    case merge(UUID)
+    case keepSeparate
 }
 
 private struct CompanionJoinConfirmationView: View {
     let session: CompanionSessionSnapshot?
     let isLoading: Bool
+    let allowsLoadingDismiss: Bool
     let isWorking: Bool
-    let onJoin: () -> Void
+    let completionMessage: String?
+    let errorMessage: String?
+    let onJoin: (CompanionAcceptedImportStrategy) -> Void
     let onClose: () -> Void
     @Query private var localShows: [Show]
     @Query private var selections: [CurrentShowSelection]
     @State private var myNickname: String = CompanionUserProfile.nickname ?? ""
+    @State private var duplicateChoice: CompanionDuplicateJoinChoice?
+    @State private var switchToCurrentAfterJoin = false
+    private let showFormatter = ShowDisplayFormatter()
 
     private var localMatch: CompanionLocalMatchResult {
         guard let session else { return .none }
@@ -247,12 +303,32 @@ private struct CompanionJoinConfirmationView: View {
         return now >= start && now < end
     }
 
-    private var hasOtherCurrentShow: Bool {
-        guard isLiveNow,
-              let activeID = selections.first?.selectedShowID else {
-            return false
+    private var selectedImportStrategy: CompanionAcceptedImportStrategy {
+        let strategy: CompanionAcceptedImportStrategy
+        if case .multiple = localMatch {
+            switch duplicateChoice {
+            case .merge(let showID): strategy = .mergeInto(showID)
+            case .keepSeparate: strategy = .keepSeparate
+            case nil: strategy = .automatic
+            }
+        } else {
+            strategy = .automatic
         }
-        if case .single(let match) = localMatch, match.id == activeID {
+        return strategy.settingCurrent(switchToCurrentAfterJoin)
+    }
+
+    private var needsDuplicateChoice: Bool {
+        if case .multiple = localMatch { return duplicateChoice == nil }
+        return false
+    }
+
+    private var hasOtherCurrentShow: Bool {
+        guard isLiveNow else { return false }
+        let currentID = CurrentShowSession()
+            .selectCurrentShow(from: localShows, manualSelection: selections.first)?
+            .id
+        guard let currentID else { return false }
+        if case .single(let match) = localMatch, match.id == currentID {
             return false
         }
         return true
@@ -264,8 +340,12 @@ private struct CompanionJoinConfirmationView: View {
 
             ScrollView {
                 VStack(spacing: 24) {
-                    if let session {
+                    if let completionMessage {
+                        completionContent(completionMessage)
+                    } else if let session {
                         readyContent(session: session)
+                    } else if let errorMessage {
+                        failureContent(errorMessage)
                     } else {
                         loadingContent
                     }
@@ -278,18 +358,77 @@ private struct CompanionJoinConfirmationView: View {
             .scrollIndicators(.hidden)
         }
         .overlay(alignment: .topTrailing) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(BSColor.Stage.foreground)
-                    .frame(width: 38, height: 38)
-                    .background(.ultraThinMaterial, in: Circle())
+            if completionMessage == nil
+                && ((session != nil && !isLoading)
+                    || (isLoading && allowsLoadingDismiss)
+                    || (errorMessage != nil && !isLoading)) {
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                        .frame(width: 38, height: 38)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .disabled(isWorking)
+                .padding(.top, 12)
+                .padding(.trailing, 16)
             }
-            .disabled(isWorking)
-            .padding(.top, 12)
-            .padding(.trailing, 16)
+        }
+        .onChange(of: session?.sessionLocator.recordName) { _, _ in
+            duplicateChoice = nil
+            switchToCurrentAfterJoin = false
+        }
+        .onChange(of: localShows.map(\.id)) { _, _ in
+            if case .multiple = localMatch {
+                duplicateChoice = nil
+            }
+            if !hasOtherCurrentShow {
+                switchToCurrentAfterJoin = false
+            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private func completionContent(_ message: String) -> some View {
+        VStack(spacing: 18) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 54, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.accent)
+            Text(message)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(BSColor.Stage.foreground)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 120)
+    }
+
+    private func failureContent(_ message: String) -> some View {
+        VStack(spacing: 20) {
+            Text(BSLocalization.text("同行邀请"))
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(BSColor.Stage.foreground)
+            errorCard(message)
+            Button(BSLocalization.text("关闭")) {
+                onClose()
+            }
+            .buttonStyle(BSPrimaryButtonStyle())
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 96)
+    }
+
+    private func errorCard(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.circle.fill")
+                .foregroundStyle(BSColor.Stage.accent)
+            Text(message)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(BSColor.Stage.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var loadingContent: some View {
@@ -338,8 +477,14 @@ private struct CompanionJoinConfirmationView: View {
     private func readyContent(session: CompanionSessionSnapshot) -> some View {
         header
         showCard(session: session)
+        if case .multiple(let candidates) = localMatch {
+            duplicateSelection(candidates)
+        }
         members(session: session)
         myNameSection
+        if let errorMessage {
+            errorCard(errorMessage)
+        }
         action
     }
 
@@ -374,7 +519,7 @@ private struct CompanionJoinConfirmationView: View {
                             HStack(spacing: 4) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .font(.system(size: 11, weight: .bold))
-                                Text(BSLocalization.text("已在你的现场中"))
+                                Text(BSLocalization.text("已添加这场"))
                                     .font(.system(size: 12, weight: .semibold))
                             }
                             .foregroundStyle(BSColor.Stage.accent)
@@ -472,9 +617,14 @@ private struct CompanionJoinConfirmationView: View {
 
     private var myNameSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(BSLocalization.text("我的称呼"))
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(BSColor.Stage.muted)
+            HStack(spacing: 6) {
+                Text(BSLocalization.text("对方看到的名字"))
+                    .font(.system(size: 13, weight: .semibold))
+                Text(BSLocalization.text("可选"))
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(BSColor.Stage.dim)
+            }
+            .foregroundStyle(BSColor.Stage.muted)
 
             HStack(spacing: 10) {
                 Image(systemName: "person.circle.fill")
@@ -487,6 +637,63 @@ private struct CompanionJoinConfirmationView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func duplicateSelection(_ candidates: [Show]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(BSLocalization.text("选择已有现场"))
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(BSColor.Stage.muted)
+
+            ForEach(candidates) { candidate in
+                Button {
+                    duplicateChoice = .merge(candidate.id)
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(candidate.name)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(BSColor.Stage.foreground)
+                                .lineLimit(2)
+                            Text(showFormatter.dateText(for: candidate))
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(BSColor.Stage.muted)
+                            if let venue = candidate.venueName?.trimmingCharacters(in: .whitespacesAndNewlines),
+                               !venue.isEmpty {
+                                Text(venue)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(BSColor.Stage.dim)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: duplicateChoice == .merge(candidate.id) ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(duplicateChoice == .merge(candidate.id) ? BSColor.Stage.accent : BSColor.Stage.muted)
+                    }
+                    .padding(14)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                duplicateChoice = .keepSeparate
+            } label: {
+                HStack(spacing: 10) {
+                    Text(BSLocalization.text("这是另一场，单独保留"))
+                        .font(.system(size: 14, weight: .semibold))
+                    Spacer(minLength: 0)
+                    Image(systemName: duplicateChoice == .keepSeparate ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .semibold))
+                }
+                .foregroundStyle(duplicateChoice == .keepSeparate ? BSColor.Stage.accent : BSColor.Stage.foreground)
+                .padding(14)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -506,17 +713,9 @@ private struct CompanionJoinConfirmationView: View {
     }
 
     private var actionButtonTitle: String {
-        let historical = isHistorical
-        switch localMatch {
-        case .single:
-            return historical
-                ? BSLocalization.text("确认共同足迹")
-                : BSLocalization.text("关联并成为同行")
-        case .multiple, .none:
-            return historical
-                ? BSLocalization.text("确认一起去过")
-                : BSLocalization.text("加入这场同行")
-        }
+        isHistorical
+            ? BSLocalization.text("确认共同足迹")
+            : BSLocalization.text("加入同行")
     }
 
     private var actionNoticeText: String {
@@ -525,15 +724,15 @@ private struct CompanionJoinConfirmationView: View {
         switch localMatch {
         case .single:
             return historical
-                ? BSLocalization.format("检测到你已记录过这场演出，确认后将绑定与%@的共同足迹，不会创建重复现场。", owner)
-                : BSLocalization.format("检测到你已记录过这场演出，确认后将直接绑定与%@的同行关系，不会创建重复现场。", owner)
+                ? BSLocalization.format("你已经记录过这场了。确认后会添加%@为共同足迹，不会重复添加。", owner)
+                : BSLocalization.format("你已经有这场现场了。加入后会直接添加%@为同行，不会重复添加。", owner)
         case .multiple:
-            return BSLocalization.text("检测到你本地有多场相似记录，确认加入后可选择合并目标。")
+            return BSLocalization.text("看起来你已经添加过类似的现场。先选择要使用的记录，或把它作为另一场保留。")
         case .none:
             if historical {
                 return BSLocalization.text("确认后，这场会进入你的足迹，并记录你们一起去过。")
             } else if hasOtherCurrentShow {
-                return BSLocalization.text("这场正在进行中，加入后将设为你的当前现场。")
+                return BSLocalization.text("这场正在进行中。加入后可选择是否设为当前现场。")
             } else {
                 return BSLocalization.text("加入后可在现场页看到彼此状态，并共同记录足迹。")
             }
@@ -547,12 +746,24 @@ private struct CompanionJoinConfirmationView: View {
                 .foregroundStyle(BSColor.Stage.muted)
                 .multilineTextAlignment(.center)
 
+            if hasOtherCurrentShow {
+                Toggle(isOn: $switchToCurrentAfterJoin) {
+                    Text(BSLocalization.text("设为当前现场"))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(BSColor.Stage.foreground)
+                }
+                .tint(BSColor.Stage.accent)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+
             Button {
                 let trimmed = myNickname.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !trimmed.isEmpty {
                     CompanionUserProfile.nickname = trimmed
                 }
-                onJoin()
+                onJoin(selectedImportStrategy)
             } label: {
                 if isWorking {
                     ProgressView()
@@ -564,7 +775,7 @@ private struct CompanionJoinConfirmationView: View {
                 }
             }
             .buttonStyle(BSPrimaryButtonStyle())
-            .disabled(isWorking)
+            .disabled(isWorking || needsDuplicateChoice)
         }
     }
 }

@@ -97,6 +97,43 @@ final class CompanionAcceptedImportRegressionTests: XCTestCase {
         XCTAssertEqual(try context.fetch(FetchDescriptor<Show>()).count, 2)
     }
 
+    func testAcceptedShareCanSetCurrentInsideSameImportTransaction() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+
+        let current = try Show(
+            name: "原来的当前现场",
+            date: now.addingTimeInterval(172_800),
+            startTime: now.addingTimeInterval(172_800)
+        )
+        context.insert(current)
+        context.insert(CurrentShowSelection(selectedShowID: current.id))
+        try context.save()
+
+        let incomingDate = now.addingTimeInterval(3_600)
+        let incoming = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "正在加入的同行现场",
+            showDate: incomingDate,
+            showStartTime: incomingDate,
+            sourceShowDate: incomingDate
+        )
+
+        let result = try CompanionAcceptedSessionImporter.apply(
+            makeSession(show: incoming),
+            in: context,
+            strategy: .automatic.settingCurrent(true),
+            now: now
+        )
+
+        XCTAssertTrue(result.becameCurrent)
+        XCTAssertEqual(
+            try CurrentShowSelectionStore(modelContext: context).canonicalSelection()?.selectedShowID,
+            result.showID
+        )
+    }
+
     func testAcceptedShareMergesIntoExistingLocalShowAndOnlyFillsMissingData() throws {
         let container = try makeContainer()
         let context = container.mainContext
@@ -410,6 +447,53 @@ final class CompanionAcceptedImportRegressionTests: XCTestCase {
         } else {
             XCTFail("Expected .multiple, got \(result)")
         }
+    }
+
+    func testExplicitDuplicateMergeStrategyUsesChosenLocalShow() throws {
+        let container = try makeContainer()
+        let context = container.mainContext
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let local1 = try Show(
+            name: "告五人 宇宙的有趣 巡回演唱会",
+            date: now,
+            startTime: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        let local2 = try Show(
+            name: "告五人 宇宙的有趣 巡回演唱会",
+            date: now,
+            startTime: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        context.insert(local1)
+        context.insert(local2)
+        try context.save()
+
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: local1.name,
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        let session = makeSession(show: snapshot)
+
+        let result = try CompanionAcceptedSessionImporter.apply(
+            session,
+            in: context,
+            strategy: .mergeInto(local2.id),
+            now: now
+        )
+
+        let shows = try context.fetch(FetchDescriptor<Show>())
+        XCTAssertEqual(shows.count, 2)
+        XCTAssertEqual(result.showID, local2.id)
+        XCTAssertNil(local1.companionCloudRecordName)
+        XCTAssertEqual(local2.companionCloudRecordName, session.sessionLocator.recordName)
     }
 
     func testMatchLocalShowsReturnsNoneWhenNoMatch() throws {

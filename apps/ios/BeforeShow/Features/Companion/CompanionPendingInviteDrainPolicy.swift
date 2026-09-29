@@ -12,6 +12,7 @@ enum CompanionPendingInviteFailureAction: Equatable {
 /// Sequencing policy for the durable companion-invite inbox.
 /// Terminal invitation failures must not strand later invitations, while retryable
 /// infrastructure failures keep the visible invitation in place for another attempt.
+
 enum CompanionPendingInviteDrainPolicy {
     static func action(
         for error: CompanionSharingError?,
@@ -20,11 +21,12 @@ enum CompanionPendingInviteDrainPolicy {
         guard let error else { return .retainCurrentForRetry }
 
         switch error {
-        case .acceptFailed, .sessionNotFound, .invalidPayload, .permissionDenied:
+        case .sessionNotFound, .invalidPayload, .permissionDenied:
             return remainingInviteCount > 0 ? .discardCurrentAndContinue : .discardCurrent
         case .iCloudAccountUnavailable,
              .networkFailure,
              .sharePreparationFailed,
+             .acceptFailed,
              .conflict,
              .statusSyncPending:
             return .retainCurrentForRetry

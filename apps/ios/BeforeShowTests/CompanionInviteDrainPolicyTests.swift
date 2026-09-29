@@ -4,7 +4,6 @@ import XCTest
 final class CompanionInviteDrainPolicyTests: XCTestCase {
     func testTerminalFailureWithSecondInviteDiscardsCurrentAndAdvances() {
         let terminalErrors: [CompanionSharingError] = [
-            .acceptFailed,
             .sessionNotFound,
             .invalidPayload,
             .permissionDenied,
@@ -25,6 +24,7 @@ final class CompanionInviteDrainPolicyTests: XCTestCase {
     func testRetryableFailureKeepsCurrentInviteAndDoesNotAdvance() {
         let retryableErrors: [CompanionSharingError] = [
             .networkFailure,
+            .acceptFailed,
             .statusSyncPending,
             .iCloudAccountUnavailable,
             .sharePreparationFailed,
@@ -63,10 +63,10 @@ final class CompanionInviteDrainPolicyTests: XCTestCase {
         )
     }
 
-    func testResolvingFirstOfTwoInvitesImmediatelyAdvancesToSecond() {
+    func testFirstOfTwoInvitesCanAdvanceAfterItsPresentationDismisses() {
         XCTAssertTrue(
             CompanionPendingInviteDrainPolicy.shouldContinue(remainingInviteCount: 1),
-            "A+B: after resolving A, B must continue without foreground/relaunch"
+            "A+B: B remains eligible to continue only after A's presentation finishes."
         )
     }
 
