@@ -168,18 +168,18 @@ final class CompanionReviewerRegressionTests: XCTestCase {
     func testJoinPresentationStateReopensForSecondInviteAfterSuccessfulDismissal() {
         var state = CompanionPendingJoinPresentationState()
 
-        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true))
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, hasOutcome: false))
         state.beginSuccessfulDismissal()
-        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true))
+        XCTAssertFalse(state.isPresented(isLoading: true, hasSession: true, hasOutcome: false))
 
         state.didDismiss()
 
         XCTAssertTrue(
-            state.isPresented(isLoading: true, hasSession: false),
+            state.isPresented(isLoading: true, hasSession: false, hasOutcome: false),
             "The next invite must be allowed to present in the same app process."
         )
         state.inviteBecameActive()
-        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true))
+        XCTAssertTrue(state.isPresented(isLoading: false, hasSession: true, hasOutcome: false))
     }
 
     func testJoinPresentationStateOnlyAllowsLoadingDismissAfterDelayOptIn() {
@@ -190,7 +190,8 @@ final class CompanionReviewerRegressionTests: XCTestCase {
                 isLoading: true,
                 hasSession: false,
                 isWorking: false,
-                allowsLoadingDismiss: false
+                allowsLoadingDismiss: false,
+                hasOutcome: false
             )
         )
         XCTAssertTrue(
@@ -198,7 +199,8 @@ final class CompanionReviewerRegressionTests: XCTestCase {
                 isLoading: true,
                 hasSession: false,
                 isWorking: false,
-                allowsLoadingDismiss: true
+                allowsLoadingDismiss: true,
+                hasOutcome: false
             )
         )
         XCTAssertFalse(
@@ -206,7 +208,8 @@ final class CompanionReviewerRegressionTests: XCTestCase {
                 isLoading: true,
                 hasSession: true,
                 isWorking: false,
-                allowsLoadingDismiss: false
+                allowsLoadingDismiss: false,
+                hasOutcome: false
             )
         )
         XCTAssertTrue(
@@ -214,9 +217,54 @@ final class CompanionReviewerRegressionTests: XCTestCase {
                 isLoading: false,
                 hasSession: true,
                 isWorking: false,
-                allowsLoadingDismiss: false
+                allowsLoadingDismiss: false,
+                hasOutcome: false
             )
         )
+    }
+
+    func testJoinPresentationKeepsInlineOutcomeOnSameSurface() {
+        let state = CompanionPendingJoinPresentationState()
+
+        XCTAssertTrue(
+            state.isPresented(
+                isLoading: false,
+                hasSession: false,
+                hasOutcome: true
+            )
+        )
+        XCTAssertTrue(
+            state.canUserDismiss(
+                isLoading: false,
+                hasSession: false,
+                isWorking: false,
+                allowsLoadingDismiss: false,
+                hasOutcome: true
+            )
+        )
+    }
+
+    func testCompanionFlowDoesNotChainSecondPresentationAfterJoin() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("BeforeShow")
+        let joinSource = try String(
+            contentsOf: root.appendingPathComponent("Features/Companion/CompanionJoinConfirmationView.swift"),
+            encoding: .utf8
+        )
+        let rootSource = try String(
+            contentsOf: root.appendingPathComponent("RootView.swift"),
+            encoding: .utf8
+        )
+
+        XCTAssertFalse(joinSource.contains(".confirmationDialog("))
+        XCTAssertFalse(joinSource.contains(".alert("))
+        XCTAssertFalse(joinSource.contains("queuedSuccessMessage"))
+        XCTAssertTrue(joinSource.contains("Toggle(isOn: $switchToCurrentAfterJoin)"))
+        XCTAssertFalse(rootSource.contains("companionToast"))
+        XCTAssertFalse(rootSource.contains("CompanionDuplicateResolutionSheet"))
+        XCTAssertFalse(rootSource.contains(".alert("))
     }
 
     private func makeSession(
