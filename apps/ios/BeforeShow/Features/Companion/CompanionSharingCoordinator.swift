@@ -465,12 +465,14 @@ final class CompanionSharingCoordinator {
         recordError(error, fallback: .acceptFailed)
     }
 
-    func beginLoadingInvitation() {
+    @discardableResult
+    func beginLoadingInvitation() -> Int {
         pendingAcceptMessage = nil
         pendingAcceptResult = nil
         lastErrorMessage = nil
         lastErrorKind = nil
         beginInvitePresentationIfNeeded(forceNewPresentation: true)
+        return invitePresentationGeneration
     }
 
     private func beginInvitePresentationIfNeeded(forceNewPresentation: Bool = false) {
