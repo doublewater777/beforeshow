@@ -210,8 +210,13 @@ struct CompanionPendingJoinHost: View {
     private func queueCurrentSwitchForLiveShowIfNeeded(now: Date = Date()) {
         guard let result = coordinator.pendingAcceptResult,
               let shows = try? modelContext.fetch(FetchDescriptor<Show>()),
-              let target = shows.first(where: { $0.id == result.showID }),
-              let selection = try? CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection() else {
+              let target = shows.first(where: { $0.id == result.showID }) else {
+            return
+        }
+        let selection: CurrentShowSelection?
+        do {
+            selection = try CurrentShowSelectionStore(modelContext: modelContext).canonicalSelection()
+        } catch {
             return
         }
         let currentShowID = CurrentShowSession()
