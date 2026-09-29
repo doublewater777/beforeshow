@@ -178,16 +178,8 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     private let content: Content
 
     @State private var dragTranslation: CGFloat = 0
-    @State private var dragAxis: DragAxis?
-
-    private let actionWidth: CGFloat = 92
-    private let actionHeight: CGFloat = 80
-    private let settleAnimation = Animation.spring(response: 0.24, dampingFraction: 0.90)
-
-    private enum DragAxis {
-        case horizontal
-        case vertical
-    }
+    @State private var horizontalDrag: Bool?
+    private let actionWidth: CGFloat = 88
 
     init(
         isRevealed: Bool,
@@ -207,20 +199,14 @@ struct BSSwipeRevealActionRow<Content: View>: View {
         self.content = content()
     }
 
-    private var restingOffset: CGFloat {
-        isRevealed ? -actionWidth : 0
-    }
+    private var restingOffset: CGFloat { isRevealed ? -actionWidth : 0 }
 
     private var rowOffset: CGFloat {
-        clampedOffset(restingOffset + dragTranslation)
+        min(0, max(-actionWidth, restingOffset + dragTranslation))
     }
 
     private var revealProgress: CGFloat {
         min(1, max(0, -rowOffset / actionWidth))
-    }
-
-    private func clampedOffset(_ offset: CGFloat) -> CGFloat {
-        min(0, max(-actionWidth, offset))
     }
 
     var body: some View {
@@ -229,17 +215,23 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                 onReveal(false)
                 onAction()
             } label: {
-                VStack(spacing: 5) {
+                VStack(spacing: 4) {
                     Image(systemName: actionIcon)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 13, weight: .semibold))
                     Text(actionTitle)
-                        .font(.system(size: 11.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
                 }
                 .foregroundColor(tint)
-                .frame(width: actionWidth, height: actionHeight)
-                .background(tint.opacity(0.13))
+                .frame(width: 72, height: 54)
+                .background(Color.white.opacity(0.055))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(tint.opacity(0.18), lineWidth: 1)
+                )
             }
             .buttonStyle(.plain)
+            .padding(.trailing, 8)
             .opacity(revealProgress)
             .allowsHitTesting(isRevealed && dragTranslation == 0)
             .accessibilityHidden(true)
@@ -250,42 +242,35 @@ struct BSSwipeRevealActionRow<Content: View>: View {
                 .simultaneousGesture(
                     DragGesture(minimumDistance: 4)
                         .onChanged { value in
-                            if dragAxis == nil {
-                                let horizontalDistance = abs(value.translation.width)
-                                let verticalDistance = abs(value.translation.height)
-                                guard max(horizontalDistance, verticalDistance) >= 4 else {
-                                    return
-                                }
-                                dragAxis = horizontalDistance >= verticalDistance ? .horizontal : .vertical
+                            if horizontalDrag == nil {
+                                let horizontal = abs(value.translation.width)
+                                let vertical = abs(value.translation.height)
+                                guard max(horizontal, vertical) >= 4 else { return }
+                                horizontalDrag = horizontal >= vertical
                             }
-
-                            guard dragAxis == .horizontal else {
-                                return
-                            }
+                            guard horizontalDrag == true else { return }
                             dragTranslation = value.translation.width
                         }
                         .onEnded { value in
-                            let endedAxis = dragAxis
-                            dragAxis = nil
-
-                            guard endedAxis == .horizontal else {
+                            defer { horizontalDrag = nil }
+                            guard horizontalDrag == true else {
                                 dragTranslation = 0
                                 return
                             }
-
-                            let projectedOffset = clampedOffset(
-                                restingOffset + value.predictedEndTranslation.width
-                            )
-                            let shouldReveal = projectedOffset < -(actionWidth * 0.45)
-
-                            withAnimation(settleAnimation) {
-                                onReveal(shouldReveal)
+                            let projected = restingOffset + value.predictedEndTranslation.width
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
+                                onReveal(projected < -(actionWidth * 0.45))
                                 dragTranslation = 0
                             }
                         }
                 )
         }
+        .background(BSColor.Stage.surface.opacity(0.92))
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(Color.white.opacity(0.09), lineWidth: 1)
+        )
         .accessibilityAction(named: actionTitle) {
             onAction()
         }
