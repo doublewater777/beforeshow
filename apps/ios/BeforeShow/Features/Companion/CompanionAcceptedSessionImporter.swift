@@ -81,14 +81,6 @@ enum CompanionAcceptedSessionImporter {
             return result(for: match, inserted: false, becameCurrent: becameCurrent, now: now)
         }
 
-        // Automatic recovery preserves the old ambiguity flow. An explicit keep-separate
-        // choice records that decision so RootView does not ask the user a second time.
-        if strategy == .keepSeparate, !duplicateCandidates.isEmpty {
-            CompanionDuplicateResolutionStore.ignore(
-                sessionRecordName: session.sessionLocator.recordName
-            )
-        }
-
         candidate.applyCompanionSession(session, isOwner: false)
         modelContext.insert(candidate)
         shows.append(candidate)
@@ -100,6 +92,11 @@ enum CompanionAcceptedSessionImporter {
 
         let becameCurrent = selectAsCurrentIfNeeded(candidate, among: shows, in: modelContext, now: now)
         try modelContext.save()
+        if strategy == .keepSeparate, !duplicateCandidates.isEmpty {
+            CompanionDuplicateResolutionStore.ignore(
+                sessionRecordName: session.sessionLocator.recordName
+            )
+        }
         return result(for: candidate, inserted: true, becameCurrent: becameCurrent, now: now)
     }
 
