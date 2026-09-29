@@ -287,7 +287,7 @@ import SwiftData
         room.stop()
     }
 
-    func testCompilationUsesTwoSongsPerArtistPerDiscGroupedByArtist() {
+    func testCompilationUsesSixSongsPerArtistPerDiscGroupedByArtist() {
         func track(_ id: String, _ duration: TimeInterval? = nil) -> ListeningDiscTrack {
             .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist", duration: duration))
         }
@@ -298,13 +298,11 @@ import SwiftData
         ])
 
         XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
-            ["a1", "a2", "b1"],
-            ["a3", "a4", "b3", "b4"],
-            ["a5", "a6", "b5", "b6"],
+            ["a1", "a2", "a3", "a4", "a5", "a6", "b1", "b3", "b4", "b5", "b6"],
             ["a7", "b7"]
         ])
-        XCTAssertEqual(ListeningCompilationAssembler.tracksPerArtistPerDisc, 2)
-        XCTAssertEqual(result.count, 4)
+        XCTAssertEqual(ListeningCompilationAssembler.tracksPerArtistPerDisc, 6)
+        XCTAssertEqual(result.count, 2)
         XCTAssertLessThanOrEqual(result.count, ListeningCompilationAssembler.maxDiscCount)
     }
 
@@ -320,9 +318,28 @@ import SwiftData
         ])
 
         XCTAssertEqual(result.map { $0.tracks.map(\.id) }, [
-            ["a1", "a2", "b1", "b2", "c1", "c2"],
-            ["a3", "a4", "b3", "b4", "c3", "c4"]
+            ["a1", "a2", "a3", "a4", "b1", "b2", "b3", "b4", "c1", "c2", "c3", "c4"]
         ])
+    }
+
+    func testMultiArtistCompilationCapsAtThreeDiscs() {
+        func track(_ id: String) -> ListeningDiscTrack {
+            .init(CatalogSong(appleMusicSongID: id, title: id, artistName: "Artist"))
+        }
+
+        let artistA = (1...25).map { track("a\($0)") }
+        let artistB = (1...25).map { track("b\($0)") }
+        let result = ListeningCompilationAssembler.discs(showID: UUID(), artistTracks: [artistA, artistB])
+
+        XCTAssertEqual(ListeningCompilationAssembler.maxDiscCount, 3)
+        XCTAssertEqual(ListeningCompilationAssembler.tracksPerArtistPerDisc, 6)
+        XCTAssertEqual(result.count, 3)
+        XCTAssertEqual(result.map { $0.tracks.count }, [12, 12, 12])
+        XCTAssertEqual(result.last?.tracks.map(\.id), [
+            "a13", "a14", "a15", "a16", "a17", "a18",
+            "b13", "b14", "b15", "b16", "b17", "b18"
+        ])
+        XCTAssertFalse(result.flatMap(\.tracks).contains { $0.id == "a19" || $0.id == "b19" })
     }
 
     func testCompilationGroupingIgnoresTrackDuration() {
