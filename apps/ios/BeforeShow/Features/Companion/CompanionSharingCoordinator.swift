@@ -15,6 +15,7 @@ final class CompanionSharingCoordinator {
     private(set) var pendingAcceptResult: CompanionAcceptedImportResult?
     private(set) var pendingJoinSession: CompanionSessionSnapshot?
     private(set) var isLoadingInvitation = false
+    private(set) var invitePresentationGeneration = 0
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -108,6 +109,7 @@ final class CompanionSharingCoordinator {
     func handleAcceptedShare(
         metadata: CKShare.Metadata,
         participantDisplayName: String?,
+        importStrategy: CompanionAcceptedImportStrategy = .automatic,
         in modelContext: ModelContext
     ) async {
         enableCloudSync()
@@ -116,7 +118,11 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: participantDisplayName
             )
-            let importResult = try CompanionAcceptedSessionImporter.apply(session, in: modelContext)
+            let importResult = try CompanionAcceptedSessionImporter.apply(
+                session,
+                in: modelContext,
+                strategy: importStrategy
+            )
             pendingAcceptResult = importResult
             pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
                 ownerDisplayName: session.ownerDisplayName,
@@ -133,11 +139,11 @@ final class CompanionSharingCoordinator {
 
     func enqueueAcceptedShare(_ metadata: CKShare.Metadata) {
         enableCloudSync()
-        if pendingJoinSession == nil { isLoadingInvitation = true }
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
+        beginInvitePresentationIfNeeded()
         pendingShareMetadata.append(metadata)
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
@@ -151,7 +157,7 @@ final class CompanionSharingCoordinator {
     func flushPendingAcceptedShares(in modelContext: ModelContext) async {
         guard !isFlushingAcceptedShares, pendingJoinSession == nil else { return }
         guard let metadata = pendingShareMetadata.first else { return }
-        isLoadingInvitation = true
+        beginInvitePresentationIfNeeded()
         isFlushingAcceptedShares = true
         defer { isFlushingAcceptedShares = false }
 
@@ -211,7 +217,10 @@ final class CompanionSharingCoordinator {
         return true
     }
 
-    func confirmPendingJoin(in modelContext: ModelContext) async -> Bool {
+    func confirmPendingJoin(
+        in modelContext: ModelContext,
+        importStrategy: CompanionAcceptedImportStrategy = .automatic
+    ) async -> Bool {
         guard let key = pendingJoinMetadataKey,
               let metadata = pendingShareMetadata.first(where: {
                   CompanionAcceptedShareInbox.metadataKey($0) == key
@@ -222,6 +231,7 @@ final class CompanionSharingCoordinator {
         await handleAcceptedShare(
             metadata: metadata,
             participantDisplayName: CompanionUserProfile.nickname,
+            importStrategy: importStrategy,
             in: modelContext
         )
         guard lastErrorKind == nil, pendingAcceptResult != nil else {
@@ -457,7 +467,16 @@ final class CompanionSharingCoordinator {
         pendingAcceptResult = nil
         lastErrorMessage = nil
         lastErrorKind = nil
-        if pendingJoinSession == nil { isLoadingInvitation = true }
+        beginInvitePresentationIfNeeded(forceNewPresentation: true)
+    }
+
+    private func beginInvitePresentationIfNeeded(forceNewPresentation: Bool = false) {
+        if forceNewPresentation || (!isLoadingInvitation && pendingJoinSession == nil) {
+            invitePresentationGeneration &+= 1
+        }
+        if pendingJoinSession == nil {
+            isLoadingInvitation = true
+        }
     }
 
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
