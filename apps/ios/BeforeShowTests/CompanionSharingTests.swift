@@ -55,8 +55,8 @@ final class CompanionSharingTests: XCTestCase {
             "同行，等待朋友加入",
             "等待同行",
             "等待朋友加入",
-            "邀请已经准备好了。朋友加入后，会出现在这里。",
-            "再次分享",
+            "朋友接受邀请后，会出现在这里。",
+            "再次邀请",
         ]
 
         for locale in ["zh-Hans", "zh-Hant", "en"] {
@@ -79,7 +79,7 @@ final class CompanionSharingTests: XCTestCase {
         )
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: true),
-            BSLocalization.text("再次分享")
+            BSLocalization.text("再次邀请")
         )
     }
 
