@@ -1629,6 +1629,7 @@ First show: %@";
 "对方看到的名字" = "Name shown to others";
 "可选" = "Optional";
 "选择已有现场" = "Choose an existing show";
+"这是另一场，单独保留" = "This is a different show; keep it separate";
 "暂时无法接受邀请，请稍后重试" = "Unable to accept the invitation right now. Please try again.";
 "这份邀请已失效" = "This invitation is no longer valid.";
 "已加入同行" = "Companion joined";

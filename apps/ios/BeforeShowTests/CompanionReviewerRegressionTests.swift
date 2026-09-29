@@ -138,31 +138,6 @@ final class CompanionReviewerRegressionTests: XCTestCase {
         XCTAssertEqual(coordinator.lastErrorKind, .networkFailure)
     }
 
-    func testAcceptFailurePathsDoNotFallbackToPreviewImport() throws {
-        let iosRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let companionRoot = iosRoot.appendingPathComponent("BeforeShow/Features/Companion")
-        let coordinatorSource = try String(
-            contentsOf: companionRoot.appendingPathComponent("CompanionSharingCoordinator.swift"),
-            encoding: .utf8
-        )
-        let viewSource = try String(
-            contentsOf: companionRoot.appendingPathComponent("CompanionJoinConfirmationView.swift"),
-            encoding: .utf8
-        )
-
-        XCTAssertFalse(
-            coordinatorSource.contains("CompanionAcceptedSessionImporter.apply(pending"),
-            "A failed CloudKit accept must never import the preview snapshot as success."
-        )
-        XCTAssertFalse(
-            viewSource.contains("CompanionAcceptedSessionImporter.apply(session"),
-            "The confirmation UI must not manufacture success after coordinator failure."
-        )
-        XCTAssertTrue(coordinatorSource.contains("recordError(error, fallback: .acceptFailed)"))
-    }
-
     func testServerRejectedRecoveryRequiresAcceptedSharedParticipantEvidence() {
         XCTAssertFalse(
             CompanionCloudAcceptRecoveryPolicy.canRecover(

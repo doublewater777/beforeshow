@@ -17,6 +17,8 @@ final class CompanionSharingCoordinator {
     private(set) var isLoadingInvitation = false
     private(set) var invitePresentationGeneration = 0
     private var canceledPresentationGeneration: Int?
+    private var loadingShareKey: String?
+    private var loadingShareGeneration: Int?
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -145,7 +147,9 @@ final class CompanionSharingCoordinator {
         guard !pendingShareMetadata.contains(where: { CompanionAcceptedShareInbox.metadataKey($0) == key }) else {
             return
         }
-        beginInvitePresentationIfNeeded(forceNew: startsNewPresentation)
+        if !isLoadingInvitation && pendingJoinSession == nil {
+            beginInvitePresentationIfNeeded(forceNew: startsNewPresentation)
+        }
         pendingShareMetadata.append(metadata)
         CompanionAcceptedShareInbox.persist(pendingShareMetadata, to: userDefaults)
     }
@@ -161,9 +165,19 @@ final class CompanionSharingCoordinator {
         guard let metadata = pendingShareMetadata.first else { return }
         beginInvitePresentationIfNeeded()
         isFlushingAcceptedShares = true
-        defer { isFlushingAcceptedShares = false }
+        var resumeQueue = false
+        defer {
+            isFlushingAcceptedShares = false
+            loadingShareKey = nil
+            loadingShareGeneration = nil
+            if resumeQueue {
+                continuePendingShareDrain(in: modelContext)
+            }
+        }
 
         let key = CompanionAcceptedShareInbox.metadataKey(metadata)
+        loadingShareKey = key
+        loadingShareGeneration = invitePresentationGeneration
         lastErrorKind = nil
         do {
             let session = try await service.previewAcceptedShare(
@@ -174,6 +188,7 @@ final class CompanionSharingCoordinator {
                 CompanionAcceptedShareInbox.metadataKey($0) == key
             }) else {
                 isLoadingInvitation = false
+                resumeQueue = true
                 return
             }
 
@@ -194,6 +209,7 @@ final class CompanionSharingCoordinator {
             guard pendingShareMetadata.contains(where: {
                 CompanionAcceptedShareInbox.metadataKey($0) == key
             }) else {
+                resumeQueue = true
                 return
             }
             recordError(error, fallback: .statusSyncPending)
@@ -415,22 +431,6 @@ final class CompanionSharingCoordinator {
         }
     }
 
-    func handleShareControllerDidSave(
-        share: CKShare?,
-        for show: Show,
-        in modelContext: ModelContext
-    ) async {
-        guard let share else {
-            await refreshCompanion(for: show, in: modelContext)
-            return
-        }
-        show.companionShareRecordName = share.recordID.recordName
-        show.companionShareZoneName = share.recordID.zoneID.zoneName
-        show.companionShareOwnerName = share.recordID.zoneID.ownerName
-        try? modelContext.save()
-        await refreshCompanion(for: show, in: modelContext)
-    }
-
     func handleShareControllerDidStopSharing(
         for show: Show,
         in modelContext: ModelContext
@@ -489,8 +489,9 @@ final class CompanionSharingCoordinator {
         guard pendingJoinSession == nil else { return }
         canceledPresentationGeneration = invitePresentationGeneration
         isLoadingInvitation = false
-        if let metadata = pendingShareMetadata.first {
-            removePendingShare(key: CompanionAcceptedShareInbox.metadataKey(metadata))
+        if loadingShareGeneration == invitePresentationGeneration,
+           let loadingShareKey {
+            removePendingShare(key: loadingShareKey)
         }
         lastErrorMessage = nil
         lastErrorKind = nil
