@@ -1631,3 +1631,5 @@ First show: %@";
 "选择已有现场" = "Choose an existing show";
 "暂时无法接受邀请，请稍后重试" = "Unable to accept the invitation right now. Please try again.";
 "这份邀请已失效" = "This invitation is no longer valid.";
+"已加入同行" = "Companion joined";
+"已确认共同足迹" = "Shared footprint confirmed";
