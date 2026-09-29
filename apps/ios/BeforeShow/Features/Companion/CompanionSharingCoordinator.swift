@@ -16,6 +16,7 @@ final class CompanionSharingCoordinator {
     private(set) var pendingJoinSession: CompanionSessionSnapshot?
     private(set) var isLoadingInvitation = false
     private(set) var invitePresentationGeneration = 0
+    private var canceledInvitePresentationGeneration: Int?
     private(set) var lastErrorMessage: String?
     private(set) var lastErrorKind: CompanionSharingError?
 
@@ -171,6 +172,12 @@ final class CompanionSharingCoordinator {
                 metadata: metadata,
                 participantDisplayName: nil
             )
+            guard pendingShareMetadata.contains(where: {
+                CompanionAcceptedShareInbox.metadataKey($0) == key
+            }) else {
+                isLoadingInvitation = false
+                return
+            }
 
             if resolvePreviewedShareForExistingLocalShow(session, in: modelContext) {
                 isLoadingInvitation = false
@@ -186,6 +193,11 @@ final class CompanionSharingCoordinator {
             lastErrorKind = nil
         } catch {
             isLoadingInvitation = false
+            guard pendingShareMetadata.contains(where: {
+                CompanionAcceptedShareInbox.metadataKey($0) == key
+            }) else {
+                return
+            }
             recordError(error, fallback: .statusSyncPending)
             resolvePendingInviteFailure(key: key, clearJoin: false, in: modelContext)
         }
@@ -478,10 +490,27 @@ final class CompanionSharingCoordinator {
     private func beginInvitePresentationIfNeeded(forceNewPresentation: Bool = false) {
         if forceNewPresentation || (!isLoadingInvitation && pendingJoinSession == nil) {
             invitePresentationGeneration &+= 1
+            canceledInvitePresentationGeneration = nil
         }
         if pendingJoinSession == nil {
             isLoadingInvitation = true
         }
+    }
+
+    func cancelLoadingInvitationPresentation() {
+        guard pendingJoinSession == nil else { return }
+        canceledInvitePresentationGeneration = invitePresentationGeneration
+        isLoadingInvitation = false
+        if let metadata = pendingShareMetadata.first {
+            removePendingShare(key: CompanionAcceptedShareInbox.metadataKey(metadata))
+        }
+        lastErrorMessage = nil
+        lastErrorKind = nil
+    }
+
+    func isInvitePresentationActive(_ generation: Int) -> Bool {
+        generation == invitePresentationGeneration
+            && canceledInvitePresentationGeneration != generation
     }
 
     private func recordError(_ error: Error, fallback: CompanionSharingError? = nil) {
