@@ -125,8 +125,19 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
-            pendingAcceptResult = nil
-            recordError(error, fallback: .statusSyncPending)
+            if let pending = pendingJoinSession,
+               let importResult = try? CompanionAcceptedSessionImporter.apply(pending, in: modelContext) {
+                pendingAcceptResult = importResult
+                pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
+                    ownerDisplayName: pending.ownerDisplayName,
+                    importResult: importResult
+                )
+                lastErrorMessage = nil
+                lastErrorKind = nil
+            } else {
+                pendingAcceptResult = nil
+                recordError(error, fallback: .statusSyncPending)
+            }
         }
     }
 
@@ -190,6 +201,8 @@ final class CompanionSharingCoordinator {
         let shows = (try? modelContext.fetch(FetchDescriptor<Show>())) ?? []
         guard let existing = shows.first(where: {
             $0.companionCloudRecordName == session.sessionLocator.recordName
+                || ($0.companionShareRecordName != nil && $0.companionShareRecordName == session.shareLocator?.recordName)
+                || ($0.id.uuidString == session.show.showID && ($0.companionStatus == .confirmed || $0.companionIsOwner == true))
         }) else {
             return false
         }
@@ -286,17 +299,13 @@ final class CompanionSharingCoordinator {
                     show.clearCompanionCloudLinkage()
                 }
             } catch CompanionSharingError.sessionNotFound {
-                if show.companionStatus == .pending || show.companionStatus == .confirmed {
-                    try show.cancelCompanion()
-                }
-                show.clearCompanionCloudLinkage()
+                resetShowCompanionLinkage(show)
             } catch {
                 recordError(error)
                 throw error
             }
         } else {
-            try show.cancelCompanion()
-            show.clearCompanionCloudLinkage()
+            resetShowCompanionLinkage(show)
         }
         try modelContext.save()
     }
@@ -324,18 +333,14 @@ final class CompanionSharingCoordinator {
             let isOwnerRole = show.companionIsOwner ?? (session.show.showID == show.id.uuidString)
 
             if session.status == .canceled,
-               isOwnerRole,
                let shareLocator = show.companionShareLocator ?? session.shareLocator {
                 do {
                     _ = try await service.cancelSession(
                         sessionLocator: sessionLocator,
                         shareLocator: shareLocator,
-                        isOwner: true
+                        isOwner: isOwnerRole
                     )
-                    if show.companionStatus == .pending || show.companionStatus == .confirmed {
-                        try? show.cancelCompanion()
-                    }
-                    show.clearCompanionCloudLinkage()
+                    resetShowCompanionLinkage(show)
                     try modelContext.save()
                     lastErrorMessage = membershipWarning
                     lastErrorKind = membershipWarning == nil ? nil : .permissionDenied
@@ -350,33 +355,7 @@ final class CompanionSharingCoordinator {
                     show.companionShareRecordName = shareLocator.recordName
                     show.companionShareZoneName = shareLocator.zoneName
                     show.companionShareOwnerName = shareLocator.ownerName
-                    show.companionIsOwner = true
-                    try modelContext.save()
-                    recordError(error)
-                    return
-                }
-            }
-
-            if session.status == .canceled,
-               isOwnerRole == false,
-               let shareLocator = show.companionShareLocator ?? session.shareLocator {
-                do {
-                    _ = try await service.cancelSession(
-                        sessionLocator: sessionLocator,
-                        shareLocator: shareLocator,
-                        isOwner: false
-                    )
-                } catch {
-                    if show.companionStatus == .pending || show.companionStatus == .confirmed {
-                        try? show.cancelCompanion()
-                    }
-                    show.companionCloudRecordName = sessionLocator.recordName
-                    show.companionCloudZoneName = sessionLocator.zoneName
-                    show.companionCloudOwnerName = sessionLocator.ownerName
-                    show.companionShareRecordName = shareLocator.recordName
-                    show.companionShareZoneName = shareLocator.zoneName
-                    show.companionShareOwnerName = shareLocator.ownerName
-                    show.companionIsOwner = false
+                    show.companionIsOwner = isOwnerRole
                     try modelContext.save()
                     recordError(error)
                     return
@@ -385,10 +364,7 @@ final class CompanionSharingCoordinator {
 
             show.applyCompanionSession(session, isOwner: isOwnerRole)
             if session.status == .canceled {
-                if show.companionStatus == .pending || show.companionStatus == .confirmed {
-                    try? show.cancelCompanion()
-                }
-                show.clearCompanionCloudLinkage()
+                resetShowCompanionLinkage(show)
             }
             try modelContext.save()
             lastErrorMessage = membershipWarning
@@ -396,10 +372,7 @@ final class CompanionSharingCoordinator {
         } catch let error as CompanionSharingError
             where error == .sessionNotFound
                 || (error == .permissionDenied && show.companionIsOwner == false) {
-            if show.companionStatus == .pending || show.companionStatus == .confirmed {
-                try? show.cancelCompanion()
-            }
-            show.clearCompanionCloudLinkage()
+            resetShowCompanionLinkage(show)
             try? modelContext.save()
             lastErrorMessage = nil
             lastErrorKind = nil
@@ -457,11 +430,15 @@ final class CompanionSharingCoordinator {
         for show: Show,
         in modelContext: ModelContext
     ) async {
+        resetShowCompanionLinkage(show)
+        try? modelContext.save()
+    }
+
+    private func resetShowCompanionLinkage(_ show: Show) {
         if show.companionStatus == .pending || show.companionStatus == .confirmed {
             try? show.cancelCompanion()
         }
         show.clearCompanionCloudLinkage()
-        try? modelContext.save()
     }
 
     func handleShareControllerFailure(_ error: Error) {
@@ -480,10 +457,16 @@ final class CompanionSharingCoordinator {
 
     func handleIncomingInviteFailure(_ error: Error) {
         isLoadingInvitation = false
-        pendingAcceptMessage = Self.userMessage(for: error)
+        pendingAcceptResult = nil
+        pendingAcceptMessage = nil
+        recordError(error, fallback: .acceptFailed)
     }
 
     func beginLoadingInvitation() {
+        pendingAcceptMessage = nil
+        pendingAcceptResult = nil
+        lastErrorMessage = nil
+        lastErrorKind = nil
         if pendingJoinSession == nil { isLoadingInvitation = true }
     }
 

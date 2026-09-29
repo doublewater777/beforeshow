@@ -1608,3 +1608,14 @@ First show: %@";
 "备注名称" = "Note name";
 "仅在本地修改该同行者的展示名称。" = "Only changes the display name for this companion locally.";
 "修改备注" = "Edit Note";
+
+"已在你的现场中" = "Already in your shows";
+"关联并成为同行" = "Link & Join Companion";
+"确认共同足迹" = "Confirm Shared Footprint";
+"检测到你已记录过这场演出，确认后将直接绑定与%@的同行关系，不会创建重复现场。" = "You've already added this show. Confirming will link your companion with %@ without creating duplicates.";
+"检测到你已记录过这场演出，确认后将绑定与%@的共同足迹，不会创建重复现场。" = "You've already added this footprint. Confirming will link your shared footprint with %@ without creating duplicates.";
+"本地有 %d 场相似记录" = "%d similar shows found locally";
+"检测到你本地有多场相似记录，确认加入后可选择合并目标。" = "Multiple similar shows found locally. You can select which one to merge after joining.";
+"正在进行" = "Live Now";
+"这场正在进行中，加入后将设为你的当前现场。" = "This show is currently live and will become your current show upon joining.";
+"重新尝试" = "Retry";

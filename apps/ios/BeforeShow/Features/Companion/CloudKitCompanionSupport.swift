@@ -62,7 +62,7 @@ extension CloudKitCompanionSharingService {
         case .serverRecordChanged, .batchRequestFailed:
             return .conflict
         case .serverRejectedRequest:
-            return .sharePreparationFailed
+            return fallback
         default:
             // partialFailure may wrap unknownItem or network errors.
             if let partial = ck?.partialErrorsByItemID?.values {

@@ -25,10 +25,7 @@ struct RootView: View {
     }
 
     private var companionResultMessage: String? {
-        if let companionDuplicateErrorMessage { return companionDuplicateErrorMessage }
-        if companionCoordinator.pendingAcceptResult == nil,
-           let message = companionCoordinator.pendingAcceptMessage { return message }
-        return companionCoordinator.lastErrorKind == .statusSyncPending ? companionCoordinator.lastErrorMessage : nil
+        companionDuplicateErrorMessage
     }
     var body: some View {
         ZStack {

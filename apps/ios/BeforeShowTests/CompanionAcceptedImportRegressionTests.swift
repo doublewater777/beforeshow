@@ -300,6 +300,141 @@ final class CompanionAcceptedImportRegressionTests: XCTestCase {
         XCTAssertEqual(decoded.show.artists.first?.appleMusicArtistID, "artist-id")
     }
 
+    func testMatchLocalShowsIdentifiesCloudRecordName() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let show = try Show(name: "已有现场", date: now, startTime: now)
+        show.companionCloudRecordName = "session-123"
+
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "不同名字现场",
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now
+        )
+        let session = CompanionSessionSnapshot(
+            sessionLocator: CompanionRecordLocator(
+                recordName: "session-123",
+                zoneName: CompanionRecordLocator.companionZoneName,
+                ownerName: "owner"
+            ),
+            shareLocator: nil,
+            show: snapshot,
+            ownerDisplayName: "Alex",
+            participantDisplayName: nil,
+            participantDisplayNames: [],
+            status: .pending,
+            createdAt: now,
+            acceptedAt: nil,
+            canceledAt: nil
+        )
+
+        let result = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: [show])
+        XCTAssertEqual(result, .single(show))
+    }
+
+    func testMatchLocalShowsIdentifiesMatchingShowID() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let showID = UUID()
+        let show = try Show(id: showID, name: "现场A", date: now, startTime: now)
+
+        let snapshot = CompanionShowSnapshot(
+            showID: showID.uuidString,
+            showName: "现场A变更名",
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now
+        )
+        let session = makeSession(show: snapshot)
+
+        let result = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: [show])
+        XCTAssertEqual(result, .single(show))
+    }
+
+    func testMatchLocalShowsIdentifiesSingleDuplicateCandidate() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let localShow = try Show(
+            name: "告五人 宇宙的有趣 巡回演唱会",
+            date: now,
+            startTime: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "告五人 宇宙的有趣 巡回演唱会",
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        let session = makeSession(show: snapshot)
+
+        let result = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: [localShow])
+        XCTAssertEqual(result, .single(localShow))
+    }
+
+    func testMatchLocalShowsIdentifiesMultipleDuplicateCandidates() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let local1 = try Show(
+            name: "告五人 宇宙的有趣 巡回演唱会",
+            date: now,
+            startTime: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        let local2 = try Show(
+            name: "告五人 宇宙的有趣 巡回演唱会",
+            date: now,
+            startTime: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "告五人 宇宙的有趣 巡回演唱会",
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now,
+            city: "上海",
+            venueName: "梅赛德斯-奔驰文化中心"
+        )
+        let session = makeSession(show: snapshot)
+
+        let result = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: [local1, local2])
+        if case .multiple(let candidates) = result {
+            XCTAssertEqual(candidates.count, 2)
+        } else {
+            XCTFail("Expected .multiple, got \(result)")
+        }
+    }
+
+    func testMatchLocalShowsReturnsNoneWhenNoMatch() throws {
+        let now = Date(timeIntervalSince1970: 2_000_000_000)
+        let local = try Show(
+            name: "五月天 回到那一天",
+            date: now.addingTimeInterval(86400 * 10),
+            startTime: now.addingTimeInterval(86400 * 10),
+            city: "北京"
+        )
+
+        let snapshot = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "告五人 宇宙的有趣",
+            showDate: now,
+            showStartTime: now,
+            sourceShowDate: now,
+            city: "上海"
+        )
+        let session = makeSession(show: snapshot)
+
+        let result = CompanionAcceptedShowMapping.matchLocalShows(for: session, in: [local])
+        XCTAssertEqual(result, .none)
+    }
+
     private func makeContainer() throws -> ModelContainer {
         let configuration = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(

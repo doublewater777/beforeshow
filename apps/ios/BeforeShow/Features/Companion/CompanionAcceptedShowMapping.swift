@@ -1,7 +1,46 @@
 import Foundation
 
+enum CompanionLocalMatchResult: Equatable {
+    case none
+    case single(Show)
+    case multiple([Show])
+}
+
 @MainActor
 enum CompanionAcceptedShowMapping {
+    static func matchLocalShows(
+        for snapshot: CompanionSessionSnapshot,
+        in shows: [Show]
+    ) -> CompanionLocalMatchResult {
+        if let existing = shows.first(where: {
+            $0.companionCloudRecordName == snapshot.sessionLocator.recordName
+        }) {
+            return .single(existing)
+        }
+
+        if let sourceID = UUID(uuidString: snapshot.show.showID),
+           let byID = shows.first(where: { $0.id == sourceID }) {
+            return .single(byID)
+        }
+
+        guard let candidate = try? makeShow(from: snapshot.show) else {
+            return .none
+        }
+
+        let duplicateCandidates = shows.filter { existing in
+            guard existing.companionCloudRecordName == nil else { return false }
+            return ShowDuplicateMatcher.isDuplicate(candidate, existing)
+        }
+
+        if duplicateCandidates.count == 1, let match = duplicateCandidates.first {
+            return .single(match)
+        } else if duplicateCandidates.count > 1 {
+            return .multiple(duplicateCandidates)
+        }
+
+        return .none
+    }
+
     static func makeShow(from snapshot: CompanionShowSnapshot) throws -> Show {
         let legacyLocation = legacyLocationParts(snapshot.showLocation)
         let sourceDate = snapshot.sourceShowDate ?? snapshot.showDate

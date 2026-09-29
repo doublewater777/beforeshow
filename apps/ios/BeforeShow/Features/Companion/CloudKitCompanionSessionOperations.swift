@@ -97,21 +97,26 @@ extension CloudKitCompanionSharingService {
 
         let acceptedMetadata = try await metadataIncludingRootRecord(metadata)
         let shareLocator = CompanionRecordLocator(recordID: acceptedMetadata.share.recordID)
+        let isOwner = acceptedMetadata.share.currentUserParticipant?.role == .owner
         let acceptedShare: CKShare
-        do {
-            acceptedShare = try await container.accept(acceptedMetadata)
-        } catch {
-            let ck = error as? CKError
-            if ck?.code != .alreadyShared {
-                throw Self.mapError(error, fallback: .acceptFailed)
-            }
+        if isOwner {
+            acceptedShare = acceptedMetadata.share
+        } else {
             do {
-                guard let existingShare = try await sharedDB.record(for: shareLocator.recordID) as? CKShare else {
-                    throw CompanionSharingError.sessionNotFound
-                }
-                acceptedShare = existingShare
+                acceptedShare = try await container.accept(acceptedMetadata)
             } catch {
-                throw Self.mapError(error, fallback: .statusSyncPending)
+                let ck = error as? CKError
+                if ck?.code == .alreadyShared || ck?.code == .serverRejectedRequest {
+                    if let existing = try? await sharedDB.record(for: shareLocator.recordID) as? CKShare {
+                        acceptedShare = existing
+                    } else if let privateShare = try? await privateDB.record(for: shareLocator.recordID) as? CKShare {
+                        acceptedShare = privateShare
+                    } else {
+                        acceptedShare = acceptedMetadata.share
+                    }
+                } else {
+                    throw Self.mapError(error, fallback: .acceptFailed)
+                }
             }
         }
 
@@ -121,9 +126,15 @@ extension CloudKitCompanionSharingService {
 
         let record: CKRecord
         do {
-            record = try await sharedDB.record(for: rootID)
+            record = try await (isOwner ? privateDB : sharedDB).record(for: rootID)
         } catch {
-            throw Self.mapError(error)
+            if let backup = try? await (isOwner ? sharedDB : privateDB).record(for: rootID) {
+                record = backup
+            } else if let preloaded = acceptedMetadata.rootRecord {
+                record = preloaded
+            } else {
+                throw Self.mapError(error, fallback: .acceptFailed)
+            }
         }
 
         func leaveShareOrThrowCleanupPending() async throws {
