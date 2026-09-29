@@ -10,8 +10,11 @@ enum CompanionSharingPresentation {
         guard let importResult else {
             return BSLocalization.format("已与%@确认同行", owner)
         }
+        if !importResult.inserted, importResult.wasHistorical {
+            return BSLocalization.text("已确认共同足迹")
+        }
         if !importResult.inserted {
-            return BSLocalization.text("这场已经在你的现场里，已添加同行关系")
+            return BSLocalization.text("已加入同行")
         }
         if importResult.wasHistorical {
             return BSLocalization.format("已加入足迹，你和%@已记录为同行", owner)
