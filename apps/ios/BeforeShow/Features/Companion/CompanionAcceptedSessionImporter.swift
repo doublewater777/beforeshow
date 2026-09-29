@@ -71,6 +71,10 @@ enum CompanionAcceptedSessionImporter {
             return ShowDuplicateMatcher.isDuplicate(candidate, existing)
         }
 
+        if strategy == .automatic, duplicateCandidates.count > 1 {
+            throw CompanionSharingError.conflict
+        }
+
         if strategy == .automatic,
            duplicateCandidates.count == 1,
            let match = duplicateCandidates.first {
