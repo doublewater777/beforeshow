@@ -178,9 +178,16 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     private let content: Content
 
     @State private var dragTranslation: CGFloat = 0
+    @State private var dragAxis: DragAxis?
 
     private let actionWidth: CGFloat = 92
     private let actionHeight: CGFloat = 80
+    private let settleAnimation = Animation.spring(response: 0.24, dampingFraction: 0.90)
+
+    private enum DragAxis {
+        case horizontal
+        case vertical
+    }
 
     init(
         isRevealed: Bool,
@@ -205,7 +212,11 @@ struct BSSwipeRevealActionRow<Content: View>: View {
     }
 
     private var rowOffset: CGFloat {
-        min(0, max(-actionWidth, restingOffset + dragTranslation))
+        clampedOffset(restingOffset + dragTranslation)
+    }
+
+    private func clampedOffset(_ offset: CGFloat) -> CGFloat {
+        min(0, max(-actionWidth, offset))
     }
 
     var body: some View {
@@ -230,20 +241,40 @@ struct BSSwipeRevealActionRow<Content: View>: View {
             content
                 .offset(x: rowOffset)
                 .simultaneousGesture(
-                    DragGesture(minimumDistance: 10)
+                    DragGesture(minimumDistance: 4)
                         .onChanged { value in
-                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                            if dragAxis == nil {
+                                let horizontalDistance = abs(value.translation.width)
+                                let verticalDistance = abs(value.translation.height)
+                                guard max(horizontalDistance, verticalDistance) >= 4 else {
+                                    return
+                                }
+                                dragAxis = horizontalDistance >= verticalDistance ? .horizontal : .vertical
+                            }
+
+                            guard dragAxis == .horizontal else {
                                 return
                             }
                             dragTranslation = value.translation.width
                         }
                         .onEnded { value in
-                            defer { dragTranslation = 0 }
-                            guard abs(value.translation.width) > abs(value.translation.height) else {
+                            let endedAxis = dragAxis
+                            dragAxis = nil
+
+                            guard endedAxis == .horizontal else {
+                                dragTranslation = 0
                                 return
                             }
-                            let projectedOffset = restingOffset + value.predictedEndTranslation.width
-                            onReveal(projectedOffset < -(actionWidth * 0.45))
+
+                            let projectedOffset = clampedOffset(
+                                restingOffset + value.predictedEndTranslation.width
+                            )
+                            let shouldReveal = projectedOffset < -(actionWidth * 0.45)
+
+                            withAnimation(settleAnimation) {
+                                onReveal(shouldReveal)
+                                dragTranslation = 0
+                            }
                         }
                 )
         }
