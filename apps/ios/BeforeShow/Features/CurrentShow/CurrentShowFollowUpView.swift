@@ -45,9 +45,7 @@ struct CurrentShowFollowUpSummary: View {
                     actionIcon: "pin.fill",
                     tint: BSColor.Stage.accent,
                     onReveal: { isRevealed in
-                        withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                            revealedShowID = isRevealed ? show.id : nil
-                        }
+                        revealedShowID = isRevealed ? show.id : nil
                     },
                     onAction: {
                         revealedShowID = nil
