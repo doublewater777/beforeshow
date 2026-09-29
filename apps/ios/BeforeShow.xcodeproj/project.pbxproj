@@ -63,6 +63,7 @@
 		1F0E1A54749C9110DBE3FDA8 /* ListeningFeatureRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BF2E303C65A490FEAD719A5 /* ListeningFeatureRootView.swift */; };
 		1F77E82713194DFFFA8EA590 /* ListeningDeletionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55E0BFFD543497340D9559D4 /* ListeningDeletionTests.swift */; };
 		20486D5924155603EEAAB008 /* Localization.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8EC1B68DEEEAAB0C5B09FE9 /* Localization.swift */; };
+		2131DD7D728E6902ADA55DEF /* CloudKitCompanionShareMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = C58CF37142574F557DA41813 /* CloudKitCompanionShareMetadata.swift */; };
 		225D745BC5EECCA07E9516FB /* MemoryReviewViewer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6F0BF0CDFF901222D5609E1 /* MemoryReviewViewer.swift */; };
 		22A3F4D696BFC0316342388E /* CompanionAcceptedShowMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = C767A2E9637F278B504A23E3 /* CompanionAcceptedShowMapping.swift */; };
 		232BEAB2B7CB09D2E3A993C5 /* FootprintCityArchiveViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CDAFFFF478D277E6B2F922D /* FootprintCityArchiveViews.swift */; };
@@ -788,6 +789,7 @@
 		C266320392E096A6FE13737F /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C2DFA64D9D61B53101C4BCC2 /* CompanionDuplicateResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionDuplicateResolution.swift; sourceTree = "<group>"; };
 		C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSampleShowSeeder.swift; sourceTree = "<group>"; };
+		C58CF37142574F557DA41813 /* CloudKitCompanionShareMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionShareMetadata.swift; sourceTree = "<group>"; };
 		C59A0670159D0CB9138FD56D /* Show.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Show.swift; sourceTree = "<group>"; };
 		C5FCD7E536580A6F1574679B /* ListeningPeekingDisc.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningPeekingDisc.swift; sourceTree = "<group>"; };
 		C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionSessionOperations.swift; sourceTree = "<group>"; };
@@ -1641,6 +1643,7 @@
 			children = (
 				6DE5A68F7881574967B602FE /* CloudKitCompanionInvitation.swift */,
 				C629FBF89608A7346B7E60DC /* CloudKitCompanionSessionOperations.swift */,
+				C58CF37142574F557DA41813 /* CloudKitCompanionShareMetadata.swift */,
 				55FE597F63F6F59C15362AB5 /* CloudKitCompanionSharingService.swift */,
 				CCED72F79D338D7BEDD7F090 /* CloudKitCompanionSupport.swift */,
 				D58A2BAC3CA068BF74DC74EA /* CloudSharingView.swift */,
@@ -1853,6 +1856,7 @@
 				7422BB32A59D7801571DEC4F /* CatalogSong.swift in Sources */,
 				2ED953EA83EAB4643C984778 /* CloudKitCompanionInvitation.swift in Sources */,
 				BF28973FC8DEBD3C14466C18 /* CloudKitCompanionSessionOperations.swift in Sources */,
+				2131DD7D728E6902ADA55DEF /* CloudKitCompanionShareMetadata.swift in Sources */,
 				1685174592E658DB074ADF49 /* CloudKitCompanionSharingService.swift in Sources */,
 				3F0E8E5DE5F2EEDF6416BDEB /* CloudKitCompanionSupport.swift in Sources */,
 				60CA16B11397B83A86F1FEA7 /* CloudSharingView.swift in Sources */,

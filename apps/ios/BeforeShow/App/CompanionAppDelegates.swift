@@ -55,13 +55,12 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
             guard let self else { return }
             companionCoordinator?.beginLoadingInvitation()
             do {
+                try await CloudKitCompanionSharingService().ensureAccountAvailable()
                 let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
                 deliverAcceptedShare(metadata)
             } catch {
                 CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
-                companionCoordinator?.handleIncomingInviteFailure(
-                    CompanionSharingError.acceptFailed
-                )
+                companionCoordinator?.handleIncomingInviteFailure(error)
             }
         }
     }

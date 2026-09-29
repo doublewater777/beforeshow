@@ -90,26 +90,6 @@ extension CloudKitCompanionSharingService {
         return try await Self.fetchMetadataWithRootRecord(for: shareURL, in: container)
     }
 
-    static func fetchMetadataWithRootRecord(
-        for shareURL: URL,
-        in container: CKContainer = CKContainer(identifier: defaultContainerIdentifier)
-    ) async throws -> CKShare.Metadata {
-        return try await withCheckedThrowingContinuation { continuation in
-            let operation = CKFetchShareMetadataOperation(shareURLs: [shareURL])
-            operation.shouldFetchRootRecord = true
-            operation.qualityOfService = .userInitiated
-            operation.perShareMetadataResultBlock = { _, result in
-                switch result {
-                case .success(let metadata):
-                    continuation.resume(returning: metadata)
-                case .failure(let error):
-                    continuation.resume(throwing: Self.mapError(error, fallback: .acceptFailed))
-                }
-            }
-            container.add(operation)
-        }
-    }
-
     private func acceptedShareContext(
         metadata: CKShare.Metadata
     ) async throws -> CompanionAcceptedShareContext {
