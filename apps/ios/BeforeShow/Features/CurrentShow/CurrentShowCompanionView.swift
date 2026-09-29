@@ -329,7 +329,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2.fill",
                 title: companionTitle,
-                subtitle: BSLocalization.text("这场现场已添加同行。")
+                subtitle: BSLocalization.text("这场已添加同行。")
             )
 
             companionMembers
