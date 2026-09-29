@@ -3,13 +3,14 @@ import SwiftUI
 private struct ListeningArtistSelectorItem: View {
     let artist: ListeningBrowseArtist
     let isSelected: Bool
-    let onSelect: () -> Void
+    let onSelect: (CGRect) -> Void
     let onConnect: () -> Void
+    @State private var frame: CGRect = .zero
 
     var body: some View {
         Button {
             if artist.isConnected {
-                onSelect()
+                onSelect(frame)
             } else {
                 onConnect()
             }
@@ -20,6 +21,7 @@ private struct ListeningArtistSelectorItem: View {
             }
         }
         .buttonStyle(.plain)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("artistSelectorViewport")) } action: { frame = $0 }
         .contextMenu {
             if artist.isConnected {
                 Button {
@@ -46,18 +48,26 @@ struct ListeningArtistSelector: View {
     let selection: ListeningBrowseState.Scope
     let select: (ListeningBrowseState.Scope) -> Void
     let onConnect: (Int, String) -> Void
+    @State private var viewportWidth: CGFloat = 0
+    @State private var allFrame: CGRect = .zero
 
     var body: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: BSSpacing.sm) {
-                    allItem
+                    allItem {
+                        select(.all)
+                        revealIfNeeded("all", frame: allFrame, proxy: proxy)
+                    }
                         .id("all")
                     ForEach(artists) { artist in
                         ListeningArtistSelectorItem(
                             artist: artist,
                             isSelected: artist.isConnected && selection == .artist(artist.id),
-                            onSelect: { select(.artist(artist.id)) },
+                            onSelect: { frame in
+                                select(.artist(artist.id))
+                                revealIfNeeded(artist.id, frame: frame, proxy: proxy)
+                            },
                             onConnect: { onConnect(artist.slotIndex, artist.name) }
                         )
                         .id(artist.id)
@@ -66,21 +76,15 @@ struct ListeningArtistSelector: View {
             }
             .frame(height: BSLayout.minTouchTarget)
             .padding(.top, BSSpacing.sm)
-            .onChange(of: selection) { _, scope in
-                withAnimation(BSListeningTokens.selectionAnimation) {
-                    switch scope {
-                    case .all: proxy.scrollTo("all", anchor: .topLeading)
-                    case let .artist(id): proxy.scrollTo(id, anchor: UnitPoint(x: 0.5, y: 0))
-                    }
-                }
-            }
+            .coordinateSpace(name: "artistSelectorViewport")
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { viewportWidth = $0 }
         }
         .accessibilityIdentifier("listening.artistSelector")
     }
 
-    private var allItem: some View {
+    private func allItem(onSelect: @escaping () -> Void) -> some View {
         let isSelected = selection == .all
-        return Button { select(.all) } label: {
+        return Button(action: onSelect) {
             ListeningArtistChip(
                 title: ListeningCopy.text("热门合辑"),
                 isSelected: isSelected
@@ -91,7 +95,23 @@ struct ListeningArtistSelector: View {
             }
         }
         .buttonStyle(.plain)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .named("artistSelectorViewport")) } action: { allFrame = $0 }
         .accessibilityLabel(ListeningCopy.text("热门合辑"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func revealIfNeeded(_ id: String, frame: CGRect, proxy: ScrollViewProxy) {
+        guard viewportWidth > 0, frame.width > 0 else { return }
+        let anchor: UnitPoint
+        if frame.minX < 0 {
+            anchor = .topLeading
+        } else if frame.maxX > viewportWidth {
+            anchor = UnitPoint(x: 1, y: 0)
+        } else {
+            return
+        }
+        withAnimation(BSListeningTokens.selectionAnimation) {
+            proxy.scrollTo(id, anchor: anchor)
+        }
     }
 }
