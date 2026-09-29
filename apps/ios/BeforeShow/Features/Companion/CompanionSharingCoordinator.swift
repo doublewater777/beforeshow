@@ -125,19 +125,9 @@ final class CompanionSharingCoordinator {
             lastErrorMessage = nil
             lastErrorKind = nil
         } catch {
-            if let pending = pendingJoinSession,
-               let importResult = try? CompanionAcceptedSessionImporter.apply(pending, in: modelContext) {
-                pendingAcceptResult = importResult
-                pendingAcceptMessage = CompanionSharingPresentation.acceptedMessage(
-                    ownerDisplayName: pending.ownerDisplayName,
-                    importResult: importResult
-                )
-                lastErrorMessage = nil
-                lastErrorKind = nil
-            } else {
-                pendingAcceptResult = nil
-                recordError(error, fallback: .statusSyncPending)
-            }
+            pendingAcceptResult = nil
+            pendingAcceptMessage = nil
+            recordError(error, fallback: .acceptFailed)
         }
     }
 
