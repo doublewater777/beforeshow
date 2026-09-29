@@ -68,7 +68,7 @@ struct CompanionQuickActionPresentation: Equatable {
             showsAvatars = false
         case .pending:
             title = BSLocalization.text("待确认")
-            displayTitle = BSLocalization.text("等待同行")
+            displayTitle = BSLocalization.text("等待朋友")
             accessibilityLabel = BSLocalization.text("同行，等待朋友加入")
             showsPendingIndicator = true
             displayShowsPendingIndicator = false
