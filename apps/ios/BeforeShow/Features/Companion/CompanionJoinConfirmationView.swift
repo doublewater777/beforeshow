@@ -480,7 +480,7 @@ private struct CompanionJoinConfirmationView: View {
                 Image(systemName: "person.circle.fill")
                     .font(.system(size: 20))
                     .foregroundStyle(BSColor.Stage.accent)
-                TextField(BSLocalization.text("输入你的昵称"), text: $myNickname)
+                TextField(BSLocalization.text("输入称呼"), text: $myNickname)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(BSColor.Stage.foreground)
             }
@@ -510,12 +510,12 @@ private struct CompanionJoinConfirmationView: View {
         switch localMatch {
         case .single:
             return historical
-                ? BSLocalization.text("确认共同足迹")
-                : BSLocalization.text("关联并成为同行")
+                ? BSLocalization.text("确认一起去过")
+                : BSLocalization.text("接受邀请")
         case .multiple, .none:
             return historical
                 ? BSLocalization.text("确认一起去过")
-                : BSLocalization.text("加入这场同行")
+                : BSLocalization.text("接受邀请")
         }
     }
 
@@ -525,17 +525,17 @@ private struct CompanionJoinConfirmationView: View {
         switch localMatch {
         case .single:
             return historical
-                ? BSLocalization.format("检测到你已记录过这场演出，确认后将绑定与%@的共同足迹，不会创建重复现场。", owner)
-                : BSLocalization.format("检测到你已记录过这场演出，确认后将直接绑定与%@的同行关系，不会创建重复现场。", owner)
+                ? BSLocalization.format("这场已经在你的足迹里。确认后，会记录你和%@一起去过，不会重复添加。", owner)
+                : BSLocalization.format("这场已经在「我的现场」里。接受后，你和%@会显示为同行，不会重复添加。", owner)
         case .multiple:
-            return BSLocalization.text("检测到你本地有多场相似记录，确认加入后可选择合并目标。")
+            return BSLocalization.text("你有多场相似记录。接受后，可以选择对应的那一场。")
         case .none:
             if historical {
                 return BSLocalization.text("确认后，这场会进入你的足迹，并记录你们一起去过。")
             } else if hasOtherCurrentShow {
-                return BSLocalization.text("这场正在进行中，加入后将设为你的当前现场。")
+                return BSLocalization.text("接受后，这场会设为你的当前现场。")
             } else {
-                return BSLocalization.text("加入后可在现场页看到彼此状态，并共同记录足迹。")
+                return BSLocalization.format("接受后，这场会加入「我的现场」，你和%@会显示为同行。", owner)
             }
         }
     }
