@@ -211,6 +211,71 @@ final class ListeningLoadingTests: XCTestCase {
         XCTAssertEqual(catalog.fullFetchCount, 1, "returning to the compilation scope must not fetch other artists")
     }
 
+    func testSelectingArtistDuringRuntimeRefreshLoadsThatArtistAfterRefresh() async throws {
+        let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
+        let context = container.mainContext
+        let start = Date().addingTimeInterval(20_000)
+        let show = try Show(name: "Scope Race Festival", date: start, startTime: start)
+        show.artists = (0..<2).map {
+            ArtistSlot(name: "Artist \($0)", avatarURL: nil, appleMusicArtistID: "artist-\($0)")
+        }
+        context.insert(show)
+
+        for artistIndex in 0..<2 {
+            let songID = "cached-\(artistIndex)"
+            context.insert(CatalogSong(
+                appleMusicSongID: songID,
+                title: "Cached \(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                duration: 180
+            ))
+            context.insert(ArtistCatalogSnapshot(
+                artistID: "artist-\(artistIndex)",
+                artistName: "artist-\(artistIndex)",
+                orderedSongIDs: [songID],
+                topSongIDs: [songID],
+                albumIDs: [],
+                fetchedAt: Date()
+            ))
+        }
+        try context.save()
+
+        let catalog = GatedLargeFestivalCatalog(gateRuntime: true)
+        let room = ListeningRoomCoordinator(
+            context: context,
+            catalogService: catalog,
+            artistSearchService: EmptyArtistSearch(),
+            playbackFactory: { _ in ListeningFixturePlayer() }
+        )
+        defer {
+            catalog.releaseRuntimeCatalog()
+            catalog.releaseFullCatalog()
+            room.stop()
+            room.mechanism.motion.stop()
+        }
+
+        await room.load(show: show)
+        XCTAssertEqual(catalog.runtimeFetchCount, 0)
+
+        let refresh = Task { await room.reloadCatalog(force: true) }
+        try await wait { catalog.runtimeFetchCount == 2 }
+
+        room.selectScope(.artist("artist-1"))
+        XCTAssertEqual(catalog.fullFetchCount, 0, "selected artist should wait for the in-flight runtime refresh instead of starting a competing catalog generation")
+
+        catalog.releaseRuntimeCatalog()
+        await refresh.value
+        try await wait { catalog.fullFetchCount == 1 }
+
+        XCTAssertEqual(catalog.fullFetchArtistIDs, ["artist-1"])
+
+        catalog.releaseFullCatalog()
+        try await wait {
+            room.browsingArtist?.id == "artist-1"
+                && room.browsingArtist?.albums.count == 15
+        }
+    }
+
     func testCompilationPlaybackUsesOneQueueAcrossVisibleVolumes() async throws {
         let container = try ModelContainerFactory.make(isStoredInMemoryOnly: true)
         let context = container.mainContext
@@ -562,6 +627,9 @@ private final class CompilationQueuePlaybackService: ListeningPlaybackServicing 
 
 private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @unchecked Sendable {
     private let lock = NSLock()
+    private let gateRuntime: Bool
+    private var runtimeCatalogReleased = false
+    private var runtimeCatalogWaiters: [CheckedContinuation<Void, Never>] = []
     private var fullCatalogReleased = false
     private var fullCatalogWaiters: [CheckedContinuation<Void, Never>] = []
     private var storedRuntimeFetchCount = 0
@@ -574,6 +642,10 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
     var fullFetchArtistIDs: [String] { lock.withLock { storedFullFetchArtistIDs } }
     var featuredPlaylistFetchCount: Int { lock.withLock { storedFeaturedPlaylistFetchCount } }
 
+    init(gateRuntime: Bool = false) {
+        self.gateRuntime = gateRuntime
+    }
+
     func currentAuthorizationStatus() -> ListeningMusicAuthorizationStatus { .authorized }
     func requestAuthorization() async -> ListeningMusicAuthorizationStatus { .authorized }
     func currentAccess() async -> ListeningMusicAccess {
@@ -582,6 +654,9 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
 
     func fetchRuntimeSongs(artistID: String) async throws -> [ListeningCatalogSongPayload] {
         lock.withLock { storedRuntimeFetchCount += 1 }
+        if gateRuntime {
+            await waitForRuntimeCatalogRelease()
+        }
         return Array(Self.payload(artistID: artistID, fetchedAt: Date()).songs.prefix(10))
     }
 
@@ -608,6 +683,27 @@ private final class GatedLargeFestivalCatalog: ListeningMusicCatalogServicing, @
             songs: [],
             fetchedAt: fetchedAt
         )
+    }
+
+    func releaseRuntimeCatalog() {
+        let waiters: [CheckedContinuation<Void, Never>] = lock.withLock {
+            guard !runtimeCatalogReleased else { return [] }
+            runtimeCatalogReleased = true
+            defer { runtimeCatalogWaiters.removeAll() }
+            return runtimeCatalogWaiters
+        }
+        waiters.forEach { $0.resume() }
+    }
+
+    private func waitForRuntimeCatalogRelease() async {
+        await withCheckedContinuation { continuation in
+            let resumeImmediately = lock.withLock {
+                if runtimeCatalogReleased { return true }
+                runtimeCatalogWaiters.append(continuation)
+                return false
+            }
+            if resumeImmediately { continuation.resume() }
+        }
     }
 
     func releaseFullCatalog() {
