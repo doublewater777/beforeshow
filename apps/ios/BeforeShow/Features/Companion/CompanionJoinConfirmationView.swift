@@ -104,11 +104,8 @@ struct CompanionPendingJoinHost: View {
                     isWorking: isWorking,
                     completionMessage: completionMessage,
                     errorMessage: errorMessage,
-                    onJoin: { strategy, switchToCurrent in
-                        confirmJoin(
-                            importStrategy: strategy,
-                            switchToCurrent: switchToCurrent
-                        )
+                    onJoin: { strategy in
+                        confirmJoin(importStrategy: strategy)
                     },
                     onClose: { handleClose() }
                 )
@@ -166,10 +163,7 @@ struct CompanionPendingJoinHost: View {
         }
     }
 
-    private func confirmJoin(
-        importStrategy: CompanionAcceptedImportStrategy,
-        switchToCurrent: Bool
-    ) {
+    private func confirmJoin(importStrategy: CompanionAcceptedImportStrategy) {
         guard !isWorking else { return }
         isWorking = true
         Task { @MainActor in
@@ -178,10 +172,6 @@ struct CompanionPendingJoinHost: View {
                 importStrategy: importStrategy
             )
             if succeeded {
-                let result = coordinator.pendingAcceptResult
-                if switchToCurrent, let showID = result?.showID {
-                    await switchLiveShowToCurrent(showID: showID)
-                }
                 let message = coordinator.consumePendingAcceptMessage()
                 _ = coordinator.consumePendingAcceptResult()
                 errorMessage = nil
@@ -217,24 +207,6 @@ struct CompanionPendingJoinHost: View {
         }
     }
 
-    @MainActor
-    private func switchLiveShowToCurrent(showID: UUID) async {
-        do {
-            let shows = try modelContext.fetch(FetchDescriptor<Show>())
-            let selections = try modelContext.fetch(FetchDescriptor<CurrentShowSelection>())
-            let notificationStates = try modelContext.fetch(FetchDescriptor<NotificationSchedulingState>())
-            _ = try await ShowMutationCoordinator.selectCurrentShow(
-                showID: showID,
-                shows: shows,
-                selections: selections,
-                notificationStates: notificationStates,
-                in: modelContext
-            )
-        } catch {
-            modelContext.rollback()
-        }
-    }
-
     private func dismissAfterInlineSuccess(_ message: String) {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 700_000_000)
@@ -257,7 +229,7 @@ private struct CompanionJoinConfirmationView: View {
     let isWorking: Bool
     let completionMessage: String?
     let errorMessage: String?
-    let onJoin: (CompanionAcceptedImportStrategy, Bool) -> Void
+    let onJoin: (CompanionAcceptedImportStrategy) -> Void
     let onClose: () -> Void
     @Query private var localShows: [Show]
     @Query private var selections: [CurrentShowSelection]
@@ -332,12 +304,17 @@ private struct CompanionJoinConfirmationView: View {
     }
 
     private var selectedImportStrategy: CompanionAcceptedImportStrategy {
-        guard case .multiple = localMatch else { return .automatic }
-        switch duplicateChoice {
-        case .merge(let showID): return .mergeInto(showID)
-        case .keepSeparate: return .keepSeparate
-        case nil: return .automatic
+        let strategy: CompanionAcceptedImportStrategy
+        if case .multiple = localMatch {
+            switch duplicateChoice {
+            case .merge(let showID): strategy = .mergeInto(showID)
+            case .keepSeparate: strategy = .keepSeparate
+            case nil: strategy = .automatic
+            }
+        } else {
+            strategy = .automatic
         }
+        return strategy.settingCurrent(switchToCurrentAfterJoin)
     }
 
     private var needsDuplicateChoice: Bool {
@@ -786,7 +763,7 @@ private struct CompanionJoinConfirmationView: View {
                 if !trimmed.isEmpty {
                     CompanionUserProfile.nickname = trimmed
                 }
-                onJoin(selectedImportStrategy, switchToCurrentAfterJoin)
+                onJoin(selectedImportStrategy)
             } label: {
                 if isWorking {
                     ProgressView()
