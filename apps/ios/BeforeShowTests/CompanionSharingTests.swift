@@ -32,12 +32,32 @@ final class CompanionSharingTests: XCTestCase {
         )
     }
 
+    func testPendingQuickActionShowsWaitingState() {
+        let presentation = CompanionQuickActionPresentation(
+            status: .pending,
+            companionNames: [],
+            isEnded: false
+        )
+
+        XCTAssertEqual(presentation.displayTitle, BSLocalization.text("等待同行"))
+        XCTAssertEqual(presentation.accessibilityLabel, BSLocalization.text("同行，等待朋友加入"))
+        XCTAssertFalse(presentation.showsAvatars)
+    }
+
     func testQuickActionLocalizationKeysExistInThreeLanguages() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("BeforeShow")
-        let keys = ["添加同行", "%lld 人同行", "同行，等待朋友加入"]
+        let keys = [
+            "添加同行",
+            "%lld 人同行",
+            "同行，等待朋友加入",
+            "等待同行",
+            "等待朋友加入",
+            "邀请已经准备好了。朋友加入后，会出现在这里。",
+            "再次分享",
+        ]
 
         for locale in ["zh-Hans", "zh-Hant", "en"] {
             let data = try Data(
@@ -59,7 +79,7 @@ final class CompanionSharingTests: XCTestCase {
         )
         XCTAssertEqual(
             CompanionInvitePreparingPresentation.actionTitle(hasExistingShare: true),
-            BSLocalization.text("再次分享邀请")
+            BSLocalization.text("再次分享")
         )
     }
 
