@@ -47,7 +47,7 @@ struct ListeningCabinetView<Placeholder: View>: View {
         ) {
             if shelfDiscs.isEmpty {
                 placeholder
-                    .frame(maxHeight: .infinity)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
             } else {
                 HStack(alignment: .bottom, spacing: 0) {
                     ForEach(Array(shelfDiscs.enumerated()), id: \.element.id) { index, disc in

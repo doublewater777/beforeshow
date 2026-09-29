@@ -60,6 +60,9 @@ private let listeningCatalogFetchConcurrency = 4
     private var transportIsPlaying: Bool { transportPlaybackPhase.isPlaying }
     private(set) var timeText: String = "00:00"
     private(set) var trackIndex = 0
+    private(set) var persistedPlaybackTime: TimeInterval = 0 {
+        didSet { updateTimeText() }
+    }
     private(set) var wantedSongIDs: Set<String> = []
     private(set) var familiarSongIDs: Set<String> = []
     private(set) var actualSongIDs: Set<String> = []
@@ -111,6 +114,7 @@ private let listeningCatalogFetchConcurrency = 4
     @ObservationIgnored private var showCatalogKey: String?
     @ObservationIgnored private var completedCatalogKey: String?
     @ObservationIgnored private var preparedSongID: String?
+    @ObservationIgnored private var pendingResumePosition: (songID: String, time: TimeInterval)?
     @ObservationIgnored private var preparedDiscID: String?
     @ObservationIgnored private var finishedSongID: String?
     @ObservationIgnored private var catalogProjectionContext: ModelContext?
@@ -208,6 +212,10 @@ private let listeningCatalogFetchConcurrency = 4
             }
             mechanism.restoreSeated(disc)
             trackIndex = state.songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+            persistedPlaybackTime = state.currentTime.isFinite ? max(0, state.currentTime) : 0
+            pendingResumePosition = persistedPlaybackTime > 0
+                ? state.songID.map { ($0, persistedPlaybackTime) }
+                : nil
             preparedSongID = nil
             playbackState = .idle
             transportPlaybackState = .idle
@@ -215,19 +223,24 @@ private let listeningCatalogFetchConcurrency = 4
             trackBelongsToShow = true
         } catch {}
     }
-    private func persistLoadedDisc() {
+    private func persistLoadedDisc(currentTime: TimeInterval? = nil, force: Bool = false) {
         guard mechanism.position == .seated, let disc = mechanism.disc else { return }
         do {
-            let data = try JSONEncoder().encode(disc)
             let songID = disc.tracks.indices.contains(trackIndex) ? disc.tracks[trackIndex].id : nil
+            let time = currentTime ?? persistedPlaybackTime
+            guard time.isFinite, time >= 0 else { return }
             let states = try context.fetch(FetchDescriptor<ListeningLoadedDiscState>())
             if let state = states.first {
+                if !force, state.songID == songID, abs(state.currentTime - time) < 5 { return }
+                let data = try JSONEncoder().encode(disc)
                 state.discData = data
                 state.songID = songID
+                state.currentTime = time
                 state.updatedAt = Date()
                 for duplicate in states.dropFirst() { context.delete(duplicate) }
             } else {
-                context.insert(ListeningLoadedDiscState(discData: data, songID: songID))
+                let data = try JSONEncoder().encode(disc)
+                context.insert(ListeningLoadedDiscState(discData: data, songID: songID, currentTime: time))
             }
             try context.save()
         } catch {}
@@ -258,7 +271,7 @@ private let listeningCatalogFetchConcurrency = 4
         switch playbackState {
         case let .ready(_, _, time, _), let .playing(_, _, time, _), let .paused(_, _, time, _): time
         case let .finished(_, _, duration): duration ?? 0
-        default: 0
+        default: persistedPlaybackTime
         }
     }
     private func updateTimeText() {
@@ -490,33 +503,40 @@ private let listeningCatalogFetchConcurrency = 4
         // Cached complete snapshots stay visible while stale ones revalidate. Core
         // refresh work is collected into one network pass and one persistence batch.
         let now = Date()
-        let fullIDs = ids.filter { id in
+        var orderedIDs = ids
+        if case let .artist(selectedID) = browser.scope, let idx = orderedIDs.firstIndex(of: selectedID) {
+            orderedIDs.remove(at: idx)
+            orderedIDs.insert(selectedID, at: 0)
+        }
+        let fullIDs = orderedIDs.filter { id in
             if force { return true }
             guard let snapshot = snapshotsByID[id] else { return true }
             return ListeningCatalogRefreshPolicy.shouldRefresh(fetchedAt: snapshot.fetchedAt, now: now)
         }
         if !fullIDs.isEmpty {
-            let fullResults = await fetchFullCatalog(for: fullIDs)
+            _ = await fetchFullCatalog(for: fullIDs) { [weak self] batchValues in
+                guard let self, generation == self.catalogGeneration, !Task.isCancelled else { return }
+                var batchPayloads: [ListeningArtistCatalogPayload] = []
+                for result in batchValues {
+                    if let payload = result.payload, !result.failed {
+                        batchPayloads.append(payload)
+                    } else {
+                        failedIDs.insert(result.artistID)
+                    }
+                }
+                if !batchPayloads.isEmpty {
+                    do {
+                        let persistedIDs = try await self.catalogStore.persistArtistCatalogBatch(batchPayloads)
+                        failedIDs.subtract(persistedIDs)
+                    } catch {
+                        failedIDs.formUnion(batchPayloads.map(\.artistID))
+                    }
+                    guard generation == self.catalogGeneration, !Task.isCancelled else { return }
+                    try? self.rebuildDiscs()
+                    if !self.discs.isEmpty { self.catalogState = .ready }
+                }
+            }
             guard generation == catalogGeneration, !Task.isCancelled else { return }
-
-            var successfulPayloads: [ListeningArtistCatalogPayload] = []
-            for result in fullResults {
-                guard let payload = result.payload, !result.failed else {
-                    failedIDs.insert(result.artistID)
-                    continue
-                }
-                successfulPayloads.append(payload)
-            }
-
-            if !successfulPayloads.isEmpty {
-                do {
-                    let persistedIDs = try await catalogStore.persistArtistCatalogBatch(successfulPayloads)
-                    failedIDs.subtract(persistedIDs)
-                } catch {
-                    failedIDs.formUnion(successfulPayloads.map(\.artistID))
-                }
-                guard generation == catalogGeneration, !Task.isCancelled else { return }
-            }
         }
 
         do {
@@ -530,7 +550,10 @@ private let listeningCatalogFetchConcurrency = 4
         }
     }
 
-    private func fetchFullCatalog(for artistIDs: [String]) async -> [ListeningFullCatalogFetch] {
+    private func fetchFullCatalog(
+        for artistIDs: [String],
+        onBatchPersisted: (([ListeningFullCatalogFetch]) async -> Void)? = nil
+    ) async -> [ListeningFullCatalogFetch] {
         let service = catalogService
         let fetchedAt = Date()
         var results: [ListeningFullCatalogFetch] = []
@@ -560,6 +583,9 @@ private let listeningCatalogFetchConcurrency = 4
                 return batchResults
             }
             results.append(contentsOf: values)
+            if let onBatchPersisted {
+                await onBatchPersisted(values)
+            }
             cursor = end
         }
         return results
@@ -868,9 +894,9 @@ private let listeningCatalogFetchConcurrency = 4
         // enrichment happens independently after the confirmation can dismiss.
         showCatalogKey = catalogKey(for: show)
         completedCatalogKey = nil
-        selectScope(.all)
         do {
             try rebuildDiscs()
+            selectScope(.artist(artist.id))
         } catch {
             catalogState = .cacheFailed
         }
@@ -887,6 +913,8 @@ private let listeningCatalogFetchConcurrency = 4
         stop()
         mechanism.restoreSeated(disc)
         trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+        persistedPlaybackTime = 0
+        pendingResumePosition = nil
         preparedDiscID = nil
         preparedSongID = nil
         playbackState = .idle
@@ -905,6 +933,8 @@ private let listeningCatalogFetchConcurrency = 4
             stop()
             try await mechanism.load(disc)
             trackIndex = songID.flatMap { id in disc.tracks.firstIndex { $0.id == id } } ?? 0
+            persistedPlaybackTime = 0
+            pendingResumePosition = nil
             preparedSongID = nil; playbackState = .idle; transportPlaybackState = .idle; transportPlaybackPhase = .stopped; trackBelongsToShow = true
             persistLoadedDisc()
             if autoplay { try await playCurrentTrack() }
@@ -930,6 +960,8 @@ private let listeningCatalogFetchConcurrency = 4
                 try await mechanism.closeForPlayback()
                 guard let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
                 trackIndex = index; trackBelongsToShow = true
+                persistedPlaybackTime = 0
+                pendingResumePosition = nil
                 persistLoadedDisc()
                 try await playCurrentTrack()
             }
@@ -949,11 +981,22 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = autoplay || isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex; trackBelongsToShow = true
+            persistedPlaybackTime = 0
+            pendingResumePosition = nil
             persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
     }
-    func manualDiscChanged() { guard !mechanism.isAutomatic else { return }; stop(); trackIndex = 0; trackBelongsToShow = true; preparedDiscID = nil; persistLoadedDisc() }
+    func manualDiscChanged() {
+        guard !mechanism.isAutomatic else { return }
+        stop()
+        trackIndex = 0
+        persistedPlaybackTime = 0
+        pendingResumePosition = nil
+        trackBelongsToShow = true
+        preparedDiscID = nil
+        persistLoadedDisc()
+    }
     func playPause() {
         guard mechanism.position == .seated, !mechanism.isAutomatic else { return }
         if !mechanism.isClosed {
@@ -1043,6 +1086,11 @@ private let listeningCatalogFetchConcurrency = 4
                 try next.stop()
                 return
             }
+            if let resume = pendingResumePosition, resume.songID == track.id, resume.time > 0 {
+                try next.seek(to: resume.time)
+                persistedPlaybackTime = resume.time
+                pendingResumePosition = nil
+            }
             preparedSongID = track.id; preparedSource = source
         }
         try await controller?.play()
@@ -1066,6 +1114,8 @@ private let listeningCatalogFetchConcurrency = 4
         let resume = isPlaying
         run { [self] in
             stop(); trackIndex = nextIndex
+            persistedPlaybackTime = 0
+            pendingResumePosition = nil
             persistLoadedDisc()
             if resume { try await playCurrentTrack() }
         }
@@ -1165,6 +1215,8 @@ private let listeningCatalogFetchConcurrency = 4
 
     private func applyTransportSample(_ sample: ListeningPlaybackSample) {
         transportPlaybackPhase = sample.phase
+        persistedPlaybackTime = max(0, sample.currentTime)
+        persistLoadedDisc(currentTime: sample.currentTime, force: !sample.isPlaying)
         completeSleevePlaybackIfNeeded()
         recordPlayingIfNeeded()
     }
@@ -1285,6 +1337,8 @@ private let listeningCatalogFetchConcurrency = 4
               let index = disc.tracks.firstIndex(where: { $0.id == songID }) else { return }
         if trackIndex != index {
             trackIndex = index
+            persistedPlaybackTime = 0
+            pendingResumePosition = nil
             recordedPlayingSongID = nil
             persistLoadedDisc()
         }
@@ -1292,7 +1346,11 @@ private let listeningCatalogFetchConcurrency = 4
     }
     func seek(_ time: TimeInterval) {
         guard time.isFinite, time >= 0 else { return }
-        do { try controller?.seek(to: time) }
+        do {
+            try controller?.seek(to: time)
+            persistedPlaybackTime = time
+            persistLoadedDisc(currentTime: time)
+        }
         catch { playbackError = BSLocalization.text("暂时无法播放") }
     }
     func setForeground(_ value: Bool) {

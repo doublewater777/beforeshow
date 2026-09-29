@@ -223,3 +223,4 @@ enum CompanionNameList {
         Set(normalized(lhs)) == Set(normalized(rhs))
     }
 }
+

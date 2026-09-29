@@ -20,11 +20,13 @@ final class ShowRecentListening {
 final class ListeningLoadedDiscState {
     var discData: Data
     var songID: String?
+    var currentTime: TimeInterval
     var updatedAt: Date
 
-    init(discData: Data, songID: String?, updatedAt: Date = Date()) {
+    init(discData: Data, songID: String?, currentTime: TimeInterval = 0, updatedAt: Date = Date()) {
         self.discData = discData
         self.songID = songID
+        self.currentTime = currentTime
         self.updatedAt = updatedAt
     }
 }

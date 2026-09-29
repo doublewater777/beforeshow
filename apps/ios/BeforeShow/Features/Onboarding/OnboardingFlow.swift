@@ -42,44 +42,98 @@ enum OnboardingPage: Int, CaseIterable, Identifiable {
         }
     }
 
-    var phaseText: String {
+    func phaseText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
         switch self {
-        case .beforeShow: BSLocalization.text("开场前")
-        case .listening: BSLocalization.text("听")
-        case .showDay: BSLocalization.text("现场当天")
-        case .afterShow: BSLocalization.text("散场以后")
-        case .start: BSLocalization.text("现在开始")
+        case .beforeShow: return BSLocalization.text("开场前")
+        case .listening: return BSLocalization.text("听")
+        case .showDay: return BSLocalization.text("现场当天")
+        case .afterShow: return BSLocalization.text("散场以后")
+        case .start:
+            if let snapshot {
+                let isPast = snapshot.showStartTime < Date()
+                return isPast
+                    ? BSLocalization.text("共同记忆")
+                    : BSLocalization.text("同行约定")
+            }
+            return BSLocalization.text("现在开始")
         }
     }
 
-    var title: String {
+    var phaseText: String { phaseText(for: nil) }
+
+    func title(for snapshot: CompanionInviteSnapshot? = nil) -> String {
         switch self {
-        case .beforeShow: BSLocalization.text("不用打开，也在靠近")
-        case .listening: BSLocalization.text("把歌听熟，把期待留给现场")
-        case .showDay: BSLocalization.text("重要的内容，抬手就能找到")
-        case .afterShow: BSLocalization.text("把这一晚，轻轻留住")
-        case .start: BSLocalization.text("从下一场开始，慢慢靠近")
+        case .beforeShow: return BSLocalization.text("不用打开，也在靠近")
+        case .listening: return BSLocalization.text("把歌听熟，把期待留给现场")
+        case .showDay: return BSLocalization.text("重要的内容，抬手就能找到")
+        case .afterShow: return BSLocalization.text("把这一晚，轻轻留住")
+        case .start:
+            if let snapshot {
+                let isPast = snapshot.showStartTime < Date()
+                return isPast
+                    ? BSLocalization.text("记录这场共同回忆")
+                    : BSLocalization.text("一起去现场")
+            }
+            return BSLocalization.text("从下一场开始，慢慢靠近")
         }
     }
 
-    var bodyText: String {
+    var title: String { title(for: nil) }
+
+    func bodyText(for snapshot: CompanionInviteSnapshot? = nil) -> String {
         switch self {
         case .listening:
-            BSLocalization.text("从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。")
+            return BSLocalization.text("从唱片柜选一张 CD，提前熟悉演出的歌，留下你想现场听的那一首。")
         case .beforeShow:
-            BSLocalization.text("主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。")
+            return BSLocalization.text("主屏幕和锁屏都替你数着那一天，再在几个值得记一下的节点轻轻提醒。")
         case .showDay:
-            BSLocalization.text("选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。")
+            return BSLocalization.text("选择一张演出流程、阵容安排或时间图片，保存到这场现场，需要时快速打开。")
         case .afterShow:
-            BSLocalization.text("照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。")
+            return BSLocalization.text("照片、视频和小记按现场阶段收在一起，散场时再用五档情绪评价，为这一晚收尾。")
         case .start:
-            BSLocalization.text("开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。")
+            if let snapshot {
+                let isPast = snapshot.showStartTime < Date()
+                if isPast {
+                    return BSLocalization.format(
+                        "加入这场现场，和 %@ 一起收录当晚的照片、视频和小记，留住共同的现场记忆。",
+                        snapshot.ownerName
+                    )
+                } else {
+                    return BSLocalization.format(
+                        "加入这场现场，和 %@ 一起倒数、听歌、记录现场，散场后留住共同的记忆。",
+                        snapshot.ownerName
+                    )
+                }
+            }
+            return BSLocalization.text("开场前的期待、现场当天的重要内容和散场后的记忆，都收在同一场现场里。")
         }
     }
+
+    var bodyText: String { bodyText(for: nil) }
 }
 
 struct OnboardingFlowView: View {
+    @Environment(\.modelContext) private var modelContext
+    let invitedSnapshot: CompanionInviteSnapshot?
     let onCompleted: () -> Void
+
+    init(
+        invitedSnapshot: CompanionInviteSnapshot? = nil,
+        initialPage: OnboardingPage = .beforeShow,
+        onCompleted: @escaping () -> Void
+    ) {
+        self.invitedSnapshot = invitedSnapshot
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--onboarding-page-start") {
+            _page = State(initialValue: .start)
+        } else {
+            _page = State(initialValue: initialPage)
+        }
+        #else
+        _page = State(initialValue: initialPage)
+        #endif
+        self.onCompleted = onCompleted
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var page: OnboardingPage = .beforeShow
@@ -92,10 +146,29 @@ struct OnboardingFlowView: View {
 
             TabView(selection: $page) {
                 ForEach(OnboardingPage.allCases) { item in
-                    OnboardingPageView(page: item) {
-                        isShowingAddShow = true
-                        PostHogSDK.shared.capture("onboarding_add_show_tapped")
-                    }
+                    OnboardingPageView(
+                        page: item,
+                        invitedSnapshot: invitedSnapshot,
+                        onAddShow: {
+                            isShowingAddShow = true
+                            PostHogSDK.shared.capture("onboarding_add_show_tapped")
+                        },
+                        onJoinInvite: { _ in
+                            guard let snapshot = invitedSnapshot else { return (false, nil) }
+                            PostHogSDK.shared.capture(
+                                "onboarding_invite_accepted",
+                                properties: ["token": snapshot.token, "show": snapshot.showName]
+                            )
+                            let outcome = await CompanionInviteClipboardDetector.acceptDirectly(
+                                snapshot: snapshot,
+                                in: modelContext
+                            )
+                            if outcome.success {
+                                completeOnboarding(method: "invite_join")
+                            }
+                            return outcome
+                        }
+                    )
                     .tag(item)
                 }
             }
@@ -156,7 +229,7 @@ struct OnboardingFlowView: View {
                 Spacer()
 
                 Button(action: skipOnboarding) {
-                    Text(BSLocalization.text("跳过"))
+                    Text(invitedSnapshot != nil ? BSLocalization.text("暂不加入") : BSLocalization.text("跳过"))
                         .font(BSFont.caption)
                         .foregroundColor(BSColor.Stage.muted)
                         .frame(minWidth: 64, minHeight: BSLayout.minTouchTarget)
@@ -170,7 +243,9 @@ struct OnboardingFlowView: View {
             Spacer()
 
             HStack(spacing: BSSpacing.md) {
-                pageIndicator
+                if invitedSnapshot == nil {
+                    pageIndicator
+                }
                 Spacer()
                 if page != .start {
                     Button(BSLocalization.text("继续"), action: advance)
@@ -217,6 +292,9 @@ struct OnboardingFlowView: View {
     }
 
     private func skipOnboarding() {
+        if let snapshot = invitedSnapshot {
+            CompanionInviteClipboardDetector.markTokenProcessed(snapshot.token)
+        }
         PostHogSDK.shared.capture(
             "onboarding_skipped",
             properties: ["from_page": page.analyticsValue]
@@ -236,12 +314,17 @@ struct OnboardingFlowView: View {
 
 private struct OnboardingPageView: View {
     let page: OnboardingPage
+    var invitedSnapshot: CompanionInviteSnapshot? = nil
     let onAddShow: () -> Void
+    var onJoinInvite: ((String) async -> (success: Bool, errorMessage: String?))? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visualAppeared = false
     @State private var textAppeared = false
     @State private var bodyAppeared = false
+    @State private var nickname: String = CompanionUserProfile.nickname ?? ""
+    @State private var isJoining = false
+    @State private var joinErrorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -256,33 +339,38 @@ private struct OnboardingPageView: View {
                 case .afterShow:
                     OnboardingMemoryFeatureVisual()
                 case .start:
-                    OnboardingStartFeatureVisual()
+                    if let snapshot = invitedSnapshot {
+                        OnboardingInvitedFeatureVisual(snapshot: snapshot)
+                    } else {
+                        OnboardingStartFeatureVisual()
+                    }
                 }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: page == .start ? 405 : 430)
+            .frame(height: page == .start ? (invitedSnapshot != nil ? 340 : 405) : 430)
             .scaleEffect(visualAppeared ? 1 : 0.92)
             .opacity(visualAppeared ? 1 : 0)
 
             Spacer(minLength: 0)
 
-            Text(page.phaseText)
+            Text(page.phaseText(for: invitedSnapshot))
                 .font(.system(size: 11, weight: .bold))
                 .tracking(1.3)
                 .foregroundColor(BSColor.Stage.accent)
                 .opacity(textAppeared ? 1 : 0)
                 .offset(y: textAppeared ? 0 : 12)
 
-            Text(page.title)
-                .font(.custom("Songti SC", size: page == .start ? 36 : 32, relativeTo: .largeTitle))
+            Text(page.title(for: invitedSnapshot))
+                .font(.custom("Songti SC", size: (page == .start && invitedSnapshot != nil) ? 28 : (page == .start ? 36 : 32), relativeTo: .largeTitle))
                 .foregroundColor(BSColor.Stage.foreground)
                 .lineSpacing(3)
+                .lineLimit(page == .start && invitedSnapshot != nil ? 2 : nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 9)
                 .opacity(textAppeared ? 1 : 0)
                 .offset(y: textAppeared ? 0 : 12)
 
-            Text(page.bodyText)
+            Text(page.bodyText(for: invitedSnapshot))
                 .font(.system(size: 13))
                 .foregroundColor(BSColor.Stage.muted)
                 .lineSpacing(5)
@@ -292,15 +380,90 @@ private struct OnboardingPageView: View {
                 .offset(y: bodyAppeared ? 0 : 10)
 
             if page == .start {
-                Button(BSLocalization.text("添加我的第一个现场"), action: onAddShow)
-                    .buttonStyle(BSPrimaryButtonStyle())
-                    .padding(.top, 26)
+                if let _ = invitedSnapshot {
+                    VStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text(BSLocalization.text("你的称呼"))
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(BSColor.Stage.foreground)
+                                Text(BSLocalization.text("· 同行成员可见，可选"))
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(BSColor.Stage.dim)
+                            }
+                            HStack(spacing: 10) {
+                                Image(systemName: "person.circle.fill")
+                                    .font(.system(size: 18))
+                                    .foregroundStyle(BSColor.Stage.accent)
+                                TextField(BSLocalization.text("输入你的昵称"), text: $nickname)
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(BSColor.Stage.foreground)
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(BSColor.Stage.surfaceRaised.opacity(0.8), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(BSColor.Stage.border))
+                        }
+
+                        if let joinErrorMessage {
+                            Text(joinErrorMessage)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Button {
+                            guard !isJoining else { return }
+                            isJoining = true
+                            joinErrorMessage = nil
+                            let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !trimmed.isEmpty {
+                                CompanionUserProfile.nickname = trimmed
+                            }
+                            Task {
+                                if let onJoinInvite {
+                                    let result = await onJoinInvite(trimmed)
+                                    if !result.success {
+                                        joinErrorMessage = result.errorMessage
+                                        isJoining = false
+                                    }
+                                }
+                            }
+                        } label: {
+                            if isJoining {
+                                ProgressView()
+                                    .tint(.black)
+                                    .frame(maxWidth: .infinity)
+                            } else {
+                                Text(BSLocalization.text("接受邀请，进入现场"))
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                        .buttonStyle(BSPrimaryButtonStyle())
+                        .disabled(isJoining)
+
+                        Button(action: onAddShow) {
+                            Text(BSLocalization.text("或者，添加我自己的现场"))
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(BSColor.Stage.muted)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 2)
+                    }
+                    .padding(.top, 16)
                     .opacity(bodyAppeared ? 1 : 0)
                     .offset(y: bodyAppeared ? 0 : 10)
+                } else {
+                    Button(BSLocalization.text("添加我的第一个现场"), action: onAddShow)
+                        .buttonStyle(BSPrimaryButtonStyle())
+                        .padding(.top, 26)
+                        .opacity(bodyAppeared ? 1 : 0)
+                        .offset(y: bodyAppeared ? 0 : 10)
+                }
             }
         }
         .padding(.horizontal, 22)
-        .padding(.top, 58)
+        .padding(.top, (page == .start && invitedSnapshot != nil) ? 44 : 58)
         .padding(.bottom, BSSpacing.xl * 3 + BSSpacing.sm)
         .accessibilityElement(children: .contain)
         .onAppear { runEntrance() }
@@ -317,16 +480,16 @@ private struct OnboardingPageView: View {
         visualAppeared = false
         textAppeared = false
         bodyAppeared = false
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.85)) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             visualAppeared = true
         }
         Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(120))
-            withAnimation(.easeOut(duration: 0.35)) {
+            try? await Task.sleep(for: .milliseconds(40))
+            withAnimation(.easeOut(duration: 0.25)) {
                 textAppeared = true
             }
-            try? await Task.sleep(for: .milliseconds(100))
-            withAnimation(.easeOut(duration: 0.3)) {
+            try? await Task.sleep(for: .milliseconds(40))
+            withAnimation(.easeOut(duration: 0.2)) {
                 bodyAppeared = true
             }
         }

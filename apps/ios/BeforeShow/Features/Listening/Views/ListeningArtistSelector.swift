@@ -48,19 +48,29 @@ struct ListeningArtistSelector: View {
     let onConnect: (Int, String) -> Void
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: BSSpacing.sm) {
-                allItem
-                ForEach(artists) { artist in
-                    ListeningArtistSelectorItem(
-                        artist: artist,
-                        isSelected: artist.isConnected && selection == .artist(artist.id),
-                        onSelect: { select(.artist(artist.id)) },
-                        onConnect: { onConnect(artist.slotIndex, artist.name) }
-                    )
+        ScrollViewReader { proxy in
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: BSSpacing.sm) {
+                    allItem
+                        .id("all")
+                    ForEach(artists) { artist in
+                        ListeningArtistSelectorItem(
+                            artist: artist,
+                            isSelected: artist.isConnected && selection == .artist(artist.id),
+                            onSelect: { select(.artist(artist.id)) },
+                            onConnect: { onConnect(artist.slotIndex, artist.name) }
+                        )
+                        .id(artist.id)
+                    }
+                }
+                .padding(.top, BSSpacing.sm)
+            }
+            .onChange(of: selection) { _, scope in
+                switch scope {
+                case .all: proxy.scrollTo("all", anchor: .leading)
+                case let .artist(id): proxy.scrollTo(id, anchor: .center)
                 }
             }
-            .padding(.top, BSSpacing.sm)
         }
         .animation(BSListeningTokens.selectionAnimation, value: selection)
         .accessibilityIdentifier("listening.artistSelector")

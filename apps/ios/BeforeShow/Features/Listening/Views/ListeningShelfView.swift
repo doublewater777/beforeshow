@@ -25,16 +25,23 @@ struct ListeningShelfView<Content: View>: View {
     }
 
     private var hasVisibleHeaderContent: Bool {
-        title != nil || showsCount || showsCurrentDisc
+        title != nil || showsCount || showsCurrentDisc || isLoading
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if hasVisibleHeaderContent {
                 HStack(spacing: BSSpacing.sm) {
-                    titleLabel
-                    if showsCount {
-                        countLabel
+                    if isLoading && !showsCount && title == nil {
+                        RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+                            .fill(BSColor.Stage.surfaceRaised)
+                            .frame(width: 68, height: 11)
+                            .listeningShimmer()
+                    } else {
+                        titleLabel
+                        if showsCount {
+                            countLabel
+                        }
                     }
                     Spacer(minLength: 0)
                     if showsCurrentDisc {

@@ -36,6 +36,11 @@ xcodebuild -project BeforeShow.xcodeproj -scheme BeforeShow \
 - `RootView.swift`、`AddShowFlowViews.swift`、`FootprintsArchive.swift`、`FootprintArchiveViews.swift`、`MemoryFragmentsView.swift` 等 legacy hotspot 原则上只缩不涨；先运行 `python3 apps/ios/scripts/check_architecture.py`。
 - 新增/移动 Swift 源文件后，以 `apps/ios/project.yml` 为真源运行 `xcodegen generate`，并提交生成后的 `BeforeShow.xcodeproj`；不要只手改 pbxproj。
 
+## Git commit 规范
+
+- 每个 commit subject 必须以当前 App 版本开头：`<major.minor.patch>: <描述>`，版本以 `apps/ios/project.yml` 的 `MARKETING_VERSION` 为准。
+- 新 clone 后运行 `./scripts/setup-hooks.sh` 安装校验 hook。详细规则见 `docs/agents/commit-convention.md`。
+
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.

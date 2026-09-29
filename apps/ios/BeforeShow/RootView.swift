@@ -4,12 +4,14 @@ extension UUID: @retroactive Identifiable { public var id: UUID { self } }
 struct RootView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(CompanionSharingCoordinator.self) private var companionCoordinator
     @Query private var rootShows: [Show]
     @AppStorage(OnboardingCompletionStore.appStorageKey) private var hasCompletedOnboarding = false
     @State private var hasFinishedSplash = false
     @State private var hasResolvedOnboardingRoute = false
     @State private var isShowingOnboarding = false
+    @State private var invitedSnapshot: CompanionInviteSnapshot?
     @State private var selectedTab: BeforeShowTab = .current
     @StateObject private var proOfferRouter = ProOfferDeepLinkRouter.shared
     @StateObject private var notificationRouter = NotificationDeepLinkRouter.shared
@@ -27,8 +29,11 @@ struct RootView: View {
 
             if hasFinishedSplash, hasResolvedOnboardingRoute {
                 if isShowingOnboarding {
-                    OnboardingFlowView(onCompleted: completeOnboarding)
-                        .transition(.opacity)
+                    OnboardingFlowView(
+                        invitedSnapshot: invitedSnapshot,
+                        onCompleted: completeOnboarding
+                    )
+                    .transition(.opacity)
                 } else {
                     mainTabView
                         .transition(.opacity)
@@ -53,6 +58,15 @@ struct RootView: View {
         .onChange(of: notificationRouter.featureRootDeepLink) { _, deepLink in
             guard deepLink != nil else { return }
             selectedTab = .current
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, isShowingOnboarding, invitedSnapshot == nil else { return }
+            invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
+        }
+        .onOpenURL { _ in
+            if isShowingOnboarding {
+                invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
+            }
         }
         .onChange(of: rootShows.map(\.id)) { _, _ in
             if isShowingOnboarding, !rootShows.isEmpty {
@@ -122,10 +136,15 @@ struct RootView: View {
             hasCompleted: hasCompletedOnboarding,
             hasShows: hasShows
         )
+        if isShowingOnboarding && invitedSnapshot == nil {
+            invitedSnapshot = CompanionInviteClipboardDetector.activeFirstTimeInvite()
+        }
         hasResolvedOnboardingRoute = true
     }
     private func completeOnboarding() {
         hasCompletedOnboarding = true
+        invitedSnapshot = nil
+        CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
         if reduceMotion {
             isShowingOnboarding = false
         } else {

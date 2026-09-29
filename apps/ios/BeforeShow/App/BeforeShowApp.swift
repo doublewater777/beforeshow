@@ -112,7 +112,15 @@ struct BeforeShowApp: App {
                     .environment(\.locale, languageController.language.locale)
                     .onOpenURL { url in
                         CompanionDebugLog.write("onOpenURL received: \(url)")
-                        if let shareURL = CompanionInviteWebLink.shareURL(from: url) {
+                        if let token = CompanionInviteWebLink.token(from: url),
+                           let snapshot = CompanionInviteWebLink.decodeSnapshot(from: token) {
+                            CompanionInviteClipboardDetector.markTokenProcessed(snapshot.token)
+                            if !OnboardingCompletionStore.hasCompleted() {
+                                CompanionInviteClipboardDetector.setPendingFirstTimeInvite(snapshot)
+                            } else {
+                                appDelegate.deliverCompanionInviteURL(snapshot.shareURL)
+                            }
+                        } else if let shareURL = CompanionInviteWebLink.shareURL(from: url) {
                             CompanionDebugLog.write("onOpenURL resolved shareURL: \(shareURL)")
                             appDelegate.deliverCompanionInviteURL(shareURL)
                         } else {

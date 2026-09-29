@@ -119,3 +119,16 @@ test("rejects invalid cover schemes or malformed cover URLs", () => {
   assert.equal(invite({ c: "not-a-url" }).status, 404);
   assert.equal(invite({ c: "https://" + "a".repeat(1025) }).status, 404);
 });
+
+test("includes Apple Smart App Banner, download guidance and deferred link copy support", async () => {
+  const response = invite();
+  const html = await response.text();
+  assert.equal(response.status, 200);
+  assert.match(html, /<meta name="apple-itunes-app" content="app-id=6780078298, app-argument=beforeshow:\/\/join\/[A-Za-z0-9_-]+">/);
+  assert.match(html, /class="download-hint"/);
+  assert.match(html, /下载后打开 App，将自动识别同行邀请/);
+  assert.match(html, /id="toast"/);
+  assert.match(html, /id="btn-open"/);
+  assert.match(html, /id="btn-download"/);
+  assert.match(html, /<script defer>/);
+});

@@ -31,6 +31,16 @@ struct ListeningDiscArtwork: View {
     var image = "listen_04_disc"
     @State private var artwork: UIImage?
 
+    private var artworkTaskID: String {
+        guard let disc else { return "empty" }
+        if let artworkURL = disc.artworkURL {
+            return "\(disc.id):\(artworkURL.absoluteString)"
+        }
+        let trackArtworks = disc.tracks.prefix(4).compactMap(\.artworkURL)
+            .map(\.absoluteString).joined(separator: "|")
+        return "\(disc.id):\(trackArtworks)"
+    }
+
     /// Compilation discs have no single cover; tile the first four track
     /// covers into one label image. Cached by track-artwork fingerprint.
     private static var mosaicCache: [String: UIImage] = [:]
@@ -117,15 +127,19 @@ struct ListeningDiscArtwork: View {
                 }
             }
         }
-        .task(id: disc?.artworkURL) {
+        .task(id: artworkTaskID) {
             artwork = nil
             if let url = disc?.artworkURL {
                 artwork = ShowCoverImageCache.shared.memoryImage(for: url)
                 if artwork == nil {
-                    artwork = await ShowCoverImageCache.shared.image(from: url)
+                    let loaded = await ShowCoverImageCache.shared.image(from: url)
+                    guard !Task.isCancelled else { return }
+                    artwork = loaded
                 }
             } else if let disc, !disc.tracks.isEmpty {
-                artwork = await Self.mosaic(for: disc)
+                let loaded = await Self.mosaic(for: disc)
+                guard !Task.isCancelled else { return }
+                artwork = loaded
             }
         }
     }

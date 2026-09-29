@@ -17,6 +17,7 @@
 		0680B0F4DCCA5ED3CA8201A2 /* WidgetCoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */; };
 		07B1F339FC61072AEBA2FAB2 /* AppPersistenceReconciliation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7DB76310DD4929CC103E58C4 /* AppPersistenceReconciliation.swift */; };
 		07C0EA46C1F8E7885EDDFD19 /* FootprintsPreparationFingerprint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142D6FF534748E4505E129C6 /* FootprintsPreparationFingerprint.swift */; };
+		089E4AE16BAE63D0C224D429 /* CompanionInviteClipboardDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */; };
 		09365F14EBA065FD0A4F97AC /* AddShowPresentationPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E5AE849B71AA6655E6FB971 /* AddShowPresentationPrimitives.swift */; };
 		0958413B1EBA7C70B5F3E713 /* ListeningMVPTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4344E7B4300303BA6DDB2394 /* ListeningMVPTests.swift */; };
 		0A42CFCBE7188D24E0CE5A36 /* NotificationDeepLinkRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA6C4B7FFF6712CA20842022 /* NotificationDeepLinkRouting.swift */; };
@@ -147,6 +148,7 @@
 		5880687D481438E484C94EE6 /* CurrentShowRoutePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73053A1EE3EC823DA417ED53 /* CurrentShowRoutePresentation.swift */; };
 		590AD362655C01C1A9056B06 /* FootprintListeningCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C8C06124D91132FD82DDA72 /* FootprintListeningCoordinator.swift */; };
 		5A1CC11D92DF256A2D84EEE6 /* SystemChromePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C70DA36E2EB64D29AC07D548 /* SystemChromePresentation.swift */; };
+		5A4F1B6A0A290D1F539A8ADC /* CompanionInviteSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C384260FC7AA738C210909E6 /* CompanionInviteSnapshot.swift */; };
 		5A8AF2CF74CA5D6E9A78E2B4 /* WidgetCoverCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC88B131340D8D75A67FC768 /* WidgetCoverCache.swift */; };
 		5B10F91532DCC87F2DDB6906 /* CompanionShowSnapshotMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F4DE3BE0AB2B372B23292EE /* CompanionShowSnapshotMapping.swift */; };
 		5BB2F65C49A077E5B8BAD207 /* CurrentShowTimeState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B39A4E64872B01B1D5ACD2C /* CurrentShowTimeState.swift */; };
@@ -206,6 +208,7 @@
 		78DC84EEE8C71AE64183C5EE /* ListeningArtistAutoMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1F7DED41A2790417B8D0D1F /* ListeningArtistAutoMatcher.swift */; };
 		79D5BBA0276F7E8DA6028BE8 /* AddShowLinkGuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A27C18335AB22DD2DC6125 /* AddShowLinkGuideView.swift */; };
 		7A4FD815906270BF7F93ABFC /* FootprintArchiveShareView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB238DE7025A11BB76DEF6DA /* FootprintArchiveShareView.swift */; };
+		7A5A4DBFD140EB1F3BDD5BE3 /* OnboardingInvitedFeatureVisual.swift in Sources */ = {isa = PBXBuildFile; fileRef = 355C795ED030DE29F3C9BE98 /* OnboardingInvitedFeatureVisual.swift */; };
 		7A9596E946899003C48A41C2 /* CountdownWidgetViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4598A90A4B87490D2AB557 /* CountdownWidgetViews.swift */; };
 		7AA5C464F3C8CDF98AC19407 /* ShowAsset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FD3CB707C012D15BB348F16 /* ShowAsset.swift */; };
 		7AC0F374DAC75CF25AA8C314 /* ListeningPlaybackEvidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28825F2026133D0AE686F4A7 /* ListeningPlaybackEvidenceTests.swift */; };
@@ -554,6 +557,7 @@
 		34CF6D590DEF8156778F112C /* BSListeningTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BSListeningTokens.swift; sourceTree = "<group>"; };
 		35188C47DA2B4ACD61C821E0 /* ShowDurationFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDurationFormatterTests.swift; sourceTree = "<group>"; };
 		3550DE7A98698B0C5F5B3B4C /* DispersalCeremonyShareCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DispersalCeremonyShareCard.swift; sourceTree = "<group>"; };
+		355C795ED030DE29F3C9BE98 /* OnboardingInvitedFeatureVisual.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingInvitedFeatureVisual.swift; sourceTree = "<group>"; };
 		35CC2BAD7E3B84E693900852 /* ListeningPlaybackEvidenceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningPlaybackEvidenceCoordinator.swift; sourceTree = "<group>"; };
 		3663A4B92234C3C03FCA88D1 /* DynamicCoverPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DynamicCoverPresentation.swift; sourceTree = "<group>"; };
 		38E5DDD2EE32C1C5BF52E6F3 /* ShowModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowModelTests.swift; sourceTree = "<group>"; };
@@ -780,6 +784,7 @@
 		BCBB6761F83BFF352A4DD6AC /* AppAudioSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAudioSessionTests.swift; sourceTree = "<group>"; };
 		BD217DE3AC69E31853F5E766 /* CurrentShowFollowUpView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CurrentShowFollowUpView.swift; sourceTree = "<group>"; };
 		BDD1028D40AB669A224AAD6E /* ListeningPolishedBottomChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningPolishedBottomChrome.swift; sourceTree = "<group>"; };
+		BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteClipboardDetector.swift; sourceTree = "<group>"; };
 		BF4B90B473CDCFB195A19C4D /* ShowDraftScheduleFields.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShowDraftScheduleFields.swift; sourceTree = "<group>"; };
 		BFBD355DF5BEB3517877E6DA /* ListeningAtmosphere.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningAtmosphere.swift; sourceTree = "<group>"; };
 		BFFB6570A840BC166B92378E /* BeforeShowTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeforeShowTab.swift; sourceTree = "<group>"; };
@@ -792,6 +797,7 @@
 		C1F7DED41A2790417B8D0D1F /* ListeningArtistAutoMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningArtistAutoMatcher.swift; sourceTree = "<group>"; };
 		C266320392E096A6FE13737F /* zh-Hans */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = "zh-Hans"; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		C2DFA64D9D61B53101C4BCC2 /* CompanionDuplicateResolution.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionDuplicateResolution.swift; sourceTree = "<group>"; };
+		C384260FC7AA738C210909E6 /* CompanionInviteSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionInviteSnapshot.swift; sourceTree = "<group>"; };
 		C44BEEF212FB83909D3F65D1 /* DebugSampleShowSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugSampleShowSeeder.swift; sourceTree = "<group>"; };
 		C58CF37142574F557DA41813 /* CloudKitCompanionShareMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitCompanionShareMetadata.swift; sourceTree = "<group>"; };
 		C59A0670159D0CB9138FD56D /* Show.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Show.swift; sourceTree = "<group>"; };
@@ -1588,6 +1594,7 @@
 			children = (
 				3BF800B87B36281A2B5A5CCB /* OnboardingFeatureVisuals.swift */,
 				6ED93F5773988853D8947BBA /* OnboardingFlow.swift */,
+				355C795ED030DE29F3C9BE98 /* OnboardingInvitedFeatureVisual.swift */,
 				BB08896FA81055A8F714AF95 /* OnboardingListeningVisual.swift */,
 				508DB68B83B2097DF18FB49D /* SplashView.swift */,
 			);
@@ -1658,6 +1665,8 @@
 				0276B487D6C4F67AED69DD18 /* CompanionCloudSyncMarker.swift */,
 				C2DFA64D9D61B53101C4BCC2 /* CompanionDuplicateResolution.swift */,
 				671BADBA84FE87D2D9213398 /* CompanionFootprintShareView.swift */,
+				BEF0FCC8356474C5D5CD74BD /* CompanionInviteClipboardDetector.swift */,
+				C384260FC7AA738C210909E6 /* CompanionInviteSnapshot.swift */,
 				3024B522032E38EC1FE606A7 /* CompanionJoinConfirmationView.swift */,
 				A272356DFA9950AF4549F75D /* CompanionLiveCurrentPromptPolicy.swift */,
 				A9B3F47F506DE227D8261D8B /* CompanionPairFootprintView.swift */,
@@ -1874,6 +1883,8 @@
 				BB02C58579FECD8E3790B2AB /* CompanionCloudSyncMarker.swift in Sources */,
 				E2FEC32B5944F9E67ACE57C6 /* CompanionDuplicateResolution.swift in Sources */,
 				863F7FE63C668E81A3AB2B41 /* CompanionFootprintShareView.swift in Sources */,
+				089E4AE16BAE63D0C224D429 /* CompanionInviteClipboardDetector.swift in Sources */,
+				5A4F1B6A0A290D1F539A8ADC /* CompanionInviteSnapshot.swift in Sources */,
 				9447ACBCB75F87B540A28425 /* CompanionJoinConfirmationView.swift in Sources */,
 				A12E2920637EF57698C348D2 /* CompanionLiveCurrentPromptPolicy.swift in Sources */,
 				97093D91AA08B21571043597 /* CompanionPairFootprintView.swift in Sources */,
@@ -2065,6 +2076,7 @@
 				FC78E4E2F48A2B6BE9C4929B /* OnDeviceShowScreenshotRecognizer.swift in Sources */,
 				ED14AC1311DF7525CF149535 /* OnboardingFeatureVisuals.swift in Sources */,
 				F2BC1E7A7FBF5BD29809762E /* OnboardingFlow.swift in Sources */,
+				7A5A4DBFD140EB1F3BDD5BE3 /* OnboardingInvitedFeatureVisual.swift in Sources */,
 				8A9B338D067709070AA8D967 /* OnboardingListeningVisual.swift in Sources */,
 				2AC8D8C3CFC67227869E894A /* OpeningFamiliarityCoordinator.swift in Sources */,
 				D14AE36C3E04681E8F3C9236 /* OpeningMemoryWindow.swift in Sources */,
@@ -2346,7 +2358,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;
@@ -2407,7 +2419,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_STYLE = Automatic;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 23;
+				CURRENT_PROJECT_VERSION = 24;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				DEVELOPMENT_LANGUAGE = "zh-Hans";
 				DEVELOPMENT_TEAM = 29C8MS76CZ;

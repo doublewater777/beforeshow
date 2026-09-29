@@ -1280,6 +1280,94 @@ final class CompanionSharingTests: XCTestCase {
         XCTAssertEqual(CompanionFootprintShareTokens.renderSize.height, 480)
         XCTAssertEqual(CompanionFootprintShareTokens.renderScale, 3)
     }
+
+    func testExtractSnapshotFromWebURLWithWeChatQueryParams() throws {
+        let shareURL = try XCTUnwrap(URL(string: "https://www.icloud.com/share/test12345"))
+        let show = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "草东没有派对",
+            showDate: Date(timeIntervalSince1970: 1_792_324_800),
+            showStartTime: Date(timeIntervalSince1970: 1_792_324_800),
+            city: "上海",
+            venueName: "MAO Livehouse"
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: shareURL,
+            show: show,
+            ownerName: "Alex"
+        ))
+
+        // Simulate WeChat appending query params
+        let wechatURLString = "\(webURL.absoluteString)?from=singlemessage&isappinstalled=0"
+        let snapshot = try XCTUnwrap(CompanionInviteWebLink.extractSnapshot(from: wechatURLString))
+
+        XCTAssertEqual(snapshot.showName, "草东没有派对")
+        XCTAssertEqual(snapshot.ownerName, "Alex")
+        XCTAssertEqual(snapshot.location, "MAO Livehouse · 上海")
+        XCTAssertEqual(snapshot.shareURL, shareURL)
+    }
+
+    func testExtractSnapshotFromAppSchemeAndPastedMessage() throws {
+        let shareURL = try XCTUnwrap(URL(string: "https://www.icloud.com/share/test12345"))
+        let show = CompanionShowSnapshot(
+            showID: UUID().uuidString,
+            showName: "草东没有派对",
+            showDate: Date(timeIntervalSince1970: 1_792_324_800),
+            showStartTime: Date(timeIntervalSince1970: 1_792_324_800)
+        )
+        let webURL = try XCTUnwrap(CompanionInviteWebLink.make(
+            from: shareURL,
+            show: show,
+            ownerName: "Alex"
+        ))
+        let token = try XCTUnwrap(CompanionInviteWebLink.token(from: webURL))
+
+        // Custom app scheme
+        let appSchemeString = "beforeshow://join/\(token)"
+        let appSnapshot = try XCTUnwrap(CompanionInviteWebLink.extractSnapshot(from: appSchemeString))
+        XCTAssertEqual(appSnapshot.showName, "草东没有派对")
+
+        // Pasted chat message containing URL
+        let chatMessage = "一起来看演唱会吧！\(webURL.absoluteString) 复制到浏览器打开"
+        let chatSnapshot = try XCTUnwrap(CompanionInviteWebLink.extractSnapshot(from: chatMessage))
+        XCTAssertEqual(chatSnapshot.token, token)
+        XCTAssertEqual(chatSnapshot.showName, "草东没有派对")
+    }
+
+    @MainActor
+    func testClipboardDetectorTokenProcessingAndFirstTimeInvite() {
+        let suiteName = "CompanionClipboardTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let token = "test-token-12345"
+        XCTAssertFalse(CompanionInviteClipboardDetector.isTokenProcessed(token, userDefaults: defaults))
+
+        CompanionInviteClipboardDetector.markTokenProcessed(token, userDefaults: defaults)
+        XCTAssertTrue(CompanionInviteClipboardDetector.isTokenProcessed(token, userDefaults: defaults))
+
+        CompanionInviteClipboardDetector.clearProcessedToken(userDefaults: defaults)
+        XCTAssertFalse(CompanionInviteClipboardDetector.isTokenProcessed(token, userDefaults: defaults))
+
+        let snapshot = CompanionInviteSnapshot(
+            token: token,
+            shareURL: URL(string: "https://www.icloud.com/share/test")!,
+            showName: "草东没有派对",
+            showStartTime: Date(),
+            timeZoneIdentifier: nil,
+            timeZoneSecondsFromGMT: nil,
+            location: nil,
+            ownerName: "Alex",
+            coverImageURL: nil
+        )
+        CompanionInviteClipboardDetector.setPendingFirstTimeInvite(snapshot)
+        XCTAssertEqual(CompanionInviteClipboardDetector.activeFirstTimeInvite(userDefaults: defaults)?.token, token)
+
+        CompanionInviteClipboardDetector.markTokenProcessed(token, userDefaults: defaults)
+        XCTAssertNil(CompanionInviteClipboardDetector.activeFirstTimeInvite(userDefaults: defaults))
+
+        CompanionInviteClipboardDetector.setPendingFirstTimeInvite(nil)
+    }
 }
 
 // MARK: - Helpers

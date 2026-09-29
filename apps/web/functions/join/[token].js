@@ -81,6 +81,9 @@ function copyFor(request, invite) {
       open: "Open in BeforeShow",
       openInBrowser: "Open in Browser",
       download: "Download BeforeShow",
+      downloadHint: "Open BeforeShow after installing to join automatically",
+      copiedToast: "Invite copied! Open BeforeShow after installing to join",
+      notInstalledToast: "BeforeShow not detected. Invite copied, please download from App Store",
       wechatTip: "Tap ··· at top right and choose \"Open in Browser\"",
       note: "Confirm in BeforeShow to join",
     },
@@ -91,6 +94,9 @@ function copyFor(request, invite) {
       open: "在 BeforeShow 中開啟",
       openInBrowser: "在瀏覽器中開啟",
       download: "下載 BeforeShow",
+      downloadHint: "下載後打開 App，將自動識別同行邀請",
+      copiedToast: "已複製同行邀請，下載打開 App 即可直接加入",
+      notInstalledToast: "未檢測到 App，已複製邀請，請前往 App Store 下載",
       wechatTip: "點擊右上角「···」，選擇在瀏覽器中開啟",
       note: "在 App 內確認後加入同行",
     },
@@ -101,6 +107,9 @@ function copyFor(request, invite) {
       open: "在 BeforeShow 中打开",
       openInBrowser: "在浏览器中打开",
       download: "下载 BeforeShow",
+      downloadHint: "下载后打开 App，将自动识别同行邀请",
+      copiedToast: "已复制同行邀请，下载打开 App 即可直接加入",
+      notInstalledToast: "未检测到 App，已复制邀请，请前往 App Store 下载",
       wechatTip: "点击右上角「···」，选择在浏览器中打开",
       note: "在 App 内确认后加入同行",
     },
@@ -143,6 +152,7 @@ export function onRequestGet({ request, params }) {
   <meta name="twitter:title" content="${escapeHTML(copy.title)}">
   <meta name="twitter:description" content="${escapeHTML(description)}">
   <meta name="twitter:image" content="${escapeHTML(shareImage)}">
+  <meta name="apple-itunes-app" content="app-id=6780078298, app-argument=${escapeHTML(deepLink)}">
   <link rel="icon" href="/app-icon.png" type="image/png">
   <link rel="apple-touch-icon" href="/app-icon.png">
   <style>
@@ -471,6 +481,56 @@ export function onRequestGet({ request, params }) {
       border-color: var(--border-strong);
     }
     .btn-icon { display: flex; flex-shrink: 0; }
+    .btn-highlight {
+      animation: pulseHighlight 1.5s ease-in-out infinite;
+    }
+    @keyframes pulseHighlight {
+      0%, 100% { border-color: var(--border); box-shadow: none; }
+      50% { border-color: var(--accent); box-shadow: 0 0 16px rgba(132, 191, 255, 0.4); }
+    }
+    .download-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--text-soft);
+      padding-top: 4px;
+      text-align: center;
+    }
+    .download-hint-icon {
+      color: var(--accent);
+      flex-shrink: 0;
+      display: flex;
+    }
+    .toast {
+      position: fixed;
+      bottom: calc(max(20px, env(safe-area-inset-bottom, 20px)) + 12px);
+      left: 50%;
+      transform: translateX(-50%) translateY(24px);
+      background: rgba(22, 22, 32, 0.94);
+      color: var(--text);
+      border: 1px solid var(--border-strong);
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      padding: 10px 18px;
+      border-radius: var(--radius-pill);
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.4;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease, transform 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+      z-index: 1000;
+      max-width: min(360px, 92vw);
+      text-align: center;
+    }
+    .toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
 
     /* Footer */
     .page-footer {
@@ -593,15 +653,22 @@ export function onRequestGet({ request, params }) {
       </div>
 
       <div class="ticket-action">
-        <a class="btn btn-primary" href="${isWechat ? "#wechat-guide" : escapeHTML(deepLink)}">
+        <a id="btn-open" class="btn btn-primary" href="${isWechat ? "#wechat-guide" : escapeHTML(deepLink)}">
           <svg class="btn-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           <span>${isWechat ? escapeHTML(copy.openInBrowser) : escapeHTML(copy.open)}</span>
         </a>
 
-        <a class="btn btn-secondary" href="${APP_STORE_URL}" target="_blank" rel="noopener">
+        <a id="btn-download" class="btn btn-secondary" href="${APP_STORE_URL}" target="_blank" rel="noopener">
           <svg class="btn-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
           <span>${escapeHTML(copy.download)}</span>
         </a>
+
+        <div class="download-hint">
+          <span class="download-hint-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          </span>
+          <span>${escapeHTML(copy.downloadHint)}</span>
+        </div>
       </div>
     </article>
 
@@ -622,6 +689,85 @@ export function onRequestGet({ request, params }) {
       </div>
     </div>
   </a>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script defer>
+    (function() {
+      var inviteUrl = ${JSON.stringify(canonical)};
+      var copiedToast = ${JSON.stringify(copy.copiedToast)};
+      var notInstalledToast = ${JSON.stringify(copy.notInstalledToast)};
+      var toastEl = document.getElementById("toast");
+      var toastTimer = null;
+
+      function showToast(text) {
+        if (!toastEl) return;
+        toastEl.textContent = text;
+        toastEl.classList.add("visible");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(function() {
+          toastEl.classList.remove("visible");
+        }, 2800);
+      }
+
+      function copyInviteText() {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(inviteUrl).catch(function() {
+            fallbackCopy(inviteUrl);
+          });
+        } else {
+          fallbackCopy(inviteUrl);
+        }
+      }
+
+      function fallbackCopy(text) {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try { document.execCommand("copy"); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+
+      var btnOpen = document.getElementById("btn-open");
+      var btnDownload = document.getElementById("btn-download");
+
+      if (btnDownload) {
+        btnDownload.addEventListener("click", function() {
+          copyInviteText();
+          showToast(copiedToast);
+        });
+      }
+
+      if (btnOpen) {
+        btnOpen.addEventListener("click", function() {
+          if (document.body.classList.contains("is-wechat")) {
+            return;
+          }
+          var hasNavigated = false;
+          function markNavigated() {
+            if (document.hidden) hasNavigated = true;
+          }
+          window.addEventListener("pagehide", markNavigated, { once: true });
+          document.addEventListener("visibilitychange", markNavigated);
+
+          setTimeout(function() {
+            document.removeEventListener("visibilitychange", markNavigated);
+            if (!hasNavigated && !document.hidden) {
+              copyInviteText();
+              showToast(notInstalledToast);
+              if (btnDownload) {
+                btnDownload.classList.add("btn-highlight");
+              }
+            }
+          }, 2000);
+        });
+      }
+    })();
+  </script>
 </body>
 </html>`;
   return new Response(html, {

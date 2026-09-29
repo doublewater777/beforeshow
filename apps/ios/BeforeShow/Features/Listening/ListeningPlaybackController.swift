@@ -284,6 +284,7 @@ final class ListeningPlaybackController {
     ) throws {
         stateMachine.handle(.progress(sample))
         publishState()
+        transportSampleDidChange(sample)
         ListeningRemoteCommandBridge.shared.update(controller: self, sample: sample)
         try recordEvidence(sample, now: now, handling: evidence)
     }

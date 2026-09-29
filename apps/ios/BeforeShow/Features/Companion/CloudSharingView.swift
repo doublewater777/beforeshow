@@ -87,21 +87,37 @@ enum CompanionInviteWebLink {
         return components.url
     }
 
-    static func shareURL(from webURL: URL) -> URL? {
-        let isWebLink = webURL.scheme?.lowercased() == "https"
-            && webURL.host?.lowercased() == host
-        let isAppLink = webURL.scheme?.lowercased() == "beforeshow"
-            && webURL.host?.lowercased() == "join"
-        guard isWebLink || isAppLink,
-              webURL.query == nil,
-              webURL.fragment == nil else { return nil }
-        let token: String
+    static func token(from url: URL) -> String? {
+        let isWebLink = url.scheme?.lowercased() == "https"
+            && url.host?.lowercased() == host
+        let isAppLink = url.scheme?.lowercased() == "beforeshow"
+            && url.host?.lowercased() == "join"
+        guard isWebLink || isAppLink else { return nil }
+        let rawToken: String
         if isWebLink {
-            guard webURL.path.hasPrefix(path) else { return nil }
-            token = String(webURL.path.dropFirst(path.count))
+            guard url.path.hasPrefix(path) else { return nil }
+            rawToken = String(url.path.dropFirst(path.count))
         } else {
-            token = String(webURL.path.dropFirst())
+            rawToken = String(url.path.dropFirst())
         }
+        guard !rawToken.isEmpty, rawToken.count < 8_192,
+              rawToken.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else {
+            return nil
+        }
+        return rawToken
+    }
+
+    static func shareURL(fromToken token: String) -> URL? {
+        guard let snapshot = decodeSnapshot(from: token) else { return nil }
+        return snapshot.shareURL
+    }
+
+    static func shareURL(from webURL: URL) -> URL? {
+        guard let token = token(from: webURL) else { return nil }
+        return shareURL(fromToken: token)
+    }
+
+    static func decodeSnapshot(from token: String) -> CompanionInviteSnapshot? {
         guard !token.isEmpty, token.count < 8_192,
               token.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else {
             return nil
@@ -118,7 +134,49 @@ enum CompanionInviteWebLink {
         else {
             return nil
         }
-        return shareURL
+        let owner = payload.o?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ownerDisplayName = (owner?.isEmpty == false) ? owner! : BSLocalization.text("朋友")
+        return CompanionInviteSnapshot(
+            token: token,
+            shareURL: shareURL,
+            showName: payload.n,
+            showStartTime: Date(timeIntervalSince1970: TimeInterval(payload.t)),
+            timeZoneIdentifier: payload.z,
+            timeZoneSecondsFromGMT: payload.s,
+            location: payload.l,
+            ownerName: ownerDisplayName,
+            coverImageURL: payload.c.flatMap(URL.init(string:))
+        )
+    }
+
+    static func extractToken(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        let pattern = #"(?:https://\#(host)\#(path)|beforeshow://join/)([A-Za-z0-9_-]{10,8191})"#
+        if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
+           let match = regex.firstMatch(in: trimmed, options: [], range: NSRange(trimmed.startIndex..., in: trimmed)),
+           let tokenRange = Range(match.range(at: 1), in: trimmed) {
+            return String(trimmed[tokenRange])
+        }
+
+        if let url = URL(string: trimmed), let token = token(from: url) {
+            return token
+        }
+
+        if trimmed.count >= 10 && trimmed.count < 8_192,
+           trimmed.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil {
+            if decodeSnapshot(from: trimmed) != nil {
+                return trimmed
+            }
+        }
+
+        return nil
+    }
+
+    static func extractSnapshot(from text: String) -> CompanionInviteSnapshot? {
+        guard let token = extractToken(from: text) else { return nil }
+        return decodeSnapshot(from: token)
     }
 
     private static func validShareURL(_ url: URL) -> Bool {

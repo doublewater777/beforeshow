@@ -826,6 +826,8 @@ final class ListeningAccessibilityTests: XCTestCase {
         XCTAssertEqual(show.artists[1].appleMusicArtistID, "new")
         XCTAssertEqual(show.artists[1].name, "New Artist")
         XCTAssertEqual(show.artists[1].appleMusicURL, candidate.appleMusicURL?.absoluteString)
+        XCTAssertEqual(room.browser.scope, .artist("new"))
+        XCTAssertEqual(room.browsingArtist?.name, "New Artist")
     }
 }
 @MainActor final class ListeningArtistPreferenceTests: XCTestCase {

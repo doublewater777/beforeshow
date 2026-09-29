@@ -92,22 +92,52 @@ struct MusicKitListeningCatalogService: ListeningMusicCatalogServicing {
             return song.id.rawValue
         })
 
-        var detailedAlbums: [DetailedAlbum] = []
-        for source in albumSources {
-            let detailed = try await source.album.with([.tracks, .artists])
-            let tracks = try await Self.allItems(from: detailed.tracks)
-            let songs = tracks.compactMap { track -> Song? in
-                guard case let .song(song) = track else { return nil }
-                return song
+        let detailedAlbums: [DetailedAlbum] = await withTaskGroup(
+            of: (Int, DetailedAlbum?).self,
+            returning: [DetailedAlbum].self
+        ) { group in
+            var results = [DetailedAlbum?](repeating: nil, count: albumSources.count)
+            var iterator = albumSources.enumerated().makeIterator()
+            let concurrency = 6
+
+            func enqueueNext() {
+                if let (index, source) = iterator.next() {
+                    group.addTask {
+                        do {
+                            let detailed = try await source.album.with([.tracks, .artists])
+                            let tracks = try await Self.allItems(from: detailed.tracks)
+                            let songs = tracks.compactMap { track -> Song? in
+                                guard case let .song(song) = track else { return nil }
+                                return song
+                            }
+                            return (index, DetailedAlbum(
+                                album: detailed,
+                                isCompilation: source.isCompilation,
+                                songs: songs
+                            ))
+                        } catch {
+                            return (index, nil)
+                        }
+                    }
+                }
             }
-            for song in songs {
+
+            for _ in 0..<min(concurrency, albumSources.count) {
+                enqueueNext()
+            }
+
+            while let (index, detailedAlbum) = await group.next() {
+                results[index] = detailedAlbum
+                enqueueNext()
+            }
+
+            return results.compactMap { $0 }
+        }
+
+        for detailedAlbum in detailedAlbums {
+            for song in detailedAlbum.songs {
                 baseSongsByID[song.id.rawValue] = song
             }
-            detailedAlbums.append(DetailedAlbum(
-                album: detailed,
-                isCompilation: source.isCompilation,
-                songs: songs
-            ))
         }
 
         let requestedSongIDs = Self.uniqueSongIDs(
