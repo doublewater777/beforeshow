@@ -1595,7 +1595,7 @@ First show: %@";
 "距离开场还有" = "Until the show starts";
 
 "添加同行" = "Add Companion";
-"邀请和你一起去的人加入这场同行。" = "Invite the people going with you to join this show.";
+"邀请朋友一起去这场现场。" = "Invite friends to go to this show with you.";
 "%lld 人同行" = "%lld Together";
 "同行，等待朋友加入" = "Companion · waiting for friends to join";
 "等待同行" = "Waiting for Friends";
