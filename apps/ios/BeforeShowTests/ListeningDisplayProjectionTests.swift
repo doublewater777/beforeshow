@@ -315,6 +315,47 @@ final class ListeningDisplayProjectionTests: XCTestCase {
         XCTAssertNil(projection.headerNotice?.recoveryAction)
     }
 
+    func testActiveFullCatalogTransportStaysFullWhenAccessCheckFailsWithoutPreview() {
+        let disc = ListeningDisc(
+            id: "active-full",
+            title: "Active Full",
+            artworkURL: nil,
+            tracks: [track("full-only", preview: false)]
+        )
+        let access = ListeningMusicAccess(
+            authorizationStatus: .authorized,
+            catalogPlaybackAccess: .accessCheckFailed
+        )
+        let projection = ListeningDisplayProjector.make(
+            page: .ready,
+            access: access,
+            isAuthorizing: false,
+            allDiscs: [disc],
+            libraryDiscs: [disc],
+            loadedDisc: disc,
+            isDiscSeated: true,
+            isLidClosed: true,
+            currentTrack: disc.tracks[0],
+            playbackState: .playing(
+                songID: "full-only",
+                source: .fullCatalog,
+                currentTime: 42,
+                duration: 180
+            ),
+            playbackError: nil
+        )
+
+        XCTAssertEqual(projection.roomMode, .fullPlayback)
+        XCTAssertEqual(projection.player.phase, .playing)
+        XCTAssertEqual(projection.player.source, .fullCatalog)
+        XCTAssertTrue(projection.player.canPlayPause)
+        XCTAssertEqual(projection.headerNotice?.recoveryAction, .retryAccess)
+        XCTAssertEqual(
+            projection.headerNotice?.message,
+            ListeningCopy.text("暂时无法确认之后的完整播放权限。")
+        )
+    }
+
     func testPreviewHeaderOffersRetryWhenPlaybackAccessCheckFails() {
         let disc = ListeningDisc(
             id: "retry-header",

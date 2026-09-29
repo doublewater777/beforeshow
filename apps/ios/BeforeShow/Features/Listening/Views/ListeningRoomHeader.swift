@@ -79,7 +79,14 @@ struct ListeningRoomHeader: View {
     private var headerStatus: some View {
         switch mode {
         case .fullPlayback:
-            EmptyView()
+            if notice != nil {
+                Button {
+                    showsExplanation = true
+                } label: {
+                    playbackModeStatus
+                }
+                .buttonStyle(BSListeningPressStyle(scale: 0.96))
+            }
         case .connecting:
             playbackModeStatus
         case .preview, .metadataOnly, .unavailable:

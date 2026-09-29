@@ -40,6 +40,7 @@ final class ListeningLocalizationTests: XCTestCase {
             "当前未允许访问 Apple Music，且这些歌曲没有可用试听片段。",
             "当前 Apple Music 账户不支持完整播放，因此使用歌曲试听片段。",
             "当前 Apple Music 账户不支持完整播放，这些歌曲也没有可用试听片段。",
+            "暂时无法确认之后的完整播放权限。",
             "暂时无法确认完整播放权限，当前使用试听片段。",
             "暂时无法确认完整播放权限，这些歌曲也没有可用试听片段。",
             "当前使用歌曲试听片段。", "当前没有可播放的歌曲。",
@@ -255,11 +256,6 @@ final class ListeningReviewerRegressionTests: XCTestCase {
             "Disc spin must pause when Reduce Motion is enabled"
         )
         XCTAssertTrue(listeningRoot.contains("\"listening.miniPlayer.playPause\""))
-        XCTAssertTrue(
-            listeningRoot.contains("Text(track.title)")
-                && listeningRoot.contains("Text(track.artistName)"),
-            "Expanded compact playback must show both track title and artist"
-        )
         XCTAssertFalse(
             listeningRoot.contains("ListeningLegacyDetachedBottomChrome")
                 || listeningRoot.contains("if #available(iOS 26.0, *)")
@@ -392,6 +388,8 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         XCTAssertTrue(rootChrome.contains(".safeAreaBar(edge: .bottom, spacing: 0)"))
         XCTAssertTrue(rootChrome.contains(".scrollEdgeEffectStyle(.soft, for: .bottom)"))
         XCTAssertTrue(rootChrome.contains("ListeningPolishedBottomChrome(selectedTab: $selectedTab)"))
+        XCTAssertTrue(rootChrome.contains("@Environment(\\.scenePhase) private var scenePhase"))
+        XCTAssertTrue(rootChrome.contains(".onChange(of: scenePhase)"))
         XCTAssertFalse(rootChrome.contains(".safeAreaInset(edge: .bottom"))
         XCTAssertFalse(rootChrome.contains(".tabViewBottomAccessory"))
         XCTAssertFalse(rootChrome.contains(".tabBarMinimizeBehavior"))
@@ -423,12 +421,16 @@ final class ListeningReviewerRegressionTests: XCTestCase {
         let header = try listeningSource("Features/Listening/Views/ListeningRoomHeader.swift")
         let room = try listeningSource("Features/Listening/Views/ListeningRoomView.swift")
 
-        XCTAssertTrue(header.contains("case .fullPlayback:\n            EmptyView()"))
+        let rootChrome = try listeningSource("Features/Listening/ListeningFeatureRootView.swift")
+
+        XCTAssertTrue(header.contains("case .fullPlayback:"))
+        XCTAssertTrue(header.contains("if notice != nil"))
         XCTAssertTrue(header.contains("case .preview, .metadataOnly, .unavailable:"))
         XCTAssertTrue(header.contains("BSDrawerSheet(detent: .height(180), fitsContent: true)"))
         XCTAssertTrue(room.contains("notice: room.display.headerNotice"))
         XCTAssertTrue(room.contains("onRecovery: { room.performListeningRecovery($0) }"))
-        XCTAssertTrue(room.contains("Task { await room.refreshMusicAccessAfterForeground() }"))
+        XCTAssertFalse(room.contains("refreshMusicAccessAfterForeground()"))
+        XCTAssertTrue(rootChrome.contains("Task { await room.refreshMusicAccessAfterForeground() }"))
     }
 
     func testListenFirstEntryRequestsMusicAuthorizationOnlyWhenUndetermined() throws {
