@@ -97,9 +97,10 @@ final class ListeningMiniPlayerChromeTests: XCTestCase {
         )
         let disc = ListeningDisc(
             id: "cold-disc",
-            title: "Cold Disc",
+            title: "热门合辑 01",
             artworkURL: nil,
-            tracks: [ListeningDiscTrack(song)]
+            tracks: [ListeningDiscTrack(song)],
+            origin: .compilation(showID: show.id, number: 1)
         )
         context.insert(
             ListeningLoadedDiscState(
