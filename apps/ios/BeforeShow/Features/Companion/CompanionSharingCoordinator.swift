@@ -546,9 +546,7 @@ final class CompanionSharingCoordinator {
             pendingJoinMetadataKey = nil
         }
         removePendingShare(key: key)
-        if action.continues {
-            continuePendingShareDrain(in: modelContext)
-        }
+        if action.continues { continuePendingShareDrain(in: modelContext) }
     }
 
     private func continuePendingShareDrain(in modelContext: ModelContext) {
@@ -586,6 +584,4 @@ final class CompanionSharingCoordinator {
             return .warning(CompanionSharingPresentation.membershipSyncWarning)
         }
     }
-
-
 }
