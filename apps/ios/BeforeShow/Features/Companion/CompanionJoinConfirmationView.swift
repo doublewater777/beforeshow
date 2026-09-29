@@ -185,12 +185,13 @@ struct CompanionPendingJoinHost: View {
                 let message = coordinator.consumePendingAcceptMessage()
                 _ = coordinator.consumePendingAcceptResult()
                 errorMessage = nil
-                isWorking = false
                 if let message {
                     completionMessage = message
+                    isWorking = false
                     dismissAfterInlineSuccess(message)
                 } else {
                     presentationState.beginSuccessfulDismissal()
+                    isWorking = false
                 }
             } else {
                 errorMessage = coordinator.consumeLastErrorMessage()
