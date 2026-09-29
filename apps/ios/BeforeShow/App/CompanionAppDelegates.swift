@@ -64,13 +64,13 @@ final class BeforeShowAppDelegate: NSObject, UIApplicationDelegate {
                 try await CloudKitCompanionSharingService().ensureAccountAvailable()
                 let metadata = try await CloudKitCompanionSharingService.fetchMetadataWithRootRecord(for: shareURL)
                 if let presentationGeneration,
-                   companionCoordinator?.invitePresentationGeneration != presentationGeneration {
+                   companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true {
                     return
                 }
                 deliverAcceptedShare(metadata, startsNewPresentation: false)
             } catch {
                 if let presentationGeneration,
-                   companionCoordinator?.invitePresentationGeneration != presentationGeneration {
+                   companionCoordinator?.isInvitePresentationActive(presentationGeneration) != true {
                     return
                 }
                 CompanionDebugLog.write("deliverCompanionInviteURL failed: \(error)")
