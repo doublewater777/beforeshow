@@ -269,7 +269,7 @@ struct CurrentShowCompanionSheet: View {
             BSStageSheetHeader(
                 icon: "person.2",
                 title: BSLocalization.text("等待朋友加入"),
-                subtitle: BSLocalization.text("邀请已经准备好了。朋友加入后，会出现在这里。")
+                subtitle: BSLocalization.text("朋友接受邀请后，会出现在这里。")
             )
 
             Button {
