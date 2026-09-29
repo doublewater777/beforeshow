@@ -205,17 +205,22 @@ struct CurrentShowHomeView: View {
             }
             .onChange(of: currentShow?.id, initial: true) { _, newShowID in
                 homeArrivalLifecycle.observeCurrentShow(newShowID)
-                Task { await requestNotificationPermissionIfEligible() }
             }
             .onChange(of: canStartHomeArrival, initial: true) { _, canStart in
                 guard canStart else { return }
                 beginPreparedHomeArrivalIfPossible()
+            }
+            .onChange(of: isPlaybackActive, initial: true) { _, isActive in
+                guard isActive else { return }
                 Task { await requestNotificationPermissionIfEligible() }
             }
             .onChange(of: scenePhase) {
                 if scenePhase == .active {
                     WidgetDataSync.sync(shows: shows, manualSelection: selections.first)
-                    Task { await reconcileNotificationPortfolio() }
+                    Task {
+                        await reconcileNotificationPortfolio()
+                        await requestNotificationPermissionIfEligible()
+                    }
                 }
             }
             .task {
@@ -295,9 +300,9 @@ struct CurrentShowHomeView: View {
         )
     }
 
-    /// 系统通知权限只在 Current Show 稳定可见时自动询问一次。
-    /// Add Show 结束录入后先完整 dismiss；这里用下一次 actor turn 重新确认页面仍然可见，
-    /// 不靠固定延时，也不会与其他 sheet / alert / onboarding 抢 presentation。
+    /// 系统通知权限只在用户自然进入 Current 或 App 下一次回到前台时自动询问一次。
+    /// 主事务（Add Show / 同行邀请 / 其他 presentation）关闭本身不触发权限请求，
+    /// 避免完成一个主要动作后立刻出现第二次确认。
     @MainActor
     private func requestNotificationPermissionIfEligible() async {
         guard !isRequestingNotificationPermission,
