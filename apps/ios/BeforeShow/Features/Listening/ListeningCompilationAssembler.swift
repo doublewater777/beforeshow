@@ -2,8 +2,8 @@ import Foundation
 
 /// Catalog order is the only ranking input. Packing never changes song order.
 enum ListeningCompilationAssembler {
-    static let maxDiscCount = 9
-    static let tracksPerArtistPerDisc = 2
+    static let maxDiscCount = 3
+    static let tracksPerArtistPerDisc = 6
     static let singleArtistTracksPerDisc = 10
     static let singleArtistMaxDiscCount = 3
 
