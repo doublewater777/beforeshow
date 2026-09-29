@@ -4,13 +4,13 @@ enum CompanionLiveCurrentPromptPolicy {
     static func shouldOffer(
         importResult: CompanionAcceptedImportResult,
         show: Show,
-        selectedShowID: UUID?,
+        currentShowID: UUID?,
         now: Date = Date()
     ) -> Bool {
         guard !importResult.becameCurrent,
               !importResult.wasHistorical,
-              let selectedShowID,
-              selectedShowID != show.id else {
+              let currentShowID,
+              currentShowID != show.id else {
             return false
         }
 
